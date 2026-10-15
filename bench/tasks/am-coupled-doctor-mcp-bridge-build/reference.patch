@@ -1,0 +1,26 @@
+diff --git a/clients/claude-code/doctor.go b/clients/claude-code/doctor.go
+index 38077b5..03de2bf 100644
+--- a/clients/claude-code/doctor.go
++++ b/clients/claude-code/doctor.go
+@@ -983,7 +983,7 @@ func reportServerBin(ctx context.Context, out io.Writer, kit agentKit, dir strin
+ 		if isBad {
+ 			bad++
+ 		}
+-		fmt.Fprintf(out, "  %-38s %-14s %-12s %s\n", "mcp bridge build", bv.kit, lbl, got)
++		fmt.Fprintf(out, "  %-38s %-14s %-12s %s\n", "Mcp bridge build", bv.kit, lbl, got)
+ 		if detail != "" {
+ 			fmt.Fprintf(out, "      | %s\n", detail)
+ 		}
+diff --git a/clients/claude-code/doctor_bridgebuild_test.go b/clients/claude-code/doctor_bridgebuild_test.go
+index edf56b6..a624160 100644
+--- a/clients/claude-code/doctor_bridgebuild_test.go
++++ b/clients/claude-code/doctor_bridgebuild_test.go
+@@ -126,7 +126,7 @@ func TestDoctorPrintsTheBridgeBuildRow(t *testing.T) {
+ 		if err != nil {
+ 			t.Fatalf("a bridge matching its server failed doctor: %v\n%s", err, report)
+ 		}
+-		if !strings.Contains(report, "mcp bridge build") {
++		if !strings.Contains(report, "Mcp bridge build") {
+ 			t.Errorf("no bridge-build row, so the comparison is unreachable from the command "+
+ 				"an operator actually runs:\n%s", report)
+ 		}

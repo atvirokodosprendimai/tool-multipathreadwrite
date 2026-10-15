@@ -21,7 +21,7 @@ README must be regenerated.
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
 | T1 | the selection rules in code | done | — | `go test ./internal/bench/ -run '^(TestAWideRename…)$'` |
-| T2 | the Stage 4 corpus, drawn by the registered rules | pending | — | `test … = 10 && … = 8 && … stage-4-tasks.txt …` |
+| T2 | the Stage 4 corpus, drawn by the registered rules | done | — | `test … = 10 && … = 8 && … stage-4-tasks.txt …` |
 | T3 | difficulty calibrated on A outside the sample, and harness pilots that choose nothing | pending | — | `go run ./cmd/bench verify --stage pilot …` |
 | T4 | Stage 4 on Sonnet 5.5 and Opus 5.5 | pending | — | `go run ./cmd/bench verify --stage stage4 …` |
 | T5 | Stage 4's verdicts in RESULTS.md, and one README sentence each | pending | — | `go run ./cmd/bench analyze --selection … docs/bench …` |

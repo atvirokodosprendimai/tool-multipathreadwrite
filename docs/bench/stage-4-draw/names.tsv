@@ -1,0 +1,14 @@
+WithTenant	ForTenancy
+configFromCmd	cfgFromCmdArg
+VectorBackend	EmbedderStore
+EvalOptions	EvalSetting
+defaultMCPURL	defaultMCPLoc
+memoryOf	memoryAt
+liveSurface	activeScope
+GetAnyVersion	FetchVersions
+KGStatusAll	KGStatusSum
+DerivedEdgeSubject	DerivedLinkSubject
+hookPlans	hookSteps
+homeDir	userDir
+Harness	Testbed
+jsonResult	jsonOutput

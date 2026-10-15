@@ -1,7 +1,6 @@
 package bench
 
 import (
-	"bufio"
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
@@ -14,6 +13,7 @@ import (
 	"io/fs"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -295,56 +295,132 @@ func words(s string) []string {
 	return out
 }
 
-// CoupledCandidate is one commit ADR-160's check-coupled predicate admits.
-type CoupledCandidate struct {
-	Commit, Parent string
-	Files          []string
-	Old, New       string // the literal's value before and after, unquoted
-	paired         bool   // Old and New are fixed; Old may be empty
+// CoupledLiteral is one literal ADR-160's check-coupled rule admits, as Zy
+// amended it on 2026-10-15 ("Construct from the tree"): the history held no
+// commit the first rule admitted.
+type CoupledLiteral struct {
+	File     string   // the non-test file holding it once, slash-separated from the module root
+	Old, New string   // its value, and the value with the first letter's case flipped
+	Tests    []string // the _test.go files of its directory that hold the same value
 }
 
-// MineCheckCoupled lists the commits reachable from commit in repo, merges
-// excluded, that ADR-160 Decision 1 admits as check-coupled tasks, in
-// registered order: at most maxFiles files, every one of them changed only by
-// replacing one string literal's text with another — the same pair in every
-// file — and among them a non-test .go file and a _test.go file in the same
-// directory. Whether the package's tests pass at the parent is T2's check.
-func MineCheckCoupled(repo, commit string, maxFiles int) ([]CoupledCandidate, error) {
-	out, err := gitOut(repo, "log", "-p", "--no-merges", "--no-renames", "--no-color", "--no-ext-diff", "-U0", "--format=%x00%H %P", commit)
+// MineCoupledLiterals lists the module's literals at root that ADR-160
+// Decision 1 admits as check-coupled tasks, in the order of sha256("adr-160:" +
+// path + ":" + value): a string literal in a non-test .go file — not an import
+// path, not a struct tag — starting with a letter whose case can flip,
+// appearing exactly once in that file and in no other non-test file of the
+// module, whose value a _test.go file in the same directory also holds as a
+// literal. Generated files, vendor, testdata and dot or underscore directories
+// are skipped, as for renames.
+func MineCoupledLiterals(root string) ([]CoupledLiteral, error) {
+	type lit struct{ file, dir string }
+	src := map[string][]lit{}             // value -> the non-test files holding it, once per occurrence
+	tests := map[string]map[string]bool{} // dir + "\x00" + value -> the test files holding it
+	fset := token.NewFileSet()
+	err := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		name := d.Name()
+		if d.IsDir() {
+			if p != root && (name == "vendor" || name == "testdata" || strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_")) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(name, ".go") {
+			return nil
+		}
+		body, err := os.ReadFile(p)
+		if err != nil {
+			return err
+		}
+		first, _, _ := strings.Cut(string(body), "\n")
+		if generated.MatchString(strings.TrimRight(first, "\r")) {
+			return nil
+		}
+		f, err := parser.ParseFile(fset, p, body, parser.SkipObjectResolution)
+		if err != nil {
+			return fmt.Errorf("%s: %w", p, err)
+		}
+		rel, err := filepath.Rel(root, p)
+		if err != nil {
+			return err
+		}
+		rel = filepath.ToSlash(rel)
+		skip := map[*ast.BasicLit]bool{}
+		for _, imp := range f.Imports {
+			skip[imp.Path] = true
+		}
+		ast.Inspect(f, func(n ast.Node) bool {
+			if fl, ok := n.(*ast.Field); ok && fl.Tag != nil {
+				skip[fl.Tag] = true
+			}
+			return true
+		})
+		ast.Inspect(f, func(n ast.Node) bool {
+			bl, ok := n.(*ast.BasicLit)
+			if !ok || bl.Kind != token.STRING || skip[bl] {
+				return true
+			}
+			v, err := strconv.Unquote(bl.Value)
+			if err != nil {
+				return true
+			}
+			if strings.HasSuffix(rel, "_test.go") {
+				k := path.Dir(rel) + "\x00" + v
+				if tests[k] == nil {
+					tests[k] = map[string]bool{}
+				}
+				tests[k][rel] = true
+			} else {
+				src[v] = append(src[v], lit{rel, path.Dir(rel)})
+			}
+			return true
+		})
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
-	var cs []CoupledCandidate
-	for _, rec := range strings.Split(out, "\x00")[1:] {
-		head, body, _ := strings.Cut(rec, "\n")
-		ids := strings.Fields(head)
-		if len(ids) != 2 { // a root commit has no parent
+	var out []CoupledLiteral
+	for v, at := range src {
+		nv, ok := flipFirst(v)
+		if len(at) != 1 || !ok {
 			continue
 		}
-		var c CoupledCandidate
-		if !c.coupled(body, maxFiles) {
+		held := tests[at[0].dir+"\x00"+v]
+		if len(held) == 0 {
 			continue
 		}
-		// The diff's lines are fragments: a line inside a block comment or a
-		// multi-line raw string scans as something else. Each file is judged
-		// whole, before and after, as the compiler would read it (the review of
-		// #426).
-		whole := true
-		for _, f := range c.Files {
-			before, err1 := gitOut(repo, "show", ids[1]+":"+f)
-			after, err2 := gitOut(repo, "show", ids[0]+":"+f)
-			if err1 != nil || err2 != nil || !c.replaces(before, after) {
-				whole = false
-				break
-			}
+		c := CoupledLiteral{File: at[0].file, Old: v, New: nv}
+		for t := range held {
+			c.Tests = append(c.Tests, t)
 		}
-		if whole {
-			c.Commit, c.Parent = ids[0], ids[1]
-			cs = append(cs, c)
-		}
+		sort.Strings(c.Tests)
+		out = append(out, c)
 	}
-	sort.Slice(cs, func(i, j int) bool { return saltedHash(mineSalt, cs[i].Commit) < saltedHash(mineSalt, cs[j].Commit) })
-	return cs, nil
+	sort.Slice(out, func(i, j int) bool {
+		return saltedHash(mineSalt, out[i].File+":"+out[i].Old) < saltedHash(mineSalt, out[j].File+":"+out[j].Old)
+	})
+	return out, nil
+}
+
+// flipFirst is v with its first letter's case flipped, and false when v does
+// not start with a letter whose case changes.
+func flipFirst(v string) (string, bool) {
+	r, size := utf8.DecodeRuneInString(v)
+	if size == 0 || !unicode.IsLetter(r) {
+		return "", false
+	}
+	f := unicode.ToUpper(r)
+	if unicode.IsUpper(r) {
+		f = unicode.ToLower(r)
+	}
+	if f == r {
+		return "", false
+	}
+	return string(f) + v[size:], true
 }
 
 // diffPath reads the path of a `diff --git a/P b/P` header whose two sides
@@ -374,117 +450,4 @@ func diffPath(line string) (string, bool) {
 	}
 	p := rest[:(len(rest)-3)/2]
 	return p, rest == p+" b/"+p
-}
-
-// coupled screens one commit's -U0 diff before its files are read whole: at
-// most maxFiles files, each changed in place — a mode change, or a new,
-// deleted, renamed, copied or binary file disqualifies it — and among them a
-// non-test .go file and a _test.go file in one directory. A file that is not
-// Go is kept for the whole-file judgment beside them, and neither the number
-// of lines a hunk changes nor a missing final newline is judged here: the
-// whole-file judgment decides whether anything but literals changed (the third
-// review of #426).
-func (c *CoupledCandidate) coupled(diff string, maxFiles int) bool {
-	sc := bufio.NewScanner(strings.NewReader(diff))
-	sc.Buffer(make([]byte, 0, 1<<16), 1<<24)
-	for sc.Scan() {
-		line := sc.Text()
-		switch {
-		case strings.HasPrefix(line, "diff --git "):
-			p, same := diffPath(line)
-			if !same {
-				return false
-			}
-			c.Files = append(c.Files, p)
-		case strings.HasPrefix(line, "@@"), strings.HasPrefix(line, "--- "), strings.HasPrefix(line, "+++ "), strings.HasPrefix(line, "index "),
-			strings.HasPrefix(line, "-"), strings.HasPrefix(line, "+"), strings.HasPrefix(line, `\ `), line == "":
-		default: // a mode change, a new, deleted, renamed or copied file, binary
-			return false
-		}
-	}
-	if len(c.Files) < 2 || len(c.Files) > maxFiles {
-		return false
-	}
-	dirs := map[string][2]bool{}
-	for _, f := range c.Files {
-		if !strings.HasSuffix(f, ".go") {
-			continue
-		}
-		d := dirs[filepath.Dir(f)]
-		if strings.HasSuffix(f, "_test.go") {
-			d[1] = true
-		} else {
-			d[0] = true
-		}
-		dirs[filepath.Dir(f)] = d
-	}
-	for _, d := range dirs {
-		if d[0] && d[1] {
-			sort.Strings(c.Files)
-			return true
-		}
-	}
-	return false
-}
-
-type lineToken struct {
-	off int
-	tok token.Token
-	lit string
-}
-
-// goTokens scans a Go file, comments included; source that does not scan is
-// not a substitution.
-func goTokens(s string) ([]lineToken, bool) {
-	var sc scanner.Scanner
-	bad := false
-	src := []byte(s)
-	sc.Init(token.NewFileSet().AddFile("", -1, len(src)), src, func(token.Position, string) { bad = true }, scanner.ScanComments)
-	var out []lineToken
-	for {
-		pos, tok, lit := sc.Scan()
-		if tok == token.EOF {
-			return out, !bad
-		}
-		if tok == token.SEMICOLON && lit == "\n" {
-			continue // inserted at a line's end
-		}
-		out = append(out, lineToken{int(pos) - 1, tok, lit})
-	}
-}
-
-// replaces says whether the file after is the file before with string literal
-// tokens replaced, and nothing else: every other token, comments included,
-// and the text between tokens stay as they were. Every replacement in the
-// commit must be the same pair of literal values; the first one found fixes
-// it.
-func (c *CoupledCandidate) replaces(before, after string) bool {
-	bt, ok1 := goTokens(before)
-	at, ok2 := goTokens(after)
-	if !ok1 || !ok2 || len(bt) != len(at) {
-		return false
-	}
-	rebuilt, last, n := "", 0, 0
-	for i := range bt {
-		if bt[i].tok == at[i].tok && bt[i].lit == at[i].lit {
-			continue
-		}
-		if bt[i].tok != token.STRING || at[i].tok != token.STRING {
-			return false
-		}
-		old, err1 := strconv.Unquote(bt[i].lit)
-		nw, err2 := strconv.Unquote(at[i].lit)
-		if err1 != nil || err2 != nil || old == nw {
-			return false
-		}
-		if !c.paired {
-			c.Old, c.New, c.paired = old, nw, true
-		} else if c.Old != old || c.New != nw {
-			return false
-		}
-		rebuilt += before[last:bt[i].off] + at[i].lit
-		last = bt[i].off + len(bt[i].lit)
-		n++
-	}
-	return n > 0 && rebuilt+before[last:] == after
 }

@@ -1,0 +1,28 @@
+{
+  "id": "am-coupled-playbook-playbook",
+  "shape": "check-coupled",
+  "repo": "agentsmemory",
+  "commit": "d038def25a7fadd2586674b954ea07896a330b4a",
+  "exact": true,
+  "instruction": "In cmd/server/playbook.go, change the string \"playbook\" to \"Playbook\", and keep the tests passing.",
+  "require": [
+    {
+      "file": "cmd/server/playbook.go",
+      "match": "\"Playbook\""
+    },
+    {
+      "file": "cmd/server/playbook_test.go",
+      "match": "\"Playbook\""
+    }
+  ],
+  "forbid": [
+    {
+      "file": "cmd/server/playbook.go",
+      "match": "\"playbook\""
+    },
+    {
+      "file": "cmd/server/playbook_test.go",
+      "match": "\"playbook\""
+    }
+  ]
+}

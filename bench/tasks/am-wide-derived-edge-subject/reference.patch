@@ -1,0 +1,264 @@
+diff --git a/internal/palace/graphquery.go b/internal/palace/graphquery.go
+index ac9b859..bfb6e63 100644
+--- a/internal/palace/graphquery.go
++++ b/internal/palace/graphquery.go
+@@ -515,7 +515,7 @@ func (s *Service) EntryPoint(ctx context.Context, teamID, wing string) (EntryPoi
+ 		return EntryPointResult{}, fmt.Errorf("%w: entry_point needs a wing", ErrInvalidInput)
+ 	}
+ 	out := EntryPointResult{Wing: wing}
+-	node := DerivedEdgeSubject(wing, EntryRoom)
++	node := DerivedLinkSubject(wing, EntryRoom)
+ 
+ 	q, err := s.KGQuery(ctx, teamID, KGQueryInput{
+ 		Entity: node, Direction: "outgoing", Status: KGStatusCurrent,
+diff --git a/internal/palace/kg.go b/internal/palace/kg.go
+index e95a721..88be098 100644
+--- a/internal/palace/kg.go
++++ b/internal/palace/kg.go
+@@ -1004,7 +1004,7 @@ func (s *Service) KGQuery(ctx context.Context, teamID string, in KGQueryInput) (
+ 
+ 	// ⚠ THE CARVE-OUT IS THE WHOLE DESIGN, NOT AN EXCEPTION TO IT. Asking a room
+ 	// what it holds is the one question containment edges answer, and
+-	// Service.EntryPoint asks exactly that — it resolves DerivedEdgeSubject(wing,
++	// Service.EntryPoint asks exactly that — it resolves DerivedLinkSubject(wing,
+ 	// EntryRoom) and Service.Bootstrap builds its entire answer from the result.
+ 	// Hiding listings from a caller who NAMED the room would empty the wake-up
+ 	// path every session walks first, and worse than emptying it: the node stays
+@@ -1180,7 +1180,7 @@ const KGWithheldContainment = "containment"
+ // rather than a fact somebody filed.
+ //
+ // The rule keys on the SUBJECT SHAPE — the `room:<wing>/<room>` node
+-// DerivedEdgeSubject mints — and deliberately NOT on the `derived` column.
++// DerivedLinkSubject mints — and deliberately NOT on the `derived` column.
+ // Measured 2026-09-04 on the live corpus: 580 of 586 derived edges are these
+ // listings, and the other SIX are the wing-root spine,
+ // `wing_<name>.root —holds→ room:<name>/llm_init`. Keying on `derived` would
+@@ -1196,7 +1196,7 @@ func isContainmentEdge(subject string) bool {
+ 	return strings.HasPrefix(subject, containmentSubjectPrefix)
+ }
+ 
+-// containmentSubjectPrefix is the shape DerivedEdgeSubject mints. It is a
++// containmentSubjectPrefix is the shape DerivedLinkSubject mints. It is a
+ // convention rather than a typed column, so an authored entity whose name begins
+ // with it would be treated as a listing — the mint is the only writer of this
+ // prefix today, and that is the assumption to re-check if it stops being true.
+@@ -1406,14 +1406,14 @@ func inEffectAt(row kgTripleRow, asOfKey string) bool {
+ // unremovable without knowing which verbs were the server's.
+ const DerivedEdgePredicate = "holds"
+ 
+-// DerivedEdgeSubject is the node a derived edge hangs a drawer from: the drawer's
++// DerivedLinkSubject is the node a derived edge hangs a drawer from: the drawer's
+ // own room, as a stable label.
+ //
+ // The room is chosen over the wing because it is the finest scope the drawer
+ // already carries, and over a per-drawer node because that would make an edge
+ // from a thing to itself — reachable from nothing, which is where the corpus
+ // already is.
+-func DerivedEdgeSubject(wing, room string) string {
++func DerivedLinkSubject(wing, room string) string {
+ 	return "room:" + wing + "/" + room
+ }
+ 
+@@ -1452,7 +1452,7 @@ func (s *Service) attachDerivedEdge(ctx context.Context, teamID string, d Drawer
+ 		}
+ 	}
+ 
+-	subj := DerivedEdgeSubject(d.Wing, d.Room)
++	subj := DerivedLinkSubject(d.Wing, d.Room)
+ 	subID, objID := normalizeEntityID(subj), normalizeEntityID(d.ID)
+ 	p := normalizePredicate(DerivedEdgePredicate)
+ 	now := time.Now().UTC().Format(time.RFC3339)
+@@ -1479,7 +1479,7 @@ func (s *Service) attachDerivedEdge(ctx context.Context, teamID string, d Drawer
+ // WingRootSubject is the by-name address of a wing's entry point: `<wing>.root`.
+ //
+ // ⚠ IT IS A NAME A SESSION CAN TYPE, which is the whole reason it exists beside
+-// DerivedEdgeSubject. `room:<wing>/llm_init` is derived from where a drawer
++// DerivedLinkSubject. `room:<wing>/llm_init` is derived from where a drawer
+ // happened to be filed, so reaching it means knowing the room-naming convention
+ // first; `<wing>.root` is chosen, and a session that knows one string can reach
+ // any wing's front door. Derived-versus-chosen is the distinction BACKLOG.md
+@@ -1524,7 +1524,7 @@ func (s *Service) attachWingRootEdge(ctx context.Context, teamID, wing string) e
+ // distinguishes the writing path from the read-only one.
+ func (r *Repo) EnsureWingRoot(ctx context.Context, teamID, wing string) error {
+ 	subj := WingRootSubject(wing)
+-	obj := DerivedEdgeSubject(wing, EntryRoom)
++	obj := DerivedLinkSubject(wing, EntryRoom)
+ 	subID, objID := normalizeEntityID(subj), normalizeEntityID(obj)
+ 	p := normalizePredicate(DerivedEdgePredicate)
+ 	now := time.Now().UTC().Format(time.RFC3339)
+@@ -1573,7 +1573,7 @@ func (r *Repo) EnsureWingRoot(ctx context.Context, teamID, wing string) error {
+ // roll the root's ending back with it, or a wing loses its front door to a move that
+ // never happened.
+ func endWingRootIfEntryRoomIsEmpty(db *gorm.DB, teamID, wing, endedAt, reason string) error {
+-	roomID := normalizeEntityID(DerivedEdgeSubject(wing, EntryRoom))
++	roomID := normalizeEntityID(DerivedLinkSubject(wing, EntryRoom))
+ 	p := normalizePredicate(DerivedEdgePredicate)
+ 
+ 	var live int64
+@@ -1679,7 +1679,7 @@ func (r *Repo) BackfillWingRoots(ctx context.Context) (int, error) {
+ 	minted := 0
+ 	for _, row := range wings {
+ 		subID := normalizeEntityID(WingRootSubject(row.Wing))
+-		objID := normalizeEntityID(DerivedEdgeSubject(row.Wing, EntryRoom))
++		objID := normalizeEntityID(DerivedLinkSubject(row.Wing, EntryRoom))
+ 		p := normalizePredicate(DerivedEdgePredicate)
+ 		// Asked before minting so the RETURNED COUNT is what changed, not what was
+ 		// looked at. EnsureWingRoot is idempotent either way, but a backfill that
+diff --git a/internal/palace/kg_test.go b/internal/palace/kg_test.go
+index b28bae5..fc8d585 100644
+--- a/internal/palace/kg_test.go
++++ b/internal/palace/kg_test.go
+@@ -517,7 +517,7 @@ func TestContainmentIsHiddenAndCounted(t *testing.T) {
+ 	}); err != nil {
+ 		t.Fatalf("seed: %v", err)
+ 	}
+-	room := DerivedEdgeSubject("wing_acme", "decisions")
++	room := DerivedLinkSubject("wing_acme", "decisions")
+ 
+ 	// The predicate sweep is the entry point that hurts: 587 edges on the live
+ 	// corpus, 586 of them containment.
+diff --git a/internal/palace/move_test.go b/internal/palace/move_test.go
+index ccc879e..84a5ab5 100644
+--- a/internal/palace/move_test.go
++++ b/internal/palace/move_test.go
+@@ -179,7 +179,7 @@ func TestAMoveThatCollidesOnAnyChunkRelocatesNone(t *testing.T) {
+ func reachableFrom(t *testing.T, ctx context.Context, svc *Service, team, wing, room, id string) bool {
+ 	t.Helper()
+ 	q, err := svc.KGQuery(ctx, team, KGQueryInput{
+-		Entity: DerivedEdgeSubject(wing, room), Direction: "outgoing", Status: KGStatusCurrent,
++		Entity: DerivedLinkSubject(wing, room), Direction: "outgoing", Status: KGStatusCurrent,
+ 	})
+ 	if err != nil {
+ 		t.Fatalf("traverse from %s/%s: %v", wing, room, err)
+diff --git a/internal/palace/orphanpaths_test.go b/internal/palace/orphanpaths_test.go
+index c196237..c97bb20 100644
+--- a/internal/palace/orphanpaths_test.go
++++ b/internal/palace/orphanpaths_test.go
+@@ -91,7 +91,7 @@ func TestEveryWritePathAttachesTheDerivedEdge(t *testing.T) {
+ 			// Reachability, not the presence of a row: walk out from the room node
+ 			// and require the drawer to be found.
+ 			q, err := svc.KGQuery(ctx, team, KGQueryInput{
+-				Entity: DerivedEdgeSubject("wing_acme", "decisions"), Direction: "outgoing",
++				Entity: DerivedLinkSubject("wing_acme", "decisions"), Direction: "outgoing",
+ 			})
+ 			if err != nil {
+ 				t.Fatalf("traverse from the room node: %v", err)
+diff --git a/internal/palace/recallanswers_spec_test.go b/internal/palace/recallanswers_spec_test.go
+index 53ed2fb..6d1b494 100644
+--- a/internal/palace/recallanswers_spec_test.go
++++ b/internal/palace/recallanswers_spec_test.go
+@@ -525,7 +525,7 @@ func TestEveryDrawerCarriesAnEdgeAndDerivedOnesAreMarked(t *testing.T) {
+ 	// carried an edge and 0 were reachable as a triple OBJECT.
+ 	t.Run("the drawer is reachable from its room node", func(t *testing.T) {
+ 		q, err := svc.KGQuery(ctx, team, KGQueryInput{
+-			Entity:    DerivedEdgeSubject("wing_acme", "decisions"),
++			Entity:    DerivedLinkSubject("wing_acme", "decisions"),
+ 			Direction: "outgoing",
+ 		})
+ 		if err != nil {
+@@ -1067,7 +1067,7 @@ func TestOneWingRuleGovernsEveryNewResponsePath(t *testing.T) {
+ 		// that filter — only the bootstrap's own check on the inlined record can
+ 		// stop it. That asymmetry is the whole reason F-19 wants one rule applied
+ 		// at every path rather than one filter per path.
+-		if _, err := svc.KGAdd(ctx, team, DerivedEdgeSubject("wing_acme", EntryRoom), DerivedEdgePredicate, foreign.Drawers[0].ID, "", "", "", "", local.Drawers[0].ID); err != nil {
++		if _, err := svc.KGAdd(ctx, team, DerivedLinkSubject("wing_acme", EntryRoom), DerivedEdgePredicate, foreign.Drawers[0].ID, "", "", "", "", local.Drawers[0].ID); err != nil {
+ 			t.Fatalf("kgadd cross-wing entry edge: %v", err)
+ 		}
+ 
+diff --git a/internal/palace/roomname_test.go b/internal/palace/roomname_test.go
+index 82bf4c4..1db439c 100644
+--- a/internal/palace/roomname_test.go
++++ b/internal/palace/roomname_test.go
+@@ -13,7 +13,7 @@ import (
+ // other name this package accepts.
+ //
+ // ⚠ IT WAS THE ONE NAME NOTHING CHECKED, AND A ROOM IS ENCODED INTO A GRAPH
+-// SUBJECT. DerivedEdgeSubject builds "room:<wing>/<room>" by unescaped join, and
++// SUBJECT. DerivedLinkSubject builds "room:<wing>/<room>" by unescaped join, and
+ // BackfillWingRoots recovers the wing from that string by stripping affixes — on
+ // the assumption, stated in its own comment, that "a wing name is sanitised and
+ // carries no slash". True of the wing. The room was never sanitised at all.
+diff --git a/internal/palace/service.go b/internal/palace/service.go
+index 568db83..2dd19c3 100644
+--- a/internal/palace/service.go
++++ b/internal/palace/service.go
+@@ -722,7 +722,7 @@ func (s *Service) prepareWrite(ctx context.Context, teamID string, in AddInput)
+ 	// session makes most did not, so a room could carry `/` and `..`.
+ 	//
+ 	// That is not cosmetic, because a room name is ENCODED INTO A GRAPH SUBJECT by
+-	// an unescaped join: DerivedEdgeSubject builds "room:<wing>/<room>", and
++	// an unescaped join: DerivedLinkSubject builds "room:<wing>/<room>", and
+ 	// BackfillWingRoots recovers the wing from it by stripping affixes, on the
+ 	// stated assumption that "a wing name is sanitised and carries no slash". True
+ 	// of the wing, false of the room. Measured 2026-09-02: one am_add_drawer into
+diff --git a/internal/palace/targetauth_test.go b/internal/palace/targetauth_test.go
+index 1308dc1..93ade56 100644
+--- a/internal/palace/targetauth_test.go
++++ b/internal/palace/targetauth_test.go
+@@ -33,7 +33,7 @@ func TestAuthorizationChecksTheIdentifierItExposes(t *testing.T) {
+ 		}
+ 		// Provenance LOCAL, target FOREIGN — the shape that separates the two
+ 		// identifiers. Placing by provenance admits this edge.
+-		if _, err := svc.KGAdd(ctx, team, DerivedEdgeSubject("wing_acme", EntryRoom), DerivedEdgePredicate, foreign.Drawers[0].ID, "", "", "", "", local.Drawers[0].ID); err != nil {
++		if _, err := svc.KGAdd(ctx, team, DerivedLinkSubject("wing_acme", EntryRoom), DerivedEdgePredicate, foreign.Drawers[0].ID, "", "", "", "", local.Drawers[0].ID); err != nil {
+ 			t.Fatalf("kgadd: %v", err)
+ 		}
+ 
+@@ -52,7 +52,7 @@ func TestAuthorizationChecksTheIdentifierItExposes(t *testing.T) {
+ 		svc := newTestService(t)
+ 		local, _ := svc.Add(ctx, team, AddInput{Wing: "wing_acme", Room: EntryRoom, Content: "the local front door"})
+ 		foreign, _ := svc.Add(ctx, team, AddInput{Wing: "wing_alpha", Room: "decisions", Content: "FOREIGN-TARGET another project's record"})
+-		if _, err := svc.KGAdd(ctx, team, DerivedEdgeSubject("wing_acme", EntryRoom), DerivedEdgePredicate, foreign.Drawers[0].ID, "", "", "", "", local.Drawers[0].ID); err != nil {
++		if _, err := svc.KGAdd(ctx, team, DerivedLinkSubject("wing_acme", EntryRoom), DerivedEdgePredicate, foreign.Drawers[0].ID, "", "", "", "", local.Drawers[0].ID); err != nil {
+ 			t.Fatalf("kgadd: %v", err)
+ 		}
+ 
+@@ -166,7 +166,7 @@ func TestTruncationCountsWhatIsNeitherInlinedNorPointedAt(t *testing.T) {
+ 	if err != nil {
+ 		t.Fatalf("add foreign: %v", err)
+ 	}
+-	if _, err := svc.KGAdd(ctx, team, DerivedEdgeSubject("wing_acme", EntryRoom), DerivedEdgePredicate, foreign.Drawers[0].ID, "", "", "", "", local[0]); err != nil {
++	if _, err := svc.KGAdd(ctx, team, DerivedLinkSubject("wing_acme", EntryRoom), DerivedEdgePredicate, foreign.Drawers[0].ID, "", "", "", "", local[0]); err != nil {
+ 		t.Fatalf("cross-wing entry edge: %v", err)
+ 	}
+ 
+diff --git a/internal/palace/wingroot_test.go b/internal/palace/wingroot_test.go
+index a3ee943..e7bbebf 100644
+--- a/internal/palace/wingroot_test.go
++++ b/internal/palace/wingroot_test.go
+@@ -49,7 +49,7 @@ func TestFilingIntoTheEntryRoomMintsTheWingRoot(t *testing.T) {
+ 	}
+ 	// It must point at the node am_entry_point already reads, not at the drawer —
+ 	// otherwise the by-name address and the mechanised one are two front doors.
+-	want := DerivedEdgeSubject(wing, EntryRoom)
++	want := DerivedLinkSubject(wing, EntryRoom)
+ 	var found bool
+ 	for _, f := range q.Facts {
+ 		if f.Object == want {
+@@ -192,7 +192,7 @@ func TestCorrectingAnEntryRecordEndsItsDerivedEdge(t *testing.T) {
+ 	}
+ 
+ 	q, err := svc.KGQuery(ctx, team, KGQueryInput{
+-		Entity: DerivedEdgeSubject(wing, EntryRoom), Direction: "outgoing", Status: KGStatusCurrent,
++		Entity: DerivedLinkSubject(wing, EntryRoom), Direction: "outgoing", Status: KGStatusCurrent,
+ 	})
+ 	if err != nil {
+ 		t.Fatalf("read the entry room's edges: %v", err)
+@@ -373,7 +373,7 @@ func TestBackfillMintsARootForAnEntryRoomThatPredatesTheMint(t *testing.T) {
+ 		t.Fatalf("%s still does not resolve after the backfill: resolution=%q",
+ 			WingRootSubject(wing), q.Resolution)
+ 	}
+-	want := DerivedEdgeSubject(wing, EntryRoom)
++	want := DerivedLinkSubject(wing, EntryRoom)
+ 	var found bool
+ 	for _, f := range q.Facts {
+ 		if f.Object == want {
+@@ -504,7 +504,7 @@ func TestBackfillLeavesAnEntryRoomWithNoLiveEdgeNameless(t *testing.T) {
+ 	// The pre-attachDerivedEdge corpus: the drawer row is current, the root and the
+ 	// room's holds edges are not there.
+ 	root := normalizeEntityID(WingRootSubject(wing))
+-	room := normalizeEntityID(DerivedEdgeSubject(wing, EntryRoom))
++	room := normalizeEntityID(DerivedLinkSubject(wing, EntryRoom))
+ 	if err := svc.repo.db.Exec(
+ 		"DELETE FROM kg_triples WHERE team_id = ? AND (subject = ? OR subject = ?)", team, root, room,
+ 	).Error; err != nil {

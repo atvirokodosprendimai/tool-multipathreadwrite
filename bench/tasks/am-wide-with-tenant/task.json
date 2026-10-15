@@ -1,0 +1,148 @@
+{
+  "id": "am-wide-with-tenant",
+  "shape": "wide-rename",
+  "repo": "agentsmemory",
+  "commit": "d038def25a7fadd2586674b954ea07896a330b4a",
+  "exact": true,
+  "instruction": "Rename the Go identifier WithTenant to ForTenancy, its mentions in comments included.",
+  "require": [
+    {
+      "file": "cmd/server/mcp.go",
+      "match": "\\bForTenancy\\b"
+    },
+    {
+      "file": "internal/auth/auth.go",
+      "match": "\\bForTenancy\\b"
+    },
+    {
+      "file": "internal/importer/importer_test.go",
+      "match": "\\bForTenancy\\b"
+    },
+    {
+      "file": "internal/mcpserver/admin_test.go",
+      "match": "\\bForTenancy\\b"
+    },
+    {
+      "file": "internal/mcpserver/emptygraph_test.go",
+      "match": "\\bForTenancy\\b"
+    },
+    {
+      "file": "internal/mcpserver/kgquery_test.go",
+      "match": "\\bForTenancy\\b"
+    },
+    {
+      "file": "internal/mcpserver/prompts_test.go",
+      "match": "\\bForTenancy\\b"
+    },
+    {
+      "file": "internal/mcpserver/readcost_spec_test.go",
+      "match": "\\bForTenancy\\b"
+    },
+    {
+      "file": "internal/mcpserver/resources_test.go",
+      "match": "\\bForTenancy\\b"
+    },
+    {
+      "file": "internal/mcpserver/responsebudget_test.go",
+      "match": "\\bForTenancy\\b"
+    },
+    {
+      "file": "internal/mcpserver/status_coverage_test.go",
+      "match": "\\bForTenancy\\b"
+    },
+    {
+      "file": "internal/mcpserver/statususage_test.go",
+      "match": "\\bForTenancy\\b"
+    },
+    {
+      "file": "internal/mcpserver/structured_test.go",
+      "match": "\\bForTenancy\\b"
+    },
+    {
+      "file": "internal/mcpserver/wirestale_test.go",
+      "match": "\\bForTenancy\\b"
+    },
+    {
+      "file": "internal/mcpserver/writeauth_test.go",
+      "match": "\\bForTenancy\\b"
+    },
+    {
+      "file": "internal/mcptest/harness.go",
+      "match": "\\bForTenancy\\b"
+    },
+    {
+      "file": "internal/oauth/server.go",
+      "match": "\\bForTenancy\\b"
+    }
+  ],
+  "forbid": [
+    {
+      "file": "cmd/server/mcp.go",
+      "match": "\\bWithTenant\\b"
+    },
+    {
+      "file": "internal/auth/auth.go",
+      "match": "\\bWithTenant\\b"
+    },
+    {
+      "file": "internal/importer/importer_test.go",
+      "match": "\\bWithTenant\\b"
+    },
+    {
+      "file": "internal/mcpserver/admin_test.go",
+      "match": "\\bWithTenant\\b"
+    },
+    {
+      "file": "internal/mcpserver/emptygraph_test.go",
+      "match": "\\bWithTenant\\b"
+    },
+    {
+      "file": "internal/mcpserver/kgquery_test.go",
+      "match": "\\bWithTenant\\b"
+    },
+    {
+      "file": "internal/mcpserver/prompts_test.go",
+      "match": "\\bWithTenant\\b"
+    },
+    {
+      "file": "internal/mcpserver/readcost_spec_test.go",
+      "match": "\\bWithTenant\\b"
+    },
+    {
+      "file": "internal/mcpserver/resources_test.go",
+      "match": "\\bWithTenant\\b"
+    },
+    {
+      "file": "internal/mcpserver/responsebudget_test.go",
+      "match": "\\bWithTenant\\b"
+    },
+    {
+      "file": "internal/mcpserver/status_coverage_test.go",
+      "match": "\\bWithTenant\\b"
+    },
+    {
+      "file": "internal/mcpserver/statususage_test.go",
+      "match": "\\bWithTenant\\b"
+    },
+    {
+      "file": "internal/mcpserver/structured_test.go",
+      "match": "\\bWithTenant\\b"
+    },
+    {
+      "file": "internal/mcpserver/wirestale_test.go",
+      "match": "\\bWithTenant\\b"
+    },
+    {
+      "file": "internal/mcpserver/writeauth_test.go",
+      "match": "\\bWithTenant\\b"
+    },
+    {
+      "file": "internal/mcptest/harness.go",
+      "match": "\\bWithTenant\\b"
+    },
+    {
+      "file": "internal/oauth/server.go",
+      "match": "\\bWithTenant\\b"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+SKIP Clean -> CleaQ : build: # github.com/atvirokodosprendimai/agentsmemory/internal/contractaxis
+OK WithTenant -> WithTenanQ 17 files
+SKIP Contains -> ContainQ : build: # github.com/atvirokodosprendimai/agentsmemory/internal/mcpcli
+OK configFromCmd -> configFromCmQ 17 files
+OK VectorBackend -> VectorBackenQ 9 files
+OK EvalOptions -> EvalOptionQ 9 files
+OK defaultMCPURL -> defaultMCPURQ 8 files
+SKIP Handler -> HandleQ : build: # github.com/atvirokodosprendimai/agentsmemory/internal/auth
+OK memoryOf -> memoryOQ 8 files
+OK liveSurface -> liveSurfacQ 10 files
+OK GetAnyVersion -> GetAnyVersioQ 9 files
+OK KGStatusAll -> KGStatusAlQ 9 files
+OK DerivedEdgeSubject -> DerivedEdgeSubjecQ 10 files
+OK hookPlans -> hookPlanQ 10 files
+OK homeDir -> homeDiQ 10 files
+OK Harness -> HarnesQ 12 files
+OK jsonResult -> jsonResulQ 11 files
+OK dataFlags -> dataFlagQ 16 files
+OK runDoctor -> runDoctoQ 8 files
+SKIP Node -> NodQ : vet: # github.com/atvirokodosprendimai/agentsmemory/internal/doclint
+OK short12 -> short1Q 13 files
+OK ArmRRF -> ArmRRQ 8 files

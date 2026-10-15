@@ -350,16 +350,19 @@ func mine(args []string, w io.Writer) error {
 		return fmt.Errorf("mine needs --repo and --commit")
 	}
 	var lines []string
+	if *kind != "wide-rename" && *kind != "check-coupled" {
+		return fmt.Errorf("--kind is wide-rename or check-coupled, not %q", *kind)
+	}
+	dir, err := os.MkdirTemp("", "bench-mine-")
+	if err != nil {
+		return err
+	}
+	defer func() { _ = os.RemoveAll(dir) }()
+	if err := bench.ExportTree(*repo, *commit, dir); err != nil {
+		return err
+	}
 	switch *kind {
 	case "wide-rename":
-		dir, err := os.MkdirTemp("", "bench-mine-")
-		if err != nil {
-			return err
-		}
-		defer func() { _ = os.RemoveAll(dir) }()
-		if err := bench.ExportTree(*repo, *commit, dir); err != nil {
-			return err
-		}
 		cs, err := bench.MineWideRenames(dir, 15, 8)
 		if err != nil {
 			return err
@@ -368,12 +371,12 @@ func mine(args []string, w io.Writer) error {
 			lines = append(lines, fmt.Sprintf("%s\t%d occurrences\t%d files", c.Name, c.Occurrences, c.Files))
 		}
 	case "check-coupled":
-		cs, err := bench.MineCheckCoupled(*repo, *commit, 4)
+		cs, err := bench.MineCoupledLiterals(dir)
 		if err != nil {
 			return err
 		}
 		for _, c := range cs {
-			lines = append(lines, fmt.Sprintf("%s\tparent %s\t%q -> %q\t%s", c.Commit, c.Parent, c.Old, c.New, strings.Join(c.Files, " ")))
+			lines = append(lines, fmt.Sprintf("%s\t%q -> %q\t%s", c.File, c.Old, c.New, strings.Join(c.Tests, " ")))
 		}
 	default:
 		return fmt.Errorf("--kind is wide-rename or check-coupled, not %q", *kind)

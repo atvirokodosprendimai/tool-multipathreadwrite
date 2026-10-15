@@ -1,0 +1,688 @@
+diff --git a/internal/mcptest/anchorlabel_test.go b/internal/mcptest/anchorlabel_test.go
+index c706db1..355ba0a 100644
+--- a/internal/mcptest/anchorlabel_test.go
++++ b/internal/mcptest/anchorlabel_test.go
+@@ -68,7 +68,7 @@ func TestAnUnlabelledAnchorIsReportedAtWrite(t *testing.T) {
+ }
+ 
+ // firstID reads the id of the first drawer an am_add_drawer response minted.
+-func firstID(t *testing.T, h *mcptest.Harness, out string) string {
++func firstID(t *testing.T, h *mcptest.Testbed, out string) string {
+ 	t.Helper()
+ 	res := h.JSON(t, out)
+ 	drawers, _ := res["drawers"].([]any)
+diff --git a/internal/mcptest/contract_axis_assertions_test.go b/internal/mcptest/contract_axis_assertions_test.go
+index 4a41bc0..a3ee8f8 100644
+--- a/internal/mcptest/contract_axis_assertions_test.go
++++ b/internal/mcptest/contract_axis_assertions_test.go
+@@ -43,8 +43,8 @@ type mcpContractTool struct {
+ type mcpContractFixture struct {
+ 	t             *testing.T
+ 	hosted        *Hosted
+-	admin         *Harness
+-	member        *Harness
++	admin         *Testbed
++	member        *Testbed
+ 	teamID        string
+ 	tools         map[string]mcpContractTool
+ 	names         []string
+@@ -315,10 +315,10 @@ func contractMutationFatal(t *testing.T, reason string, err error) {
+ 	t.Fatalf("%s: %v", contractaxis.MutationFailure(reason), err)
+ }
+ 
+-func (f *mcpContractFixture) seedStarScope(alpha, beta *Harness) {
++func (f *mcpContractFixture) seedStarScope(alpha, beta *Testbed) {
+ 	f.t.Helper()
+ 	type seed struct {
+-		harness *Harness
++		harness *Testbed
+ 		wing    string
+ 		entity  string
+ 		peer    string
+diff --git a/internal/mcptest/exhaustive_test.go b/internal/mcptest/exhaustive_test.go
+index b18bc68..131889d 100644
+--- a/internal/mcptest/exhaustive_test.go
++++ b/internal/mcptest/exhaustive_test.go
+@@ -169,7 +169,7 @@ func writeThenRead(calls []string) (wrote, readAfter bool) {
+ // actually called.
+ func runScenario(t *testing.T, sc mcptest.Scenario) []string {
+ 	t.Helper()
+-	var h *mcptest.Harness
++	var h *mcptest.Testbed
+ 	if sc.NewHarness != nil {
+ 		h = sc.NewHarness(t)
+ 	} else {
+diff --git a/internal/mcptest/fetchjoin_reach_test.go b/internal/mcptest/fetchjoin_reach_test.go
+index c81ce10..7ddea54 100644
+--- a/internal/mcptest/fetchjoin_reach_test.go
++++ b/internal/mcptest/fetchjoin_reach_test.go
+@@ -84,7 +84,7 @@ func TestAFetchNamingItsRecallIsRecordedAtTheToolSurface(t *testing.T) {
+ // fetchCount reads the fetch total back through am_recall_stats — the served
+ // surface, not the store, because a count nothing publishes is unobservable and
+ // that is the defect this whole task exists to close.
+-func fetchCount(t *testing.T, h *mcptest.Harness) int {
++func fetchCount(t *testing.T, h *mcptest.Testbed) int {
+ 	t.Helper()
+ 	stats := h.JSON(t, h.MustCall(t, "am_recall_stats", map[string]any{"hours": 24}))
+ 	n, ok := stats["fetches"].(float64)
+diff --git a/internal/mcptest/fetchratio_reach_test.go b/internal/mcptest/fetchratio_reach_test.go
+index 96965c7..f09c450 100644
+--- a/internal/mcptest/fetchratio_reach_test.go
++++ b/internal/mcptest/fetchratio_reach_test.go
+@@ -83,7 +83,7 @@ func TestTheFetchRateReachesTheToolSurfaceWithItsPopulation(t *testing.T) {
+ // It insists on exactly one because this harness runs one server under one
+ // ranking: a second entry would mean the report grouped by something other than
+ // the profile, which is the error the whole task exists to prevent.
+-func onlyFetchRate(t *testing.T, h *mcptest.Harness) map[string]any {
++func onlyFetchRate(t *testing.T, h *mcptest.Testbed) map[string]any {
+ 	t.Helper()
+ 	stats := h.JSON(t, h.MustCall(t, "am_recall_stats", map[string]any{"hours": 24}))
+ 	raw, ok := stats["fetch_rates"].([]any)
+diff --git a/internal/mcptest/harness.go b/internal/mcptest/harness.go
+index 64beca9..89a6168 100644
+--- a/internal/mcptest/harness.go
++++ b/internal/mcptest/harness.go
+@@ -118,10 +118,10 @@ type caps struct{}
+ 
+ func (caps) MonthlyCap(_ context.Context, _ string) (int, error) { return -1, nil }
+ 
+-// Harness is a running server, a client that speaks to it, and the palace
++// Testbed is a running server, a client that speaks to it, and the palace
+ // underneath. Wing is the default wing this client's registration declares,
+ // which is what makes two-party scoping observable.
+-type Harness struct {
++type Testbed struct {
+ 	Drawers *palace.Service
+ 	Wing    string
+ 	Team    string
+@@ -154,21 +154,21 @@ type Hosted struct {
+ 
+ // Called returns the tools this harness invoked, in order. The exhaustiveness
+ // gate reads it; a scenario's own assertions do not need it.
+-func (h *Harness) Called() []string { return append([]string(nil), h.called...) }
++func (h *Testbed) Called() []string { return append([]string(nil), h.called...) }
+ 
+ // Endpoint returns the live MCP URL used by this harness. It lets a command
+ // test dial through its own production transport code instead of borrowing the
+ // harness's private client.
+-func (h *Harness) Endpoint() string { return h.srv.URL }
++func (h *Testbed) Endpoint() string { return h.srv.URL }
+ 
+ // New returns a harness whose client authenticates as TeamID with no default
+ // wing, mirroring a registration that named no project.
+-func New(t *testing.T) *Harness { return NewWithWing(t, "") }
++func New(t *testing.T) *Testbed { return NewWithWing(t, "") }
+ 
+ // NewWithWing returns a harness whose registration declares wing. Two harnesses
+ // over one database with different wings are how a scenario observes scoping
+ // from both sides.
+-func NewWithWing(t *testing.T, wing string) *Harness {
++func NewWithWing(t *testing.T, wing string) *Testbed {
+ 	t.Helper()
+ 	return newOn(t, openDB(t, filepath.Join(t.TempDir(), "mcptest.db")), wing)
+ }
+@@ -177,7 +177,7 @@ func NewWithWing(t *testing.T, wing string) *Harness {
+ // tenant middleware. Use it for local-only tools: setting Deps.Local registers
+ // those tools, while this constructor additionally proves the HTTP edge injects
+ // the fixed local administrator that makes their handlers reachable.
+-func NewLocalWithWing(t *testing.T, wing string) *Harness {
++func NewLocalWithWing(t *testing.T, wing string) *Testbed {
+ 	t.Helper()
+ 	gdb := openDB(t, filepath.Join(t.TempDir(), "mcptest.db"))
+ 	srv, drawers := newLocalServer(t, gdb)
+@@ -194,7 +194,7 @@ func NewLocalWithWing(t *testing.T, wing string) *Harness {
+ // same constant — so pass-through and injection produce byte-identical responses
+ // for every assertion a test can make. Review of PR #322 built the pass-through
+ // middleware and watched both original scenarios stay green over it.
+-func NewLocalAs(t *testing.T, wing, team string) *Harness {
++func NewLocalAs(t *testing.T, wing, team string) *Testbed {
+ 	t.Helper()
+ 	gdb := openDB(t, filepath.Join(t.TempDir(), "mcptest.db"))
+ 	srv, drawers := newLocalServer(t, gdb)
+@@ -376,7 +376,7 @@ func quoteSQLiteIdentifier(identifier string) string {
+ 
+ // Client dials the hosted /mcp endpoint with the supplied bearer and registration
+ // wing. Successful construction proves the credential crossed AuthServer.Gate.
+-func (h *Hosted) Client(t *testing.T, wing, bearer string) *Harness {
++func (h *Hosted) Client(t *testing.T, wing, bearer string) *Testbed {
+ 	t.Helper()
+ 	headers := map[string]string{"Authorization": "Bearer " + bearer}
+ 	if wing != "" {
+@@ -393,7 +393,7 @@ func (h *Hosted) Client(t *testing.T, wing, bearer string) *Harness {
+ // negative beside it. A third party is what turns "delivered" into "delivered to
+ // the right place" — the handoff defect this repo shipped was invisible because
+ // nobody ever looked from the recipient's side, let alone a bystander's.
+-func Parties(t *testing.T, wings ...string) []*Harness {
++func Parties(t *testing.T, wings ...string) []*Testbed {
+ 	t.Helper()
+ 	gdb := openDB(t, filepath.Join(t.TempDir(), "mcptest.db"))
+ 	// ONE server, N clients. An earlier version built a server per party and
+@@ -404,7 +404,7 @@ func Parties(t *testing.T, wings ...string) []*Harness {
+ 	// latch its own correct wing and isolation would look perfect while the real
+ 	// deployment served B as A.
+ 	srv, drawers := newServer(t, gdb)
+-	out := make([]*Harness, len(wings))
++	out := make([]*Testbed, len(wings))
+ 	for i, w := range wings {
+ 		out[i] = newClient(t, srv, drawers, w)
+ 	}
+@@ -413,7 +413,7 @@ func Parties(t *testing.T, wings ...string) []*Harness {
+ 
+ // Tenants returns two clients on ONE server and ONE database belonging to
+ // DIFFERENT workspaces — the outer trust boundary, which wings sit inside.
+-func Tenants(t *testing.T, wing string) (*Harness, *Harness) {
++func Tenants(t *testing.T, wing string) (*Testbed, *Testbed) {
+ 	t.Helper()
+ 	gdb := openDB(t, filepath.Join(t.TempDir(), "mcptest.db"))
+ 	srv, drawers := newServer(t, gdb)
+@@ -422,7 +422,7 @@ func Tenants(t *testing.T, wing string) (*Harness, *Harness) {
+ }
+ 
+ // Pair is Parties for the common two-sided case.
+-func Pair(t *testing.T, wingA, wingB string) (*Harness, *Harness) {
++func Pair(t *testing.T, wingA, wingB string) (*Testbed, *Testbed) {
+ 	t.Helper()
+ 	p := Parties(t, wingA, wingB)
+ 	return p[0], p[1]
+@@ -477,7 +477,7 @@ func openDB(t *testing.T, path string) *gorm.DB {
+ 	return gdb
+ }
+ 
+-func newOn(t *testing.T, gdb *gorm.DB, wing string) *Harness {
++func newOn(t *testing.T, gdb *gorm.DB, wing string) *Testbed {
+ 	t.Helper()
+ 	srv, drawers := newServer(t, gdb)
+ 	return newClient(t, srv, drawers, wing)
+@@ -559,7 +559,7 @@ func newStreamWith(gdb *gorm.DB, usageSvc *usage.Service, local bool) (http.Hand
+ 
+ // AsRole stands up a server and dials it as a registration whose caller holds the
+ // named role, so a scenario can assert what a least-privileged member may do.
+-func AsRole(t *testing.T, role tenant.Role) *Harness {
++func AsRole(t *testing.T, role tenant.Role) *Testbed {
+ 	t.Helper()
+ 	gdb := openDB(t, filepath.Join(t.TempDir(), "palace.db"))
+ 	srv, drawers := newServer(t, gdb)
+@@ -570,14 +570,14 @@ func AsRole(t *testing.T, role tenant.Role) *Harness {
+ }
+ 
+ // newClient dials an existing server as one registration.
+-func newClient(t *testing.T, srv *httptest.Server, drawers *palace.Service, wing string) *Harness {
++func newClient(t *testing.T, srv *httptest.Server, drawers *palace.Service, wing string) *Testbed {
+ 	t.Helper()
+ 	return newClientAs(t, srv, drawers, wing, TeamID)
+ }
+ 
+ // newClientAs dials as a named workspace, so a scenario can put two tenants on
+ // one server and one database.
+-func newClientAs(t *testing.T, srv *httptest.Server, drawers *palace.Service, wing, team string) *Harness {
++func newClientAs(t *testing.T, srv *httptest.Server, drawers *palace.Service, wing, team string) *Testbed {
+ 	t.Helper()
+ 	return newClientRole(t, srv, drawers, wing, team, "")
+ }
+@@ -585,7 +585,7 @@ func newClientAs(t *testing.T, srv *httptest.Server, drawers *palace.Service, wi
+ // newClientRole is newClientAs plus the caller's role. An empty role leaves the
+ // header off, which the server reads as admin — so every existing scenario keeps
+ // the privileges it was written with.
+-func newClientRole(t *testing.T, srv *httptest.Server, drawers *palace.Service, wing, team string, role tenant.Role) *Harness {
++func newClientRole(t *testing.T, srv *httptest.Server, drawers *palace.Service, wing, team string, role tenant.Role) *Testbed {
+ 	t.Helper()
+ 
+ 	// The wing rides on the registration as a header, exactly as `install` writes
+@@ -603,7 +603,7 @@ func newClientRole(t *testing.T, srv *httptest.Server, drawers *palace.Service,
+ 	return newClientWithHeaders(t, srv, srv.URL, drawers, wing, team, headers)
+ }
+ 
+-func newClientWithHeaders(t *testing.T, srv *httptest.Server, endpoint string, drawers *palace.Service, wing, team string, headers map[string]string) *Harness {
++func newClientWithHeaders(t *testing.T, srv *httptest.Server, endpoint string, drawers *palace.Service, wing, team string, headers map[string]string) *Testbed {
+ 	t.Helper()
+ 	opts := []transport.StreamableHTTPCOption{transport.WithHTTPHeaders(headers)}
+ 	cli, err := client.NewStreamableHttpClient(endpoint, opts...)
+@@ -619,7 +619,7 @@ func newClientWithHeaders(t *testing.T, srv *httptest.Server, endpoint string, d
+ 		t.Fatalf("initialize: %v", err)
+ 	}
+ 
+-	h := &Harness{Drawers: drawers, Wing: wing, Team: team, cli: cli, srv: srv}
++	h := &Testbed{Drawers: drawers, Wing: wing, Team: team, cli: cli, srv: srv}
+ 
+ 	// A harness serving an empty catalogue would let every scenario pass by
+ 	// calling nothing, so it refuses to be handed out in that state.
+@@ -648,7 +648,7 @@ func UsableCatalogue(tools []string, err error) error {
+ // ListToolDefinitions returns the tool schemas the running server advertises.
+ // Tests that audit a class of tools use the schemas to discover that class,
+ // rather than keeping a second list that drifts when a tool is added.
+-func (h *Harness) ListToolDefinitions(t *testing.T) ([]mcp.Tool, error) {
++func (h *Testbed) ListToolDefinitions(t *testing.T) ([]mcp.Tool, error) {
+ 	t.Helper()
+ 	res, err := h.cli.ListTools(context.Background(), mcp.ListToolsRequest{})
+ 	if err != nil {
+@@ -660,7 +660,7 @@ func (h *Harness) ListToolDefinitions(t *testing.T) ([]mcp.Tool, error) {
+ // ListCatalog returns the running server's self-described tool catalogue. It
+ // comes through am_skillset rather than a package-level registration helper so
+ // audits exercise the same write/read classification an agent actually sees.
+-func (h *Harness) ListCatalog(t *testing.T) ([]mcpserver.CatalogEntry, error) {
++func (h *Testbed) ListCatalog(t *testing.T) ([]mcpserver.CatalogEntry, error) {
+ 	t.Helper()
+ 	out, isErr, err := h.Call(t, "am_skillset", map[string]any{})
+ 	if err != nil {
+@@ -679,7 +679,7 @@ func (h *Harness) ListCatalog(t *testing.T) ([]mcpserver.CatalogEntry, error) {
+ }
+ 
+ // ListTools returns the tool names the running server advertises.
+-func (h *Harness) ListTools(t *testing.T) ([]string, error) {
++func (h *Testbed) ListTools(t *testing.T) ([]string, error) {
+ 	t.Helper()
+ 	tools, err := h.ListToolDefinitions(t)
+ 	if err != nil {
+@@ -696,7 +696,7 @@ func (h *Harness) ListTools(t *testing.T) ([]string, error) {
+ // reported an error. A tool error is a RESULT, not a transport failure, so it is
+ // returned rather than failing the test: refusing is correct behaviour for
+ // several tools and a scenario needs to assert it.
+-func (h *Harness) Call(t *testing.T, name string, args map[string]any) (string, bool, error) {
++func (h *Testbed) Call(t *testing.T, name string, args map[string]any) (string, bool, error) {
+ 	t.Helper()
+ 	h.called = append(h.called, name)
+ 	res, err := mcpcli.Call(context.Background(), h.cli.CallTool, name, args)
+@@ -713,7 +713,7 @@ func (h *Harness) Call(t *testing.T, name string, args map[string]any) (string,
+ }
+ 
+ // MustCall calls a tool and fails the test unless it succeeded.
+-func (h *Harness) MustCall(t *testing.T, name string, args map[string]any) string {
++func (h *Testbed) MustCall(t *testing.T, name string, args map[string]any) string {
+ 	t.Helper()
+ 	out, isErr, err := h.Call(t, name, args)
+ 	if err != nil {
+@@ -727,7 +727,7 @@ func (h *Harness) MustCall(t *testing.T, name string, args map[string]any) strin
+ 
+ // MustRefuse calls a tool and fails unless it reported an error, returning the
+ // message so a scenario can assert WHAT it refused rather than only that it did.
+-func (h *Harness) MustRefuse(t *testing.T, name string, args map[string]any) string {
++func (h *Testbed) MustRefuse(t *testing.T, name string, args map[string]any) string {
+ 	t.Helper()
+ 	out, isErr, err := h.Call(t, name, args)
+ 	if err != nil {
+@@ -741,7 +741,7 @@ func (h *Harness) MustRefuse(t *testing.T, name string, args map[string]any) str
+ 
+ // JSON decodes a tool's text payload, for scenarios asserting structure rather
+ // than substrings.
+-func (h *Harness) JSON(t *testing.T, out string) map[string]any {
++func (h *Testbed) JSON(t *testing.T, out string) map[string]any {
+ 	t.Helper()
+ 	var m map[string]any
+ 	if err := json.Unmarshal([]byte(out), &m); err != nil {
+diff --git a/internal/mcptest/hintbehaviour_test.go b/internal/mcptest/hintbehaviour_test.go
+index 56d374f..5f0c636 100644
+--- a/internal/mcptest/hintbehaviour_test.go
++++ b/internal/mcptest/hintbehaviour_test.go
+@@ -70,7 +70,7 @@ func TestThePublishedIdempotencyHintMatchesWhatTheToolDoes(t *testing.T) {
+ 
+ // publishedHints reads the annotations off the live tools/list, so the assertions
+ // above compare behaviour against what a client is actually told.
+-func publishedHints(t *testing.T, h *mcptest.Harness) map[string]mcp.ToolAnnotation {
++func publishedHints(t *testing.T, h *mcptest.Testbed) map[string]mcp.ToolAnnotation {
+ 	t.Helper()
+ 	defs, err := h.ListToolDefinitions(t)
+ 	if err != nil {
+diff --git a/internal/mcptest/hosted_auth_test.go b/internal/mcptest/hosted_auth_test.go
+index 019c656..d726650 100644
+--- a/internal/mcptest/hosted_auth_test.go
++++ b/internal/mcptest/hosted_auth_test.go
+@@ -157,7 +157,7 @@ func TestHostedMCPAuthenticationAndIsolation(t *testing.T) {
+ 	}
+ 
+ 	for label, call := range map[string]struct {
+-		h    *mcptest.Harness
++		h    *mcptest.Testbed
+ 		role string
+ 	}{
+ 		"raw admin":  {admin, "admin"},
+diff --git a/internal/mcptest/regions_test.go b/internal/mcptest/regions_test.go
+index 036328f..22abbcf 100644
+--- a/internal/mcptest/regions_test.go
++++ b/internal/mcptest/regions_test.go
+@@ -318,7 +318,7 @@ func TestScenarioAFetchedChunkSaysItIsOne(t *testing.T) {
+ 
+ // assertMarkedFragment fetches one chunk by id, without whole, and requires the
+ // response to say it is a fragment and how large the memory really is.
+-func assertMarkedFragment(t *testing.T, h *mcptest.Harness, id string, wantFull int) {
++func assertMarkedFragment(t *testing.T, h *mcptest.Testbed, id string, wantFull int) {
+ 	t.Helper()
+ 	out := h.MustCall(t, "am_get_drawer", map[string]any{"id": id})
+ 	var v map[string]any
+diff --git a/internal/mcptest/registry_test.go b/internal/mcptest/registry_test.go
+index 802c199..6e6e3b2 100644
+--- a/internal/mcptest/registry_test.go
++++ b/internal/mcptest/registry_test.go
+@@ -17,7 +17,7 @@ var scenarios = []mcptest.Scenario{
+ 		// that a handler returned something.
+ 		Name:  "one call bootstraps a wing and carries every part of the protocol it replaces",
+ 		Tools: []string{"am_add_drawer", "am_bootstrap"},
+-		Run: func(t *testing.T, h *mcptest.Harness) {
++		Run: func(t *testing.T, h *mcptest.Testbed) {
+ 			h.MustCall(t, "am_add_drawer", map[string]any{
+ 				"wing": "wing_scenario", "room": "llm_init",
+ 				"content": "BOOTSTRAP-MARKER read this before doing anything else in this wing",
+@@ -42,7 +42,7 @@ var scenarios = []mcptest.Scenario{
+ 		// what was put behind it.
+ 		Name:  "a wing reports its own entry point, and it reaches what was filed there",
+ 		Tools: []string{"am_add_drawer", "am_entry_point"},
+-		Run: func(t *testing.T, h *mcptest.Harness) {
++		Run: func(t *testing.T, h *mcptest.Testbed) {
+ 			filed := h.MustCall(t, "am_add_drawer", map[string]any{
+ 				"wing": "wing_scenario", "room": "llm_init",
+ 				"content": "WHAT MUST I LOAD AT THE START OF A SESSION? Start here.",
+@@ -68,7 +68,7 @@ var scenarios = []mcptest.Scenario{
+ 	{
+ 		Name:  "a filed memory is recalled by the question it answers",
+ 		Tools: []string{"am_add_drawer", "am_search"},
+-		Run: func(t *testing.T, h *mcptest.Harness) {
++		Run: func(t *testing.T, h *mcptest.Testbed) {
+ 			h.MustCall(t, "am_add_drawer", map[string]any{
+ 				"wing": "wing_scenario", "room": "decisions",
+ 				"content": "rollbacks go through the previous image tag, never a rebuild",
+@@ -83,7 +83,7 @@ var scenarios = []mcptest.Scenario{
+ 	{
+ 		Name:  "the wake-up call reports the workspace it is scoped to",
+ 		Tools: []string{"am_add_drawer", "am_status"},
+-		Run: func(t *testing.T, h *mcptest.Harness) {
++		Run: func(t *testing.T, h *mcptest.Testbed) {
+ 			h.MustCall(t, "am_add_drawer", map[string]any{
+ 				"wing": "wing_scenario", "room": "decisions", "content": "something to count",
+ 			})
+@@ -108,7 +108,7 @@ var scenarios = []mcptest.Scenario{
+ 		// through the tool surface would have caught it the same day.
+ 		Name:  "a corrected memory can be re-anchored, and the new anchor is the one that sticks",
+ 		Tools: []string{"am_add_drawer", "am_update_drawer", "am_list_anchors"},
+-		Run: func(t *testing.T, h *mcptest.Harness) {
++		Run: func(t *testing.T, h *mcptest.Testbed) {
+ 			out := h.MustCall(t, "am_add_drawer", map[string]any{
+ 				"wing": "wing_anchor", "room": "decisions",
+ 				"content": "the retry budget is three attempts",
+@@ -171,7 +171,7 @@ var scenarios = []mcptest.Scenario{
+ 		// changed the content and returned an error announcing a refusal.
+ 		Name:  "a refused anchor list leaves the memory's content untouched",
+ 		Tools: []string{"am_add_drawer", "am_update_drawer", "am_get_drawer"},
+-		Run: func(t *testing.T, h *mcptest.Harness) {
++		Run: func(t *testing.T, h *mcptest.Testbed) {
+ 			out := h.MustCall(t, "am_add_drawer", map[string]any{
+ 				"wing": "wing_atomic", "room": "decisions",
+ 				"content": "the original sentence, which must survive a refused update",
+@@ -208,7 +208,7 @@ var scenarios = []mcptest.Scenario{
+ 		// every old chunk ends and one new set is written.
+ 		Name:  "regression: correcting a multi-chunk memory ends every chunk of it",
+ 		Tools: []string{"am_add_drawer", "am_update_drawer", "am_search", "am_get_drawer"},
+-		Run: func(t *testing.T, h *mcptest.Harness) {
++		Run: func(t *testing.T, h *mcptest.Testbed) {
+ 			// Over ChunkSize (1600) so the memory really is several drawers; a
+ 			// fixture below the threshold cannot reproduce this at all.
+ 			// ⚠ A MARKER IN CHUNK 0 ALONE CANNOT SEE THIS DEFECT, and this fixture
+@@ -331,7 +331,7 @@ var scenarios = []mcptest.Scenario{
+ 		// answering with the claim that was just withdrawn.
+ 		Name:  "regression: retracting a memory leaves no chunk current, by any route",
+ 		Tools: []string{"am_add_drawer", "am_invalidate_drawer", "am_search", "am_get_drawer"},
+-		Run: func(t *testing.T, h *mcptest.Harness) {
++		Run: func(t *testing.T, h *mcptest.Testbed) {
+ 			// The marker must land in the LAST chunk, not the first. The defect
+ 			// leaves the CHILDREN behind, so a marker in chunk 0 is ended by the
+ 			// buggy retraction too and the scenario passes while the orphan survives.
+@@ -388,7 +388,7 @@ var scenarios = []mcptest.Scenario{
+ 		// REGRESSION — the anchor list that cleared instead of refusing.
+ 		Name:  "regression: an all-unreadable anchor list refuses and keeps the old anchors",
+ 		Tools: []string{"am_add_drawer", "am_update_drawer", "am_list_anchors"},
+-		Run: func(t *testing.T, h *mcptest.Harness) {
++		Run: func(t *testing.T, h *mcptest.Testbed) {
+ 			out := h.MustCall(t, "am_add_drawer", map[string]any{
+ 				"wing": "wing_keepanchor", "room": "decisions",
+ 				"content": "the cache is invalidated on write",
+@@ -415,7 +415,7 @@ var scenarios = []mcptest.Scenario{
+ 		// access_count 0, and nothing had ever tested that they can be read back.
+ 		Name:  "a tunnel woven between two wings is findable from either end",
+ 		Tools: []string{"am_add_drawer", "am_create_tunnel", "am_list_tunnels", "am_find_tunnels"},
+-		Run: func(t *testing.T, h *mcptest.Harness) {
++		Run: func(t *testing.T, h *mcptest.Testbed) {
+ 			for _, w := range []string{"wing_app", "wing_infra"} {
+ 				h.MustCall(t, "am_add_drawer", map[string]any{
+ 					"wing": w, "room": "decisions", "content": "a decision filed in " + w,
+@@ -451,7 +451,7 @@ var scenarios = []mcptest.Scenario{
+ 		// being true; search returns the best match and never the most current.
+ 		Name:  "a fact added to the graph is queryable by its subject",
+ 		Tools: []string{"am_kg_add", "am_kg_query", "am_kg_stats"},
+-		Run: func(t *testing.T, h *mcptest.Harness) {
++		Run: func(t *testing.T, h *mcptest.Testbed) {
+ 			h.MustCall(t, "am_kg_add", map[string]any{
+ 				"subject": "queue-worker", "predicate": "deploys_to", "object": "batch-node-3",
+ 				"valid_from": "2026-08-01",
+@@ -470,7 +470,7 @@ var scenarios = []mcptest.Scenario{
+ 		// names, so a session picking a different one reads none of the others.
+ 		Name:  "a diary entry is readable by the agent that wrote it",
+ 		Tools: []string{"am_diary_write", "am_diary_read"},
+-		Run: func(t *testing.T, h *mcptest.Harness) {
++		Run: func(t *testing.T, h *mcptest.Testbed) {
+ 			h.MustCall(t, "am_diary_write", map[string]any{
+ 				"agent_name": "scenario-agent", "wing": "wing_diary",
+ 				"entry": "tried the batch path first; it deadlocked on the locked table",
+@@ -492,7 +492,7 @@ var scenarios = []mcptest.Scenario{
+ 	{
+ 		Name:  "the palace can describe its own shape",
+ 		Tools: []string{"am_add_drawer", "am_list_wings", "am_list_rooms", "am_get_taxonomy"},
+-		Run: func(t *testing.T, h *mcptest.Harness) {
++		Run: func(t *testing.T, h *mcptest.Testbed) {
+ 			h.MustCall(t, "am_add_drawer", map[string]any{
+ 				"wing": "wing_shape", "room": "gotchas", "content": "a gotcha worth keeping",
+ 			})
+@@ -511,7 +511,7 @@ var scenarios = []mcptest.Scenario{
+ 	{
+ 		Name:  "a near-duplicate is reported before it is filed twice",
+ 		Tools: []string{"am_add_drawer", "am_check_duplicate"},
+-		Run: func(t *testing.T, h *mcptest.Harness) {
++		Run: func(t *testing.T, h *mcptest.Testbed) {
+ 			const text = "the reranker pool is taken off the fused head, so fusion decides what it sees"
+ 			h.MustCall(t, "am_add_drawer", map[string]any{
+ 				"wing": "wing_dup", "room": "decisions", "content": text,
+@@ -527,7 +527,7 @@ var scenarios = []mcptest.Scenario{
+ 		// the palace matters.
+ 		Name:  "the wake-up sequence works end to end",
+ 		Tools: []string{"am_skillset", "am_status", "am_get_aaak_spec", "am_add_drawer", "am_search"},
+-		Run: func(t *testing.T, h *mcptest.Harness) {
++		Run: func(t *testing.T, h *mcptest.Testbed) {
+ 			for _, tool := range []string{"am_skillset", "am_get_aaak_spec"} {
+ 				if out := h.MustCall(t, tool, map[string]any{}); len(out) < 50 {
+ 					t.Errorf("%s returned %d bytes — a waking agent is told to call this first and "+
+@@ -551,7 +551,7 @@ var scenarios = []mcptest.Scenario{
+ 		// read back loses them silently.
+ 		Name:  "a centralised skill written by one session is loadable by the next",
+ 		Tools: []string{"am_update_skill", "am_list_skills", "am_load_skill"},
+-		Run: func(t *testing.T, h *mcptest.Harness) {
++		Run: func(t *testing.T, h *mcptest.Testbed) {
+ 			h.MustCall(t, "am_update_skill", map[string]any{
+ 				"name": "scenario-conventions", "description": "how this team writes tests",
+ 				"content": "SKILL-BODY-MARKER a test must be able to fail for the right reason",
+@@ -571,7 +571,7 @@ var scenarios = []mcptest.Scenario{
+ 		// as current, the graph is worse than absent — it is confidently wrong.
+ 		Name:  "an invalidated fact stops reading as current",
+ 		Tools: []string{"am_kg_add", "am_kg_invalidate", "am_kg_query", "am_kg_timeline"},
+-		Run: func(t *testing.T, h *mcptest.Harness) {
++		Run: func(t *testing.T, h *mcptest.Testbed) {
+ 			h.MustCall(t, "am_kg_add", map[string]any{
+ 				"subject": "batch-runner", "predicate": "deploys_to", "object": "old-node",
+ 				"valid_from": "2026-01-01",
+@@ -599,7 +599,7 @@ var scenarios = []mcptest.Scenario{
+ 		// the staleness signal never fires.
+ 		Name:  "an anchor verdict is recorded and readable",
+ 		Tools: []string{"am_add_drawer", "am_list_anchors", "am_mark_anchors"},
+-		Run: func(t *testing.T, h *mcptest.Harness) {
++		Run: func(t *testing.T, h *mcptest.Testbed) {
+ 			h.MustCall(t, "am_add_drawer", map[string]any{
+ 				"wing": "wing_verdict", "room": "decisions", "content": "the parser trims whitespace",
+ 				"code_anchors": []any{map[string]any{
+@@ -623,7 +623,7 @@ var scenarios = []mcptest.Scenario{
+ 	{
+ 		Name:  "the palace reports what it holds and what recall has done",
+ 		Tools: []string{"am_add_drawer", "am_search", "am_memories_filed_away", "am_recall_stats", "am_graph_stats"},
+-		Run: func(t *testing.T, h *mcptest.Harness) {
++		Run: func(t *testing.T, h *mcptest.Testbed) {
+ 			h.MustCall(t, "am_add_drawer", map[string]any{
+ 				"wing": "wing_stats", "room": "decisions", "content": "a memory to be counted",
+ 			})
+@@ -644,7 +644,7 @@ var scenarios = []mcptest.Scenario{
+ 		// prior was never fed".
+ 		Name:  "mined text becomes findable memories, and the derived graph rebuilds",
+ 		Tools: []string{"am_mine", "am_search", "am_recompute_graph", "am_list_hallways", "am_graph_stats"},
+-		Run: func(t *testing.T, h *mcptest.Harness) {
++		Run: func(t *testing.T, h *mcptest.Testbed) {
+ 			// Entity extraction is DICTIONARY-based — 59 known systems — not a
+ 			// generic proper-noun extractor. A hallway is an entity co-occurrence
+ 			// link between rooms, so a fixture whose text names no known system
+@@ -696,7 +696,7 @@ var scenarios = []mcptest.Scenario{
+ 		// read path had never been exercised by anyone, ever.
+ 		Name:  "a tunnel can be followed from the wing it leaves",
+ 		Tools: []string{"am_add_drawer", "am_create_tunnel", "am_follow_tunnels", "am_traverse"},
+-		Run: func(t *testing.T, h *mcptest.Harness) {
++		Run: func(t *testing.T, h *mcptest.Testbed) {
+ 			for _, w := range []string{"wing_from", "wing_to"} {
+ 				h.MustCall(t, "am_add_drawer", map[string]any{
+ 					"wing": w, "room": "decisions", "content": "a decision filed in " + w,
+@@ -723,7 +723,7 @@ var scenarios = []mcptest.Scenario{
+ 	{
+ 		Name:  "listing drawers honours the registration wing and the explicit escape hatch",
+ 		Tools: []string{"am_add_drawer", "am_list_drawers"},
+-		NewHarness: func(t *testing.T) *mcptest.Harness {
++		NewHarness: func(t *testing.T) *mcptest.Testbed {
+ 			return mcptest.NewWithWing(t, "wing_beta")
+ 		},
+ 		Run: exerciseListDrawersRegistrationWing,
+@@ -738,7 +738,7 @@ var scenarios = []mcptest.Scenario{
+ 		// registry exists to catch, one door over from the erasure it replaced.
+ 		Name:  "a retracted memory keeps its text and its reason, and a replaced fact leaves one value",
+ 		Tools: []string{"am_add_drawer", "am_invalidate_drawer", "am_get_drawer", "am_kg_add", "am_kg_supersede", "am_kg_query"},
+-		Run: func(t *testing.T, h *mcptest.Harness) {
++		Run: func(t *testing.T, h *mcptest.Testbed) {
+ 			out := h.MustCall(t, "am_add_drawer", map[string]any{
+ 				"wing": "wing_gone", "room": "decisions",
+ 				"content": "RETRACTED-MARKER we will ship the queue rewrite in Q3",
+@@ -793,7 +793,7 @@ var scenarios = []mcptest.Scenario{
+ 	{
+ 		Name:  "merging a wing moves both row enumeration and scoped vector recall",
+ 		Tools: []string{"am_add_drawer", "am_merge_wing", "am_list_drawers", "am_search"},
+-		Run: func(t *testing.T, h *mcptest.Harness) {
++		Run: func(t *testing.T, h *mcptest.Testbed) {
+ 			for wing, content := range map[string]string{
+ 				"wing_from":  "SOURCE-MERGE-MARKER the scheduler drains before deploy",
+ 				"wing_to":    "TARGET-MERGE-MARKER the target already has a decision",
+@@ -834,7 +834,7 @@ var scenarios = []mcptest.Scenario{
+ 	{
+ 		Name:  "the vector backend can be re-readied without losing what is stored",
+ 		Tools: []string{"am_add_drawer", "am_reconnect", "am_search"},
+-		Run: func(t *testing.T, h *mcptest.Harness) {
++		Run: func(t *testing.T, h *mcptest.Testbed) {
+ 			h.MustCall(t, "am_add_drawer", map[string]any{
+ 				"wing": "wing_reconnect", "room": "decisions",
+ 				"content": "RECONNECT-MARKER the index must survive a re-ready",
+@@ -850,7 +850,7 @@ var scenarios = []mcptest.Scenario{
+ 	},
+ }
+ 
+-func exerciseListDrawersRegistrationWing(t *testing.T, h *mcptest.Harness) {
++func exerciseListDrawersRegistrationWing(t *testing.T, h *mcptest.Testbed) {
+ 	for _, wing := range []string{"wing_alpha", "wing_beta"} {
+ 		h.MustCall(t, "am_add_drawer", map[string]any{
+ 			"wing": wing, "room": "decisions", "content": "a decision in " + wing,
+@@ -878,7 +878,7 @@ func exerciseListDrawersRegistrationWing(t *testing.T, h *mcptest.Harness) {
+ 	}
+ }
+ 
+-func createTunnel(t *testing.T, h *mcptest.Harness, source, target, label string) string {
++func createTunnel(t *testing.T, h *mcptest.Testbed, source, target, label string) string {
+ 	t.Helper()
+ 	out := h.MustCall(t, "am_create_tunnel", map[string]any{
+ 		"source_wing": source, "source_room": "decisions",
+@@ -902,7 +902,7 @@ func deleted(t *testing.T, out string) bool {
+ 	return payload.Deleted
+ }
+ 
+-func mineHallwayCorpus(t *testing.T, h *mcptest.Harness, wing, marker string) {
++func mineHallwayCorpus(t *testing.T, h *mcptest.Testbed, wing, marker string) {
+ 	t.Helper()
+ 	for _, fixture := range []struct{ room, text string }{
+ 		{"decisions", marker + " We replaced Kafka with NATS. Kafka rebalancing stalled p99, and NATS avoided that rebalance."},
+@@ -914,7 +914,7 @@ func mineHallwayCorpus(t *testing.T, h *mcptest.Harness, wing, marker string) {
+ 	}
+ }
+ 
+-func firstListedID(t *testing.T, h *mcptest.Harness, out, field string) string {
++func firstListedID(t *testing.T, h *mcptest.Testbed, out, field string) string {
+ 	t.Helper()
+ 	rows, _ := h.JSON(t, out)[field].([]any)
+ 	if len(rows) == 0 {
+@@ -928,7 +928,7 @@ func firstListedID(t *testing.T, h *mcptest.Harness, out, field string) string {
+ 	return id
+ }
+ 
+-func jsonNumber(t *testing.T, h *mcptest.Harness, out, field string) float64 {
++func jsonNumber(t *testing.T, h *mcptest.Testbed, out, field string) float64 {
+ 	t.Helper()
+ 	n, ok := h.JSON(t, out)[field].(float64)
+ 	if !ok {
+@@ -938,7 +938,7 @@ func jsonNumber(t *testing.T, h *mcptest.Harness, out, field string) float64 {
+ }
+ 
+ // firstAnchorID pulls the id of the first anchor a listing returned.
+-func firstAnchorID(t *testing.T, h *mcptest.Harness, out string) string {
++func firstAnchorID(t *testing.T, h *mcptest.Testbed, out string) string {
+ 	t.Helper()
+ 	rows, _ := h.JSON(t, out)["anchors"].([]any)
+ 	if len(rows) == 0 {
+@@ -965,7 +965,7 @@ func filler(n int) string {
+ // drawerCount reports how many drawers an add produced, so a multi-chunk
+ // scenario can prove its fixture is actually multi-chunk before asserting
+ // anything about chunks.
+-func drawerCount(t *testing.T, h *mcptest.Harness, out string) int {
++func drawerCount(t *testing.T, h *mcptest.Testbed, out string) int {
+ 	t.Helper()
+ 	rows, _ := h.JSON(t, out)["drawers"].([]any)
+ 	return len(rows)
+@@ -974,7 +974,7 @@ func drawerCount(t *testing.T, h *mcptest.Harness, out string) int {
+ // anchorSnippets returns the snippets an am_list_anchors listing carries for ONE
+ // drawer. The listing filters by wing, so a scenario about which RECORD an anchor
+ // landed on has to separate them itself.
+-func anchorSnippets(t *testing.T, h *mcptest.Harness, out, drawerID string) []string {
++func anchorSnippets(t *testing.T, h *mcptest.Testbed, out, drawerID string) []string {
+ 	t.Helper()
+ 	rows, _ := h.JSON(t, out)["anchors"].([]any)
+ 	var got []string
+@@ -1021,7 +1021,7 @@ func searchHitIDs(t *testing.T, decoded map[string]any) []string {
+ }
+ 
+ // firstDrawerID pulls the id of the first drawer an add returned.
+-func firstDrawerID(t *testing.T, h *mcptest.Harness, out string) string {
++func firstDrawerID(t *testing.T, h *mcptest.Testbed, out string) string {
+ 	t.Helper()
+ 	m := h.JSON(t, out)
+ 	rows, ok := m["drawers"].([]any)
+diff --git a/internal/mcptest/scenarios.go b/internal/mcptest/scenarios.go
+index a8ce274..bce2a01 100644
+--- a/internal/mcptest/scenarios.go
++++ b/internal/mcptest/scenarios.go
+@@ -18,8 +18,8 @@ type Scenario struct {
+ 	// NewHarness selects an alternate production edge when the scenario needs
+ 	// one, such as a declared default wing or local-mode authentication. Nil uses
+ 	// the normal hosted-edge substitute.
+-	NewHarness func(t *testing.T) *Harness
+-	Run        func(t *testing.T, h *Harness)
++	NewHarness func(t *testing.T) *Testbed
++	Run        func(t *testing.T, h *Testbed)
+ }
+ 
+ // ExemptionReasons are the external dependencies that make a tool genuinely
+diff --git a/internal/mcptest/scoping_audit_test.go b/internal/mcptest/scoping_audit_test.go
+index a599c0e..e6a03cd 100644
+--- a/internal/mcptest/scoping_audit_test.go
++++ b/internal/mcptest/scoping_audit_test.go
+@@ -31,7 +31,7 @@ func TestEveryReadToolDeclaresItsWingScope(t *testing.T) {
+ 	// this setup a leaking list_hallways handler returns the same empty page as a
+ 	// correctly scoped one, which is how the leak survived the first audit.
+ 	for _, seed := range []struct {
+-		h             *mcptest.Harness
++		h             *mcptest.Testbed
+ 		rooms         [2]string
+ 		content       string
+ 		anchorPath    string

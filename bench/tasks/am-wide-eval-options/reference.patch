@@ -1,0 +1,232 @@
+diff --git a/cmd/server/eval.go b/cmd/server/eval.go
+index 7879606..7042b57 100644
+--- a/cmd/server/eval.go
++++ b/cmd/server/eval.go
+@@ -149,7 +149,7 @@ func runEval(ctx context.Context, c *cli.Command, def config.Config, out io.Writ
+ 	}
+ 
+ 	report, err := svc.drawers.EvaluateWith(ctx, team.ID, cases, c.Int("pool"),
+-		palace.EvalOptions{Contextual: c.Bool("contextual"), AllowDegraded: c.Bool("allow-degraded"), CaseSetOrigin: src.Origin, Arms: splitArms(c.String("arms"))},
++		palace.EvalSetting{Contextual: c.Bool("contextual"), AllowDegraded: c.Bool("allow-degraded"), CaseSetOrigin: src.Origin, Arms: splitArms(c.String("arms"))},
+ 		func(done, total int, query string, elapsed time.Duration) {
+ 			fmt.Fprintf(out, "  [%2d/%2d] %5.1fs  %s\n", done, total, elapsed.Seconds(), firstLineOf(query, 62))
+ 		})
+diff --git a/internal/palace/armdistinct_test.go b/internal/palace/armdistinct_test.go
+index c74249e..a550de8 100644
+--- a/internal/palace/armdistinct_test.go
++++ b/internal/palace/armdistinct_test.go
+@@ -61,7 +61,7 @@ func TestEvalArmsAreDISTINCTCONFIGURATIONSNotJustDistinctNames(t *testing.T) {
+ 	}
+ 
+ 	seen := map[string]EvalArm{}
+-	for _, arm := range evalArms(EvalOptions{Contextual: true}, true) {
++	for _, arm := range evalArms(EvalSetting{Contextual: true}, true) {
+ 		c := svc.serviceForArm(arm)
+ 		if c == nil {
+ 			continue // production and contextual retrieve on another path
+diff --git a/internal/palace/eval.go b/internal/palace/eval.go
+index 89601c5..01b6f0b 100644
+--- a/internal/palace/eval.go
++++ b/internal/palace/eval.go
+@@ -619,8 +619,8 @@ func populationOf(cat string, poolRank int) string {
+ // how the first one read — so Evaluate reports each case as it lands.
+ type Progress func(done, total int, query string, elapsed time.Duration)
+ 
+-// EvalOptions turn on arms that need something built first.
+-type EvalOptions struct {
++// EvalSetting turn on arms that need something built first.
++type EvalSetting struct {
+ 	// Contextual adds the contextual-chunk arm. The index must already exist
+ 	// (BuildContextualIndex); the arm is skipped rather than silently empty when
+ 	// it does not.
+@@ -657,11 +657,11 @@ type EvalOptions struct {
+ // vector search fetches per query; it bounds every arm equally, so a memory
+ // outside the pool is unreachable for all of them (counted as NotFound).
+ func (s *Service) Evaluate(ctx context.Context, teamID string, cases []EvalCase, poolSize int, progress Progress) (EvalReport, error) {
+-	return s.EvaluateWith(ctx, teamID, cases, poolSize, EvalOptions{}, progress)
++	return s.EvaluateWith(ctx, teamID, cases, poolSize, EvalSetting{}, progress)
+ }
+ 
+ // EvaluateWith is Evaluate with the optional arms.
+-func (s *Service) EvaluateWith(ctx context.Context, teamID string, cases []EvalCase, poolSize int, opts EvalOptions, progress Progress) (EvalReport, error) {
++func (s *Service) EvaluateWith(ctx context.Context, teamID string, cases []EvalCase, poolSize int, opts EvalSetting, progress Progress) (EvalReport, error) {
+ 	if poolSize <= 0 {
+ 		poolSize = 50
+ 	}
+@@ -970,7 +970,7 @@ func armIsScoreFusion(arm EvalArm) bool {
+ // this function looking for the appends, so an arm added anywhere else is
+ // reported as unreachable — which is the whole point, since an arm that is
+ // declared and never appended appears in no table and nothing else notices.
+-func evalArms(opts EvalOptions, rerank bool) []EvalArm {
++func evalArms(opts EvalSetting, rerank bool) []EvalArm {
+ 	arms := []EvalArm{ArmVector, ArmHybrid, ArmHybridCloset, ArmRRF}
+ 	for _, w := range bm25Sweep {
+ 		arms = append(arms, bm25Arm(w))
+diff --git a/internal/palace/eval_ssot_test.go b/internal/palace/eval_ssot_test.go
+index d17e584..2350c62 100644
+--- a/internal/palace/eval_ssot_test.go
++++ b/internal/palace/eval_ssot_test.go
+@@ -9,7 +9,7 @@ import (
+ 
+ func TestEveryPoolArmHasServiceForArm(t *testing.T) {
+ 	svc := NewService(nil, nil, nil, 0).WithReranker(&fakeReranker{}, DefaultRerankPool)
+-	for _, arm := range evalArms(EvalOptions{Contextual: true}, true) {
++	for _, arm := range evalArms(EvalSetting{Contextual: true}, true) {
+ 		got := svc.serviceForArm(arm)
+ 		switch arm {
+ 		case ArmProduction, ArmProductionDeep, ArmProductionRetrieve, ArmContextual, ArmFactRetrieval:
+diff --git a/internal/palace/eval_test.go b/internal/palace/eval_test.go
+index 0eafe81..ef5fb1b 100644
+--- a/internal/palace/eval_test.go
++++ b/internal/palace/eval_test.go
+@@ -201,7 +201,7 @@ func TestArmBoostsDimension(t *testing.T) {
+ 	closet := []float64{0.1, 0.2, 0.3}
+ 	carriers := map[EvalArm]bool{ArmHybridCloset: true, ArmReranked: true}
+ 
+-	arms := evalArms(EvalOptions{Contextual: true}, true)
++	arms := evalArms(EvalSetting{Contextual: true}, true)
+ 	if len(arms) < 14 {
+ 		t.Fatalf("expected the full arms list, got %d arms", len(arms))
+ 	}
+@@ -380,7 +380,7 @@ func checkAnchoredDiffers(t *testing.T, base EvalArm, plain func(string, []strin
+ // collapsed — if a boosted anchored arm is ever added, it fails.
+ func TestAnchoredArmsCarryNoClosetPrior(t *testing.T) {
+ 	closet := []float64{0.1, 0.2, 0.3}
+-	for _, arm := range evalArms(EvalOptions{Contextual: true}, true) {
++	for _, arm := range evalArms(EvalSetting{Contextual: true}, true) {
+ 		if !strings.Contains(string(arm), "anchored:") {
+ 			continue
+ 		}
+@@ -394,7 +394,7 @@ func TestAnchoredArmsCarryNoClosetPrior(t *testing.T) {
+ // whose lexical term can matter gets both anchored counterparts.
+ func TestAnchoredArmsCoverEveryNonzeroWeight(t *testing.T) {
+ 	registered := map[EvalArm]bool{}
+-	for _, a := range evalArms(EvalOptions{Contextual: true}, true) {
++	for _, a := range evalArms(EvalSetting{Contextual: true}, true) {
+ 		registered[a] = true
+ 	}
+ 
+@@ -426,7 +426,7 @@ func TestAnchoredArmsCoverEveryNonzeroWeight(t *testing.T) {
+ // is multiplied by zero, so the normaliser cannot change the order and the row
+ // would duplicate `fusion bm25=0.00` while reading as a finding.
+ func TestAnchoredArmsSkipWeightZero(t *testing.T) {
+-	for _, a := range evalArms(EvalOptions{Contextual: true}, true) {
++	for _, a := range evalArms(EvalSetting{Contextual: true}, true) {
+ 		for _, norm := range anchoredNorms {
+ 			if a == anchoredArm(bm25Arm(0), norm.name) {
+ 				t.Errorf("%s is registered; at zero lexical weight the normaliser cannot matter", a)
+@@ -447,7 +447,7 @@ func TestAnchoredArmsSkipWeightZero(t *testing.T) {
+ // that instead of the stronger thing it could not back.
+ func TestEvalArmsKeepProductionLast(t *testing.T) {
+ 	for _, rerankReady := range []bool{false, true} {
+-		arms := evalArms(EvalOptions{Contextual: true}, rerankReady)
++		arms := evalArms(EvalSetting{Contextual: true}, rerankReady)
+ 		prod := -1
+ 		for i, a := range arms {
+ 			if a == ArmProduction {
+@@ -474,7 +474,7 @@ func TestEvalArmsKeepProductionLast(t *testing.T) {
+ func TestEvalArmNamesAreUnique(t *testing.T) {
+ 	for _, rerankReady := range []bool{false, true} {
+ 		seen := map[EvalArm]int{}
+-		for _, a := range evalArms(EvalOptions{Contextual: true}, rerankReady) {
++		for _, a := range evalArms(EvalSetting{Contextual: true}, rerankReady) {
+ 			seen[a]++
+ 			if seen[a] > 1 {
+ 				t.Errorf("rerankReady=%v: arm name %q is registered %d times; the later row overwrites the earlier", rerankReady, a, seen[a])
+@@ -518,7 +518,7 @@ func TestEveryRegisteredArmIsScorable(t *testing.T) {
+ 			"fusion seam carries no date and must not grow one for a single arm"
+ 	}
+ 
+-	for _, arm := range evalArms(EvalOptions{Contextual: true}, true) {
++	for _, arm := range evalArms(EvalSetting{Contextual: true}, true) {
+ 		if fusionRankerFor(arm, hybridBM25Weight) != nil {
+ 			if why, listed := notFusion[arm]; listed {
+ 				t.Errorf("%s is listed as not-fusion (%s) yet fusionRankerFor returns a ranker for it; it would be scored twice over by two different rules", arm, why)
+@@ -794,7 +794,7 @@ func TestSupersessionRanksScopePerArm(t *testing.T) {
+ 			t.Errorf("ArmScope(%s) = %q, want %q", arm, got, want)
+ 		}
+ 	}
+-	for _, arm := range evalArms(EvalOptions{Contextual: true}, true) {
++	for _, arm := range evalArms(EvalSetting{Contextual: true}, true) {
+ 		if ArmScope(arm) == "" {
+ 			t.Errorf("%s has no supersession scope — its number would be printed beside arms "+
+ 				"measuring a different population", arm)
+@@ -1078,7 +1078,7 @@ func TestSupersessionTableSeparatesPageScopedArms(t *testing.T) {
+ func TestArmNamesFitTheTableColumn(t *testing.T) {
+ 	const column = 40 // must match the %-40s in printEvalTable and the supersession table
+ 	longest, worst := 0, EvalArm("")
+-	for _, a := range evalArms(EvalOptions{Contextual: true}, true) {
++	for _, a := range evalArms(EvalSetting{Contextual: true}, true) {
+ 		if len(a) > longest {
+ 			longest, worst = len(a), a
+ 		}
+@@ -1306,7 +1306,7 @@ func TestEvaluateStampsTheCaseSetItScored(t *testing.T) {
+ 		Content: "the rerank pool ships at ten because the cross encoder is linear in pool size"})
+ 	cases := []EvalCase{{Query: "how big is the rerank pool", Expect: gold.ID, Wing: "wing_acme"}}
+ 
+-	report, err := svc.EvaluateWith(ctx, team, cases, 10, EvalOptions{CaseSetOrigin: CaseSetGenerated}, nil)
++	report, err := svc.EvaluateWith(ctx, team, cases, 10, EvalSetting{CaseSetOrigin: CaseSetGenerated}, nil)
+ 	if err != nil {
+ 		t.Fatalf("EvaluateWith: %v", err)
+ 	}
+diff --git a/internal/palace/gatedarm_test.go b/internal/palace/gatedarm_test.go
+index 6e42093..b283acc 100644
+--- a/internal/palace/gatedarm_test.go
++++ b/internal/palace/gatedarm_test.go
+@@ -36,7 +36,7 @@ func TestGatedArmIsTheShippedShape(t *testing.T) {
+ // problem rather than a wiring one.
+ func TestGatedArmIsARegisteredArm(t *testing.T) {
+ 	registered := map[EvalArm]bool{}
+-	for _, a := range evalArms(EvalOptions{Contextual: true}, true) {
++	for _, a := range evalArms(EvalSetting{Contextual: true}, true) {
+ 		registered[a] = true
+ 	}
+ 	// Every configuration the mapping is willing to NAME must be an arm the run
+diff --git a/internal/palace/orphanpaths_test.go b/internal/palace/orphanpaths_test.go
+index c196237..d08eceb 100644
+--- a/internal/palace/orphanpaths_test.go
++++ b/internal/palace/orphanpaths_test.go
+@@ -138,7 +138,7 @@ func TestTheFactArmActuallyScores(t *testing.T) {
+ 	rep, err := svc.EvaluateWith(ctx, team, []EvalCase{{
+ 		Query: "who owns invoice numbering", Wing: "wing_acme",
+ 		Category: CatFact, ExpectTriple: gold,
+-	}}, 10, EvalOptions{Arms: []string{string(ArmFactRetrieval)}}, nil)
++	}}, 10, EvalSetting{Arms: []string{string(ArmFactRetrieval)}}, nil)
+ 	if err != nil {
+ 		t.Fatalf("evaluate: %v", err)
+ 	}
+diff --git a/internal/palace/recallanswers_spec_test.go b/internal/palace/recallanswers_spec_test.go
+index 53ed2fb..df48309 100644
+--- a/internal/palace/recallanswers_spec_test.go
++++ b/internal/palace/recallanswers_spec_test.go
+@@ -193,7 +193,7 @@ func TestFactAnswerableRateIsMeasured(t *testing.T) {
+ 	// fails here even if the name survives elsewhere in the body.
+ 	t.Run("the arm is registered", func(t *testing.T) {
+ 		for _, rerank := range []bool{false, true} {
+-			if !slices.Contains(evalArms(EvalOptions{}, rerank), ArmFactRetrieval) {
++			if !slices.Contains(evalArms(EvalSetting{}, rerank), ArmFactRetrieval) {
+ 				t.Errorf("rerank=%v: ArmFactRetrieval is declared but evalArms never returns it, so it appears in no table", rerank)
+ 			}
+ 		}
+diff --git a/internal/palace/supersessionreaches_test.go b/internal/palace/supersessionreaches_test.go
+index 4c84efc..53b42ea 100644
+--- a/internal/palace/supersessionreaches_test.go
++++ b/internal/palace/supersessionreaches_test.go
+@@ -52,7 +52,7 @@ func TestTheSupersessionCellSeesACaseThroughTheRealReport(t *testing.T) {
+ 		Query: "retention window policy", Expect: newer.Drawers[0].ID,
+ 		Distractor: old.Drawers[0].ID, Wing: wing, Category: CatTemporal,
+ 	}}
+-	report, err := svc.EvaluateWith(ctx, team, cases, 20, EvalOptions{Arms: []string{string(ArmHybrid)}}, nil)
++	report, err := svc.EvaluateWith(ctx, team, cases, 20, EvalSetting{Arms: []string{string(ArmHybrid)}}, nil)
+ 	if err != nil {
+ 		t.Fatalf("evaluate: %v", err)
+ 	}
+@@ -112,7 +112,7 @@ func TestTheReportCarriesTheDistractorFieldsItComputed(t *testing.T) {
+ 	report, err := svc.EvaluateWith(ctx, team, []EvalCase{{
+ 		Query: "cache eviction policy", Expect: newer.Drawers[0].ID,
+ 		Distractor: old.Drawers[0].ID, Wing: wing, Category: CatTemporal,
+-	}}, 20, EvalOptions{Arms: []string{string(ArmHybrid)}}, nil)
++	}}, 20, EvalSetting{Arms: []string{string(ArmHybrid)}}, nil)
+ 	if err != nil {
+ 		t.Fatalf("evaluate: %v", err)
+ 	}

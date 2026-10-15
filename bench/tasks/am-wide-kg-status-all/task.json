@@ -1,0 +1,84 @@
+{
+  "id": "am-wide-kg-status-all",
+  "shape": "wide-rename",
+  "repo": "agentsmemory",
+  "commit": "d038def25a7fadd2586674b954ea07896a330b4a",
+  "exact": true,
+  "instruction": "Rename the Go identifier KGStatusAll to KGStatusSum, its mentions in comments included.",
+  "require": [
+    {
+      "file": "internal/mcpserver/kg.go",
+      "match": "\\bKGStatusSum\\b"
+    },
+    {
+      "file": "internal/mcpserver/kgquery_test.go",
+      "match": "\\bKGStatusSum\\b"
+    },
+    {
+      "file": "internal/palace/kg.go",
+      "match": "\\bKGStatusSum\\b"
+    },
+    {
+      "file": "internal/palace/kg_test.go",
+      "match": "\\bKGStatusSum\\b"
+    },
+    {
+      "file": "internal/palace/kginvalidateinstant_test.go",
+      "match": "\\bKGStatusSum\\b"
+    },
+    {
+      "file": "internal/palace/kgplan_test.go",
+      "match": "\\bKGStatusSum\\b"
+    },
+    {
+      "file": "internal/palace/move_test.go",
+      "match": "\\bKGStatusSum\\b"
+    },
+    {
+      "file": "internal/palace/orphanpaths_test.go",
+      "match": "\\bKGStatusSum\\b"
+    },
+    {
+      "file": "internal/web/guide_test.go",
+      "match": "\\bKGStatusSum\\b"
+    }
+  ],
+  "forbid": [
+    {
+      "file": "internal/mcpserver/kg.go",
+      "match": "\\bKGStatusAll\\b"
+    },
+    {
+      "file": "internal/mcpserver/kgquery_test.go",
+      "match": "\\bKGStatusAll\\b"
+    },
+    {
+      "file": "internal/palace/kg.go",
+      "match": "\\bKGStatusAll\\b"
+    },
+    {
+      "file": "internal/palace/kg_test.go",
+      "match": "\\bKGStatusAll\\b"
+    },
+    {
+      "file": "internal/palace/kginvalidateinstant_test.go",
+      "match": "\\bKGStatusAll\\b"
+    },
+    {
+      "file": "internal/palace/kgplan_test.go",
+      "match": "\\bKGStatusAll\\b"
+    },
+    {
+      "file": "internal/palace/move_test.go",
+      "match": "\\bKGStatusAll\\b"
+    },
+    {
+      "file": "internal/palace/orphanpaths_test.go",
+      "match": "\\bKGStatusAll\\b"
+    },
+    {
+      "file": "internal/web/guide_test.go",
+      "match": "\\bKGStatusAll\\b"
+    }
+  ]
+}

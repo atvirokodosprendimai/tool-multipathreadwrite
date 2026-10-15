@@ -1,0 +1,279 @@
+diff --git a/cmd/server/config_test.go b/cmd/server/config_test.go
+index dba89e5..57a9369 100644
+--- a/cmd/server/config_test.go
++++ b/cmd/server/config_test.go
+@@ -20,7 +20,7 @@ func resolve(t *testing.T, args ...string) config.Config {
+ 		Name:  "serve",
+ 		Flags: serveFlags(def),
+ 		Action: func(_ context.Context, c *cli.Command) error {
+-			got = configFromCmd(c, def)
++			got = cfgFromCmdArg(c, def)
+ 			return nil
+ 		},
+ 	}
+diff --git a/cmd/server/doctor.go b/cmd/server/doctor.go
+index 755faaa..e98079a 100644
+--- a/cmd/server/doctor.go
++++ b/cmd/server/doctor.go
+@@ -68,7 +68,7 @@ func doctorCommand(def config.Config) *cli.Command {
+ 				!c.Bool("corpus") && !c.Bool("rerank") && c.String("windows") == "" {
+ 				return fmt.Errorf("nothing to check: pass --index, --corpus, --rerank, --graph, --roles, --schema or --windows")
+ 			}
+-			cfg := configFromCmd(c, def)
++			cfg := cfgFromCmdArg(c, def)
+ 			// The command's own writer, not os.Stdout. Every doctor check already
+ 			// takes an io.Writer and every one was handed the process's stdout, which
+ 			// made the REPORTS — the thing an operator actually reads — unobservable
+diff --git a/cmd/server/drawer.go b/cmd/server/drawer.go
+index cbb1c01..f611daa 100644
+--- a/cmd/server/drawer.go
++++ b/cmd/server/drawer.go
+@@ -53,7 +53,7 @@ func drawerEraseCommand(def config.Config) *cli.Command {
+ 			&cli.StringFlag{Name: "confirm", Required: true, Usage: "repeat the id to confirm the erase"},
+ 		),
+ 		Action: func(ctx context.Context, c *cli.Command) error {
+-			return eraseDrawer(ctx, configFromCmd(c, def), c.String("project"), c.String("id"), c.String("confirm"))
++			return eraseDrawer(ctx, cfgFromCmdArg(c, def), c.String("project"), c.String("id"), c.String("confirm"))
+ 		},
+ 	}
+ }
+diff --git a/cmd/server/eval.go b/cmd/server/eval.go
+index 7879606..cafe3a4 100644
+--- a/cmd/server/eval.go
++++ b/cmd/server/eval.go
+@@ -92,7 +92,7 @@ func evalCommand(def config.Config) *cli.Command {
+ 
+ // runEval is the whole flow: load or generate cases, score the arms, print.
+ func runEval(ctx context.Context, c *cli.Command, def config.Config, out io.Writer) error {
+-	cfg := configFromCmd(c, def)
++	cfg := cfgFromCmdArg(c, def)
+ 	svc, err := buildServices(cfg)
+ 	if err != nil {
+ 		return err
+diff --git a/cmd/server/flagbinding_test.go b/cmd/server/flagbinding_test.go
+index 757a3c2..b78c23f 100644
+--- a/cmd/server/flagbinding_test.go
++++ b/cmd/server/flagbinding_test.go
+@@ -171,7 +171,7 @@ func parseThroughCLI(t *testing.T, def config.Config, args ...string) config.Con
+ 		Name:  "probe",
+ 		Flags: serveFlags(def),
+ 		Action: func(_ context.Context, c *cli.Command) error {
+-			out = configFromCmd(c, def)
++			out = cfgFromCmdArg(c, def)
+ 			return nil
+ 		},
+ 	}
+diff --git a/cmd/server/inspect.go b/cmd/server/inspect.go
+index 5f3b634..ee202b7 100644
+--- a/cmd/server/inspect.go
++++ b/cmd/server/inspect.go
+@@ -82,7 +82,7 @@ func projectsCommand(def config.Config) *cli.Command {
+ 		Usage: "List every workspace in the database (slug, name, drawer count)",
+ 		Flags: dataFlags(def),
+ 		Action: func(ctx context.Context, c *cli.Command) error {
+-			return listProjects(ctx, configFromCmd(c, def))
++			return listProjects(ctx, cfgFromCmdArg(c, def))
+ 		},
+ 	}
+ }
+@@ -151,7 +151,7 @@ func inspectCommand(def config.Config) *cli.Command {
+ 			&cli.StringFlag{Name: "slug", Required: true, Usage: "workspace slug to inspect"},
+ 		),
+ 		Action: func(ctx context.Context, c *cli.Command) error {
+-			return inspectProject(ctx, configFromCmd(c, def), c.String("slug"))
++			return inspectProject(ctx, cfgFromCmdArg(c, def), c.String("slug"))
+ 		},
+ 	}
+ }
+diff --git a/cmd/server/kgextract.go b/cmd/server/kgextract.go
+index ce844f7..63f0852 100644
+--- a/cmd/server/kgextract.go
++++ b/cmd/server/kgextract.go
+@@ -88,7 +88,7 @@ func kgExtractCommand(def config.Config) *cli.Command {
+ // runKGExtract is the whole flow: pick the batch of sources, generate + parse
+ // triples per source, replace that source's triples, and summarize what remains.
+ func runKGExtract(ctx context.Context, c *cli.Command, def config.Config, out io.Writer) error {
+-	cfg := configFromCmd(c, def)
++	cfg := cfgFromCmdArg(c, def)
+ 	svc, err := buildServices(cfg)
+ 	if err != nil {
+ 		return err
+diff --git a/cmd/server/longmemeval.go b/cmd/server/longmemeval.go
+index ecf0b88..7abd61b 100644
+--- a/cmd/server/longmemeval.go
++++ b/cmd/server/longmemeval.go
+@@ -38,8 +38,8 @@ func longmemevalCommand(def config.Config) *cli.Command {
+ 	return &cli.Command{
+ 		Name:  "longmemeval",
+ 		Usage: "Score judged answer accuracy over a (write-policy x query-policy) grid on LongMemEval-S",
+-		// serveFlags carries the storage and embedder settings configFromCmd reads.
+-		// Declaring only this command's own flags left configFromCmd with nothing to
++		// serveFlags carries the storage and embedder settings cfgFromCmdArg reads.
++		// Declaring only this command's own flags left cfgFromCmdArg with nothing to
+ 		// read, so the command could not be pointed at a database or an embedder at
+ 		// all — and no gate saw it, because every flag it DID declare was read.
+ 		Flags: append(serveFlags(def),
+@@ -89,7 +89,7 @@ func runLongmemeval(ctx context.Context, def config.Config, c *cli.Command) erro
+ 	}
+ 	sel := longmemeval.Subset(ds, c.Int("n"), int64(c.Int("seed")))
+ 
+-	svc, err := buildServices(configFromCmd(c, def))
++	svc, err := buildServices(cfgFromCmdArg(c, def))
+ 	if err != nil {
+ 		return err
+ 	}
+diff --git a/cmd/server/main.go b/cmd/server/main.go
+index 7e2f64f..fd0006e 100644
+--- a/cmd/server/main.go
++++ b/cmd/server/main.go
+@@ -110,7 +110,7 @@ func rootCommand(def config.Config) *cli.Command {
+ 	// bare `agentsmemory`, and the Docker image, keep serving) and the explicit
+ 	// `serve` subcommand — one behaviour, two entry points.
+ 	serveAction := func(ctx context.Context, c *cli.Command) error {
+-		return run(ctx, configFromCmd(c, def))
++		return run(ctx, cfgFromCmdArg(c, def))
+ 	}
+ 
+ 	// urfave/cli v3 models the program as a Command. The root keeps the serve
+@@ -162,10 +162,10 @@ func rootCommand(def config.Config) *cli.Command {
+ 	return cmd
+ }
+ 
+-// configFromCmd reads the storage/embed flags off a (sub)command into a Config.
++// cfgFromCmdArg reads the storage/embed flags off a (sub)command into a Config.
+ // The mcp subcommand omits the addr and socket flags, so c.String yields "" for
+ // both there — harmless, because only the serve path reads them.
+-func configFromCmd(c *cli.Command, def config.Config) config.Config {
++func cfgFromCmdArg(c *cli.Command, def config.Config) config.Config {
+ 	cfg := config.Config{
+ 		Addr:                   c.String("addr"),
+ 		SocketPath:             c.String("socket"),
+diff --git a/cmd/server/mcp.go b/cmd/server/mcp.go
+index afe98aa..b3399c9 100644
+--- a/cmd/server/mcp.go
++++ b/cmd/server/mcp.go
+@@ -62,7 +62,7 @@ func mcpCommand(def config.Config) *cli.Command {
+ // Listing the catalogue is registration-only and does not open the database;
+ // an actual call wires services, authenticates, and invokes the live handler.
+ func runMCP(ctx context.Context, c *cli.Command, def config.Config) error {
+-	cfg := configFromCmd(c, def)
++	cfg := cfgFromCmdArg(c, def)
+ 	// Direct CLI always talks to this process's palace. --token meters a
+ 	// tenant against the local SQLite file; it does not make the process a
+ 	// hosted deployment. AGENTS.md uses mode to prove which palace opened.
+diff --git a/cmd/server/plan.go b/cmd/server/plan.go
+index 1bfdad8..11273d0 100644
+--- a/cmd/server/plan.go
++++ b/cmd/server/plan.go
+@@ -42,7 +42,7 @@ func setPlanCommand(def config.Config) *cli.Command {
+ 					"serve (or the mcp CLI), or drop it — this command would otherwise report a cap "+
+ 					"change that the running server overrides", cap)
+ 			}
+-			return setTeamPlan(ctx, configFromCmd(c, def), c.String("slug"), c.String("plan"))
++			return setTeamPlan(ctx, cfgFromCmdArg(c, def), c.String("slug"), c.String("plan"))
+ 		},
+ 	}
+ }
+diff --git a/cmd/server/playbook.go b/cmd/server/playbook.go
+index 4cf7ba3..c6edfc7 100644
+--- a/cmd/server/playbook.go
++++ b/cmd/server/playbook.go
+@@ -68,7 +68,7 @@ func playbookCommand(def config.Config) *cli.Command {
+ 			&cli.BoolFlag{Name: "force", Usage: "with --reseed, overwrite even a human-authored playbook (a non-empty updated_by)"},
+ 		),
+ 		Action: func(ctx context.Context, c *cli.Command) error {
+-			return runPlaybook(ctx, configFromCmd(c, def), c.Bool("reseed"), c.Bool("force"))
++			return runPlaybook(ctx, cfgFromCmdArg(c, def), c.Bool("reseed"), c.Bool("force"))
+ 		},
+ 	}
+ }
+diff --git a/cmd/server/share.go b/cmd/server/share.go
+index 23aa21f..046fc05 100644
+--- a/cmd/server/share.go
++++ b/cmd/server/share.go
+@@ -25,7 +25,7 @@ func shareCommand(def config.Config) *cli.Command {
+ 			&cli.StringSliceFlag{Name: "wing", Required: true, Usage: "wing to copy (repeat --wing for several)"},
+ 		),
+ 		Action: func(ctx context.Context, c *cli.Command) error {
+-			return shareWings(ctx, configFromCmd(c, def), c.String("from"), c.String("to"), c.StringSlice("wing"))
++			return shareWings(ctx, cfgFromCmdArg(c, def), c.String("from"), c.String("to"), c.StringSlice("wing"))
+ 		},
+ 	}
+ }
+diff --git a/cmd/server/sync.go b/cmd/server/sync.go
+index 032eff2..8f30eea 100644
+--- a/cmd/server/sync.go
++++ b/cmd/server/sync.go
+@@ -39,7 +39,7 @@ func syncCommand(def config.Config) *cli.Command {
+ 			},
+ 		),
+ 		Action: func(ctx context.Context, c *cli.Command) error {
+-			return syncIndex(ctx, configFromCmd(c, def), c.Bool("recreate"), c.Bool("repair-payload"))
++			return syncIndex(ctx, cfgFromCmdArg(c, def), c.Bool("recreate"), c.Bool("repair-payload"))
+ 		},
+ 	}
+ }
+diff --git a/cmd/server/telemetry.go b/cmd/server/telemetry.go
+index 30d4bb9..8679b0b 100644
+--- a/cmd/server/telemetry.go
++++ b/cmd/server/telemetry.go
+@@ -80,13 +80,13 @@ func withTelemetry(def config.Config, action cli.ActionFunc) cli.ActionFunc {
+ 		return nil
+ 	}
+ 	return func(ctx context.Context, c *cli.Command) error {
+-		// Through configFromCmd, not c.String, so --otel-endpoint resolves its
++		// Through cfgFromCmdArg, not c.String, so --otel-endpoint resolves its
+ 		// value, its env var and its default exactly like every other setting.
+ 		// An endpoint of "" is the honest answer for a command that offers no
+ 		// such flag: telemetry.Setup treats it as off and returns a no-op
+ 		// shutdown without touching the global providers, so a command with
+ 		// nothing to export pays nothing.
+-		endpoint := configFromCmd(c, def).OTELEndpoint
++		endpoint := cfgFromCmdArg(c, def).OTELEndpoint
+ 		shutdown, err := telemetrySetup(ctx, telemetry.Config{Endpoint: endpoint})
+ 		if err != nil {
+ 			log.Printf("otel: setup failed (%v) — running without traces", err)
+diff --git a/cmd/server/telemetryflushran_test.go b/cmd/server/telemetryflushran_test.go
+index 706b4b3..4e44faf 100644
+--- a/cmd/server/telemetryflushran_test.go
++++ b/cmd/server/telemetryflushran_test.go
+@@ -130,7 +130,7 @@ func runWithTelemetryCancellable(t *testing.T, action func(context.Context, *cli
+ }
+ 
+ // runWithTelemetry drives the real withTelemetry wrapper over a command carrying
+-// a real --otel-endpoint, so the value resolves through configFromCmd exactly as
++// a real --otel-endpoint, so the value resolves through cfgFromCmdArg exactly as
+ // it does in production.
+ func runWithTelemetry(t *testing.T, action cli.ActionFunc) error {
+ 	t.Helper()
+diff --git a/cmd/server/wing.go b/cmd/server/wing.go
+index 2c3b20e..639bbc8 100644
+--- a/cmd/server/wing.go
++++ b/cmd/server/wing.go
+@@ -94,7 +94,7 @@ func wingExportCommand(def config.Config) *cli.Command {
+ 			&cli.StringFlag{Name: "out", Usage: "file to write (default: stdout, so the bundle can be piped)"},
+ 		),
+ 		Action: func(ctx context.Context, c *cli.Command) error {
+-			return exportWing(ctx, configFromCmd(c, def), c.String("project"), c.String("wing"), c.String("out"))
++			return exportWing(ctx, cfgFromCmdArg(c, def), c.String("project"), c.String("wing"), c.String("out"))
+ 		},
+ 	}
+ }
+@@ -113,7 +113,7 @@ func wingImportCommand(def config.Config) *cli.Command {
+ 			&cli.StringFlag{Name: "as", Required: true, Usage: "wing to file every record into (created if absent)"},
+ 		),
+ 		Action: func(ctx context.Context, c *cli.Command) error {
+-			return importWing(ctx, configFromCmd(c, def), c.String("project"), c.String("file"), c.String("as"))
++			return importWing(ctx, cfgFromCmdArg(c, def), c.String("project"), c.String("file"), c.String("as"))
+ 		},
+ 	}
+ }
+@@ -133,7 +133,7 @@ func wingDeleteCommand(def config.Config) *cli.Command {
+ 			&cli.StringFlag{Name: "confirm", Required: true, Usage: "repeat the wing name to confirm the delete"},
+ 		),
+ 		Action: func(ctx context.Context, c *cli.Command) error {
+-			return deleteWing(ctx, configFromCmd(c, def), c.String("project"), c.String("wing"), c.String("confirm"))
++			return deleteWing(ctx, cfgFromCmdArg(c, def), c.String("project"), c.String("wing"), c.String("confirm"))
+ 		},
+ 	}
+ }

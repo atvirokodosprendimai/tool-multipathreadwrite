@@ -59,6 +59,7 @@ startup files: measured on this Mac (2026-10-15) they leave the attempt's
   - `id` — the directory's name;
   - `shape` — `multi-site`, `structural`, `repeated-anchor`, `large-file`, `single-line`, `varied-multi-site`, or `fixture` (never measured). A `varied-multi-site` task changes three or more places in two or more files, and at least one text it removes also occurs, unchanged by the fix, in a file the fix touches, so one global substitution gets it wrong (ADR-158);
     ADR-160 adds `wide-rename` (a Go identifier declared once, renamed with its comments to a name of the same length across 15 or more places in 8 or more files) and `check-coupled` (one string literal's text changed in a source file and the test that asserts it), each drawn by `bench mine` in the order of `sha256("adr-160:" + key)`;
+    Stage 4's own tasks — the ten `wide-rename`, the eight `check-coupled` and the six `single-line` controls — are listed in `bench/stage-4-tasks.txt`, which `bench run` takes as `--task` ids; how they were drawn, with each command and its output, is in `docs/bench/stage-4-draw/`, and its SWE-bench slice is `bench/swe-bench/selection-adr-160.json`;
   - `repo` — a name in `bench/repos.json`, or `fixture`;
   - `commit` — the full sha the base tree is taken from;
   - `instruction` — what the agent is told; it names no tool;

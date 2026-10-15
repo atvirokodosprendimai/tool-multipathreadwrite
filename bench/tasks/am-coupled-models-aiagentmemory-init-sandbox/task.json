@@ -1,0 +1,28 @@
+{
+  "id": "am-coupled-models-aiagentmemory-init-sandbox",
+  "shape": "check-coupled",
+  "repo": "agentsmemory",
+  "commit": "d038def25a7fadd2586674b954ea07896a330b4a",
+  "exact": true,
+  "instruction": "In internal/web/views/models.go, change the string \"aiagentmemory init --sandbox acme -- --model opus\" to \"Aiagentmemory init --sandbox acme -- --model opus\", and keep the tests passing.",
+  "require": [
+    {
+      "file": "internal/web/views/landing_test.go",
+      "match": "\"Aiagentmemory\\ init\\ \\-\\-sandbox\\ acme\\ \\-\\-\\ \\-\\-model\\ opus\""
+    },
+    {
+      "file": "internal/web/views/models.go",
+      "match": "\"Aiagentmemory\\ init\\ \\-\\-sandbox\\ acme\\ \\-\\-\\ \\-\\-model\\ opus\""
+    }
+  ],
+  "forbid": [
+    {
+      "file": "internal/web/views/landing_test.go",
+      "match": "\"aiagentmemory\\ init\\ \\-\\-sandbox\\ acme\\ \\-\\-\\ \\-\\-model\\ opus\""
+    },
+    {
+      "file": "internal/web/views/models.go",
+      "match": "\"aiagentmemory\\ init\\ \\-\\-sandbox\\ acme\\ \\-\\-\\ \\-\\-model\\ opus\""
+    }
+  ]
+}
