@@ -58,6 +58,7 @@ startup files: measured on this Mac (2026-10-15) they leave the attempt's
 - `task.json`:
   - `id` — the directory's name;
   - `shape` — `multi-site`, `structural`, `repeated-anchor`, `large-file`, `single-line`, `varied-multi-site`, or `fixture` (never measured). A `varied-multi-site` task changes three or more places in two or more files, and at least one text it removes also occurs, unchanged by the fix, in a file the fix touches, so one global substitution gets it wrong (ADR-158);
+    ADR-160 adds `wide-rename` (a Go identifier declared once, renamed with its comments to a name of the same length across 15 or more places in 8 or more files) and `check-coupled` (one string literal's text changed in a source file and the test that asserts it), each drawn by `bench mine` in the order of `sha256("adr-160:" + key)`;
   - `repo` — a name in `bench/repos.json`, or `fixture`;
   - `commit` — the full sha the base tree is taken from;
   - `instruction` — what the agent is told; it names no tool;
@@ -138,8 +139,10 @@ bench run     --stage S --out DIR --model M --claude PATH --mrw PATH --config-di
               --containment bypass --canary DIR/canary.json [--task ID ...] [--repeats 2] \
               [--source swe-bench --dataset FILE --swebench-python PATH [--selection FILE] [--docker PATH]]
 bench verify  --stage S --tasks N --repeats R DIR
-bench analyze [--tasks-dir DIR] DIR
+bench analyze [--tasks-dir DIR] [--selection FILE ...] DIR
 bench swebench-select [--n 20] < instance-ids
+bench swebench-select --dataset FILE --min-hunks N [--exclude FILE] [--salt S] [--n 20]
+bench mine    --kind wide-rename|check-coupled --repo DIR --commit SHA [--n N]
 ```
 
 `bench analyze` prints one row per stage, model and task source, sorted by stage,
@@ -161,6 +164,14 @@ every task (Zy, 2026-10-14).
 Where a group's attempts include `varied-multi-site` tasks, the verdict row is
 followed by one more descriptive row, computed over those tasks alone (ADR-158).
 `bench run` without `--task` runs every task that is not superseded.
+
+Where a group's attempts include `wide-rename` or `check-coupled` tasks (ADR-160's
+Stage 4), one descriptive row follows per category the group holds, the
+`single-line` control included; and `bench analyze --selection FILE` adds a row
+over a slice's `unnamed` instances, those whose problem statement names none of
+the patched files. `bench swebench-select --dataset` writes that subset, and
+reads the gold patch only to count hunks and files: nothing it reads reaches a
+task.
 
 `bench analyze` reads the corpus (`--tasks-dir`, default `bench/tasks`) for the
 tasks superseded since a stage ran. Where a group's attempts include one of them,

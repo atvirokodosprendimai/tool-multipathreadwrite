@@ -50,6 +50,79 @@ func TestTheSWEBenchSliceIsTheLowestTwentyHashes(t *testing.T) {
 	}
 }
 
+// TestTheStage4SWESliceIsTheLowestSaltedHashesWithFiveHunks holds ADR-160's
+// swe-multi-hunk rule: of the instances whose gold patch has at least 5 `@@ -`
+// hunk headers, less an exclusion list, the n with the lowest
+// sha256("adr-160:" + id); and the subset whose problem statement contains
+// none of the patched paths and none of their basenames but __init__.py.
+func TestTheStage4SWESliceIsTheLowestSaltedHashesWithFiveHunks(t *testing.T) {
+	patch := func(file string, hunks int) string {
+		s := "diff --git a/" + file + " b/" + file + "\n--- a/" + file + "\n+++ b/" + file + "\n"
+		for i := range hunks {
+			s += fmt.Sprintf("@@ -%d,1 +%d,1 @@\n-x\n+y\n", i*10+1, i*10+1)
+		}
+		return s
+	}
+	type row struct {
+		ID      string `json:"instance_id"`
+		Patch   string `json:"patch"`
+		Problem string `json:"problem_statement"`
+	}
+	var rows []row
+	for i := range 40 {
+		hunks := 5 + i%3
+		if i%4 == 0 {
+			hunks = 4 // under the floor
+		}
+		file := fmt.Sprintf("pkg/mod%d.py", i)
+		problem := "something is wrong"
+		switch i % 5 {
+		case 1:
+			problem = "the bug is in " + file
+		case 2:
+			problem = "see mod" + fmt.Sprint(i) + ".py"
+		case 3:
+			file = "pkg/__init__.py"
+			problem = "fails on import of __init__.py"
+		}
+		rows = append(rows, row{fmt.Sprintf("org__repo-%d", 2000+i), patch(file, hunks), problem})
+	}
+	ds := filepath.Join(t.TempDir(), "ds.json")
+	b, err := json.Marshal(rows)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(ds, b, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	exclude := []string{"org__repo-2001", "org__repo-2002"}
+	got, err := SelectMultiHunk(ds, "adr-160:", 5, exclude, 8)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var eligible []string
+	for i, r := range rows {
+		if i%4 != 0 && !slices.Contains(exclude, r.ID) {
+			eligible = append(eligible, r.ID)
+		}
+	}
+	if want := SelectSWEBenchSalted(eligible, 8, "adr-160:"); !slices.Equal(got.Selected, want) {
+		t.Fatalf("selected %v, want the 8 lowest salted hashes among the eligible: %v", got.Selected, want)
+	}
+	for _, id := range got.Selected {
+		var i int
+		fmt.Sscanf(id, "org__repo-%d", &i)
+		i -= 2000
+		named := i%5 == 1 || i%5 == 2
+		if slices.Contains(got.Unnamed, id) == named {
+			t.Errorf("%s (problem %q): in the unnamed subset %v, want %v", id, rows[i].Problem, !named, !named)
+		}
+	}
+	if slices.Equal(SelectSWEBenchSalted(eligible, 8, "adr-156:"), got.Selected) {
+		t.Error("the salt does not change the order")
+	}
+}
+
 // sweFixture lays out what a SWE-bench stage reads: a local repository at one
 // commit, bench/repos.json naming it, a dataset whose rows carry everything the
 // harness's rows carry — hints, the test patch, the gold patch, the tests that

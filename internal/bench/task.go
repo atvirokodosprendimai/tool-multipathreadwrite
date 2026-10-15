@@ -31,6 +31,11 @@ const (
 	// files, one of whose old texts also occurs where it must stay, so a
 	// global substitution gets it wrong (ADR-158 Decision 4).
 	ShapeVariedMultiSite = "varied-multi-site"
+	// ShapeWideRename and ShapeCheckCoupled are ADR-160's own-task categories:
+	// a Go identifier renamed across 15 or more places in 8 or more files, and
+	// a string literal changed where a test asserts it (ADR-160 Decision 1).
+	ShapeWideRename   = "wide-rename"
+	ShapeCheckCoupled = "check-coupled"
 )
 
 // Match is one regular expression the oracle checks against one file of the

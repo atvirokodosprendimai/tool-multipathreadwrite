@@ -8,9 +8,11 @@
 //	              [--source swe-bench --dataset FILE --swebench-python PATH [--selection FILE] [--docker PATH]]
 //	bench canary  --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass
 //	bench verify  --stage S --tasks N --repeats R DIR
-//	bench analyze DIR
+//	bench analyze [--tasks-dir DIR] [--selection FILE ...] DIR
 //	bench hook    --log FILE --tree DIR (configuration B's PreToolUse hook)
-//	bench swebench-select [--n 20]      (instance ids on stdin)
+//	bench swebench-select [--n 20]                         (instance ids on stdin; Stage 3's rule)
+//	bench swebench-select --dataset FILE --min-hunks N [--exclude FILE] [--salt S] [--n 20]
+//	bench mine    --kind wide-rename|check-coupled --repo DIR --commit SHA [--n N]
 //
 // Nothing runs an agent until Zy has chosen how an attempt is contained and
 // logged in once in the dedicated config directory (ADR-156 Decision 2).
@@ -33,9 +35,11 @@ const usageText = `usage:
   bench run     --stage S --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass --canary FILE [--task ID ...] [--configs A,B] [--repeats N] [--seed N] [--budget 20m] [--source swe-bench --dataset FILE --swebench-python PATH [--selection FILE] [--docker PATH]]
   bench canary  --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass
   bench verify  --stage S --tasks N --repeats R DIR
-  bench analyze [--tasks-dir DIR] DIR
+  bench analyze [--tasks-dir DIR] [--selection FILE ...] DIR
   bench hook    --log FILE --tree DIR
   bench swebench-select [--n 20] < ids
+  bench swebench-select --dataset FILE --min-hunks N [--exclude FILE] [--salt S] [--n 20]
+  bench mine    --kind wide-rename|check-coupled --repo DIR --commit SHA [--n N]
 `
 
 func main() {
@@ -61,6 +65,8 @@ func main() {
 		os.Exit(bench.Hook(os.Stdin, os.Stderr, *log, *tree))
 	case "swebench-select":
 		err = swebenchSelect(os.Args[2:], os.Stdin, os.Stdout)
+	case "mine":
+		err = mine(os.Args[2:], os.Stdout)
 	case "-h", "--help", "help":
 		fmt.Fprint(os.Stdout, usageText)
 		return
@@ -198,6 +204,8 @@ func verify(args []string) error {
 func analyze(args []string, w io.Writer) error {
 	fs := flag.NewFlagSet("analyze", flag.ContinueOnError)
 	tasksDir := fs.String("tasks-dir", filepath.Join("bench", "tasks"), "the corpus, read for the tasks superseded since a stage ran (ADR-159)")
+	var selections multi
+	fs.Var(&selections, "selection", "a slice's selection file whose unnamed-files subset gets a descriptive row (ADR-160); repeatable")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -233,7 +241,24 @@ func analyze(args []string, w io.Writer) error {
 	if err != nil {
 		return err
 	}
+	var subsets []bench.Subset
+	for _, f := range selections {
+		b, err := os.ReadFile(f)
+		if err != nil {
+			return err
+		}
+		var sel struct {
+			Unnamed []string `json:"unnamed"`
+		}
+		if err := json.Unmarshal(b, &sel); err != nil {
+			return fmt.Errorf("%s: %w", f, err)
+		}
+		subsets = append(subsets, bench.Subset{Label: bench.OnlyUnnamedFiles, Tasks: sel.Unnamed})
+	}
 	results, err := bench.Analyze(rs, superseded...)
+	if len(subsets) > 0 {
+		results, err = bench.AnalyzeSubsets(rs, superseded, subsets)
+	}
 	if err != nil {
 		return err
 	}
@@ -259,8 +284,39 @@ func analyze(args []string, w io.Writer) error {
 func swebenchSelect(args []string, r io.Reader, w io.Writer) error {
 	fs := flag.NewFlagSet("swebench-select", flag.ContinueOnError)
 	n := fs.Int("n", 20, "how many instances")
+	salt := fs.String("salt", "adr-156", "with --dataset, the salt hashed before each id (adr-160 for Stage 4)")
+	dataset := fs.String("dataset", "", "with --min-hunks, select from this dataset file instead of ids on stdin (ADR-160)")
+	minHunks := fs.Int("min-hunks", 0, "keep instances whose gold patch has at least this many hunks")
+	exclude := fs.String("exclude", "", "a selection file whose selected ids are left out")
 	if err := fs.Parse(args); err != nil {
 		return err
+	}
+	if *dataset != "" {
+		var ex []string
+		if *exclude != "" {
+			b, err := os.ReadFile(*exclude)
+			if err != nil {
+				return err
+			}
+			var sel struct {
+				Selected []string `json:"selected"`
+			}
+			if err := json.Unmarshal(b, &sel); err != nil {
+				return fmt.Errorf("%s: %w", *exclude, err)
+			}
+			ex = sel.Selected
+		}
+		got, err := bench.SelectMultiHunk(*dataset, *salt+":", *minHunks, ex, *n)
+		if err != nil {
+			return err
+		}
+		out := struct {
+			Rule string `json:"rule"`
+			bench.MultiHunk
+		}{fmt.Sprintf("the %d instance ids with the lowest sha256(%q + instance_id) among those whose gold patch has at least %d hunk headers, less the ids selected in %s (BACKLOG, Pre-registered for ADR-160; bench swebench-select)", *n, *salt+":", *minHunks, *exclude), got}
+		enc := json.NewEncoder(w)
+		enc.SetIndent("", "  ")
+		return enc.Encode(out)
 	}
 	var ids []string
 	sc := bufio.NewScanner(r)
@@ -272,8 +328,61 @@ func swebenchSelect(args []string, r io.Reader, w io.Writer) error {
 	if err := sc.Err(); err != nil {
 		return err
 	}
+	// Ids on stdin are Stage 3's rule, unsalted by --salt (ADR-156 T5).
 	for _, id := range bench.SelectSWEBench(ids, *n) {
 		fmt.Fprintln(w, id)
+	}
+	return nil
+}
+
+// mine lists ADR-160's candidates of one kind, in registered order: for a
+// wide rename the commit's tree is read from git, never the working tree.
+func mine(args []string, w io.Writer) error {
+	fs := flag.NewFlagSet("mine", flag.ContinueOnError)
+	kind := fs.String("kind", "", "wide-rename or check-coupled")
+	repo := fs.String("repo", "", "the repository")
+	commit := fs.String("commit", "", "the pinned commit")
+	n := fs.Int("n", 0, "how many candidates to print; 0 prints every one")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *repo == "" || *commit == "" {
+		return fmt.Errorf("mine needs --repo and --commit")
+	}
+	var lines []string
+	switch *kind {
+	case "wide-rename":
+		dir, err := os.MkdirTemp("", "bench-mine-")
+		if err != nil {
+			return err
+		}
+		defer func() { _ = os.RemoveAll(dir) }()
+		if err := bench.ExportTree(*repo, *commit, dir); err != nil {
+			return err
+		}
+		cs, err := bench.MineWideRenames(dir, 15, 8)
+		if err != nil {
+			return err
+		}
+		for _, c := range cs {
+			lines = append(lines, fmt.Sprintf("%s\t%d occurrences\t%d files", c.Name, c.Occurrences, c.Files))
+		}
+	case "check-coupled":
+		cs, err := bench.MineCheckCoupled(*repo, *commit, 4)
+		if err != nil {
+			return err
+		}
+		for _, c := range cs {
+			lines = append(lines, fmt.Sprintf("%s\tparent %s\t%q -> %q\t%s", c.Commit, c.Parent, c.Old, c.New, strings.Join(c.Files, " ")))
+		}
+	default:
+		return fmt.Errorf("--kind is wide-rename or check-coupled, not %q", *kind)
+	}
+	if *n > 0 && *n < len(lines) {
+		lines = lines[:*n]
+	}
+	for _, l := range lines {
+		fmt.Fprintln(w, l)
 	}
 	return nil
 }

@@ -2,14 +2,14 @@ package bench
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -21,11 +21,16 @@ import (
 // for ADR-156"): the n instance ids with the lowest sha256("adr-156:" + id),
 // whatever order the dataset lists them in, returned in that hash order.
 func SelectSWEBench(ids []string, n int) []string {
+	return SelectSWEBenchSalted(ids, n, "adr-156:")
+}
+
+// SelectSWEBenchSalted is SelectSWEBench with the salt named: ADR-160 draws
+// Stage 4's slice with "adr-160:".
+func SelectSWEBenchSalted(ids []string, n int, salt string) []string {
 	type h struct{ id, hash string }
 	hs := make([]h, 0, len(ids))
 	for _, id := range ids {
-		s := sha256.Sum256([]byte("adr-156:" + id))
-		hs = append(hs, h{id, hex.EncodeToString(s[:])})
+		hs = append(hs, h{id, saltedHash(salt, id)})
 	}
 	sort.Slice(hs, func(i, j int) bool { return hs[i].hash < hs[j].hash })
 	if n > len(hs) {
@@ -36,6 +41,61 @@ func SelectSWEBench(ids []string, n int) []string {
 		out[i] = hs[i].id
 	}
 	return out
+}
+
+// MultiHunk is ADR-160's swe-multi-hunk slice and its registered subset.
+type MultiHunk struct {
+	Selected []string `json:"selected"`
+	// Unnamed are the selected instances whose problem statement contains
+	// none of the patched files' paths and none of their basenames but
+	// __init__.py: the agent has to find the code first (ADR-160 Decision 5).
+	Unnamed []string `json:"unnamed"`
+}
+
+var patchHunk = regexp.MustCompile(`(?m)^@@ -`)
+var patchedFile = regexp.MustCompile(`(?m)^diff --git a/(\S+) b/`)
+
+// SelectMultiHunk draws ADR-160's slice from the dataset file: the instances
+// whose gold patch has at least minHunks hunk headers, less exclude, ordered by
+// sha256(salt + id), the first n. Selection reads the gold patch to count its
+// hunks and files; nothing it reads reaches a task, which LoadSWEBench builds
+// from sweRow alone.
+func SelectMultiHunk(dataset, salt string, minHunks int, exclude []string, n int) (MultiHunk, error) {
+	b, err := os.ReadFile(dataset)
+	if err != nil {
+		return MultiHunk{}, err
+	}
+	var rows []struct {
+		ID      string `json:"instance_id"`
+		Patch   string `json:"patch"`
+		Problem string `json:"problem_statement"`
+	}
+	if err := json.Unmarshal(b, &rows); err != nil {
+		return MultiHunk{}, fmt.Errorf("%s: %w", dataset, err)
+	}
+	var ids []string
+	unnamed := map[string]bool{}
+	for _, r := range rows {
+		if len(patchHunk.FindAllStringIndex(r.Patch, -1)) < minHunks || slices.Contains(exclude, r.ID) {
+			continue
+		}
+		ids = append(ids, r.ID)
+		named := false
+		for _, m := range patchedFile.FindAllStringSubmatch(r.Patch, -1) {
+			base := filepath.Base(m[1])
+			if strings.Contains(r.Problem, m[1]) || base != "__init__.py" && strings.Contains(r.Problem, base) {
+				named = true
+			}
+		}
+		unnamed[r.ID] = !named
+	}
+	out := MultiHunk{Selected: SelectSWEBenchSalted(ids, n, salt), Unnamed: []string{}}
+	for _, id := range out.Selected {
+		if unnamed[id] {
+			out.Unnamed = append(out.Unnamed, id)
+		}
+	}
+	return out, nil
 }
 
 // ShapeSWEBench marks a task built from the SWE-bench Verified slice (ADR-156

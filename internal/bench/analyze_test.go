@@ -354,3 +354,56 @@ func publishedReceipts(t *testing.T, dir string) []Receipt {
 	}
 	return rs
 }
+
+// TestAnalyzePrintsAStage4CategoryRow: a group holding ADR-160's categories
+// gets one descriptive row per category, and a slice's registered subset its
+// own row, each beside the verdict and never in its place; a group of the
+// earlier stages, without those categories, gets no category row.
+func TestAnalyzePrintsAStage4CategoryRow(t *testing.T) {
+	var rs []Receipt
+	for i, shape := range []string{ShapeWideRename, ShapeWideRename, ShapeCheckCoupled, ShapeCheckCoupled, ShapeSingleLine, ShapeSingleLine} {
+		for _, r := range receiptsFor("sonnet", "own", []float64{1}, []float64{1}, []bool{true}, []bool{i%2 == 0}) {
+			r.Task, r.Stage, r.Shape = fmt.Sprintf("%s-%d", shape, i), "stage4", shape
+			rs = append(rs, r)
+		}
+	}
+	for i := range 4 {
+		for _, r := range receiptsFor("sonnet", "own", []float64{1}, []float64{1}, []bool{true}, []bool{true}) {
+			r.Task, r.Stage, r.Shape = fmt.Sprintf("old-%d", i), "stage1b", []string{ShapeSingleLine, ShapeMultiSite}[i%2]
+			rs = append(rs, r)
+		}
+	}
+	for i := range 4 {
+		for _, r := range receiptsFor("sonnet", "swe-bench", []float64{1}, []float64{1}, []bool{true}, []bool{true}) {
+			r.Task, r.Stage, r.Shape = fmt.Sprintf("org__repo-%d", i), "stage-4-swe", ShapeSWEBench
+			rs = append(rs, r)
+		}
+	}
+	unnamed := Subset{Label: OnlyUnnamedFiles, Tasks: []string{"org__repo-1", "org__repo-3"}}
+	got, err := AnalyzeSubsets(rs, nil, []Subset{unnamed})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows := map[string]Result{}
+	for _, r := range got {
+		rows[r.Stage+"|"+r.Descriptive] = r
+	}
+	for _, shape := range []string{ShapeWideRename, ShapeCheckCoupled, ShapeSingleLine} {
+		r, ok := rows["stage4|"+onlyCategory(shape)]
+		if !ok || r.Tasks != 2 || r.Verdict == "" {
+			t.Errorf("stage4: no descriptive row over the 2 %s tasks: %+v", shape, r)
+		}
+	}
+	if v, ok := rows["stage4|"]; !ok || v.Tasks != 6 {
+		t.Errorf("stage4: the verdict row is not over all 6 tasks: %+v", v)
+	}
+	if _, ok := rows["stage1b|"+onlyCategory(ShapeSingleLine)]; ok {
+		t.Error("stage1b got a category row: only a group holding ADR-160's categories does")
+	}
+	if r, ok := rows["stage-4-swe|"+OnlyUnnamedFiles]; !ok || r.Tasks != 2 {
+		t.Errorf("stage-4-swe: no row over the 2 unnamed-files instances: %+v", r)
+	}
+	if got[0].Descriptive != "" {
+		t.Errorf("the first row is descriptive (%q); the verdict comes first", got[0].Descriptive)
+	}
+}
