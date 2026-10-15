@@ -135,7 +135,8 @@ task tree's own instruction files without a line that names mrw, `AGENTS.md` inc
 ```
 bench canary  --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass
 bench run     --stage S --out DIR --model M --claude PATH --mrw PATH --config-dir DIR \
-              --containment bypass --canary DIR/canary.json [--task ID ...] [--repeats 2]
+              --containment bypass --canary DIR/canary.json [--task ID ...] [--repeats 2] \
+              [--source swe-bench --dataset FILE --swebench-python PATH [--selection FILE] [--docker PATH]]
 bench verify  --stage S --tasks N --repeats R DIR
 bench analyze [--tasks-dir DIR] DIR
 bench swebench-select [--n 20] < instance-ids
@@ -167,3 +168,14 @@ one more descriptive row is printed, computed without them and labelled as
 registered after the stage ran (ADR-159): it shows how much of a published
 result a task graded wrongly carries, and the verdict row stays the one computed
 over every task.
+
+`bench run --source swe-bench` runs the SWE-bench slice (ADR-156 T5;
+`bench/swe-bench/selection.json`, registered in BACKLOG, "Pre-registered for
+ADR-156 T5"). A task is the instance's repository at its base commit, cloned
+locally and named in `bench/repos.json`, and the agent is told its problem
+statement and nothing else of the dataset row. The attempt's change is graded
+by the official harness (`--swebench-python`, an interpreter with `swebench`
+installed, reading `--dataset` at the revision T5 recorded) in the instance's
+`linux/amd64` image. An instance's attempts run one after another, so its image
+is pulled once and removed after they are graded. A SWE-bench row prints
+"not measured" for silent mis-edits, since the slice has no allowed regions.

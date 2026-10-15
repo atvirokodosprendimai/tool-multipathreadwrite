@@ -5,6 +5,7 @@
 //	bench run     --stage S --out DIR --model M [--model M2] --claude PATH --mrw PATH
 //	              --config-dir DIR --containment bypass --canary FILE [--task ID ...]
 //	              [--configs A,B] [--repeats N] [--seed N] [--budget 20m]
+//	              [--source swe-bench --dataset FILE --swebench-python PATH [--selection FILE] [--docker PATH]]
 //	bench canary  --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass
 //	bench verify  --stage S --tasks N --repeats R DIR
 //	bench analyze DIR
@@ -29,7 +30,7 @@ import (
 )
 
 const usageText = `usage:
-  bench run     --stage S --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass --canary FILE [--task ID ...] [--configs A,B] [--repeats N] [--seed N] [--budget 20m]
+  bench run     --stage S --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass --canary FILE [--task ID ...] [--configs A,B] [--repeats N] [--seed N] [--budget 20m] [--source swe-bench --dataset FILE --swebench-python PATH [--selection FILE] [--docker PATH]]
   bench canary  --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass
   bench verify  --stage S --tasks N --repeats R DIR
   bench analyze [--tasks-dir DIR] DIR
@@ -104,11 +105,36 @@ func run(args []string) error {
 	configs := fs.String("configs", "A,B", "the configurations")
 	fs.IntVar(&o.Repeats, "repeats", 2, "attempts per task, configuration and model")
 	fs.Int64Var(&o.Seed, "seed", 156, "the order's seed")
+	source := fs.String("source", "own", "the task source: own (the corpus), or swe-bench (the registered slice, ADR-156 T5)")
+	selection := fs.String("selection", filepath.Join("bench", "swe-bench", "selection.json"), "the SWE-bench slice")
+	dataset := fs.String("dataset", "", "the SWE-bench dataset file the harness reads, at the revision T5 recorded")
+	python := fs.String("swebench-python", "", "an interpreter with the SWE-bench harness installed")
+	docker := fs.String("docker", "docker", "the docker CLI the harness's images are pulled and removed with")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	o.Models, o.Configs = *models, strings.Split(*configs, ",")
-	all, err := bench.LoadTasks(*tasksDir)
+	var all []bench.Task
+	var err error
+	switch *source {
+	case "own":
+		all, err = bench.LoadTasks(*tasksDir)
+	case "swe-bench":
+		if *dataset == "" || *python == "" {
+			return fmt.Errorf("--source swe-bench needs --dataset and --swebench-python")
+		}
+		g := &bench.SWEGrader{Docker: *docker}
+		if g.Dataset, err = filepath.Abs(*dataset); err != nil {
+			return err
+		}
+		if g.Python, err = filepath.Abs(*python); err != nil {
+			return err
+		}
+		o.SWE = g
+		all, err = bench.LoadSWEBench(*selection, g.Dataset)
+	default:
+		return fmt.Errorf("--source %q: own or swe-bench", *source)
+	}
 	if err != nil {
 		return err
 	}
@@ -218,8 +244,14 @@ func analyze(args []string, w io.Writer) error {
 		if r.Descriptive != "" {
 			source, verdict = r.Source+" ("+r.Descriptive+")", "("+r.Verdict+")"
 		}
-		fmt.Fprintf(w, "| %s | %s | %s | %s | %d | %d | %d | %+.3f [%+.3f, %+.3f] | %+.3f [%+.3f, %+.3f] | %d / %d | %d | %d |\n",
-			r.Stage, r.Model, source, verdict, r.Tasks, r.Attempts, r.Excluded, r.RelCost, r.RelLo, r.RelHi, r.SolvedDiff, r.SolvedLo, r.SolvedHi, r.SilentA, r.SilentB, r.ReadsB, r.SlippedB)
+		// A SWE-bench task has no allowed regions, so a silent mis-edit is
+		// not measured there (ADR-156 Decision 4), which is not a count of 0.
+		silent := fmt.Sprintf("%d / %d", r.SilentA, r.SilentB)
+		if r.Source == "swe-bench" {
+			silent = "not measured"
+		}
+		fmt.Fprintf(w, "| %s | %s | %s | %s | %d | %d | %d | %+.3f [%+.3f, %+.3f] | %+.3f [%+.3f, %+.3f] | %s | %d | %d |\n",
+			r.Stage, r.Model, source, verdict, r.Tasks, r.Attempts, r.Excluded, r.RelCost, r.RelLo, r.RelHi, r.SolvedDiff, r.SolvedLo, r.SolvedHi, silent, r.ReadsB, r.SlippedB)
 	}
 	return nil
 }
