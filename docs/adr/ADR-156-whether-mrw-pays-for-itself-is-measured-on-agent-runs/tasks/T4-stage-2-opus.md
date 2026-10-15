@@ -59,6 +59,9 @@ The corpus compared is the one in the tree. If a task is superseded after Stage 
 (empty until execute)
 - 2026-10-15 · fe000db8* · mutant killed · exit 1 · `docs/bench/stage-2-opus/run.json` · the fence binds the receipts to the stage they were run as · acceptance-sha256:7bb3a825e52cd5331b4b6408a3ec8d3313f7825a9d930eaec22ff19e06290b4f
 - 2026-10-15 · fe000db8* · mutant killed · exit 1 · `docs/bench/stage-2-opus/run.json` · the fence binds run.json to the unsuperseded corpus in the tree · acceptance-sha256:7bb3a825e52cd5331b4b6408a3ec8d3313f7825a9d930eaec22ff19e06290b4f
+- 2026-10-15 · 36a44f18* · mutant killed · exit 1 · `docs/bench/stage-2-opus/run.json` · run.json names another model · acceptance-sha256:7bb3a825e52cd5331b4b6408a3ec8d3313f7825a9d930eaec22ff19e06290b4f · covers:the stage ran exactly the unsuperseded corpus on Opus
+- 2026-10-15 · 36a44f18* · mutant killed · exit 1 · `docs/bench/stage-2-opus/am-go-probe-k.A.claude-opus-5-5.1.receipt.json` · a receipt that is not its attempt · acceptance-sha256:7bb3a825e52cd5331b4b6408a3ec8d3313f7825a9d930eaec22ff19e06290b4f · covers:the receipts verify
+- 2026-10-15 · 36a44f18* · mutant killed · exit 1 · `docs/bench/stage-2-opus/run.json` · the plan owes a third repeat no receipt answers · acceptance-sha256:7bb3a825e52cd5331b4b6408a3ec8d3313f7825a9d930eaec22ff19e06290b4f · covers:every registered attempt has a receipt
 
 ## Verification Log
 (empty until execute)
@@ -72,6 +75,9 @@ The corpus compared is the one in the tree. If a task is superseded after Stage 
 - 2026-10-15 · human-observed · S3 observed 2026-10-15 on this Mac, CLI 2.1.300, mrw v1.66.0 (05ec3f8), bench at 5b77a44c (a detached worktree, so branch work in the checkout leaves the corpus pinned): canary passed on claude-opus-5-5; pilot of Stage 1b's five pilot tasks x A/B x 1 on Opus, every receipt and every transcript's tool calls, errors and result read: 10/10 solved, no silent mis-edit, no exclusion, empty stderr, no one-turn attempt; am-go-sha-message-2 B's automatic check found the test that asserts the old wording and the attempt left it, as the instruction says; B's one hook refusal was git stash in the tree (qh-vms-listing-timeout), the registered rule, and that attempt went on to solve; no harness defect, no task superseded
 - 2026-10-15 · fe000db8* · exit 0 · `set -o pipefail …` · acceptance-sha256:7bb3a825e52cd5331b4b6408a3ec8d3313f7825a9d930eaec22ff19e06290b4f · ms:1026
 - 2026-10-15 · fe000db8* · exit 0 · `set -o pipefail …` · acceptance-sha256:7bb3a825e52cd5331b4b6408a3ec8d3313f7825a9d930eaec22ff19e06290b4f · ms:671
+- 2026-10-15 · 36a44f18* · exit 0 · `set -o pipefail …` · acceptance-sha256:7bb3a825e52cd5331b4b6408a3ec8d3313f7825a9d930eaec22ff19e06290b4f · ms:1075
+- 2026-10-15 · 36a44f18* · exit 0 · `set -o pipefail …` · acceptance-sha256:7bb3a825e52cd5331b4b6408a3ec8d3313f7825a9d930eaec22ff19e06290b4f · ms:1048
+- 2026-10-15 · 36a44f18* · exit 0 · `set -o pipefail …` · acceptance-sha256:7bb3a825e52cd5331b4b6408a3ec8d3313f7825a9d930eaec22ff19e06290b4f · ms:942
 
 ## Invariants
 

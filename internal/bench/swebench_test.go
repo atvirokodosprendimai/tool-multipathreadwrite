@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -284,6 +285,63 @@ func TestAnInterruptedSWEBenchAttemptIsNotGraded(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(work, "harness.log")); err == nil {
 		t.Error("the harness graded an interrupted attempt")
+	}
+}
+
+// TestAnInterruptWhileGradingStopsTheHarnessAndItsContainer: a signal to bench
+// while the harness grades an attempt reaches the harness, removes the
+// containers it started, writes no receipt and stops the stage. Before this,
+// grading ran under no signal handler, so the interrupt ended bench and left
+// the harness and its container running (the Stage 3 pilot, 2026-10-15).
+func TestAnInterruptWhileGradingStopsTheHarnessAndItsContainer(t *testing.T) {
+	// The test binary must outlive the signal whatever bench does with it.
+	held := make(chan os.Signal, 4)
+	signal.Notify(held, os.Interrupt)
+	defer signal.Stop(held)
+	kill := "kill -INT " + strconv.Itoa(os.Getpid())
+	for _, c := range []struct {
+		name, body, want string
+		budget           time.Duration
+		brokenPs         bool
+	}{
+		{name: "a harness the signal stops", body: kill + "\nexec sleep 5\n"},
+		{name: "a harness that exits 0 on it", body: "trap 'exit 0' INT\n" + kill + "\nsleep 5 &\nwait\n"},
+		// The budget runs out while the harness shuts down: still a signal,
+		// not a setup failure with a replacement (the review of #425).
+		{name: "a shutdown that outlasts the budget", body: "trap 'sleep 2; exit 1' INT\n" + kill + "\nsleep 5 &\nwait\n", budget: time.Second},
+		// A cleanup that failed is said, since a container may be left.
+		{name: "a cleanup that fails", body: kill + "\nexec sleep 5\n", brokenPs: true, want: "docker ps"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			o, work := sweStage(t)
+			slow := filepath.Join(work, "interrupting-python")
+			script := "#!/bin/sh\necho started >> \"" + filepath.Join(work, "harness.log") + "\"\n" + c.body
+			if err := os.WriteFile(slow, []byte(script), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			o.SWE.Python, o.SWE.Budget = slow, c.budget
+			if c.brokenPs {
+				broken := filepath.Join(work, "broken-docker")
+				if err := os.WriteFile(broken, []byte("#!/bin/sh\n[ \"$1\" = ps ] && { echo 'daemon gone' >&2; exit 1; }\nexec \""+o.SWE.Docker+"\" \"$@\"\n"), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				o.SWE.Docker = broken
+			}
+			err := Run(o)
+			if err == nil || !strings.Contains(err.Error(), "interrupted") || !strings.Contains(err.Error(), c.want) {
+				t.Fatalf("an interrupt while grading: %v, want the stage stopped as interrupted, saying %q", err, c.want)
+			}
+			if b, _ := os.ReadFile(filepath.Join(work, "harness.log")); strings.Count(string(b), "started") != 1 {
+				t.Errorf("the harness started %d times, want once: the stage goes no further", strings.Count(string(b), "started"))
+			}
+			receipts, _ := filepath.Glob(filepath.Join(o.Out, "*.receipt.json"))
+			if len(receipts) != 0 {
+				t.Errorf("an attempt whose grading was interrupted has a receipt: %v", receipts)
+			}
+			if got := dockerActions(t, work); !c.brokenPs && !strings.Contains(got, "ps -a --filter name=sweb.eval.") {
+				t.Errorf("docker did:\n%s\nwant the interrupted run's containers looked up and removed by name", got)
+			}
+		})
 	}
 }
 
