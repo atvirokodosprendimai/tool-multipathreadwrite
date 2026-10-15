@@ -2725,3 +2725,7 @@ Zy, 2026-10-15, after Stage 1 came out INCONCLUSIVE: fix what Stage 1 showed was
 - **Never pooled.** Stage 1b's verdict is its own; it is not combined with Stage 1's, whose verdict stands as computed.
 - **Descriptive rows, registered now:** the `check_red_at_base` row, as in Stage 1; and one more over the ten `varied-multi-site` tasks alone, those red at base included, printed beside the verdict in parentheses and never in its place.
 - **What changed from Stage 1, all in both configurations:** the attempt's shell is bash, so no zsh startup file is read; the CLI's task directory, git's global configuration and Python's user site are not the user's; and agentsmemory's "## Gate" and "## When the tools are absent" sections are dropped from its `AGENTS.md`.
+
+## From ADR-159 (a task graded wrongly after its stage ran is superseded)
+
+- **Run `cac-rename-post-send-2`** (2026-10-15): it replaces `cac-rename-post-send`, whose reference fix also renamed an unrelated test helper of the same name, and no stage has run it yet. Arm: the next stage of ADR-156's bench, which runs every task not superseded.

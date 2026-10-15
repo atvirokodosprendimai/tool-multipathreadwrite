@@ -32,7 +32,7 @@ const usageText = `usage:
   bench run     --stage S --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass --canary FILE [--task ID ...] [--configs A,B] [--repeats N] [--seed N] [--budget 20m]
   bench canary  --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass
   bench verify  --stage S --tasks N --repeats R DIR
-  bench analyze DIR
+  bench analyze [--tasks-dir DIR] DIR
   bench hook    --log FILE --tree DIR
   bench swebench-select [--n 20] < ids
 `
@@ -170,11 +170,26 @@ func verify(args []string) error {
 }
 
 func analyze(args []string, w io.Writer) error {
-	if len(args) != 1 {
+	fs := flag.NewFlagSet("analyze", flag.ContinueOnError)
+	tasksDir := fs.String("tasks-dir", filepath.Join("bench", "tasks"), "the corpus, read for the tasks superseded since a stage ran (ADR-159)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() != 1 {
 		return fmt.Errorf("analyze takes one directory")
 	}
+	tasks, err := bench.LoadTasks(*tasksDir)
+	if err != nil {
+		return err
+	}
+	var superseded []string
+	for _, t := range tasks {
+		if t.SupersededBy != "" {
+			superseded = append(superseded, t.ID)
+		}
+	}
 	var rs []bench.Receipt
-	err := filepath.Walk(args[0], func(p string, info os.FileInfo, err error) error {
+	err = filepath.Walk(fs.Arg(0), func(p string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() || !strings.HasSuffix(p, ".receipt.json") {
 			return err
 		}
@@ -192,7 +207,7 @@ func analyze(args []string, w io.Writer) error {
 	if err != nil {
 		return err
 	}
-	results, err := bench.Analyze(rs)
+	results, err := bench.Analyze(rs, superseded...)
 	if err != nil {
 		return err
 	}

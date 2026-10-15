@@ -3,6 +3,7 @@ package bench
 import (
 	"fmt"
 	"math/rand"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -52,7 +53,10 @@ const (
 // lower than -5 points — LOSES wins: Zy's clarification of the registration,
 // 2026-10-14, before any stage ran. B's counted shell reads are summed beside
 // each verdict (Zy, the same day).
-func Analyze(rs []Receipt) ([]Result, error) {
+//
+// superseded names the tasks superseded since a stage ran: a group that ran
+// one gets a descriptive row without them (ADR-159 Decision 2).
+func Analyze(rs []Receipt, superseded ...string) ([]Result, error) {
 	type key struct{ stage, model, source string }
 	groups := map[key][]Receipt{}
 	for _, r := range rs {
@@ -79,13 +83,16 @@ func Analyze(rs []Receipt) ([]Result, error) {
 		// One descriptive row beside the verdict, without the tasks whose own
 		// check was measured red at base (Zy, 2026-10-14): it shows how much of
 		// the verdict those tasks carry, and is never the verdict itself.
-		var kept, varied []Receipt
+		var kept, varied, current []Receipt
 		for _, r := range g {
 			if !r.CheckRedAtBase {
 				kept = append(kept, r)
 			}
 			if r.Shape == ShapeVariedMultiSite {
 				varied = append(varied, r)
+			}
+			if !slices.Contains(superseded, r.Task) {
+				current = append(current, r)
 			}
 		}
 		if len(kept) != len(g) {
@@ -104,6 +111,18 @@ func Analyze(rs []Receipt) ([]Result, error) {
 				return nil, err
 			}
 			d.Descriptive = onlyVariedMultiSite
+			out = append(out, d)
+		}
+		// A row without the tasks superseded since the stage ran. It was
+		// registered after the stages it applies to had run, for a defect found
+		// in a task's reference fix (Zy, ADR-159 Decision 2): it shows how much of
+		// a result that defect carries, and is never the verdict.
+		if len(current) != len(g) {
+			d, err := judge(k.stage, k.model, k.source, current)
+			if err != nil {
+				return nil, err
+			}
+			d.Descriptive = withoutSupersededSince
 			out = append(out, d)
 		}
 	}
@@ -129,6 +148,10 @@ const withoutRedAtBase = "without the tasks whose own check is red at base; desc
 // onlyVariedMultiSite labels the row computed over the varied-multi-site tasks
 // alone.
 const onlyVariedMultiSite = "only the varied-multi-site tasks; descriptive, not the verdict"
+
+// withoutSupersededSince labels the row computed without the tasks superseded
+// since the stage ran.
+const withoutSupersededSince = "without the tasks superseded after the stage ran; registered after it ran, descriptive, not the verdict"
 
 // judge computes one row of the registered bar from one model's and one task
 // source's receipts.

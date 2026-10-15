@@ -1,0 +1,18 @@
+{
+  "id": "cac-rename-post-send-2",
+  "shape": "multi-site",
+  "repo": "crossagentschat",
+  "commit": "ae4f7a9ca6c009863466dd92818f78bc9bcc8225",
+  "exact": true,
+  "instruction": "In the Go package internal/httpapi, rename the handler method postSend (the method on *handler, defined in send.go) to sendMessage, and update every reference to it in that package, comments included. The test helper function also named postSend in send_test.go is a different function: leave it as it is. Change nothing else.",
+  "require": [
+    {"file": "internal/httpapi/httpapi.go", "match": "\\bsendMessage\\b"},
+    {"file": "internal/httpapi/send.go", "match": "(?m)^func \\(h \\*handler\\) sendMessage\\(w http\\.ResponseWriter, r \\*http\\.Request\\) \\{$"},
+    {"file": "internal/httpapi/send_test.go", "match": "(?m)^func postSend\\(t \\*testing\\.T, url, body string\\) \\(int, int\\) \\{$"}
+  ],
+  "forbid": [
+    {"file": "internal/httpapi/httpapi.go", "match": "\\bpostSend\\b"},
+    {"file": "internal/httpapi/send.go", "match": "\\bpostSend\\b"},
+    {"file": "internal/httpapi/send_test.go", "match": "\\bsendMessage\\b"}
+  ]
+}

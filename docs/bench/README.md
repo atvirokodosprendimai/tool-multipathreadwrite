@@ -64,7 +64,7 @@ startup files: measured on this Mac (2026-10-15) they leave the attempt's
   - `slack` — how many lines either side of the fix's own insertion point new lines may also go (default 0); it never licenses changing a line the fix leaves alone;
   - `exact` — each touched file must equal the reference result, so a call site commented out or kept in a block comment fails though its tokens survive (the renames);
   - `check_red_at_base` — why the repository's own declared check fails at the pinned commit in the tree bench builds, so configuration B's automatic check is red whatever the agent does: a measured fact, carried by the quality-harness tasks (the seven of Stage 1, measured 2026-10-14, and the three ADR-158 added at the same commit) and absent elsewhere;
-  - `superseded_by` — the task that replaced this one after a run found its grading wrong. A superseded task keeps its instruction, oracle and fix, is not run unless `--task` names it, and is not counted in the shape counts (`site-html-cost-faq` and `am-go-sha-message`, ADR-158);
+  - `superseded_by` — the task that replaced this one after a run found its grading wrong. A superseded task keeps its instruction, oracle and fix, is not run unless `--task` names it, and is not counted in the shape counts (`site-html-cost-faq` and `am-go-sha-message`, ADR-158; `cac-rename-post-send`, whose reference fix also renamed an unrelated test helper of the same name, ADR-159);
   - `require`, `forbid` — `{file, match}` regular expressions over the finished file.
 - `reference.patch` — the fix, as `git diff` writes it. Its changed lines, not its context lines, are the allowed regions.
 - `base/` — a fixture's whole base tree.
@@ -137,7 +137,7 @@ bench canary  --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --co
 bench run     --stage S --out DIR --model M --claude PATH --mrw PATH --config-dir DIR \
               --containment bypass --canary DIR/canary.json [--task ID ...] [--repeats 2]
 bench verify  --stage S --tasks N --repeats R DIR
-bench analyze DIR
+bench analyze [--tasks-dir DIR] DIR
 bench swebench-select [--n 20] < instance-ids
 ```
 
@@ -160,3 +160,10 @@ every task (Zy, 2026-10-14).
 Where a group's attempts include `varied-multi-site` tasks, the verdict row is
 followed by one more descriptive row, computed over those tasks alone (ADR-158).
 `bench run` without `--task` runs every task that is not superseded.
+
+`bench analyze` reads the corpus (`--tasks-dir`, default `bench/tasks`) for the
+tasks superseded since a stage ran. Where a group's attempts include one of them,
+one more descriptive row is printed, computed without them and labelled as
+registered after the stage ran (ADR-159): it shows how much of a published
+result a task graded wrongly carries, and the verdict row stays the one computed
+over every task.
