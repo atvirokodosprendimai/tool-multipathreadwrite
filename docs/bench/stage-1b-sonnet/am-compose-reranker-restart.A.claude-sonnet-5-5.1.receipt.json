@@ -1,0 +1,43 @@
+{
+  "attempt": "am-compose-reranker-restart.A.claude-sonnet-5-5.1",
+  "stage": "stage1b",
+  "task": "am-compose-reranker-restart",
+  "shape": "repeated-anchor",
+  "source": "own",
+  "model": "claude-sonnet-5-5",
+  "config": "A",
+  "repeat": 1,
+  "order": 25,
+  "started": "2026-10-15T07:46:12Z",
+  "wall_ms": 11904,
+  "cli_version": "2.1.300 (Claude Code)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 5,
+  "tool_calls": 4,
+  "total_cost_usd": 0.1223459,
+  "usage": {
+    "input_tokens": 10,
+    "output_tokens": 841,
+    "cache_read_input_tokens": 126239,
+    "cache_creation_input_tokens": 25323
+  },
+  "init_tools": [
+    "Bash",
+    "Edit",
+    "Glob",
+    "Grep",
+    "Read",
+    "Write"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": true
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 1,
+    "insertions": 1,
+    "deletions": 1
+  }
+}

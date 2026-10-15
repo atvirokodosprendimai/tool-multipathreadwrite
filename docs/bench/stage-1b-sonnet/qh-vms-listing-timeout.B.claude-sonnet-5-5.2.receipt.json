@@ -1,0 +1,42 @@
+{
+  "attempt": "qh-vms-listing-timeout.B.claude-sonnet-5-5.2",
+  "stage": "stage1b",
+  "task": "qh-vms-listing-timeout",
+  "shape": "varied-multi-site",
+  "source": "own",
+  "model": "claude-sonnet-5-5",
+  "config": "B",
+  "repeat": 2,
+  "order": 86,
+  "started": "2026-10-15T08:07:33Z",
+  "wall_ms": 10512,
+  "cli_version": "2.1.300 (Claude Code)",
+  "mrw_version": "v1.66.0 (05ec3f8)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 4,
+  "tool_calls": 3,
+  "total_cost_usd": 0.0737952,
+  "usage": {
+    "input_tokens": 8,
+    "output_tokens": 967,
+    "cache_read_input_tokens": 60732,
+    "cache_creation_input_tokens": 14509
+  },
+  "init_tools": [
+    "Bash",
+    "Glob"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": true
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 3,
+    "insertions": 3,
+    "deletions": 3
+  },
+  "hook_reads": 1,
+  "check_red_at_base": true
+}

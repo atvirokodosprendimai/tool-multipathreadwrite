@@ -1,0 +1,43 @@
+{
+  "attempt": "cac-go-empty-body-422.A.claude-sonnet-5-5.2",
+  "stage": "stage1b",
+  "task": "cac-go-empty-body-422",
+  "shape": "repeated-anchor",
+  "source": "own",
+  "model": "claude-sonnet-5-5",
+  "config": "A",
+  "repeat": 2,
+  "order": 12,
+  "started": "2026-10-15T07:41:43Z",
+  "wall_ms": 11937,
+  "cli_version": "2.1.300 (Claude Code)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 6,
+  "tool_calls": 5,
+  "total_cost_usd": 0.0299648,
+  "usage": {
+    "input_tokens": 8,
+    "output_tokens": 1161,
+    "cache_read_input_tokens": 30268,
+    "cache_creation_input_tokens": 3828
+  },
+  "init_tools": [
+    "Bash",
+    "Edit",
+    "Glob",
+    "Grep",
+    "Read",
+    "Write"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": true
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 2,
+    "insertions": 3,
+    "deletions": 3
+  }
+}

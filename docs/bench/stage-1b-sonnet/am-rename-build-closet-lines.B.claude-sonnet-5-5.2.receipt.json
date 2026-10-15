@@ -1,0 +1,41 @@
+{
+  "attempt": "am-rename-build-closet-lines.B.claude-sonnet-5-5.2",
+  "stage": "stage1b",
+  "task": "am-rename-build-closet-lines",
+  "shape": "multi-site",
+  "source": "own",
+  "model": "claude-sonnet-5-5",
+  "config": "B",
+  "repeat": 2,
+  "order": 130,
+  "started": "2026-10-15T08:18:46Z",
+  "wall_ms": 40472,
+  "cli_version": "2.1.300 (Claude Code)",
+  "mrw_version": "v1.66.0 (05ec3f8)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 3,
+  "tool_calls": 2,
+  "total_cost_usd": 0.1218581,
+  "usage": {
+    "input_tokens": 6,
+    "output_tokens": 746,
+    "cache_read_input_tokens": 66061,
+    "cache_creation_input_tokens": 26945
+  },
+  "init_tools": [
+    "Bash",
+    "Glob"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": true
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 3,
+    "insertions": 5,
+    "deletions": 5
+  },
+  "hook_reads": 1
+}

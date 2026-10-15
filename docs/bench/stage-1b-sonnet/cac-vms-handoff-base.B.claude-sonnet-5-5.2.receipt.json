@@ -1,0 +1,41 @@
+{
+  "attempt": "cac-vms-handoff-base.B.claude-sonnet-5-5.2",
+  "stage": "stage1b",
+  "task": "cac-vms-handoff-base",
+  "shape": "varied-multi-site",
+  "source": "own",
+  "model": "claude-sonnet-5-5",
+  "config": "B",
+  "repeat": 2,
+  "order": 121,
+  "started": "2026-10-15T08:16:14Z",
+  "wall_ms": 13092,
+  "cli_version": "2.1.300 (Claude Code)",
+  "mrw_version": "v1.66.0 (05ec3f8)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 4,
+  "tool_calls": 3,
+  "total_cost_usd": 0.0294397,
+  "usage": {
+    "input_tokens": 8,
+    "output_tokens": 855,
+    "cache_read_input_tokens": 31937,
+    "cache_creation_input_tokens": 4420
+  },
+  "init_tools": [
+    "Bash",
+    "Glob"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": true
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 2,
+    "insertions": 5,
+    "deletions": 2
+  },
+  "hook_reads": 1
+}
