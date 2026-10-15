@@ -43,12 +43,15 @@ keychain by it. The canary takes the config directory's own path out of a
 transcript before it looks for `mrw`: the CLI prints that path in its init line,
 and it is bench's name for a directory, not context the model was given.
 
-Since ADR-158 an attempt also reads none of the host's shell or git setup and
+Since ADR-158 an attempt reads none of the host's zsh, git or Python setup and
 shares no directory with the host's own Claude sessions: `CLAUDE_CODE_SHELL` is
 `/bin/bash` (the CLI otherwise takes the user's login shell, and Stage 1 met a
 zsh alias of the host's in 19 attempts), `CLAUDE_CODE_TMPDIR` and
 `XDG_CONFIG_HOME` are directories of the attempt's own scratch (`cctmp/`,
 `config/`), `GIT_CONFIG_GLOBAL` is `/dev/null`, and `PYTHONNOUSERSITE` is `1`.
+`HOME` stays, since the CLI finds the login through it, so bash still reads its
+startup files: measured on this Mac (2026-10-15) they leave the attempt's
+`PATH` bench's own and define no alias or function (ADR-158 Out of Scope).
 
 ## The corpus: `bench/tasks/<id>/`
 

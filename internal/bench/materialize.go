@@ -37,17 +37,21 @@ type Section struct {
 func sectionSpan(lines []string, heading string) (start, end, n int) {
 	level := len(heading) - len(strings.TrimLeft(heading, "#"))
 	start, end = -1, len(lines)
-	fence := ""
+	// A fence closes only on a run of its own character at least as long as
+	// the one that opened it, with nothing after it (CommonMark): a ``` inside
+	// a ```` example is the example's text, and so is a heading below it.
+	var fenceChar byte
+	fenceLen := 0
 	for i, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		if fence != "" {
-			if strings.HasPrefix(trimmed, fence) {
-				fence = ""
+		if fenceLen > 0 {
+			if run := fenceRun(trimmed); run >= fenceLen && run == len(trimmed) && trimmed[0] == fenceChar {
+				fenceLen = 0
 			}
 			continue
 		}
-		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
-			fence = trimmed[:3]
+		if run := fenceRun(trimmed); run >= 3 {
+			fenceChar, fenceLen = trimmed[0], run
 			continue
 		}
 		if strings.TrimRight(line, "\r\n") == heading {
@@ -64,6 +68,14 @@ func sectionSpan(lines []string, heading string) (start, end, n int) {
 		}
 	}
 	return start, end, n
+}
+
+// fenceRun is the length of the run of backticks or tildes s begins with.
+func fenceRun(s string) int {
+	if s == "" || s[0] != '`' && s[0] != '~' {
+		return 0
+	}
+	return len(s) - len(strings.TrimLeft(s, s[:1]))
 }
 
 // dropSections removes each declared section from its file under root. A file

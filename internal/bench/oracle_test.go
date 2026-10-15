@@ -365,7 +365,9 @@ func TestTheOracleRefusesWhatTheReviewFound(t *testing.T) {
 // is an error naming the file and the heading, never a silent no-op.
 func TestADeclaredSectionIsDroppedAndAMissingOneRefuses(t *testing.T) {
 	root := t.TempDir()
-	in := "# Protocol\n\nintro\n\n## Gate\n\nstop here\n#not-a-heading, no space after the marks\n\n```sh\n# a comment, not a heading\n## nor this\n```\n\n### Inside the gate\n\nstill gate\n\n## Kept\n\nkept text\n\n## Absent\n\nask six times\n\n# Next top\n\ntail\n"
+	// The ```` block holds a ``` example and a heading: neither closes the
+	// fence, nor ends the section (the review of #417).
+	in := "# Protocol\n\nintro\n\n## Gate\n\nstop here\n#not-a-heading, no space after the marks\n\n```sh\n# a comment, not a heading\n## nor this\n```\n\n````md\n```sh\n## an example heading\n```\n````\n\n### Inside the gate\n\nstill gate\n\n## Kept\n\nkept text\n\n## Absent\n\nask six times\n\n# Next top\n\ntail\n"
 	want := "# Protocol\n\nintro\n\n## Kept\n\nkept text\n\n# Next top\n\ntail\n"
 	if err := os.WriteFile(filepath.Join(root, "AGENTS.md"), []byte(in), 0o644); err != nil {
 		t.Fatal(err)
@@ -526,5 +528,66 @@ func TestEveryVariedMultiSiteTaskHasARepeatedAnchorAcrossTwoFiles(t *testing.T) 
 	}
 	if n == 0 {
 		t.Fatal("no varied-multi-site task in the corpus")
+	}
+}
+
+// TestTheVariedOraclesGradeWhatTheReviewOf417Found: on the reference fix of
+// two ADR-158 tasks, edits the first oracles graded wrongly (Codex, the
+// review of #417). A reranker timeout moved out of its healthcheck is valid
+// to the structure check and must fail; a quoted duration means the same and
+// must pass; a 3.13 line inserted above the 3.12 it was to replace leaves
+// 3.12 in force and must fail.
+func TestTheVariedOraclesGradeWhatTheReviewOf417Found(t *testing.T) {
+	needGit(t)
+	tasks, err := LoadTasks(tasksDir(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	byID := map[string]Task{}
+	for _, task := range tasks {
+		byID[task.ID] = task
+	}
+	for _, c := range []struct {
+		name, task, file, from, to string
+		solved                     bool
+	}{
+		{"the reranker timeout indented out of its healthcheck", "am-vms-compose-health", "docker-compose.full.yml", "\n      timeout: 10s\n", "\n    timeout: 10s\n", false},
+		{"the reranker timeout quoted", "am-vms-compose-health", "docker-compose.full.yml", "\n      timeout: 10s\n", "\n      timeout: \"10s\"\n", true},
+		{"3.13 inserted above the 3.12 it replaces", "qh-vms-python-313", ".github/workflows/selftest.yml", "          python-version: '3.13'\n", "          python-version: '3.13'\n          python-version: '3.12'\n", false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			task, ok := byID[c.task]
+			if !ok {
+				t.Fatalf("no task %s", c.task)
+			}
+			tree := t.TempDir()
+			if _, err := Materialize(task, tree, task.GradedFiles()); err != nil {
+				if errors.Is(err, errUnreachable) {
+					t.Skipf("task %s: %v", task.ID, err)
+				}
+				t.Fatal(err)
+			}
+			if err := ApplyPatch(tree, filepath.Join(task.Dir, "reference.patch")); err != nil {
+				t.Fatal(err)
+			}
+			p := filepath.Join(tree, c.file)
+			b, err := os.ReadFile(p)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(string(b), c.from) {
+				t.Fatalf("%s does not hold %q after the reference fix", c.file, c.from)
+			}
+			if err := os.WriteFile(p, []byte(strings.Replace(string(b), c.from, c.to, 1)), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			v, err := Oracle(task, tree)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if v.Solved != c.solved {
+				t.Errorf("solved %v, want %v: %+v", v.Solved, c.solved, v)
+			}
+		})
 	}
 }
