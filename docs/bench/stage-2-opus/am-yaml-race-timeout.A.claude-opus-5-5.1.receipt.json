@@ -1,0 +1,43 @@
+{
+  "attempt": "am-yaml-race-timeout.A.claude-opus-5-5.1",
+  "stage": "stage2",
+  "task": "am-yaml-race-timeout",
+  "shape": "structural",
+  "source": "own",
+  "model": "claude-opus-5-5",
+  "config": "A",
+  "repeat": 1,
+  "order": 152,
+  "started": "2026-10-15T12:30:27Z",
+  "wall_ms": 8020,
+  "cli_version": "2.1.300 (Claude Code)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 3,
+  "tool_calls": 2,
+  "total_cost_usd": 0.21955860000000002,
+  "usage": {
+    "input_tokens": 6,
+    "output_tokens": 406,
+    "cache_read_input_tokens": 65193,
+    "cache_creation_input_tokens": 24797
+  },
+  "init_tools": [
+    "Bash",
+    "Edit",
+    "Glob",
+    "Grep",
+    "Read",
+    "Write"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": true
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 1,
+    "insertions": 1,
+    "deletions": 0
+  }
+}

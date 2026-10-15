@@ -296,7 +296,7 @@ func onPath(name, path string) string {
 func gates(o RunOptions) (string, error) {
 	switch {
 	case o.Containment == "":
-		return "", errors.New("no --containment: Zy chose bypass, bypassPermissions under his own account, on 2026-10-14 (ADR-156 Decision 2); name it")
+		return "", errors.New("no --containment: Zy chose bypass, bypassPermissions under their own account, on 2026-10-14 (ADR-156 Decision 2); name it")
 	case strings.HasPrefix(o.Containment, "user:"):
 		return "", errors.New("--containment user:<name> is not built: Zy chose bypass on 2026-10-14 (ADR-156 Decision 2)")
 	case o.Containment != "bypass":
@@ -328,7 +328,7 @@ func gates(o RunOptions) (string, error) {
 	mine, err1 := os.Stat(cd)
 	theirs, err2 := os.Stat(own)
 	if strings.EqualFold(cd, own) || (err1 == nil && err2 == nil && os.SameFile(mine, theirs)) {
-		return "", fmt.Errorf("--config-dir %s is the user's own ~/.claude: an attempt would load his instructions, hooks and MCP servers", o.ConfigDir)
+		return "", fmt.Errorf("--config-dir %s is the user's own ~/.claude: an attempt would load their instructions, hooks and MCP servers", o.ConfigDir)
 	}
 	return cd, nil
 }

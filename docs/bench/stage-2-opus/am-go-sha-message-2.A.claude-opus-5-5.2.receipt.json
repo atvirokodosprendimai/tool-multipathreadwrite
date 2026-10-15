@@ -1,0 +1,43 @@
+{
+  "attempt": "am-go-sha-message-2.A.claude-opus-5-5.2",
+  "stage": "stage2",
+  "task": "am-go-sha-message-2",
+  "shape": "large-file",
+  "source": "own",
+  "model": "claude-opus-5-5",
+  "config": "A",
+  "repeat": 2,
+  "order": 9,
+  "started": "2026-10-15T10:17:07Z",
+  "wall_ms": 15824,
+  "cli_version": "2.1.300 (Claude Code)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 3,
+  "tool_calls": 2,
+  "total_cost_usd": 0.23499779999999998,
+  "usage": {
+    "input_tokens": 6,
+    "output_tokens": 787,
+    "cache_read_input_tokens": 65209,
+    "cache_creation_input_tokens": 25774
+  },
+  "init_tools": [
+    "Bash",
+    "Edit",
+    "Glob",
+    "Grep",
+    "Read",
+    "Write"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": true
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 1,
+    "insertions": 1,
+    "deletions": 1
+  }
+}

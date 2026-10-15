@@ -1,0 +1,46 @@
+{
+  "attempt": "am-rename-extract-content-date.B.claude-opus-5-5.1",
+  "stage": "stage2",
+  "task": "am-rename-extract-content-date",
+  "shape": "multi-site",
+  "source": "own",
+  "model": "claude-opus-5-5",
+  "config": "B",
+  "repeat": 1,
+  "order": 46,
+  "started": "2026-10-15T10:38:02Z",
+  "wall_ms": 72805,
+  "cli_version": "2.1.300 (Claude Code)",
+  "mrw_version": "v1.66.0 (05ec3f8)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 5,
+  "tool_calls": 4,
+  "total_cost_usd": 0.292725,
+  "usage": {
+    "input_tokens": 10,
+    "output_tokens": 1550,
+    "cache_read_input_tokens": 132105,
+    "cache_creation_input_tokens": 29408
+  },
+  "init_tools": [
+    "Bash",
+    "Glob"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": false,
+    "missing": [
+      "internal/palace/contentdate_test.go: is not the reference result"
+    ],
+    "outside": [
+      "internal/palace/contentdate_test.go: base lines 5-5"
+    ]
+  },
+  "silent_mis_edit": true,
+  "diff": {
+    "files": 3,
+    "insertions": 6,
+    "deletions": 6
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "attempt": "qh-yaml-version-step.B.claude-opus-5-5.1",
+  "stage": "stage2",
+  "task": "qh-yaml-version-step",
+  "shape": "structural",
+  "source": "own",
+  "model": "claude-opus-5-5",
+  "config": "B",
+  "repeat": 1,
+  "order": 138,
+  "started": "2026-10-15T12:19:39Z",
+  "wall_ms": 10955,
+  "cli_version": "2.1.300 (Claude Code)",
+  "mrw_version": "v1.66.0 (05ec3f8)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 3,
+  "tool_calls": 2,
+  "total_cost_usd": 0.1208362,
+  "usage": {
+    "input_tokens": 6,
+    "output_tokens": 623,
+    "cache_read_input_tokens": 40121,
+    "cache_creation_input_tokens": 12541
+  },
+  "init_tools": [
+    "Bash",
+    "Glob"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": true
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 1,
+    "insertions": 2,
+    "deletions": 0
+  },
+  "check_red_at_base": true
+}

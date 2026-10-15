@@ -1,0 +1,43 @@
+{
+  "attempt": "cac-vms-test-waits.A.claude-opus-5-5.1",
+  "stage": "stage2",
+  "task": "cac-vms-test-waits",
+  "shape": "varied-multi-site",
+  "source": "own",
+  "model": "claude-opus-5-5",
+  "config": "A",
+  "repeat": 1,
+  "order": 24,
+  "started": "2026-10-15T10:24:37Z",
+  "wall_ms": 16715,
+  "cli_version": "2.1.300 (Claude Code)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 5,
+  "tool_calls": 4,
+  "total_cost_usd": 0.0584082,
+  "usage": {
+    "input_tokens": 10,
+    "output_tokens": 946,
+    "cache_read_input_tokens": 39161,
+    "cache_creation_input_tokens": 3952
+  },
+  "init_tools": [
+    "Bash",
+    "Edit",
+    "Glob",
+    "Grep",
+    "Read",
+    "Write"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": true
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 2,
+    "insertions": 3,
+    "deletions": 3
+  }
+}
