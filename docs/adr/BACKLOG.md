@@ -2729,3 +2729,14 @@ Zy, 2026-10-15, after Stage 1 came out INCONCLUSIVE: fix what Stage 1 showed was
 ## From ADR-159 (a task graded wrongly after its stage ran is superseded)
 
 - **Run `cac-rename-post-send-2`** (2026-10-15): it replaces `cac-rename-post-send`, whose reference fix also renamed an unrelated test helper of the same name, and no stage has run it yet. Arm: the next stage of ADR-156's bench, which runs every task not superseded.
+
+## Pre-registered for ADR-156 T4 (Stage 2 on Opus) — written before any Stage 2 run
+
+Zy, 2026-10-15, after Stage 1b and ADR-159: Stage 2 runs the corpus as it stands, not Stage 1's thirty. ADR-156's registration said "Stage 2: the same on Opus 5.5", written before three of Stage 1's tasks were found misgraded and superseded and before ADR-158 closed Stage 1's isolation gaps; Zy chose "Current 40" over "Stage 1's 30 as is". Registered here, before any Stage 2 attempt exists:
+
+- **The bar is ADR-156's**, unchanged: unit and pairing, outcomes, cost, the PAYS / LOSES / INCONCLUSIVE rule with LOSES winning an overlap, admission and exclusions, the budget, B's counted shell reads and slipped writes, the silent mis-edit headline.
+- **Sample.** A pilot of Stage 1b's five pilot tasks (`am-vms-stamp-builds`, `qh-vms-listing-timeout`, `site-vms-social-metadata`, `am-go-sha-message-2`, `site-html-cost-faq-2`) × 2 × 1 on Opus 5.5, stage `pilot`, not counted; then every measured task not superseded — Stage 1b's forty with `cac-rename-post-send-2` in place of `cac-rename-post-send` — × 2 configurations × 2 repeats on Opus 5.5, stage `stage2`, every attempt on this Mac.
+- **The attempt environment is Stage 1b's** (ADR-158 Decision 1 and 2), in both configurations.
+- **After the pilot**, a task is superseded only for an oracle defect shown on its base or its reference fix, never for what an attempt did, and replaced one for one, so the stage stays at 40 (ADR-158's rule).
+- **Never pooled.** Stage 2's verdict is its own, one per model as ADR-156 registered; it is not combined with Stage 1's or Stage 1b's.
+- **Descriptive rows, registered now:** the `check_red_at_base` row; the ten `varied-multi-site` tasks alone; each printed beside the verdict in parentheses and never in its place.
