@@ -127,7 +127,8 @@ func (g SWEGrader) ensure(image string) error {
 // drop removes an instance's image, if it is here, once its attempts are
 // graded: twenty of them do not fit on this disk together (T5 S2).
 func (g SWEGrader) drop(image string) error {
-	if exec.Command(g.Docker, "image", "inspect", image).Run() != nil {
+	// An image inspect cannot find is not here: there is nothing to drop.
+	if present := exec.Command(g.Docker, "image", "inspect", image).Run() == nil; !present {
 		return nil
 	}
 	if out, err := exec.Command(g.Docker, "image", "rm", image).CombinedOutput(); err != nil {
