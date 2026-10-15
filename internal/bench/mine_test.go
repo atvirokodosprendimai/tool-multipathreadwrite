@@ -105,92 +105,40 @@ func TestAWideRenameCandidateIsDeclaredOnceAndNeverInAString(t *testing.T) {
 	}
 }
 
-// TestACheckCoupledCandidateIsALiteralSubstitutionWithItsTest holds ADR-160's
-// check-coupled predicate on a fixture history: a commit that only replaces
-// one literal's text in a source file and its test is listed; one that also
-// changes code, one with no test file, one whose test is in another package,
-// and one of five files are not.
-func TestACheckCoupledCandidateIsALiteralSubstitutionWithItsTest(t *testing.T) {
-	needGit(t)
-	repo := t.TempDir()
-	if err := git(repo, "init", "-q"); err != nil {
-		t.Fatal(err)
-	}
-	commit := func(msg string, files map[string]string) string {
-		t.Helper()
-		writeTree(t, repo, files)
-		if err := git(repo, "add", "-A"); err != nil {
-			t.Fatal(err)
-		}
-		if err := git(repo, "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", "commit", "-q", "-m", msg); err != nil {
-			t.Fatal(err)
-		}
-		sha, err := gitOut(repo, "rev-parse", "HEAD")
-		if err != nil {
-			t.Fatal(err)
-		}
-		return strings.TrimSpace(sha)
-	}
-	src := func(msg string) string { return "package p\n\nfunc Msg() string { return \"" + msg + "\" }\n" }
-	test := func(msg string) string {
-		return "package p\n\nimport \"testing\"\n\nfunc TestMsg(t *testing.T) {\n\tif Msg() != \"" + msg + "\" {\n\t\tt.Fatal(\"x\")\n\t}\n}\n"
-	}
-	commit("base", map[string]string{"p/p.go": src("old text"), "p/p_test.go": test("old text"), "q/q.go": src("left"), "r/r.go": src("other"), "s/s_test.go": "package s\n\nconst want = \"other\"\n",
-		"f/1.go": src("five"), "f/2.go": src("five"), "f/3.go": src("five"), "f/4.go": src("five"), "f/4_test.go": test("five"),
-		"c/c.go": "package c\n\n// want \"old\"\nfunc F() {}\n", "c/c_test.go": "package c\n\n// want \"old\"\nfunc G() {}\n",
-		"k/k.go": "package k\n\nconst Old, New = \"a\", \"b\"\n\nfunc Msg() string { return \"x\" + Old + \"y\" }\n", "k/k_test.go": "package k\n\nfunc want() string { return \"x\" + Old + \"y\" }\n",
-		"m/m.go": src("m1"), "m/m_test.go": test("m0"),
-		"e/e.go": src(""), "e/e_test.go": test(""),
-		"sp/source code.go": src("before"), "sp/source code_test.go": test("before"),
-		"x/x.go": src(`say \"hi\"`), "x/x_test.go": test(`say \"hi\"`),
-		"b/b.go": "package b\n\n/*\nwant \"old\"\n*/\nfunc F() {}\n", "b/b_test.go": "package b\n\n/*\nwant \"old\"\n*/\nfunc G() {}\n",
-		"w/w.go": "package w\n\nfunc Msg() string {\n\treturn `line one\nold body\nline three`\n}\n", "w/w_test.go": "package w\n\nconst want = `line one\nold body\nline three`\n",
-		`qp/a"b.go`: src("q1"), `qp/a"b_test.go`: test("q1"),
-		"w2/w.go": "package w2\n\nfunc Msg() string { return `old` }\n", "w2/w_test.go": "package w2\n\nconst want = `old`\n",
-		"j/j.go": src("jold"), "j/j_test.go": test("jold"), "j/fixture.json": "{\"msg\": \"jold\"}\n",
-		"n/n.go": strings.TrimSuffix(src("nold"), "\n"), "n/n_test.go": strings.TrimSuffix(test("nold"), "\n")})
-	good := commit("rename the message", map[string]string{"p/p.go": src("new text"), "p/p_test.go": test("new text")})
-	commit("message and code", map[string]string{"p/p.go": src("newer text") + "\nfunc Extra() {}\n", "p/p_test.go": test("newer text")})
-	commit("no test", map[string]string{"q/q.go": src("right")})
-	commit("test elsewhere", map[string]string{"r/r.go": src("another"), "s/s_test.go": "package s\n\nconst want = \"another\"\n"})
-	commit("five files", map[string]string{"f/1.go": src("six"), "f/2.go": src("six"), "f/3.go": src("six"), "f/4.go": src("six"), "f/4_test.go": test("six")})
-	commit("a comment, not a literal", map[string]string{"c/c.go": "package c\n\n// want \"new\"\nfunc F() {}\n", "c/c_test.go": "package c\n\n// want \"new\"\nfunc G() {}\n"})
-	commit("an identifier between literals", map[string]string{"k/k.go": "package k\n\nconst Old, New = \"a\", \"b\"\n\nfunc Msg() string { return \"x\" + New + \"y\" }\n", "k/k_test.go": "package k\n\nfunc want() string { return \"x\" + New + \"y\" }\n"})
-	if err := os.Chmod(filepath.Join(repo, "m/m_test.go"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	commit("a test whose mode alone changed", map[string]string{"m/m.go": src("m2")})
-	empty := commit("an empty literal", map[string]string{"e/e.go": src("message"), "e/e_test.go": test("message")})
-	spaced := commit("a path with a space", map[string]string{"sp/source code.go": src("after"), "sp/source code_test.go": test("after")})
-	escaped := commit("escaped quotes", map[string]string{"x/x.go": src(`say \"bye\"`), "x/x_test.go": test(`say \"bye\"`)})
-	commit("inside a block comment", map[string]string{"b/b.go": "package b\n\n/*\nwant \"new\"\n*/\nfunc F() {}\n", "b/b_test.go": "package b\n\n/*\nwant \"new\"\n*/\nfunc G() {}\n"})
-	raw := commit("inside a multi-line raw string", map[string]string{"w/w.go": "package w\n\nfunc Msg() string {\n\treturn `line one\nnew body\nline three`\n}\n", "w/w_test.go": "package w\n\nconst want = `line one\nnew body\nline three`\n"})
-	quoted := commit("a path git quotes", map[string]string{`qp/a"b.go`: src("q2"), `qp/a"b_test.go`: test("q2")})
-	grows := commit("a literal that gains a line", map[string]string{"w2/w.go": "package w2\n\nfunc Msg() string { return `new\nline` }\n", "w2/w_test.go": "package w2\n\nconst want = `new\nline`\n"})
-	companion := commit("a fixture beside the pair", map[string]string{"j/j.go": src("jnew"), "j/j_test.go": test("jnew"), "j/fixture.json": "{\"msg\": \"jnew\"}\n"})
-	noEOL := commit("files without a final newline", map[string]string{"n/n.go": strings.TrimSuffix(src("nnew"), "\n"), "n/n_test.go": strings.TrimSuffix(test("nnew"), "\n")})
-	got, err := MineCheckCoupled(repo, "HEAD", 4)
+// TestACheckCoupledLiteralIsHeldOnceAndByATestBesideIt holds ADR-160's
+// check-coupled rule as amended (Zy, "Construct from the tree"): a literal in
+// a non-test file, appearing once there and in no other non-test file, that a
+// test in the same directory also holds, starting with a letter, never an
+// import path or a struct tag. Its new value flips the first letter's case.
+func TestACheckCoupledLiteralIsHeldOnceAndByATestBesideIt(t *testing.T) {
+	root := t.TempDir()
+	writeTree(t, root, map[string]string{
+		"go.mod":      "module example.com/m\n\ngo 1.22\n",
+		"a/a.go":      "package a\n\nimport \"strings\"\n\ntype T struct {\n\tName string `json:\"name\"`\n}\n\nconst greeting = \"Hello world\"\n\nfunc F() string { return greeting }\n\nfunc G() string { return \"lower case value\" }\n\nfunc twice() (string, string) { return \"said twice\", \"said twice\" }\n\nfunc shared() string { return \"also in b\" }\n\nfunc num() string { return \"1st place\" }\n\nfunc far() string { return \"tested elsewhere\" }\n\nvar _ = strings.ToUpper\n",
+		"a/a_test.go": "package a\n\nimport (\n\t\"strings\"\n\t\"testing\"\n)\n\nfunc TestF(t *testing.T) {\n\tif F() != \"Hello world\" || G() != \"lower case value\" || !strings.Contains(\"said twice also in b 1st place\", \"said twice\") {\n\t\tt.Fatal(\"x\")\n\t}\n\t_ = []string{\"also in b\", \"1st place\", `json:\"name\"`, \"strings\"}\n}\n",
+		"b/b.go":      "package b\n\nfunc B() string { return \"also in b\" }\n",
+		"c/c_test.go": "package c\n\nconst want = \"tested elsewhere\"\n",
+	})
+	got, err := MineCoupledLiterals(root)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := map[string]CoupledCandidate{
-		good:      {Old: "old text", New: "new text", Files: []string{"p/p.go", "p/p_test.go"}},
-		empty:     {Old: "", New: "message", Files: []string{"e/e.go", "e/e_test.go"}},
-		spaced:    {Old: "before", New: "after", Files: []string{"sp/source code.go", "sp/source code_test.go"}},
-		escaped:   {Old: `say "hi"`, New: `say "bye"`, Files: []string{"x/x.go", "x/x_test.go"}},
-		raw:       {Old: "line one\nold body\nline three", New: "line one\nnew body\nline three", Files: []string{"w/w.go", "w/w_test.go"}},
-		quoted:    {Old: "q1", New: "q2", Files: []string{`qp/a"b.go`, `qp/a"b_test.go`}},
-		grows:     {Old: "old", New: "new\nline", Files: []string{"w2/w.go", "w2/w_test.go"}},
-		companion: {Old: "jold", New: "jnew", Files: []string{"j/fixture.json", "j/j.go", "j/j_test.go"}},
-		noEOL:     {Old: "nold", New: "nnew", Files: []string{"n/n.go", "n/n_test.go"}},
+	want := map[string]CoupledLiteral{
+		"Hello world":      {File: "a/a.go", Old: "Hello world", New: "hello world", Tests: []string{"a/a_test.go"}},
+		"lower case value": {File: "a/a.go", Old: "lower case value", New: "Lower case value", Tests: []string{"a/a_test.go"}},
 	}
 	if len(got) != len(want) {
 		t.Errorf("%d candidates, want %d: %+v", len(got), len(want), got)
 	}
 	for _, c := range got {
-		w, ok := want[c.Commit]
-		if !ok || c.Old != w.Old || c.New != w.New || !slices.Equal(c.Files, w.Files) {
+		w, ok := want[c.Old]
+		if !ok || c.File != w.File || c.New != w.New || !slices.Equal(c.Tests, w.Tests) {
 			t.Errorf("candidate %+v, want %+v (listed: %v)", c, w, ok)
 		}
+	}
+	if !slices.IsSortedFunc(got, func(x, y CoupledLiteral) int {
+		return strings.Compare(salted(x.File+":"+x.Old), salted(y.File+":"+y.Old))
+	}) {
+		t.Errorf("candidates are not in sha256(\"adr-160:\" + path + \":\" + value) order: %+v", got)
 	}
 }
