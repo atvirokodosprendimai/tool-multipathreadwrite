@@ -15,7 +15,7 @@
 
 Stage 1b ran on 2026-10-15 (160 attempts, receipts in `docs/bench/stage-1b-sonnet/`, ADR-158 T3) and its registered verdict is **INCONCLUSIVE**: cost (B−A)/A −0.004 [−0.050, +0.042], solved B−A −0.013 [−0.037, +0.000].
 
-Its only unsolved attempts are three of `cac-rename-post-send` (A 1 of 4, B 2 of 4), and they are the whole of the solved difference. At `crossagentschat@ae4f7a9c`, `internal/httpapi` holds two things named `postSend`:
+Its only unsolved attempts are three of `cac-rename-post-send` (A 1 of 2, B 2 of 2), and they are the whole of the solved difference. At `crossagentschat@ae4f7a9c`, `internal/httpapi` holds two things named `postSend`:
 
 - the handler method `(h *handler) postSend` in `send.go`, with its route in `httpapi.go`;
 - an unrelated package-level test helper, `func postSend(t *testing.T, url, body string)`, in `send_test.go`.
