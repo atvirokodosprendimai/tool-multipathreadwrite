@@ -1,0 +1,14 @@
+OK WithTenant -> ForTenancy 17 files
+OK configFromCmd -> cfgFromCmdArg 17 files
+OK dataFlags -> dbFlagSet 16 files
+OK short12 -> brief12 13 files
+OK HybridScore -> MixedRating 12 files
+OK KGStatusCurrent -> KGStatusPresent 17 files
+OK SkipTelemetry -> OmitTelemetry 15 files
+OK claudeKit -> anthroKit 21 files
+OK mustAdd -> needAdd 13 files
+OK SearchQuery -> LookupQuery 33 files
+OK AddInput -> AddParam 77 files
+OK Migrations -> SchemaRuns 21 files
+OK EntryRoom -> EntryHall 16 files
+OK WithReranker -> UseReranking 15 files

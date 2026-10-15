@@ -1,0 +1,769 @@
+diff --git a/internal/mcpserver/drawers.go b/internal/mcpserver/drawers.go
+index fc21e5e..65243bc 100644
+--- a/internal/mcpserver/drawers.go
++++ b/internal/mcpserver/drawers.go
+@@ -252,7 +252,7 @@ func registerAddDrawer(reg *registrar, drawers *palace.Service, usageSvc *usage.
+ 				"not, beside a memory that filed successfully either way; and pending_embedding with "+
+ 				"warning arrive when the row is stored but not yet searchable, which looks identical "+
+ 				"to a healthy write from here and only an operator can fix.",
+-			palace.ChunkSize, palace.EntryRoom, palace.BootstrapEagerLimit)),
++			palace.ChunkSize, palace.EntryHall, palace.BootstrapEagerLimit)),
+ 		mcp.WithString("wing", mcp.Description("Project namespace the memory belongs to. Optional when this MCP was registered for a project — then it defaults to that project's wing.")),
+ 		mcp.WithString("room", mcp.Required(), mcp.Description(fmt.Sprintf(
+ 			"Aspect within the wing, e.g. \"backend\" or \"decisions\". ⚠%q is the ENTRY room and "+
+@@ -260,7 +260,7 @@ func registerAddDrawer(reg *registrar, drawers *palace.Service, usageSvc *usage.
+ 				"mints the wing's by-name root, and its first %d records are served WHOLE at every "+
+ 				"wake-up while the rest arrive as pointers — so length here is paid by "+
+ 				"every session, not only by a search that matches.",
+-			palace.EntryRoom, palace.BootstrapEagerLimit))),
++			palace.EntryHall, palace.BootstrapEagerLimit))),
+ 		mcp.WithString("content", mcp.Required(), mcp.Description("The verbatim text to remember — stored exactly, never summarised.")),
+ 		mcp.WithString("source_file", mcp.Description("Optional provenance of the content (a path or label).")),
+ 		mcp.WithString("content_date", mcp.Description("Optional date the memory is about (e.g. 2026-06-26).")),
+diff --git a/internal/mcpserver/status_test.go b/internal/mcpserver/status_test.go
+index 66b09a4..f7ffe42 100644
+--- a/internal/mcpserver/status_test.go
++++ b/internal/mcpserver/status_test.go
+@@ -263,10 +263,10 @@ func TestAddDrawerDescribesTheEntryRoomsDifferentRules(t *testing.T) {
+ 	}
+ 
+ 	desc := tool.Tool.Description
+-	if !strings.Contains(desc, palace.EntryRoom) {
++	if !strings.Contains(desc, palace.EntryHall) {
+ 		t.Errorf("the am_add_drawer description never names %q, the one room whose writes are "+
+ 			"refused rather than chunked — so the rule is undiscoverable until an agent hits "+
+-			"it:\n%s", palace.EntryRoom, desc)
++			"it:\n%s", palace.EntryHall, desc)
+ 	}
+ 	// Naming the room is not enough: the description must say what is different
+ 	// about it. Today that is the SERVING cost, not a write-time refusal.
+@@ -274,7 +274,7 @@ func TestAddDrawerDescribesTheEntryRoomsDifferentRules(t *testing.T) {
+ 		t.Errorf("the description names %q but never says its records are served WHOLE at every "+
+ 			"wake-up. That is the entry room's only remaining difference, and an agent who does "+
+ 			"not know it cannot know that length there is paid by every session:\n%s",
+-			palace.EntryRoom, desc)
++			palace.EntryHall, desc)
+ 	}
+ 	// And it must not drift back to the refusal ADR-046 deleted. Keyed to the
+ 	// retired CLAUSE rather than to the word "REFUSED", which the description
+@@ -283,16 +283,16 @@ func TestAddDrawerDescribesTheEntryRoomsDifferentRules(t *testing.T) {
+ 	if strings.Contains(desc, "REFUSED if it would chunk") {
+ 		t.Errorf("the description still says a write to %q is refused if it would chunk. ADR-046 "+
+ 			"deleted that refusal, so this promises a limit the server no longer has:\n%s",
+-			palace.EntryRoom, desc)
++			palace.EntryHall, desc)
+ 	}
+ 
+ 	raw, err := json.Marshal(tool.Tool.InputSchema)
+ 	if err != nil {
+ 		t.Fatalf("marshal the input schema: %v", err)
+ 	}
+-	if !strings.Contains(string(raw), palace.EntryRoom) {
++	if !strings.Contains(string(raw), palace.EntryHall) {
+ 		t.Errorf("the `room` parameter description never names %q, so a caller choosing a room "+
+-			"cannot learn that one of them behaves differently", palace.EntryRoom)
++			"cannot learn that one of them behaves differently", palace.EntryHall)
+ 	}
+ 
+ 	// ⚠ BOTH DESCRIPTIONS, AND THE BOUND IN EACH. Review of PR #325 reverted the
+diff --git a/internal/palace/bootstrap_tier_test.go b/internal/palace/bootstrap_tier_test.go
+index 66e65e3..989b362 100644
+--- a/internal/palace/bootstrap_tier_test.go
++++ b/internal/palace/bootstrap_tier_test.go
+@@ -42,7 +42,7 @@ func TestBootstrapServesTheTierAuthoredOnTheWingRoot(t *testing.T) {
+ 	const team, wing = "t-tier", "wing_delta"
+ 	svc := newTestService(t)
+ 
+-	if _, err := svc.Add(ctx, team, AddInput{Wing: wing, Room: EntryRoom,
++	if _, err := svc.Add(ctx, team, AddInput{Wing: wing, Room: EntryHall,
+ 		Content: "WHAT MUST I LOAD AT THE START OF A SESSION? The spine."}); err != nil {
+ 		t.Fatalf("entry record: %v", err)
+ 	}
+@@ -97,7 +97,7 @@ func TestBootstrapServesTheTierAuthoredOnTheWingRoot(t *testing.T) {
+ 	}
+ 
+ 	t.Run("a wing with a root and no tier serves none, and says nothing was cut", func(t *testing.T) {
+-		if _, err := svc.Add(ctx, team, AddInput{Wing: "wing_epsilon", Room: EntryRoom,
++		if _, err := svc.Add(ctx, team, AddInput{Wing: "wing_epsilon", Room: EntryHall,
+ 			Content: "WHAT MUST I LOAD AT THE START OF A SESSION? Nothing yet."}); err != nil {
+ 			t.Fatal(err)
+ 		}
+@@ -120,7 +120,7 @@ func TestATierLeafInAnotherWingIsRefusedAndCounted(t *testing.T) {
+ 	const team = "t-tier-foreign"
+ 	svc := newTestService(t)
+ 
+-	if _, err := svc.Add(ctx, team, AddInput{Wing: "wing_alpha", Room: EntryRoom,
++	if _, err := svc.Add(ctx, team, AddInput{Wing: "wing_alpha", Room: EntryHall,
+ 		Content: "WHAT MUST I LOAD AT THE START OF A SESSION? Home."}); err != nil {
+ 		t.Fatal(err)
+ 	}
+@@ -161,7 +161,7 @@ func TestTheTierIsBoundedAndSaysSo(t *testing.T) {
+ 	const team, wing = "t-tier-bound", "wing_big"
+ 	svc := newTestService(t)
+ 
+-	if _, err := svc.Add(ctx, team, AddInput{Wing: wing, Room: EntryRoom,
++	if _, err := svc.Add(ctx, team, AddInput{Wing: wing, Room: EntryHall,
+ 		Content: "WHAT MUST I LOAD AT THE START OF A SESSION? Too much."}); err != nil {
+ 		t.Fatal(err)
+ 	}
+diff --git a/internal/palace/bootstrap_whole_test.go b/internal/palace/bootstrap_whole_test.go
+index cd15de7..e85bcdb 100644
+--- a/internal/palace/bootstrap_whole_test.go
++++ b/internal/palace/bootstrap_whole_test.go
+@@ -40,7 +40,7 @@ func TestBootstrapServesEveryChunkOfAnEntryRecord(t *testing.T) {
+ 	if len(added.Drawers) < 2 {
+ 		t.Fatalf("fixture produced %d chunk(s); this test is about a record of several rows", len(added.Drawers))
+ 	}
+-	entry := EntryRoom
++	entry := EntryHall
+ 	if _, err := svc.Update(ctx, team, added.Drawers[0].ID, DrawerPatch{Room: &entry}); err != nil {
+ 		t.Fatalf("move into the entry room: %v", err)
+ 	}
+@@ -88,7 +88,7 @@ func TestBootstrapLeavesAShortEntryRecordUnchanged(t *testing.T) {
+ 	const team, wing = "team-boot-short", "wing_alpha"
+ 	const short = "WHAT MUST I LOAD AT THE START OF A SESSION? The craft tier, then this project's root."
+ 
+-	if _, err := svc.Add(ctx, team, AddInput{Wing: wing, Room: EntryRoom, SourceFile: "root", Content: short}); err != nil {
++	if _, err := svc.Add(ctx, team, AddInput{Wing: wing, Room: EntryHall, SourceFile: "root", Content: short}); err != nil {
+ 		t.Fatalf("add: %v", err)
+ 	}
+ 	got, err := svc.Bootstrap(ctx, team, wing)
+diff --git a/internal/palace/entryroom_test.go b/internal/palace/entryroom_test.go
+index 0c40040..372ee70 100644
+--- a/internal/palace/entryroom_test.go
++++ b/internal/palace/entryroom_test.go
+@@ -28,7 +28,7 @@ func TestALongEntryRecordIsAcceptedAndServedWhole(t *testing.T) {
+ 	const team, wing = "team-entry-long", "wing_alpha"
+ 
+ 	long := strings.TrimSpace(strings.Repeat("ENTRY: load the craft tier, then this project's root. ", 60))
+-	added, err := svc.Add(ctx, team, AddInput{Wing: wing, Room: EntryRoom, SourceFile: "root", Content: long})
++	added, err := svc.Add(ctx, team, AddInput{Wing: wing, Room: EntryHall, SourceFile: "root", Content: long})
+ 	if err != nil {
+ 		t.Fatalf("filing a long entry record was refused: %v", err)
+ 	}
+@@ -60,7 +60,7 @@ func TestALongEntryRecordIsAcceptedAndServedWhole(t *testing.T) {
+ // flagged.
+ //
+ // Filing into the entry room mints the wing's by-name root, in a branch keyed on
+-// `d.Room == EntryRoom` inside attachDerivedEdgeTo. That branch has never been given a
++// `d.Room == EntryHall` inside attachDerivedEdgeTo. That branch has never been given a
+ // chunked record, because prepareWrite refused one until this task. It edges the ROOT
+ // chunk only and guards once per wing per batch, so it should be indifferent — but "it
+ // should be" is what the audit exists to stop anyone writing, and a wing whose root was
+@@ -71,7 +71,7 @@ func TestAWingRootIsMintedFromAChunkedEntryRecord(t *testing.T) {
+ 	const team, wing = "team-entry-root", "wing_alpha"
+ 
+ 	long := strings.TrimSpace(strings.Repeat("ENTRY: load the craft tier, then this project's root. ", 60))
+-	added, err := svc.Add(ctx, team, AddInput{Wing: wing, Room: EntryRoom, SourceFile: "root", Content: long})
++	added, err := svc.Add(ctx, team, AddInput{Wing: wing, Room: EntryHall, SourceFile: "root", Content: long})
+ 	if err != nil {
+ 		t.Fatalf("add: %v", err)
+ 	}
+diff --git a/internal/palace/graphquery.go b/internal/palace/graphquery.go
+index ac9b859..f362ce0 100644
+--- a/internal/palace/graphquery.go
++++ b/internal/palace/graphquery.go
+@@ -462,13 +462,13 @@ func intersectSorted(a, b []string) []string {
+ 	return out
+ }
+ 
+-// EntryRoom is the room a wing's entry point lives in by convention.
++// EntryHall is the room a wing's entry point lives in by convention.
+ //
+ // A convention rather than a schema column: which room a team calls its front
+ // door is a team decision, and the server's job is to RESOLVE it, not to bless
+ // it. The name matches what this workspace's own operating skill already uses,
+ // so an existing palace answers without being rebuilt.
+-const EntryRoom = "llm_init"
++const EntryHall = "llm_init"
+ 
+ // EntryPointResult is a wing's front door: the node an agent starts from and
+ // what that node points at.
+@@ -515,7 +515,7 @@ func (s *Service) EntryPoint(ctx context.Context, teamID, wing string) (EntryPoi
+ 		return EntryPointResult{}, fmt.Errorf("%w: entry_point needs a wing", ErrInvalidInput)
+ 	}
+ 	out := EntryPointResult{Wing: wing}
+-	node := DerivedEdgeSubject(wing, EntryRoom)
++	node := DerivedEdgeSubject(wing, EntryHall)
+ 
+ 	q, err := s.KGQuery(ctx, teamID, KGQueryInput{
+ 		Entity: node, Direction: "outgoing", Status: KGStatusCurrent,
+diff --git a/internal/palace/kg.go b/internal/palace/kg.go
+index e95a721..f2caf3e 100644
+--- a/internal/palace/kg.go
++++ b/internal/palace/kg.go
+@@ -1005,7 +1005,7 @@ func (s *Service) KGQuery(ctx context.Context, teamID string, in KGQueryInput) (
+ 	// ⚠ THE CARVE-OUT IS THE WHOLE DESIGN, NOT AN EXCEPTION TO IT. Asking a room
+ 	// what it holds is the one question containment edges answer, and
+ 	// Service.EntryPoint asks exactly that — it resolves DerivedEdgeSubject(wing,
+-	// EntryRoom) and Service.Bootstrap builds its entire answer from the result.
++	// EntryHall) and Service.Bootstrap builds its entire answer from the result.
+ 	// Hiding listings from a caller who NAMED the room would empty the wake-up
+ 	// path every session walks first, and worse than emptying it: the node stays
+ 	// in kg_entities, so resolveKGTerms would answer known_term_no_facts and the
+@@ -1524,7 +1524,7 @@ func (s *Service) attachWingRootEdge(ctx context.Context, teamID, wing string) e
+ // distinguishes the writing path from the read-only one.
+ func (r *Repo) EnsureWingRoot(ctx context.Context, teamID, wing string) error {
+ 	subj := WingRootSubject(wing)
+-	obj := DerivedEdgeSubject(wing, EntryRoom)
++	obj := DerivedEdgeSubject(wing, EntryHall)
+ 	subID, objID := normalizeEntityID(subj), normalizeEntityID(obj)
+ 	p := normalizePredicate(DerivedEdgePredicate)
+ 	now := time.Now().UTC().Format(time.RFC3339)
+@@ -1573,7 +1573,7 @@ func (r *Repo) EnsureWingRoot(ctx context.Context, teamID, wing string) error {
+ // roll the root's ending back with it, or a wing loses its front door to a move that
+ // never happened.
+ func endWingRootIfEntryRoomIsEmpty(db *gorm.DB, teamID, wing, endedAt, reason string) error {
+-	roomID := normalizeEntityID(DerivedEdgeSubject(wing, EntryRoom))
++	roomID := normalizeEntityID(DerivedEdgeSubject(wing, EntryHall))
+ 	p := normalizePredicate(DerivedEdgePredicate)
+ 
+ 	var live int64
+@@ -1638,7 +1638,7 @@ func (r *Repo) BackfillWingRoots(ctx context.Context) (int, error) {
+ 		TeamID  string `gorm:"column:team_id"`
+ 		Subject string `gorm:"column:subject"`
+ 	}
+-	// ⚠ THE LIKE IS A PREFILTER, NOT THE TEST. EntryRoom is "llm_init" and `_` is a
++	// ⚠ THE LIKE IS A PREFILTER, NOT THE TEST. EntryHall is "llm_init" and `_` is a
+ 	// single-character wildcard in SQL LIKE, so this pattern also matches
+ 	// room:<wing>/llm-init, llm.init, llm init — any llm?init. Probed: one drawer
+ 	// filed into a room named "llm-init" minted `wing_alpha/llm-init.root`, a root
+@@ -1649,12 +1649,12 @@ func (r *Repo) BackfillWingRoots(ctx context.Context) (int, error) {
+ 	//
+ 	// The affixes are therefore checked in Go rather than trusted to the pattern.
+ 	// ESCAPE '\' would also work and is one line, but it puts the correctness in a
+-	// SQL escape clause that the next person to rename EntryRoom has to remember;
++	// SQL escape clause that the next person to rename EntryHall has to remember;
+ 	// HasPrefix/HasSuffix survive that rename on their own.
+ 	err := r.reader.WithContext(ctx).Model(&kgTripleRow{}).
+ 		Select("DISTINCT team_id, subject").
+ 		Where("predicate = ? AND valid_to = '' AND subject LIKE ?",
+-			normalizePredicate(DerivedEdgePredicate), "room:%/"+EntryRoom).
++			normalizePredicate(DerivedEdgePredicate), "room:%/"+EntryHall).
+ 		Find(&rows).Error
+ 	if err != nil {
+ 		return 0, fmt.Errorf("read the entry rooms a session can read: %w", err)
+@@ -1667,10 +1667,10 @@ func (r *Repo) BackfillWingRoots(ctx context.Context) (int, error) {
+ 		// ⚠ NOT TrimPrefix/TrimSuffix ALONE: both no-op silently when the affix is
+ 		// absent, so a subject the wildcard let through arrived here looking like a
+ 		// wing name and was rooted as one.
+-		if !strings.HasPrefix(row.Subject, "room:") || !strings.HasSuffix(row.Subject, "/"+EntryRoom) {
++		if !strings.HasPrefix(row.Subject, "room:") || !strings.HasSuffix(row.Subject, "/"+EntryHall) {
+ 			continue
+ 		}
+-		wing := strings.TrimSuffix(strings.TrimPrefix(row.Subject, "room:"), "/"+EntryRoom)
++		wing := strings.TrimSuffix(strings.TrimPrefix(row.Subject, "room:"), "/"+EntryHall)
+ 		if wing == "" {
+ 			continue
+ 		}
+@@ -1679,7 +1679,7 @@ func (r *Repo) BackfillWingRoots(ctx context.Context) (int, error) {
+ 	minted := 0
+ 	for _, row := range wings {
+ 		subID := normalizeEntityID(WingRootSubject(row.Wing))
+-		objID := normalizeEntityID(DerivedEdgeSubject(row.Wing, EntryRoom))
++		objID := normalizeEntityID(DerivedEdgeSubject(row.Wing, EntryHall))
+ 		p := normalizePredicate(DerivedEdgePredicate)
+ 		// Asked before minting so the RETURNED COUNT is what changed, not what was
+ 		// looked at. EnsureWingRoot is idempotent either way, but a backfill that
+diff --git a/internal/palace/kg_test.go b/internal/palace/kg_test.go
+index b28bae5..09a2f58 100644
+--- a/internal/palace/kg_test.go
++++ b/internal/palace/kg_test.go
+@@ -463,7 +463,7 @@ func TestEveryWingRootStillResolvesWithContainmentHidden(t *testing.T) {
+ 	// Mint the root through the shipped path rather than by hand, so this holds
+ 	// on a fresh install rather than only against a corpus someone prepared.
+ 	if _, err := svc.Add(ctx, team, AddInput{
+-		Wing: "wing_acme", Room: EntryRoom,
++		Wing: "wing_acme", Room: EntryHall,
+ 		Content: "WHAT MUST I LOAD AT THE START OF A SESSION? The tier below.",
+ 	}); err != nil {
+ 		t.Fatalf("seed the entry room: %v", err)
+diff --git a/internal/palace/recallanswers_spec_test.go b/internal/palace/recallanswers_spec_test.go
+index 53ed2fb..daaedc2 100644
+--- a/internal/palace/recallanswers_spec_test.go
++++ b/internal/palace/recallanswers_spec_test.go
+@@ -452,7 +452,7 @@ func TestAWingReportsItsOwnEntryPoint(t *testing.T) {
+ 
+ 	// A drawer filed into the entry room gets its containment edge from T6, which
+ 	// is what gives the wing a front door at all.
+-	root, err := svc.Add(ctx, team, AddInput{Wing: "wing_acme", Room: EntryRoom, Content: "WHAT MUST I LOAD AT THE START OF A SESSION?"})
++	root, err := svc.Add(ctx, team, AddInput{Wing: "wing_acme", Room: EntryHall, Content: "WHAT MUST I LOAD AT THE START OF A SESSION?"})
+ 	if err != nil {
+ 		t.Fatalf("add root: %v", err)
+ 	}
+@@ -679,7 +679,7 @@ func TestOneCallBootstrapsAWing(t *testing.T) {
+ 	const team = "t-f13"
+ 	svc := newTestService(t)
+ 
+-	root, err := svc.Add(ctx, team, AddInput{Wing: "wing_acme", Room: EntryRoom, Content: "WHAT MUST I LOAD AT THE START OF A SESSION?"})
++	root, err := svc.Add(ctx, team, AddInput{Wing: "wing_acme", Room: EntryHall, Content: "WHAT MUST I LOAD AT THE START OF A SESSION?"})
+ 	if err != nil {
+ 		t.Fatalf("add: %v", err)
+ 	}
+@@ -736,7 +736,7 @@ func TestATruncatedBootstrapSaysWhatItDropped(t *testing.T) {
+ 	total := BootstrapEagerLimit + 4
+ 	for i := 0; i < total; i++ {
+ 		if _, err := svc.Add(ctx, team, AddInput{
+-			Wing: "wing_acme", Room: EntryRoom,
++			Wing: "wing_acme", Room: EntryHall,
+ 			Content: "start-here entry number " + string(rune('a'+i)) + " with enough text to be a real memory",
+ 		}); err != nil {
+ 			t.Fatalf("add %d: %v", i, err)
+@@ -793,11 +793,11 @@ func TestCorrectionsAreSweptServerSideAcrossAllThreePredicates(t *testing.T) {
+ 			team := "t-f15-" + pred
+ 			svc := newTestService(t)
+ 
+-			wrong, err := svc.Add(ctx, team, AddInput{Wing: "wing_acme", Room: EntryRoom, Content: "load the old checklist first"})
++			wrong, err := svc.Add(ctx, team, AddInput{Wing: "wing_acme", Room: EntryHall, Content: "load the old checklist first"})
+ 			if err != nil {
+ 				t.Fatalf("add: %v", err)
+ 			}
+-			right, err := svc.Add(ctx, team, AddInput{Wing: "wing_acme", Room: EntryRoom, Content: "load the new checklist first"})
++			right, err := svc.Add(ctx, team, AddInput{Wing: "wing_acme", Room: EntryHall, Content: "load the new checklist first"})
+ 			if err != nil {
+ 				t.Fatalf("add: %v", err)
+ 			}
+@@ -839,7 +839,7 @@ func TestTheBootstrapCostsFewerTokensThanTheProtocolItReplaces(t *testing.T) {
+ 	var ids []string
+ 	for i := 0; i < BootstrapEagerLimit+3; i++ {
+ 		res, err := svc.Add(ctx, team, AddInput{
+-			Wing: "wing_acme", Room: EntryRoom,
++			Wing: "wing_acme", Room: EntryHall,
+ 			Content: fmt.Sprintf("start-here entry %d, with enough text to be a real memory", i),
+ 		})
+ 		if err != nil {
+@@ -1052,7 +1052,7 @@ func TestOneWingRuleGovernsEveryNewResponsePath(t *testing.T) {
+ 
+ 		// A local record in the entry room, so the wing has a front door whose
+ 		// own provenance is local.
+-		local, err := svc.Add(ctx, team, AddInput{Wing: "wing_acme", Room: EntryRoom, Content: "the local checklist"})
++		local, err := svc.Add(ctx, team, AddInput{Wing: "wing_acme", Room: EntryHall, Content: "the local checklist"})
+ 		if err != nil {
+ 			t.Fatalf("add local: %v", err)
+ 		}
+@@ -1067,7 +1067,7 @@ func TestOneWingRuleGovernsEveryNewResponsePath(t *testing.T) {
+ 		// that filter — only the bootstrap's own check on the inlined record can
+ 		// stop it. That asymmetry is the whole reason F-19 wants one rule applied
+ 		// at every path rather than one filter per path.
+-		if _, err := svc.KGAdd(ctx, team, DerivedEdgeSubject("wing_acme", EntryRoom), DerivedEdgePredicate, foreign.Drawers[0].ID, "", "", "", "", local.Drawers[0].ID); err != nil {
++		if _, err := svc.KGAdd(ctx, team, DerivedEdgeSubject("wing_acme", EntryHall), DerivedEdgePredicate, foreign.Drawers[0].ID, "", "", "", "", local.Drawers[0].ID); err != nil {
+ 			t.Fatalf("kgadd cross-wing entry edge: %v", err)
+ 		}
+ 
+diff --git a/internal/palace/service.go b/internal/palace/service.go
+index 568db83..79a551d 100644
+--- a/internal/palace/service.go
++++ b/internal/palace/service.go
+@@ -749,7 +749,7 @@ func (s *Service) prepareWrite(ctx context.Context, teamID string, in AddInput)
+ 	// here and was deleted, which is worth recording because the reasoning that
+ 	// justified it was good and still led to the wrong thing.
+ 	//
+-	// It refused a multi-chunk record in EntryRoom because am_bootstrap's eager
++	// It refused a multi-chunk record in EntryHall because am_bootstrap's eager
+ 	// tier served ONE chunk: a longer record arrived cut mid-sentence with
+ 	// truncation.omitted:0 and nothing marking it partial. Measured 2026-09-01 on
+ 	// a 3,600-rune record, the front door served 1,600 and reported no omission.
+@@ -944,7 +944,7 @@ func (s *Service) attachDerivedEdgeTo(ctx context.Context, teamID string, drawer
+ 		// own thing: the drawer and its room edge are already durable, so reusing
+ 		// the generic attach failure would claim the memory is unreachable when
+ 		// only the chosen name is.
+-		if d.Room == EntryRoom && !rootedWings[d.Wing] {
++		if d.Room == EntryHall && !rootedWings[d.Wing] {
+ 			rootedWings[d.Wing] = true
+ 			if err := s.attachWingRootEdge(ctx, teamID, d.Wing); err != nil {
+ 				logRootFailure(ctx, d.Wing, err)
+@@ -1542,7 +1542,7 @@ func (s *Service) moveMemory(ctx context.Context, teamID string, chunks []Drawer
+ 		//
+ 		// The condition covers a move to another ROOM and a move to another WING:
+ 		// the latter keeps the record in an entry room, just not in THIS wing's.
+-		if from := chunks[0]; from.Room == EntryRoom && (room != EntryRoom || wing != from.Wing) {
++		if from := chunks[0]; from.Room == EntryHall && (room != EntryHall || wing != from.Wing) {
+ 			if err := endWingRootIfEntryRoomIsEmpty(tx, teamID, from.Wing, now,
+ 				"the last live record left this wing's entry room"); err != nil {
+ 				return fmt.Errorf("release the wing root the move emptied: %w", err)
+diff --git a/internal/palace/supersede.go b/internal/palace/supersede.go
+index 92d520c..497b7ae 100644
+--- a/internal/palace/supersede.go
++++ b/internal/palace/supersede.go
+@@ -254,7 +254,7 @@ func (s *Service) supersedeInto(ctx context.Context, teamID, id, content, reason
+ 		// The condition is moveMemory's, for its reasons: a move to another ROOM
+ 		// and a move to another WING both count, the second because the record
+ 		// stays in an entry room, just not in this wing's.
+-		if head.Room == EntryRoom && (room != EntryRoom || wing != head.Wing) {
++		if head.Room == EntryHall && (room != EntryHall || wing != head.Wing) {
+ 			if err := endWingRootIfEntryRoomIsEmpty(tx, teamID, head.Wing, endedAt,
+ 				"the last live record left this wing's entry room"); err != nil {
+ 				return fmt.Errorf("release the wing root the correction emptied: %w", err)
+diff --git a/internal/palace/targetauth_test.go b/internal/palace/targetauth_test.go
+index 1308dc1..9aeec76 100644
+--- a/internal/palace/targetauth_test.go
++++ b/internal/palace/targetauth_test.go
+@@ -23,7 +23,7 @@ func TestAuthorizationChecksTheIdentifierItExposes(t *testing.T) {
+ 
+ 	t.Run("EntryPoint does not disclose a foreign edge target", func(t *testing.T) {
+ 		svc := newTestService(t)
+-		local, err := svc.Add(ctx, team, AddInput{Wing: "wing_acme", Room: EntryRoom, Content: "the local front door"})
++		local, err := svc.Add(ctx, team, AddInput{Wing: "wing_acme", Room: EntryHall, Content: "the local front door"})
+ 		if err != nil {
+ 			t.Fatalf("add local: %v", err)
+ 		}
+@@ -33,7 +33,7 @@ func TestAuthorizationChecksTheIdentifierItExposes(t *testing.T) {
+ 		}
+ 		// Provenance LOCAL, target FOREIGN — the shape that separates the two
+ 		// identifiers. Placing by provenance admits this edge.
+-		if _, err := svc.KGAdd(ctx, team, DerivedEdgeSubject("wing_acme", EntryRoom), DerivedEdgePredicate, foreign.Drawers[0].ID, "", "", "", "", local.Drawers[0].ID); err != nil {
++		if _, err := svc.KGAdd(ctx, team, DerivedEdgeSubject("wing_acme", EntryHall), DerivedEdgePredicate, foreign.Drawers[0].ID, "", "", "", "", local.Drawers[0].ID); err != nil {
+ 			t.Fatalf("kgadd: %v", err)
+ 		}
+ 
+@@ -50,9 +50,9 @@ func TestAuthorizationChecksTheIdentifierItExposes(t *testing.T) {
+ 
+ 	t.Run("Bootstrap does not disclose it either, through the entry point it copies", func(t *testing.T) {
+ 		svc := newTestService(t)
+-		local, _ := svc.Add(ctx, team, AddInput{Wing: "wing_acme", Room: EntryRoom, Content: "the local front door"})
++		local, _ := svc.Add(ctx, team, AddInput{Wing: "wing_acme", Room: EntryHall, Content: "the local front door"})
+ 		foreign, _ := svc.Add(ctx, team, AddInput{Wing: "wing_alpha", Room: "decisions", Content: "FOREIGN-TARGET another project's record"})
+-		if _, err := svc.KGAdd(ctx, team, DerivedEdgeSubject("wing_acme", EntryRoom), DerivedEdgePredicate, foreign.Drawers[0].ID, "", "", "", "", local.Drawers[0].ID); err != nil {
++		if _, err := svc.KGAdd(ctx, team, DerivedEdgeSubject("wing_acme", EntryHall), DerivedEdgePredicate, foreign.Drawers[0].ID, "", "", "", "", local.Drawers[0].ID); err != nil {
+ 			t.Fatalf("kgadd: %v", err)
+ 		}
+ 
+@@ -118,7 +118,7 @@ func TestARequiredWingMustActuallyBeNonEmpty(t *testing.T) {
+ 	ctx := context.Background()
+ 	const team = "t-emptywing"
+ 	svc := newTestService(t)
+-	if _, err := svc.Add(ctx, team, AddInput{Wing: "wing_alpha", Room: EntryRoom, Content: "another project's front door"}); err != nil {
++	if _, err := svc.Add(ctx, team, AddInput{Wing: "wing_alpha", Room: EntryHall, Content: "another project's front door"}); err != nil {
+ 		t.Fatalf("add: %v", err)
+ 	}
+ 
+@@ -152,7 +152,7 @@ func TestTruncationCountsWhatIsNeitherInlinedNorPointedAt(t *testing.T) {
+ 	var local []string
+ 	for i := 0; i < BootstrapEagerLimit+2; i++ {
+ 		res, err := svc.Add(ctx, team, AddInput{
+-			Wing: "wing_acme", Room: EntryRoom,
++			Wing: "wing_acme", Room: EntryHall,
+ 			Content: "local start-here record number " + string(rune('a'+i)) + " with real text",
+ 		})
+ 		if err != nil {
+@@ -166,7 +166,7 @@ func TestTruncationCountsWhatIsNeitherInlinedNorPointedAt(t *testing.T) {
+ 	if err != nil {
+ 		t.Fatalf("add foreign: %v", err)
+ 	}
+-	if _, err := svc.KGAdd(ctx, team, DerivedEdgeSubject("wing_acme", EntryRoom), DerivedEdgePredicate, foreign.Drawers[0].ID, "", "", "", "", local[0]); err != nil {
++	if _, err := svc.KGAdd(ctx, team, DerivedEdgeSubject("wing_acme", EntryHall), DerivedEdgePredicate, foreign.Drawers[0].ID, "", "", "", "", local[0]); err != nil {
+ 		t.Fatalf("cross-wing entry edge: %v", err)
+ 	}
+ 
+diff --git a/internal/palace/validity.go b/internal/palace/validity.go
+index cbd5b58..0dc4f77 100644
+--- a/internal/palace/validity.go
++++ b/internal/palace/validity.go
+@@ -132,7 +132,7 @@ func (s *Service) EndDrawer(ctx context.Context, teamID, id, reason string) erro
+ 		// In EndDrawer rather than InvalidateDrawer so the multi-chunk loop works
+ 		// for free: while any chunk is still live its holds edge keeps the count
+ 		// above zero, so the release fires on the last one.
+-		if current.Room != EntryRoom {
++		if current.Room != EntryHall {
+ 			return nil
+ 		}
+ 		return endWingRootIfEntryRoomIsEmpty(tx, teamID, current.Wing, now,
+diff --git a/internal/palace/wingroot_correct_test.go b/internal/palace/wingroot_correct_test.go
+index 25cdd70..8b1500c 100644
+--- a/internal/palace/wingroot_correct_test.go
++++ b/internal/palace/wingroot_correct_test.go
+@@ -27,7 +27,7 @@ func TestACorrectionThatLeavesTheEntryRoomEndsTheWingRoot(t *testing.T) {
+ 	const team, wing = "team-root-correct-out", "wing_alpha"
+ 
+ 	added, err := svc.Add(ctx, team, AddInput{
+-		Wing: wing, Room: EntryRoom, SourceFile: "root",
++		Wing: wing, Room: EntryHall, SourceFile: "root",
+ 		Content: "WHAT MUST I LOAD AT THE START OF A SESSION? The craft tier, then this project's root.",
+ 	})
+ 	if err != nil {
+@@ -71,7 +71,7 @@ func TestACorrectionThatStaysInTheEntryRoomKeepsTheWingRoot(t *testing.T) {
+ 	const team, wing = "team-root-correct-stay", "wing_alpha"
+ 
+ 	added, err := svc.Add(ctx, team, AddInput{
+-		Wing: wing, Room: EntryRoom, SourceFile: "root",
++		Wing: wing, Room: EntryHall, SourceFile: "root",
+ 		Content: "WHAT MUST I LOAD AT THE START OF A SESSION? The craft tier first.",
+ 	})
+ 	if err != nil {
+@@ -102,14 +102,14 @@ func TestACorrectionOutOfTheEntryRoomKeepsARootTheRoomStillEarns(t *testing.T) {
+ 	const team, wing = "team-root-correct-keep", "wing_alpha"
+ 
+ 	first, err := svc.Add(ctx, team, AddInput{
+-		Wing: wing, Room: EntryRoom, SourceFile: "root-a",
++		Wing: wing, Room: EntryHall, SourceFile: "root-a",
+ 		Content: "WHAT MUST I LOAD AT THE START OF A SESSION? The craft tier first.",
+ 	})
+ 	if err != nil {
+ 		t.Fatalf("add first: %v", err)
+ 	}
+ 	if _, err := svc.Add(ctx, team, AddInput{
+-		Wing: wing, Room: EntryRoom, SourceFile: "root-b",
++		Wing: wing, Room: EntryHall, SourceFile: "root-b",
+ 		Content: "WHAT MUST I LOAD AT THE START OF A SESSION? And the corrections index after it.",
+ 	}); err != nil {
+ 		t.Fatalf("add second: %v", err)
+@@ -149,7 +149,7 @@ func TestRetractingTheLastEntryRecordEndsTheWingRoot(t *testing.T) {
+ 	const team, wing = "team-root-retract", "wing_alpha"
+ 
+ 	added, err := svc.Add(ctx, team, AddInput{
+-		Wing: wing, Room: EntryRoom, SourceFile: "root",
++		Wing: wing, Room: EntryHall, SourceFile: "root",
+ 		Content: "WHAT MUST I LOAD AT THE START OF A SESSION? The craft tier, then this project's root.",
+ 	})
+ 	if err != nil {
+@@ -178,14 +178,14 @@ func TestRetractingOneOfTwoEntryRecordsKeepsTheWingRoot(t *testing.T) {
+ 	const team, wing = "team-root-retract-keep", "wing_alpha"
+ 
+ 	first, err := svc.Add(ctx, team, AddInput{
+-		Wing: wing, Room: EntryRoom, SourceFile: "root-a",
++		Wing: wing, Room: EntryHall, SourceFile: "root-a",
+ 		Content: "WHAT MUST I LOAD AT THE START OF A SESSION? The craft tier first.",
+ 	})
+ 	if err != nil {
+ 		t.Fatalf("add first: %v", err)
+ 	}
+ 	if _, err := svc.Add(ctx, team, AddInput{
+-		Wing: wing, Room: EntryRoom, SourceFile: "root-b",
++		Wing: wing, Room: EntryHall, SourceFile: "root-b",
+ 		Content: "WHAT MUST I LOAD AT THE START OF A SESSION? And the corrections index after it.",
+ 	}); err != nil {
+ 		t.Fatalf("add second: %v", err)
+@@ -212,7 +212,7 @@ func TestRetractingAMultiChunkEntryRecordReleasesOnTheLastChunk(t *testing.T) {
+ 		strings.Repeat("A spine that points at ordinary memories, said at length so this record "+
+ 			"is stored as several chunks sharing one parent. ", 30)
+ 	added, err := svc.Add(ctx, team, AddInput{
+-		Wing: wing, Room: EntryRoom, SourceFile: "root-long", Content: long,
++		Wing: wing, Room: EntryHall, SourceFile: "root-long", Content: long,
+ 	})
+ 	if err != nil {
+ 		t.Fatalf("add: %v", err)
+diff --git a/internal/palace/wingroot_move_test.go b/internal/palace/wingroot_move_test.go
+index a9e7828..7ba969d 100644
+--- a/internal/palace/wingroot_move_test.go
++++ b/internal/palace/wingroot_move_test.go
+@@ -40,7 +40,7 @@ func TestAMoveOutOfTheEntryRoomEndsTheWingRoot(t *testing.T) {
+ 	const team, wing = "team-root-move-out", "wing_alpha"
+ 
+ 	added, err := svc.Add(ctx, team, AddInput{
+-		Wing: wing, Room: EntryRoom, SourceFile: "root",
++		Wing: wing, Room: EntryHall, SourceFile: "root",
+ 		Content: "WHAT MUST I LOAD AT THE START OF A SESSION? The craft tier, then this project's root.",
+ 	})
+ 	if err != nil {
+@@ -76,14 +76,14 @@ func TestAMoveOutOfTheEntryRoomKeepsARootTheRoomStillEarns(t *testing.T) {
+ 	const team, wing = "team-root-move-keep", "wing_alpha"
+ 
+ 	first, err := svc.Add(ctx, team, AddInput{
+-		Wing: wing, Room: EntryRoom, SourceFile: "root-a",
++		Wing: wing, Room: EntryHall, SourceFile: "root-a",
+ 		Content: "WHAT MUST I LOAD AT THE START OF A SESSION? The craft tier first.",
+ 	})
+ 	if err != nil {
+ 		t.Fatalf("add the first entry record: %v", err)
+ 	}
+ 	if _, err := svc.Add(ctx, team, AddInput{
+-		Wing: wing, Room: EntryRoom, SourceFile: "root-b",
++		Wing: wing, Room: EntryHall, SourceFile: "root-b",
+ 		Content: "WHAT IS STILL OPEN HERE? The second entry record, which stays put.",
+ 	}); err != nil {
+ 		t.Fatalf("add the second entry record: %v", err)
+@@ -109,7 +109,7 @@ func TestAMoveBetweenWingsEntryRoomsMovesTheRoot(t *testing.T) {
+ 	const team, from, to = "team-root-move-wing", "wing_alpha", "wing_beta"
+ 
+ 	added, err := svc.Add(ctx, team, AddInput{
+-		Wing: from, Room: EntryRoom, SourceFile: "root",
++		Wing: from, Room: EntryHall, SourceFile: "root",
+ 		Content: "WHAT MUST I LOAD AT THE START OF A SESSION? This wing's entry record.",
+ 	})
+ 	if err != nil {
+@@ -158,7 +158,7 @@ func TestTheWingRootIsMintedOnceHoweverOftenItIsEnsured(t *testing.T) {
+ 	const team, wing = "team-root-idem", "wing_alpha"
+ 
+ 	if _, err := svc.Add(ctx, team, AddInput{
+-		Wing: wing, Room: EntryRoom,
++		Wing: wing, Room: EntryHall,
+ 		Content: "WHAT MUST I LOAD AT THE START OF A SESSION? The entry record that mints the root.",
+ 	}); err != nil {
+ 		t.Fatalf("add the entry record: %v", err)
+diff --git a/internal/palace/wingroot_test.go b/internal/palace/wingroot_test.go
+index a3ee943..198794b 100644
+--- a/internal/palace/wingroot_test.go
++++ b/internal/palace/wingroot_test.go
+@@ -34,7 +34,7 @@ func TestFilingIntoTheEntryRoomMintsTheWingRoot(t *testing.T) {
+ 	}
+ 
+ 	// The entry room does.
+-	if _, err := svc.Add(ctx, team, AddInput{Wing: wing, Room: EntryRoom, Content: "WHAT MUST I LOAD AT THE START OF A SESSION?"}); err != nil {
++	if _, err := svc.Add(ctx, team, AddInput{Wing: wing, Room: EntryHall, Content: "WHAT MUST I LOAD AT THE START OF A SESSION?"}); err != nil {
+ 		t.Fatalf("seed entry drawer: %v", err)
+ 	}
+ 	q, err := svc.KGQuery(ctx, team, KGQueryInput{
+@@ -45,11 +45,11 @@ func TestFilingIntoTheEntryRoomMintsTheWingRoot(t *testing.T) {
+ 	}
+ 	if q.Resolution != KGResolutionMatched {
+ 		t.Fatalf("%s does not resolve after a drawer was filed into %q: resolution=%q",
+-			WingRootSubject(wing), EntryRoom, q.Resolution)
++			WingRootSubject(wing), EntryHall, q.Resolution)
+ 	}
+ 	// It must point at the node am_entry_point already reads, not at the drawer —
+ 	// otherwise the by-name address and the mechanised one are two front doors.
+-	want := DerivedEdgeSubject(wing, EntryRoom)
++	want := DerivedEdgeSubject(wing, EntryHall)
+ 	var found bool
+ 	for _, f := range q.Facts {
+ 		if f.Object == want {
+@@ -62,7 +62,7 @@ func TestFilingIntoTheEntryRoomMintsTheWingRoot(t *testing.T) {
+ 	}
+ 
+ 	// And it is idempotent: a second entry-room drawer adds no second root edge.
+-	if _, err := svc.Add(ctx, team, AddInput{Wing: wing, Room: EntryRoom, Content: "a second standing rule"}); err != nil {
++	if _, err := svc.Add(ctx, team, AddInput{Wing: wing, Room: EntryHall, Content: "a second standing rule"}); err != nil {
+ 		t.Fatalf("seed second entry drawer: %v", err)
+ 	}
+ 	q2, err := svc.KGQuery(ctx, team, KGQueryInput{
+@@ -101,7 +101,7 @@ func TestAnEntryRecordThatChunksIsServedWholeHoweverItArrives(t *testing.T) {
+ 	long := longNote(headA, tailA) // built to exceed ChunkSize by construction
+ 
+ 	// Door 1: a direct write.
+-	if _, err := svc.Add(ctx, team, AddInput{Wing: wing, Room: EntryRoom, SourceFile: "d1", Content: long}); err != nil {
++	if _, err := svc.Add(ctx, team, AddInput{Wing: wing, Room: EntryHall, SourceFile: "d1", Content: long}); err != nil {
+ 		t.Fatalf("a multi-chunk entry record was refused: %v", err)
+ 	}
+ 	if !eagerServes(t, ctx, svc, team, wing, long) {
+@@ -121,7 +121,7 @@ func TestAnEntryRecordThatChunksIsServedWholeHoweverItArrives(t *testing.T) {
+ 	// remains the interesting path: correcting an entry record is the case that
+ 	// motivated the limit in the first place.
+ 	short, err := svc.Add(ctx, team, AddInput{
+-		Wing: wing, Room: EntryRoom, SourceFile: "d2",
++		Wing: wing, Room: EntryHall, SourceFile: "d2",
+ 		Content: "WHAT MUST I LOAD AT THE START OF A SESSION? — v1",
+ 	})
+ 	if err != nil {
+@@ -139,12 +139,12 @@ func TestAnEntryRecordThatChunksIsServedWholeHoweverItArrives(t *testing.T) {
+ 	// Door 3: NORMALISATION. prepareWrite trims the room, so " llm_init " lands in the
+ 	// entry room. It must be served like any other entry record.
+ 	padded := longNote(headA, tailB)
+-	if _, err := svc.Add(ctx, team, AddInput{Wing: wing, Room: " " + EntryRoom + " ", SourceFile: "d3", Content: padded}); err != nil {
+-		t.Fatalf("a multi-chunk entry record was refused for room %q: %v", " "+EntryRoom+" ", err)
++	if _, err := svc.Add(ctx, team, AddInput{Wing: wing, Room: " " + EntryHall + " ", SourceFile: "d3", Content: padded}); err != nil {
++		t.Fatalf("a multi-chunk entry record was refused for room %q: %v", " "+EntryHall+" ", err)
+ 	}
+ 	if !eagerServes(t, ctx, svc, team, wing, padded) {
+ 		t.Errorf("door 3 (padded room name): a record filed as %q is in the entry room after "+
+-			"normalisation and must be served whole like any other", " "+EntryRoom+" ")
++			"normalisation and must be served whole like any other", " "+EntryHall+" ")
+ 	}
+ }
+ 
+@@ -180,7 +180,7 @@ func TestCorrectingAnEntryRecordEndsItsDerivedEdge(t *testing.T) {
+ 	const team, wing = "team-frontdoor", "wing_alpha"
+ 
+ 	first, err := svc.Add(ctx, team, AddInput{
+-		Wing: wing, Room: EntryRoom, Content: "WHAT MUST I LOAD AT THE START OF A SESSION? — v1",
++		Wing: wing, Room: EntryHall, Content: "WHAT MUST I LOAD AT THE START OF A SESSION? — v1",
+ 	})
+ 	if err != nil {
+ 		t.Fatalf("seed: %v", err)
+@@ -192,7 +192,7 @@ func TestCorrectingAnEntryRecordEndsItsDerivedEdge(t *testing.T) {
+ 	}
+ 
+ 	q, err := svc.KGQuery(ctx, team, KGQueryInput{
+-		Entity: DerivedEdgeSubject(wing, EntryRoom), Direction: "outgoing", Status: KGStatusCurrent,
++		Entity: DerivedEdgeSubject(wing, EntryHall), Direction: "outgoing", Status: KGStatusCurrent,
+ 	})
+ 	if err != nil {
+ 		t.Fatalf("read the entry room's edges: %v", err)
+@@ -294,7 +294,7 @@ func TestEveryDoorThatEndsARowEndsItsDerivedEdge(t *testing.T) {
+ 	t.Run("retraction", func(t *testing.T) {
+ 		svc := newTestService(t)
+ 		const team = "team-retract"
+-		got, err := svc.Add(ctx, team, AddInput{Wing: wing, Room: EntryRoom, Content: "WHAT MUST I LOAD AT THE START OF A SESSION? — v1"})
++		got, err := svc.Add(ctx, team, AddInput{Wing: wing, Room: EntryHall, Content: "WHAT MUST I LOAD AT THE START OF A SESSION? — v1"})
+ 		if err != nil {
+ 			t.Fatalf("seed: %v", err)
+ 		}
+@@ -349,7 +349,7 @@ func TestBackfillMintsARootForAnEntryRoomThatPredatesTheMint(t *testing.T) {
+ 	const team, wing = "team-backfill", "wing_alpha"
+ 
+ 	if _, err := svc.Add(ctx, team, AddInput{
+-		Wing: wing, Room: EntryRoom, Content: "WHAT MUST I LOAD AT THE START OF A SESSION?",
++		Wing: wing, Room: EntryHall, Content: "WHAT MUST I LOAD AT THE START OF A SESSION?",
+ 	}); err != nil {
+ 		t.Fatalf("seed entry drawer: %v", err)
+ 	}
+@@ -373,7 +373,7 @@ func TestBackfillMintsARootForAnEntryRoomThatPredatesTheMint(t *testing.T) {
+ 		t.Fatalf("%s still does not resolve after the backfill: resolution=%q",
+ 			WingRootSubject(wing), q.Resolution)
+ 	}
+-	want := DerivedEdgeSubject(wing, EntryRoom)
++	want := DerivedEdgeSubject(wing, EntryHall)
+ 	var found bool
+ 	for _, f := range q.Facts {
+ 		if f.Object == want {
+@@ -409,7 +409,7 @@ func TestBackfillLeavesAWingWithNoLiveEntryRecordNameless(t *testing.T) {
+ 	const team, wing = "team-empty-entry", "wing_alpha"
+ 
+ 	got, err := svc.Add(ctx, team, AddInput{
+-		Wing: wing, Room: EntryRoom, Content: "WHAT MUST I LOAD AT THE START OF A SESSION?",
++		Wing: wing, Room: EntryHall, Content: "WHAT MUST I LOAD AT THE START OF A SESSION?",
+ 	})
+ 	if err != nil {
+ 		t.Fatalf("seed: %v", err)
+@@ -432,7 +432,7 @@ func TestBackfillLeavesAWingWithNoLiveEntryRecordNameless(t *testing.T) {
+ 	// must be rooted — the two look identical in the drawers table but for valid_to.
+ 	const wing2 = "wing_beta"
+ 	first, err := svc.Add(ctx, team, AddInput{
+-		Wing: wing2, Room: EntryRoom, Content: "WHAT MUST I LOAD AT THE START OF A SESSION? — v1",
++		Wing: wing2, Room: EntryHall, Content: "WHAT MUST I LOAD AT THE START OF A SESSION? — v1",
+ 	})
+ 	if err != nil {
+ 		t.Fatalf("seed beta: %v", err)
+@@ -497,14 +497,14 @@ func TestBackfillLeavesAnEntryRoomWithNoLiveEdgeNameless(t *testing.T) {
+ 	const team, wing = "team-noedge", "wing_alpha"
+ 
+ 	if _, err := svc.Add(ctx, team, AddInput{
+-		Wing: wing, Room: EntryRoom, Content: "WHAT MUST I LOAD AT THE START OF A SESSION?",
++		Wing: wing, Room: EntryHall, Content: "WHAT MUST I LOAD AT THE START OF A SESSION?",
+ 	}); err != nil {
+ 		t.Fatalf("seed: %v", err)
+ 	}
+ 	// The pre-attachDerivedEdge corpus: the drawer row is current, the root and the
+ 	// room's holds edges are not there.
+ 	root := normalizeEntityID(WingRootSubject(wing))
+-	room := normalizeEntityID(DerivedEdgeSubject(wing, EntryRoom))
++	room := normalizeEntityID(DerivedEdgeSubject(wing, EntryHall))
+ 	if err := svc.repo.db.Exec(
+ 		"DELETE FROM kg_triples WHERE team_id = ? AND (subject = ? OR subject = ?)", team, root, room,
+ 	).Error; err != nil {
+@@ -512,7 +512,7 @@ func TestBackfillLeavesAnEntryRoomWithNoLiveEdgeNameless(t *testing.T) {
+ 	}
+ 	var live int64
+ 	if err := svc.repo.db.Model(&drawerRow{}).
+-		Where("team_id = ? AND room = ? AND valid_to = ''", team, EntryRoom).
++		Where("team_id = ? AND room = ? AND valid_to = ''", team, EntryHall).
+ 		Count(&live).Error; err != nil {
+ 		t.Fatalf("count entry drawers: %v", err)
+ 	}
+@@ -536,7 +536,7 @@ func TestBackfillLeavesAnEntryRoomWithNoLiveEdgeNameless(t *testing.T) {
+ // TestBackfillIgnoresARoomTheWildcardLetThrough pins the affix check against SQL
+ // LIKE's own dialect.
+ //
+-// ⚠ `_` IS A SINGLE-CHARACTER WILDCARD IN LIKE, AND EntryRoom IS "llm_init". The
++// ⚠ `_` IS A SINGLE-CHARACTER WILDCARD IN LIKE, AND EntryHall IS "llm_init". The
+ // edge-keyed universe introduced a `subject LIKE 'room:%/llm_init'` prefilter that
+ // also matches llm-init, llm.init and llm init — and TrimPrefix/TrimSuffix no-op
+ // silently when the affix is absent, so what came through looked like a wing name
+@@ -560,7 +560,7 @@ func TestBackfillIgnoresARoomTheWildcardLetThrough(t *testing.T) {
+ 	var matched []string
+ 	if err := svc.repo.db.Model(&kgTripleRow{}).
+ 		Where("predicate = ? AND valid_to = '' AND subject LIKE ?",
+-			normalizePredicate(DerivedEdgePredicate), "room:%/"+EntryRoom).
++			normalizePredicate(DerivedEdgePredicate), "room:%/"+EntryHall).
+ 		Distinct().Pluck("subject", &matched).Error; err != nil {
+ 		t.Fatalf("read the prefilter: %v", err)
+ 	}

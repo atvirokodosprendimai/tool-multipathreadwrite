@@ -1,0 +1,140 @@
+{
+  "id": "am-wide-entry-room",
+  "shape": "wide-rename",
+  "repo": "agentsmemory",
+  "commit": "d038def25a7fadd2586674b954ea07896a330b4a",
+  "exact": true,
+  "instruction": "Rename the Go identifier EntryRoom to EntryHall in the Go files, its mentions in comments included.",
+  "require": [
+    {
+      "file": "internal/mcpserver/drawers.go",
+      "match": "\\bEntryHall\\b"
+    },
+    {
+      "file": "internal/mcpserver/status_test.go",
+      "match": "\\bEntryHall\\b"
+    },
+    {
+      "file": "internal/palace/bootstrap_tier_test.go",
+      "match": "\\bEntryHall\\b"
+    },
+    {
+      "file": "internal/palace/bootstrap_whole_test.go",
+      "match": "\\bEntryHall\\b"
+    },
+    {
+      "file": "internal/palace/entryroom_test.go",
+      "match": "\\bEntryHall\\b"
+    },
+    {
+      "file": "internal/palace/graphquery.go",
+      "match": "\\bEntryHall\\b"
+    },
+    {
+      "file": "internal/palace/kg.go",
+      "match": "\\bEntryHall\\b"
+    },
+    {
+      "file": "internal/palace/kg_test.go",
+      "match": "\\bEntryHall\\b"
+    },
+    {
+      "file": "internal/palace/recallanswers_spec_test.go",
+      "match": "\\bEntryHall\\b"
+    },
+    {
+      "file": "internal/palace/service.go",
+      "match": "\\bEntryHall\\b"
+    },
+    {
+      "file": "internal/palace/supersede.go",
+      "match": "\\bEntryHall\\b"
+    },
+    {
+      "file": "internal/palace/targetauth_test.go",
+      "match": "\\bEntryHall\\b"
+    },
+    {
+      "file": "internal/palace/validity.go",
+      "match": "\\bEntryHall\\b"
+    },
+    {
+      "file": "internal/palace/wingroot_correct_test.go",
+      "match": "\\bEntryHall\\b"
+    },
+    {
+      "file": "internal/palace/wingroot_move_test.go",
+      "match": "\\bEntryHall\\b"
+    },
+    {
+      "file": "internal/palace/wingroot_test.go",
+      "match": "\\bEntryHall\\b"
+    }
+  ],
+  "forbid": [
+    {
+      "file": "internal/mcpserver/drawers.go",
+      "match": "\\bEntryRoom\\b"
+    },
+    {
+      "file": "internal/mcpserver/status_test.go",
+      "match": "\\bEntryRoom\\b"
+    },
+    {
+      "file": "internal/palace/bootstrap_tier_test.go",
+      "match": "\\bEntryRoom\\b"
+    },
+    {
+      "file": "internal/palace/bootstrap_whole_test.go",
+      "match": "\\bEntryRoom\\b"
+    },
+    {
+      "file": "internal/palace/entryroom_test.go",
+      "match": "\\bEntryRoom\\b"
+    },
+    {
+      "file": "internal/palace/graphquery.go",
+      "match": "\\bEntryRoom\\b"
+    },
+    {
+      "file": "internal/palace/kg.go",
+      "match": "\\bEntryRoom\\b"
+    },
+    {
+      "file": "internal/palace/kg_test.go",
+      "match": "\\bEntryRoom\\b"
+    },
+    {
+      "file": "internal/palace/recallanswers_spec_test.go",
+      "match": "\\bEntryRoom\\b"
+    },
+    {
+      "file": "internal/palace/service.go",
+      "match": "\\bEntryRoom\\b"
+    },
+    {
+      "file": "internal/palace/supersede.go",
+      "match": "\\bEntryRoom\\b"
+    },
+    {
+      "file": "internal/palace/targetauth_test.go",
+      "match": "\\bEntryRoom\\b"
+    },
+    {
+      "file": "internal/palace/validity.go",
+      "match": "\\bEntryRoom\\b"
+    },
+    {
+      "file": "internal/palace/wingroot_correct_test.go",
+      "match": "\\bEntryRoom\\b"
+    },
+    {
+      "file": "internal/palace/wingroot_move_test.go",
+      "match": "\\bEntryRoom\\b"
+    },
+    {
+      "file": "internal/palace/wingroot_test.go",
+      "match": "\\bEntryRoom\\b"
+    }
+  ]
+}

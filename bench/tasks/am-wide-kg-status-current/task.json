@@ -1,0 +1,148 @@
+{
+  "id": "am-wide-kg-status-current",
+  "shape": "wide-rename",
+  "repo": "agentsmemory",
+  "commit": "d038def25a7fadd2586674b954ea07896a330b4a",
+  "exact": true,
+  "instruction": "Rename the Go identifier KGStatusCurrent to KGStatusPresent in the Go files, its mentions in comments included.",
+  "require": [
+    {
+      "file": "cmd/server/wingrootbackfill_test.go",
+      "match": "\\bKGStatusPresent\\b"
+    },
+    {
+      "file": "internal/mcpserver/kg.go",
+      "match": "\\bKGStatusPresent\\b"
+    },
+    {
+      "file": "internal/mcpserver/kgquery_test.go",
+      "match": "\\bKGStatusPresent\\b"
+    },
+    {
+      "file": "internal/palace/bootstrap.go",
+      "match": "\\bKGStatusPresent\\b"
+    },
+    {
+      "file": "internal/palace/derivededgebatch_test.go",
+      "match": "\\bKGStatusPresent\\b"
+    },
+    {
+      "file": "internal/palace/entryroom_test.go",
+      "match": "\\bKGStatusPresent\\b"
+    },
+    {
+      "file": "internal/palace/factsfor.go",
+      "match": "\\bKGStatusPresent\\b"
+    },
+    {
+      "file": "internal/palace/graphquery.go",
+      "match": "\\bKGStatusPresent\\b"
+    },
+    {
+      "file": "internal/palace/kg.go",
+      "match": "\\bKGStatusPresent\\b"
+    },
+    {
+      "file": "internal/palace/kg_test.go",
+      "match": "\\bKGStatusPresent\\b"
+    },
+    {
+      "file": "internal/palace/kginvalidateinstant_test.go",
+      "match": "\\bKGStatusPresent\\b"
+    },
+    {
+      "file": "internal/palace/kgplan_test.go",
+      "match": "\\bKGStatusPresent\\b"
+    },
+    {
+      "file": "internal/palace/kgsupersede_test.go",
+      "match": "\\bKGStatusPresent\\b"
+    },
+    {
+      "file": "internal/palace/move_test.go",
+      "match": "\\bKGStatusPresent\\b"
+    },
+    {
+      "file": "internal/palace/wingroot_move_test.go",
+      "match": "\\bKGStatusPresent\\b"
+    },
+    {
+      "file": "internal/palace/wingroot_test.go",
+      "match": "\\bKGStatusPresent\\b"
+    },
+    {
+      "file": "internal/web/guide_test.go",
+      "match": "\\bKGStatusPresent\\b"
+    }
+  ],
+  "forbid": [
+    {
+      "file": "cmd/server/wingrootbackfill_test.go",
+      "match": "\\bKGStatusCurrent\\b"
+    },
+    {
+      "file": "internal/mcpserver/kg.go",
+      "match": "\\bKGStatusCurrent\\b"
+    },
+    {
+      "file": "internal/mcpserver/kgquery_test.go",
+      "match": "\\bKGStatusCurrent\\b"
+    },
+    {
+      "file": "internal/palace/bootstrap.go",
+      "match": "\\bKGStatusCurrent\\b"
+    },
+    {
+      "file": "internal/palace/derivededgebatch_test.go",
+      "match": "\\bKGStatusCurrent\\b"
+    },
+    {
+      "file": "internal/palace/entryroom_test.go",
+      "match": "\\bKGStatusCurrent\\b"
+    },
+    {
+      "file": "internal/palace/factsfor.go",
+      "match": "\\bKGStatusCurrent\\b"
+    },
+    {
+      "file": "internal/palace/graphquery.go",
+      "match": "\\bKGStatusCurrent\\b"
+    },
+    {
+      "file": "internal/palace/kg.go",
+      "match": "\\bKGStatusCurrent\\b"
+    },
+    {
+      "file": "internal/palace/kg_test.go",
+      "match": "\\bKGStatusCurrent\\b"
+    },
+    {
+      "file": "internal/palace/kginvalidateinstant_test.go",
+      "match": "\\bKGStatusCurrent\\b"
+    },
+    {
+      "file": "internal/palace/kgplan_test.go",
+      "match": "\\bKGStatusCurrent\\b"
+    },
+    {
+      "file": "internal/palace/kgsupersede_test.go",
+      "match": "\\bKGStatusCurrent\\b"
+    },
+    {
+      "file": "internal/palace/move_test.go",
+      "match": "\\bKGStatusCurrent\\b"
+    },
+    {
+      "file": "internal/palace/wingroot_move_test.go",
+      "match": "\\bKGStatusCurrent\\b"
+    },
+    {
+      "file": "internal/palace/wingroot_test.go",
+      "match": "\\bKGStatusCurrent\\b"
+    },
+    {
+      "file": "internal/web/guide_test.go",
+      "match": "\\bKGStatusCurrent\\b"
+    }
+  ]
+}

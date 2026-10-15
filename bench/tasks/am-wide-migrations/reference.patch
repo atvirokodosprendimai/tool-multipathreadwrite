@@ -1,0 +1,365 @@
+diff --git a/cmd/server/doctor_test.go b/cmd/server/doctor_test.go
+index d7fa57a..bdf9ba8 100644
+--- a/cmd/server/doctor_test.go
++++ b/cmd/server/doctor_test.go
+@@ -24,7 +24,7 @@ import (
+ 	"github.com/urfave/cli/v3"
+ )
+ 
+-// latestEmbeddedMigration is the highest version in db.Migrations, read from the
++// latestEmbeddedMigration is the highest version in db.SchemaRuns, read from the
+ // embedded set rather than written as a literal.
+ //
+ // The assertion that uses it means "ordinary preparation applied EVERY
+@@ -34,7 +34,7 @@ import (
+ // would make the comparison pass against a database that migrated nothing.
+ func latestEmbeddedMigration(t *testing.T) int {
+ 	t.Helper()
+-	entries, err := fs.ReadDir(db.Migrations, "migrations")
++	entries, err := fs.ReadDir(db.SchemaRuns, "migrations")
+ 	if err != nil {
+ 		t.Fatalf("read embedded migrations: %v", err)
+ 	}
+@@ -333,7 +333,7 @@ func doctorDriftedDB(t *testing.T) string {
+ 	}
+ 	defer sqlDB.Close()
+ 
+-	goose.SetBaseFS(db.Migrations)
++	goose.SetBaseFS(db.SchemaRuns)
+ 	if err := goose.SetDialect("sqlite3"); err != nil {
+ 		t.Fatalf("dialect: %v", err)
+ 	}
+diff --git a/cmd/server/doctorschema.go b/cmd/server/doctorschema.go
+index 4d0a71c..697f47c 100644
+--- a/cmd/server/doctorschema.go
++++ b/cmd/server/doctorschema.go
+@@ -137,7 +137,7 @@ func doctorSchema(_ context.Context, cfg config.Config, out io.Writer) error {
+ 		return err
+ 	}
+ 
+-	want, err := expectedTables(db.Migrations)
++	want, err := expectedTables(db.SchemaRuns)
+ 	if err != nil {
+ 		return err
+ 	}
+diff --git a/cmd/server/doctorschema_test.go b/cmd/server/doctorschema_test.go
+index 4aedc3d..c3c3ec2 100644
+--- a/cmd/server/doctorschema_test.go
++++ b/cmd/server/doctorschema_test.go
+@@ -17,7 +17,7 @@ import (
+ // including the long prose comments this repo puts in migrations, so it reads the
+ // real embed.
+ func TestExpectedTablesDerivesTheRealSchema(t *testing.T) {
+-	got, err := expectedTables(db.Migrations)
++	got, err := expectedTables(db.SchemaRuns)
+ 	if err != nil {
+ 		t.Fatalf("derive: %v", err)
+ 	}
+@@ -39,7 +39,7 @@ func TestExpectedTablesDerivesTheRealSchema(t *testing.T) {
+ // TestExpectedTablesIgnoresSQLInsideComments is a regression test for a trap this
+ // repository sets for itself.
+ //
+-// Migrations here carry paragraphs of explanation, and 00023's comment contains
++// SchemaRuns here carry paragraphs of explanation, and 00023's comment contains
+ // the words "CREATE TABLE IF NOT EXISTS" while explaining why the statement uses
+ // them. Matched against raw text, that sentence declares a table named "is", and
+ // doctor --schema would then report a missing table on every healthy database —
+diff --git a/cmd/server/main.go b/cmd/server/main.go
+index 7e2f64f..2a994f8 100644
+--- a/cmd/server/main.go
++++ b/cmd/server/main.go
+@@ -1904,7 +1904,7 @@ const inspectionDBPragmas = "?_pragma=query_only(1)&_pragma=busy_timeout(5000)"
+ 
+ // migrate applies the embedded goose migrations to the open database.
+ func migrate(sqlDB *sql.DB) error {
+-	goose.SetBaseFS(db.Migrations)
++	goose.SetBaseFS(db.SchemaRuns)
+ 	if err := goose.SetDialect("sqlite3"); err != nil {
+ 		return err
+ 	}
+diff --git a/cmd/server/modescope_test.go b/cmd/server/modescope_test.go
+index d8781b5..8b73f21 100644
+--- a/cmd/server/modescope_test.go
++++ b/cmd/server/modescope_test.go
+@@ -275,7 +275,7 @@ func sweepFixture(t *testing.T) (*palace.Service, []string) {
+ 	if err != nil {
+ 		t.Fatalf("sql handle: %v", err)
+ 	}
+-	goose.SetBaseFS(db.Migrations)
++	goose.SetBaseFS(db.SchemaRuns)
+ 	if err := goose.SetDialect("sqlite3"); err != nil {
+ 		t.Fatalf("dialect: %v", err)
+ 	}
+diff --git a/cmd/server/playbook_test.go b/cmd/server/playbook_test.go
+index 882023b..6e2146a 100644
+--- a/cmd/server/playbook_test.go
++++ b/cmd/server/playbook_test.go
+@@ -152,7 +152,7 @@ func newTestGormDB(t *testing.T) *gorm.DB {
+ 		t.Fatalf("sql handle: %v", err)
+ 	}
+ 	t.Cleanup(func() { _ = sqlDB.Close() })
+-	goose.SetBaseFS(db.Migrations)
++	goose.SetBaseFS(db.SchemaRuns)
+ 	if err := goose.SetDialect("sqlite3"); err != nil {
+ 		t.Fatalf("dialect: %v", err)
+ 	}
+diff --git a/cmd/server/reconcile_test.go b/cmd/server/reconcile_test.go
+index 100826c..743e19f 100644
+--- a/cmd/server/reconcile_test.go
++++ b/cmd/server/reconcile_test.go
+@@ -36,7 +36,7 @@ func reconcileFixture(t *testing.T, sotN, indexN int) (ReconcileReport, error) {
+ 	if err != nil {
+ 		t.Fatalf("sql handle: %v", err)
+ 	}
+-	goose.SetBaseFS(db.Migrations)
++	goose.SetBaseFS(db.SchemaRuns)
+ 	if err := goose.SetDialect("sqlite3"); err != nil {
+ 		t.Fatalf("dialect: %v", err)
+ 	}
+@@ -141,7 +141,7 @@ func TestReconcileReportsRebuilt(t *testing.T) {
+ 	if err != nil {
+ 		t.Fatalf("sql handle: %v", err)
+ 	}
+-	goose.SetBaseFS(db.Migrations)
++	goose.SetBaseFS(db.SchemaRuns)
+ 	if err := goose.SetDialect("sqlite3"); err != nil {
+ 		t.Fatalf("dialect: %v", err)
+ 	}
+diff --git a/db/embed.go b/db/embed.go
+index ea9e070..9658857 100644
+--- a/db/embed.go
++++ b/db/embed.go
+@@ -4,8 +4,8 @@ package db
+ 
+ import "embed"
+ 
+-// Migrations holds the goose .sql migration files. goose.SetBaseFS points at
++// SchemaRuns holds the goose .sql migration files. goose.SetBaseFS points at
+ // this FS and runs the "migrations" directory.
+ //
+ //go:embed migrations/*.sql
+-var Migrations embed.FS
++var SchemaRuns embed.FS
+diff --git a/db/migrations_test.go b/db/migrations_test.go
+index b497765..174874b 100644
+--- a/db/migrations_test.go
++++ b/db/migrations_test.go
+@@ -33,7 +33,7 @@ func TestMigrationsRoundTrip(t *testing.T) {
+ 	}
+ 	defer sqlDB.Close()
+ 
+-	goose.SetBaseFS(db.Migrations)
++	goose.SetBaseFS(db.SchemaRuns)
+ 	if err := goose.SetDialect("sqlite3"); err != nil {
+ 		t.Fatalf("dialect: %v", err)
+ 	}
+@@ -76,7 +76,7 @@ func TestMigrationsUpgradeFromV0045(t *testing.T) {
+ 		t.Fatalf("dialect: %v", err)
+ 	}
+ 	goose.SetBaseFS(v0045Migrations(t))
+-	t.Cleanup(func() { goose.SetBaseFS(db.Migrations) })
++	t.Cleanup(func() { goose.SetBaseFS(db.SchemaRuns) })
+ 
+ 	if err := goose.UpTo(sqlDB, "migrations", 21); err != nil {
+ 		t.Fatalf("migrate to released v0.0.45 schema: %v", err)
+@@ -84,7 +84,7 @@ func TestMigrationsUpgradeFromV0045(t *testing.T) {
+ 	assertPlanCap(t, sqlDB, "personal", 1000)
+ 	assertSQLiteObject(t, sqlDB, "table", "search_events", false)
+ 
+-	goose.SetBaseFS(db.Migrations)
++	goose.SetBaseFS(db.SchemaRuns)
+ 	if err := goose.Up(sqlDB, "migrations"); err != nil {
+ 		t.Fatalf("upgrade released v0.0.45 schema: %v", err)
+ 	}
+@@ -106,7 +106,7 @@ func v0045Migrations(t *testing.T) fs.FS {
+ 	t.Helper()
+ 
+ 	migrations := fstest.MapFS{}
+-	entries, err := fs.ReadDir(db.Migrations, "migrations")
++	entries, err := fs.ReadDir(db.SchemaRuns, "migrations")
+ 	if err != nil {
+ 		t.Fatalf("read embedded migrations: %v", err)
+ 	}
+@@ -122,7 +122,7 @@ func v0045Migrations(t *testing.T) fs.FS {
+ 			continue
+ 		}
+ 		migrationPath := path.Join("migrations", entry.Name())
+-		data, err := fs.ReadFile(db.Migrations, migrationPath)
++		data, err := fs.ReadFile(db.SchemaRuns, migrationPath)
+ 		if err != nil {
+ 			t.Fatalf("read %s: %v", migrationPath, err)
+ 		}
+@@ -191,7 +191,7 @@ func TestRepairMigrationRestoresADriftedSchema(t *testing.T) {
+ 	}
+ 	defer sqlDB.Close()
+ 
+-	goose.SetBaseFS(db.Migrations)
++	goose.SetBaseFS(db.SchemaRuns)
+ 	if err := goose.SetDialect("sqlite3"); err != nil {
+ 		t.Fatalf("dialect: %v", err)
+ 	}
+diff --git a/internal/billing/service_test.go b/internal/billing/service_test.go
+index e504e0c..4c78228 100644
+--- a/internal/billing/service_test.go
++++ b/internal/billing/service_test.go
+@@ -43,7 +43,7 @@ func newTestEnv(t *testing.T) (*Service, *fakeCheckout, *tenant.Repo, *gorm.DB,
+ 	// A single shared in-memory connection: SQLite drops the schema when the last
+ 	// connection closes, so pin the pool to one conn for the test's lifetime.
+ 	sqlDB.SetMaxOpenConns(1)
+-	goose.SetBaseFS(db.Migrations)
++	goose.SetBaseFS(db.SchemaRuns)
+ 	if err := goose.SetDialect("sqlite3"); err != nil {
+ 		t.Fatalf("dialect: %v", err)
+ 	}
+diff --git a/internal/dataexport/dataexport_test.go b/internal/dataexport/dataexport_test.go
+index cc7ad89..138c3c5 100644
+--- a/internal/dataexport/dataexport_test.go
++++ b/internal/dataexport/dataexport_test.go
+@@ -27,7 +27,7 @@ func newMigratedSource(t *testing.T) *gorm.DB {
+ 	if err != nil {
+ 		t.Fatalf("sql handle: %v", err)
+ 	}
+-	goose.SetBaseFS(appdb.Migrations)
++	goose.SetBaseFS(appdb.SchemaRuns)
+ 	if err := goose.SetDialect("sqlite3"); err != nil {
+ 		t.Fatalf("goose dialect: %v", err)
+ 	}
+diff --git a/internal/mcpserver/emptygraph_test.go b/internal/mcpserver/emptygraph_test.go
+index d841b6a..b860a0a 100644
+--- a/internal/mcpserver/emptygraph_test.go
++++ b/internal/mcpserver/emptygraph_test.go
+@@ -288,7 +288,7 @@ func graphTestDB(t *testing.T) *gorm.DB {
+ 	if err != nil {
+ 		t.Fatalf("sql handle: %v", err)
+ 	}
+-	goose.SetBaseFS(db.Migrations)
++	goose.SetBaseFS(db.SchemaRuns)
+ 	if err := goose.SetDialect("sqlite3"); err != nil {
+ 		t.Fatalf("dialect: %v", err)
+ 	}
+diff --git a/internal/mcptest/harness.go b/internal/mcptest/harness.go
+index 64beca9..fdcf11b 100644
+--- a/internal/mcptest/harness.go
++++ b/internal/mcptest/harness.go
+@@ -451,7 +451,7 @@ func openDB(t *testing.T, path string) *gorm.DB {
+ 	if err != nil {
+ 		t.Fatalf("sql handle: %v", err)
+ 	}
+-	goose.SetBaseFS(db.Migrations)
++	goose.SetBaseFS(db.SchemaRuns)
+ 	if err := goose.SetDialect("sqlite3"); err != nil {
+ 		t.Fatalf("dialect: %v", err)
+ 	}
+diff --git a/internal/palace/schematemplate_test.go b/internal/palace/schematemplate_test.go
+index 6772133..9496c1d 100644
+--- a/internal/palace/schematemplate_test.go
++++ b/internal/palace/schematemplate_test.go
+@@ -78,7 +78,7 @@ func buildSchemaTemplate(path string) error {
+ 	if err != nil {
+ 		return fmt.Errorf("sql handle: %w", err)
+ 	}
+-	goose.SetBaseFS(db.Migrations)
++	goose.SetBaseFS(db.SchemaRuns)
+ 	if err := goose.SetDialect("sqlite3"); err != nil {
+ 		return fmt.Errorf("dialect: %w", err)
+ 	}
+diff --git a/internal/palace/validity_test.go b/internal/palace/validity_test.go
+index 68022fc..04b605a 100644
+--- a/internal/palace/validity_test.go
++++ b/internal/palace/validity_test.go
+@@ -132,7 +132,7 @@ func TestExistingRowsReadAsCurrentAfterMigration(t *testing.T) {
+ 		t.Fatalf("open: %v", err)
+ 	}
+ 	sqlDB, _ := gdb.DB()
+-	goose.SetBaseFS(db.Migrations)
++	goose.SetBaseFS(db.SchemaRuns)
+ 	if err := goose.SetDialect("sqlite3"); err != nil {
+ 		t.Fatalf("dialect: %v", err)
+ 	}
+diff --git a/internal/store/hybrid_conformance_test.go b/internal/store/hybrid_conformance_test.go
+index 4c6db8f..9a3169d 100644
+--- a/internal/store/hybrid_conformance_test.go
++++ b/internal/store/hybrid_conformance_test.go
+@@ -31,7 +31,7 @@ func hybridPair(t *testing.T) store.VectorStore {
+ 	if err != nil {
+ 		t.Fatalf("sql handle: %v", err)
+ 	}
+-	goose.SetBaseFS(db.Migrations)
++	goose.SetBaseFS(db.SchemaRuns)
+ 	if err := goose.SetDialect("sqlite3"); err != nil {
+ 		t.Fatalf("dialect: %v", err)
+ 	}
+@@ -71,7 +71,7 @@ func TestHybridRunsTheSetPayloadConformanceSuite(t *testing.T) {
+ 		if err != nil {
+ 			t.Fatalf("sql handle: %v", err)
+ 		}
+-		goose.SetBaseFS(db.Migrations)
++		goose.SetBaseFS(db.SchemaRuns)
+ 		if err := goose.SetDialect("sqlite3"); err != nil {
+ 			t.Fatalf("dialect: %v", err)
+ 		}
+diff --git a/internal/store/sqlitevec/sqlitevec_test.go b/internal/store/sqlitevec/sqlitevec_test.go
+index b260d7e..25c155e 100644
+--- a/internal/store/sqlitevec/sqlitevec_test.go
++++ b/internal/store/sqlitevec/sqlitevec_test.go
+@@ -29,7 +29,7 @@ func newTestStore(t *testing.T) *Store {
+ 	if err != nil {
+ 		t.Fatalf("sql handle: %v", err)
+ 	}
+-	goose.SetBaseFS(db.Migrations)
++	goose.SetBaseFS(db.SchemaRuns)
+ 	if err := goose.SetDialect("sqlite3"); err != nil {
+ 		t.Fatalf("dialect: %v", err)
+ 	}
+diff --git a/internal/store/sync_integration_test.go b/internal/store/sync_integration_test.go
+index f373610..7c31588 100644
+--- a/internal/store/sync_integration_test.go
++++ b/internal/store/sync_integration_test.go
+@@ -123,7 +123,7 @@ func newSoT(t *testing.T) *sqlitevec.Store {
+ 	if err != nil {
+ 		t.Fatalf("sql handle: %v", err)
+ 	}
+-	goose.SetBaseFS(dbpkg.Migrations)
++	goose.SetBaseFS(dbpkg.SchemaRuns)
+ 	if err := goose.SetDialect("sqlite3"); err != nil {
+ 		t.Fatalf("dialect: %v", err)
+ 	}
+diff --git a/internal/tenant/local_test.go b/internal/tenant/local_test.go
+index ee66098..590ceb6 100644
+--- a/internal/tenant/local_test.go
++++ b/internal/tenant/local_test.go
+@@ -33,7 +33,7 @@ func newMigratedDB(t *testing.T) *gorm.DB {
+ 	// A single shared in-memory connection: SQLite drops the schema when the last
+ 	// connection closes, so pin the pool for the test's lifetime.
+ 	sqlDB.SetMaxOpenConns(1)
+-	goose.SetBaseFS(appdb.Migrations)
++	goose.SetBaseFS(appdb.SchemaRuns)
+ 	if err := goose.SetDialect("sqlite3"); err != nil {
+ 		t.Fatalf("dialect: %v", err)
+ 	}
+diff --git a/internal/web/billing_gate_test.go b/internal/web/billing_gate_test.go
+index d358c39..af120d3 100644
+--- a/internal/web/billing_gate_test.go
++++ b/internal/web/billing_gate_test.go
+@@ -39,7 +39,7 @@ func newBillingGateEnv(t *testing.T, planID string) (*Server, *gorm.DB, string,
+ 	// One shared connection: SQLite drops an in-memory schema when the last
+ 	// connection closes, so the pool is pinned for the test's lifetime.
+ 	sqlDB.SetMaxOpenConns(1)
+-	goose.SetBaseFS(db.Migrations)
++	goose.SetBaseFS(db.SchemaRuns)
+ 	if err := goose.SetDialect("sqlite3"); err != nil {
+ 		t.Fatalf("dialect: %v", err)
+ 	}
+diff --git a/internal/web/wingimport_authz_test.go b/internal/web/wingimport_authz_test.go
+index a34c25b..20d717b 100644
+--- a/internal/web/wingimport_authz_test.go
++++ b/internal/web/wingimport_authz_test.go
+@@ -37,7 +37,7 @@ func newRoleEnv(t *testing.T, role tenant.Role) (*Server, *gorm.DB, string, stri
+ 		t.Fatalf("sql handle: %v", err)
+ 	}
+ 	sqlDB.SetMaxOpenConns(1)
+-	goose.SetBaseFS(db.Migrations)
++	goose.SetBaseFS(db.SchemaRuns)
+ 	if err := goose.SetDialect("sqlite3"); err != nil {
+ 		t.Fatalf("dialect: %v", err)
+ 	}

@@ -1,0 +1,434 @@
+diff --git a/cmd/server/configureranking_test.go b/cmd/server/configureranking_test.go
+index b413e74..6f57f38 100644
+--- a/cmd/server/configureranking_test.go
++++ b/cmd/server/configureranking_test.go
+@@ -161,7 +161,7 @@ func noReranker(string, time.Duration) palace.Reranker { return nil }
+ //
+ // What this observes is the factory CALL, plus the line the same block emits.
+ // It does NOT observe the pool and weight arriving on the Service: those are
+-// unexported and palace exposes no accessor, so a WithReranker that dropped its
++// unexported and palace exposes no accessor, so a UseReranking that dropped its
+ // arguments would pass here. Said plainly rather than papered over — the
+ // reachability question ("did the wiring reach the reranker at all") is the one
+ // that shipped broken, and it is the one this answers.
+diff --git a/cmd/server/main.go b/cmd/server/main.go
+index 7e2f64f..4533702 100644
+--- a/cmd/server/main.go
++++ b/cmd/server/main.go
+@@ -1166,7 +1166,7 @@ func configureRanking(svc *palace.Service, cfg config.Config,
+ 			timeout = cfg.HTTPTimeout
+ 		}
+ 		drawers = drawers.
+-			WithReranker(newReranker(cfg.RerankURL, timeout), cfg.RerankPool).
++			UseReranking(newReranker(cfg.RerankURL, timeout), cfg.RerankPool).
+ 			WithRerankWeight(cfg.RerankWeight).
+ 			WithRerankNorm(cfg.RerankNorm)
+ 		say("reranker: %s (pool %d, weight %.2f, timeout %s)",
+diff --git a/internal/palace/armdistinct_test.go b/internal/palace/armdistinct_test.go
+index c74249e..67487ad 100644
+--- a/internal/palace/armdistinct_test.go
++++ b/internal/palace/armdistinct_test.go
+@@ -42,7 +42,7 @@ func armFingerprint(s *Service) string {
+ // whatever that switch happens to do.
+ func TestEvalArmsAreDISTINCTCONFIGURATIONSNotJustDistinctNames(t *testing.T) {
+ 	svc := newTestService(t).
+-		WithReranker(&fakeReranker{budget: 10 * time.Second}, 10).
++		UseReranking(&fakeReranker{budget: 10 * time.Second}, 10).
+ 		WithRerankWeight(0.5).
+ 		WithRerankNorm(DefaultRerankNorm)
+ 
+@@ -104,7 +104,7 @@ func TestProductionShapedArmsReconstructTheSERVEDNormaliser(t *testing.T) {
+ 	for _, served := range []string{RerankNormSigmoid, RerankNormRank, RerankNormMinMax} {
+ 		t.Run("served="+served, func(t *testing.T) {
+ 			svc := newTestService(t).
+-				WithReranker(&fakeReranker{budget: 10 * time.Second}, 10).
++				UseReranking(&fakeReranker{budget: 10 * time.Second}, 10).
+ 				WithRerankWeight(0.5).
+ 				WithRerankNorm(served)
+ 
+diff --git a/internal/palace/collapse_test.go b/internal/palace/collapse_test.go
+index 887ed92..9b465c8 100644
+--- a/internal/palace/collapse_test.go
++++ b/internal/palace/collapse_test.go
+@@ -211,7 +211,7 @@ func TestMemoryLevelRerankingCombinesCrossChunkEvidence(t *testing.T) {
+ 	mustAddOne(t, base, team, AddInput{Wing: "w", Room: "r", Content: "ALPHA competitor with one half"})
+ 
+ 	reranker := &recordingDocuments{}
+-	svc := base.Clone().WithReranker(reranker, 10).WithRerankWeight(0.5)
++	svc := base.Clone().UseReranking(reranker, 10).WithRerankWeight(0.5)
+ 	if _, err := svc.Search(ctx, team, SearchQuery{Query: "ALPHA OMEGA", Limit: 5, SkipTelemetry: true}); err != nil {
+ 		t.Fatalf("search: %v", err)
+ 	}
+@@ -279,7 +279,7 @@ func TestMemoryLevelRerankingKeepsEnoughContextToJudgeTheAnswer(t *testing.T) {
+ 		return scores, nil
+ 	})
+ 
+-	svc := base.Clone().WithReranker(reranker, 10).WithRerankWeight(1)
++	svc := base.Clone().UseReranking(reranker, 10).WithRerankWeight(1)
+ 	svc.vectors = &orderedVectors{VectorStore: base.vectors, hits: ordered}
+ 	hits, err := svc.Search(ctx, team, SearchQuery{Query: "constraint", Limit: 2, SkipTelemetry: true})
+ 	if err != nil {
+diff --git a/internal/palace/eval_ssot_test.go b/internal/palace/eval_ssot_test.go
+index d17e584..b47da7a 100644
+--- a/internal/palace/eval_ssot_test.go
++++ b/internal/palace/eval_ssot_test.go
+@@ -8,7 +8,7 @@ import (
+ )
+ 
+ func TestEveryPoolArmHasServiceForArm(t *testing.T) {
+-	svc := NewService(nil, nil, nil, 0).WithReranker(&fakeReranker{}, DefaultRerankPool)
++	svc := NewService(nil, nil, nil, 0).UseReranking(&fakeReranker{}, DefaultRerankPool)
+ 	for _, arm := range evalArms(EvalOptions{Contextual: true}, true) {
+ 		got := svc.serviceForArm(arm)
+ 		switch arm {
+diff --git a/internal/palace/eval_test.go b/internal/palace/eval_test.go
+index 0eafe81..2d0e073 100644
+--- a/internal/palace/eval_test.go
++++ b/internal/palace/eval_test.go
+@@ -550,7 +550,7 @@ func TestEveryRegisteredArmIsScorable(t *testing.T) {
+ func TestRerankedArmsUseThePoolTheirNameClaims(t *testing.T) {
+ 	ctx := context.Background()
+ 	const team = "team-1"
+-	svc := newTestService(t).WithClosetBoost(0).WithReranker(&fakeReranker{}, DefaultRerankPool)
++	svc := newTestService(t).WithClosetBoost(0).UseReranking(&fakeReranker{}, DefaultRerankPool)
+ 
+ 	query, gold := closetFixture(t, svc, team)
+ 	arms := []EvalArm{ArmHybridRerank, ArmReranked}
+@@ -657,7 +657,7 @@ func TestEvalCaseFetchesOnlyThePoolsItsArmsRead(t *testing.T) {
+ 	} {
+ 		t.Run(tc.name, func(t *testing.T) {
+ 			rr := &fakeReranker{}
+-			svc := newTestService(t).WithClosetBoost(0).WithReranker(rr, DefaultRerankPool)
++			svc := newTestService(t).WithClosetBoost(0).UseReranking(rr, DefaultRerankPool)
+ 			query, gold := closetFixture(t, svc, team)
+ 			if _, err := svc.evalCaseResult(ctx, team, EvalCase{Query: query, Expect: gold, Wing: "infra"}, tc.arms, 20); err != nil {
+ 				t.Fatalf("evalCase: %v", err)
+@@ -1393,7 +1393,7 @@ func TestPopulationLabelsSeparateUnreachable(t *testing.T) {
+ // comment.
+ func TestAbstentionStatsAreContrastiveNotAbsolute(t *testing.T) {
+ 	ctx := context.Background()
+-	svc := newTestService(t).WithReranker(&fakeReranker{}, DefaultRerankPool)
++	svc := newTestService(t).UseReranking(&fakeReranker{}, DefaultRerankPool)
+ 	const team = "team-1"
+ 
+ 	// fakeReranker scores a document by how many query words it contains, so a
+diff --git a/internal/palace/evidence_test.go b/internal/palace/evidence_test.go
+index aa39763..6bf19fd 100644
+--- a/internal/palace/evidence_test.go
++++ b/internal/palace/evidence_test.go
+@@ -88,7 +88,7 @@ func TestSemanticEvidenceSelectorFindsParaphrasedDistantPassages(t *testing.T) {
+ 	controlEmbed := &selectiveEvidenceEmbedder{}
+ 	control := base.Clone().
+ 		WithMemoryEvidenceSelector("lexical").
+-		WithReranker(controlDocs, 10).WithRerankWeight(0.5)
++		UseReranking(controlDocs, 10).WithRerankWeight(0.5)
+ 	control.embed = controlEmbed
+ 	control.vectors = &orderedVectors{VectorStore: base.vectors, hits: ordered}
+ 	if _, err := control.Search(ctx, team, SearchQuery{Query: "unfinished reasoning", Limit: 1, SkipTelemetry: true}); err != nil {
+@@ -105,7 +105,7 @@ func TestSemanticEvidenceSelectorFindsParaphrasedDistantPassages(t *testing.T) {
+ 	semanticEmbed := &selectiveEvidenceEmbedder{}
+ 	semantic := base.Clone().
+ 		WithMemoryEvidenceSelector("semantic").
+-		WithReranker(semanticDocs, 10).WithRerankWeight(0.5)
++		UseReranking(semanticDocs, 10).WithRerankWeight(0.5)
+ 	semantic.embed = semanticEmbed
+ 	semantic.vectors = &orderedVectors{VectorStore: base.vectors, hits: ordered}
+ 	if _, err := semantic.Search(ctx, team, SearchQuery{
+@@ -175,7 +175,7 @@ func TestSemanticEvidenceSelectorFailsOpenForTheWholeShortlist(t *testing.T) {
+ 	lexicalDocs := &recordingDocuments{}
+ 	lexical := base.Clone().
+ 		WithMemoryEvidenceSelector("lexical").
+-		WithReranker(lexicalDocs, 10).WithRerankWeight(0.5)
++		UseReranking(lexicalDocs, 10).WithRerankWeight(0.5)
+ 	lexical.embed = &selectiveEvidenceEmbedder{}
+ 	lexical.vectors = &orderedVectors{VectorStore: base.vectors, hits: ordered}
+ 	if _, err := lexical.Search(ctx, team, SearchQuery{Query: "unfinished reasoning", Limit: 2, SkipTelemetry: true}); err != nil {
+@@ -186,7 +186,7 @@ func TestSemanticEvidenceSelectorFailsOpenForTheWholeShortlist(t *testing.T) {
+ 	failedEmbed := &selectiveEvidenceEmbedder{err: errors.New("passage embedding unavailable")}
+ 	semantic := base.Clone().
+ 		WithMemoryEvidenceSelector("semantic").
+-		WithReranker(failedDocs, 10).WithRerankWeight(0.5)
++		UseReranking(failedDocs, 10).WithRerankWeight(0.5)
+ 	semantic.embed = failedEmbed
+ 	semantic.vectors = &orderedVectors{VectorStore: base.vectors, hits: ordered}
+ 	if _, err := semantic.Search(ctx, team, SearchQuery{Query: "unfinished reasoning", Limit: 2, SkipTelemetry: true}); err != nil {
+diff --git a/internal/palace/gatedarm_test.go b/internal/palace/gatedarm_test.go
+index 6e42093..277102d 100644
+--- a/internal/palace/gatedarm_test.go
++++ b/internal/palace/gatedarm_test.go
+@@ -339,7 +339,7 @@ func TestGatedArmNamesTheArmThatReconstructsTheServedNormaliser(t *testing.T) {
+ 		// "plain" shape the linear arms are faithful to. NewService defaults to
+ 		// the ADAPTIVE weight, which no linear arm reconstructs.
+ 		s := NewService(nil, nil, nil, 0).WithClosetBoost(0).
+-			WithBM25Weight(false, hybridBM25Weight).WithReranker(&fakeReranker{}, 10)
++			WithBM25Weight(false, hybridBM25Weight).UseReranking(&fakeReranker{}, 10)
+ 		if fusion {
+ 			s = s.WithFusion("rrf")
+ 		}
+diff --git a/internal/palace/rerank_test.go b/internal/palace/rerank_test.go
+index 5d0f7a8..c28bcee 100644
+--- a/internal/palace/rerank_test.go
++++ b/internal/palace/rerank_test.go
+@@ -92,7 +92,7 @@ func TestSearchRerankDecidesTheOrder(t *testing.T) {
+ 	seedRerankCorpus(t, svc, ctx, team)
+ 
+ 	rr := &keywordReranker{keyword: "closet"}
+-	svc.WithReranker(rr, 10)
++	svc.UseReranking(rr, 10)
+ 
+ 	hits, err := svc.Search(ctx, team, SearchQuery{Query: "goose migrations at boot", Limit: 3})
+ 	if err != nil {
+@@ -133,7 +133,7 @@ func TestSearchRerankFailsOpen(t *testing.T) {
+ 	}
+ 
+ 	rr := &brokenReranker{}
+-	svc.WithReranker(rr, 10)
++	svc.UseReranking(rr, 10)
+ 	got, err := svc.Search(ctx, team, SearchQuery{Query: "goose migrations at boot", Limit: 4})
+ 	if err != nil {
+ 		t.Fatalf("Search with a broken reranker returned an error, want fail-open: %v", err)
+@@ -164,7 +164,7 @@ func TestSearchRerankPoolBoundsTheCall(t *testing.T) {
+ 	seedRerankCorpus(t, svc, ctx, team)
+ 
+ 	var gotDocs int
+-	svc.WithReranker(rerankFunc(func(_ context.Context, _ string, docs []string) ([]float64, error) {
++	svc.UseReranking(rerankFunc(func(_ context.Context, _ string, docs []string) ([]float64, error) {
+ 		gotDocs = len(docs)
+ 		return make([]float64, len(docs)), nil
+ 	}), 2)
+@@ -195,7 +195,7 @@ func TestSearchRerankContextFeedsOnlyTheCrossEncoder(t *testing.T) {
+ 	}
+ 
+ 	rr := &keywordReranker{keyword: "closet"}
+-	svc.WithReranker(rr, 10)
++	svc.UseReranking(rr, 10)
+ 	if _, err := svc.Search(ctx, team, SearchQuery{Query: "migrations", Limit: 2}); err != nil {
+ 		t.Fatalf("Search without context: %v", err)
+ 	}
+diff --git a/internal/palace/rerankbudget_test.go b/internal/palace/rerankbudget_test.go
+index 84fda64..03261d2 100644
+--- a/internal/palace/rerankbudget_test.go
++++ b/internal/palace/rerankbudget_test.go
+@@ -66,7 +66,7 @@ func TestABlownBudgetIsNotReportedAsAnEndpointError(t *testing.T) {
+ 		}))
+ 		t.Cleanup(slow.Close)
+ 
+-		svc := newTestService(t).WithReranker(tei.New(slow.URL, 50*time.Millisecond), 5).WithRerankWeight(0.5)
++		svc := newTestService(t).UseReranking(tei.New(slow.URL, 50*time.Millisecond), 5).WithRerankWeight(0.5)
+ 		mustAdd(t, svc, team, AddInput{Wing: "w", Room: "r", Content: "a memory about budgets"})
+ 
+ 		status, reason := rerankSpanReason(t, svc, team, SearchQuery{Query: "budgets", Limit: 3, MaxDistance: 1.5})
+@@ -90,7 +90,7 @@ func TestABlownBudgetIsNotReportedAsAnEndpointError(t *testing.T) {
+ 		// Whether the platform hangs until the budget expires or refuses
+ 		// immediately, the verdict must be the same: no connection was ever
+ 		// obtained, so this is an outage and not a budget problem.
+-		svc := newTestService(t).WithReranker(tei.New("http://192.0.2.1:9", 300*time.Millisecond), 5).WithRerankWeight(0.5)
++		svc := newTestService(t).UseReranking(tei.New("http://192.0.2.1:9", 300*time.Millisecond), 5).WithRerankWeight(0.5)
+ 		mustAdd(t, svc, team, AddInput{Wing: "w", Room: "r", Content: "a memory about budgets"})
+ 
+ 		status, reason := rerankSpanReason(t, svc, team, SearchQuery{Query: "budgets", Limit: 3, MaxDistance: 1.5})
+@@ -110,7 +110,7 @@ func TestABlownBudgetIsNotReportedAsAnEndpointError(t *testing.T) {
+ 		}))
+ 		t.Cleanup(sick.Close)
+ 
+-		svc := newTestService(t).WithReranker(tei.New(sick.URL, 30*time.Second), 5).WithRerankWeight(0.5)
++		svc := newTestService(t).UseReranking(tei.New(sick.URL, 30*time.Second), 5).WithRerankWeight(0.5)
+ 		mustAdd(t, svc, team, AddInput{Wing: "w", Room: "r", Content: "a memory about budgets"})
+ 
+ 		status, reason := rerankSpanReason(t, svc, team, SearchQuery{Query: "budgets", Limit: 3, MaxDistance: 1.5})
+@@ -129,7 +129,7 @@ func TestABlownBudgetIsNotReportedAsAnEndpointError(t *testing.T) {
+ // matters when recall degrades — was this call close to its ceiling?
+ func TestTheBudgetInForceIsOnTheSearchSpan(t *testing.T) {
+ 	const team = "team-budget-attr"
+-	svc := newTestService(t).WithReranker(tei.New("http://127.0.0.1:1", 7*time.Second), 5).WithRerankWeight(0.5)
++	svc := newTestService(t).UseReranking(tei.New("http://127.0.0.1:1", 7*time.Second), 5).WithRerankWeight(0.5)
+ 	mustAdd(t, svc, team, AddInput{Wing: "w", Room: "r", Content: "a memory about budgets"})
+ 
+ 	got := searchSpanAttrs(t, svc, team, SearchQuery{Query: "budgets", Limit: 3, MaxDistance: 1.5})
+diff --git a/internal/palace/rerankreason_test.go b/internal/palace/rerankreason_test.go
+index 3eabfef..6fd57ff 100644
+--- a/internal/palace/rerankreason_test.go
++++ b/internal/palace/rerankreason_test.go
+@@ -40,7 +40,7 @@ func TestTheReasonOnTheSpanIsTheReasonReturned(t *testing.T) {
+ 			// The real tei client against a server that sleeps: a fake returning
+ 			// context.DeadlineExceeded would pass while production said "error",
+ 			// because tei decides this from whether it reached the model at all.
+-			return newTestService(t).WithReranker(tei.New(slow.URL, 50*time.Millisecond), 2)
++			return newTestService(t).UseReranking(tei.New(slow.URL, 50*time.Millisecond), 2)
+ 		}, telemetry.ReasonTimeout},
+ 
+ 		{"a sick endpoint", func(t *testing.T) *Service {
+@@ -48,11 +48,11 @@ func TestTheReasonOnTheSpanIsTheReasonReturned(t *testing.T) {
+ 				http.Error(w, "boom", http.StatusInternalServerError)
+ 			}))
+ 			t.Cleanup(sick.Close)
+-			return newTestService(t).WithReranker(tei.New(sick.URL, 30*time.Second), 2)
++			return newTestService(t).UseReranking(tei.New(sick.URL, 30*time.Second), 2)
+ 		}, telemetry.ReasonError},
+ 
+ 		{"the cross-encoder returned the wrong number of scores", func(t *testing.T) *Service {
+-			return newTestService(t).WithReranker(&staticReranker{scores: []float64{1}}, 2)
++			return newTestService(t).UseReranking(&staticReranker{scores: []float64{1}}, 2)
+ 		}, telemetry.ReasonScoreCount},
+ 
+ 		{"no reranker configured", func(t *testing.T) *Service {
+@@ -79,7 +79,7 @@ func TestTheReasonOnTheSpanIsTheReasonReturned(t *testing.T) {
+ // durable column is worth nothing if a disabled reranker and a broken one write
+ // the same value, which is exactly today's `reranked = 0`.
+ func TestWeightZeroReportsWeightZeroNotAnError(t *testing.T) {
+-	svc := newTestService(t).WithReranker(&staticReranker{scores: []float64{1, 2}}, 2)
++	svc := newTestService(t).UseReranking(&staticReranker{scores: []float64{1, 2}}, 2)
+ 	got, onSpan := reasonAndSpan(t, svc, 0)
+ 	if got != telemetry.ReasonWeightZero {
+ 		t.Errorf("reason at weight 0 = %q, want %q", got, telemetry.ReasonWeightZero)
+@@ -93,7 +93,7 @@ func TestWeightZeroReportsWeightZeroNotAnError(t *testing.T) {
+ // column stays empty on rows where nothing was skipped. A key that is always
+ // present measures nothing.
+ func TestAServedRerankReturnsNoReason(t *testing.T) {
+-	svc := newTestService(t).WithReranker(&staticReranker{scores: []float64{1, 2}}, 2)
++	svc := newTestService(t).UseReranking(&staticReranker{scores: []float64{1, 2}}, 2)
+ 	got, _ := reasonAndSpan(t, svc, DefaultRerankWeight)
+ 	if got != "" {
+ 		t.Errorf("a rerank that RAN returned %q; the healthy path must be empty", got)
+diff --git a/internal/palace/scopedrops_test.go b/internal/palace/scopedrops_test.go
+index fad6922..8794d85 100644
+--- a/internal/palace/scopedrops_test.go
++++ b/internal/palace/scopedrops_test.go
+@@ -173,7 +173,7 @@ func TestScopeDropsCountEachCauseSeparately(t *testing.T) {
+ // to do, which is how a stage list became both the subject and the authority of
+ // its own check earlier in this corpus.
+ func TestKnobsThatDecideThePageAreAllOnTheParentSpan(t *testing.T) {
+-	svc := newTestService(t).WithReranker(&fakeReranker{budget: 10 * time.Second}, 50).WithRerankWeight(0.5)
++	svc := newTestService(t).UseReranking(&fakeReranker{budget: 10 * time.Second}, 50).WithRerankWeight(0.5)
+ 	const team = "team-knobs"
+ 	mustAdd(t, svc, team, AddInput{Wing: "w", Room: "r", Content: "a memory about knob coverage"})
+ 
+diff --git a/internal/palace/service.go b/internal/palace/service.go
+index 568db83..08f8f20 100644
+--- a/internal/palace/service.go
++++ b/internal/palace/service.go
+@@ -386,7 +386,7 @@ func NewService(repo *Repo, embed Embedder, vectors store.VectorStore, dim int)
+ 	}
+ }
+ 
+-// WithReranker attaches a cross-encoder to Search and returns s for chaining.
++// UseReranking attaches a cross-encoder to Search and returns s for chaining.
+ // pool is how many fused candidates get cross-encoded; values below 1 fall back
+ // to DefaultRerankPool.
+ //
+@@ -395,7 +395,7 @@ func NewService(repo *Repo, embed Embedder, vectors store.VectorStore, dim int)
+ // to exist — every call site that has no reranker configured simply never calls
+ // this. It must be called before the service is shared across goroutines: the
+ // field is read without synchronization on the search path.
+-func (s *Service) WithReranker(r Reranker, pool int) *Service {
++func (s *Service) UseReranking(r Reranker, pool int) *Service {
+ 	if pool < 1 {
+ 		pool = DefaultRerankPool
+ 	}
+@@ -408,7 +408,7 @@ func (s *Service) WithReranker(r Reranker, pool int) *Service {
+ 
+ // WithFusion selects how vector and lexical evidence combine: "rrf" for
+ // reciprocal-rank fusion, anything else for the weighted-score blend. Same
+-// post-construction-setter contract as WithReranker: call it before the service
++// post-construction-setter contract as UseReranking: call it before the service
+ // is shared across goroutines.
+ func (s *Service) WithFusion(mode string) *Service {
+ 	s.fusionRRF = strings.EqualFold(strings.TrimSpace(mode), "rrf")
+@@ -439,7 +439,7 @@ func (s *Service) WithMemoryEvidenceSelector(name string) *Service {
+ // DefaultRerankNorm — sigmoid, not min-max. Passing "" is therefore a request
+ // for the current default, never a way back to the pre-option behaviour.
+ //
+-// Same post-construction-setter contract as WithReranker: call before the
++// Same post-construction-setter contract as UseReranking: call before the
+ // service is shared.
+ func (s *Service) WithRerankNorm(name string) *Service {
+ 	switch name {
+@@ -487,7 +487,7 @@ func (s *Service) Clone() *Service {
+ }
+ 
+ // WithClosetBoost scales the closet curation prior (1 = full, 0 = off). Same
+-// post-construction-setter contract as WithReranker: call before the service is
++// post-construction-setter contract as UseReranking: call before the service is
+ // shared across goroutines.
+ func (s *Service) WithClosetBoost(scale float64) *Service {
+ 	if scale < 0 {
+@@ -502,7 +502,7 @@ func (s *Service) WithClosetBoost(scale float64) *Service {
+ 
+ // WithRetrieveK sets a floor on how many distinct memories Search retrieves
+ // before ranking. k <= 0 turns the floor off and leaves candidateKFor in
+-// charge. Same post-construction-setter contract as WithReranker: call before
++// charge. Same post-construction-setter contract as UseReranking: call before
+ // the service is shared across goroutines.
+ func (s *Service) WithRetrieveK(k int) *Service {
+ 	if k < 0 {
+@@ -523,7 +523,7 @@ func (s *Service) WithBM25Weight(auto bool, base float64) *Service {
+ }
+ 
+ // WithLexicalIDF selects the IDF-weighted coverage feature for auto weighting.
+-// Same post-construction-setter contract as WithReranker: call it before the
++// Same post-construction-setter contract as UseReranking: call it before the
+ // service is shared across goroutines.
+ func (s *Service) WithLexicalIDF(on bool) *Service {
+ 	s.bm25IDF = on
+diff --git a/internal/palace/service_test.go b/internal/palace/service_test.go
+index 49f645a..68671d6 100644
+--- a/internal/palace/service_test.go
++++ b/internal/palace/service_test.go
+@@ -102,7 +102,7 @@ func (f *fakeReranker) Rerank(_ context.Context, query string, docs []string) ([
+ func TestSearchRerankerPromotesFromOutsideThePage(t *testing.T) {
+ 	ctx := context.Background()
+ 	rr := &fakeReranker{}
+-	svc := newTestService(t).WithReranker(rr, 10)
++	svc := newTestService(t).UseReranking(rr, 10)
+ 	const team = "team-rerank"
+ 
+ 	// The fake embedder maps bytes to dimensions, so these are near-identical
+@@ -140,7 +140,7 @@ func TestSearchRerankerPromotesFromOutsideThePage(t *testing.T) {
+ func TestSearchSurvivesRerankerFailure(t *testing.T) {
+ 	ctx := context.Background()
+ 	rr := &fakeReranker{err: errors.New("connection refused")}
+-	svc := newTestService(t).WithReranker(rr, 10)
++	svc := newTestService(t).UseReranking(rr, 10)
+ 	const team = "team-rerank-down"
+ 
+ 	for _, content := range []string{"alpha memory", "beta memory", "gamma memory"} {
+@@ -665,7 +665,7 @@ func TestRerankPresenceSurvivesAZeroScore(t *testing.T) {
+ 		Content: "the queue drains every five minutes"})
+ 
+ 	// A reranker that scores everything exactly 0.0 — legal for a logit backend.
+-	svc = svc.WithReranker(&staticReranker{scores: []float64{0}}, 10).WithRerankWeight(0.5)
++	svc = svc.UseReranking(&staticReranker{scores: []float64{0}}, 10).WithRerankWeight(0.5)
+ 	hits, err := svc.Search(ctx, team, SearchQuery{Query: "queue drain", Wing: "wing_acme", Limit: 5, SkipTelemetry: true})
+ 	if err != nil {
+ 		t.Fatalf("search: %v", err)
+diff --git a/internal/palace/telemetry_test.go b/internal/palace/telemetry_test.go
+index fa7d28f..a1e286a 100644
+--- a/internal/palace/telemetry_test.go
++++ b/internal/palace/telemetry_test.go
+@@ -25,7 +25,7 @@ func TestRerankedRecordsWhatHappened(t *testing.T) {
+ 
+ 	// A reranker IS configured, and the weight hands it none of the decision.
+ 	rr := &fakeReranker{}
+-	svc = svc.WithReranker(rr, 50).WithRerankWeight(0)
++	svc = svc.UseReranking(rr, 50).WithRerankWeight(0)
+ 
+ 	if _, err := svc.Search(ctx, "team-tel", SearchQuery{Query: "retry budget", Limit: 5}); err != nil {
+ 		t.Fatalf("search: %v", err)
+@@ -49,7 +49,7 @@ func TestRerankedIsTrueWhenItActuallyRan(t *testing.T) {
+ 	mustAdd(t, svc, "team-tel2", AddInput{Wing: "w", Room: "r", Content: "the retry budget is three attempts"})
+ 
+ 	rr := &fakeReranker{}
+-	svc = svc.WithReranker(rr, 50).WithRerankWeight(0.5)
++	svc = svc.UseReranking(rr, 50).WithRerankWeight(0.5)
+ 
+ 	if _, err := svc.Search(ctx, "team-tel2", SearchQuery{Query: "retry budget", Limit: 5}); err != nil {
+ 		t.Fatalf("search: %v", err)
+@@ -102,7 +102,7 @@ func TestDegradedRerankIsNotRecordedAsAPass(t *testing.T) {
+ 	svc := newTestService(t)
+ 	mustAdd(t, svc, "team-deg", AddInput{Wing: "w", Room: "r", Content: "the retry budget is three attempts"})
+ 
+-	svc = svc.WithReranker(&fakeReranker{err: errRerankProbe}, 50).WithRerankWeight(0.5)
++	svc = svc.UseReranking(&fakeReranker{err: errRerankProbe}, 50).WithRerankWeight(0.5)
+ 	if _, err := svc.Search(ctx, "team-deg", SearchQuery{Query: "retry budget", Limit: 5}); err != nil {
+ 		t.Fatalf("search must fail open, not error: %v", err)
+ 	}

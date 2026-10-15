@@ -1,0 +1,116 @@
+{
+  "id": "am-wide-short12",
+  "shape": "wide-rename",
+  "repo": "agentsmemory",
+  "commit": "d038def25a7fadd2586674b954ea07896a330b4a",
+  "exact": true,
+  "instruction": "Rename the Go identifier short12 to brief12 in the Go files, its mentions in comments included.",
+  "require": [
+    {
+      "file": "internal/palace/contentkey.go",
+      "match": "\\bbrief12\\b"
+    },
+    {
+      "file": "internal/palace/currentonly_test.go",
+      "match": "\\bbrief12\\b"
+    },
+    {
+      "file": "internal/palace/endedrefusal_test.go",
+      "match": "\\bbrief12\\b"
+    },
+    {
+      "file": "internal/palace/import_test.go",
+      "match": "\\bbrief12\\b"
+    },
+    {
+      "file": "internal/palace/kg.go",
+      "match": "\\bbrief12\\b"
+    },
+    {
+      "file": "internal/palace/move_test.go",
+      "match": "\\bbrief12\\b"
+    },
+    {
+      "file": "internal/palace/refile_test.go",
+      "match": "\\bbrief12\\b"
+    },
+    {
+      "file": "internal/palace/service.go",
+      "match": "\\bbrief12\\b"
+    },
+    {
+      "file": "internal/palace/siblinganchor_test.go",
+      "match": "\\bbrief12\\b"
+    },
+    {
+      "file": "internal/palace/supersede.go",
+      "match": "\\bbrief12\\b"
+    },
+    {
+      "file": "internal/palace/supersedeid_test.go",
+      "match": "\\bbrief12\\b"
+    },
+    {
+      "file": "internal/palace/validity.go",
+      "match": "\\bbrief12\\b"
+    },
+    {
+      "file": "internal/palace/wingroot_test.go",
+      "match": "\\bbrief12\\b"
+    }
+  ],
+  "forbid": [
+    {
+      "file": "internal/palace/contentkey.go",
+      "match": "\\bshort12\\b"
+    },
+    {
+      "file": "internal/palace/currentonly_test.go",
+      "match": "\\bshort12\\b"
+    },
+    {
+      "file": "internal/palace/endedrefusal_test.go",
+      "match": "\\bshort12\\b"
+    },
+    {
+      "file": "internal/palace/import_test.go",
+      "match": "\\bshort12\\b"
+    },
+    {
+      "file": "internal/palace/kg.go",
+      "match": "\\bshort12\\b"
+    },
+    {
+      "file": "internal/palace/move_test.go",
+      "match": "\\bshort12\\b"
+    },
+    {
+      "file": "internal/palace/refile_test.go",
+      "match": "\\bshort12\\b"
+    },
+    {
+      "file": "internal/palace/service.go",
+      "match": "\\bshort12\\b"
+    },
+    {
+      "file": "internal/palace/siblinganchor_test.go",
+      "match": "\\bshort12\\b"
+    },
+    {
+      "file": "internal/palace/supersede.go",
+      "match": "\\bshort12\\b"
+    },
+    {
+      "file": "internal/palace/supersedeid_test.go",
+      "match": "\\bshort12\\b"
+    },
+    {
+      "file": "internal/palace/validity.go",
+      "match": "\\bshort12\\b"
+    },
+    {
+      "file": "internal/palace/wingroot_test.go",
+      "match": "\\bshort12\\b"
+    }
+  ]
+}

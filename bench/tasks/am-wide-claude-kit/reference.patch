@@ -1,0 +1,787 @@
+diff --git a/clients/claude-code/agentkit.go b/clients/claude-code/agentkit.go
+index a9260e8..95520fe 100644
+--- a/clients/claude-code/agentkit.go
++++ b/clients/claude-code/agentkit.go
+@@ -102,9 +102,9 @@ type agentKit struct {
+ 	authFiles []string
+ }
+ 
+-// claudeKit is the Claude Code layout: ~/.claude, commands/, CLAUDE.md + @import,
++// anthroKit is the Claude Code layout: ~/.claude, commands/, CLAUDE.md + @import,
+ // hooks registered in settings.json.
+-var claudeKit = agentKit{
++var anthroKit = agentKit{
+ 	name:           agentClaude,
+ 	bin:            "claude",
+ 	configEnv:      "CLAUDE_CONFIG_DIR",
+@@ -190,7 +190,7 @@ var piKit = agentKit{
+ func resolveAgentKits(name string) ([]agentKit, error) {
+ 	switch strings.ToLower(strings.TrimSpace(name)) {
+ 	case "", agentClaude:
+-		return []agentKit{claudeKit}, nil
++		return []agentKit{anthroKit}, nil
+ 	case agentCodex:
+ 		return []agentKit{codexKit}, nil
+ 	case agentPi:
+@@ -200,9 +200,9 @@ func resolveAgentKits(name string) ([]agentKit, error) {
+ 	case agentClaudeDesktop:
+ 		return []agentKit{claudeDesktopKit}, nil
+ 	case agentBoth:
+-		return []agentKit{claudeKit, codexKit}, nil
++		return []agentKit{anthroKit, codexKit}, nil
+ 	case agentAll:
+-		return []agentKit{claudeKit, codexKit, piKit, cursorKit, claudeDesktopKit}, nil
++		return []agentKit{anthroKit, codexKit, piKit, cursorKit, claudeDesktopKit}, nil
+ 	default:
+ 		return nil, fmt.Errorf("unknown --agent %q: use claude, codex, pi, cursor, claude-desktop, both or all", name)
+ 	}
+diff --git a/clients/claude-code/anchormatcher_test.go b/clients/claude-code/anchormatcher_test.go
+index 1935f62..83989f7 100644
+--- a/clients/claude-code/anchormatcher_test.go
++++ b/clients/claude-code/anchormatcher_test.go
+@@ -17,7 +17,7 @@ import (
+ // 2026-09-08: 0.16s per call. The script's own guard cannot save that, because it
+ // runs inside a shell the agent has already started.
+ func TestTheAnchorCueIsScopedToTheToolsItCanActOn(t *testing.T) {
+-	i := &Installer{kit: claudeKit}
++	i := &Installer{kit: anthroKit}
+ 	var found *hookPlan
+ 	for _, p := range i.hookPlansOn("darwin") {
+ 		if p.event == "PreToolUse" && strings.Contains(p.cmd, "anchor-cue") {
+diff --git a/clients/claude-code/copy_test.go b/clients/claude-code/copy_test.go
+index a418965..de6559d 100644
+--- a/clients/claude-code/copy_test.go
++++ b/clients/claude-code/copy_test.go
+@@ -143,7 +143,7 @@ func TestCopyConfigTreeSymlink(t *testing.T) {
+ func TestSeedFromGlobalRejectsSelfCopy(t *testing.T) {
+ 	inst, _, _ := newTestInstaller(t, false)
+ 	inst.copyGlobal = true
+-	inst.targetDir = claudeKit.globalConfigDir(homeDir())
++	inst.targetDir = anthroKit.globalConfigDir(homeDir())
+ 
+ 	err := inst.seedFromGlobal()
+ 	if err == nil {
+diff --git a/clients/claude-code/desktopkit_says_test.go b/clients/claude-code/desktopkit_says_test.go
+index 3f7c254..d6b714f 100644
+--- a/clients/claude-code/desktopkit_says_test.go
++++ b/clients/claude-code/desktopkit_says_test.go
+@@ -222,7 +222,7 @@ func TestClaudeDesktopInstallFailsWhenItsOnlyStepFails(t *testing.T) {
+ 	// The other kits keep the old behaviour: their MCP is one part of a larger
+ 	// install and a failed registration is warned, not fatal.
+ 	t.Run("a Claude Code install still survives a failed registration", func(t *testing.T) {
+-		inst, _, _ := newTestInstallerFor(t, claudeKit, false)
++		inst, _, _ := newTestInstallerFor(t, anthroKit, false)
+ 		inst.mcpURL = "://not a url"
+ 		if err := inst.run(); err != nil {
+ 			t.Fatalf("a Claude Code install failed outright on its MCP step: %v", err)
+diff --git a/clients/claude-code/doctor_driftuniverse_test.go b/clients/claude-code/doctor_driftuniverse_test.go
+index 1e3c28a..52bd211 100644
+--- a/clients/claude-code/doctor_driftuniverse_test.go
++++ b/clients/claude-code/doctor_driftuniverse_test.go
+@@ -167,7 +167,7 @@ func TestEveryVerbatimAssetIsCheckedForDrift(t *testing.T) {
+ // server binary on this machine and FETCHES it from GitHub Releases when absent,
+ // so `inst.run()` fails in a test environment for reasons that have nothing to
+ // do with drift. Naming the omission here beats a silent four-of-five.
+-var driftGatedKits = []agentKit{claudeKit, codexKit, piKit, cursorKit}
++var driftGatedKits = []agentKit{anthroKit, codexKit, piKit, cursorKit}
+ 
+ // notVerbatimOnInstall names, per kit, the files a real install writes that
+ // CANNOT be byte-compared against this binary's embed, with the reason each one
+diff --git a/clients/claude-code/doctor_server_test.go b/clients/claude-code/doctor_server_test.go
+index 8a50c58..9a9677f 100644
+--- a/clients/claude-code/doctor_server_test.go
++++ b/clients/claude-code/doctor_server_test.go
+@@ -190,13 +190,13 @@ func TestInstallEndpointLetsTheRegistrationWin(t *testing.T) {
+ 			if err != nil {
+ 				t.Fatal(err)
+ 			}
+-			if err := os.WriteFile(filepath.Join(dir, claudeKit.hooksFile), body, 0o600); err != nil {
++			if err := os.WriteFile(filepath.Join(dir, anthroKit.hooksFile), body, 0o600); err != nil {
+ 				t.Fatal(err)
+ 			}
+ 			var gotURL, gotToken string
+ 			d := doctorCommand()
+ 			d.Action = func(_ context.Context, c *cli.Command) error {
+-				gotURL, gotToken = installEndpoint(c, claudeKit, dir)
++				gotURL, gotToken = installEndpoint(c, anthroKit, dir)
+ 				return nil
+ 			}
+ 			if err := d.Run(context.Background(), []string{"doctor", "--mcp-url", flagURL, "--token", "t-flag", "--target-dir", dir}); err != nil {
+diff --git a/clients/claude-code/doctor_spawn_test.go b/clients/claude-code/doctor_spawn_test.go
+index 1a1b425..f0a0b7f 100644
+--- a/clients/claude-code/doctor_spawn_test.go
++++ b/clients/claude-code/doctor_spawn_test.go
+@@ -86,7 +86,7 @@ func TestDoctorSpawnsTheHookFromAPathWithThisPlatformsSeparators(t *testing.T) {
+ 	if err != nil {
+ 		t.Fatal(err)
+ 	}
+-	if err := os.WriteFile(filepath.Join(dir, claudeKit.hooksFile), body, 0o600); err != nil {
++	if err := os.WriteFile(filepath.Join(dir, anthroKit.hooksFile), body, 0o600); err != nil {
+ 		t.Fatal(err)
+ 	}
+ 	out, err := runDoctor(t, dir)
+diff --git a/clients/claude-code/doctor_test.go b/clients/claude-code/doctor_test.go
+index 0c992f8..b414f43 100644
+--- a/clients/claude-code/doctor_test.go
++++ b/clients/claude-code/doctor_test.go
+@@ -58,7 +58,7 @@ func doctorEnv(t *testing.T, scripts map[string]string, regs map[string][]string
+ 	if err != nil {
+ 		t.Fatal(err)
+ 	}
+-	if err := os.WriteFile(filepath.Join(dir, claudeKit.hooksFile), body, 0o600); err != nil {
++	if err := os.WriteFile(filepath.Join(dir, anthroKit.hooksFile), body, 0o600); err != nil {
+ 		t.Fatal(err)
+ 	}
+ 	return dir
+@@ -197,7 +197,7 @@ func TestDoctorReadsTheRegistrationNotJustTheDirectory(t *testing.T) {
+ // nowhere", which would condemn a working install.
+ func TestDoctorRefusesAnUnparseableSettingsFile(t *testing.T) {
+ 	dir := doctorEnv(t, map[string]string{"agentsmemory-recall-hook.sh": injectingHookBody}, nil)
+-	if err := os.WriteFile(filepath.Join(dir, claudeKit.hooksFile), []byte("{not json"), 0o600); err != nil {
++	if err := os.WriteFile(filepath.Join(dir, anthroKit.hooksFile), []byte("{not json"), 0o600); err != nil {
+ 		t.Fatal(err)
+ 	}
+ 	report, err := runDoctor(t, dir)
+@@ -226,7 +226,7 @@ func TestDoctorRefusesAnUnparseableSettingsFile(t *testing.T) {
+ // every user.
+ func TestDoctorRefusesAnUnreadableSettingsFile(t *testing.T) {
+ 	dir := doctorEnv(t, map[string]string{"agentsmemory-recall-hook.sh": injectingHookBody}, nil)
+-	settings := filepath.Join(dir, claudeKit.hooksFile)
++	settings := filepath.Join(dir, anthroKit.hooksFile)
+ 	if err := os.Remove(settings); err != nil && !os.IsNotExist(err) {
+ 		t.Fatal(err)
+ 	}
+@@ -256,7 +256,7 @@ func TestDoctorRefusesAnUnreadableSettingsFile(t *testing.T) {
+ // advised re-running `install`, which could not have changed the outcome. The path
+ // is advertised in this command's own `--agent` usage and in the README.
+ func TestDoctorSaysWhenAKitShipsNoInjectingHook(t *testing.T) {
+-	if !claudeKit.shipsCompanionHooks {
++	if !anthroKit.shipsCompanionHooks {
+ 		t.Fatal("the claude kit no longer ships companion hooks; this test's premise is gone " +
+ 			"and doctor's whole universe with it")
+ 	}
+@@ -321,7 +321,7 @@ func TestDoctorRunsTheHookWithTheRegisteredEndpoint(t *testing.T) {
+ 	if err != nil {
+ 		t.Fatal(err)
+ 	}
+-	if err := os.WriteFile(filepath.Join(dir, claudeKit.hooksFile), body, 0o600); err != nil {
++	if err := os.WriteFile(filepath.Join(dir, anthroKit.hooksFile), body, 0o600); err != nil {
+ 		t.Fatal(err)
+ 	}
+ 
+@@ -373,7 +373,7 @@ func TestAnUnprefixedRegistrationFallsBackToTheFlag(t *testing.T) {
+ 		if err != nil {
+ 			t.Fatal(err)
+ 		}
+-		if err := os.WriteFile(filepath.Join(dir, claudeKit.hooksFile), body, 0o600); err != nil {
++		if err := os.WriteFile(filepath.Join(dir, anthroKit.hooksFile), body, 0o600); err != nil {
+ 			t.Fatal(err)
+ 		}
+ 		const flagURL = "http://127.0.0.1:8/mcp"
+@@ -458,7 +458,7 @@ func TestTheRegistrationDoctorRunsIsDeterministic(t *testing.T) {
+ 	if err != nil {
+ 		t.Fatal(err)
+ 	}
+-	settings := filepath.Join(dir, claudeKit.hooksFile)
++	settings := filepath.Join(dir, anthroKit.hooksFile)
+ 	if err := os.WriteFile(settings, body, 0o600); err != nil {
+ 		t.Fatal(err)
+ 	}
+diff --git a/clients/claude-code/doctorretired_test.go b/clients/claude-code/doctorretired_test.go
+index f7e020c..2feddf2 100644
+--- a/clients/claude-code/doctorretired_test.go
++++ b/clients/claude-code/doctorretired_test.go
+@@ -33,7 +33,7 @@ func TestDoctorDoesNotFlagAHookTheInstallerRetires(t *testing.T) {
+ 	registered := map[string]hookRegistration{}
+ 
+ 	t.Run("retired on windows is reported and not counted", func(t *testing.T) {
+-		got := unwiredHooksIn(dir, map[string]string{}, registered, claudeKit, "windows")
++		got := unwiredHooksIn(dir, map[string]string{}, registered, anthroKit, "windows")
+ 		if len(got) != 1 {
+ 			t.Fatalf("got %d verdict(s), want exactly 1: %+v", len(got), got)
+ 		}
+@@ -48,7 +48,7 @@ func TestDoctorDoesNotFlagAHookTheInstallerRetires(t *testing.T) {
+ 	})
+ 
+ 	t.Run("unwired anywhere else is still a finding", func(t *testing.T) {
+-		got := unwiredHooksIn(dir, map[string]string{}, registered, claudeKit, "linux")
++		got := unwiredHooksIn(dir, map[string]string{}, registered, anthroKit, "linux")
+ 		if len(got) != 1 {
+ 			t.Fatalf("got %d verdict(s), want exactly 1: %+v", len(got), got)
+ 		}
+@@ -94,7 +94,7 @@ func TestTheRetirementDoctorRecognisesIsTheOneTheInstallerPlans(t *testing.T) {
+ 
+ 	for _, goos := range []string{"linux", "darwin", "windows"} {
+ 		t.Run(goos, func(t *testing.T) {
+-			inst := &Installer{kit: claudeKit, targetDir: dir}
++			inst := &Installer{kit: anthroKit, targetDir: dir}
+ 			var planned, retires bool
+ 			for _, p := range inst.hookPlansOn(goos) {
+ 				if p.event != "SessionEnd" {
+@@ -108,7 +108,7 @@ func TestTheRetirementDoctorRecognisesIsTheOneTheInstallerPlans(t *testing.T) {
+ 					"longer see the decision it exists to couple", goos)
+ 			}
+ 
+-			got := unwiredHooksIn(dir, map[string]string{}, map[string]hookRegistration{}, claudeKit, goos)
++			got := unwiredHooksIn(dir, map[string]string{}, map[string]hookRegistration{}, anthroKit, goos)
+ 			if len(got) != 1 {
+ 				t.Fatalf("got %d verdict(s), want exactly 1: %+v", len(got), got)
+ 			}
+diff --git a/clients/claude-code/installer_test.go b/clients/claude-code/installer_test.go
+index e977a3d..9206bb1 100644
+--- a/clients/claude-code/installer_test.go
++++ b/clients/claude-code/installer_test.go
+@@ -56,7 +56,7 @@ func renderAll(calls []recordedCall) []string {
+ // non-interactively.
+ func newTestInstaller(t *testing.T, recommended bool) (*Installer, *recordingRunner, string) {
+ 	t.Helper()
+-	return newTestInstallerFor(t, claudeKit, recommended)
++	return newTestInstallerFor(t, anthroKit, recommended)
+ }
+ 
+ // newTestInstallerFor is newTestInstaller for an explicit agent kit, so the codex
+@@ -172,7 +172,7 @@ func TestInstallReplacesEveryPreQuoteHookCommand(t *testing.T) {
+ 	if err != nil {
+ 		t.Fatal(err)
+ 	}
+-	settingsPath := filepath.Join(dir, claudeKit.hooksFile)
++	settingsPath := filepath.Join(dir, anthroKit.hooksFile)
+ 	if err := os.WriteFile(settingsPath, body, 0o600); err != nil {
+ 		t.Fatal(err)
+ 	}
+@@ -207,9 +207,9 @@ func TestInstallReplacesEveryPreQuoteHookCommand(t *testing.T) {
+ func TestGlobalInstallDoesNotPinConfigDir(t *testing.T) {
+ 	rr := &recordingRunner{}
+ 	inst := &Installer{
+-		targetDir: claudeKit.globalConfigDir(homeDir()),
+-		kit:       claudeKit,
+-		agentBin:  claudeKit.bin,
++		targetDir: anthroKit.globalConfigDir(homeDir()),
++		kit:       anthroKit,
++		agentBin:  anthroKit.bin,
+ 		out:       &bytes.Buffer{},
+ 		runner:    rr,
+ 	}
+@@ -233,8 +233,8 @@ func TestSandboxInstallPinsConfigDir(t *testing.T) {
+ 	inst := &Installer{
+ 		targetDir:   dir,
+ 		sandboxName: "acme",
+-		kit:         claudeKit,
+-		agentBin:    claudeKit.bin,
++		kit:         anthroKit,
++		agentBin:    anthroKit.bin,
+ 		out:         &bytes.Buffer{},
+ 		runner:      rr,
+ 	}
+@@ -301,7 +301,7 @@ func TestResolveInstallTarget(t *testing.T) {
+ 		{sandbox: "proj"},
+ 		{claudeDir: "/x"},
+ 	} {
+-		if _, _, _, err := resolveInstallTarget(claudeKit, true, false, tc.sandbox, tc.claudeDir, home); err == nil {
++		if _, _, _, err := resolveInstallTarget(anthroKit, true, false, tc.sandbox, tc.claudeDir, home); err == nil {
+ 			t.Errorf("resolveInstallTarget(global, %q, %q) = nil error, want conflict", tc.sandbox, tc.claudeDir)
+ 		}
+ 	}
+@@ -331,7 +331,7 @@ func TestResolveInstallTarget(t *testing.T) {
+ 	}
+ 	for _, tc := range cases {
+ 		t.Run(tc.name, func(t *testing.T) {
+-			target, sandbox, explicit, err := resolveInstallTarget(claudeKit, tc.global, tc.local, tc.sandbox, tc.claudeDir, home)
++			target, sandbox, explicit, err := resolveInstallTarget(anthroKit, tc.global, tc.local, tc.sandbox, tc.claudeDir, home)
+ 			if err != nil {
+ 				t.Fatalf("unexpected error: %v", err)
+ 			}
+@@ -343,7 +343,7 @@ func TestResolveInstallTarget(t *testing.T) {
+ 	}
+ 
+ 	// An invalid sandbox name is rejected here too (defense in depth with the CLI).
+-	if _, _, _, err := resolveInstallTarget(claudeKit, false, false, "../escape", "", home); err == nil {
++	if _, _, _, err := resolveInstallTarget(anthroKit, false, false, "../escape", "", home); err == nil {
+ 		t.Error("resolveInstallTarget accepted an invalid sandbox name, want an error")
+ 	}
+ }
+@@ -396,7 +396,7 @@ func TestHookCommandCarriesTheInstallMCPURL(t *testing.T) {
+ 
+ func TestHookPlansShellQuoteLiteralConfigPath(t *testing.T) {
+ 	inst := &Installer{
+-		kit:       claudeKit,
++		kit:       anthroKit,
+ 		targetDir: "/tmp/a b/it's;literal",
+ 		mcpURL:    defaultMCPURL,
+ 	}
+@@ -926,7 +926,7 @@ func TestWingReachesEveryClientOrSaysWhyNot(t *testing.T) {
+ 	const wing = "wing_acme"
+ 
+ 	t.Run("claude sends the header", func(t *testing.T) {
+-		inst, rr, _ := newTestInstallerFor(t, claudeKit, false)
++		inst, rr, _ := newTestInstallerFor(t, anthroKit, false)
+ 		inst.wing = wing
+ 		if err := inst.registerAgentsMemoryMCP(); err != nil {
+ 			t.Fatalf("register: %v", err)
+@@ -1048,7 +1048,7 @@ func TestWingReachesEveryClientOrSaysWhyNot(t *testing.T) {
+ 
+ func TestNoTokenRecoveryHintRetainsWingForEveryClient(t *testing.T) {
+ 	const wing = "wing_acme"
+-	for _, kit := range []agentKit{claudeKit, codexKit, piKit, cursorKit, claudeDesktopKit} {
++	for _, kit := range []agentKit{anthroKit, codexKit, piKit, cursorKit, claudeDesktopKit} {
+ 		t.Run(kit.name, func(t *testing.T) {
+ 			inst, rr, _ := newTestInstallerFor(t, kit, false)
+ 			inst.token = ""
+@@ -1287,7 +1287,7 @@ func TestShippedAgentDefinitionsNameTheMemoryTools(t *testing.T) {
+ // the other installs cleanly on the first and fails at read time on the second.
+ func TestEveryShippedAgentDefinitionExistsInEveryDialect(t *testing.T) {
+ 	root := repoRootForHooks(t)
+-	kits := []agentKit{claudeKit, codexKit, piKit}
++	kits := []agentKit{anthroKit, codexKit, piKit}
+ 	checked := 0
+ 	for _, kit := range kits {
+ 		if kit.agentsDir == "" {
+@@ -1648,7 +1648,7 @@ func TestCodexGetsItsOwnDialect(t *testing.T) {
+ 		kit                 agentKit
+ 		wantExt, wantMarker string
+ 	}{
+-		{claudeKit, ".md", "mcp__agentsmemory__am_search"},
++		{anthroKit, ".md", "mcp__agentsmemory__am_search"},
+ 		{codexKit, ".toml", "enabled_tools"},
+ 	} {
+ 		t.Run(tc.kit.name, func(t *testing.T) {
+@@ -1751,7 +1751,7 @@ func TestSandboxIsRefusedForAnAgentThatCannotRelocate(t *testing.T) {
+ 	}
+ 
+ 	// The agents that CAN relocate are unaffected.
+-	if _, _, _, err := resolveInstallTarget(claudeKit, false, false, "acme", "", "/home/u"); err != nil {
++	if _, _, _, err := resolveInstallTarget(anthroKit, false, false, "acme", "", "/home/u"); err != nil {
+ 		t.Errorf("--sandbox was refused for claude, which relocates fine: %v", err)
+ 	}
+ }
+diff --git a/clients/claude-code/local_test.go b/clients/claude-code/local_test.go
+index 1fbab43..62ecf04 100644
+--- a/clients/claude-code/local_test.go
++++ b/clients/claude-code/local_test.go
+@@ -59,7 +59,7 @@ func newLocalTokenInstaller(t *testing.T, kit agentKit) (*Installer, *recordingR
+ // against our own --local server (it ignores inbound credentials) but would read
+ // as authentication in the user's config, so it must not be written.
+ func TestLocalInstallClaudeRegistersWithoutHeader(t *testing.T) {
+-	inst, rr, _ := newLocalInstaller(t, claudeKit)
++	inst, rr, _ := newLocalInstaller(t, anthroKit)
+ 	if err := inst.run(); err != nil {
+ 		t.Fatalf("install: %v", err)
+ 	}
+@@ -102,7 +102,7 @@ func TestLocalInstallPrefersLocalTokenEnv(t *testing.T) {
+ // 401s. This is the behaviour that reverses the old "--local never carries a
+ // token" rule, and it only applies to an EXPLICIT token — nothing is prompted.
+ func TestLocalInstallClaudeRegistersHeaderWithToken(t *testing.T) {
+-	inst, rr, _ := newLocalTokenInstaller(t, claudeKit)
++	inst, rr, _ := newLocalTokenInstaller(t, anthroKit)
+ 	if err := inst.run(); err != nil {
+ 		t.Fatalf("install: %v", err)
+ 	}
+@@ -174,7 +174,7 @@ func TestLocalInstallPiWritesTokenWithToken(t *testing.T) {
+ // server has to be started with the matching --token, and nothing else in the
+ // output says so.
+ func TestLocalTokenSummaryEchoesServerFlag(t *testing.T) {
+-	inst, _, _ := newLocalTokenInstaller(t, claudeKit)
++	inst, _, _ := newLocalTokenInstaller(t, anthroKit)
+ 	out := &bytes.Buffer{}
+ 	inst.out = out
+ 	if err := inst.run(); err != nil {
+@@ -243,7 +243,7 @@ func TestLocalInstallPiWritesEndpointAndLocalFlag(t *testing.T) {
+ // must not read stdin in local mode. A blocked prompt is the failure this
+ // prevents — a self-hoster has no token to type, so the question has no answer.
+ func TestLocalInstallNeverPromptsForToken(t *testing.T) {
+-	inst, _, _ := newLocalInstaller(t, claudeKit)
++	inst, _, _ := newLocalInstaller(t, anthroKit)
+ 	inst.token = ""
+ 	out := &bytes.Buffer{}
+ 	inst.out = out
+@@ -263,7 +263,7 @@ func TestLocalInstallNeverPromptsForToken(t *testing.T) {
+ // depends on that nothing else in the output mentions: the server has to be
+ // running, and at the endpoint this install was pointed at.
+ func TestLocalInstallSummaryNamesTheServer(t *testing.T) {
+-	inst, _, _ := newLocalInstaller(t, claudeKit)
++	inst, _, _ := newLocalInstaller(t, anthroKit)
+ 	out := &bytes.Buffer{}
+ 	inst.out = out
+ 	inst.summary()
+diff --git a/clients/claude-code/loopback_test.go b/clients/claude-code/loopback_test.go
+index b98f7cb..da83147 100644
+--- a/clients/claude-code/loopback_test.go
++++ b/clients/claude-code/loopback_test.go
+@@ -180,7 +180,7 @@ func TestAnInstallSaysSoWhenItRepointsYourHooks(t *testing.T) {
+ 		t.Helper()
+ 		body := `{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":` +
+ 			`"` + mcpURLEnvVar + `='` + url + `' bash -- '/x/agentsmemory-verify-hook.sh'"}]}]}}`
+-		if err := os.WriteFile(filepath.Join(dir, claudeKit.hooksFile), []byte(body), 0o600); err != nil {
++		if err := os.WriteFile(filepath.Join(dir, anthroKit.hooksFile), []byte(body), 0o600); err != nil {
+ 			t.Fatal(err)
+ 		}
+ 	}
+@@ -191,7 +191,7 @@ func TestAnInstallSaysSoWhenItRepointsYourHooks(t *testing.T) {
+ 		inst.mcpURL = installing
+ 		buf := &bytes.Buffer{}
+ 		inst.out = buf
+-		inst.warnIfRepointing(filepath.Join(dir, claudeKit.hooksFile))
++		inst.warnIfRepointing(filepath.Join(dir, anthroKit.hooksFile))
+ 		return buf.String()
+ 	}
+ 
+diff --git a/clients/claude-code/main.go b/clients/claude-code/main.go
+index 1ad8876..723bd2c 100644
+--- a/clients/claude-code/main.go
++++ b/clients/claude-code/main.go
+@@ -488,14 +488,14 @@ func wrapCommand() *cli.Command {
+ // re-steering the launch. Absent the flag, Claude stays the default.
+ func takeAgentFlag(args []string) (agentKit, []string, error) {
+ 	if len(args) == 0 || !strings.HasPrefix(args[0], "--agent") {
+-		return claudeKit, args, nil
++		return anthroKit, args, nil
+ 	}
+ 	if name, ok := strings.CutPrefix(args[0], "--agent="); ok {
+ 		kit, err := resolveAgentKit(name)
+ 		return kit, args[1:], err
+ 	}
+ 	if args[0] != "--agent" {
+-		return claudeKit, args, nil // e.g. --agentfoo: not ours, pass it through
++		return anthroKit, args, nil // e.g. --agentfoo: not ours, pass it through
+ 	}
+ 	if len(args) < 2 {
+ 		return agentKit{}, nil, errors.New("--agent needs a value: claude, codex or pi")
+diff --git a/clients/claude-code/mcpcall.go b/clients/claude-code/mcpcall.go
+index dbf8e7e..f0481b6 100644
+--- a/clients/claude-code/mcpcall.go
++++ b/clients/claude-code/mcpcall.go
+@@ -326,7 +326,7 @@ func tokenSearchDirs(c *cli.Command) []string {
+ 	home := homeDir()
+ 	return []string{
+ 		home,
+-		claudeKit.globalConfigDir(home),
++		anthroKit.globalConfigDir(home),
+ 		codexKit.globalConfigDir(home),
+ 		piKit.globalConfigDir(home),
+ 	}
+diff --git a/clients/claude-code/retiredcommand_test.go b/clients/claude-code/retiredcommand_test.go
+index c05adbf..1cb188b 100644
+--- a/clients/claude-code/retiredcommand_test.go
++++ b/clients/claude-code/retiredcommand_test.go
+@@ -68,7 +68,7 @@ func TestARetiredCommandIsNeitherShippedNorLeftBehind(t *testing.T) {
+ 	// every other install step keeps.
+ 	t.Run("a dry run reports without removing", func(t *testing.T) {
+ 		dir := t.TempDir()
+-		cmds := filepath.Join(dir, claudeKit.commandsDir)
++		cmds := filepath.Join(dir, anthroKit.commandsDir)
+ 		if err := os.MkdirAll(cmds, 0o755); err != nil {
+ 			t.Fatalf("mkdir: %v", err)
+ 		}
+@@ -77,7 +77,7 @@ func TestARetiredCommandIsNeitherShippedNorLeftBehind(t *testing.T) {
+ 			t.Fatalf("seed: %v", err)
+ 		}
+ 
+-		inst := &Installer{kit: claudeKit, targetDir: dir, out: os.Stderr, dryRun: true}
++		inst := &Installer{kit: anthroKit, targetDir: dir, out: os.Stderr, dryRun: true}
+ 		inst.clearRetiredCommands()
+ 
+ 		if _, err := os.Stat(stale); err != nil {
+diff --git a/clients/claude-code/sandbox.go b/clients/claude-code/sandbox.go
+index 7a5ddfe..7a56229 100644
+--- a/clients/claude-code/sandbox.go
++++ b/clients/claude-code/sandbox.go
+@@ -233,7 +233,7 @@ func kitBinEnv(kit agentKit) string {
+ // `claude` on PATH. It returns the command name (not the resolved path) so
+ // callers can exec.LookPath it themselves.
+ func resolveClaudeBin(override string) (string, error) {
+-	return resolveKitBin(claudeKit, override, "AIAGENTMEMORY_CLAUDE_BIN")
++	return resolveKitBin(anthroKit, override, "AIAGENTMEMORY_CLAUDE_BIN")
+ }
+ 
+ // resolveKitBin decides which CLI to drive for a kit. Precedence: an explicit
+diff --git a/clients/claude-code/sandbox_test.go b/clients/claude-code/sandbox_test.go
+index 2607e19..d94ead1 100644
+--- a/clients/claude-code/sandbox_test.go
++++ b/clients/claude-code/sandbox_test.go
+@@ -28,7 +28,7 @@ func TestPlanRun(t *testing.T) {
+ 	}
+ 	for _, tc := range cases {
+ 		t.Run(tc.name, func(t *testing.T) {
+-			plan, err := planRun(claudeKit, tc.arg, tc.sandboxExists)
++			plan, err := planRun(anthroKit, tc.arg, tc.sandboxExists)
+ 			if tc.wantErr {
+ 				if err == nil {
+ 					t.Fatalf("planRun(%q, %v) = %+v, want an error", tc.arg, tc.sandboxExists, plan)
+@@ -52,7 +52,7 @@ func TestResolveAgentBin(t *testing.T) {
+ 	t.Setenv("AIAGENTMEMORY_CLAUDE_BIN", "my-claude")
+ 
+ 	for _, name := range []string{"", "claude"} {
+-		got, err := resolveAgentBin(claudeKit, name)
++		got, err := resolveAgentBin(anthroKit, name)
+ 		if err != nil {
+ 			t.Fatalf("resolveAgentBin(%q): %v", name, err)
+ 		}
+@@ -61,7 +61,7 @@ func TestResolveAgentBin(t *testing.T) {
+ 		}
+ 	}
+ 
+-	got, err := resolveAgentBin(claudeKit, "codex")
++	got, err := resolveAgentBin(anthroKit, "codex")
+ 	if err != nil {
+ 		t.Fatalf("resolveAgentBin(codex): %v", err)
+ 	}
+@@ -82,7 +82,7 @@ func TestPlanRunCodexPinsCodexHome(t *testing.T) {
+ 		t.Errorf("planRun(codex, acme) = %+v, want CODEX_HOME=%s", plan, sandboxDir("acme"))
+ 	}
+ 
+-	claude, err := planRun(claudeKit, "acme", true)
++	claude, err := planRun(anthroKit, "acme", true)
+ 	if err != nil {
+ 		t.Fatal(err)
+ 	}
+diff --git a/clients/claude-code/sessionendplatform_test.go b/clients/claude-code/sessionendplatform_test.go
+index ed7623c..85e4ddf 100644
+--- a/clients/claude-code/sessionendplatform_test.go
++++ b/clients/claude-code/sessionendplatform_test.go
+@@ -15,7 +15,7 @@ import (
+ // "the hook is installed".
+ func planFor(t *testing.T, goos string) (registered, retired map[string]bool) {
+ 	t.Helper()
+-	inst := &Installer{kit: claudeKit, goos: goos}
++	inst := &Installer{kit: anthroKit, goos: goos}
+ 	registered, retired = map[string]bool{}, map[string]bool{}
+ 	plans := inst.hookPlans()
+ 	if len(plans) == 0 {
+@@ -81,7 +81,7 @@ func TestSessionEndIsStillRegisteredElsewhere(t *testing.T) {
+ func TestAnUpgradeOnWindowsRetiresTheHookAnOlderInstallWrote(t *testing.T) {
+ 	dir := t.TempDir()
+ 	inst := &Installer{
+-		kit: claudeKit, goos: "windows", targetDir: dir,
++		kit: anthroKit, goos: "windows", targetDir: dir,
+ 		mcpURL: "http://127.0.0.1:8080/mcp", out: &strings.Builder{},
+ 	}
+ 	stale := inst.hookCommand(inst.sessionEndHookPath())
+@@ -99,7 +99,7 @@ func TestAnUpgradeOnWindowsRetiresTheHookAnOlderInstallWrote(t *testing.T) {
+ 	if err != nil {
+ 		t.Fatalf("marshal settings: %v", err)
+ 	}
+-	path := filepath.Join(dir, claudeKit.hooksFile)
++	path := filepath.Join(dir, anthroKit.hooksFile)
+ 	if err := os.WriteFile(path, raw, 0o600); err != nil {
+ 		t.Fatalf("write settings: %v", err)
+ 	}
+@@ -128,7 +128,7 @@ func TestAnUpgradeOnWindowsRetiresTheHookAnOlderInstallWrote(t *testing.T) {
+ // install never sets, so the line expanded to a bare path.
+ func TestTheWindowsOmissionIsAnnounced(t *testing.T) {
+ 	var windows strings.Builder
+-	(&Installer{kit: claudeKit, out: &windows, mcpURL: "http://127.0.0.1:8080/mcp"}).
++	(&Installer{kit: anthroKit, out: &windows, mcpURL: "http://127.0.0.1:8080/mcp"}).
+ 		noteSessionEndSkippedOn("windows")
+ 	got := windows.String()
+ 	if !strings.Contains(got, "SessionEnd") {
+@@ -143,7 +143,7 @@ func TestTheWindowsOmissionIsAnnounced(t *testing.T) {
+ 	}
+ 
+ 	var linux strings.Builder
+-	(&Installer{kit: claudeKit, out: &linux}).noteSessionEndSkippedOn("linux")
++	(&Installer{kit: anthroKit, out: &linux}).noteSessionEndSkippedOn("linux")
+ 	if got := linux.String(); got != "" {
+ 		t.Errorf("a linux install announced a Windows-only omission:\n%s", got)
+ 	}
+diff --git a/clients/claude-code/sharedauth_test.go b/clients/claude-code/sharedauth_test.go
+index 00df99a..7030158 100644
+--- a/clients/claude-code/sharedauth_test.go
++++ b/clients/claude-code/sharedauth_test.go
+@@ -140,7 +140,7 @@ func TestBrokenSharedAuth(t *testing.T) {
+ func TestLinkSharedAuthRejectsSelfLink(t *testing.T) {
+ 	inst, _, _ := newTestInstaller(t, false)
+ 	inst.sharedAuth = true
+-	inst.targetDir = claudeKit.globalConfigDir(homeDir())
++	inst.targetDir = anthroKit.globalConfigDir(homeDir())
+ 
+ 	err := inst.linkSharedAuth()
+ 	if err == nil {
+diff --git a/clients/claude-code/socket_test.go b/clients/claude-code/socket_test.go
+index 5e623ec..9860145 100644
+--- a/clients/claude-code/socket_test.go
++++ b/clients/claude-code/socket_test.go
+@@ -37,7 +37,7 @@ func newSocketInstaller(t *testing.T, kit agentKit, socket, serverBin string) (*
+ // mode used to freeze a PATH lookup into the agent's config, so a rebuild
+ // elsewhere left the bridge spawning a stale server and nothing could say so.
+ func TestRegisterSocketMCPClaude(t *testing.T) {
+-	inst, rr := newSocketInstaller(t, claudeKit, "/tmp/am.sock", fakeBuiltServerBin(t))
++	inst, rr := newSocketInstaller(t, anthroKit, "/tmp/am.sock", fakeBuiltServerBin(t))
+ 	inst.wing = "wing_acme"
+ 	placed := filepath.Join(inst.targetDir, "bin", installedServerBinFile())
+ 
+@@ -78,7 +78,7 @@ func TestRegisterSocketMCPCodex(t *testing.T) {
+ // is stored in plain config and visible in `ps`, so a token must never appear in
+ // it.
+ func TestRegisterSocketMCPNoToken(t *testing.T) {
+-	inst, rr := newSocketInstaller(t, claudeKit, "/tmp/am.sock", fakeBuiltServerBin(t))
++	inst, rr := newSocketInstaller(t, anthroKit, "/tmp/am.sock", fakeBuiltServerBin(t))
+ 	inst.token = "SECRET-TOKEN"
+ 
+ 	if err := inst.registerSocketMCP(); err != nil {
+diff --git a/clients/claude-code/updateskill_test.go b/clients/claude-code/updateskill_test.go
+index 27d52e6..f87e003 100644
+--- a/clients/claude-code/updateskill_test.go
++++ b/clients/claude-code/updateskill_test.go
+@@ -90,17 +90,17 @@ func read(t *testing.T, path string) string {
+ // gains the @import rather than the protocol text.
+ func TestUpdateSkillWritesFetchedKit(t *testing.T) {
+ 	newKitServer(t, &kitServer{body: freshKit()})
+-	dir := installedKit(t, claudeKit)
++	dir := installedKit(t, anthroKit)
+ 
+ 	var out bytes.Buffer
+-	err := updateSkills(context.Background(), &out, []agentKit{claudeKit},
++	err := updateSkills(context.Background(), &out, []agentKit{anthroKit},
+ 		skillUpdate{configDir: dir, ref: "v9.9.9"})
+ 	if err != nil {
+ 		t.Fatalf("updateSkills: %v", err)
+ 	}
+ 
+ 	for _, name := range commandAssets {
+-		if got := read(t, filepath.Join(dir, claudeKit.commandsDir, name)); got != "# new "+name+"\n" {
++		if got := read(t, filepath.Join(dir, anthroKit.commandsDir, name)); got != "# new "+name+"\n" {
+ 			t.Errorf("command %s = %q, want the fetched copy", name, got)
+ 		}
+ 	}
+@@ -109,12 +109,12 @@ func TestUpdateSkillWritesFetchedKit(t *testing.T) {
+ 	}
+ 	// Claude resolves @imports, so the managed block names the sibling file
+ 	// instead of carrying a second copy of the protocol.
+-	claudeMD := read(t, filepath.Join(dir, claudeKit.memoryFile))
++	claudeMD := read(t, filepath.Join(dir, anthroKit.memoryFile))
+ 	if !strings.Contains(claudeMD, memoryImportLine) {
+-		t.Errorf("%s missing the import line:\n%s", claudeKit.memoryFile, claudeMD)
++		t.Errorf("%s missing the import line:\n%s", anthroKit.memoryFile, claudeMD)
+ 	}
+ 	if strings.Contains(claudeMD, "# new protocol") {
+-		t.Errorf("%s inlined the protocol; Claude should import it:\n%s", claudeKit.memoryFile, claudeMD)
++		t.Errorf("%s inlined the protocol; Claude should import it:\n%s", anthroKit.memoryFile, claudeMD)
+ 	}
+ }
+ 
+@@ -149,10 +149,10 @@ func TestUpdateSkillFailedFetchWritesNothing(t *testing.T) {
+ 	body := freshKit()
+ 	body["commands/load-skill.md"] = "" // 404
+ 	newKitServer(t, &kitServer{body: body})
+-	dir := installedKit(t, claudeKit)
++	dir := installedKit(t, anthroKit)
+ 
+ 	var out bytes.Buffer
+-	err := updateSkills(context.Background(), &out, []agentKit{claudeKit},
++	err := updateSkills(context.Background(), &out, []agentKit{anthroKit},
+ 		skillUpdate{configDir: dir, ref: "v9.9.9"})
+ 	if err == nil {
+ 		t.Fatal("expected an error when an asset is missing")
+@@ -161,7 +161,7 @@ func TestUpdateSkillFailedFetchWritesNothing(t *testing.T) {
+ 		t.Errorf("error should name the missing asset, got: %v", err)
+ 	}
+ 	for _, name := range commandAssets {
+-		if got := read(t, filepath.Join(dir, claudeKit.commandsDir, name)); got != "# old "+name+"\n" {
++		if got := read(t, filepath.Join(dir, anthroKit.commandsDir, name)); got != "# old "+name+"\n" {
+ 			t.Errorf("command %s was modified by a failed update: %q", name, got)
+ 		}
+ 	}
+@@ -174,12 +174,12 @@ func TestUpdateSkillFailedFetchWritesNothing(t *testing.T) {
+ // every file alone.
+ func TestUpdateSkillCheckWritesNothing(t *testing.T) {
+ 	newKitServer(t, &kitServer{body: freshKit()})
+-	dir := installedKit(t, claudeKit)
++	dir := installedKit(t, anthroKit)
+ 	// One file already matches, so the report must distinguish the two states.
+-	write(t, filepath.Join(dir, claudeKit.commandsDir, "am.md"), "# new am.md\n")
++	write(t, filepath.Join(dir, anthroKit.commandsDir, "am.md"), "# new am.md\n")
+ 
+ 	var out bytes.Buffer
+-	if err := updateSkills(context.Background(), &out, []agentKit{claudeKit},
++	if err := updateSkills(context.Background(), &out, []agentKit{anthroKit},
+ 		skillUpdate{configDir: dir, ref: "v9.9.9", check: true}); err != nil {
+ 		t.Fatalf("updateSkills --check: %v", err)
+ 	}
+@@ -187,8 +187,8 @@ func TestUpdateSkillCheckWritesNothing(t *testing.T) {
+ 	if got := read(t, filepath.Join(dir, bootstrapFile)); got != "# old protocol\n" {
+ 		t.Errorf("--check wrote to %s: %q", bootstrapFile, got)
+ 	}
+-	if _, err := os.Stat(filepath.Join(dir, claudeKit.memoryFile)); !os.IsNotExist(err) {
+-		t.Errorf("--check created %s", claudeKit.memoryFile)
++	if _, err := os.Stat(filepath.Join(dir, anthroKit.memoryFile)); !os.IsNotExist(err) {
++		t.Errorf("--check created %s", anthroKit.memoryFile)
+ 	}
+ 	report := out.String()
+ 	if !strings.Contains(report, "would be updated") {
+@@ -205,7 +205,7 @@ func TestUpdateSkillRefusesMissingConfigDir(t *testing.T) {
+ 	newKitServer(t, &kitServer{body: freshKit()})
+ 	missing := filepath.Join(t.TempDir(), "nope")
+ 
+-	err := updateSkills(context.Background(), &bytes.Buffer{}, []agentKit{claudeKit},
++	err := updateSkills(context.Background(), &bytes.Buffer{}, []agentKit{anthroKit},
+ 		skillUpdate{configDir: missing, ref: "v9.9.9"})
+ 	if err == nil {
+ 		t.Fatal("expected an error for a config dir that does not exist")
+@@ -226,12 +226,12 @@ func TestUpdateSkillResolvesSandbox(t *testing.T) {
+ 	t.Setenv("HOME", home)
+ 
+ 	box := filepath.Join(home, ".sandboxes", "aks")
+-	if err := os.MkdirAll(filepath.Join(box, claudeKit.commandsDir), 0o755); err != nil {
++	if err := os.MkdirAll(filepath.Join(box, anthroKit.commandsDir), 0o755); err != nil {
+ 		t.Fatal(err)
+ 	}
+ 
+ 	var out bytes.Buffer
+-	if err := updateSkills(context.Background(), &out, []agentKit{claudeKit},
++	if err := updateSkills(context.Background(), &out, []agentKit{anthroKit},
+ 		skillUpdate{sandbox: "aks", ref: "v9.9.9"}); err != nil {
+ 		t.Fatalf("updateSkills --sandbox: %v", err)
+ 	}
+@@ -251,14 +251,14 @@ func TestUpdateSkillFetchesOnceForEveryAgent(t *testing.T) {
+ 
+ 	home := t.TempDir()
+ 	t.Setenv("HOME", home)
+-	for _, kit := range []agentKit{claudeKit, codexKit, piKit} {
++	for _, kit := range []agentKit{anthroKit, codexKit, piKit} {
+ 		if err := os.MkdirAll(kit.globalConfigDir(home), 0o755); err != nil {
+ 			t.Fatal(err)
+ 		}
+ 	}
+ 
+ 	var out bytes.Buffer
+-	if err := updateSkills(context.Background(), &out, []agentKit{claudeKit, codexKit, piKit},
++	if err := updateSkills(context.Background(), &out, []agentKit{anthroKit, codexKit, piKit},
+ 		skillUpdate{global: true, ref: "v9.9.9"}); err != nil {
+ 		t.Fatalf("updateSkills: %v", err)
+ 	}
+@@ -267,7 +267,7 @@ func TestUpdateSkillFetchesOnceForEveryAgent(t *testing.T) {
+ 			len(srv.requested), len(skillAssets()), srv.requested)
+ 	}
+ 	// Every agent still got the kit.
+-	for _, kit := range []agentKit{claudeKit, codexKit, piKit} {
++	for _, kit := range []agentKit{anthroKit, codexKit, piKit} {
+ 		p := filepath.Join(kit.globalConfigDir(home), kit.commandsDir, "am.md")
+ 		if got := read(t, p); got != "# new am.md\n" {
+ 			t.Errorf("%s: %s = %q", kit.name, p, got)
+@@ -279,11 +279,11 @@ func TestUpdateSkillFetchesOnceForEveryAgent(t *testing.T) {
+ // markdown is refreshed, executable assets are not.
+ func TestUpdateSkillLeavesHookAndExtensionAlone(t *testing.T) {
+ 	newKitServer(t, &kitServer{body: freshKit()})
+-	dir := installedKit(t, claudeKit)
++	dir := installedKit(t, anthroKit)
+ 	hook := filepath.Join(dir, hookFile)
+ 	write(t, hook, "# installed hook\n")
+ 
+-	if err := updateSkills(context.Background(), &bytes.Buffer{}, []agentKit{claudeKit},
++	if err := updateSkills(context.Background(), &bytes.Buffer{}, []agentKit{anthroKit},
+ 		skillUpdate{configDir: dir, ref: "v9.9.9"}); err != nil {
+ 		t.Fatalf("updateSkills: %v", err)
+ 	}
+@@ -344,10 +344,10 @@ func TestInstalledPath(t *testing.T) {
+ 		asset string
+ 		want  string
+ 	}{
+-		{claudeKit, "commands/am.md", filepath.Join("/cfg", "commands", "am.md")},
++		{anthroKit, "commands/am.md", filepath.Join("/cfg", "commands", "am.md")},
+ 		{codexKit, "commands/am.md", filepath.Join("/cfg", "prompts", "am.md")},
+ 		{piKit, "commands/load-skill.md", filepath.Join("/cfg", "prompts", "load-skill.md")},
+-		{claudeKit, bootstrapAsset, filepath.Join("/cfg", bootstrapFile)},
++		{anthroKit, bootstrapAsset, filepath.Join("/cfg", bootstrapFile)},
+ 	}
+ 	for _, tc := range tests {
+ 		if got := installedPath(tc.kit, "/cfg", tc.asset); got != tc.want {

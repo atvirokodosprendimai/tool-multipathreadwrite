@@ -1,0 +1,180 @@
+{
+  "id": "am-wide-migrations",
+  "shape": "wide-rename",
+  "repo": "agentsmemory",
+  "commit": "d038def25a7fadd2586674b954ea07896a330b4a",
+  "exact": true,
+  "instruction": "Rename the Go identifier Migrations to SchemaRuns in the Go files, its mentions in comments included.",
+  "require": [
+    {
+      "file": "cmd/server/doctor_test.go",
+      "match": "\\bSchemaRuns\\b"
+    },
+    {
+      "file": "cmd/server/doctorschema.go",
+      "match": "\\bSchemaRuns\\b"
+    },
+    {
+      "file": "cmd/server/doctorschema_test.go",
+      "match": "\\bSchemaRuns\\b"
+    },
+    {
+      "file": "cmd/server/main.go",
+      "match": "\\bSchemaRuns\\b"
+    },
+    {
+      "file": "cmd/server/modescope_test.go",
+      "match": "\\bSchemaRuns\\b"
+    },
+    {
+      "file": "cmd/server/playbook_test.go",
+      "match": "\\bSchemaRuns\\b"
+    },
+    {
+      "file": "cmd/server/reconcile_test.go",
+      "match": "\\bSchemaRuns\\b"
+    },
+    {
+      "file": "db/embed.go",
+      "match": "\\bSchemaRuns\\b"
+    },
+    {
+      "file": "db/migrations_test.go",
+      "match": "\\bSchemaRuns\\b"
+    },
+    {
+      "file": "internal/billing/service_test.go",
+      "match": "\\bSchemaRuns\\b"
+    },
+    {
+      "file": "internal/dataexport/dataexport_test.go",
+      "match": "\\bSchemaRuns\\b"
+    },
+    {
+      "file": "internal/mcpserver/emptygraph_test.go",
+      "match": "\\bSchemaRuns\\b"
+    },
+    {
+      "file": "internal/mcptest/harness.go",
+      "match": "\\bSchemaRuns\\b"
+    },
+    {
+      "file": "internal/palace/schematemplate_test.go",
+      "match": "\\bSchemaRuns\\b"
+    },
+    {
+      "file": "internal/palace/validity_test.go",
+      "match": "\\bSchemaRuns\\b"
+    },
+    {
+      "file": "internal/store/hybrid_conformance_test.go",
+      "match": "\\bSchemaRuns\\b"
+    },
+    {
+      "file": "internal/store/sqlitevec/sqlitevec_test.go",
+      "match": "\\bSchemaRuns\\b"
+    },
+    {
+      "file": "internal/store/sync_integration_test.go",
+      "match": "\\bSchemaRuns\\b"
+    },
+    {
+      "file": "internal/tenant/local_test.go",
+      "match": "\\bSchemaRuns\\b"
+    },
+    {
+      "file": "internal/web/billing_gate_test.go",
+      "match": "\\bSchemaRuns\\b"
+    },
+    {
+      "file": "internal/web/wingimport_authz_test.go",
+      "match": "\\bSchemaRuns\\b"
+    }
+  ],
+  "forbid": [
+    {
+      "file": "cmd/server/doctor_test.go",
+      "match": "\\bMigrations\\b"
+    },
+    {
+      "file": "cmd/server/doctorschema.go",
+      "match": "\\bMigrations\\b"
+    },
+    {
+      "file": "cmd/server/doctorschema_test.go",
+      "match": "\\bMigrations\\b"
+    },
+    {
+      "file": "cmd/server/main.go",
+      "match": "\\bMigrations\\b"
+    },
+    {
+      "file": "cmd/server/modescope_test.go",
+      "match": "\\bMigrations\\b"
+    },
+    {
+      "file": "cmd/server/playbook_test.go",
+      "match": "\\bMigrations\\b"
+    },
+    {
+      "file": "cmd/server/reconcile_test.go",
+      "match": "\\bMigrations\\b"
+    },
+    {
+      "file": "db/embed.go",
+      "match": "\\bMigrations\\b"
+    },
+    {
+      "file": "db/migrations_test.go",
+      "match": "\\bMigrations\\b"
+    },
+    {
+      "file": "internal/billing/service_test.go",
+      "match": "\\bMigrations\\b"
+    },
+    {
+      "file": "internal/dataexport/dataexport_test.go",
+      "match": "\\bMigrations\\b"
+    },
+    {
+      "file": "internal/mcpserver/emptygraph_test.go",
+      "match": "\\bMigrations\\b"
+    },
+    {
+      "file": "internal/mcptest/harness.go",
+      "match": "\\bMigrations\\b"
+    },
+    {
+      "file": "internal/palace/schematemplate_test.go",
+      "match": "\\bMigrations\\b"
+    },
+    {
+      "file": "internal/palace/validity_test.go",
+      "match": "\\bMigrations\\b"
+    },
+    {
+      "file": "internal/store/hybrid_conformance_test.go",
+      "match": "\\bMigrations\\b"
+    },
+    {
+      "file": "internal/store/sqlitevec/sqlitevec_test.go",
+      "match": "\\bMigrations\\b"
+    },
+    {
+      "file": "internal/store/sync_integration_test.go",
+      "match": "\\bMigrations\\b"
+    },
+    {
+      "file": "internal/tenant/local_test.go",
+      "match": "\\bMigrations\\b"
+    },
+    {
+      "file": "internal/web/billing_gate_test.go",
+      "match": "\\bMigrations\\b"
+    },
+    {
+      "file": "internal/web/wingimport_authz_test.go",
+      "match": "\\bMigrations\\b"
+    }
+  ]
+}

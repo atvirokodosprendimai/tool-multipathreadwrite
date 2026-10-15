@@ -4,7 +4,7 @@
   "repo": "agentsmemory",
   "commit": "d038def25a7fadd2586674b954ea07896a330b4a",
   "exact": true,
-  "instruction": "Rename the Go identifier WithTenant to ForTenancy, its mentions in comments included.",
+  "instruction": "Rename the Go identifier WithTenant to ForTenancy in the Go files, its mentions in comments included.",
   "require": [
     {
       "file": "cmd/server/mcp.go",

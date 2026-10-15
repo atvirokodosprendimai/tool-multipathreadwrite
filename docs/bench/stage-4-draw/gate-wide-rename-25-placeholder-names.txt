@@ -1,0 +1,20 @@
+SKIP Clean -> CleaQ : build: # github.com/atvirokodosprendimai/agentsmemory/internal/contractaxis
+OK WithTenant -> WithTenanQ 17 files
+SKIP Contains -> ContainQ : build: # github.com/atvirokodosprendimai/agentsmemory/internal/gen
+OK configFromCmd -> configFromCmQ 17 files
+SKIP Handler -> HandleQ : build: # github.com/atvirokodosprendimai/agentsmemory/internal/auth
+SKIP Harness : a calibration task of the first pilot
+OK dataFlags -> dataFlagQ 16 files
+SKIP Node -> NodQ : vet: # github.com/atvirokodosprendimai/agentsmemory/internal/doclint
+OK short12 -> short1Q 13 files
+OK HybridScore -> HybridScorQ 12 files
+OK KGStatusCurrent -> KGStatusCurrenQ 17 files
+OK SkipTelemetry -> SkipTelemetrQ 15 files
+OK claudeKit -> claudeKiQ 21 files
+OK mustAdd -> mustAdQ 13 files
+OK SearchQuery -> SearchQuerQ 33 files
+OK AddInput -> AddInpuQ 77 files
+OK Migrations -> MigrationQ 21 files
+OK EntryRoom -> EntryRooQ 16 files
+OK WithReranker -> WithRerankeQ 15 files
+OK 14
