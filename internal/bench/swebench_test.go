@@ -176,10 +176,10 @@ echo "$*" >> "`+filepath.Join(work, "docker.log")+`"
 key() { printf '%s' "$1" | tr / _; }
 case "$1" in
 image)
-	[ "$2" = inspect ] && { [ -e "`+images+`/$(key "$3")" ]; exit $?; }
+	[ "$2" = inspect ] && { [ -e "`+images+`/BROKEN" ] && { echo "Cannot connect to the Docker daemon" >&2; exit 1; }; [ -e "`+images+`/$(key "$3")" ] && exit 0; echo "Error: No such image: $3" >&2; exit 1; }
 	[ "$2" = rm ] && { rm -f "`+images+`/$(key "$3")"; exit 0; } ;;
 pull) touch "`+images+`/$(key "$4")" ;;
-ps) echo cid1 ;;
+ps) printf '%s\n' 'cid1 sweb.eval.org__calc-2.run.1' 'cid2 sweb.eval.org__calc-2.run.10' 'cid3 sweb.eval.org__calc-2.run.1.r1' 'cid4 sweb.eval.org__calc-2.run.1.1712345678' 'cid5 sweb.eval.org__calc-2xrun.1' 'cid6 sweb.eval.org__calc-1.run.1' ;;
 esac
 exit 0
 `), 0o755); err != nil {
@@ -255,6 +255,16 @@ func TestASWEBenchStageIsGradedByTheHarnessOneImageAtATime(t *testing.T) {
 	if b, _ := os.ReadFile(filepath.Join(work, "harness.log")); strings.Count(string(b), "\n") != 4 {
 		t.Errorf("the resume graded again: %q", b)
 	}
+	// A docker that cannot be asked is not an image that is gone: the
+	// stage stops, naming the error and the image (the re-review of #422).
+	for _, f := range []string{"img_org__calc-2", "BROKEN"} {
+		if err := os.WriteFile(filepath.Join(work, "images", f), nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := Run(o); err == nil || !strings.Contains(err.Error(), "Cannot connect") || !strings.Contains(err.Error(), "img/org__calc-2") {
+		t.Errorf("a docker that cannot be asked: %v, want the stage stopped, naming the error and the image", err)
+	}
 }
 
 // TestAnInterruptedSWEBenchAttemptIsNotGraded: an attempt stopped by a signal
@@ -302,7 +312,9 @@ func TestATimedOutHarnessRemovesItsContainer(t *testing.T) {
 	if _, err := g.grade(o.Tasks[0], tree, t.TempDir(), "run.1"); err == nil {
 		t.Fatal("a harness past its budget graded the attempt")
 	}
-	if got, want := dockerActions(t, work), "ps -aq --filter name=sweb.eval.org__calc-2.run.1\nrm -f cid1"; got != want {
+	// Only the run's own container and the harness's numbered retry of it
+	// go: never .10 beside .1, a replacement's .1.r1, or another instance's.
+	if got, want := dockerActions(t, work), "ps -a --filter name=sweb.eval. --format {{.ID}} {{.Names}}\nrm -f cid1\nrm -f cid4"; got != want {
 		t.Errorf("docker did:\n%s\nwant the run's containers found by name and removed:\n%s", got, want)
 	}
 }

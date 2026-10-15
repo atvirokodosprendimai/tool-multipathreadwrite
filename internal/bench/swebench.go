@@ -112,11 +112,25 @@ type SWEGrader struct {
 // timeout is 30 minutes (-t 1800), and the rest is the container's start.
 const harnessBudget = 40 * time.Minute
 
+// present says whether an image is here. Only docker's own "No such image"
+// answer means it is not: a daemon it cannot reach, or a docker it cannot
+// start, is an error, never an absence (the re-review of #422).
+func (g SWEGrader) present(image string) (bool, error) {
+	out, err := exec.Command(g.Docker, "image", "inspect", image).CombinedOutput()
+	if err == nil {
+		return true, nil
+	}
+	if strings.Contains(string(out), "No such image") || strings.Contains(string(out), "No such object") {
+		return false, nil
+	}
+	return false, fmt.Errorf("docker image inspect %s: %w: %s", image, err, out)
+}
+
 // ensure makes an instance's image present before an attempt, pulled for
 // linux/amd64: the slice's images have no arm64 manifest (T5 S2).
 func (g SWEGrader) ensure(image string) error {
-	if exec.Command(g.Docker, "image", "inspect", image).Run() == nil {
-		return nil
+	if here, err := g.present(image); here || err != nil {
+		return err
 	}
 	if out, err := exec.Command(g.Docker, "pull", "--platform", "linux/amd64", image).CombinedOutput(); err != nil {
 		return fmt.Errorf("docker pull %s: %w: %s", image, err, out)
@@ -127,9 +141,8 @@ func (g SWEGrader) ensure(image string) error {
 // drop removes an instance's image, if it is here, once its attempts are
 // graded: twenty of them do not fit on this disk together (T5 S2).
 func (g SWEGrader) drop(image string) error {
-	// An image inspect cannot find is not here: there is nothing to drop.
-	if present := exec.Command(g.Docker, "image", "inspect", image).Run() == nil; !present {
-		return nil
+	if here, err := g.present(image); !here || err != nil {
+		return err
 	}
 	if out, err := exec.Command(g.Docker, "image", "rm", image).CombinedOutput(); err != nil {
 		return fmt.Errorf("docker image rm %s: %w: %s", image, err, out)
@@ -197,17 +210,40 @@ func (g SWEGrader) grade(t Task, tree, scratch, run string) (Verdict, error) {
 }
 
 // removeContainers removes every container the harness started for this
-// instance and run, which it names sweb.eval.<instance id, lower case>.<run>,
-// with a suffix when it retried (swebench 5.0.2, run_evaluation.py).
+// instance and run. It names one sweb.eval.<instance id, lower case>.<run>, and
+// when that name is taken adds .<unix seconds> (swebench 5.0.2,
+// run_evaluation.py). Docker's name filter is an unanchored regular
+// expression, so it only narrows the listing; the names are matched here
+// exactly, so another attempt's container — .10 beside .1, or .1.r1 — is never
+// removed (the re-review of #422).
 func (g SWEGrader) removeContainers(id, run string) error {
-	out, err := exec.Command(g.Docker, "ps", "-aq", "--filter", "name=sweb.eval."+strings.ToLower(id)+"."+run).Output()
+	out, err := exec.Command(g.Docker, "ps", "-a", "--filter", "name=sweb.eval.", "--format", "{{.ID}} {{.Names}}").Output()
 	if err != nil {
 		return fmt.Errorf("docker ps: %w", err)
 	}
-	for _, c := range strings.Fields(string(out)) {
+	name := "sweb.eval." + strings.ToLower(id) + "." + run
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		c, n, ok := strings.Cut(line, " ")
+		if !ok || !harnessContainer(n, name) {
+			continue
+		}
 		if b, err := exec.Command(g.Docker, "rm", "-f", c).CombinedOutput(); err != nil {
 			return fmt.Errorf("docker rm -f %s: %w: %s", c, err, b)
 		}
 	}
 	return nil
+}
+
+// harnessContainer says whether n is the container the harness names name, or
+// that name with the numeric suffix it adds on a retry.
+func harnessContainer(n, name string) bool {
+	rest, ok := strings.CutPrefix(n, name)
+	if !ok {
+		return false
+	}
+	if rest == "" {
+		return true
+	}
+	digits := strings.TrimPrefix(rest, ".")
+	return digits != rest && digits != "" && strings.Trim(digits, "0123456789") == ""
 }
