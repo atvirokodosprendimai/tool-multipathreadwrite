@@ -1,0 +1,30 @@
+{
+  "rule": "the 20 instance ids with the lowest sha256(\"adr-156:\" + instance_id), in that order (BACKLOG, Pre-registered for ADR-156; bench swebench-select)",
+  "dataset": "SWE-bench/SWE-bench_Verified",
+  "revision": "78f471bf655a3137b2e8a75af1501690ec009ec3",
+  "split": "test",
+  "instances": 500,
+  "harness": "swebench 5.0.2",
+  "selected": [
+    "matplotlib__matplotlib-22719",
+    "astropy__astropy-13033",
+    "pytest-dev__pytest-5631",
+    "django__django-16642",
+    "sphinx-doc__sphinx-8265",
+    "scikit-learn__scikit-learn-25747",
+    "matplotlib__matplotlib-23314",
+    "sympy__sympy-18199",
+    "sympy__sympy-24661",
+    "django__django-11532",
+    "django__django-14011",
+    "scikit-learn__scikit-learn-12585",
+    "matplotlib__matplotlib-25775",
+    "django__django-14434",
+    "django__django-16116",
+    "django__django-11555",
+    "astropy__astropy-14539",
+    "django__django-11451",
+    "django__django-14404",
+    "django__django-13807"
+  ]
+}
