@@ -1,0 +1,44 @@
+{
+  "id": "am-coupled-reconcile-monthly",
+  "shape": "check-coupled",
+  "repo": "agentsmemory",
+  "commit": "d038def25a7fadd2586674b954ea07896a330b4a",
+  "exact": true,
+  "instruction": "In internal/billing/reconcile.go, change the string \"MONTHLY\" to \"mONTHLY\", and keep the tests passing.",
+  "require": [
+    {
+      "file": "internal/billing/e2e_opencollective_test.go",
+      "match": "\"mONTHLY\""
+    },
+    {
+      "file": "internal/billing/reconcile.go",
+      "match": "\"mONTHLY\""
+    },
+    {
+      "file": "internal/billing/reconcile_idempotence_test.go",
+      "match": "\"mONTHLY\""
+    },
+    {
+      "file": "internal/billing/reconcile_test.go",
+      "match": "\"mONTHLY\""
+    }
+  ],
+  "forbid": [
+    {
+      "file": "internal/billing/e2e_opencollective_test.go",
+      "match": "\"MONTHLY\""
+    },
+    {
+      "file": "internal/billing/reconcile.go",
+      "match": "\"MONTHLY\""
+    },
+    {
+      "file": "internal/billing/reconcile_idempotence_test.go",
+      "match": "\"MONTHLY\""
+    },
+    {
+      "file": "internal/billing/reconcile_test.go",
+      "match": "\"MONTHLY\""
+    }
+  ]
+}

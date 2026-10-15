@@ -1,0 +1,242 @@
+diff --git a/clients/claude-code/anchorcue_test.go b/clients/claude-code/anchorcue_test.go
+index 5d143c2..74c2fea 100644
+--- a/clients/claude-code/anchorcue_test.go
++++ b/clients/claude-code/anchorcue_test.go
+@@ -160,7 +160,7 @@ func TestTheAnchorCueRefusesAnUnfilteredAnswer(t *testing.T) {
+ func TestThePreToolUseHookIsRegistered(t *testing.T) {
+ 	inst, _, _ := newTestInstaller(t, false)
+ 	var found *hookPlan
+-	for _, p := range inst.hookPlans() {
++	for _, p := range inst.hookSteps() {
+ 		if p.event == "PreToolUse" && !p.retire {
+ 			pp := p
+ 			found = &pp
+@@ -189,7 +189,7 @@ func TestThePreToolUseHookIsRegistered(t *testing.T) {
+ // so keying on the command alone would fail the design rather than the defect.
+ func TestNoHookPlanIsRegisteredTwice(t *testing.T) {
+ 	inst, _, _ := newTestInstaller(t, false)
+-	plans := inst.hookPlans()
++	plans := inst.hookSteps()
+ 	if len(plans) == 0 {
+ 		t.Fatal("no hook plans — this check would pass vacuously")
+ 	}
+@@ -270,7 +270,7 @@ func TestTheExpansionBranchRecallsWhereTheSubmitBranchRefuses(t *testing.T) {
+ func TestTheUserPromptExpansionHookIsRegistered(t *testing.T) {
+ 	inst, _, _ := newTestInstaller(t, false)
+ 	var found bool
+-	for _, p := range inst.hookPlans() {
++	for _, p := range inst.hookSteps() {
+ 		if p.event == "UserPromptExpansion" && !p.retire && strings.Contains(p.cmd, taskRecallHookFile) {
+ 			found = true
+ 		}
+@@ -399,7 +399,7 @@ func TestTheStopHookIsQuietWhenNothingWasTouched(t *testing.T) {
+ func TestThePostToolUseHookIsRegistered(t *testing.T) {
+ 	inst, _, _ := newTestInstaller(t, false)
+ 	var found bool
+-	for _, p := range inst.hookPlans() {
++	for _, p := range inst.hookSteps() {
+ 		if p.event == "PostToolUse" && !p.retire && strings.Contains(p.cmd, touchedHookFile) {
+ 			found = true
+ 		}
+diff --git a/clients/claude-code/hookchannel_test.go b/clients/claude-code/hookchannel_test.go
+index 501902a..47203e8 100644
+--- a/clients/claude-code/hookchannel_test.go
++++ b/clients/claude-code/hookchannel_test.go
+@@ -100,7 +100,7 @@ func TestEveryHookScriptDeclaresItsOutputChannel(t *testing.T) {
+ // repository's characteristic defect.
+ func TestEveryInjectingHookIsOnAnInjectingEvent(t *testing.T) {
+ 	inst, _, _ := newTestInstaller(t, false)
+-	plans := inst.hookPlans()
++	plans := inst.hookSteps()
+ 	if len(plans) == 0 {
+ 		t.Fatal("no hook plans — this check would pass vacuously")
+ 	}
+diff --git a/clients/claude-code/hookchannelknown_test.go b/clients/claude-code/hookchannelknown_test.go
+index b86037a..15beac9 100644
+--- a/clients/claude-code/hookchannelknown_test.go
++++ b/clients/claude-code/hookchannelknown_test.go
+@@ -42,7 +42,7 @@ func TestTheTwoChannelSetsAreDisjointAndComplete(t *testing.T) {
+ // which is a question a reviewer cannot forget to ask.
+ func TestEveryPlannedEventIsClassified(t *testing.T) {
+ 	inst, _, _ := newTestInstaller(t, false)
+-	plans := inst.hookPlans()
++	plans := inst.hookSteps()
+ 	if len(plans) == 0 {
+ 		t.Fatal("no hook plans; this gate is looking at nothing")
+ 	}
+diff --git a/clients/claude-code/hooktimeout_test.go b/clients/claude-code/hooktimeout_test.go
+index e5d23ae..0485ed9 100644
+--- a/clients/claude-code/hooktimeout_test.go
++++ b/clients/claude-code/hooktimeout_test.go
+@@ -65,7 +65,7 @@ func TestEveryHookRegistrationCarriesATimeout(t *testing.T) {
+ 		inst, _, _ := newTestInstaller(t, false)
+ 		planned := filepath.Join(t.TempDir(), "settings.json")
+ 		var regs []hookReg
+-		for _, p := range inst.hookPlans() {
++		for _, p := range inst.hookSteps() {
+ 			if p.retire {
+ 				continue
+ 			}
+diff --git a/clients/claude-code/installer.go b/clients/claude-code/installer.go
+index 9f78300..d757e46 100644
+--- a/clients/claude-code/installer.go
++++ b/clients/claude-code/installer.go
+@@ -826,7 +826,7 @@ func (i *Installer) writeAssets() error {
+ 
+ 		// ADR-051 T2, T3, T7. ⚠ THESE THREE WERE REGISTERED BEFORE THEY WERE
+ 		// WRITTEN, AND `doctor` IS WHAT CAUGHT IT. Adding a script to the embed and
+-		// to hookPlans() makes settings.json name a file the installer never
++		// to hookSteps() makes settings.json name a file the installer never
+ 		// created: the event fires, the agent runs nothing, and every test passed
+ 		// because each checks one rung. NOT-INSTALLED is the verdict doctor exists
+ 		// to produce and this is the first time it produced a true one.
+@@ -1377,7 +1377,7 @@ type hookPlan struct {
+ 	retire bool
+ }
+ 
+-// hookPlans is every hook this kit registers, in the order they are reported.
++// hookSteps is every hook this kit registers, in the order they are reported.
+ //
+ // This list is the single answer to "what does an install put in my settings
+ // file", and three things read it: the registration itself, the --dry-run
+@@ -1390,7 +1390,7 @@ type hookPlan struct {
+ // measured there; registering scripts proven only against Claude would create a
+ // reachable branch with an unverified protocol. pi never reaches here — it has
+ // no hooks file, and its checkpoint ships inside the bridge extension.
+-func (i *Installer) hookPlans() []hookPlan {
++func (i *Installer) hookSteps() []hookPlan {
+ 	return i.hookPlansOn(i.platform())
+ }
+ 
+@@ -1437,7 +1437,7 @@ func unchangedNote(p hookPlan) string {
+ 	return p.event + " hook already registered"
+ }
+ 
+-// hookPlansOn is hookPlans with the platform passed in, so the one
++// hookPlansOn is hookSteps with the platform passed in, so the one
+ // platform-conditional registration below can be exercised from any machine —
+ // the same seam globalConfigDirOn and serverBinLookupCandidatesOn already use.
+ //
+diff --git a/clients/claude-code/installer_test.go b/clients/claude-code/installer_test.go
+index e977a3d..cd7a256 100644
+--- a/clients/claude-code/installer_test.go
++++ b/clients/claude-code/installer_test.go
+@@ -185,10 +185,10 @@ func TestInstallReplacesEveryPreQuoteHookCommand(t *testing.T) {
+ 	// a legacy unquoted entry that survived the upgrade shows up as one more
+ 	// registration than there are plans for that event.
+ 	want := map[string]int{}
+-	for _, plan := range inst.hookPlans() {
++	for _, plan := range inst.hookSteps() {
+ 		want[plan.event]++
+ 	}
+-	for _, plan := range inst.hookPlans() {
++	for _, plan := range inst.hookSteps() {
+ 		entries := readHookEvent(t, settingsPath, plan.event)
+ 		if len(entries) != want[plan.event] {
+ 			t.Errorf("%s has %d registrations after upgrade, want %d",
+@@ -400,7 +400,7 @@ func TestHookPlansShellQuoteLiteralConfigPath(t *testing.T) {
+ 		targetDir: "/tmp/a b/it's;literal",
+ 		mcpURL:    defaultMCPURL,
+ 	}
+-	got := inst.hookPlans()[0].cmd
++	got := inst.hookSteps()[0].cmd
+ 	want := hookCommand(defaultMCPURL, "/tmp/a b/it's;literal/agentsmemory-stop-hook.sh")
+ 	if got != want {
+ 		t.Fatalf("Stop hook command = %q, want %q", got, want)
+@@ -1494,7 +1494,7 @@ func TestReadmeNamesEveryHookEventTheInstallerRegisters(t *testing.T) {
+ 	if err != nil {
+ 		t.Fatalf("read installer.go: %v", err)
+ 	}
+-	// hookPlans' `event:` fields — the one list that says what an install
++	// hookSteps' `event:` fields — the one list that says what an install
+ 	// registers. It was `ensureHook(hooksFile, "<Event>", …)` until the five
+ 	// per-event calls were batched into one; the guard below is what turned that
+ 	// refactor into a loud failure instead of a check that silently matched
+diff --git a/clients/claude-code/plugin_test.go b/clients/claude-code/plugin_test.go
+index 55cf695..26ec119 100644
+--- a/clients/claude-code/plugin_test.go
++++ b/clients/claude-code/plugin_test.go
+@@ -45,7 +45,7 @@ func pluginHookEvents(t *testing.T) map[string][]string {
+ // two install paths diverging.
+ //
+ // ⚠ BOTH SIDES ARE DERIVED FROM SOURCE, WHICH IS THE ONLY SHAPE THAT SURVIVES.
+-// The installer's plan is read from hookPlans(); the manifest is read from the
++// The installer's plan is read from hookSteps(); the manifest is read from the
+ // shipped JSON. Neither is a hand-kept list beside a truth, so a hook added
+ // tomorrow joins this check on the same commit rather than when somebody
+ // remembers. This repository has recorded repeatedly that a list kept beside the
+@@ -54,7 +54,7 @@ func pluginHookEvents(t *testing.T) map[string][]string {
+ // hook has been dead for a week.
+ func TestThePluginDeclaresEveryHookTheInstallerRegisters(t *testing.T) {
+ 	inst, _, _ := newTestInstaller(t, false)
+-	plans := inst.hookPlans()
++	plans := inst.hookSteps()
+ 	if len(plans) == 0 {
+ 		t.Fatal("no hook plans — this check would pass vacuously")
+ 	}
+@@ -277,7 +277,7 @@ func TestRecallIsGrantedSoNoTurnStopsToAskForIt(t *testing.T) {
+ // TestEveryRegisteredHookIsAlsoWritten is the rung that was missing, and the one
+ // `doctor` found in production.
+ //
+-// ⚠ MEASURED 2026-09-04: three scripts were added to the embed and to hookPlans()
++// ⚠ MEASURED 2026-09-04: three scripts were added to the embed and to hookSteps()
+ // and the installer never wrote them. settings.json then named files that did not
+ // exist — the event fired, the agent ran nothing, and EVERY test passed, because
+ // each checks one rung: the script parses, the plan registers it, the manifest
+@@ -293,7 +293,7 @@ func TestEveryRegisteredHookIsAlsoWritten(t *testing.T) {
+ 	if err := inst.writeAssets(); err != nil {
+ 		t.Fatalf("writeAssets: %v", err)
+ 	}
+-	plans := inst.hookPlans()
++	plans := inst.hookSteps()
+ 	if len(plans) == 0 {
+ 		t.Fatal("no plans — this check would pass vacuously")
+ 	}
+@@ -402,7 +402,7 @@ func TestClaudeCodeActuallyLoadsThePlugin(t *testing.T) {
+ 
+ 	// Every event the installer registers must appear in the harness's inventory.
+ 	inst, _, _ := newTestInstaller(t, false)
+-	for _, p := range inst.hookPlans() {
++	for _, p := range inst.hookSteps() {
+ 		if p.retire {
+ 			continue
+ 		}
+diff --git a/clients/claude-code/precompact_test.go b/clients/claude-code/precompact_test.go
+index b2cebb0..f3b6709 100644
+--- a/clients/claude-code/precompact_test.go
++++ b/clients/claude-code/precompact_test.go
+@@ -124,7 +124,7 @@ func TestThePreCompactHookIsRegistered(t *testing.T) {
+ 		t.Fatalf("the precompact hook was not written: %v", err)
+ 	}
+ 	var events []string
+-	for _, p := range inst.hookPlans() {
++	for _, p := range inst.hookSteps() {
+ 		if strings.Contains(p.cmd, precompactHookFile) {
+ 			events = append(events, p.event)
+ 		}
+diff --git a/clients/claude-code/recall_test.go b/clients/claude-code/recall_test.go
+index 9aba37a..deb9204 100644
+--- a/clients/claude-code/recall_test.go
++++ b/clients/claude-code/recall_test.go
+@@ -34,7 +34,7 @@ func TestRecallHookIsRegistered(t *testing.T) {
+ 	}
+ 
+ 	var events []string
+-	for _, p := range inst.hookPlans() {
++	for _, p := range inst.hookSteps() {
+ 		if strings.Contains(p.cmd, recallHookFile) {
+ 			events = append(events, p.event)
+ 		}
+diff --git a/clients/claude-code/sessionendplatform_test.go b/clients/claude-code/sessionendplatform_test.go
+index ed7623c..74932fe 100644
+--- a/clients/claude-code/sessionendplatform_test.go
++++ b/clients/claude-code/sessionendplatform_test.go
+@@ -17,7 +17,7 @@ func planFor(t *testing.T, goos string) (registered, retired map[string]bool) {
+ 	t.Helper()
+ 	inst := &Installer{kit: claudeKit, goos: goos}
+ 	registered, retired = map[string]bool{}, map[string]bool{}
+-	plans := inst.hookPlans()
++	plans := inst.hookSteps()
+ 	if len(plans) == 0 {
+ 		t.Fatalf("no hooks planned on %s, so this check is examining nothing", goos)
+ 	}

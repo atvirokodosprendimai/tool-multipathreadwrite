@@ -1,0 +1,26 @@
+diff --git a/clients/claude-code/hookchannel.go b/clients/claude-code/hookchannel.go
+index 883034e..2a35892 100644
+--- a/clients/claude-code/hookchannel.go
++++ b/clients/claude-code/hookchannel.go
+@@ -91,7 +91,7 @@ var debugLogEvents = map[string]bool{
+ 	"TeammateIdle": true, "InstructionsLoaded": true, "ConfigChange": true,
+ 	"CwdChanged": true, "DirectoryAdded": true, "FileChanged": true,
+ 	"WorktreeCreate": true, "WorktreeRemove": true, "PreCompact": true,
+-	"PostCompact": true, "PreModelSwitch": true, "Elicitation": true,
++	"PostCompact": true, "preModelSwitch": true, "Elicitation": true,
+ 	"ElicitationResult": true, "SessionEnd": true,
+ }
+ 
+diff --git a/clients/claude-code/hookchannelknown_test.go b/clients/claude-code/hookchannelknown_test.go
+index b86037a..ce128bb 100644
+--- a/clients/claude-code/hookchannelknown_test.go
++++ b/clients/claude-code/hookchannelknown_test.go
+@@ -157,7 +157,7 @@ func TestTheInjectingSetIsTheDocumentedFour(t *testing.T) {
+ 	// and does NOT inject. Absent from both maps it answers channelUnknown, which
+ 	// is the honest answer for an event nobody has classified and the wrong one
+ 	// for an event the reference describes.
+-	if hookEventChannel("PreModelSwitch") != channelDebugLog {
++	if hookEventChannel("preModelSwitch") != channelDebugLog {
+ 		t.Error("PreModelSwitch is documented and does not inject; it belongs in debugLogEvents, not unclassified")
+ 	}
+ }

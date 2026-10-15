@@ -1,0 +1,92 @@
+{
+  "id": "am-wide-hook-plans",
+  "shape": "wide-rename",
+  "repo": "agentsmemory",
+  "commit": "d038def25a7fadd2586674b954ea07896a330b4a",
+  "exact": true,
+  "instruction": "Rename the Go identifier hookPlans to hookSteps, its mentions in comments included.",
+  "require": [
+    {
+      "file": "clients/claude-code/anchorcue_test.go",
+      "match": "\\bhookSteps\\b"
+    },
+    {
+      "file": "clients/claude-code/hookchannel_test.go",
+      "match": "\\bhookSteps\\b"
+    },
+    {
+      "file": "clients/claude-code/hookchannelknown_test.go",
+      "match": "\\bhookSteps\\b"
+    },
+    {
+      "file": "clients/claude-code/hooktimeout_test.go",
+      "match": "\\bhookSteps\\b"
+    },
+    {
+      "file": "clients/claude-code/installer.go",
+      "match": "\\bhookSteps\\b"
+    },
+    {
+      "file": "clients/claude-code/installer_test.go",
+      "match": "\\bhookSteps\\b"
+    },
+    {
+      "file": "clients/claude-code/plugin_test.go",
+      "match": "\\bhookSteps\\b"
+    },
+    {
+      "file": "clients/claude-code/precompact_test.go",
+      "match": "\\bhookSteps\\b"
+    },
+    {
+      "file": "clients/claude-code/recall_test.go",
+      "match": "\\bhookSteps\\b"
+    },
+    {
+      "file": "clients/claude-code/sessionendplatform_test.go",
+      "match": "\\bhookSteps\\b"
+    }
+  ],
+  "forbid": [
+    {
+      "file": "clients/claude-code/anchorcue_test.go",
+      "match": "\\bhookPlans\\b"
+    },
+    {
+      "file": "clients/claude-code/hookchannel_test.go",
+      "match": "\\bhookPlans\\b"
+    },
+    {
+      "file": "clients/claude-code/hookchannelknown_test.go",
+      "match": "\\bhookPlans\\b"
+    },
+    {
+      "file": "clients/claude-code/hooktimeout_test.go",
+      "match": "\\bhookPlans\\b"
+    },
+    {
+      "file": "clients/claude-code/installer.go",
+      "match": "\\bhookPlans\\b"
+    },
+    {
+      "file": "clients/claude-code/installer_test.go",
+      "match": "\\bhookPlans\\b"
+    },
+    {
+      "file": "clients/claude-code/plugin_test.go",
+      "match": "\\bhookPlans\\b"
+    },
+    {
+      "file": "clients/claude-code/precompact_test.go",
+      "match": "\\bhookPlans\\b"
+    },
+    {
+      "file": "clients/claude-code/recall_test.go",
+      "match": "\\bhookPlans\\b"
+    },
+    {
+      "file": "clients/claude-code/sessionendplatform_test.go",
+      "match": "\\bhookPlans\\b"
+    }
+  ]
+}

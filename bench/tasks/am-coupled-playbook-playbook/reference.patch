@@ -1,0 +1,26 @@
+diff --git a/cmd/server/playbook.go b/cmd/server/playbook.go
+index 4cf7ba3..e5197a4 100644
+--- a/cmd/server/playbook.go
++++ b/cmd/server/playbook.go
+@@ -54,7 +54,7 @@ const seededBy = ""
+ 
+ func playbookCommand(def config.Config) *cli.Command {
+ 	return &cli.Command{
+-		Name:  "playbook",
++		Name:  "Playbook",
+ 		Usage: "Show the global wake-up playbook, or reseed it from this binary",
+ 		Description: "Without --reseed this is read-only: it prints the stored playbook's version,\n" +
+ 			"size and provenance so you can see whether it matches the binary.\n\n" +
+diff --git a/cmd/server/playbook_test.go b/cmd/server/playbook_test.go
+index 882023b..ec8312a 100644
+--- a/cmd/server/playbook_test.go
++++ b/cmd/server/playbook_test.go
+@@ -30,7 +30,7 @@ func TestPlaybookIsRegistered(t *testing.T) {
+ 		names = append(names, c.Name)
+ 	}
+ 	for _, n := range names {
+-		if n == "playbook" {
++		if n == "Playbook" {
+ 			return
+ 		}
+ 	}

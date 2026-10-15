@@ -165,7 +165,10 @@ func TestTheCorpusHasTheRegisteredShapeCounts(t *testing.T) {
 			}
 		}
 	}
-	want := map[string]int{ShapeMultiSite: 8, ShapeStructural: 6, ShapeRepeatedAnchor: 6, ShapeLargeFile: 4, ShapeSingleLine: 6, ShapeVariedMultiSite: 10, ShapeWideRename: 10, ShapeCheckCoupled: 8}
+	// wide-rename and check-coupled hold Stage 4's sample (10 and 8) and the
+	// four calibration tasks of each that ADR-160 T3 runs on A alone and
+	// bench/stage-4-tasks.txt never lists.
+	want := map[string]int{ShapeMultiSite: 8, ShapeStructural: 6, ShapeRepeatedAnchor: 6, ShapeLargeFile: 4, ShapeSingleLine: 6, ShapeVariedMultiSite: 10, ShapeWideRename: 14, ShapeCheckCoupled: 12}
 	for shape, n := range want {
 		if got[shape] != n {
 			t.Errorf("shape %s: %d tasks, want %d", shape, got[shape], n)
