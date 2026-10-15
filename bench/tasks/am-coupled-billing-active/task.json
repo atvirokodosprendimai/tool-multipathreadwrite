@@ -5,6 +5,10 @@
   "commit": "d038def25a7fadd2586674b954ea07896a330b4a",
   "instruction": "In internal/billing/billing.go, change the string \"active\" to \"Active\", and keep the tests passing.",
   "test_package": "internal/billing",
+  "asserting_tests": [
+    "TestApplyIsIdempotentWithoutTheLedger",
+    "TestHandleWebhook_CheckoutCompleted_Upgrades"
+  ],
   "require": [
     {
       "file": "internal/billing/billing.go",

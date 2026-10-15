@@ -5,6 +5,10 @@
   "commit": "d038def25a7fadd2586674b954ea07896a330b4a",
   "instruction": "In clients/claude-code/doctor.go, change the string \"no-comparison\" to \"No-comparison\", and keep the tests passing.",
   "test_package": "clients/claude-code",
+  "asserting_tests": [
+    "TestABridgeBehindItsServerIsReported",
+    "TestEveryRegisteredPluginHookIsExecutable"
+  ],
   "require": [
     {
       "file": "clients/claude-code/doctor.go",

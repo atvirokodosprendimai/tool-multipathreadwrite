@@ -339,6 +339,8 @@ func TestAnInterpreterIsJudgedOnItsOwnSegmentAndTheHeredocItReads(t *testing.T) 
 		"python3 -c \"open('f','w').write('x')\"",
 		"mrw write - <<'EOF'\n@@ a.py 1 replace\nx = 1\nEOF\npython3 -c \"open('f','w')\"",
 		"perl -e 'open(F, \">out\"); print F 1'",
+		// a heredoc fed to python through a pipe (the review of #434)
+		"cat <<'PY' | python3\nopen('f','w').write('x')\nPY",
 	}
 	run := func(cmd string) int {
 		return Hook(bytes.NewReader(hookInput(t, "Bash", cmd)), new(bytes.Buffer), filepath.Join(t.TempDir(), "hook.log"), tree)

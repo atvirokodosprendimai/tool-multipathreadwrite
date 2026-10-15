@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"go/parser"
+	"go/scanner"
 	"go/token"
 	"os"
 	"os/exec"
@@ -40,9 +41,12 @@ func Oracle(t Task, dir string) (Verdict, error) {
 		return v, err
 	}
 	for _, c := range changed {
-		if t.TestPackage != "" { // its tests judge the package; only leaving it is outside
-			if path.Dir(c.file) != t.TestPackage {
+		if t.TestPackage != "" { // its tests judge the package; leaving it, or deleting a file, is outside
+			switch {
+			case path.Dir(c.file) != t.TestPackage:
 				v.Outside = append(v.Outside, c.file+": a file outside the package whose tests grade the task")
+			case c.whole:
+				v.Outside = append(v.Outside, c.file+": deleted, made binary or changed in mode, which no task asks for")
 			}
 			continue
 		}
@@ -82,7 +86,7 @@ func Oracle(t Task, dir string) (Verdict, error) {
 		}
 	}
 	for _, m := range t.Require {
-		ok, err := matches(dir, m)
+		ok, err := matches(dir, m, t.TestPackage != "")
 		if err != nil {
 			return v, err
 		}
@@ -91,7 +95,7 @@ func Oracle(t Task, dir string) (Verdict, error) {
 		}
 	}
 	for _, m := range t.Forbid {
-		ok, err := matches(dir, m)
+		ok, err := matches(dir, m, t.TestPackage != "")
 		if err != nil {
 			return v, err
 		}
@@ -105,7 +109,7 @@ func Oracle(t Task, dir string) (Verdict, error) {
 		}
 	}
 	if t.TestPackage != "" && len(v.Missing)+len(v.Outside)+len(v.Structure) == 0 {
-		msg, err := packageTests(dir, t.TestPackage)
+		msg, err := packageTests(dir, t.TestPackage, t.AssertingTests)
 		if err != nil {
 			return v, err
 		}
@@ -122,38 +126,94 @@ func Oracle(t Task, dir string) (Verdict, error) {
 const testBudget = 10 * time.Minute
 
 // packageTests runs go test of pkg in the tree at dir and returns "" when it
-// passes, or what the oracle reports missing: the package and the last line
-// the run printed. A signal to bench stops it and grading reports
-// errGradingInterrupted, as the SWE-bench harness's does (#425); the signal
-// context is the deadline's parent, so the two are told apart.
-func packageTests(dir, pkg string) (string, error) {
+// passes and every asserting test ran and passed, or what the oracle reports
+// missing: the package and a test that did not, or the last line the run
+// printed. Deleting or skipping the test that asserts the literal is not a
+// fix (the review of #434). The run's Go settings are the oracle's, never the
+// host's: GOFLAGS=-run=^$ would run no test. A signal to bench stops it and
+// grading reports errGradingInterrupted, as the SWE-bench harness's does
+// (#425); the signal context is the deadline's parent, so the two are told
+// apart.
+func packageTests(dir, pkg string, asserting []string) (string, error) {
 	sigCtx, stopSignals := subproc.Interruptible(context.Background())
 	defer stopSignals()
 	ctx, cancel := context.WithTimeout(sigCtx, testBudget)
 	defer cancel()
-	var out bytes.Buffer
-	cmd := subproc.Command(ctx, "go", "test", "-count=1", "./"+pkg)
-	cmd.Dir, cmd.Stdout, cmd.Stderr = dir, &out, &out
+	sink := &testSink{passed: map[string]bool{}}
+	cmd := subproc.Command(ctx, "go", "test", "-json", "-count=1", "./"+pkg)
+	cmd.Dir, cmd.Stdout, cmd.Stderr = dir, sink, sink
+	cmd.Env = append(os.Environ(), "GOFLAGS=", "GOENV=off", "GOWORK=off")
 	err := subproc.Run(cmd)
 	switch {
 	case sigCtx.Err() != nil:
 		return "", errGradingInterrupted
 	case ctx.Err() == context.DeadlineExceeded:
 		return fmt.Sprintf("go test ./%s: ran past %s", pkg, testBudget), nil
-	case err == nil:
-		return "", nil
 	}
 	var ee *exec.ExitError
-	if !errors.As(err, &ee) {
+	if err != nil && !errors.As(err, &ee) {
 		return "", fmt.Errorf("go test ./%s: %w", pkg, err)
 	}
-	last := ""
-	for _, l := range strings.Split(strings.TrimSpace(out.String()), "\n") {
-		if strings.TrimSpace(l) != "" {
-			last = strings.TrimSpace(l)
+	sink.flush()
+	if err != nil {
+		return fmt.Sprintf("go test ./%s fails: %s", pkg, sink.last), nil
+	}
+	for _, name := range asserting {
+		if !sink.passed[name] {
+			return fmt.Sprintf("go test ./%s: %s did not run and pass", pkg, name), nil
 		}
 	}
-	return fmt.Sprintf("go test ./%s fails: %s", pkg, last), nil
+	return "", nil
+}
+
+// maxTestLine bounds what the oracle keeps of one line go test prints.
+const maxTestLine = 64 << 10
+
+// testSink reads `go test -json` as it arrives, a line at a time, keeping
+// which top-level tests passed and the last line of output, each bounded, so
+// a noisy test cannot fill memory before its deadline (the review of #434).
+type testSink struct {
+	partial []byte
+	passed  map[string]bool
+	last    string
+}
+
+func (s *testSink) Write(p []byte) (int, error) {
+	for _, b := range p {
+		if b != '\n' {
+			if len(s.partial) < maxTestLine {
+				s.partial = append(s.partial, b)
+			}
+			continue
+		}
+		s.flush()
+	}
+	return len(p), nil
+}
+
+// flush reads the line held so far, an event or plain output.
+func (s *testSink) flush() {
+	line := s.partial
+	s.partial = s.partial[:0]
+	var e struct{ Action, Test, Output string }
+	text := string(line)
+	if json.Unmarshal(line, &e) == nil {
+		if e.Test != "" && !strings.Contains(e.Test, "/") {
+			switch e.Action {
+			case "pass":
+				s.passed[e.Test] = true
+			case "fail", "skip":
+				s.passed[e.Test] = false
+			}
+		}
+		text = e.Output
+	}
+	if t := strings.TrimSpace(text); t != "" {
+		if len(t) > 300 {
+			t = t[:300] + "…"
+		}
+		s.last = t
+	}
 }
 
 // allows says whether a change the agent made lies inside the task's regions.
@@ -274,7 +334,10 @@ func gitOut(dir string, args ...string) (string, error) {
 	return out.String(), nil
 }
 
-func matches(dir string, m Match) (bool, error) {
+// matches says whether m's pattern matches its file. With code set, a Go
+// file's comments are blanked first, so a comment quoting the value is not
+// the change (the review of #434).
+func matches(dir string, m Match, code bool) (bool, error) {
 	b, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(m.File)))
 	if os.IsNotExist(err) {
 		return false, nil
@@ -282,7 +345,45 @@ func matches(dir string, m Match) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	if code && strings.HasSuffix(m.File, ".go") {
+		b = codeOnly(b)
+	}
 	return regexp.MustCompile(m.Match).Match(b), nil
+}
+
+// codeOnly returns src with every comment's bytes but its newlines turned to
+// spaces, as go/scanner finds them.
+func codeOnly(src []byte) []byte {
+	out := append([]byte(nil), src...)
+	fset := token.NewFileSet()
+	file := fset.AddFile("", fset.Base(), len(src))
+	var s scanner.Scanner
+	s.Init(file, src, nil, scanner.ScanComments)
+	for {
+		pos, tok, _ := s.Scan()
+		if tok == token.EOF {
+			return out
+		}
+		if tok != token.COMMENT {
+			continue
+		}
+		start := file.Offset(pos)
+		end := start + 2
+		if src[start+1] == '/' { // a line comment runs to the newline
+			for end < len(src) && src[end] != '\n' {
+				end++
+			}
+		} else if i := bytes.Index(src[end:], []byte("*/")); i >= 0 {
+			end += i + 2
+		} else {
+			end = len(src)
+		}
+		for i := start; i < end; i++ {
+			if out[i] != '\n' {
+				out[i] = ' '
+			}
+		}
+	}
 }
 
 // structural is the check a changed file must pass for its kind, or "".

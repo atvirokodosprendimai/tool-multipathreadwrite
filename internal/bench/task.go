@@ -73,6 +73,11 @@ type Task struct {
 	// solved when the require and forbid hold, nothing outside the directory
 	// changed and its tests pass (Zy, "Grade by the tests", ADR-160 Decision 1).
 	TestPackage string `json:"test_package,omitempty"`
+	// AssertingTests are the top-level tests of TestPackage that fail when only
+	// the source literal is changed: each must still run and pass, so deleting
+	// or skipping the test that asserts the value is not a fix (the review of
+	// #434). Required with TestPackage and only with it.
+	AssertingTests []string `json:"asserting_tests,omitempty"`
 
 	Dir     string            `json:"-"`
 	regions map[string][]hunk // base-numbered hunks of the reference fix, by file
@@ -117,6 +122,9 @@ func LoadTask(dir string) (Task, error) {
 	if t.TestPackage != "" && (t.Shape != ShapeCheckCoupled || t.Exact || path.IsAbs(t.TestPackage) ||
 		path.Clean(t.TestPackage) != t.TestPackage || t.TestPackage == ".." || strings.HasPrefix(t.TestPackage, "../")) {
 		return t, fmt.Errorf("%s: test_package is a clean relative directory, on a check-coupled task only, never with exact", dir)
+	}
+	if (t.TestPackage == "") != (len(t.AssertingTests) == 0) {
+		return t, fmt.Errorf("%s: test_package and asserting_tests go together", dir)
 	}
 	for _, m := range append(append([]Match(nil), t.Require...), t.Forbid...) {
 		if _, err := regexp.Compile(m.Match); err != nil {

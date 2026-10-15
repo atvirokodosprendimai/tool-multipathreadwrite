@@ -5,6 +5,10 @@
   "commit": "d038def25a7fadd2586674b954ea07896a330b4a",
   "instruction": "In clients/claude-code/hookchannel.go, change the string \"PreModelSwitch\" to \"preModelSwitch\", and keep the tests passing.",
   "test_package": "clients/claude-code",
+  "asserting_tests": [
+    "TestTheInjectingSetIsTheDocumentedFour",
+    "TestEveryRegisteredPluginHookIsExecutable"
+  ],
   "require": [
     {
       "file": "clients/claude-code/hookchannel.go",

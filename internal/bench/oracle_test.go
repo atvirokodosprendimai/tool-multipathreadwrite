@@ -660,14 +660,22 @@ func TestACheckCoupledTaskIsGradedByItsPackageTests(t *testing.T) {
 	}
 	repo := t.TempDir()
 	files := map[string]string{
-		"go.mod":      "module example.com/m\n\ngo 1.21\n",
-		"p/p.go":      "package p\n\n// Status is the state a new subscription takes.\nfunc Status() string { return \"active\" }\n",
-		"p/p_test.go": "package p\n\nimport \"testing\"\n\nfunc TestStatus(t *testing.T) {\n\tif Status() != \"active\" {\n\t\tt.Fatalf(\"Status() = %q, want \\\"active\\\"\", Status())\n\t}\n}\n",
-		"q/q.go":      "package q\n\n// X is unrelated.\nconst X = 1\n",
+		"go.mod":          "module example.com/m\n\ngo 1.21\n",
+		"p/p.go":          "package p\n\n// Status is the state a new subscription takes.\nfunc Status() string { return \"active\" }\n",
+		"p/p_test.go":     "package p\n\nimport \"testing\"\n\nfunc TestStatus(t *testing.T) {\n\tif Status() != \"active\" {\n\t\tt.Fatalf(\"Status() = %q, want \\\"active\\\"\", Status())\n\t}\n}\n",
+		"q/q.go":          "package q\n\n// X is unrelated.\nconst X = 1\n",
+		"p/other.go":      "package p\n\n// Other is unrelated to the task.\nfunc Other() string { return \"x\" }\n",
+		"p/other_test.go": "package p\n\nimport \"testing\"\n\nfunc TestOther(t *testing.T) {\n\tif Other() != \"x\" {\n\t\tt.Fatal(Other())\n\t}\n}\n",
 	}
 	write := func(root string, fs map[string]string) {
 		t.Helper()
 		for name, body := range fs {
+			if body == "" { // an empty body deletes the file
+				if err := os.Remove(filepath.Join(root, filepath.FromSlash(name))); err != nil {
+					t.Fatal(err)
+				}
+				continue
+			}
 			p := filepath.Join(root, filepath.FromSlash(name))
 			if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 				t.Fatal(err)
@@ -714,13 +722,14 @@ func TestACheckCoupledTaskIsGradedByItsPackageTests(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	for _, bad := range []string{`, "test_package": "p", "exact": true`, `, "test_package": "../p"`, `, "test_package": "/p"`} {
+	for _, bad := range []string{`, "test_package": "p", "exact": true, "asserting_tests": ["TestStatus"]`, `, "test_package": "../p", "asserting_tests": ["TestStatus"]`,
+		`, "test_package": "/p", "asserting_tests": ["TestStatus"]`, `, "test_package": "p"`, `, "asserting_tests": ["TestStatus"]`} {
 		taskJSON(bad)
 		if _, err := LoadTask(taskDir); err == nil {
 			t.Errorf("the loader accepted %s", bad)
 		}
 	}
-	taskJSON(`, "test_package": "p"`)
+	taskJSON(`, "test_package": "p", "asserting_tests": ["TestStatus"]`)
 	task, err := LoadTask(taskDir)
 	if err != nil {
 		t.Fatal(err)
@@ -756,5 +765,33 @@ func TestACheckCoupledTaskIsGradedByItsPackageTests(t *testing.T) {
 	outside := map[string]string{"p/p.go": fixed["p/p.go"], "p/p_test.go": fixed["p/p_test.go"], "q/q.go": files["q/q.go"] + "\n// stray\n"}
 	if v := grade("a change outside the package", outside); v.Solved || len(v.Outside) == 0 {
 		t.Errorf("a change outside the package is not outside: %+v", v)
+	}
+	// What the review of #434 found solved: a comment holding the new value,
+	// the asserting test deleted or skipped, and host Go flags that run no test.
+	// The old value gone from the code, the new one only in a comment, the
+	// test following the code: every test passes and forbid holds.
+	elsewhere := map[string]string{
+		"p/p.go":      "package p\n\n// Status is the state a new subscription takes: \"Active\".\nfunc Status() string { return \"ACTIVE\" }\n",
+		"p/p_test.go": strings.Replace(files["p/p_test.go"], `Status() != "active"`, `Status() != "ACTIVE"`, 1),
+	}
+	if v := grade("the new value only in a comment", elsewhere); v.Solved {
+		t.Errorf("a comment that quotes the new value solves the task: %+v", v)
+	}
+	if v := grade("the asserting test deleted", map[string]string{"p/p.go": fixed["p/p.go"], "p/p_test.go": ""}); v.Solved {
+		t.Errorf("deleting the asserting test solves the task: %+v", v)
+	}
+	skipped := strings.Replace(fixed["p/p_test.go"], "func TestStatus(t *testing.T) {\n", "func TestStatus(t *testing.T) {\n\tt.Skip(\"later\")\n", 1)
+	if v := grade("the asserting test skipped", map[string]string{"p/p.go": fixed["p/p.go"], "p/p_test.go": skipped}); v.Solved {
+		t.Errorf("skipping the asserting test solves the task: %+v", v)
+	}
+	t.Setenv("GOFLAGS", "-run=^$")
+	if v := grade("the source alone, under GOFLAGS=-run=^$", map[string]string{"p/p.go": fixed["p/p.go"]}); v.Solved {
+		t.Errorf("a host GOFLAGS that runs no test lets a source-only change through: %+v", v)
+	}
+	// A host flag that skips a broken test the asserting one does not cover.
+	t.Setenv("GOFLAGS", "-run=^TestStatus$")
+	broken := map[string]string{"p/p.go": fixed["p/p.go"], "p/p_test.go": fixed["p/p_test.go"], "p/other.go": strings.Replace(files["p/other.go"], `"x"`, `"y"`, 1)}
+	if v := grade("another test broken, under GOFLAGS=-run=^TestStatus$", broken); v.Solved {
+		t.Errorf("a host GOFLAGS that skips a broken test lets it through: %+v", v)
 	}
 }

@@ -160,42 +160,45 @@ func classify(cmd, tree string, depth int) (string, []string) {
 			return "a redirection writes " + target, reads
 		}
 	}
-	for _, seg := range pipelineParts(bare) {
-		w := strings.Fields(seg)
-		if len(w) == 0 {
-			continue
-		}
-		w = commandWords(w)
-		if len(w) == 0 {
-			continue
-		}
-		head := filepath.Base(w[0])
-		if why, ok := writers[head]; ok {
-			if head == "tee" && operandsOutside(w[1:], tree) {
+	for _, line := range segments(bare) {
+		for _, seg := range strings.Split(line, "|") {
+			w := strings.Fields(seg)
+			if len(w) == 0 {
 				continue
 			}
-			return why, reads
-		}
-		switch {
-		case head == "sed" && hasFlag(w[1:], "i"):
-			return "sed -i edits a file", reads
-		case head == "perl" && hasFlag(w[1:], "i"):
-			return "perl -i edits a file", reads
-		case head == "git" && len(w) > 1 && (w[1] == "apply" || w[1] == "checkout" || w[1] == "restore" || w[1] == "stash" || w[1] == "reset" || w[1] == "am"):
-			return "git " + w[1] + " changes files", reads
-		case head == "go" && len(w) > 1 && (w[1] == "fmt" || w[1] == "fix" || w[1] == "generate"):
-			return "go " + w[1] + " rewrites files", reads
-		case interpreters[head]:
-			// The interpreter's text is the command without its heredoc
-			// bodies, and those bodies only when it reads one: an mrw plan
-			// fed to another command is not python's (T3's pilot found B
-			// refused for a plan holding `-> str`, ADR-160 T6).
-			text := rest
-			if strings.Contains(seg, "<<") {
-				text += "\n" + bodies
+			w = commandWords(w)
+			if len(w) == 0 {
+				continue
 			}
-			if writeCall.MatchString(text) {
-				return head + " writes a file", reads
+			head := filepath.Base(w[0])
+			if why, ok := writers[head]; ok {
+				if head == "tee" && operandsOutside(w[1:], tree) {
+					continue
+				}
+				return why, reads
+			}
+			switch {
+			case head == "sed" && hasFlag(w[1:], "i"):
+				return "sed -i edits a file", reads
+			case head == "perl" && hasFlag(w[1:], "i"):
+				return "perl -i edits a file", reads
+			case head == "git" && len(w) > 1 && (w[1] == "apply" || w[1] == "checkout" || w[1] == "restore" || w[1] == "stash" || w[1] == "reset" || w[1] == "am"):
+				return "git " + w[1] + " changes files", reads
+			case head == "go" && len(w) > 1 && (w[1] == "fmt" || w[1] == "fix" || w[1] == "generate"):
+				return "go " + w[1] + " rewrites files", reads
+			case interpreters[head]:
+				// The interpreter's text is the command without its heredoc
+				// bodies, and those bodies only when its pipeline reads one: an
+				// mrw plan fed to another command is not python's (T3's pilot
+				// found B refused for a plan holding `-> str`, ADR-160 T6), and
+				// `cat <<PY | python3` is (the review of #434).
+				text := rest
+				if strings.Contains(line, "<<") {
+					text += "\n" + bodies
+				}
+				if writeCall.MatchString(text) {
+					return head + " writes a file", reads
+				}
 			}
 		}
 	}
@@ -433,16 +436,6 @@ func commandWords(w []string) []string {
 		}
 	}
 	return w
-}
-
-// pipelineParts splits a command into its simple commands: segments, and the
-// stages of each pipeline.
-func pipelineParts(cmd string) []string {
-	var parts []string
-	for _, seg := range segments(cmd) {
-		parts = append(parts, strings.Split(seg, "|")...)
-	}
-	return parts
 }
 
 // segments splits a command at ;, &&, || and newlines, keeping pipelines whole.

@@ -5,6 +5,14 @@
   "commit": "d038def25a7fadd2586674b954ea07896a330b4a",
   "instruction": "In cmd/server/doctor.go, change the string \"TOTAL\" to \"tOTAL\", and keep the tests passing.",
   "test_package": "cmd/server",
+  "asserting_tests": [
+    "TestADocumentedKnobIsNotPinnedByAnOverlay",
+    "TestAPinnedOverlayValueIsJustified",
+    "TestGraphReportCountsWhatItClaims",
+    "TestDocumentedEnvVarsAreRead",
+    "TestReadEnvVarsAreDocumented",
+    "TestEveryModelACommandDefaultsToIsProvisionedOrDocumented"
+  ],
   "require": [
     {
       "file": "cmd/server/doctor.go",
