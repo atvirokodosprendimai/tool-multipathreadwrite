@@ -3,6 +3,7 @@ package bench
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"go/ast"
 	"go/parser"
 	"go/token"
 	"os"
@@ -72,17 +73,26 @@ func TestAWideRenameCandidateIsDeclaredOnceAndNeverInAString(t *testing.T) {
 	if !slices.IsSortedFunc(got, func(x, y RenameCandidate) int { return strings.Compare(salted(x.Name), salted(y.Name)) }) {
 		t.Errorf("candidates are not in sha256(\"adr-160:\" + name) order: %v", names)
 	}
-	// Declarations as go/types records them (the review of #426): an embedded
-	// field declares its type's name again, each generic method's receiver
-	// declares its type parameter again, and a := that redeclares a name in its
-	// own scope declares nothing.
-	f, err := parser.ParseFile(token.NewFileSet(), "d.go", "package d\n\ntype Inner struct{}\n\ntype Outer struct {\n\tInner\n\t*Other\n}\n\ntype Box[Elem any] struct{ v Elem }\n\nfunc (b Box[Elem]) Get() Elem { return b.v }\n\nfunc (b *Box[Elem]) Set(v Elem) { b.v = v }\n\nfunc r(p int) int {\n\tRedecl := 1\n\tRedecl, other := 2, 3\n\tp, fresh := 4, 5\n\tif true {\n\t\tRedecl := 6\n\t\t_ = Redecl\n\t}\n\treturn Redecl + other + p + fresh\n}\n", 0)
-	if err != nil {
-		t.Fatal(err)
+	// Declarations as go/types records them (the reviews of #426): an
+	// embedded field declares its type's name again, each generic method's
+	// receiver declares its type parameter again, a := that redeclares a name
+	// in its own scope declares nothing, a struct field does not hide a local
+	// of the same name, and a type switch's case reuses its implicit variable.
+	fset := token.NewFileSet()
+	var fs []*ast.File
+	for name, src := range map[string]string{
+		"d.go": "package d\n\ntype Inner struct{}\n\ntype Outer struct {\n\tInner\n\t*Other\n}\n\ntype Box[Elem any] struct{ v Elem }\n\nfunc (b Box[Elem]) Get() Elem { return b.v }\n\nfunc (b *Box[Elem]) Set(v Elem) { b.v = v }\n\nfunc r(p int) int {\n\tRedecl := 1\n\tRedecl, other := 2, 3\n\tp, fresh := 4, 5\n\tif true {\n\t\tRedecl := 6\n\t\t_ = Redecl\n\t}\n\treturn Redecl + other + p + fresh\n}\n",
+		"e.go": "package d\n\nfunc s() {\n\ttype S struct{ Clash int }\n\tClash := 1\n\t_ = Clash\n}\n\nfunc ts(x any) {\n\tswitch Choice := x.(type) {\n\tcase int:\n\t\tChoice, fresh2 := Choice, 1\n\t\t_, _ = Choice, fresh2\n\t}\n}\n",
+	} {
+		f, err := parser.ParseFile(fset, name, src, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fs = append(fs, f)
 	}
 	decls := map[string]int{}
-	countDecls(f, decls)
-	for name, want := range map[string]int{"Inner": 2, "Other": 1, "Elem": 3, "Redecl": 2, "other": 1, "p": 1, "fresh": 1, "b": 2, "v": 2} {
+	countDecls(fset, fs, decls)
+	for name, want := range map[string]int{"Inner": 2, "Other": 1, "Elem": 3, "Redecl": 2, "other": 1, "p": 1, "fresh": 1, "b": 2, "v": 2, "Clash": 2, "Choice": 1, "fresh2": 1, "d": 0} {
 		if decls[name] != want {
 			t.Errorf("%s declared %d times, want %d", name, decls[name], want)
 		}
@@ -126,7 +136,10 @@ func TestACheckCoupledCandidateIsALiteralSubstitutionWithItsTest(t *testing.T) {
 		"m/m.go": src("m1"), "m/m_test.go": test("m0"),
 		"e/e.go": src(""), "e/e_test.go": test(""),
 		"sp/source code.go": src("before"), "sp/source code_test.go": test("before"),
-		"x/x.go": src(`say \"hi\"`), "x/x_test.go": test(`say \"hi\"`)})
+		"x/x.go": src(`say \"hi\"`), "x/x_test.go": test(`say \"hi\"`),
+		"b/b.go": "package b\n\n/*\nwant \"old\"\n*/\nfunc F() {}\n", "b/b_test.go": "package b\n\n/*\nwant \"old\"\n*/\nfunc G() {}\n",
+		"w/w.go": "package w\n\nfunc Msg() string {\n\treturn `line one\nold body\nline three`\n}\n", "w/w_test.go": "package w\n\nconst want = `line one\nold body\nline three`\n",
+		`qp/a"b.go`: src("q1"), `qp/a"b_test.go`: test("q1")})
 	good := commit("rename the message", map[string]string{"p/p.go": src("new text"), "p/p_test.go": test("new text")})
 	commit("message and code", map[string]string{"p/p.go": src("newer text") + "\nfunc Extra() {}\n", "p/p_test.go": test("newer text")})
 	commit("no test", map[string]string{"q/q.go": src("right")})
@@ -141,6 +154,9 @@ func TestACheckCoupledCandidateIsALiteralSubstitutionWithItsTest(t *testing.T) {
 	empty := commit("an empty literal", map[string]string{"e/e.go": src("message"), "e/e_test.go": test("message")})
 	spaced := commit("a path with a space", map[string]string{"sp/source code.go": src("after"), "sp/source code_test.go": test("after")})
 	escaped := commit("escaped quotes", map[string]string{"x/x.go": src(`say \"bye\"`), "x/x_test.go": test(`say \"bye\"`)})
+	commit("inside a block comment", map[string]string{"b/b.go": "package b\n\n/*\nwant \"new\"\n*/\nfunc F() {}\n", "b/b_test.go": "package b\n\n/*\nwant \"new\"\n*/\nfunc G() {}\n"})
+	raw := commit("inside a multi-line raw string", map[string]string{"w/w.go": "package w\n\nfunc Msg() string {\n\treturn `line one\nnew body\nline three`\n}\n", "w/w_test.go": "package w\n\nconst want = `line one\nnew body\nline three`\n"})
+	quoted := commit("a path git quotes", map[string]string{`qp/a"b.go`: src("q2"), `qp/a"b_test.go`: test("q2")})
 	got, err := MineCheckCoupled(repo, "HEAD", 4)
 	if err != nil {
 		t.Fatal(err)
@@ -150,6 +166,8 @@ func TestACheckCoupledCandidateIsALiteralSubstitutionWithItsTest(t *testing.T) {
 		empty:   {Old: "", New: "message", Files: []string{"e/e.go", "e/e_test.go"}},
 		spaced:  {Old: "before", New: "after", Files: []string{"sp/source code.go", "sp/source code_test.go"}},
 		escaped: {Old: `say "hi"`, New: `say "bye"`, Files: []string{"x/x.go", "x/x_test.go"}},
+		raw:     {Old: "line one\nold body\nline three", New: "line one\nnew body\nline three", Files: []string{"w/w.go", "w/w_test.go"}},
+		quoted:  {Old: "q1", New: "q2", Files: []string{`qp/a"b.go`, `qp/a"b_test.go`}},
 	}
 	if len(got) != len(want) {
 		t.Errorf("%d candidates, want %d: %+v", len(got), len(want), got)

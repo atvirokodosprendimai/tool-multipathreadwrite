@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -83,8 +84,14 @@ func SelectMultiHunk(dataset, salt string, minHunks int, exclude []string, n int
 		named := false
 		for _, header := range patchedFile.FindAllString(r.Patch, -1) {
 			path, same := diffPath(header)
-			if !same { // a rename: judge it by its old path
-				path, _, _ = strings.Cut(strings.TrimPrefix(header, "diff --git a/"), " b/")
+			if !same { // a rename: judge it by its old path, quoted or not
+				h := strings.TrimPrefix(header, "diff --git ")
+				if q, err := strconv.QuotedPrefix(h); err == nil {
+					u, _ := strconv.Unquote(q)
+					path = strings.TrimPrefix(u, "a/")
+				} else {
+					path, _, _ = strings.Cut(strings.TrimPrefix(h, "a/"), " b/")
+				}
 			}
 			base := filepath.Base(path)
 			if strings.Contains(r.Problem, path) || base != "__init__.py" && strings.Contains(r.Problem, base) {

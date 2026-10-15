@@ -33,7 +33,7 @@ Measured 2026-10-15, to size the categories:
 
 - **Reused unchanged:** the runner, both configurations and their isolation (ADR-156 Decisions 1–2, ADR-158), the canary, receipts and resume (ADR-156 Decision 6), `bench run --task` and `--configs` (`cmd/bench/main.go:6-7`), the oracle with `exact` (byte equality of each touched file to the reference result), `bench verify` (it reads the configurations and models from `run.json`, `runner.go:352-356`), `bench analyze`, the SWE-bench path (ADR-156 T5, `internal/bench/swebench.go`) and its grading-interrupt handling (#425).
 - **Reshaped:** `SelectSWEBench` (`internal/bench/swebench.go:23`) hard-codes the `adr-156:` salt and selects over every id it is given; it gains a salt and a hunk floor, so Stage 4's slice is drawn by the same function and `bench swebench-select` keeps its output for Stage 3's arguments. `bench analyze` prints one descriptive row per registered subset (`analyze.go:106`, ADR-158); it gains Stage 4's, and reads the slice's unnamed-files subset from the selection file, since it reads no gold patch (`swebench.go:49-58`).
-- **New:** `bench mine`, which lists candidate tasks by the registered predicates. It uses only Go's standard library (`go/parser`, `go/scanner`), since this module's `go.mod` declares exactly one requirement and a rename tool such as gopls would add one.
+- **New:** `bench mine`, which lists candidate tasks by the registered predicates. It uses only Go's standard library (`go/parser`, `go/scanner`, `go/types` with imports unresolved), since this module's `go.mod` declares exactly one requirement and a rename tool such as gopls would add one.
 
 ## Decision
 
