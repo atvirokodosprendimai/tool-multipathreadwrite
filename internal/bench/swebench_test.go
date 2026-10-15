@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -134,11 +135,11 @@ func TestTheSWEBenchTaskIsTheProblemStatementAlone(t *testing.T) {
 	}
 }
 
-// TestASWEBenchStageIsGradedByTheHarnessOneImageAtATime drives Run over the
-// slice with a stub CLI, a stub harness and a stub docker: every attempt is
-// graded by the harness's report, its receipt says so, and each instance's
-// attempts run together, its image pulled once before them and removed after.
-func TestASWEBenchStageIsGradedByTheHarnessOneImageAtATime(t *testing.T) {
+// sweStage is a stage over the slice with a stub CLI that applies a fix, a stub
+// harness that resolves a prediction holding FIXED, and a stub docker that
+// keeps which images are here in a directory and logs every call.
+func sweStage(t *testing.T) (RunOptions, string) {
+	t.Helper()
 	needGit(t)
 	work := t.TempDir()
 	sel, ds := sweFixture(t, work)
@@ -165,18 +166,57 @@ printf '{"%s": {"resolved": %s}}\n' "$id" "$r" > "$d/report.json"
 `), 0o755); err != nil {
 		t.Fatal(err)
 	}
+	images := filepath.Join(work, "images")
+	if err := os.Mkdir(images, 0o755); err != nil {
+		t.Fatal(err)
+	}
 	docker := filepath.Join(work, "docker")
-	if err := os.WriteFile(docker, []byte("#!/bin/sh\necho \"$*\" >> \""+filepath.Join(work, "docker.log")+"\"\n[ \"$1 $2\" = \"image inspect\" ] && exit 1\nexit 0\n"), 0o755); err != nil {
+	if err := os.WriteFile(docker, []byte(`#!/bin/sh
+echo "$*" >> "`+filepath.Join(work, "docker.log")+`"
+key() { printf '%s' "$1" | tr / _; }
+case "$1" in
+image)
+	[ "$2" = inspect ] && { [ -e "`+images+`/$(key "$3")" ]; exit $?; }
+	[ "$2" = rm ] && { rm -f "`+images+`/$(key "$3")"; exit 0; } ;;
+pull) touch "`+images+`/$(key "$4")" ;;
+ps) echo cid1 ;;
+esac
+exit 0
+`), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	canary := filepath.Join(work, "canary.json")
 	if err := os.WriteFile(canary, []byte(`{"pass":true,"cli_version":"9.9.9 (Claude Code)"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	o := RunOptions{Tasks: tasks, Stage: "s3", Out: filepath.Join(work, "out"), Models: []string{"stub-model"}, Configs: []string{"A", "B"},
+	return RunOptions{Tasks: tasks, Stage: "s3", Out: filepath.Join(work, "out"), Models: []string{"stub-model"}, Configs: []string{"A", "B"},
 		Repeats: 1, Seed: 156, Claude: claude, Mrw: stubMrw(t, work), Bench: "/bin/true", ConfigDir: filepath.Join(work, "config"),
 		Containment: "bypass", Canary: canary, Budget: time.Minute, Scratch: filepath.Join(work, "scratch"),
-		SWE: &SWEGrader{Python: harness, Dataset: ds, Docker: docker}}
+		SWE: &SWEGrader{Python: harness, Dataset: ds, Docker: docker}}, work
+}
+
+// dockerActions are the stub docker's calls that change something: every one
+// but the inspections.
+func dockerActions(t *testing.T, work string) string {
+	t.Helper()
+	b, _ := os.ReadFile(filepath.Join(work, "docker.log"))
+	var out []string
+	for _, l := range strings.Split(strings.TrimSpace(string(b)), "\n") {
+		if l != "" && !strings.HasPrefix(l, "image inspect ") {
+			out = append(out, l)
+		}
+	}
+	return strings.Join(out, "\n")
+}
+
+// TestASWEBenchStageIsGradedByTheHarnessOneImageAtATime drives Run over the
+// slice: every attempt is graded by the harness's report and its receipt says
+// so; each instance's attempts run together, its image pulled once before them
+// and removed after; and a resume over a finished stage drops an image an
+// interrupted run left behind, though none of that instance's attempts runs
+// again (the review of #422).
+func TestASWEBenchStageIsGradedByTheHarnessOneImageAtATime(t *testing.T) {
+	o, work := sweStage(t)
 	if err := Run(o); err != nil {
 		t.Fatal(err)
 	}
@@ -196,32 +236,91 @@ printf '{"%s": {"resolved": %s}}\n' "$id" "$r" > "$d/report.json"
 	if b, _ := os.ReadFile(filepath.Join(work, "harness.log")); strings.Count(string(b), "\n") != 4 {
 		t.Errorf("the harness graded %q, want each of the 4 attempts", b)
 	}
-	want := "image inspect img/org__calc-2\npull --platform linux/amd64 img/org__calc-2\nimage rm img/org__calc-2\n" +
-		"image inspect img/org__calc-1\npull --platform linux/amd64 img/org__calc-1\nimage rm img/org__calc-1\n"
-	if b, _ := os.ReadFile(filepath.Join(work, "docker.log")); string(b) != want {
-		t.Errorf("docker ran:\n%s\nwant each image pulled once before its instance's attempts and removed after:\n%s", b, want)
+	want := "pull --platform linux/amd64 img/org__calc-2\nimage rm img/org__calc-2\npull --platform linux/amd64 img/org__calc-1\nimage rm img/org__calc-1"
+	if got := dockerActions(t, work); got != want {
+		t.Errorf("docker did:\n%s\nwant each image pulled once before its instance's attempts and removed after:\n%s", got, want)
+	}
+	for _, img := range []string{"img_org__calc-2", "img_org__calc-1"} {
+		if err := os.WriteFile(filepath.Join(work, "images", img), nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := Run(o); err != nil {
+		t.Fatal(err)
+	}
+	want += "\nimage rm img/org__calc-2\nimage rm img/org__calc-1"
+	if got := dockerActions(t, work); got != want {
+		t.Errorf("a resume over a finished stage did:\n%s\nwant both images left behind dropped and none pulled:\n%s", got, want)
+	}
+	if b, _ := os.ReadFile(filepath.Join(work, "harness.log")); strings.Count(string(b), "\n") != 4 {
+		t.Errorf("the resume graded again: %q", b)
+	}
+}
+
+// TestAnInterruptedSWEBenchAttemptIsNotGraded: an attempt stopped by a signal
+// after it changed a file stops the stage without starting the harness, and the
+// stage's error names the image it leaves (the review of #422).
+func TestAnInterruptedSWEBenchAttemptIsNotGraded(t *testing.T) {
+	o, work := sweStage(t)
+	o.Claude = filepath.Join(work, "claude-int")
+	script := "#!/bin/sh\nfor a in \"$@\"; do [ \"$a\" = \"--version\" ] && { echo \"9.9.9 (Claude Code)\"; exit 0; }; done\n" +
+		"git apply \"" + filepath.Join(work, "fix.patch") + "\"\nkill -INT " + strconv.Itoa(os.Getpid()) + "\nsleep 30\n"
+	if err := os.WriteFile(o.Claude, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	err := Run(o)
+	if err == nil || !strings.Contains(err.Error(), "interrupted") || !strings.Contains(err.Error(), "img/org__calc-2") {
+		t.Fatalf("an interrupted attempt: %v, want the stage stopped, naming the image it leaves", err)
+	}
+	if _, err := os.Stat(filepath.Join(work, "harness.log")); err == nil {
+		t.Error("the harness graded an interrupted attempt")
+	}
+}
+
+// TestATimedOutHarnessRemovesItsContainer: a harness run past its budget is
+// stopped, and the containers it started for that instance and run are
+// removed by name, since a killed harness skips its own cleanup (the review
+// of #422).
+func TestATimedOutHarnessRemovesItsContainer(t *testing.T) {
+	o, work := sweStage(t)
+	tree := filepath.Join(work, "tree")
+	if err := os.Mkdir(tree, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Materialize(o.Tasks[0], tree, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := ApplyPatch(tree, filepath.Join(work, "fix.patch")); err != nil {
+		t.Fatal(err)
+	}
+	slow := filepath.Join(work, "slow-python")
+	if err := os.WriteFile(slow, []byte("#!/bin/sh\nexec sleep 30\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	g := *o.SWE
+	g.Python, g.Budget = slow, time.Second
+	if _, err := g.grade(o.Tasks[0], tree, t.TempDir(), "run.1"); err == nil {
+		t.Fatal("a harness past its budget graded the attempt")
+	}
+	if got, want := dockerActions(t, work), "ps -aq --filter name=sweb.eval.org__calc-2.run.1\nrm -f cid1"; got != want {
+		t.Errorf("docker did:\n%s\nwant the run's containers found by name and removed:\n%s", got, want)
 	}
 }
 
 // TestAnEmptySWEBenchDiffIsUnsolvedWithoutTheHarness: an attempt that changed
 // nothing is unsolved, and the harness is not started for it.
 func TestAnEmptySWEBenchDiffIsUnsolvedWithoutTheHarness(t *testing.T) {
-	needGit(t)
-	work := t.TempDir()
-	sel, ds := sweFixture(t, work)
-	tasks, err := LoadSWEBench(sel, ds)
-	if err != nil {
-		t.Fatal(err)
-	}
+	o, work := sweStage(t)
 	tree := filepath.Join(work, "tree")
 	if err := os.Mkdir(tree, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Materialize(tasks[0], tree, nil); err != nil {
+	if _, err := Materialize(o.Tasks[0], tree, nil); err != nil {
 		t.Fatal(err)
 	}
-	g := SWEGrader{Python: filepath.Join(work, "no-such-python"), Dataset: ds, Docker: "/bin/false"}
-	v, err := g.grade(tasks[0], tree, t.TempDir(), "run")
+	g := *o.SWE
+	g.Python = filepath.Join(work, "no-such-python")
+	v, err := g.grade(o.Tasks[0], tree, t.TempDir(), "run")
 	if err != nil || v.Solved {
 		t.Errorf("an empty diff: %+v, %v; want unsolved, and no harness started", v, err)
 	}

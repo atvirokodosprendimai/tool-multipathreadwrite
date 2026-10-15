@@ -102,17 +102,18 @@ func LoadSWEBench(selection, dataset string) ([]Task, error) {
 // SWEGrader grades a SWE-bench attempt with the official harness, in the
 // instance's own image, one container at a time (ADR-156 Decision 4).
 type SWEGrader struct {
-	Python  string // an interpreter with the harness installed, by absolute path
-	Dataset string // the dataset file the tasks came from, by absolute path
-	Docker  string // the docker CLI
+	Python  string        // an interpreter with the harness installed, by absolute path
+	Dataset string        // the dataset file the tasks came from, by absolute path
+	Docker  string        // the docker CLI
+	Budget  time.Duration // one grading run's bound; harnessBudget when zero
 }
 
 // harnessBudget bounds one grading run: the harness's own per-instance test
 // timeout is 30 minutes (-t 1800), and the rest is the container's start.
 const harnessBudget = 40 * time.Minute
 
-// ensure makes an instance's image present before its first attempt, pulled
-// for linux/amd64: the slice's images have no arm64 manifest (T5 S2).
+// ensure makes an instance's image present before an attempt, pulled for
+// linux/amd64: the slice's images have no arm64 manifest (T5 S2).
 func (g SWEGrader) ensure(image string) error {
 	if exec.Command(g.Docker, "image", "inspect", image).Run() == nil {
 		return nil
@@ -123,9 +124,12 @@ func (g SWEGrader) ensure(image string) error {
 	return nil
 }
 
-// remove drops an instance's image once its attempts are graded: twenty of
-// them do not fit on this disk together (T5 S2).
-func (g SWEGrader) remove(image string) error {
+// drop removes an instance's image, if it is here, once its attempts are
+// graded: twenty of them do not fit on this disk together (T5 S2).
+func (g SWEGrader) drop(image string) error {
+	if exec.Command(g.Docker, "image", "inspect", image).Run() != nil {
+		return nil
+	}
 	if out, err := exec.Command(g.Docker, "image", "rm", image).CombinedOutput(); err != nil {
 		return fmt.Errorf("docker image rm %s: %w: %s", image, err, out)
 	}
@@ -154,12 +158,24 @@ func (g SWEGrader) grade(t Task, tree, scratch, run string) (Verdict, error) {
 	if err := os.WriteFile(preds, b, 0o644); err != nil {
 		return Verdict{}, err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), harnessBudget)
+	budget := g.Budget
+	if budget == 0 {
+		budget = harnessBudget
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), budget)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, g.Python, "-m", "swebench.harness.run_evaluation", "-d", g.Dataset, "-i", t.ID,
 		"-p", preds, "--max_workers", "1", "-t", "1800", "-id", run, "--report_dir", scratch)
 	cmd.Dir = scratch
+	// At the deadline the harness is interrupted, not killed, so its own
+	// cleanup removes the container it started; a kill would skip that
+	// (the review of #422). Whatever is left is removed below by name.
+	cmd.Cancel = func() error { return cmd.Process.Signal(os.Interrupt) }
+	cmd.WaitDelay = time.Minute
 	if out, err := cmd.CombinedOutput(); err != nil {
+		if cerr := g.removeContainers(t.ID, run); cerr != nil {
+			err = fmt.Errorf("%w; and %w", err, cerr)
+		}
 		return Verdict{}, fmt.Errorf("the harness: %w: %s", err, out)
 	}
 	rb, err := os.ReadFile(filepath.Join(scratch, "logs", "run_evaluation", run, run, t.ID, "report.json"))
@@ -177,4 +193,20 @@ func (g SWEGrader) grade(t Task, tree, scratch, run string) (Verdict, error) {
 		return Verdict{}, fmt.Errorf("the harness's report does not name %s", t.ID)
 	}
 	return Verdict{Solved: r.Resolved}, nil
+}
+
+// removeContainers removes every container the harness started for this
+// instance and run, which it names sweb.eval.<instance id, lower case>.<run>,
+// with a suffix when it retried (swebench 5.0.2, run_evaluation.py).
+func (g SWEGrader) removeContainers(id, run string) error {
+	out, err := exec.Command(g.Docker, "ps", "-aq", "--filter", "name=sweb.eval."+strings.ToLower(id)+"."+run).Output()
+	if err != nil {
+		return fmt.Errorf("docker ps: %w", err)
+	}
+	for _, c := range strings.Fields(string(out)) {
+		if b, err := exec.Command(g.Docker, "rm", "-f", c).CombinedOutput(); err != nil {
+			return fmt.Errorf("docker rm -f %s: %w: %s", c, err, b)
+		}
+	}
+	return nil
 }

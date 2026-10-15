@@ -142,7 +142,7 @@ type attempt struct {
 // run again (ADR-156 Decision 6). An attempt the registration excludes is
 // replaced by a new one under its own id — a start error at most twice, a
 // setup failure once — and every excluded receipt is kept.
-func Run(o RunOptions) error {
+func Run(o RunOptions) (err error) {
 	cd, err := gates(o)
 	if err != nil {
 		return err
@@ -190,8 +190,26 @@ func Run(o RunOptions) error {
 	if err := claimOut(o.Out, p); err != nil {
 		return err
 	}
-	image := "" // the SWE-bench image the attempts now running are graded in
+	// image is the SWE-bench image of the instance whose attempts are now
+	// planned. It is dropped at every boundary between instances, whether that
+	// instance's attempts ran now or before a resume, so an image left by an
+	// interrupted run goes too; a stage that stops on an error names the image
+	// it leaves in place for the resume (the review of #422).
+	image := ""
+	defer func() {
+		if err != nil && image != "" {
+			err = fmt.Errorf("%w (the image %s, if it was pulled, is left in place: the resume drops it once that instance is done)", err, image)
+		}
+	}()
 	for i, a := range planAttempts(o) {
+		if a.Task.swe != nil && a.Task.swe.image != image {
+			if image != "" {
+				if err := o.SWE.drop(image); err != nil {
+					return err
+				}
+			}
+			image = a.Task.swe.image
+		}
 		for try := 0; ; try++ {
 			at := a
 			if try > 0 {
@@ -211,16 +229,10 @@ func Run(o RunOptions) error {
 			case exists(base + ".started"):
 				r.Exclusion = "" // started and never finished: neither it nor a replacement runs
 			default:
-				if a.Task.swe != nil && a.Task.swe.image != image {
-					if image != "" {
-						if err := o.SWE.remove(image); err != nil {
-							return err
-						}
-					}
-					if err := o.SWE.ensure(a.Task.swe.image); err != nil {
+				if a.Task.swe != nil {
+					if err := o.SWE.ensure(image); err != nil {
 						return err
 					}
-					image = a.Task.swe.image
 				}
 				if err := writeOnce(base+".started", []byte(time.Now().UTC().Format(time.RFC3339)+"\n")); err != nil {
 					return err
@@ -243,7 +255,10 @@ func Run(o RunOptions) error {
 		}
 	}
 	if image != "" {
-		return o.SWE.remove(image)
+		if err := o.SWE.drop(image); err != nil {
+			return err
+		}
+		image = ""
 	}
 	return nil
 }
@@ -519,6 +534,12 @@ func runAttempt(o RunOptions, a attempt, order int, cli, mrwVersion string) Rece
 	cancel()
 	_ = stdout.Close()
 	_ = stderr.Close()
+	// An interrupted attempt is neither graded nor recorded: Run stops the
+	// stage on it, and a harness run would hold that stop for minutes (the
+	// review of #422).
+	if r.interrupted { // nothing grades it
+		return r
+	}
 	if ee := (*exec.ExitError)(nil); errors.As(runErr, &ee) {
 		r.ExitCode = ee.ExitCode()
 	} else if runErr != nil {

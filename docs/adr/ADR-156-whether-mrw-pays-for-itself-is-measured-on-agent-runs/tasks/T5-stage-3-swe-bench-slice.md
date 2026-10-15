@@ -42,13 +42,16 @@
 ```bash
 set -o pipefail
 out=$(mktemp) \
-  && go test ./internal/bench/ -count=1 -run 'TestTheSWEBenchSliceIsTheLowestTwentyHashes|TestTheSWEBenchTaskIsTheProblemStatementAlone|TestASWEBenchStageIsGradedByTheHarnessOneImageAtATime|TestAnEmptySWEBenchDiffIsUnsolvedWithoutTheHarness' -v > "$out" 2>&1 \
+  && go test ./internal/bench/ -count=1 -run 'TestTheSWEBenchSliceIsTheLowestTwentyHashes|TestTheSWEBenchTaskIsTheProblemStatementAlone|TestASWEBenchStageIsGradedByTheHarnessOneImageAtATime|TestAnEmptySWEBenchDiffIsUnsolvedWithoutTheHarness|TestAnInterruptedSWEBenchAttemptIsNotGraded|TestATimedOutHarnessRemovesItsContainer' -v > "$out" 2>&1 \
   && grep -qE '^--- PASS: TestTheSWEBenchSliceIsTheLowestTwentyHashes \(' "$out" \
   && grep -qE '^--- PASS: TestTheSWEBenchTaskIsTheProblemStatementAlone \(' "$out" \
   && grep -qE '^--- PASS: TestASWEBenchStageIsGradedByTheHarnessOneImageAtATime \(' "$out" \
   && grep -qE '^--- PASS: TestAnEmptySWEBenchDiffIsUnsolvedWithoutTheHarness \(' "$out" \
+  && grep -qE '^--- PASS: TestAnInterruptedSWEBenchAttemptIsNotGraded \(' "$out" \
+  && grep -qE '^--- PASS: TestATimedOutHarnessRemovesItsContainer \(' "$out" \
   && go run ./cmd/bench verify --stage stage-3-swe-bench --tasks 20 --repeats 1 docs/bench/stage-3-swe-bench \
   && jq -e '.models == ["claude-sonnet-5-5", "claude-opus-5-5"]' docs/bench/stage-3-swe-bench/run.json > /dev/null \
+  && jq -e '.configs == ["A", "B"]' docs/bench/stage-3-swe-bench/run.json > /dev/null \
   && diff <(jq -r '.tasks[]' docs/bench/stage-3-swe-bench/run.json) <(jq -r '.selected[]' bench/swe-bench/selection.json) \
   && jq -s -e 'all(.[]; .source == "swe-bench")' docs/bench/stage-3-swe-bench/*.receipt.json > /dev/null
 ```
@@ -61,6 +64,8 @@ out=$(mktemp) \
 | `TestTheSWEBenchTaskIsTheProblemStatementAlone` | `internal/bench/swebench_test.go` | the agent is told the problem statement alone; the selection's order; an id the dataset lacks is refused | none | S5 |
 | `TestASWEBenchStageIsGradedByTheHarnessOneImageAtATime` | `internal/bench/swebench_test.go` | `Run` grades through the harness's report, the receipt's source, an instance's attempts together with its image pulled once and removed after | none | S5 |
 | `TestAnEmptySWEBenchDiffIsUnsolvedWithoutTheHarness` | `internal/bench/swebench_test.go` | no change is unsolved and starts no harness | none | S5 |
+| `TestAnInterruptedSWEBenchAttemptIsNotGraded` | `internal/bench/swebench_test.go` | an interrupted attempt starts no harness, and the stage's error names the image it leaves | none | S5 |
+| `TestATimedOutHarnessRemovesItsContainer` | `internal/bench/swebench_test.go` | a harness past its budget is stopped and its containers removed by name | none | S5 |
 
 ## Reachability
 
@@ -77,11 +82,26 @@ out=$(mktemp) \
 - 2026-10-15 · human-observed · mutant killed · test exit 1 · `internal/bench/swebench.go` · line 146 · from `	if strings.TrimSpace(patch) == "" {` · to `	if false {` · test `TestAnEmptySWEBenchDiffIsUnsolvedWithoutTheHarness` · S5: an empty diff starts the harness; the fence cannot complete until Stage 3 has receipts
 - 2026-10-15 · human-observed · mutant killed · test exit 1 · `internal/bench/swebench.go` · line 53 · from `` 	ProblemStatement string `json:"problem_statement"` `` · to `` 	ProblemStatement string `json:"hints_text"` `` · test `TestTheSWEBenchTaskIsTheProblemStatementAlone` · S5: the agent is told the hints instead of the problem statement; the fence cannot complete until Stage 3 has receipts
 - 2026-10-15 · human-observed · mutant killed · test exit 1 · `internal/bench/runner.go` · line 543 · from `		v, err = o.SWE.grade(a.Task, tree, scratch, a.ID)` · to `		v, err = Oracle(a.Task, tree) // mutant: the corpus oracle grades a SWE-bench attempt` · test `TestASWEBenchStageIsGradedByTheHarnessOneImageAtATime` · S5: a SWE-bench attempt is graded by the corpus oracle, not the harness; the fence cannot complete until Stage 3 has receipts
+- 2026-10-15 · human-observed · mutant killed · test exit 1 · `internal/bench/swebench.go` · line 176 · from `		if cerr := g.removeContainers(t.ID, run); cerr != nil {` · to `		if cerr := error(nil); cerr != nil {` · test `TestATimedOutHarnessRemovesItsContainer` · S5, review of #422: a harness past its budget leaves its containers; the fence cannot complete until Stage 3 has receipts
+- 2026-10-15 · human-observed · mutant killed · test exit 1 · `internal/bench/runner.go` · line 206 · from `			if image != "" {` · to `			if false {` · test `TestASWEBenchStageIsGradedByTheHarnessOneImageAtATime` · S5, review of #422: an instance boundary drops no image, so a resume leaves one behind; the fence cannot complete until Stage 3 has receipts
+- 2026-10-15 · human-observed · mutant killed · test exit 1 · `internal/bench/runner.go` · line 540 · from `	if r.interrupted { // nothing grades it` · to `	if false { // nothing grades it` · test `TestAnInterruptedSWEBenchAttemptIsNotGraded` · S5, review of #422: an interrupted attempt is graded; the fence cannot complete until Stage 3 has receipts
 
 ## Verification Log
 (empty until execute)
 - 2026-10-15 · human-observed · S2 observed 2026-10-15 on this Mac (Docker Desktop 29.8.2, arm64, 8 GB VM): dataset SWE-bench/SWE-bench_Verified test split at revision 78f471bf655a3137b2e8a75af1501690ec009ec3 (500 instances, the same ids as princeton-nlp/SWE-bench_Verified at c104f840, which lacks the image field swebench 5.0.2 reads), harness swebench 5.0.2; the registered selection is in bench/swe-bench/selection.json and equals bench swebench-select's output; the gold patch of the first selected instance, matplotlib__matplotlib-22719, graded resolved: True, all required and regression tests passing, in 25 s, after a 349 s pull of its 10.6 GB amd64 image (pulled with --platform linux/amd64, since no arm64 manifest exists) run under emulation; within the 20-minute bound, so the probe passed. Disk: twenty such images would need about 200 GB against 107 GB free, so each instance's image is removed after its attempts are graded.
 - 2026-10-15 · 5b77a44c* · exit 1 · `set -o pipefail …` · acceptance-sha256:defb1b81b2a80435c58265e20264b3721a440c610f2b9ceef936c70d5c5aa9b7 · ms:5663 · test-lock-sha256:f10185d235d9175fcf538624db4cdb098cd6cccc2de81c983224004cbb141c34 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJaW50ZXJuYWwvYmVuY2gvc3dlYmVuY2hfdGVzdC5nbwlUZXN0QVNXRUJlbmNoU3RhZ2VJc0dyYWRlZEJ5VGhlSGFybmVzc09uZUltYWdlQXRBVGltZQllMjdhZmIyOWJiN2NhMGNkMjhkOTVkMGM3NDNiNWQ2N2Y1ZWE3MDI5NjllY2RkZmNlZWNlYTA4ZDE4ODk1ZjQxCmJvZHkJaW50ZXJuYWwvYmVuY2gvc3dlYmVuY2hfdGVzdC5nbwlUZXN0QW5FbXB0eVNXRUJlbmNoRGlmZklzVW5zb2x2ZWRXaXRob3V0VGhlSGFybmVzcwkzNzAyZGRkNjcxYmQ3ODM5MTdlNjQ0MmNiMDlkNjllZWQ3ZTI0OTJlOGZhNjU5OGQ5YTg2MGU1NmU1NjZjYTZhCmJvZHkJaW50ZXJuYWwvYmVuY2gvc3dlYmVuY2hfdGVzdC5nbwlUZXN0VGhlU1dFQmVuY2hTbGljZUlzVGhlTG93ZXN0VHdlbnR5SGFzaGVzCTY1YTlmMjJlNzIyN2YzZDczMmE5Mjg5MGQ3OWFjODA4ZDBhMTdjYTcyNzBhZmNlYTg2NjNjNDI1YzBlMjIwMDgKYm9keQlpbnRlcm5hbC9iZW5jaC9zd2ViZW5jaF90ZXN0LmdvCVRlc3RUaGVTV0VCZW5jaFRhc2tJc1RoZVByb2JsZW1TdGF0ZW1lbnRBbG9uZQlhOTI1ODJhYWVjYTc4OTY2NzgwMGI3ZGIyYjVjOTA2MTJhOWZkMzE2ODU3NTYyZmNhMDM0NTFmODE3NGViMzli
+  ```
+  --- last 2 line(s) of stderr
+  bench: open docs/bench/stage-3-swe-bench/run.json: no such file or directory
+  exit status 1
+  ```
+- 2026-10-15 · 815c158d* · exit 1 · `set -o pipefail …` · acceptance-sha256:4b2b77187bb0bca707ff197b2dac575e33b44c46abd6ca6f4eb143dd6b7f8c9a · ms:4201
+  ```
+  --- last 2 line(s) of stderr
+  bench: open docs/bench/stage-3-swe-bench/run.json: no such file or directory
+  exit status 1
+  ```
+- 2026-10-15 · 815c158d* · exit 1 · `set -o pipefail …` · acceptance-sha256:3b8c6d24fe969f6dbe74474f38a5809f730de55c97e13a63589473ff3a93a224 · ms:6635
   ```
   --- last 2 line(s) of stderr
   bench: open docs/bench/stage-3-swe-bench/run.json: no such file or directory
