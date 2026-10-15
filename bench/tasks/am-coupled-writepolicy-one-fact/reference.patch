@@ -1,0 +1,39 @@
+diff --git a/internal/longmemeval/grid_test.go b/internal/longmemeval/grid_test.go
+index ea6c6e2..1daf192 100644
+--- a/internal/longmemeval/grid_test.go
++++ b/internal/longmemeval/grid_test.go
+@@ -140,7 +140,7 @@ func TestRunGridHoldsTheContextBudgetAcrossCells(t *testing.T) {
+ 	sel := twoQuestionSelection(t)
+ 
+ 	if _, err := RunGrid(context.Background(), store, sel,
+-		[]string{"verbatim", "one-fact"}, []string{"verbatim"}, opts); err != nil {
++		[]string{"verbatim", "One-fact"}, []string{"verbatim"}, opts); err != nil {
+ 		t.Fatalf("RunGrid: %v", err)
+ 	}
+ 	for _, p := range model.prompts {
+diff --git a/internal/longmemeval/writepolicy.go b/internal/longmemeval/writepolicy.go
+index dd1156c..5c58d6d 100644
+--- a/internal/longmemeval/writepolicy.go
++++ b/internal/longmemeval/writepolicy.go
+@@ -193,7 +193,7 @@ func init() {
+ 	// hand this policy a smaller, cleaner haystack than every other policy gets,
+ 	// so its score would partly measure a corpus nobody else was given.
+ 	register(WritePolicy{
+-		Name:     "one-fact",
++		Name:     "One-fact",
+ 		Describe: "each answering turn and its neighbour as their own record",
+ 		Write: func(q Question) []Record {
+ 			var out []Record
+diff --git a/internal/longmemeval/writepolicy_test.go b/internal/longmemeval/writepolicy_test.go
+index c3e1910..5a49462 100644
+--- a/internal/longmemeval/writepolicy_test.go
++++ b/internal/longmemeval/writepolicy_test.go
+@@ -61,7 +61,7 @@ func TestQuestionFirstPolicyOpensWithTheQuestion(t *testing.T) {
+ 
+ func TestOneFactPolicyKeepsEveryAnsweringTurn(t *testing.T) {
+ 	q := fixtureQuestion(t, "q_update_1")
+-	got := policyNamed(t, "one-fact").Write(q)
++	got := policyNamed(t, "One-fact").Write(q)
+ 
+ 	// A policy that quietly drops content looks like a strong compressor under a
+ 	// judged metric. The answering turns are exactly the content whose loss would

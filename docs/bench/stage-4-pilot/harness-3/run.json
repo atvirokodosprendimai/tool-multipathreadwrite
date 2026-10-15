@@ -1,0 +1,18 @@
+{
+  "stage": "pilot",
+  "tasks": [
+    "am-coupled-billing-active",
+    "am-coupled-doctor-stale"
+  ],
+  "models": [
+    "claude-sonnet-5-5"
+  ],
+  "configs": [
+    "B"
+  ],
+  "repeats": 1,
+  "seed": 156,
+  "cli_version": "2.1.300 (Claude Code)",
+  "mrw_version": "v1.66.0 (05ec3f8)",
+  "containment": "bypass"
+}

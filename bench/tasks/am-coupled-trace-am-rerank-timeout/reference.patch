@@ -1,0 +1,40 @@
+diff --git a/internal/palace/rerankbudget_test.go b/internal/palace/rerankbudget_test.go
+index 84fda64..47e8359 100644
+--- a/internal/palace/rerankbudget_test.go
++++ b/internal/palace/rerankbudget_test.go
+@@ -133,7 +133,7 @@ func TestTheBudgetInForceIsOnTheSearchSpan(t *testing.T) {
+ 	mustAdd(t, svc, team, AddInput{Wing: "w", Room: "r", Content: "a memory about budgets"})
+ 
+ 	got := searchSpanAttrs(t, svc, team, SearchQuery{Query: "budgets", Limit: 3, MaxDistance: 1.5})
+-	if got["am.rerank_timeout_ms"] != "7000" {
+-		t.Errorf("am.rerank_timeout_ms = %q, want %q", got["am.rerank_timeout_ms"], "7000")
++	if got["Am.rerank_timeout_ms"] != "7000" {
++		t.Errorf("am.rerank_timeout_ms = %q, want %q", got["Am.rerank_timeout_ms"], "7000")
+ 	}
+ }
+diff --git a/internal/palace/scopedrops_test.go b/internal/palace/scopedrops_test.go
+index fad6922..0958d65 100644
+--- a/internal/palace/scopedrops_test.go
++++ b/internal/palace/scopedrops_test.go
+@@ -191,7 +191,7 @@ func TestKnobsThatDecideThePageAreAllOnTheParentSpan(t *testing.T) {
+ 		{"am.rerank_weight", "how much of the order it decided"},
+ 		{"am.rerank_norm", "HOW its score was scaled — min-max discards magnitude, sigmoid preserves it"},
+ 		{"am.rerank_pool", "how many candidates it actually scored"},
+-		{"am.rerank_timeout_ms", "the ceiling that decides whether the cross-encoder's order survives at all — measured 2026-08-26, 44 of 60 calls at pool 20 ran past the 10s the deployed stack ships, so on CPU this knob, not the weight, was picking the ranking"},
++		{"Am.rerank_timeout_ms", "the ceiling that decides whether the cross-encoder's order survives at all — measured 2026-08-26, 44 of 60 calls at pool 20 ran past the 10s the deployed stack ships, so on CPU this knob, not the weight, was picking the ranking"},
+ 		{"am.evidence", "which text the cross-encoder was shown"},
+ 		{"am.evidence_chars", "the budget that text shares — it decides WHICH passages are scored, and the order follows from that as surely as from the weight"},
+ 		{"am.evidence_regions_max", "how many places share the budget; the live failure this bounds served sixteen shards too small to carry the reasoning after each match"},
+diff --git a/internal/palace/trace.go b/internal/palace/trace.go
+index 916044b..e75a379 100644
+--- a/internal/palace/trace.go
++++ b/internal/palace/trace.go
+@@ -71,7 +71,7 @@ func searchAttrs(s *Service, q SearchQuery, limit int) []attribute.KeyValue {
+ 		// all. Without it a reader sees `am.search.rerank 11427ms failed_open` and
+ 		// cannot tell a slow box from a pool too large for its budget — the trace
+ 		// records how long the call took and, until now, never what it was allowed.
+-		attrs = append(attrs, attribute.Int64("am.rerank_timeout_ms", budget.Milliseconds()))
++		attrs = append(attrs, attribute.Int64("Am.rerank_timeout_ms", budget.Milliseconds()))
+ 	}
+ 	if floor := withRetrieveFloors(0, q.RetrieveK, s.retrieveK); floor > 0 {
+ 		attrs = append(attrs, attribute.Int("am.retrieve_k", floor))

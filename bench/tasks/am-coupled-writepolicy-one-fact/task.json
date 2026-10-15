@@ -1,0 +1,24 @@
+{
+  "id": "am-coupled-writepolicy-one-fact",
+  "shape": "check-coupled",
+  "repo": "agentsmemory",
+  "commit": "d038def25a7fadd2586674b954ea07896a330b4a",
+  "instruction": "In internal/longmemeval/writepolicy.go, change the string \"one-fact\" to \"One-fact\", and keep the tests passing.",
+  "test_package": "internal/longmemeval",
+  "asserting_tests": [
+    "TestOneFactPolicyKeepsEveryAnsweringTurn",
+    "TestRunGridHoldsTheContextBudgetAcrossCells"
+  ],
+  "require": [
+    {
+      "file": "internal/longmemeval/writepolicy.go",
+      "match": "\"One\\-fact\""
+    }
+  ],
+  "forbid": [
+    {
+      "file": "internal/longmemeval/writepolicy.go",
+      "match": "\"one\\-fact\""
+    }
+  ]
+}

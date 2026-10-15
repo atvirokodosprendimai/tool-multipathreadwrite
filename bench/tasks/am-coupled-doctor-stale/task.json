@@ -6,8 +6,7 @@
   "instruction": "In clients/claude-code/doctor.go, change the string \"STALE\" to \"sTALE\", and keep the tests passing.",
   "test_package": "clients/claude-code",
   "asserting_tests": [
-    "TestDoctorReportsDriftWhenTheHooksStillDeclareTheirChannel",
-    "TestEveryRegisteredPluginHookIsExecutable"
+    "TestDoctorReportsDriftWhenTheHooksStillDeclareTheirChannel"
   ],
   "require": [
     {

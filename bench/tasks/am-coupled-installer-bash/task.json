@@ -1,0 +1,23 @@
+{
+  "id": "am-coupled-installer-bash",
+  "shape": "check-coupled",
+  "repo": "agentsmemory",
+  "commit": "d038def25a7fadd2586674b954ea07896a330b4a",
+  "instruction": "In clients/claude-code/installer.go, change the string \"bash \" to \"Bash \", and keep the tests passing.",
+  "test_package": "clients/claude-code",
+  "asserting_tests": [
+    "TestRetireLegacyCodexHookRecognizesOwnedPathWithSpaces"
+  ],
+  "require": [
+    {
+      "file": "clients/claude-code/installer.go",
+      "match": "\"Bash\\ \""
+    }
+  ],
+  "forbid": [
+    {
+      "file": "clients/claude-code/installer.go",
+      "match": "\"bash\\ \""
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "id": "am-coupled-drawers-snippet",
+  "shape": "check-coupled",
+  "repo": "agentsmemory",
+  "commit": "d038def25a7fadd2586674b954ea07896a330b4a",
+  "instruction": "In internal/mcpserver/drawers.go, change the string \"snippet\" to \"Snippet\", and keep the tests passing.",
+  "test_package": "internal/mcpserver",
+  "asserting_tests": [
+    "TestAnchorReplacementRefusesRatherThanClears",
+    "TestParseAnchorListSeparatesEmptyFromUnreadable",
+    "TestUpdateAppliesAnchorsToTheCorrectingRecord"
+  ],
+  "require": [
+    {
+      "file": "internal/mcpserver/drawers.go",
+      "match": "\"Snippet\""
+    }
+  ],
+  "forbid": [
+    {
+      "file": "internal/mcpserver/drawers.go",
+      "match": "\"snippet\""
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "stage": "pilot",
+  "tasks": [
+    "am-coupled-agentkit-commands",
+    "am-coupled-doctor-discarded",
+    "am-coupled-doctor-duplicated",
+    "am-coupled-installer-bash"
+  ],
+  "models": [
+    "claude-sonnet-5-5"
+  ],
+  "configs": [
+    "A"
+  ],
+  "repeats": 2,
+  "seed": 156,
+  "cli_version": "2.1.300 (Claude Code)",
+  "mrw_version": "",
+  "containment": "bypass"
+}

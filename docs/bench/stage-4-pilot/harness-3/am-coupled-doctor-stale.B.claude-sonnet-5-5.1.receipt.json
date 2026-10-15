@@ -1,0 +1,43 @@
+{
+  "attempt": "am-coupled-doctor-stale.B.claude-sonnet-5-5.1",
+  "stage": "pilot",
+  "task": "am-coupled-doctor-stale",
+  "shape": "check-coupled",
+  "source": "own",
+  "model": "claude-sonnet-5-5",
+  "config": "B",
+  "repeat": 1,
+  "order": 0,
+  "started": "2026-10-15T22:38:36Z",
+  "wall_ms": 41769,
+  "cli_version": "2.1.300 (Claude Code)",
+  "mrw_version": "v1.66.0 (05ec3f8)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 8,
+  "tool_calls": 7,
+  "total_cost_usd": 0.15386270000000002,
+  "usage": {
+    "input_tokens": 14,
+    "output_tokens": 1549,
+    "cache_read_input_tokens": 203047,
+    "cache_creation_input_tokens": 29510
+  },
+  "init_tools": [
+    "Bash",
+    "Glob"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": true
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 2,
+    "insertions": 3,
+    "deletions": 3
+  },
+  "hook_reads": 1,
+  "exclusion": "setup",
+  "note": "slipped writes: the ledgers disagree on clients/claude-code/doctor.go: which content mrw saw last cannot be told"
+}

@@ -1,0 +1,48 @@
+diff --git a/internal/billing/reconcile.go b/internal/billing/reconcile.go
+index 7066e9e..a6a527c 100644
+--- a/internal/billing/reconcile.go
++++ b/internal/billing/reconcile.go
+@@ -30,7 +30,7 @@ import (
+ // it is also not evidence the customer left.
+ var ocStatusKind = map[string]eventKind{
+ 	"ACTIVE":                      eventActivated,
+-	"PAID":                        eventActivated,
++	"pAID":                        eventActivated,
+ 	"CANCELLED":                   eventCanceled,
+ 	"EXPIRED":                     eventCanceled,
+ 	"REFUNDED":                    eventCanceled,
+diff --git a/internal/billing/reconcile_idempotence_test.go b/internal/billing/reconcile_idempotence_test.go
+index a3f5d39..3d6b76d 100644
+--- a/internal/billing/reconcile_idempotence_test.go
++++ b/internal/billing/reconcile_idempotence_test.go
+@@ -53,7 +53,7 @@ func TestReconcileDoesNotRevertAnOperatorDowngrade(t *testing.T) {
+ func TestReconcileDoesNotGrantARecurringPlanForAOneOff(t *testing.T) {
+ 	r, svc, gdb, teamID := newReconcileEnv(t, func(teamID string) []providerOrder {
+ 		return []providerOrder{{
+-			ID: "or_b1b", Status: "PAID", Frequency: "ONETIME", TierSlug: "pro-monthly",
++			ID: "or_b1b", Status: "pAID", Frequency: "ONETIME", TierSlug: "pro-monthly",
+ 			Tags: []string{intentTag(teamID)},
+ 		}}
+ 	})
+diff --git a/internal/billing/reconcile_test.go b/internal/billing/reconcile_test.go
+index c6283f7..f3d323c 100644
+--- a/internal/billing/reconcile_test.go
++++ b/internal/billing/reconcile_test.go
+@@ -51,7 +51,7 @@ func recordIntent(t *testing.T, gdb *gorm.DB, teamID, planCode, email string) {
+ // silently downgrade paying workspaces.
+ func TestReconcileMapsOrderStatusToEventKind(t *testing.T) {
+ 	cases := map[string]eventKind{
+-		"ACTIVE": eventActivated, "PAID": eventActivated,
++		"ACTIVE": eventActivated, "pAID": eventActivated,
+ 		"CANCELLED": eventCanceled, "EXPIRED": eventCanceled,
+ 		"REFUNDED": eventCanceled, "REJECTED": eventCanceled,
+ 		"NEW": eventIgnored, "PENDING": eventIgnored, "PROCESSING": eventIgnored,
+@@ -158,7 +158,7 @@ func TestReconcileLeavesAnUnattributableOrderAlone(t *testing.T) {
+ func TestReconcileIgnoresAContributionOutsideOurTiers(t *testing.T) {
+ 	r, svc, gdb, teamID := newReconcileEnv(t, func(teamID string) []providerOrder {
+ 		return []providerOrder{{
+-			ID: "or_test9004", Status: "PAID", Frequency: "ONETIME", TierSlug: "",
++			ID: "or_test9004", Status: "pAID", Frequency: "ONETIME", TierSlug: "",
+ 			Tags: []string{intentTag(teamID)},
+ 		}}
+ 	})

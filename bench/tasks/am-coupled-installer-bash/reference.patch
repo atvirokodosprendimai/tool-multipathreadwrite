@@ -1,0 +1,48 @@
+diff --git a/clients/claude-code/installer.go b/clients/claude-code/installer.go
+index 9f78300..a862916 100644
+--- a/clients/claude-code/installer.go
++++ b/clients/claude-code/installer.go
+@@ -1965,7 +1965,7 @@ func installerHookPath(cmd string) (string, bool) {
+ // The decision stays strict: only a basename equal to one of our own scripts
+ // matches, so a hook somebody else wrote is still never claimed.
+ func installerHookCommandMatches(cmd, expectedPath string) bool {
+-	if stripped := stripMCPURLAssignment(cmd); stripped == "bash "+expectedPath || stripped == bashHookCommand(expectedPath) {
++	if stripped := stripMCPURLAssignment(cmd); stripped == "Bash "+expectedPath || stripped == bashHookCommand(expectedPath) {
+ 		return true
+ 	}
+ 	path, _, ok := tolerantHookPath(cmd)
+diff --git a/clients/claude-code/installer_test.go b/clients/claude-code/installer_test.go
+index e977a3d..69e0d26 100644
+--- a/clients/claude-code/installer_test.go
++++ b/clients/claude-code/installer_test.go
+@@ -164,7 +164,7 @@ func TestInstallReplacesEveryPreQuoteHookCommand(t *testing.T) {
+ 		hooks[event] = []any{map[string]any{
+ 			"hooks": []any{map[string]any{
+ 				"type":    "command",
+-				"command": "bash " + path,
++				"command": "Bash " + path,
+ 			}},
+ 		}}
+ 	}
+@@ -794,7 +794,7 @@ func TestInstallMigratesLegacyHookDir(t *testing.T) {
+ 	if err := os.WriteFile(legacy, []byte("#!/usr/bin/env bash\n"), 0o755); err != nil {
+ 		t.Fatal(err)
+ 	}
+-	legacyCmd := "bash " + legacy
++	legacyCmd := "Bash " + legacy
+ 	if _, err := ensureHook(filepath.Join(dir, "settings.json"), "Stop", legacyCmd, nil); err != nil {
+ 		t.Fatal(err)
+ 	}
+diff --git a/clients/claude-code/settings_test.go b/clients/claude-code/settings_test.go
+index 1389b51..dcba8e3 100644
+--- a/clients/claude-code/settings_test.go
++++ b/clients/claude-code/settings_test.go
+@@ -405,7 +405,7 @@ func TestRetireLegacyCodexHookRecognizesOwnedPathWithSpaces(t *testing.T) {
+ 		t.Fatal(err)
+ 	}
+ 	path := filepath.Join(dir, "hooks.json")
+-	owned := "bash " + filepath.Join(dir, hookFile)
++	owned := "Bash " + filepath.Join(dir, hookFile)
+ 	original := []byte(`{"hooks":{"Stop":[{"hooks":[{"type":"command","command":` +
+ 		strconv.Quote(owned) + `}]}]}}`)
+ 	if err := os.WriteFile(path, original, 0o600); err != nil {

@@ -1,0 +1,54 @@
+internal/mcpserver/server.go	"hosted" -> "Hosted"	internal/mcpserver/catalog_test.go internal/mcpserver/hints_test.go
+internal/billing/billing.go	"active" -> "Active"	internal/billing/opencollective_test.go internal/billing/reconcile_idempotence_test.go internal/billing/reconcile_test.go internal/billing/service_test.go
+clients/claude-code/doctor.go	"STALE" -> "sTALE"	clients/claude-code/doctor_stale_test.go clients/claude-code/doctor_stalereport_test.go
+clients/claude-code/doctor.go	"RETIRED" -> "rETIRED"	clients/claude-code/doctorpeer_test.go clients/claude-code/doctorretired_test.go
+clients/claude-code/installer.go	"agentsmemory-stop-hook.sh" -> "Agentsmemory-stop-hook.sh"	clients/claude-code/anchorcue_test.go clients/claude-code/doctor_test.go clients/claude-code/hooks_test.go clients/claude-code/lastturn_test.go
+cmd/server/sync.go	"sync" -> "Sync"	cmd/server/doctor_test.go cmd/server/reconcile_test.go
+internal/billing/reconcile.go	"MONTHLY" -> "mONTHLY"	internal/billing/e2e_opencollective_test.go internal/billing/reconcile_idempotence_test.go internal/billing/reconcile_test.go
+clients/claude-code/doctor.go	"startup" -> "Startup"	clients/claude-code/lastturn_test.go clients/claude-code/precompact_test.go clients/claude-code/reground_test.go clients/claude-code/regroundwake_test.go
+clients/claude-code/doctor.go	"hooks/" -> "Hooks/"	clients/claude-code/hookchannel_test.go clients/claude-code/plugin_test.go
+internal/repohygiene/readrule.go	"README.md" -> "rEADME.md"	internal/repohygiene/docpointer_test.go internal/repohygiene/humansignoff_test.go internal/repohygiene/hygiene_test.go internal/repohygiene/readrule_spec_test.go
+internal/palace/entity.go	"anything" -> "Anything"	internal/palace/evalstats_test.go internal/palace/rank_test.go internal/palace/widening_test.go
+internal/palace/kg.go	"p" -> "P"	internal/palace/orphanpaths_test.go internal/palace/service_test.go
+internal/palace/palace.go	"t" -> "T"	internal/palace/anchors_test.go internal/palace/chunk_test.go internal/palace/entitynamespace_test.go internal/palace/searchidshape_test.go internal/palace/validity_test.go
+clients/claude-code/installer.go	"agentsmemory-verify-hook.sh" -> "Agentsmemory-verify-hook.sh"	clients/claude-code/doctor_test.go clients/claude-code/hooks_test.go
+clients/claude-code/agentkit.go	"CLAUDE.md" -> "cLAUDE.md"	clients/claude-code/doctor_driftuniverse_test.go clients/claude-code/installer_test.go clients/claude-code/memory_test.go
+clients/claude-code/sandbox.go	"HOME" -> "hOME"	clients/claude-code/doctorpeer_test.go clients/claude-code/sharedauth_test.go clients/claude-code/updateskill_test.go
+internal/palace/graphquery.go	"llm_init" -> "Llm_init"	internal/palace/currentonly_test.go internal/palace/roomname_test.go
+internal/web/skills.go	"teamID" -> "TeamID"	internal/web/handlerauthz_test.go internal/web/wingimport_authz_test.go
+internal/palace/trace.go	"am.rerank_timeout_ms" -> "Am.rerank_timeout_ms"	internal/palace/rerankbudget_test.go internal/palace/scopedrops_test.go
+cmd/server/listen.go	"tcp" -> "Tcp"	cmd/server/signalshutdown_test.go cmd/server/telemetryflush_test.go
+internal/billing/reconcile.go	"PAID" -> "pAID"	internal/billing/reconcile_idempotence_test.go internal/billing/reconcile_test.go
+internal/longmemeval/writepolicy.go	"one-fact" -> "One-fact"	internal/longmemeval/grid_test.go internal/longmemeval/writepolicy_test.go
+clients/claude-code/installer.go	"agentsmemory-touched-hook.sh" -> "Agentsmemory-touched-hook.sh"	clients/claude-code/anchorcue_test.go clients/claude-code/eventmap_test.go
+clients/claude-code/main.go	"http://localhost:8080/mcp" -> "Http://localhost:8080/mcp"	clients/claude-code/desktopbridge_download_test.go clients/claude-code/installer_test.go clients/claude-code/loopback_test.go clients/claude-code/repointescaped_test.go clients/claude-code/serverbin_test.go clients/claude-code/settings_test.go
+internal/palace/service.go	"semantic" -> "Semantic"	internal/palace/evidence_test.go internal/palace/rankingprofile_test.go
+clients/claude-code/installer.go	"agentsmemory-precompact-hook.sh" -> "Agentsmemory-precompact-hook.sh"	clients/claude-code/doctorwiring_test.go clients/claude-code/precompact_test.go clients/claude-code/reground_test.go clients/claude-code/regroundwake_test.go
+internal/palace/kg.go	"qualifies" -> "Qualifies"	internal/palace/recallanswers_spec_test.go internal/palace/wingroot_test.go
+internal/mcpserver/drawers.go	"snippet" -> "Snippet"	internal/mcpserver/drawers_test.go internal/mcpserver/supersede_test.go
+clients/claude-code/installer.go	"bash " -> "Bash "	clients/claude-code/installer_test.go clients/claude-code/settings_test.go
+internal/palace/entity.go	"before" -> "Before"	internal/palace/contentkey_test.go internal/palace/refile_test.go
+internal/palace/entity.go	"unrelated" -> "Unrelated"	internal/palace/eval_test.go internal/palace/gatedarm_test.go
+clients/claude-code/doctor.go	"DISCARDED" -> "dISCARDED"	clients/claude-code/doctor_test.go clients/claude-code/hookchannelknown_test.go
+clients/claude-code/doctor.go	"DUPLICATED" -> "dUPLICATED"	clients/claude-code/doctordupe_test.go clients/claude-code/plugin_test.go
+internal/contractaxis/mutation.go	"compile" -> "Compile"	internal/contractaxis/axis_test.go internal/contractaxis/mutation_guard_test.go
+internal/mcpserver/admin.go	"memories_filed_away" -> "Memories_filed_away"	internal/mcpserver/admin_test.go internal/mcpserver/title_test.go
+clients/claude-code/agentkit.go	"commands" -> "Commands"	clients/claude-code/installer_test.go clients/claude-code/plugin_test.go clients/claude-code/regroundwake_test.go clients/claude-code/updateskill_test.go
+clients/claude-code/installer.go	"agentsmemory-task-recall-hook.sh" -> "Agentsmemory-task-recall-hook.sh"	clients/claude-code/anchorcue_test.go clients/claude-code/hookwing_test.go clients/claude-code/recallscope_test.go clients/claude-code/tokennotice_test.go
+internal/palace/entity.go	"after" -> "After"	internal/palace/contentkey_test.go internal/palace/refile_test.go
+internal/palace/entity.go	"s" -> "S"	internal/palace/admin_test.go internal/palace/contentkey_test.go internal/palace/import_test.go internal/palace/mine_test.go internal/palace/orphanpaths_test.go internal/palace/writepath_test.go
+clients/claude-code/agentkit.go	"darwin" -> "Darwin"	clients/claude-code/anchormatcher_test.go clients/claude-code/doctor_spawn_test.go clients/claude-code/doctorretired_test.go clients/claude-code/kitconfigdir_test.go clients/claude-code/serverbinname_gate_test.go clients/claude-code/sessionendplatform_test.go clients/claude-code/update_test.go
+internal/contractaxis/mutation.go	"assertion" -> "Assertion"	internal/contractaxis/axis_test.go internal/contractaxis/mutation_guard_test.go
+clients/claude-code/installer.go	"agentsmemory-recall-hook.sh" -> "Agentsmemory-recall-hook.sh"	clients/claude-code/doctor_server_test.go clients/claude-code/doctor_spawn_test.go clients/claude-code/doctor_test.go clients/claude-code/doctordupe_test.go clients/claude-code/doctorpeer_test.go clients/claude-code/doctorwiring_test.go clients/claude-code/eventmap_test.go clients/claude-code/hookwing_test.go clients/claude-code/lastturn_test.go clients/claude-code/plugin_test.go clients/claude-code/precompact_test.go clients/claude-code/recallscope_test.go clients/claude-code/reground_test.go clients/claude-code/regroundwake_test.go clients/claude-code/tokennotice_test.go
+internal/mcptest/harness.go	"am_skillset" -> "Am_skillset"	internal/mcptest/registry_test.go internal/mcptest/scoping_audit_test.go
+clients/claude-code/doctor.go	"FAILED" -> "fAILED"	clients/claude-code/doctor_test.go clients/claude-code/mineclaude_test.go
+internal/billing/opencollective.go	"tags" -> "Tags"	internal/billing/e2e_opencollective_test.go internal/billing/opencollective_test.go
+clients/claude-code/installer.go	"bootstrap.md" -> "Bootstrap.md"	clients/claude-code/assets_test.go clients/claude-code/lastturn_test.go clients/claude-code/regroundwake_test.go
+clients/claude-code/sandbox.go	"gemini" -> "Gemini"	clients/claude-code/installer_test.go clients/claude-code/sandbox_test.go
+clients/claude-code/agentkit.go	"config.toml" -> "Config.toml"	clients/claude-code/copy_test.go clients/claude-code/doctor_driftuniverse_test.go clients/claude-code/installer_test.go clients/claude-code/settings_test.go
+internal/mcpserver/kg.go	"kg_query" -> "Kg_query"	internal/mcpserver/kgquery_test.go internal/mcpserver/kgtemporallag_test.go internal/mcpserver/recallanswers_reach_test.go
+clients/claude-code/agentkit.go	"models-store.json" -> "Models-store.json"	clients/claude-code/copy_test.go clients/claude-code/sharedauth_test.go
+internal/palace/entity.go	"kept" -> "Kept"	internal/palace/entity_test.go internal/palace/scopedrops_test.go
+clients/claude-code/doctor.go	"CLAUDE_PROJECT_DIR=" -> "cLAUDE_PROJECT_DIR="	clients/claude-code/hooks_test.go clients/claude-code/hookwing_test.go clients/claude-code/lastturn_test.go clients/claude-code/precompact_test.go clients/claude-code/recall_mergesubjects_test.go clients/claude-code/recall_test.go clients/claude-code/recallscope_test.go
+clients/claude-code/agentkit.go	"mcp.json" -> "Mcp.json"	clients/claude-code/doctor_driftuniverse_test.go clients/claude-code/installer_test.go clients/claude-code/settings_test.go
+internal/billing/reconcile.go	"ACTIVE" -> "aCTIVE"	internal/billing/e2e_opencollective_test.go internal/billing/ocorders_test.go internal/billing/reconcile_idempotence_test.go internal/billing/reconcile_test.go

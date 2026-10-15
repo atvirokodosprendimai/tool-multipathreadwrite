@@ -1,0 +1,31 @@
+{
+  "id": "am-coupled-skills-teamid",
+  "shape": "check-coupled",
+  "repo": "agentsmemory",
+  "commit": "d038def25a7fadd2586674b954ea07896a330b4a",
+  "instruction": "In internal/web/skills.go, change the string \"teamID\" to \"TeamID\", and keep the tests passing.",
+  "test_package": "internal/web",
+  "asserting_tests": [
+    "TestAddMemberRefusesANonAdmin",
+    "TestEveryWorkspaceRouteRefusesANonMember",
+    "TestManageSubscriptionRefusesANonAdmin",
+    "TestRemoveMemberRefusesANonAdmin",
+    "TestSetMemberRoleRefusesANonAdmin",
+    "TestSkillBodyRefusesAReadOnlyMember",
+    "TestSkillWriteRefusesAReadOnlyMember",
+    "TestUpgradeRefusesANonAdmin",
+    "TestWingImportRefusesAReadOnlyMember"
+  ],
+  "require": [
+    {
+      "file": "internal/web/skills.go",
+      "match": "\"TeamID\""
+    }
+  ],
+  "forbid": [
+    {
+      "file": "internal/web/skills.go",
+      "match": "\"teamID\""
+    }
+  ]
+}
