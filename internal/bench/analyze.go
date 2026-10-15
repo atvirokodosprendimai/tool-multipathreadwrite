@@ -57,6 +57,33 @@ const (
 // superseded names the tasks superseded since a stage ran: a group that ran
 // one gets a descriptive row without them (ADR-159 Decision 2).
 func Analyze(rs []Receipt, superseded ...string) ([]Result, error) {
+	return AnalyzeSubsets(rs, superseded, nil)
+}
+
+// Subset is a registered set of a slice's tasks that gets a descriptive row of
+// its own, such as ADR-160's instances whose problem statement names none of
+// the patched files.
+type Subset struct {
+	Label string
+	Tasks []string
+}
+
+// OnlyUnnamedFiles labels ADR-160 Decision 5's subset row.
+const OnlyUnnamedFiles = "only the instances whose problem statement names no patched file; descriptive, not the verdict"
+
+// stage4Categories are ADR-160's categories, the control included: a group
+// holding either of the first two gets one descriptive row per category it
+// holds (ADR-160 Decision 5). The earlier stages' groups, which hold neither,
+// get none, so their published rows do not change.
+var stage4Categories = []string{ShapeWideRename, ShapeCheckCoupled, ShapeSingleLine}
+
+func onlyCategory(shape string) string {
+	return "only the " + shape + " tasks; descriptive, not the verdict"
+}
+
+// AnalyzeSubsets is Analyze with the registered subsets of a slice: a group
+// holding some of a subset's tasks gets a descriptive row over them.
+func AnalyzeSubsets(rs []Receipt, superseded []string, subsets []Subset) ([]Result, error) {
 	type key struct{ stage, model, source string }
 	groups := map[key][]Receipt{}
 	for _, r := range rs {
@@ -123,6 +150,42 @@ func Analyze(rs []Receipt, superseded ...string) ([]Result, error) {
 				return nil, err
 			}
 			d.Descriptive = withoutSupersededSince
+			out = append(out, d)
+		}
+		// ADR-160's rows: one per category in a group that holds its
+		// categories, and one per registered subset the group holds.
+		byShape := map[string][]Receipt{}
+		for _, r := range g {
+			byShape[r.Shape] = append(byShape[r.Shape], r)
+		}
+		if len(byShape[ShapeWideRename])+len(byShape[ShapeCheckCoupled]) > 0 {
+			for _, shape := range stage4Categories {
+				if len(byShape[shape]) == 0 {
+					continue
+				}
+				d, err := judge(k.stage, k.model, k.source, byShape[shape])
+				if err != nil {
+					return nil, err
+				}
+				d.Descriptive = onlyCategory(shape)
+				out = append(out, d)
+			}
+		}
+		for _, s := range subsets {
+			var in []Receipt
+			for _, r := range g {
+				if slices.Contains(s.Tasks, r.Task) {
+					in = append(in, r)
+				}
+			}
+			if len(in) == 0 {
+				continue
+			}
+			d, err := judge(k.stage, k.model, k.source, in)
+			if err != nil {
+				return nil, err
+			}
+			d.Descriptive = s.Label
 			out = append(out, d)
 		}
 	}
