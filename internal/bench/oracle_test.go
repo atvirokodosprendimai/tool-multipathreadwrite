@@ -536,7 +536,8 @@ func TestEveryVariedMultiSiteTaskHasARepeatedAnchorAcrossTwoFiles(t *testing.T) 
 // review of #417). A reranker timeout moved out of its healthcheck is valid
 // to the structure check and must fail; a quoted duration means the same and
 // must pass; a 3.13 line inserted above the 3.12 it was to replace leaves
-// 3.12 in force and must fail.
+// 3.12 in force and must fail; and a 3.13 is bare or quoted on both sides,
+// never on one (the re-review).
 func TestTheVariedOraclesGradeWhatTheReviewOf417Found(t *testing.T) {
 	needGit(t)
 	tasks, err := LoadTasks(tasksDir(t))
@@ -554,6 +555,8 @@ func TestTheVariedOraclesGradeWhatTheReviewOf417Found(t *testing.T) {
 		{"the reranker timeout indented out of its healthcheck", "am-vms-compose-health", "docker-compose.full.yml", "\n      timeout: 10s\n", "\n    timeout: 10s\n", false},
 		{"the reranker timeout quoted", "am-vms-compose-health", "docker-compose.full.yml", "\n      timeout: 10s\n", "\n      timeout: \"10s\"\n", true},
 		{"3.13 inserted above the 3.12 it replaces", "qh-vms-python-313", ".github/workflows/selftest.yml", "          python-version: '3.13'\n", "          python-version: '3.13'\n          python-version: '3.12'\n", false},
+		{"3.13 with a closing quote and no opening one", "qh-vms-python-313", ".github/workflows/selftest.yml", "          python-version: '3.13'\n", "          python-version: 3.13'\n", false},
+		{"3.13 bare", "qh-vms-python-313", ".github/workflows/selftest.yml", "          python-version: '3.13'\n", "          python-version: 3.13\n", true},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			task, ok := byID[c.task]

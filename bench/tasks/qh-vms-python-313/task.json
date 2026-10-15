@@ -6,10 +6,10 @@
   "check_red_at_base": "quality-harness's declared check (bash scripts/selftest.sh) fails at this commit in the tree bench builds (measured 2026-10-14): lifecycle.test.mjs 'reported: a scratch corpus does not pull the record gates' fails even in a full-history clone, and two orphan-sweep.test.mjs cases that read git history fail in the single-commit tree",
   "instruction": "CI moves to Python 3.13 on Linux and macOS; the Windows job stays on Python 3.12 for now. In .github/workflows/selftest.yml, the selftest, coverage and mutations jobs set up python-version '3.13'; the windows job keeps '3.12'. Then update the two documents that state the CI version. In README.md, the Requirements line about Python becomes exactly: - Python 3.9 or newer; CI tests 3.13, and 3.12 on Windows. In docs/INSTALL.md, in the Python row of the table, the last cell (What is actually tested) becomes exactly: **3.13** on Linux and macOS, **3.12** on Windows — the only versions CI runs. Change nothing else.",
   "require": [
-    {"file": ".github/workflows/selftest.yml", "match": "(?m)^  selftest:\\n(?:(?:    .*)?\\n)*?          python-version: ['\"]?3\\.13['\"]?$"},
-    {"file": ".github/workflows/selftest.yml", "match": "(?m)^  coverage:\\n(?:(?:    .*)?\\n)*?          python-version: ['\"]?3\\.13['\"]?$"},
+    {"file": ".github/workflows/selftest.yml", "match": "(?m)^  selftest:\\n(?:(?:    .*)?\\n)*?          python-version: (?:3\\.13|'3\\.13'|\"3\\.13\")$"},
+    {"file": ".github/workflows/selftest.yml", "match": "(?m)^  coverage:\\n(?:(?:    .*)?\\n)*?          python-version: (?:3\\.13|'3\\.13'|\"3\\.13\")$"},
     {"file": ".github/workflows/selftest.yml", "match": "(?m)^  windows:\\n(?:(?:    .*)?\\n)*?          python-version: '3\\.12'$"},
-    {"file": ".github/workflows/selftest.yml", "match": "(?m)^  mutations:\\n(?:(?:    .*)?\\n)*?          python-version: ['\"]?3\\.13['\"]?$"},
+    {"file": ".github/workflows/selftest.yml", "match": "(?m)^  mutations:\\n(?:(?:    .*)?\\n)*?          python-version: (?:3\\.13|'3\\.13'|\"3\\.13\")$"},
     {"file": "README.md", "match": "(?m)^- Python 3\\.9 or newer; CI tests 3\\.13, and 3\\.12 on Windows\\.$"},
     {"file": "docs/INSTALL.md", "match": "(?m)^\\| Python \\| 3\\.9 or newer, by syntax: .* \\| \\*\\*3\\.13\\*\\* on Linux and macOS, \\*\\*3\\.12\\*\\* on Windows — the only versions CI runs\\. \\|$"}
   ],
