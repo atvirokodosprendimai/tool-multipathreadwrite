@@ -64,6 +64,26 @@ After T3's pilot the category is graded by its tests (Zy, "Grade by the tests"):
 `forbid` on the source file. Both match the file's code with its comments blanked, so the comments in `doctor.go` and
 `querypolicy.go` that quote the old value do not count, and a comment quoting the new one is not the change.
 
+### The raised floor (Decision 2, after pilot round 2)
+
+The first pilot's check-coupled calibration (3 of 8) measured `exact`'s strictness, not difficulty, and was set aside
+when the category came to be graded by its tests. Under that grading A solved 8 of 8 in round 2
+(`docs/bench/stage-4-pilot/calibration-2/`), so the floor was raised once, as registered, to a literal two or more test
+files hold, and the sample redrawn by the same code:
+
+```
+bench mine --kind check-coupled --repo ~/Downloads/agentsmemory-main --commit d038def25a7fadd2586674b954ea07896a330b4a \
+  --min-test-files 2
+```
+
+54 candidates, [mine-check-coupled-2.txt](mine-check-coupled-2.txt), in the same registered order, gated as before
+([gate-check-coupled-2.txt](gate-check-coupled-2.txt), at load 4 to 14): of the first 36, 12 hold; `MONTHLY` in
+`reconcile.go` is passed over because the pilots ran it as calibration. The first eight that hold are the sample
+(`active` and `STALE` drawn again); the next four (`bash `, `DISCARDED`, `DUPLICATED`, `commands`) are calibration-3's.
+Each task's asserting tests were measured at the pinned commit with only its source literal changed, and none came out
+empty, which also confirms each gate verdict that a test fails then. The earlier draws, none run in a counted stage,
+were removed from `bench/tasks`.
+
 ## `swe-multi-hunk`
 
 ```

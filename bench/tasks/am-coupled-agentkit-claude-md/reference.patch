@@ -1,0 +1,88 @@
+diff --git a/clients/claude-code/agentkit.go b/clients/claude-code/agentkit.go
+index a9260e8..307ab1c 100644
+--- a/clients/claude-code/agentkit.go
++++ b/clients/claude-code/agentkit.go
+@@ -110,7 +110,7 @@ var claudeKit = agentKit{
+ 	configEnv:      "CLAUDE_CONFIG_DIR",
+ 	globalDir:      ".claude",
+ 	commandsDir:    "commands",
+-	memoryFile:     "CLAUDE.md",
++	memoryFile:     "cLAUDE.md",
+ 	hooksFile:      "settings.json",
+ 	agentsDir:      "agents",
+ 	agentAssetExt:  ".md",
+diff --git a/clients/claude-code/doctor_driftuniverse_test.go b/clients/claude-code/doctor_driftuniverse_test.go
+index 1e3c28a..ce56cb8 100644
+--- a/clients/claude-code/doctor_driftuniverse_test.go
++++ b/clients/claude-code/doctor_driftuniverse_test.go
+@@ -186,7 +186,7 @@ var driftGatedKits = []agentKit{claudeKit, codexKit, piKit, cursorKit}
+ // asset before writing; GENERATED with no asset behind it at all.
+ var notVerbatimOnInstall = map[string]map[string]string{
+ 	agentClaude: {
+-		"CLAUDE.md":     "MERGED: registerMemoryBootstrap merges a managed block into a user-owned memory file, preserving whatever else the operator wrote",
++		"cLAUDE.md":     "MERGED: registerMemoryBootstrap merges a managed block into a user-owned memory file, preserving whatever else the operator wrote",
+ 		"settings.json": "MERGED: hook registrations are merged into the agent's own settings, which the operator also edits",
+ 		filepath.Join("agents", "agentsmemory-researcher.md"): "TRANSFORMED: writeAgentDefinitions substitutes mcpURLPlaceholder with this install's endpoint, so a healthy install never matches the embed",
+ 	},
+diff --git a/clients/claude-code/installer_test.go b/clients/claude-code/installer_test.go
+index e977a3d..8c2223e 100644
+--- a/clients/claude-code/installer_test.go
++++ b/clients/claude-code/installer_test.go
+@@ -283,7 +283,7 @@ func TestInstallWritesMemoryBootstrap(t *testing.T) {
+ 	if _, err := os.Stat(filepath.Join(dir, bootstrapFile)); err != nil {
+ 		t.Errorf("expected %s written: %v", bootstrapFile, err)
+ 	}
+-	claudeMd, err := os.ReadFile(filepath.Join(dir, "CLAUDE.md"))
++	claudeMd, err := os.ReadFile(filepath.Join(dir, "cLAUDE.md"))
+ 	if err != nil {
+ 		t.Fatalf("read CLAUDE.md: %v", err)
+ 	}
+diff --git a/clients/claude-code/memory_test.go b/clients/claude-code/memory_test.go
+index 7dc506b..b9439ca 100644
+--- a/clients/claude-code/memory_test.go
++++ b/clients/claude-code/memory_test.go
+@@ -12,7 +12,7 @@ const testImport = "@agentsmemory-bootstrap.md"
+ // TestEnsureMemoryImportFreshFile: a fresh install has no CLAUDE.md; the merge must
+ // create it containing exactly the managed block.
+ func TestEnsureMemoryImportFreshFile(t *testing.T) {
+-	path := filepath.Join(t.TempDir(), "CLAUDE.md")
++	path := filepath.Join(t.TempDir(), "cLAUDE.md")
+ 
+ 	changed, err := ensureManagedBlock(path, testImport)
+ 	if err != nil {
+@@ -32,7 +32,7 @@ func TestEnsureMemoryImportFreshFile(t *testing.T) {
+ // TestEnsureMemoryImportIdempotent: re-running the installer must not duplicate the
+ // block and must report no change.
+ func TestEnsureMemoryImportIdempotent(t *testing.T) {
+-	path := filepath.Join(t.TempDir(), "CLAUDE.md")
++	path := filepath.Join(t.TempDir(), "cLAUDE.md")
+ 
+ 	if _, err := ensureManagedBlock(path, testImport); err != nil {
+ 		t.Fatalf("first ensureMemoryImport: %v", err)
+@@ -54,7 +54,7 @@ func TestEnsureMemoryImportIdempotent(t *testing.T) {
+ // timestamped backup of the original bytes is written.
+ func TestEnsureMemoryImportPreservesExisting(t *testing.T) {
+ 	dir := t.TempDir()
+-	path := filepath.Join(dir, "CLAUDE.md")
++	path := filepath.Join(dir, "cLAUDE.md")
+ 	original := "# My rules\n\n- Always write tests.\n"
+ 	if err := os.WriteFile(path, []byte(original), 0o644); err != nil {
+ 		t.Fatal(err)
+@@ -90,7 +90,7 @@ func TestEnsureMemoryImportPreservesExisting(t *testing.T) {
+ // carries a different import line (e.g. a renamed asset), the merge replaces just
+ // that block and leaves the user's surrounding content untouched.
+ func TestEnsureMemoryImportReplacesStaleBlock(t *testing.T) {
+-	path := filepath.Join(t.TempDir(), "CLAUDE.md")
++	path := filepath.Join(t.TempDir(), "cLAUDE.md")
+ 	stale := "# top\n\n" + memBeginMarker + "\n@old-bootstrap.md\n" + memEndMarker + "\n\n# bottom\n"
+ 	if err := os.WriteFile(path, []byte(stale), 0o644); err != nil {
+ 		t.Fatal(err)
+@@ -123,7 +123,7 @@ func TestEnsureMemoryImportReplacesStaleBlock(t *testing.T) {
+ // (only one marker) must fail loudly and be left byte-for-byte untouched, never
+ // half-rewritten — the same stance ensureHook takes on malformed JSON.
+ func TestEnsureMemoryImportUnbalancedRefuses(t *testing.T) {
+-	path := filepath.Join(t.TempDir(), "CLAUDE.md")
++	path := filepath.Join(t.TempDir(), "cLAUDE.md")
+ 	broken := "# rules\n\n" + memBeginMarker + "\n@agentsmemory-bootstrap.md\n(no end marker)\n"
+ 	if err := os.WriteFile(path, []byte(broken), 0o644); err != nil {
+ 		t.Fatal(err)

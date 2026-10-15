@@ -1,24 +1,25 @@
 {
-  "id": "am-coupled-doctor-no-comparison",
+  "id": "am-coupled-doctor-discarded",
   "shape": "check-coupled",
   "repo": "agentsmemory",
   "commit": "d038def25a7fadd2586674b954ea07896a330b4a",
-  "instruction": "In clients/claude-code/doctor.go, change the string \"no-comparison\" to \"No-comparison\", and keep the tests passing.",
+  "instruction": "In clients/claude-code/doctor.go, change the string \"DISCARDED\" to \"dISCARDED\", and keep the tests passing.",
   "test_package": "clients/claude-code",
   "asserting_tests": [
-    "TestABridgeBehindItsServerIsReported",
+    "TestDoctorReportsAHookNoEventCanReach",
+    "TestDoctorSaysUnknownRatherThanDiscarded",
     "TestEveryRegisteredPluginHookIsExecutable"
   ],
   "require": [
     {
       "file": "clients/claude-code/doctor.go",
-      "match": "\"No\\-comparison\""
+      "match": "\"dISCARDED\""
     }
   ],
   "forbid": [
     {
       "file": "clients/claude-code/doctor.go",
-      "match": "\"no\\-comparison\""
+      "match": "\"DISCARDED\""
     }
   ]
 }

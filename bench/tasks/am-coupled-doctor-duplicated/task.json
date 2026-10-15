@@ -1,0 +1,25 @@
+{
+  "id": "am-coupled-doctor-duplicated",
+  "shape": "check-coupled",
+  "repo": "agentsmemory",
+  "commit": "d038def25a7fadd2586674b954ea07896a330b4a",
+  "instruction": "In clients/claude-code/doctor.go, change the string \"DUPLICATED\" to \"dUPLICATED\", and keep the tests passing.",
+  "test_package": "clients/claude-code",
+  "asserting_tests": [
+    "TestTheSurvivorWarningPrintsExactlyWhenAnEntryIsUnreproducible",
+    "TestEveryRegisteredPluginHookIsExecutable",
+    "TestDoctorPrintsTheDuplicatedVerdict"
+  ],
+  "require": [
+    {
+      "file": "clients/claude-code/doctor.go",
+      "match": "\"dUPLICATED\""
+    }
+  ],
+  "forbid": [
+    {
+      "file": "clients/claude-code/doctor.go",
+      "match": "\"DUPLICATED\""
+    }
+  ]
+}

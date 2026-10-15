@@ -1,0 +1,39 @@
+diff --git a/internal/web/handlerauthz_test.go b/internal/web/handlerauthz_test.go
+index 41d1991..9929b4e 100644
+--- a/internal/web/handlerauthz_test.go
++++ b/internal/web/handlerauthz_test.go
+@@ -43,7 +43,7 @@ func seedMember(t *testing.T, gdb *gorm.DB, teamID, email string, role tenant.Ro
+ func asRole(teamID, userID, path string, params ...string) *http.Request {
+ 	req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(""))
+ 	rctx := chi.NewRouteContext()
+-	rctx.URLParams.Add("teamID", teamID)
++	rctx.URLParams.Add("TeamID", teamID)
+ 	for i := 0; i+1 < len(params); i += 2 {
+ 		rctx.URLParams.Add(params[i], params[i+1])
+ 	}
+diff --git a/internal/web/skills.go b/internal/web/skills.go
+index 299b50f..8d4bc02 100644
+--- a/internal/web/skills.go
++++ b/internal/web/skills.go
+@@ -63,7 +63,7 @@ const maxSkillRequestBytes int64 = 8 << 20
+ // the same way.
+ func (s *Server) membership(w http.ResponseWriter, r *http.Request) (tenant.User, string, tenant.Role, bool) {
+ 	u, _ := userFrom(r.Context())
+-	teamID := chi.URLParam(r, "teamID")
++	teamID := chi.URLParam(r, "TeamID")
+ 	role, err := s.tenants.MembershipRole(r.Context(), u.ID, teamID)
+ 	if errors.Is(err, tenant.ErrNotMember) {
+ 		http.NotFound(w, r)
+diff --git a/internal/web/wingimport_authz_test.go b/internal/web/wingimport_authz_test.go
+index a34c25b..437bef3 100644
+--- a/internal/web/wingimport_authz_test.go
++++ b/internal/web/wingimport_authz_test.go
+@@ -90,7 +90,7 @@ func TestWingImportRefusesAReadOnlyMember(t *testing.T) {
+ 
+ 	req := httptest.NewRequest(http.MethodPost, "/app/teams/"+teamID+"/wings/import", strings.NewReader(""))
+ 	rctx := chi.NewRouteContext()
+-	rctx.URLParams.Add("teamID", teamID)
++	rctx.URLParams.Add("TeamID", teamID)
+ 	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, rctx)
+ 	req = req.WithContext(context.WithValue(ctx, userCtxKey, tenant.User{ID: userID, Email: "member@example.test"}))
+ 

@@ -1,0 +1,24 @@
+{
+  "id": "am-coupled-trace-am-rerank-timeout",
+  "shape": "check-coupled",
+  "repo": "agentsmemory",
+  "commit": "d038def25a7fadd2586674b954ea07896a330b4a",
+  "instruction": "In internal/palace/trace.go, change the string \"am.rerank_timeout_ms\" to \"Am.rerank_timeout_ms\", and keep the tests passing.",
+  "test_package": "internal/palace",
+  "asserting_tests": [
+    "TestTheBudgetInForceIsOnTheSearchSpan",
+    "TestKnobsThatDecideThePageAreAllOnTheParentSpan"
+  ],
+  "require": [
+    {
+      "file": "internal/palace/trace.go",
+      "match": "\"Am\\.rerank_timeout_ms\""
+    }
+  ],
+  "forbid": [
+    {
+      "file": "internal/palace/trace.go",
+      "match": "\"am\\.rerank_timeout_ms\""
+    }
+  ]
+}

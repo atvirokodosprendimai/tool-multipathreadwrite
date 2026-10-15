@@ -1,0 +1,82 @@
+diff --git a/internal/mcpserver/drawers.go b/internal/mcpserver/drawers.go
+index fc21e5e..ceefb74 100644
+--- a/internal/mcpserver/drawers.go
++++ b/internal/mcpserver/drawers.go
+@@ -404,7 +404,7 @@ func parseAnchorList(raw any) ([]palace.AnchorInput, bool, int, int) {
+ 			continue
+ 		}
+ 		path, _ := m["path"].(string)
+-		snippet, _ := m["snippet"].(string)
++		snippet, _ := m["Snippet"].(string)
+ 		repo, _ := m["repo"].(string)
+ 		if strings.TrimSpace(path) == "" || strings.TrimSpace(snippet) == "" {
+ 			continue
+diff --git a/internal/mcpserver/drawers_test.go b/internal/mcpserver/drawers_test.go
+index 2a4f876..408754c 100644
+--- a/internal/mcpserver/drawers_test.go
++++ b/internal/mcpserver/drawers_test.go
+@@ -29,7 +29,7 @@ func TestParseAnchorListSeparatesEmptyFromUnreadable(t *testing.T) {
+ 	// an entry wrong at all: the single anchor sent had a typo. sent is what
+ 	// separates it from [].
+ 	for name, raw := range map[string]any{
+-		"one entry, key typo":     []any{map[string]any{"paht": "a.go", "snippet": "x"}},
++		"one entry, key typo":     []any{map[string]any{"paht": "a.go", "Snippet": "x"}},
+ 		"one entry, no snippet":   []any{map[string]any{"path": "a.go"}},
+ 		"several, all unreadable": []any{map[string]any{"paht": "a.go"}, "not an object"},
+ 	} {
+@@ -46,7 +46,7 @@ func TestParseAnchorListSeparatesEmptyFromUnreadable(t *testing.T) {
+ 	}
+ 
+ 	for name, raw := range map[string]any{
+-		"object instead of a list": map[string]any{"path": "a.go", "snippet": "x"},
++		"object instead of a list": map[string]any{"path": "a.go", "Snippet": "x"},
+ 		"string instead of a list": "internal/a.go",
+ 		"nil":                      nil,
+ 		"number":                   float64(3),
+@@ -60,8 +60,8 @@ func TestParseAnchorListSeparatesEmptyFromUnreadable(t *testing.T) {
+ 	// Individual malformed ENTRIES stay tolerant: the list was readable, so the
+ 	// caller's intent is clear, and dropping one bad entry is not data loss.
+ 	mixed := []any{
+-		map[string]any{"path": "a.go", "snippet": "func A() {}"},
+-		map[string]any{"path": "", "snippet": "no path"},
++		map[string]any{"path": "a.go", "Snippet": "func A() {}"},
++		map[string]any{"path": "", "Snippet": "no path"},
+ 		"not an object",
+ 	}
+ 	got, readable, sent, _ := parseAnchorList(mixed)
+@@ -86,9 +86,9 @@ func TestParseAnchorListSeparatesEmptyFromUnreadable(t *testing.T) {
+ // into anchorReplacement, and this drives it.
+ func TestAnchorReplacementRefusesRatherThanClears(t *testing.T) {
+ 	for name, raw := range map[string]any{
+-		"an object where a list belongs": map[string]any{"path": "a.go", "snippet": "x"},
++		"an object where a list belongs": map[string]any{"path": "a.go", "Snippet": "x"},
+ 		"a string":                       "a.go:1",
+-		"one entry, key typo":            []any{map[string]any{"paht": "a.go", "snippet": "x"}},
++		"one entry, key typo":            []any{map[string]any{"paht": "a.go", "Snippet": "x"}},
+ 		"one entry, no snippet":          []any{map[string]any{"path": "a.go"}},
+ 		"several, all unreadable":        []any{map[string]any{"paht": "a.go"}, "not an object"},
+ 	} {
+@@ -106,8 +106,8 @@ func TestAnchorReplacementRefusesRatherThanClears(t *testing.T) {
+ 
+ 	// One bad row among several is not the refusal case: something survived.
+ 	mixed := []any{
+-		map[string]any{"path": "a.go", "snippet": "func A() {}"},
+-		map[string]any{"path": "", "snippet": "no path"},
++		map[string]any{"path": "a.go", "Snippet": "func A() {}"},
++		map[string]any{"path": "", "Snippet": "no path"},
+ 	}
+ 	if anchors, _, refusal := anchorReplacement(mixed); refusal != "" || len(anchors) != 1 {
+ 		t.Errorf("a list with one good row must succeed and drop the bad one: refusal=%q len=%d",
+diff --git a/internal/mcpserver/supersede_test.go b/internal/mcpserver/supersede_test.go
+index b53f6bf..de6b7f5 100644
+--- a/internal/mcpserver/supersede_test.go
++++ b/internal/mcpserver/supersede_test.go
+@@ -64,7 +64,7 @@ func TestUpdateAppliesAnchorsToTheCorrectingRecord(t *testing.T) {
+ 	// parameter silently stops doing the only thing it was written for.
+ 	res := h.JSON(t, h.MustCall(t, "am_update_drawer", map[string]any{
+ 		"id": id, "content": "explains the parser, corrected", "reason": "named the wrong function",
+-		"code_anchors": []any{map[string]any{"path": "internal/p.go", "snippet": "func Parse() {}"}},
++		"code_anchors": []any{map[string]any{"path": "internal/p.go", "Snippet": "func Parse() {}"}},
+ 	}))
+ 	newID := res["drawer"].(map[string]any)["id"].(string)
+ 

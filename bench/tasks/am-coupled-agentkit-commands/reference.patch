@@ -1,0 +1,74 @@
+diff --git a/clients/claude-code/agentkit.go b/clients/claude-code/agentkit.go
+index a9260e8..a3814f9 100644
+--- a/clients/claude-code/agentkit.go
++++ b/clients/claude-code/agentkit.go
+@@ -109,7 +109,7 @@ var claudeKit = agentKit{
+ 	bin:            "claude",
+ 	configEnv:      "CLAUDE_CONFIG_DIR",
+ 	globalDir:      ".claude",
+-	commandsDir:    "commands",
++	commandsDir:    "Commands",
+ 	memoryFile:     "CLAUDE.md",
+ 	hooksFile:      "settings.json",
+ 	agentsDir:      "agents",
+diff --git a/clients/claude-code/installer_test.go b/clients/claude-code/installer_test.go
+index e977a3d..18572e8 100644
+--- a/clients/claude-code/installer_test.go
++++ b/clients/claude-code/installer_test.go
+@@ -569,7 +569,7 @@ func TestInstallCodexCore(t *testing.T) {
+ 			t.Errorf("expected %s written: %v", rel, err)
+ 		}
+ 	}
+-	if _, err := os.Stat(filepath.Join(dir, "commands")); err == nil {
++	if _, err := os.Stat(filepath.Join(dir, "Commands")); err == nil {
+ 		t.Error("codex install wrote a commands/ dir; codex reads prompts/")
+ 	}
+ 
+diff --git a/clients/claude-code/plugin_test.go b/clients/claude-code/plugin_test.go
+index 55cf695..8aef7bd 100644
+--- a/clients/claude-code/plugin_test.go
++++ b/clients/claude-code/plugin_test.go
+@@ -580,7 +580,7 @@ func TestDoctorPrintsTheDuplicatedVerdict(t *testing.T) {
+ // paths ship the same directory, the one that enumerates rather than allowlists is
+ // the one that ships the surprise.
+ func TestThePluginShipsNoStrayCommand(t *testing.T) {
+-	entries, err := os.ReadDir("commands")
++	entries, err := os.ReadDir("Commands")
+ 	if err != nil {
+ 		t.Fatal(err)
+ 	}
+diff --git a/clients/claude-code/regroundwake_test.go b/clients/claude-code/regroundwake_test.go
+index cd5ec5a..2845eb2 100644
+--- a/clients/claude-code/regroundwake_test.go
++++ b/clients/claude-code/regroundwake_test.go
+@@ -67,7 +67,7 @@ func TestACompactionWakesTheSessionThroughTheMonitor(t *testing.T) {
+ 				t.Fatal(err)
+ 			}
+ 
+-			doc, err := os.ReadFile(filepath.Join("commands", "am.md"))
++			doc, err := os.ReadFile(filepath.Join("Commands", "am.md"))
+ 			if err != nil {
+ 				t.Fatal(err)
+ 			}
+diff --git a/clients/claude-code/updateskill_test.go b/clients/claude-code/updateskill_test.go
+index 27d52e6..ad9d742 100644
+--- a/clients/claude-code/updateskill_test.go
++++ b/clients/claude-code/updateskill_test.go
+@@ -235,7 +235,7 @@ func TestUpdateSkillResolvesSandbox(t *testing.T) {
+ 		skillUpdate{sandbox: "aks", ref: "v9.9.9"}); err != nil {
+ 		t.Fatalf("updateSkills --sandbox: %v", err)
+ 	}
+-	if got := read(t, filepath.Join(box, "commands", "am.md")); got != "# new am.md\n" {
++	if got := read(t, filepath.Join(box, "Commands", "am.md")); got != "# new am.md\n" {
+ 		t.Errorf("sandbox command = %q, want the fetched copy", got)
+ 	}
+ 	if got := read(t, filepath.Join(box, bootstrapFile)); got != "# new protocol\n" {
+@@ -344,7 +344,7 @@ func TestInstalledPath(t *testing.T) {
+ 		asset string
+ 		want  string
+ 	}{
+-		{claudeKit, "commands/am.md", filepath.Join("/cfg", "commands", "am.md")},
++		{claudeKit, "commands/am.md", filepath.Join("/cfg", "Commands", "am.md")},
+ 		{codexKit, "commands/am.md", filepath.Join("/cfg", "prompts", "am.md")},
+ 		{piKit, "commands/load-skill.md", filepath.Join("/cfg", "prompts", "load-skill.md")},
+ 		{claudeKit, bootstrapAsset, filepath.Join("/cfg", bootstrapFile)},
