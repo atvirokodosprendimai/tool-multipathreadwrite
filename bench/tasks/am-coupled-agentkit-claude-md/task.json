@@ -6,8 +6,7 @@
   "instruction": "In clients/claude-code/agentkit.go, change the string \"CLAUDE.md\" to \"cLAUDE.md\", and keep the tests passing.",
   "test_package": "clients/claude-code",
   "asserting_tests": [
-    "TestEveryWrittenFileIsCheckedOrJustified",
-    "TestEveryRegisteredPluginHookIsExecutable"
+    "TestEveryWrittenFileIsCheckedOrJustified"
   ],
   "require": [
     {

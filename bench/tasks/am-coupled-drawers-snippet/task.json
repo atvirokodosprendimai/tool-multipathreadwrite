@@ -6,8 +6,8 @@
   "instruction": "In internal/mcpserver/drawers.go, change the string \"snippet\" to \"Snippet\", and keep the tests passing.",
   "test_package": "internal/mcpserver",
   "asserting_tests": [
-    "TestParseAnchorListSeparatesEmptyFromUnreadable",
     "TestAnchorReplacementRefusesRatherThanClears",
+    "TestParseAnchorListSeparatesEmptyFromUnreadable",
     "TestUpdateAppliesAnchorsToTheCorrectingRecord"
   ],
   "require": [

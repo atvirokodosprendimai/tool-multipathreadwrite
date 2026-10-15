@@ -7,13 +7,13 @@
   "test_package": "internal/web",
   "asserting_tests": [
     "TestAddMemberRefusesANonAdmin",
-    "TestSetMemberRoleRefusesANonAdmin",
-    "TestRemoveMemberRefusesANonAdmin",
-    "TestSkillWriteRefusesAReadOnlyMember",
-    "TestSkillBodyRefusesAReadOnlyMember",
-    "TestUpgradeRefusesANonAdmin",
-    "TestManageSubscriptionRefusesANonAdmin",
     "TestEveryWorkspaceRouteRefusesANonMember",
+    "TestManageSubscriptionRefusesANonAdmin",
+    "TestRemoveMemberRefusesANonAdmin",
+    "TestSetMemberRoleRefusesANonAdmin",
+    "TestSkillBodyRefusesAReadOnlyMember",
+    "TestSkillWriteRefusesAReadOnlyMember",
+    "TestUpgradeRefusesANonAdmin",
     "TestWingImportRefusesAReadOnlyMember"
   ],
   "require": [

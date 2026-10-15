@@ -6,8 +6,8 @@
   "instruction": "In internal/longmemeval/writepolicy.go, change the string \"one-fact\" to \"One-fact\", and keep the tests passing.",
   "test_package": "internal/longmemeval",
   "asserting_tests": [
-    "TestRunGridHoldsTheContextBudgetAcrossCells",
-    "TestOneFactPolicyKeepsEveryAnsweringTurn"
+    "TestOneFactPolicyKeepsEveryAnsweringTurn",
+    "TestRunGridHoldsTheContextBudgetAcrossCells"
   ],
   "require": [
     {

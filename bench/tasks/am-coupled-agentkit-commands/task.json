@@ -6,7 +6,6 @@
   "instruction": "In clients/claude-code/agentkit.go, change the string \"commands\" to \"Commands\", and keep the tests passing.",
   "test_package": "clients/claude-code",
   "asserting_tests": [
-    "TestEveryRegisteredPluginHookIsExecutable",
     "TestInstalledPath"
   ],
   "require": [

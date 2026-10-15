@@ -7,8 +7,7 @@
   "test_package": "clients/claude-code",
   "asserting_tests": [
     "TestDoctorReportsAHookNoEventCanReach",
-    "TestDoctorSaysUnknownRatherThanDiscarded",
-    "TestEveryRegisteredPluginHookIsExecutable"
+    "TestDoctorSaysUnknownRatherThanDiscarded"
   ],
   "require": [
     {

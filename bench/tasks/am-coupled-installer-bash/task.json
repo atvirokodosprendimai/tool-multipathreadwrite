@@ -6,7 +6,6 @@
   "instruction": "In clients/claude-code/installer.go, change the string \"bash \" to \"Bash \", and keep the tests passing.",
   "test_package": "clients/claude-code",
   "asserting_tests": [
-    "TestEveryRegisteredPluginHookIsExecutable",
     "TestRetireLegacyCodexHookRecognizesOwnedPathWithSpaces"
   ],
   "require": [

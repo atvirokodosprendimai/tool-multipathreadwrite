@@ -80,9 +80,10 @@ bench mine --kind check-coupled --repo ~/Downloads/agentsmemory-main --commit d0
 ([gate-check-coupled-2.txt](gate-check-coupled-2.txt), at load 4 to 14): of the first 36, 12 hold; `MONTHLY` in
 `reconcile.go` is passed over because the pilots ran it as calibration. The first eight that hold are the sample
 (`active` and `STALE` drawn again); the next four (`bash `, `DISCARDED`, `DUPLICATED`, `commands`) are calibration-3's.
-Each task's asserting tests were measured at the pinned commit with only its source literal changed, and none came out
-empty, which also confirms each gate verdict that a test fails then. The earlier draws, none run in a counted stage,
-were removed from `bench/tasks`.
+Each task's asserting tests are the top-level tests of its package that pass at the pinned commit and fail with only
+its source literal changed, measured in a git work tree as bench builds one (a first measurement without one counted a
+git-index test, found by the review of #436); none came out empty, which also confirms each gate verdict that a test
+fails then. The earlier draws, none run in a counted stage, were removed from `bench/tasks`.
 
 ## `swe-multi-hunk`
 

@@ -6,8 +6,8 @@
   "instruction": "In internal/palace/trace.go, change the string \"am.rerank_timeout_ms\" to \"Am.rerank_timeout_ms\", and keep the tests passing.",
   "test_package": "internal/palace",
   "asserting_tests": [
-    "TestTheBudgetInForceIsOnTheSearchSpan",
-    "TestKnobsThatDecideThePageAreAllOnTheParentSpan"
+    "TestKnobsThatDecideThePageAreAllOnTheParentSpan",
+    "TestTheBudgetInForceIsOnTheSearchSpan"
   ],
   "require": [
     {
