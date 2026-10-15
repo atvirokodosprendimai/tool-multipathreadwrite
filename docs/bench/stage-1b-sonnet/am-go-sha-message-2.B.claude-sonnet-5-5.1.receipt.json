@@ -1,0 +1,41 @@
+{
+  "attempt": "am-go-sha-message-2.B.claude-sonnet-5-5.1",
+  "stage": "stage1b",
+  "task": "am-go-sha-message-2",
+  "shape": "large-file",
+  "source": "own",
+  "model": "claude-sonnet-5-5",
+  "config": "B",
+  "repeat": 1,
+  "order": 148,
+  "started": "2026-10-15T08:23:03Z",
+  "wall_ms": 97503,
+  "cli_version": "2.1.300 (Claude Code)",
+  "mrw_version": "v1.66.0 (05ec3f8)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 6,
+  "tool_calls": 5,
+  "total_cost_usd": 0.137153,
+  "usage": {
+    "input_tokens": 12,
+    "output_tokens": 1076,
+    "cache_read_input_tokens": 162530,
+    "cache_creation_input_tokens": 27529
+  },
+  "init_tools": [
+    "Bash",
+    "Glob"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": true
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 2,
+    "insertions": 2,
+    "deletions": 2
+  },
+  "hook_reads": 4
+}

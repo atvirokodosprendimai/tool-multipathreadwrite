@@ -1,0 +1,43 @@
+{
+  "attempt": "am-compose-healthcheck.A.claude-sonnet-5-5.2",
+  "stage": "stage1b",
+  "task": "am-compose-healthcheck",
+  "shape": "structural",
+  "source": "own",
+  "model": "claude-sonnet-5-5",
+  "config": "A",
+  "repeat": 2,
+  "order": 2,
+  "started": "2026-10-15T07:38:24Z",
+  "wall_ms": 10191,
+  "cli_version": "2.1.300 (Claude Code)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 4,
+  "tool_calls": 3,
+  "total_cost_usd": 0.1167547,
+  "usage": {
+    "input_tokens": 8,
+    "output_tokens": 754,
+    "cache_read_input_tokens": 95507,
+    "cache_creation_input_tokens": 24912
+  },
+  "init_tools": [
+    "Bash",
+    "Edit",
+    "Glob",
+    "Grep",
+    "Read",
+    "Write"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": true
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 1,
+    "insertions": 4,
+    "deletions": 0
+  }
+}

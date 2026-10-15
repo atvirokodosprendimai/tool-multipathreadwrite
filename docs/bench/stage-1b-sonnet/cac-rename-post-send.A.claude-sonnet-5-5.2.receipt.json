@@ -1,0 +1,48 @@
+{
+  "attempt": "cac-rename-post-send.A.claude-sonnet-5-5.2",
+  "stage": "stage1b",
+  "task": "cac-rename-post-send",
+  "shape": "multi-site",
+  "source": "own",
+  "model": "claude-sonnet-5-5",
+  "config": "A",
+  "repeat": 2,
+  "order": 73,
+  "started": "2026-10-15T08:03:50Z",
+  "wall_ms": 11821,
+  "cli_version": "2.1.300 (Claude Code)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 4,
+  "tool_calls": 3,
+  "total_cost_usd": 0.0227886,
+  "usage": {
+    "input_tokens": 8,
+    "output_tokens": 720,
+    "cache_read_input_tokens": 29566,
+    "cache_creation_input_tokens": 3154
+  },
+  "init_tools": [
+    "Bash",
+    "Edit",
+    "Glob",
+    "Grep",
+    "Read",
+    "Write"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": false,
+    "missing": [
+      "internal/httpapi/send_test.go: is not the reference result",
+      "internal/httpapi/send_test.go: no match for \\bsendMessage\\b",
+      "internal/httpapi/send_test.go: still matches \\bpostSend\\b"
+    ]
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 2,
+    "insertions": 3,
+    "deletions": 3
+  }
+}

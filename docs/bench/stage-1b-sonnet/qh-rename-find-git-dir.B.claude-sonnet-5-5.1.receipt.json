@@ -1,0 +1,42 @@
+{
+  "attempt": "qh-rename-find-git-dir.B.claude-sonnet-5-5.1",
+  "stage": "stage1b",
+  "task": "qh-rename-find-git-dir",
+  "shape": "multi-site",
+  "source": "own",
+  "model": "claude-sonnet-5-5",
+  "config": "B",
+  "repeat": 1,
+  "order": 39,
+  "started": "2026-10-15T07:50:21Z",
+  "wall_ms": 15137,
+  "cli_version": "2.1.300 (Claude Code)",
+  "mrw_version": "v1.66.0 (05ec3f8)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 5,
+  "tool_calls": 4,
+  "total_cost_usd": 0.080336,
+  "usage": {
+    "input_tokens": 10,
+    "output_tokens": 1664,
+    "cache_read_input_tokens": 77200,
+    "cache_creation_input_tokens": 13989
+  },
+  "init_tools": [
+    "Bash",
+    "Glob"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": true
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 5,
+    "insertions": 17,
+    "deletions": 17
+  },
+  "hook_reads": 2,
+  "check_red_at_base": true
+}

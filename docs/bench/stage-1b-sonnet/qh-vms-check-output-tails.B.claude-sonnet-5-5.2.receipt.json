@@ -1,0 +1,42 @@
+{
+  "attempt": "qh-vms-check-output-tails.B.claude-sonnet-5-5.2",
+  "stage": "stage1b",
+  "task": "qh-vms-check-output-tails",
+  "shape": "varied-multi-site",
+  "source": "own",
+  "model": "claude-sonnet-5-5",
+  "config": "B",
+  "repeat": 2,
+  "order": 35,
+  "started": "2026-10-15T07:49:29Z",
+  "wall_ms": 11802,
+  "cli_version": "2.1.300 (Claude Code)",
+  "mrw_version": "v1.66.0 (05ec3f8)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 4,
+  "tool_calls": 3,
+  "total_cost_usd": 0.0656808,
+  "usage": {
+    "input_tokens": 8,
+    "output_tokens": 800,
+    "cache_read_input_tokens": 58728,
+    "cache_creation_input_tokens": 12948
+  },
+  "init_tools": [
+    "Bash",
+    "Glob"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": true
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 2,
+    "insertions": 3,
+    "deletions": 3
+  },
+  "hook_reads": 1,
+  "check_red_at_base": true
+}

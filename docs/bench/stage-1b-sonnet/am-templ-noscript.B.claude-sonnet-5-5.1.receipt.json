@@ -1,0 +1,41 @@
+{
+  "attempt": "am-templ-noscript.B.claude-sonnet-5-5.1",
+  "stage": "stage1b",
+  "task": "am-templ-noscript",
+  "shape": "structural",
+  "source": "own",
+  "model": "claude-sonnet-5-5",
+  "config": "B",
+  "repeat": 1,
+  "order": 145,
+  "started": "2026-10-15T08:21:49Z",
+  "wall_ms": 51531,
+  "cli_version": "2.1.300 (Claude Code)",
+  "mrw_version": "v1.66.0 (05ec3f8)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 4,
+  "tool_calls": 3,
+  "total_cost_usd": 0.1232972,
+  "usage": {
+    "input_tokens": 8,
+    "output_tokens": 606,
+    "cache_read_input_tokens": 96652,
+    "cache_creation_input_tokens": 26889
+  },
+  "init_tools": [
+    "Bash",
+    "Glob"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": true
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 1,
+    "insertions": 3,
+    "deletions": 0
+  },
+  "hook_reads": 1
+}

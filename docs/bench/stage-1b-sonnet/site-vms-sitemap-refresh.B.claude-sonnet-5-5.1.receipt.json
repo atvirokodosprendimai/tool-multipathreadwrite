@@ -1,0 +1,40 @@
+{
+  "attempt": "site-vms-sitemap-refresh.B.claude-sonnet-5-5.1",
+  "stage": "stage1b",
+  "task": "site-vms-sitemap-refresh",
+  "shape": "varied-multi-site",
+  "source": "own",
+  "model": "claude-sonnet-5-5",
+  "config": "B",
+  "repeat": 1,
+  "order": 155,
+  "started": "2026-10-15T08:26:40Z",
+  "wall_ms": 9406,
+  "cli_version": "2.1.300 (Claude Code)",
+  "mrw_version": "v1.66.0 (05ec3f8)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 4,
+  "tool_calls": 3,
+  "total_cost_usd": 0.025777599999999998,
+  "usage": {
+    "input_tokens": 8,
+    "output_tokens": 786,
+    "cache_read_input_tokens": 31496,
+    "cache_creation_input_tokens": 3688
+  },
+  "init_tools": [
+    "Bash",
+    "Glob"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": true
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 2,
+    "insertions": 5,
+    "deletions": 5
+  }
+}
