@@ -192,6 +192,10 @@ func TestAWriteOutsideTheTaskTreePassesTheHook(t *testing.T) {
 		"printf x | tee -a " + plan + " " + filepath.Join(scratch, "other.txt"),
 		"echo x > " + filepath.Join(tree, "..", "plan.txt"),
 		"printf x >> " + existing,
+		// B fixing its own plan outside the tree (ADR-160 T6)
+		"sed -i 's/body=6/body=8/' " + plan,
+		"sed -i '' -e 's/a/b/' -e 's/c/d/' " + plan,
+		"perl -pi -e 's/a/b/' " + plan,
 	}
 	refuse := []string{
 		"echo x > " + filepath.Join(tree, "f.txt"),
@@ -207,6 +211,10 @@ func TestAWriteOutsideTheTaskTreePassesTheHook(t *testing.T) {
 		"echo x > " + flink,
 		"echo x > " + dotdot,
 		hardlink,
+		"sed -i 's/a/b/' " + filepath.Join(tree, "f.txt"),
+		"sed -i 's/a/b/' " + plan + " f.txt",
+		"sed -i s/a/b/ " + plan,
+		"perl -pi -e 's/a/b/' " + plan + " " + filepath.Join(tree, "f.txt"),
 	}
 	if foldErr == nil {
 		refuse = append(refuse, "echo x > "+folded)

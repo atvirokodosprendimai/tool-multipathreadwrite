@@ -178,9 +178,12 @@ func classify(cmd, tree string, depth int) (string, []string) {
 				return why, reads
 			}
 			switch {
-			case head == "sed" && hasFlag(w[1:], "i"):
+			// sed -i and perl -i on files outside the tree pass, as a redirect
+			// or tee there does: B fixing its own plan in /tmp is not a write
+			// to the task (seven Stage 3 attempts, T3's pilot; ADR-160 T6).
+			case head == "sed" && hasFlag(w[1:], "i") && !inPlaceOutside(w[1:], tree):
 				return "sed -i edits a file", reads
-			case head == "perl" && hasFlag(w[1:], "i"):
+			case head == "perl" && hasFlag(w[1:], "i") && !inPlaceOutside(w[1:], tree):
 				return "perl -i edits a file", reads
 			case head == "git" && len(w) > 1 && (w[1] == "apply" || w[1] == "checkout" || w[1] == "restore" || w[1] == "stash" || w[1] == "reset" || w[1] == "am"):
 				return "git " + w[1] + " changes files", reads
@@ -286,6 +289,24 @@ func outsideTree(target, tree string) bool {
 func operandsOutside(args []string, tree string) bool {
 	for _, a := range args {
 		if !strings.HasPrefix(a, "-") && !outsideTree(a, tree) {
+			return false
+		}
+	}
+	return true
+}
+
+// inPlaceOutside says whether a sed -i or perl -i edits files outside tree
+// only: its last word is a path outside tree, and so is every other unquoted
+// operand. A quoted word — the script, or BSD sed's empty -i suffix — reaches here as
+// the placeholder scanShell leaves, and is not judged; an unquoted script is
+// judged as a path, which only refuses more. A quoted file operand set before
+// an outside one passes: a way past recorded in ADR-156 (ADR-160 T6).
+func inPlaceOutside(args []string, tree string) bool {
+	if len(args) == 0 || strings.HasPrefix(args[len(args)-1], "-") || !outsideTree(args[len(args)-1], tree) {
+		return false
+	}
+	for _, a := range args {
+		if !strings.HasPrefix(a, "-") && a != "''" && a != `""` && !outsideTree(a, tree) {
 			return false
 		}
 	}

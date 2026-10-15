@@ -1,6 +1,7 @@
 package bench
 
 import (
+	"context"
 	"errors"
 	"os"
 	"os/exec"
@@ -814,11 +815,29 @@ func TestACheckCoupledTaskIsGradedByItsPackageTests(t *testing.T) {
 		}
 		return val
 	}
-	env := gradingEnv(repo)
+	env, err := gradingEnv(context.Background(), repo)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if got := last(env, "GOFLAGS"); got != "-modcacherw -mod=mod" {
 		t.Errorf("the grading GOFLAGS is %q, want the module flag kept and -run dropped", got)
 	}
 	if got := last(env, "GOENV"); got != envFile {
 		t.Errorf("the grading GOENV is %q, want the host's go env file kept for its module settings", got)
+	}
+	// go's quoting, its last-wins order and the --flag spelling are kept;
+	// -modfile and text inside another flag's quoted value are not module
+	// flags of the grading run (the third review of #434).
+	t.Setenv("GOFLAGS", `'-tags=custom -mod=vendor extra' --mod=mod -mod=readonly -modfile=x.mod -run=^TestStatus$`)
+	env, err = gradingEnv(context.Background(), repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := last(env, "GOFLAGS"); got != "-modcacherw -mod=mod -mod=readonly" {
+		t.Errorf("the grading GOFLAGS is %q, want -modcacherw -mod=mod -mod=readonly", got)
+	}
+	t.Setenv("GOFLAGS", `'-mod=mod`)
+	if _, err := gradingEnv(context.Background(), repo); err == nil {
+		t.Error("an unterminated quote in GOFLAGS is not a grading error")
 	}
 }

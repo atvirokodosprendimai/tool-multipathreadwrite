@@ -14,7 +14,6 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
-	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -143,8 +142,15 @@ func packageTests(dir, pkg string, asserting []string) (string, error) {
 	sink := &testSink{passed: map[string]bool{}}
 	cmd := subproc.Command(ctx, "go", "test", "-json", "-count=1", "./"+pkg)
 	cmd.Dir, cmd.Stdout, cmd.Stderr = dir, sink, sink
-	cmd.Env = gradingEnv(dir)
-	err := subproc.Run(cmd)
+	env, err := gradingEnv(ctx, dir)
+	if err != nil {
+		if sigCtx.Err() != nil {
+			return "", errGradingInterrupted
+		}
+		return "", err
+	}
+	cmd.Env = env
+	err = subproc.Run(cmd)
 	switch {
 	case sigCtx.Err() != nil:
 		return "", errGradingInterrupted
@@ -168,23 +174,64 @@ func packageTests(dir, pkg string, asserting []string) (string, error) {
 }
 
 // gradingEnv is the host's environment for grading at dir, with what would
-// change which tests run taken out: GOWORK off, and GOFLAGS cut to the module
-// flags of its effective value, from the environment or the go env file. The
-// go env file stays, for its proxy and private-module settings, so GOFLAGS is
-// never left empty — an empty value falls back to that file — and starts with
-// -modcacherw, which changes nothing graded (the re-review of #434).
-func gradingEnv(dir string) []string {
+// change which tests run taken out: GOWORK off, and GOFLAGS cut to the -mod
+// flags of its effective value, from the environment or the go env file, in
+// their order (the last one wins, as go reads them). The go env file stays,
+// for its proxy and private-module settings, so GOFLAGS is never left empty —
+// an empty value falls back to that file — and starts with -modcacherw, which
+// changes nothing graded. -modfile is dropped: it names a host file a graded
+// tree should not depend on. The lookup runs under the grading context with
+// GOWORK off, and a failure is a grading error, never module flags silently
+// dropped (the reviews of #434).
+func gradingEnv(ctx context.Context, dir string) ([]string, error) {
+	env := append(os.Environ(), "GOWORK=off")
+	var out bytes.Buffer
+	cmd := subproc.Command(ctx, "go", "env", "GOFLAGS")
+	cmd.Dir, cmd.Env, cmd.Stdout = dir, env, &out
+	if err := subproc.Run(cmd); err != nil {
+		return nil, fmt.Errorf("go env GOFLAGS: %w", err)
+	}
+	fields, err := splitGoFlags(strings.TrimSpace(out.String()))
+	if err != nil {
+		return nil, fmt.Errorf("go env GOFLAGS: %w", err)
+	}
 	keep := []string{"-modcacherw"}
-	cmd := exec.Command("go", "env", "GOFLAGS")
-	cmd.Dir = dir
-	if out, err := cmd.Output(); err == nil {
-		for _, f := range strings.Fields(string(out)) {
-			if (strings.HasPrefix(f, "-mod=") || strings.HasPrefix(f, "-modfile=")) && !slices.Contains(keep, f) {
-				keep = append(keep, f)
-			}
+	for _, f := range fields {
+		if strings.HasPrefix(f, "--") {
+			f = f[1:]
+		}
+		if strings.HasPrefix(f, "-mod=") {
+			keep = append(keep, f)
 		}
 	}
-	return append(os.Environ(), "GOWORK=off", "GOFLAGS="+strings.Join(keep, " "))
+	return append(env, "GOFLAGS="+strings.Join(keep, " ")), nil
+}
+
+// splitGoFlags splits GOFLAGS as go does (cmd/internal/quoted): fields
+// separated by spaces, a field wholly quoted with ' or " taken as one, its
+// quotes removed, so text inside one flag's quoted value is never a flag of
+// its own (the third review of #434).
+func splitGoFlags(s string) ([]string, error) {
+	var f []string
+	for {
+		s = strings.TrimLeft(s, " \t\n\r")
+		if s == "" {
+			return f, nil
+		}
+		if q := s[0]; q == '"' || q == '\'' {
+			end := strings.IndexByte(s[1:], q)
+			if end < 0 {
+				return nil, fmt.Errorf("unterminated %c string", q)
+			}
+			f, s = append(f, s[1:1+end]), s[2+end:]
+			continue
+		}
+		end := strings.IndexAny(s, " \t\n\r")
+		if end < 0 {
+			end = len(s)
+		}
+		f, s = append(f, s[:end]), s[end:]
+	}
 }
 
 // maxTestLine bounds what the oracle keeps of one line go test prints.
