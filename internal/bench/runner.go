@@ -239,7 +239,7 @@ func Run(o RunOptions) (err error) {
 				}
 				r = runAttempt(o, at, i, cli, mrwVersion)
 				if r.interrupted {
-					return fmt.Errorf("interrupted during %s: no receipt is written, the attempt stays started and is not repeated, and the stage stops here", at.ID)
+					return fmt.Errorf("interrupted during %s: no receipt is written, the attempt stays started and is not repeated, and the stage stops here%s", at.ID, r.Note)
 				}
 				b, err := json.MarshalIndent(r, "", "  ")
 				if err != nil {
@@ -567,6 +567,10 @@ func runAttempt(o RunOptions, a attempt, order int, cli, mrwVersion string) Rece
 	}
 	if errors.Is(err, errGradingInterrupted) { // not graded, no receipt
 		r.interrupted = true
+		if err.Error() != errGradingInterrupted.Error() {
+			// what the harness or its cleanup said, a container left included
+			r.Note = " (" + err.Error() + ")"
+		}
 		return r
 	}
 	if err != nil {

@@ -298,21 +298,38 @@ func TestAnInterruptWhileGradingStopsTheHarnessAndItsContainer(t *testing.T) {
 	held := make(chan os.Signal, 4)
 	signal.Notify(held, os.Interrupt)
 	defer signal.Stop(held)
-	for name, tail := range map[string]string{
-		"a harness the signal stops":   "exec sleep 5\n",
-		"a harness that exits 0 on it": "trap 'exit 0' INT\nsleep 5 &\nwait\n",
+	kill := "kill -INT " + strconv.Itoa(os.Getpid())
+	for _, c := range []struct {
+		name, body, want string
+		budget           time.Duration
+		brokenPs         bool
+	}{
+		{name: "a harness the signal stops", body: kill + "\nexec sleep 5\n"},
+		{name: "a harness that exits 0 on it", body: "trap 'exit 0' INT\n" + kill + "\nsleep 5 &\nwait\n"},
+		// The budget runs out while the harness shuts down: still a signal,
+		// not a setup failure with a replacement (the review of #425).
+		{name: "a shutdown that outlasts the budget", body: "trap 'sleep 2; exit 1' INT\n" + kill + "\nsleep 5 &\nwait\n", budget: time.Second},
+		// A cleanup that failed is said, since a container may be left.
+		{name: "a cleanup that fails", body: kill + "\nexec sleep 5\n", brokenPs: true, want: "docker ps"},
 	} {
-		t.Run(name, func(t *testing.T) {
+		t.Run(c.name, func(t *testing.T) {
 			o, work := sweStage(t)
 			slow := filepath.Join(work, "interrupting-python")
-			script := "#!/bin/sh\necho started >> \"" + filepath.Join(work, "harness.log") + "\"\nkill -INT " + strconv.Itoa(os.Getpid()) + "\n" + tail
+			script := "#!/bin/sh\necho started >> \"" + filepath.Join(work, "harness.log") + "\"\n" + c.body
 			if err := os.WriteFile(slow, []byte(script), 0o755); err != nil {
 				t.Fatal(err)
 			}
-			o.SWE.Python = slow
+			o.SWE.Python, o.SWE.Budget = slow, c.budget
+			if c.brokenPs {
+				broken := filepath.Join(work, "broken-docker")
+				if err := os.WriteFile(broken, []byte("#!/bin/sh\n[ \"$1\" = ps ] && { echo 'daemon gone' >&2; exit 1; }\nexec \""+o.SWE.Docker+"\" \"$@\"\n"), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				o.SWE.Docker = broken
+			}
 			err := Run(o)
-			if err == nil || !strings.Contains(err.Error(), "interrupted") {
-				t.Fatalf("an interrupt while grading: %v, want the stage stopped as interrupted", err)
+			if err == nil || !strings.Contains(err.Error(), "interrupted") || !strings.Contains(err.Error(), c.want) {
+				t.Fatalf("an interrupt while grading: %v, want the stage stopped as interrupted, saying %q", err, c.want)
 			}
 			if b, _ := os.ReadFile(filepath.Join(work, "harness.log")); strings.Count(string(b), "started") != 1 {
 				t.Errorf("the harness started %d times, want once: the stage goes no further", strings.Count(string(b), "started"))
@@ -321,7 +338,7 @@ func TestAnInterruptWhileGradingStopsTheHarnessAndItsContainer(t *testing.T) {
 			if len(receipts) != 0 {
 				t.Errorf("an attempt whose grading was interrupted has a receipt: %v", receipts)
 			}
-			if got := dockerActions(t, work); !strings.Contains(got, "ps -a --filter name=sweb.eval.") {
+			if got := dockerActions(t, work); !c.brokenPs && !strings.Contains(got, "ps -a --filter name=sweb.eval.") {
 				t.Errorf("docker did:\n%s\nwant the interrupted run's containers looked up and removed by name", got)
 			}
 		})

@@ -184,14 +184,16 @@ func (g SWEGrader) grade(t Task, tree, scratch, run string) (Verdict, error) {
 	if budget == 0 {
 		budget = harnessBudget
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), budget)
-	defer cancel()
 	// A signal to bench reaches the harness as the deadline does: without
 	// this, bench ended on the signal and left the harness and its container
-	// running (the Stage 3 pilot, 2026-10-15).
-	ictx, stopSignals := subproc.Interruptible(ctx)
+	// running (the Stage 3 pilot, 2026-10-15). The signal context is the
+	// deadline's parent, so a signal is still told apart from the budget when
+	// the budget runs out during the harness's shutdown (the review of #425).
+	sigCtx, stopSignals := subproc.Interruptible(context.Background())
 	defer stopSignals()
-	cmd := exec.CommandContext(ictx, g.Python, "-m", "swebench.harness.run_evaluation", "-d", g.Dataset, "-i", t.ID,
+	ctx, cancel := context.WithTimeout(sigCtx, budget)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, g.Python, "-m", "swebench.harness.run_evaluation", "-d", g.Dataset, "-i", t.ID,
 		"-p", preds, "--max_workers", "1", "-t", "1800", "-id", run, "--report_dir", scratch)
 	cmd.Dir = scratch
 	// At the deadline the harness is interrupted, not killed, so its own
@@ -201,16 +203,16 @@ func (g SWEGrader) grade(t Task, tree, scratch, run string) (Verdict, error) {
 	cmd.WaitDelay = time.Minute
 	out, err := cmd.CombinedOutput()
 	// A signal ends grading even when the harness exits 0 on it: the attempt
-	// is not graded, and its containers go as after a deadline.
-	interrupted := ictx.Err() != nil && ctx.Err() == nil
-	if err != nil || interrupted {
+	// is not graded, and its containers go as after a deadline. A signal that
+	// arrives during that cleanup counts too, so it is read after it.
+	if err != nil || sigCtx.Err() != nil {
 		if cerr := g.removeContainers(t.ID, run); cerr != nil {
 			err = errors.Join(err, cerr)
 		}
-		if interrupted && err == nil {
+		if sigCtx.Err() != nil && err == nil {
 			return Verdict{}, errGradingInterrupted
 		}
-		if interrupted {
+		if sigCtx.Err() != nil {
 			return Verdict{}, fmt.Errorf("%w: %w", errGradingInterrupted, err)
 		}
 		return Verdict{}, fmt.Errorf("the harness: %w: %s", err, out)
