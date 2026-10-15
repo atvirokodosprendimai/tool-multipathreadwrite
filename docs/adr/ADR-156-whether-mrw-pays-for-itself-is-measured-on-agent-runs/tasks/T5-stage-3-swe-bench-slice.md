@@ -60,6 +60,7 @@ out=$(mktemp) \
 
 ## Verification Log
 (empty until execute)
+- 2026-10-15 · human-observed · S2 observed 2026-10-15 on this Mac (Docker Desktop 29.8.2, arm64, 8 GB VM): dataset SWE-bench/SWE-bench_Verified test split at revision 78f471bf655a3137b2e8a75af1501690ec009ec3 (500 instances, the same ids as princeton-nlp/SWE-bench_Verified at c104f840, which lacks the image field swebench 5.0.2 reads), harness swebench 5.0.2; the registered selection is in bench/swe-bench/selection.json and equals bench swebench-select's output; the gold patch of the first selected instance, matplotlib__matplotlib-22719, graded resolved: True, all required and regression tests passing, in 25 s, after a 349 s pull of its 10.6 GB amd64 image (pulled with --platform linux/amd64, since no arm64 manifest exists) run under emulation; within the 20-minute bound, so the probe passed. Disk: twenty such images would need about 200 GB against 107 GB free, so each instance's image is removed after its attempts are graded.
 
 ## Invariants
 
