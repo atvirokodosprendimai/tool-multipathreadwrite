@@ -37,10 +37,13 @@ func stdinRead(cmd *cli.Command, pattern string, grepSet bool, posArgs []string)
 			return cli.Exit(fmt.Sprintf("- reads standard input, which licenses nothing and is no tree to walk, so --%s has nothing to act on: drop it, or read a file", f), exitUsage)
 		}
 	}
-	sp, err := read.ParseSpec(posArgs[0])
+	// The address is parsed on a placeholder name: on Windows "-:2" reads as a
+	// volume ("-:"), so ParseSpec found no range and served everything.
+	sp, err := read.ParseSpec("stdin" + strings.TrimPrefix(posArgs[0], "-"))
 	if err != nil {
-		return cli.Exit(err, exitUsage)
+		return cli.Exit(strings.Replace(err.Error(), "stdin", "-", 1), exitUsage)
 	}
+	sp.Raw = posArgs[0]
 	var re *regexp.Regexp
 	if grepSet {
 		if len(sp.Ranges) > 0 {
