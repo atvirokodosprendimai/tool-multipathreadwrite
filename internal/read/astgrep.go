@@ -1,10 +1,12 @@
 package read
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path"
@@ -42,17 +44,25 @@ const astGrepTimeout = 2 * time.Second
 var maxAstGrepBytes int64 = 256 << 20
 
 // astGrepHit is the slice of ast-grep --json this mapper needs. Lines are
-// 0-based, the way the CLI documents them.
+// 0-based, the way the CLI documents them. Text, Replacement and ByteOffset
+// are what --rewrite adds to the object (ADR-161): pointers, because a field
+// ast-grep left out is not an empty one.
 type astGrepHit struct {
-	File  string `json:"file"`
-	Path  string `json:"path"`
-	Range struct {
+	File        string  `json:"file"`
+	Path        string  `json:"path"`
+	Text        *string `json:"text"`
+	Replacement *string `json:"replacement"`
+	Range       struct {
 		Start struct {
 			Line int `json:"line"`
 		} `json:"start"`
 		End struct {
 			Line int `json:"line"`
 		} `json:"end"`
+		ByteOffset *struct {
+			Start *int `json:"start"`
+			End   *int `json:"end"`
+		} `json:"byteOffset"`
 	} `json:"range"`
 }
 
@@ -65,10 +75,15 @@ func (h astGrepHit) name() string {
 
 // AstGrepOptions are the walk options an ast-grep read shares with --grep
 // (ADR-122): NoIgnore turns off every ignore source, mrw's and ast-grep's
-// both; Skipped, when set, receives what mrw's own rules dropped.
+// both; Skipped, when set, receives what mrw's own rules dropped. A non-nil
+// Rewrites asks for ast-grep's own rewrite to Rewrite (ADR-161, and "" is a
+// real one): AstGrep then reads each file with a hit once, and keeps its bytes
+// and its matches there instead of leaving them to Run.
 type AstGrepOptions struct {
 	NoIgnore bool
 	Skipped  *WalkSkipped
+	Rewrite  string
+	Rewrites map[string]*RewriteFile
 }
 
 // AstGrep shells out to ast-grep on PATH and maps hits to Specs read.Run
@@ -127,7 +142,14 @@ func AstGrep(root string, paths []string, pattern string, exclude []string, opt 
 	for _, src := range astGrepIgnoresOff(opt.NoIgnore) {
 		args = append(args, "--no-ignore", src)
 	}
-	args = append(args, "--json")
+	// --rewrite=R as one token: a replacement that starts with a dash is not
+	// taken for an option. --json=stream, because the array form carries the
+	// same fields but only after ast-grep has held every hit.
+	if opt.Rewrites != nil {
+		args = append(args, "--rewrite="+opt.Rewrite, "--json=stream")
+	} else {
+		args = append(args, "--json")
+	}
 	switch {
 	case len(paths) == 0:
 		args = append(args, ".")
@@ -146,9 +168,20 @@ func AstGrep(root string, paths []string, pattern string, exclude []string, opt 
 	defer cancel()
 	cmd := subproc.Command(ctx, "ast-grep", args...)
 	cmd.Dir = absRoot
+	// A rewrite plans from every hit, so an ast-grep that reports a path it could
+	// not read (valid hits, exit 0, an ERROR line on stderr) is not a complete
+	// answer: its diagnostics are kept, bounded as stdout is, and named below.
+	var diag *boundedBuffer
+	if opt.Rewrites != nil {
+		diag = &boundedBuffer{limit: maxAstGrepBytes}
+		cmd.Stderr = diag
+	}
 	out, cmdErr := subproc.Output(cmd, maxAstGrepBytes)
 	if tooLarge := (*subproc.ErrOutputTooLarge)(nil); errors.As(cmdErr, &tooLarge) {
 		return nil, nil, fmt.Errorf("ast-grep %w: narrow the pattern or name fewer paths", tooLarge)
+	}
+	if diag != nil && diag.over {
+		return nil, nil, fmt.Errorf("ast-grep answered more than %d bytes on its error stream: narrow the pattern or name fewer paths", maxAstGrepBytes)
 	}
 	// ADR-120: on Windows a child that could not be put in its job was killed
 	// before it ran, so its empty output is no answer. Without this the read
@@ -167,12 +200,37 @@ func AstGrep(root string, paths []string, pattern string, exclude []string, opt 
 			return nil, nil, errAstGrepInterrupted
 		}
 	}
-	hits, parseErr := parseAstGrepJSON(out)
+	// A rewrite plans from every hit, so a run that ended badly is no answer even
+	// when its output parses: a killed run leaves a valid prefix of the stream,
+	// whose missing files no completeness check can see (the Codex review of T2).
+	// ast-grep 0.45.3's no-match is exit 1 with nothing on either stream.
+	if opt.Rewrites != nil && cmdErr != nil {
+		var ee *exec.ExitError
+		noMatch := errors.As(cmdErr, &ee) && ee.ExitCode() == 1 && len(bytes.TrimSpace(out)) == 0 && (diag == nil || diag.buf.Len() == 0)
+		if !noMatch {
+			return nil, nil, fmt.Errorf("ast-grep did not finish its scan (%w), so its matches may be a part: nothing is planned", cmdErr)
+		}
+	}
+	parse := parseAstGrepJSON
+	if opt.Rewrites != nil {
+		parse = parseAstGrepStream
+	}
+	hits, parseErr := parse(out)
 	if parseErr != nil {
 		if cmdErr != nil {
 			return nil, nil, fmt.Errorf("ast-grep: %w", cmdErr)
 		}
 		return nil, nil, parseErr
+	}
+	// Every line ast-grep printed on stderr is a path or a rule it could not
+	// serve; its hits are still valid, so the answer is partial and each line is
+	// named. Any line counts: the cost of a harmless one is a refused rewrite.
+	if diag != nil {
+		for _, l := range strings.Split(diag.buf.String(), "\n") {
+			if l = strings.TrimSpace(l); l != "" {
+				problems = append(problems, Problem{Path: "ast-grep", Reason: l})
+			}
+		}
 	}
 	// ADR-122: each hit passes the walk's own judgement — the ignore rules of
 	// the checkout it is in, a binary file, a .git directory — unless its file
@@ -213,6 +271,15 @@ func AstGrep(root string, paths []string, pattern string, exclude []string, opt 
 		if refused && !named[rel] {
 			continue
 		}
+		// A rewrite has no Run to report a named path the boundary refuses:
+		// said here, once per file, and the file is left out of the plan.
+		if refused && opt.Rewrites != nil {
+			if !crOnly[rel] {
+				problems = append(problems, Problem{Path: rel, Reason: resolveErr.Error()})
+				crOnly[rel] = true
+			}
+			continue
+		}
 		if dropped[rel] {
 			continue
 		}
@@ -245,6 +312,13 @@ func AstGrep(root string, paths []string, pattern string, exclude []string, opt 
 				crOnly[rel] = true
 				continue
 			}
+			// A rewrite plans from the bytes read here, so a file it cannot read is
+			// reported here, once, where a read leaves that to Run.
+			if opt.Rewrites != nil && err != nil {
+				problems = append(problems, Problem{Path: rel, Reason: err.Error()})
+				crOnly[rel] = true
+				continue
+			}
 			if judge != nil && !named[rel] && err == nil && lines.Unsplittable(b) != "" {
 				judge.binary(rel)
 				dropped[rel] = true
@@ -255,6 +329,8 @@ func AstGrep(root string, paths []string, pattern string, exclude []string, opt 
 			crOnly[rel] = cr
 			if cr {
 				problems = append(problems, Problem{Path: rel, Reason: "ends its lines with \\r alone, and ast-grep numbers rows by \\n, so its hit would name a different line"})
+			} else if opt.Rewrites != nil {
+				opt.Rewrites[rel] = &RewriteFile{Data: b}
 			}
 		}
 		if cr {
@@ -276,6 +352,13 @@ func AstGrep(root string, paths []string, pattern string, exclude []string, opt 
 			order = append(order, rel)
 		}
 		grouped[rel] = append(grouped[rel], Range{Start: start, End: end, Text: text})
+		if rf := opt.Rewrites[rel]; rf != nil {
+			rh := RewriteHit{Text: h.Text, Replacement: h.Replacement}
+			if bo := h.Range.ByteOffset; bo != nil {
+				rh.Start, rh.End = bo.Start, bo.End
+			}
+			rf.Hits = append(rf.Hits, rh)
+		}
 		if judge != nil {
 			judge.served(rel)
 		}
@@ -301,6 +384,24 @@ func parseAstGrepJSON(out []byte) ([]astGrepHit, error) {
 		return hits, nil
 	}
 	return nil, fmt.Errorf("ast-grep: output is not a JSON array of hits")
+}
+
+// parseAstGrepStream reads --json=stream: one JSON object per hit, in the
+// order ast-grep found them.
+func parseAstGrepStream(out []byte) ([]astGrepHit, error) {
+	dec := json.NewDecoder(bytes.NewReader(out))
+	var hits []astGrepHit
+	for {
+		var h astGrepHit
+		err := dec.Decode(&h)
+		if err == io.EOF {
+			return hits, nil
+		}
+		if err != nil {
+			return nil, fmt.Errorf("ast-grep: output is not a stream of JSON hits")
+		}
+		hits = append(hits, h)
+	}
 }
 
 func astGrepRel(absRoot, file string) (string, bool) {

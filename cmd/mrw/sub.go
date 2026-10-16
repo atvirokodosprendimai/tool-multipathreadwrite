@@ -39,23 +39,9 @@ func buildSub(root string, posArgs []string, pattern, repl string, excludes []st
 	if err != nil {
 		return nil, cli.Exit(fmt.Sprintf("--grep %q: %v", pattern, err), exitUsage)
 	}
-	if len(posArgs) > 0 {
-		set, err := iter.Load(root)
-		if err != nil {
-			return nil, cli.Exit(err, exitUsage)
-		}
-		if posArgs, err = set.ResolveAll(posArgs); err != nil {
-			return nil, cli.Exit(err, exitUsage)
-		}
-	}
-	for _, a := range posArgs {
-		sp, err := read.ParseSpec(a)
-		if err != nil {
-			return nil, cli.Exit(err, exitUsage)
-		}
-		if len(sp.Ranges) > 0 {
-			return nil, cli.Exit(fmt.Sprintf("%s: a range and --grep are two answers to one question", a), exitUsage)
-		}
+	posArgs, err = rangeFreePaths(root, posArgs, "--grep")
+	if err != nil {
+		return nil, err
 	}
 	var skipped read.WalkSkipped
 	specs, refusals, err := read.Walk(root, posArgs, read.WalkOptions{Pattern: re, Exclude: excludes, NoIgnore: noIgnore, Skipped: &skipped})
@@ -89,6 +75,31 @@ func buildSub(root string, posArgs []string, pattern, repl string, excludes []st
 	return &builtSub{plan: []byte(sub.Plan.String()), observed: observed, sites: sub.Sites, files: sub.Files, problems: problems + len(refusals)}, nil
 }
 
+// rangeFreePaths resolves the working-set pointers in posArgs and refuses a
+// range: a finder (flag) and a range are two answers to one question. The error
+// is the exit, 2.
+func rangeFreePaths(root string, posArgs []string, flag string) ([]string, error) {
+	if len(posArgs) > 0 {
+		set, err := iter.Load(root)
+		if err != nil {
+			return nil, cli.Exit(err, exitUsage)
+		}
+		if posArgs, err = set.ResolveAll(posArgs); err != nil {
+			return nil, cli.Exit(err, exitUsage)
+		}
+	}
+	for _, a := range posArgs {
+		sp, err := read.ParseSpec(a)
+		if err != nil {
+			return nil, cli.Exit(err, exitUsage)
+		}
+		if len(sp.Ranges) > 0 {
+			return nil, cli.Exit(fmt.Sprintf("%s: a range and %s are two answers to one question", a, flag), exitUsage)
+		}
+	}
+	return posArgs, nil
+}
+
 // subRead is `read --grep P --sub R`: the plan on stdout and nothing else,
 // the count on stderr, and the planned lines recorded as read.
 func subRead(cmd *cli.Command, pattern string, excludes, posArgs []string) error {
@@ -97,6 +108,13 @@ func subRead(cmd *cli.Command, pattern string, excludes, posArgs []string) error
 	if err != nil {
 		return err
 	}
+	return servePlan(root, b)
+}
+
+// servePlan prints a built plan on stdout and nothing else, the count on
+// stderr, and records the planned lines as read: the tail of every read that
+// makes a plan (--sub, --rewrite).
+func servePlan(root string, b *builtSub) error {
 	out := bufio.NewWriter(os.Stdout)
 	_, _ = out.Write(b.plan) // a failed write surfaces at Flush
 	// The plan reaches the caller BEFORE anything is recorded (ADR-088).
