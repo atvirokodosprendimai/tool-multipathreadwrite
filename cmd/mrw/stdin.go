@@ -9,6 +9,7 @@ import (
 
 	"github.com/urfave/cli/v3"
 
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/ingest"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/lines"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read"
 )
@@ -68,6 +69,11 @@ func stdinRead(cmd *cli.Command, pattern string, grepSet bool, posArgs []string)
 	}
 	if b == nil {
 		b = []byte{}
+	}
+	// ADR-161 Decision 13: PowerShell's trailing CRLF is not a line of the input.
+	if trimmed, cut := ingest.TrimPipedCRLF(b); cut {
+		fmt.Fprintln(os.Stderr, "mrw: standard input ended in CRLF after lines that end in LF; that CRLF is most likely the one PowerShell appends to what it pipes, so it was dropped")
+		b = trimmed
 	}
 	sp.Path, sp.Data = "-", b
 	out := bufio.NewWriter(os.Stdout)

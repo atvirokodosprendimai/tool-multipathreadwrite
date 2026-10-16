@@ -9620,6 +9620,19 @@ seed264
 out=$(PATH="$d264:$PATH" m write --no-check --ast-grep 'foo($A, $B)' --rewrite 'bar($B, $A)' . 2>&1); want 2 $? "a rewrite write over a killed ast-grep run exits 2"
 { cmp -s "$R/a.go" "$WORK/a264.orig" && grep -q 'did not finish its scan' <<<"$out"; } && ok "naming the unfinished scan and writing nothing" || bad "a killed run's partial stream was applied: $out"
 
+# 270. ADR-161 Decision 13: PowerShell appends CRLF to what it pipes, so a plan
+# whose lines end in LF arrived with a last line holding only CR, and the write
+# added a blank line. ADR-142's rule drops it from a plan on standard input and
+# says so on stderr. The pair: an all-CRLF plan is applied as it always was.
+fixture
+printf 'a\nb\n' > "$R/p270.txt"
+m read p270.txt >"$WORK/served270.out"
+out=$(printf '@@ p270.txt 1 replace\nA\n\r\n' | m write --no-check - 2>&1); want 0 $? "a plan piped with a trailing CRLF exits 0"
+{ [ "$(cat "$R/p270.txt")" = "$(printf 'A\nb')" ] && grep -q 'PowerShell appends' <<<"$out"; } \
+  && ok "a plan piped with PowerShell's trailing CRLF writes no extra line" || bad "a piped CRLF plan: $(od -c "$R/p270.txt" | head -3) :: $out"
+out=$(printf '@@ p270.txt 2 replace\r\nB\r\n' | m write --no-check - 2>&1); want 0 $? "the pair: an all-CRLF plan exits 0"
+{ [ "$(cat "$R/p270.txt")" = "$(printf 'A\nB')" ] && ! grep -q 'PowerShell appends' <<<"$out"; } && ok "and is applied as it always was, with no note" || bad "an all-CRLF plan: $out"
+
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
 # killed process is a zombie until its adopter reaps it, and pgrep lists
