@@ -128,6 +128,30 @@ They are project policy, not tool documentation, which is why they are there and
 **Use mrw always: plan the activity as one read of every site, then one plan, then one write.**
 One edit in one file still goes through mrw: the cost is two calls, and the ledger is the point. Batch every site into that one read and one write — do not spend a turn per site.
 
+**Start with the recipes.** `mrw instructions` prints them first, and each keeps lines you do not
+need out of your context (ADR-161). Fill the placeholders (`P`, `f.go`, `NAME`, `$plan`):
+
+```sh
+# 1. the same change at many sites, nothing in your context
+mrw write --grep '\bOld\b' --sub 'New' .
+# 2. see what it will do first, nothing written
+mrw write --grep '\bOld\b' --sub 'New' --dry-run .
+# 3. a change by syntax, not text
+mrw write --ast-grep 'foo($A, $B)' --rewrite 'bar($B, $A)' .
+# 4. look before you change, only at what you will use
+mrw read --grep P --count . && mrw read 'f.go:/P/' -C 3 --max-lines 40
+# 5. different changes at several sites: one read of all of them, then one plan on standard input
+mrw read 'a.go:/func A/,+12' b.go:40-60 && printf '%s\n' "$plan" | mrw write -
+# 6. a step after the write, in the same call (--then-sh's caveat is below, under the write rules)
+mrw write - --then NAME
+# 7. license lines you already know, without them in your context (/dev/null licenses nothing)
+mrw read --quiet f.go:40-60
+# 8. a file of long lines (logs, JSONL), each line cut to a window round the match
+mrw read --grep P --max-cols 200 f.jsonl
+# 9. narrow any command's output without leaving mrw
+cmd | mrw read --grep P --max-lines 20 -
+```
+
 `./bin/mrw` after `go build`. Building and using it here is fine — it is the
 project.
 

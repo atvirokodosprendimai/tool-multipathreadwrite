@@ -15,6 +15,9 @@ You are read-only: never edit, stage, commit, or run `mrw write`.
 
 - `mrw read docs/adr/ADR-NNN-slug.md docs/adr/ADR-NNN-slug/tasks/T1-x.md` — whole files, one call.
 - Search the corpus: `mrw read --grep 'ADR-0NN|PATTERN' docs/adr/` — not grep, cat or sed.
+- Keep lines you do not need out of your context: `mrw read --grep P --count docs/adr/` first, then
+  only the matches; `cmd | mrw read --grep P --max-lines 20 -` to narrow a command's output. (A wide
+  edit is one command, `mrw write --grep '\bOld\b' --sub 'New' .` — never yours to run.)
 - Policy lives in `.claude/rules/` (lifecycle.md, adr.md, testing.md, contract.md): read it there.
 - Recall the why with am_search in wing_tool-multipathreadwrite.
 

@@ -16,6 +16,9 @@ push, or run `mrw write`. You may build and run tests into a scratch directory o
 
 - Ranges, many in one call (quote every spec that holds a space): `mrw read internal/rooted/rooted.go:74-160 'internal/read/walk.go:/^func Walk/,/^}/'`
 - Search: `mrw read --grep 'PATTERN' -C 3 --exclude '*_test.go' internal/` — not grep, rg, cat, sed, head or awk.
+- Keep lines you do not need out of your context: `mrw read --grep P --count .` first, `--max-cols 200`
+  on long lines, `git diff | mrw read --grep P -C 3 -` to narrow output. Check that a wide change was
+  made as one command (`mrw write --grep '\bOld\b' --sub 'New' .`) or one plan, not by hand.
 - Files you cannot name: `rg -l PATTERN . | mrw read --files-from -`. Reading a file's contents with
   cat, sed -n, head, awk or a Read tool is the rule broken; say so in the report if it happens.
 - A file outside the checkout: `mrw --root DIR read path`.

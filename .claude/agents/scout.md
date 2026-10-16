@@ -14,6 +14,9 @@ never edit, commit, or run `mrw write`, `go test` or any build.
 - Read: `mrw read path:N-M path:/regexp/` (many ranges per call, one call for every site).
 - Search: `mrw read --grep 'PATTERN' -C 3 --exclude '*_test.go' dir/` — never grep, rg, cat, sed, head
   or awk on file contents. Files you cannot name: `rg -l PATTERN . | mrw read --files-from -`.
+- Keep lines out of your context: `mrw read --grep P --count .` before reading matches, and
+  `cmd | mrw read --grep P --max-lines 20 -` to narrow output. (The wide edit,
+  `mrw write --grep '\bOld\b' --sub 'New' .`, is never yours to run.)
 - A file outside the checkout: `mrw --root DIR read path`. Never send a read to /dev/null (ADR-133).
 - History: `git log --oneline -- path`, `git show <sha> --stat`.
 - Why: am_search in wing_tool-multipathreadwrite; a memory is evidence, check it against the code.

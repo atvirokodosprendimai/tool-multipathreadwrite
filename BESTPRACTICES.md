@@ -10,6 +10,12 @@ Always. Plan the activity as one read of every site, then one plan, then one
 write. One edit in one file still goes through mrw: the cost is two calls, and
 the ledger is the point. `mrw instructions` prints this from the binary.
 
+`mrw instructions` opens with nine recipes that keep lines you do not need out of your context. The
+one to know: the same change at many sites is one command, `mrw write --grep '\bOld\b' --sub 'New' .`
+(add `--dry-run` to see it first). Count before you read (`mrw read --grep P --count .`), license lines
+you already know without printing them (`mrw read --quiet f.go:40-60`), and narrow a command's output
+with `cmd | mrw read --grep P --max-lines 20 -` rather than grep, sed or head.
+
 ## Read before write
 
 mrw will not edit a line it has not served. Being served lines 10–12 does not
