@@ -7,10 +7,6 @@ import (
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/links"
 )
 
-// checkoutMarker is the file in a root's own state directory naming the
-// checkout top that holds root's ledger, written when root is below it.
-const checkoutMarker = "checkout"
-
 // Checkout is the git checkout that holds root (ADR-161 Decision 14): top is
 // the nearest directory at or above root's resolved path with a .git entry — a
 // directory, or a file as in a worktree or a submodule — and prefix is root's

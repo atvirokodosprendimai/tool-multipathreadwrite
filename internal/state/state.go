@@ -77,15 +77,6 @@ func Dir(root string) (string, error) {
 	if existing, err := os.ReadFile(marker); err != nil || strings.TrimSuffix(string(existing), "\n") != abs {
 		_ = Write(marker, []byte(abs+"\n"), 0o600)
 	}
-	// ADR-161 Decision 14: a root below a checkout's top names that top here,
-	// so a prune run from it after the checkout is deleted still knows which
-	// entry held its ledger (the Codex review of T11).
-	if top, prefix := Checkout(root); prefix != "" {
-		cm := filepath.Join(dir, checkoutMarker)
-		if existing, err := os.ReadFile(cm); err != nil || strings.TrimSuffix(string(existing), "\n") != top {
-			_ = Write(cm, []byte(top+"\n"), 0o600)
-		}
-	}
 	return dir, nil
 }
 

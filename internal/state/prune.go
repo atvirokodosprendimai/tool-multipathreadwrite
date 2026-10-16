@@ -343,8 +343,8 @@ func selfNames(root string) (map[string]bool, error) {
 		return nil, err
 	}
 	// The checkout's top keeps the ledger root reads and writes (ADR-161
-	// Decision 14), so its entry is the caller's own too, even if the checkout
-	// has since gone.
+	// Decision 14), so its entry is the caller's own too while the checkout
+	// can be found. Once it is gone, its entry is a dead root's like any other.
 	if top, _ := Checkout(root); top != "" {
 		more, err := spellings(top)
 		if err != nil {
@@ -352,24 +352,6 @@ func selfNames(root string) (map[string]bool, error) {
 		}
 		for k := range more {
 			out[k] = true
-		}
-	}
-	// A checkout deleted under the caller is no longer found by Checkout; the
-	// root's own state directory names it (Dir writes the checkout marker), so
-	// that one entry stays the caller's own. Only that one: an outer
-	// repository that is also gone is another checkout (the Codex review of
-	// ADR-161 T11).
-	if d, err := DirPath(root); err == nil {
-		if b, err := os.ReadFile(filepath.Join(d, checkoutMarker)); err == nil {
-			if named := strings.TrimSuffix(string(b), "\n"); filepath.IsAbs(named) {
-				more, err := spellings(named)
-				if err != nil {
-					return nil, err
-				}
-				for k := range more {
-					out[k] = true
-				}
-			}
 		}
 	}
 	return out, nil

@@ -36,39 +36,3 @@ func TestAPruneFromASubdirectoryKeepsTheCheckoutsEntry(t *testing.T) {
 		t.Errorf("a root outside any checkout names another's entry as its own: %v %v", names, err)
 	}
 }
-
-// The Codex review of ADR-161 T11: a checkout deleted under a caller in its
-// subdirectory is no longer found by Checkout, and its entry is still the
-// caller's own, because the caller's state directory named it. An outer
-// repository that is gone too is another checkout, and is not.
-func TestAPruneFromADeletedCheckoutKeepsItsEntry(t *testing.T) {
-	xdg(t)
-	outer := resolved(t, t.TempDir())
-	top := filepath.Join(outer, "nested")
-	sub := filepath.Join(top, "sub")
-	for _, d := range []string{filepath.Join(outer, ".git"), filepath.Join(top, ".git"), sub} {
-		if err := os.MkdirAll(d, 0o755); err != nil {
-			t.Fatal(err)
-		}
-	}
-	// The caller used mrw from sub while the checkout was there.
-	if _, err := Dir(sub); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := Dir(outer); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.RemoveAll(outer); err != nil {
-		t.Fatal(err)
-	}
-	names, err := selfNames(sub)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !names[key(top)] {
-		t.Errorf("a prune from a deleted checkout's subdirectory does not name the checkout's entry as its own: %v", names)
-	}
-	if names[key(outer)] {
-		t.Errorf("a prune from a deleted checkout's subdirectory names an outer repository's entry as its own: %v", names)
-	}
-}
