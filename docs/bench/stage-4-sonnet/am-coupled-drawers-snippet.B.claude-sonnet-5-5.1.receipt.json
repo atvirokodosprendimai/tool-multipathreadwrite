@@ -1,0 +1,51 @@
+{
+  "attempt": "am-coupled-drawers-snippet.B.claude-sonnet-5-5.1",
+  "stage": "stage4",
+  "task": "am-coupled-drawers-snippet",
+  "shape": "check-coupled",
+  "source": "own",
+  "model": "claude-sonnet-5-5",
+  "config": "B",
+  "repeat": 1,
+  "order": 66,
+  "started": "2026-10-16T04:38:29Z",
+  "wall_ms": 85584,
+  "cli_version": "2.1.300 (Claude Code)",
+  "mrw_version": "v1.66.0 (05ec3f8)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 13,
+  "tool_calls": 12,
+  "total_cost_usd": 0.23380559999999997,
+  "usage": {
+    "input_tokens": 26,
+    "output_tokens": 4137,
+    "cache_read_input_tokens": 436356,
+    "cache_creation_input_tokens": 37187
+  },
+  "init_tools": [
+    "Bash",
+    "Glob"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": false,
+    "outside": [
+      "internal/mcptest/anchorlabel_test.go: a file outside the package whose tests grade the task",
+      "internal/mcptest/contract_axis_assertions_test.go: a file outside the package whose tests grade the task",
+      "internal/mcptest/regions_test.go: a file outside the package whose tests grade the task",
+      "internal/mcptest/registry_test.go: a file outside the package whose tests grade the task",
+      "internal/mcptest/scoping_audit_test.go: a file outside the package whose tests grade the task"
+    ]
+  },
+  "silent_mis_edit": true,
+  "diff": {
+    "files": 8,
+    "insertions": 21,
+    "deletions": 21
+  },
+  "hook_refused": 1,
+  "hook_reads": 8,
+  "exclusion": "setup",
+  "note": "slipped writes: the ledgers disagree on internal/mcpserver/drawers_test.go: which content mrw saw last cannot be told"
+}

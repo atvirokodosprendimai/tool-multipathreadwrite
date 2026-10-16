@@ -1,0 +1,47 @@
+{
+  "attempt": "am-coupled-drawers-snippet.A.claude-sonnet-5-5.1",
+  "stage": "stage4",
+  "task": "am-coupled-drawers-snippet",
+  "shape": "check-coupled",
+  "source": "own",
+  "model": "claude-sonnet-5-5",
+  "config": "A",
+  "repeat": 1,
+  "order": 0,
+  "started": "2026-10-16T04:00:37Z",
+  "wall_ms": 12645,
+  "cli_version": "2.1.300 (Claude Code)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 4,
+  "tool_calls": 3,
+  "total_cost_usd": 0.1254814,
+  "usage": {
+    "input_tokens": 6,
+    "output_tokens": 1274,
+    "cache_read_input_tokens": 65134,
+    "cache_creation_input_tokens": 26554
+  },
+  "init_tools": [
+    "Bash",
+    "Edit",
+    "Glob",
+    "Grep",
+    "Read",
+    "Write"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": false,
+    "missing": [
+      "internal/mcpserver/drawers.go: no match for \"Snippet\"",
+      "internal/mcpserver/drawers.go: still matches \"snippet\""
+    ]
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 0,
+    "insertions": 0,
+    "deletions": 0
+  }
+}
