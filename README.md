@@ -21,6 +21,11 @@ Decisions: [docs/adr/](docs/adr/). How a change reaches `main`: [CONTRIBUTING.md
 Caller practices: [BESTPRACTICES.md](BESTPRACTICES.md). Updating the binary: [UPDATE.md](UPDATE.md).
 Hosts: any shell (the CLI), any MCP host (`mrw mcp`, [below](#mcp)), and [opencode](#opencode) through its plugin.
 
+**Start with the recipes `mrw instructions` prints first** (ADR-161): the same change at many sites is one
+command with nothing in your context — `mrw write --grep '\bOld\b' --sub 'New' .` — and the others count
+before reading, rewrite by syntax, license without printing (`read --quiet`) and narrow any command's output
+(`cmd | mrw read --grep P -`). [AGENTS.md](AGENTS.md#using-mrw--read-this-before-you-edit-anything) lists all nine.
+
 ## Install
 
 ```sh

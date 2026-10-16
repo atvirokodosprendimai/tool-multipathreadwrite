@@ -14,6 +14,9 @@ the task needs a decision the brief does not make.
 ## mrw is the ONLY read/write path (HARD RULE)
 
 - Read, many ranges in one call (quote every spec that holds a space): `mrw read a.go:40-60 'b.go:/^func Start/,/^}/' 'c.go:$'`
+- A same-text change at many sites is one command, nothing in your context:
+  `mrw write --grep '\bOld\b' --sub 'New' .` (add `--dry-run` first); a syntax change is
+  `--ast-grep P --rewrite R`. `mrw instructions` prints the other recipes; follow them.
 - Search: `mrw read --grep 'func Handle' -C 3 --exclude '*_test.go' internal/` — never grep, rg,
   cat, sed -n, head or awk on file contents.
 - Files you cannot name: `rg -l PATTERN . | mrw read --files-from -`; outside the checkout:

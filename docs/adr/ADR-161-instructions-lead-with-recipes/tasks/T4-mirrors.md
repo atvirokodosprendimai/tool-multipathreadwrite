@@ -56,6 +56,7 @@ i=$(go run ./cmd/mrw instructions) && grep -qF -- "$r" <<<"$i" \
 
 ## Mutation Log
 (empty until execute)
+- 2026-10-16 · 9db0e7ba* · mutant killed · exit 1 · `AGENTS.md` · S2: AGENTS.md no longer carries the binary's recipe 1 verbatim · acceptance-sha256:2f4c4623c2e7e67f8cf6665215169712857dcfe48d201b06ff4193cabd50138e
 
 ## Invariants
 
@@ -75,3 +76,11 @@ The binary's recipe and AGENTS.md cannot carry the same command line.
 
 ## Verification Log
 (empty until execute)
+- 2026-10-16 · 9db0e7ba · exit 1 · `set -o pipefail …` · acceptance-sha256:2f4c4623c2e7e67f8cf6665215169712857dcfe48d201b06ff4193cabd50138e · ms:1273 · test-lock-sha256:deeb36e69eee92091337010c87f199c96273cf4f30607b345e4a41e96cc4ff11 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIz
+  ```
+  ```
+- 2026-10-16 · 9db0e7ba* · exit 1 · `set -o pipefail …` · acceptance-sha256:2f4c4623c2e7e67f8cf6665215169712857dcfe48d201b06ff4193cabd50138e · ms:297
+  ```
+  ```
+- 2026-10-16 · 9db0e7ba* · exit 0 · `set -o pipefail …` · acceptance-sha256:2f4c4623c2e7e67f8cf6665215169712857dcfe48d201b06ff4193cabd50138e · ms:202
+- 2026-10-16 · 9db0e7ba* · exit 0 · `set -o pipefail …` · acceptance-sha256:2f4c4623c2e7e67f8cf6665215169712857dcfe48d201b06ff4193cabd50138e · ms:978

@@ -11,7 +11,9 @@ description: >-
   read-before-modify guard; use it always, and plan the activity as one read
   of every site, then one plan, then one write. A new file is `@@ path 0 create`.
   A read addresses by N, N-M, A,+N, $ or /regexp/, and --grep walks files you
-  cannot name; `mrw instructions` teaches the rest.
+  cannot name; `mrw instructions` teaches the rest and opens with nine recipes
+  that keep lines out of your context: the same change at many sites is one
+  command, `mrw write --grep '\bOld\b' --sub 'New' .`
   NOT a licence to use shell for ordinary file edits.
 ---
 
