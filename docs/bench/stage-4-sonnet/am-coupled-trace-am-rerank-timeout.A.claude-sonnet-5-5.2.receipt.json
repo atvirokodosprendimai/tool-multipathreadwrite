@@ -1,0 +1,43 @@
+{
+  "attempt": "am-coupled-trace-am-rerank-timeout.A.claude-sonnet-5-5.2",
+  "stage": "stage4",
+  "task": "am-coupled-trace-am-rerank-timeout",
+  "shape": "check-coupled",
+  "source": "own",
+  "model": "claude-sonnet-5-5",
+  "config": "A",
+  "repeat": 2,
+  "order": 52,
+  "started": "2026-10-16T04:34:38Z",
+  "wall_ms": 19256,
+  "cli_version": "2.1.300 (Claude Code)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 3,
+  "tool_calls": 2,
+  "total_cost_usd": 0.11128179999999999,
+  "usage": {
+    "input_tokens": 6,
+    "output_tokens": 474,
+    "cache_read_input_tokens": 65538,
+    "cache_creation_input_tokens": 24994
+  },
+  "init_tools": [
+    "Bash",
+    "Edit",
+    "Glob",
+    "Grep",
+    "Read",
+    "Write"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": true
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 3,
+    "insertions": 4,
+    "deletions": 4
+  }
+}

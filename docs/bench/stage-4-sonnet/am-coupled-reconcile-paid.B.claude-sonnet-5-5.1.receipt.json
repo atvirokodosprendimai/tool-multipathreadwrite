@@ -1,0 +1,44 @@
+{
+  "attempt": "am-coupled-reconcile-paid.B.claude-sonnet-5-5.1",
+  "stage": "stage4",
+  "task": "am-coupled-reconcile-paid",
+  "shape": "check-coupled",
+  "source": "own",
+  "model": "claude-sonnet-5-5",
+  "config": "B",
+  "repeat": 1,
+  "order": 36,
+  "started": "2026-10-16T04:23:28Z",
+  "wall_ms": 47116,
+  "cli_version": "2.1.300 (Claude Code)",
+  "mrw_version": "v1.66.0 (05ec3f8)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 5,
+  "tool_calls": 4,
+  "total_cost_usd": 0.141831,
+  "usage": {
+    "input_tokens": 10,
+    "output_tokens": 1340,
+    "cache_read_input_tokens": 130870,
+    "cache_creation_input_tokens": 28831
+  },
+  "init_tools": [
+    "Bash",
+    "Glob"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": false,
+    "outside": [
+      "internal/billing/testdata/oc_orders_page.json: a file outside the package whose tests grade the task"
+    ]
+  },
+  "silent_mis_edit": true,
+  "diff": {
+    "files": 4,
+    "insertions": 5,
+    "deletions": 5
+  },
+  "hook_reads": 3
+}

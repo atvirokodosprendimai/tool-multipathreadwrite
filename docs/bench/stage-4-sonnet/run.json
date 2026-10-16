@@ -1,0 +1,41 @@
+{
+  "stage": "stage4",
+  "tasks": [
+    "am-coupled-agentkit-claude-md",
+    "am-coupled-billing-active",
+    "am-coupled-doctor-stale",
+    "am-coupled-drawers-snippet",
+    "am-coupled-reconcile-paid",
+    "am-coupled-skills-teamid",
+    "am-coupled-trace-am-rerank-timeout",
+    "am-coupled-writepolicy-one-fact",
+    "am-wide-claude-kit",
+    "am-wide-config-from-cmd",
+    "am-wide-data-flags",
+    "am-wide-hybrid-score",
+    "am-wide-kg-status-current",
+    "am-wide-must-add",
+    "am-wide-search-query",
+    "am-wide-short12",
+    "am-wide-skip-telemetry",
+    "am-wide-with-tenant",
+    "am-yaml-funding",
+    "cac-go-heartbeat",
+    "cac-go-subscriber-buffer",
+    "qh-json-keyword",
+    "site-jsonc-compat-date",
+    "site-robots-sitemap"
+  ],
+  "models": [
+    "claude-sonnet-5-5"
+  ],
+  "configs": [
+    "A",
+    "B"
+  ],
+  "repeats": 2,
+  "seed": 156,
+  "cli_version": "2.1.300 (Claude Code)",
+  "mrw_version": "v1.66.0 (05ec3f8)",
+  "containment": "bypass"
+}
