@@ -836,7 +836,7 @@ printf '@@ whole.txt 3 replace\nCCC\n' | m write - >/dev/null 2>&1; rc=$?
 want 0 "$rc" "while a whole-file read still licenses the whole file"
 
 # CONTROL B: a partial read still licenses exactly its own lines — the line it
-# showed, and not the one it did not.
+# showed and the line after it (ADR-161), and not the one beyond.
 fixture
 printf 'a\nb\nc\nd\ne\n' > "$R/part.txt"
 m read 'part.txt:2' >"$WORK/served.out"
@@ -845,7 +845,7 @@ want 0 "$rc" "and a partial read still licenses the line it showed"
 fixture
 printf 'a\nb\nc\nd\ne\n' > "$R/part2.txt"
 m read 'part2.txt:2' >"$WORK/served.out"
-printf '@@ part2.txt 3 replace\nCCC\n' | m write - >/dev/null 2>&1; rc=$?
+printf '@@ part2.txt 4 replace\nDDD\n' | m write - >/dev/null 2>&1; rc=$?
 want 1 "$rc" "and still refuses the line it did not"
 
 # An empty file cannot satisfy a range either, and used to say so by staying
@@ -1084,7 +1084,7 @@ want 0 "$rc" "a read naming 12 ranges of one file in ONE call"
 # "count the ranges" are exactly the confusion a comma-separated spec invites.
 n=$(grep -cE '^@@ ' <<<"$out")
 [ "$n" = 12 ] && ok "and serves 12 separate spans, not one merged blur" || bad "served $n span(s), want 12"
-grep -qE '^@@ 102-103$' <<<"$out" && ok "keeping 102-103 as one span covering two lines" || bad "the two-line range was split or lost"
+grep -qE '^@@ 102-104$' <<<"$out" && ok "keeping 102-103 as one span covering two lines, served with the line after it (ADR-161)" || bad "the two-line range was split or lost"
 
 # One command, thirteen hunks. Built with printf, which is how the plan was
 # generated in the wild — nothing in the docs showed that, so every caller
@@ -3748,7 +3748,7 @@ PY
 fixture
 out=$(m read 'a.go:3,+1' 2>&1); rc=$?
 want 0 "$rc" "a read with a relative end exits 0"
-grep -q '@@ 3-4' <<<"$out" && ok "a.go:3,+1 serves the start plus one line" || bad "a.go:3,+1 did not serve 3-4: $out"
+grep -q '@@ 3-5' <<<"$out" && ok "a.go:3,+1 serves the start plus one line, and the line after (ADR-161)" || bad "a.go:3,+1 did not serve 3-5: $out"
 grep -q 'func B' <<<"$out" && ok "the line after the start is in the answer" || bad "the line after the start is missing"
 out=$(m read 'a.go:/func A/,+2' 2>&1); rc=$?
 want 0 "$rc" "a pattern with a relative end exits 0"
@@ -4064,8 +4064,9 @@ grep -q 'would delete' <<<"$out" && ok "the replace refusal is unchanged" || bad
 # isolation is what makes each assertion evidence about its own op.
 anchored_fixture() {
   fixture
-  printf 'public line\nUNSERVED-SENTINEL-42\nthird\n' > "$R/s.txt"
+  printf 'public line\nsecond\nUNSERVED-SENTINEL-42\nfourth\n' > "$R/s.txt"
   m read 's.txt:1' >"$WORK/served.out" 2>&1
+  # line 1 read serves line 2 too (ADR-161): the sentinel sits on line 3, unserved
 }
 anchored_plan() {  # $1 = op, $2 = line; `delete` is the one op that carries no body
   if [ "$1" = delete ]; then
@@ -4076,7 +4077,7 @@ anchored_plan() {  # $1 = op, $2 = line; `delete` is the one op that carries no 
 }
 for op in replace delete insert-after insert-before; do
   anchored_fixture
-  out=$(anchored_plan "$op" 2 | m write - 2>&1); rc=$?
+  out=$(anchored_plan "$op" 3 | m write - 2>&1); rc=$?
   want 1 "$rc" "an anchored $op on an unserved line is refused"
   grep -q 'UNSERVED-SENTINEL-42' <<<"$out" \
     && bad "the $op refusal read back a line the caller was never served: $out" \
@@ -4780,24 +4781,25 @@ grep -q 'body one' <<<"$out" \
 printf 'alpha\nMARK here\nmiddle\nMARK again\nomega\n' > "$R/q.txt"
 out=$(m read 'q.txt:/^MARK here$/,/MARK/' 2>&1); rc=$?
 want 0 "$rc" "an end matching the start line is accepted"
-grep -q '@@ 2-2' <<<"$out" \
-  && ok "and it closes the span on that line" \
+grep -q '@@ 2-3' <<<"$out" \
+  && ok "and it closes the span on that line (the CLI serves the line after it)" \
   || bad "an end on the start line did not close the span there: $out"
 # The pair: an ordinary later end still spans to it, so this is a narrowing
 # rather than a ban.
 out=$(m read 'q.txt:/^alpha$/,/^middle$/' 2>&1); rc=$?
 want 0 "$rc" "an ordinary paired pattern still resolves"
-grep -q '@@ 1-3' <<<"$out" \
+grep -q '@@ 1-4' <<<"$out" \
   && ok "and still spans to its end" \
   || bad "an ordinary paired pattern no longer spans to its end: $out"
 # The difference ADR-036 KEEPS: a read serves a span for every match of the start
 # THAT IS NOT ALREADY INSIDE A SPAN IT SERVED — the resolver advances past each
 # span it emits — where a write refuses unless the start matches once. The spans
-# need a GAP between them, because contiguous spans are coalesced into one.
-printf 'START\nx\nEND\ngap\nSTART\ny\nEND\n' > "$R/r.txt"
+# need a GAP of two lines between them: contiguous spans are coalesced into one,
+# and the CLI serves the line after each span (ADR-161).
+printf 'START\nx\nEND\ngap\ngap\nSTART\ny\nEND\n' > "$R/r.txt"
 out=$(m read 'r.txt:/^START$/,/^END$/' 2>&1); rc=$?
 want 0 "$rc" "a start matching twice is still served by a read"
-grep -q '@@ 1-3' <<<"$out" && grep -q '@@ 5-7' <<<"$out" \
+grep -q '@@ 1-4' <<<"$out" && grep -q '@@ 6-8' <<<"$out" \
   && ok "and both spans come back, which the write path deliberately refuses" \
   || bad "a start matching twice no longer serves both spans: $out"
 # A RESOLVED SPAN MUST NOT SUPPRESS A LATER MISSING END. `found` is range-wide,
@@ -4812,7 +4814,7 @@ grep -q 'end pattern' <<<"$out" \
   && ok "and the report names the END as the half that missed" \
   || bad "the mixed case reports nothing about the unresolved start: $out"
 # BOTH, not either: the answer mrw could resolve is still served.
-grep -q '@@ 1-3' <<<"$out" \
+grep -q '@@ 1-4' <<<"$out" \
   && ok "and the span that DID resolve is still served" \
   || bad "reporting the problem threw away the resolved span: $out"
 # 75. ADR-037: the binary teaches the format it demands.
@@ -5333,7 +5335,8 @@ want 0 "$rc" "a present prose directory still falls back"
 grep -q 'echo FULL' <<<"$out" && ok "and the full command ran" || bad "not full: $out"
 
 # 87. ADR-052: a multi-line replace without a served line after End writes
-# nothing. Pair: ranged read of Start-End (exit 1, FAIL+skip, both files
+# nothing. Pair: a ranged read of 2-3, which serves 2-4 (ADR-161), then a replace
+# of 2-4 with no served line after its End (exit 1, FAIL+skip, both files
 # unchanged) / ranged read through End+1 (exit 0, body applied).
 # fixture() whole-reads and would license End+1 — do not use it here.
 R=$(mktemp -d "$WORK/r87-XXXXXX")
@@ -5343,14 +5346,15 @@ m read 'f.txt:2-3' 'g.txt:1' >"$WORK/served.out"
 plan87=$(printf '%s\n' \
 	'@@ g.txt 1 replace' \
 	'KEEP' \
-	'@@ f.txt 2-3 replace anchor="2"' \
+	'@@ f.txt 2-4 replace anchor="2"' \
 	'X' \
-	'Y')
+	'Y' \
+	'Z')
 out=$(printf '%s\n' "$plan87" | m write - 2>&1); rc=$?
 want 1 "$rc" "multi-line replace without End+1 -> exit 1"
 grep -q 'FAIL' <<<"$out" && ok "unread neighbour names FAIL" || bad "unread neighbour names FAIL"
 grep -q '^skip' <<<"$out" && ok "unread neighbour siblings skip" || bad "unread neighbour siblings skip"
-grep -qE 'after 3|line 4' <<<"$out" && ok "unread neighbour names the missing line" || bad "unread neighbour names the missing line"
+grep -qE 'after 4|line 5' <<<"$out" && ok "unread neighbour names the missing line" || bad "unread neighbour names the missing line"
 grep -qx 'keep' "$R/g.txt" && ok "unread neighbour sibling unchanged" || bad "unread neighbour sibling unchanged"
 grep -q '^2$' "$R/f.txt" && ok "unread neighbour wrote nothing" || bad "unread neighbour wrote"
 
@@ -5785,14 +5789,15 @@ want 0 "$rc" "dry-run of a counted hunk exits 0"
 echo "$out" | grep -q 'parsed:' && echo "$out" | grep -q 'body=1' \
 	&& ok "dry-run prints parsed body=1" || bad "parsed: $out"
 
-# 101. ADR-060 T2: a ranged multi-line read hints the neighbour line.
-# Pair: read f:1-2 on a 3-line file greps after 2 / whole-file read has no note.
+# 101. ADR-060 T2: a ranged multi-line read hinted the neighbour line; since
+# ADR-161 the CLI serves that line instead of naming it.
+# Pair: read f:1-2 on a 3-line file serves line 3 and no note / whole-file read has no note.
 R=$(mktemp -d "$WORK/r101-XXXXXX")
 printf 'a\nb\nc\n' > "$R/f.txt"
 out=$(m read 'f.txt:1-2' 2>&1); rc=$?
 want 0 "$rc" "ranged multi-line read exits 0"
-echo "$out" | grep -q 'after 2' \
-	&& ok "ranged multi-line read hints the neighbour" || bad "hint: $out"
+{ grep -q '^    3| c$' <<<"$out" && ! grep -q 'needs a served line after' <<<"$out"; } \
+	&& ok "ranged multi-line read serves the neighbour line" || bad "hint: $out"
 out=$(m read f.txt 2>&1); rc=$?
 want 0 "$rc" "whole-file read exits 0"
 echo "$out" | grep -q 'needs a served line after' \
@@ -8914,17 +8919,18 @@ grep -qx REPLACED "$R/w238.txt" && ok "which lands" || bad "whole read then writ
 rm -f "$R/w238.txt" "$WORK/served238.out"
 
 # 237. ADR-136: reads say less. A read of several multi-line ranges printed the
-# "needs a served line after" note at each; it is printed once, at the first.
+# "needs a served line after" note at each; it was printed once, at the first,
+# and since ADR-161 the CLI prints none: it serves that line.
 # The stale-ledger notice was ninety words of version history printed for every
 # subcommand; it is one line, and `version`, `instructions` and `stats`, which
-# never read the ledger, print none. The pairs: one range keeps its note, and
+# never read the ledger, print none. The pairs: one range gets its next line, and
 # `read` still announces a stale ledger.
 fixture
 printf 'l1\nl2\nl3\nl4\nl5\nl6\nl7\nl8\n' > "$R/q237.txt"
 out=$(m read q237.txt:2-3 q237.txt:5-6 2>&1); want 0 $? "a read of two multi-line ranges exits 0"
-[ "$(grep -c 'needs a served line after' <<<"$out")" = 1 ] && ok "and prints the neighbour note once" || bad "note count: $out"
+[ "$(grep -c 'needs a served line after' <<<"$out")" = 0 ] && ok "and prints no neighbour note" || bad "note count: $out"
 out=$(m read q237.txt:2-3 2>&1)
-grep -q 'needs a served line after 3' <<<"$out" && ok "the pair: one range still gets its note" || bad "single range: $out"
+grep -q '^    4| l4$' <<<"$out" && ok "the pair: one range is served with the line after it" || bad "single range: $out"
 SD237=$(m seen | head -1 | sed 's/.*: //')
 printf 'not a ledger\n' > "$SD237/seen"
 for sub in version instructions stats; do
@@ -9189,18 +9195,18 @@ printf 'one\n%s needle\nthree\nfour\n' "$long258" > "$R/m258.txt"
 out=$(mcp258 0 2); [ "$out" = "whole inside applied" ] && ok "the pair: without max_cols line 2 is bracketed and its write applies" || bad "uncut line: $out"
 rm -f "$R/m258.txt"
 
-# 259. ADR-155: a JSON path address serves the lines of one value and licenses
-# exactly them: a write to a line inside the span applies, one to the line after
-# it is refused as unread. The pairs: a path that is not there exits 1 naming
+# 259. ADR-155: a JSON path address serves the lines of one value and the line
+# after them (ADR-161) and licenses exactly those: a write to a line inside the
+# span applies, one to the line after that is refused as unread. The pairs: a path that is not there exits 1 naming
 # it, a bare `$` still serves the last line, and a plan address in the form is
 # refused by name.
 fixture
 printf '{\n  "name": "demo",\n  "scripts": {\n    "build": "go build",\n    "test": "go test"\n  },\n  "list": [1]\n}\n' > "$R/f259.json"
 out=$(m read 'f259.json:$.scripts' 2>&1); want 0 $? "a JSON path read exits 0"
-{ grep -q '^@@ 3-6$' <<<"$out" && grep -q '"test": "go test"' <<<"$out" && ! grep -q demo <<<"$out" && ! grep -q list <<<"$out"; } \
-  && ok "serving the value's lines and no other" || bad "path read: $out"
-printf '@@ f259.json 7 replace\n  "list": [2]\n' > "$WORK/p259"
-out=$(m write --no-check "$WORK/p259" 2>&1); want 1 $? "a write to the line after the span is refused"
+{ grep -q '^@@ 3-7$' <<<"$out" && grep -q '"test": "go test"' <<<"$out" && ! grep -q demo <<<"$out"; } \
+  && ok "serving the value's lines, the line after them, and no other" || bad "path read: $out"
+printf '@@ f259.json 8 replace\n}\n' > "$WORK/p259"
+out=$(m write --no-check "$WORK/p259" 2>&1); want 1 $? "a write past the served lines is refused"
 grep -q 'has not been read' <<<"$out" && ok "as unread" || bad "outside the span: $out"
 printf '@@ f259.json 4 replace\n    "build": "go vet",\n' > "$WORK/p259"
 out=$(m write --no-check "$WORK/p259" 2>&1); want 0 $? "a write inside the span applies"
@@ -9450,7 +9456,7 @@ fixture
 printf 'a\nb\nc\nd\n' > "$R/q266.txt"
 good266=1
 out=$(m read --quiet q266.txt:2-3); want 0 $? "a quiet read exits 0"
-{ ! grep -q '^ *[0-9][0-9]*| ' <<<"$out" && ! grep -q '^@@ [0-9]' <<<"$out" && grep -qx -- '-- licensed 2 line(s) in 1 file(s)' <<<"$out"; } \
+{ ! grep -q '^ *[0-9][0-9]*| ' <<<"$out" && ! grep -q '^@@ [0-9]' <<<"$out" && grep -qx -- '-- licensed 3 line(s) in 1 file(s)' <<<"$out"; } \
   || { good266=0; bad "a quiet read printed a line, or no count: $out"; }
 printf '@@ q266.txt 2 replace\nB\n' > "$WORK/p266"
 m write --no-check "$WORK/p266" >/dev/null 2>&1; want 0 $? "a plan for a quietly read line applies"
@@ -9462,6 +9468,25 @@ printf '@@ n266.txt 2 replace\nB\n' > "$WORK/n266"
 out=$(m write --no-check "$WORK/n266" 2>&1); want 1 $? "the pair: the same read sent to the null device licenses nothing"
 { grep -q 'has not been read' <<<"$out" && [ "$(sed -n 2p "$R/n266.txt")" = b ]; } && ok "and the same plan is refused as unread" || bad "a null-device read licensed: $out"
 m read --quiet --stat q266.txt >/dev/null 2>&1; want 2 $? "--quiet beside --stat is a usage error"
+
+# 267. ADR-161: a ranged CLI read serves the line after each range that ends
+# before the file does, so a multi-line replace of exactly the lines read is not
+# refused for the line below it (ADR-052's rule, unchanged). The pair: a replace
+# reaching one line further, after the same read, is refused for the line after it.
+R=$(mktemp -d "$WORK/r267-XXXXXX")
+printf '1\n2\n3\n4\n5\n6\n7\n8\n' > "$R/f.txt"
+out=$(m read 'f.txt:3-5' 2>&1); want 0 $? "a ranged read exits 0"
+good267=1
+{ grep -q '^@@ 3-6$' <<<"$out" && grep -q '^    6| 6$' <<<"$out" && ! grep -q 'needs a served line after' <<<"$out"; } \
+  || { good267=0; bad "the read did not serve the line after 3-5, or printed the note: $out"; }
+out=$(printf '@@ f.txt 3-5 replace anchor="3" body=3\nC\nD\nE\n' | m write --no-check - 2>&1); want 0 $? "a replace of exactly the lines read applies"
+grep -qx D "$R/f.txt" || { good267=0; bad "the replace of 3-5 did not land: $out"; }
+[ "$good267" = 1 ] && ok "a replace of exactly the lines read is not refused for the line below"
+R=$(mktemp -d "$WORK/r267b-XXXXXX")
+printf '1\n2\n3\n4\n5\n6\n7\n8\n' > "$R/f.txt"
+m read 'f.txt:3-5' >"$WORK/served267.out" 2>&1
+out=$(printf '@@ f.txt 3-6 replace anchor="3" body=4\nC\nD\nE\nF\n' | m write --no-check - 2>&1); want 1 $? "the pair: a replace one line further is refused"
+{ grep -qE 'after 6|line 7' <<<"$out" && grep -qx 4 "$R/f.txt"; } && ok "for the line after it, and writes nothing" || bad "the pair: $out"
 
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A

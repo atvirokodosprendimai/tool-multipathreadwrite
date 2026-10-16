@@ -65,13 +65,13 @@ func TestAQuietReadLicensesAndPrintsNoLine(t *testing.T) {
 		}
 	}
 
-	// The count is the lines licensed: 2-3 is two lines, and a plan for one
-	// of them applies with no further read.
+	// The count is the lines licensed: 2-3 and the line after it (ADR-161) are
+	// three lines, and a plan for one of them applies with no further read.
 	root, run := subRun(t)
 	subTree(t, root, files)
 	out, _, code := run("", "read", "--quiet", "f.txt:2-3")
-	if code != 0 || !strings.Contains(out, "-- licensed 2 line(s) in 1 file(s)") {
-		t.Errorf("read --quiet f.txt:2-3: exit %d, want 0 and 2 lines licensed:\n%s", code, out)
+	if code != 0 || !strings.Contains(out, "-- licensed 3 line(s) in 1 file(s)") {
+		t.Errorf("read --quiet f.txt:2-3: exit %d, want 0 and 3 lines licensed:\n%s", code, out)
 	}
 	if o, e, c := run("@@ f.txt 2 replace\nB\n", "write", "--no-check", "-"); c != 0 || subFile(t, root, "f.txt") != "a\nB\nc\nd\ne\n" {
 		t.Errorf("a plan of a quietly read line: exit %d\n%s%s", c, o, e)

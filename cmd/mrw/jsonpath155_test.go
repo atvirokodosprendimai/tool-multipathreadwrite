@@ -7,10 +7,10 @@ import (
 	"testing"
 )
 
-// ADR-155. Through the command: a JSON path serves its value's lines and
-// licenses exactly them — a write to the line after the span is refused as
-// unread, one to a line inside it applies — and a path that is not there exits 1
-// as an incomplete read.
+// ADR-155. Through the command: a JSON path serves its value's lines and the
+// line after them (ADR-161) and licenses exactly those — a write to the line
+// after that is refused as unread, one to a line inside it applies — and a path
+// that is not there exits 1 as an incomplete read.
 func TestAJSONPathReadLicensesExactlyItsLines(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
@@ -19,12 +19,12 @@ func TestAJSONPathReadLicensesExactlyItsLines(t *testing.T) {
 		t.Fatal(err)
 	}
 	out, code := runIn(t, root, "read", "f.json:$.scripts")
-	if code != 0 || !strings.Contains(out, "@@ 3-6") || strings.Contains(out, "demo") || strings.Contains(out, "list") {
-		t.Fatalf("read f.json:$.scripts exited %d, want lines 3-6 only:\n%s", code, out)
+	if code != 0 || !strings.Contains(out, "@@ 3-7") || strings.Contains(out, "demo") {
+		t.Fatalf("read f.json:$.scripts exited %d, want lines 3-7 only:\n%s", code, out)
 	}
-	out, code = runIn(t, root, "write", "--no-check", planFile(t, "@@ f.json 7 replace\n  \"list\": [2]\n"))
+	out, code = runIn(t, root, "write", "--no-check", planFile(t, "@@ f.json 8 replace\n}\n"))
 	if code != 1 || !strings.Contains(out, "has not been read") {
-		t.Errorf("a write to the line after the span exited %d, want 1 refused as unread:\n%s", code, out)
+		t.Errorf("a write to the line after the served lines exited %d, want 1 refused as unread:\n%s", code, out)
 	}
 	out, code = runIn(t, root, "write", "--no-check", planFile(t, "@@ f.json 4 replace\n    \"build\": \"go vet\",\n"))
 	if code != 0 {
