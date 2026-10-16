@@ -757,6 +757,10 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				Name:  "ast-grep",
 				Usage: "serve every range the ast-grep binary reports for `PATTERN` in the files under the given paths (a directory is walked). The binary must be on PATH. A hit in a file whose lines end in \\r alone is reported, not served (ADR-065)",
 			},
+			&cli.StringFlag{
+				Name:  "rewrite",
+				Usage: "with --ast-grep, print a PLAN instead of lines: ast-grep's own rewrite of each match to `REPLACEMENT` (its $A metavariables expand; an empty one deletes the match), one replace hunk per span of changed lines, anchored on the span's first line, and license each span and the line after it. Pipe it to `mrw write -`, or use `mrw write --ast-grep P --rewrite R`. Matches that overlap are refused. Not with --grep, --sub, -C, --count, --stat, --quiet, --max-cols, --max-lines, -N, --files-from or a range (ADR-161)",
+			},
 			&cli.StringSliceFlag{
 				Name:  "exclude",
 				Usage: "skip paths matching `GLOB`, matched against the root-relative path AND the basename; under --grep a bare directory name met below where the walk starts prunes that whole subtree, while a path you name is walked; --ast-grep drops excluded hits after the binary runs (repeatable)",
@@ -856,6 +860,19 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			if astSet && cmd.IsSet("context") {
 				return cli.Exit("-C widens a /pattern/ or --grep match, and an --ast-grep hit is served as the lines it spans: drop -C, or use --grep", exitUsage)
 			}
+			// ADR-161: --rewrite prints a plan of ast-grep's rewrite of the spans
+			// --ast-grep finds, so it needs that finder and a flag that shapes served
+			// lines has none. IsSet, not != "": an empty replacement is a real one.
+			if cmd.IsSet("rewrite") {
+				if !astSet {
+					return cli.Exit("--rewrite is ast-grep's rewrite of the matches --ast-grep finds: give --ast-grep PATTERN", exitUsage)
+				}
+				for _, f := range []string{"sub", "count", "stat", "quiet", "max-cols", "max-lines", "no-numbers"} {
+					if cmd.IsSet(f) {
+						return cli.Exit(fmt.Sprintf("--rewrite prints a plan and serves no line, so --%s has nothing to act on, or makes a plan of its own: drop --%s", f, f), exitUsage)
+					}
+				}
+			}
 			// ADR-161: --sub prints a plan of the lines a --grep matches, so it
 			// needs the --grep and a flag that shapes served lines has none.
 			if cmd.IsSet("sub") {
@@ -917,6 +934,9 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			}
 			if cmd.IsSet("sub") {
 				return subRead(cmd, pattern, excludes, posArgs)
+			}
+			if cmd.IsSet("rewrite") {
+				return rewriteRead(cmd, astPattern, excludes, posArgs)
 			}
 
 			root := cmd.Root().String("root")
@@ -1239,13 +1259,21 @@ held or went unchecked.`,
 				Name:  "sub",
 				Usage: "with --grep, rewrite each matching line by `REPLACEMENT` (Go regexp: $1 and ${name} expand, $$ is a literal dollar) and apply that as one plan: a verdict per site, nothing written if any fails or any matching file could not be read; --dry-run, --check and --then work as for any write. Not with a PLAN, - , --format or --create (ADR-161)",
 			},
+			&cli.StringFlag{
+				Name:  "ast-grep",
+				Usage: "with --rewrite, rewrite the matches of `PATTERN` the ast-grep binary (on PATH) reports in the files under the given paths (a directory is walked) instead of applying a PLAN (ADR-161)",
+			},
+			&cli.StringFlag{
+				Name:  "rewrite",
+				Usage: "with --ast-grep, replace each match by ast-grep's own rewrite to `REPLACEMENT` and apply that as one plan: a verdict per span, nothing written if any fails, if matches overlap, or if any matching file could not be read; --dry-run, --check and --then work as for any write. Not with a PLAN, - , --grep, --sub, --format or --create (ADR-161)",
+			},
 			&cli.StringSliceFlag{
 				Name:  "exclude",
-				Usage: "with --grep --sub, skip paths matching `GLOB` as read --grep does: the root-relative path and the basename, a bare directory name prunes its subtree (repeatable; ADR-161)",
+				Usage: "with --grep --sub or --ast-grep --rewrite, skip paths matching `GLOB` as read --grep does: the root-relative path and the basename, a bare directory name prunes its subtree (repeatable; ADR-161)",
 			},
 			&cli.BoolFlag{
 				Name:  "no-ignore",
-				Usage: "with --grep --sub, walk every regular file as read --grep --no-ignore does (ADR-161)",
+				Usage: "with --grep --sub or --ast-grep --rewrite, walk every regular file as read --grep --no-ignore does (ADR-161)",
 			},
 			&cli.IntFlag{
 				Name:  "echo-pad",
@@ -1296,7 +1324,8 @@ held or went unchecked.`,
 			if cmd.Int("echo-pad") < 0 {
 				return cli.Exit("--echo-pad must be >= 0", exitUsage)
 			}
-			if len(args) > 1 && !cmd.IsSet("grep") {
+			planned := cmd.IsSet("grep") || cmd.IsSet("rewrite") // a plan mrw makes itself (ADR-161)
+			if len(args) > 1 && !planned {
 				return cli.Exit("write takes at most one plan file", exitUsage)
 			}
 			if cmd.IsSet("create") {
@@ -1313,16 +1342,26 @@ held or went unchecked.`,
 			if cmd.IsSet("grep") != cmd.IsSet("sub") {
 				return cli.Exit("--grep and --sub go together: --sub is the replacement for the lines --grep matches", exitUsage)
 			}
-			if !cmd.IsSet("grep") && (cmd.IsSet("exclude") || cmd.IsSet("no-ignore")) {
-				return cli.Exit("--exclude and --no-ignore shape the walk of --grep --sub: give --grep P --sub R, or drop them", exitUsage)
+			if cmd.IsSet("rewrite") != cmd.IsSet("ast-grep") {
+				return cli.Exit("--ast-grep and --rewrite go together: --rewrite is the replacement for the matches --ast-grep finds", exitUsage)
 			}
-			if cmd.IsSet("grep") {
+			if cmd.IsSet("rewrite") && cmd.IsSet("grep") {
+				return cli.Exit("--ast-grep --rewrite and --grep --sub are two ways to make a plan: use one", exitUsage)
+			}
+			if !planned && (cmd.IsSet("exclude") || cmd.IsSet("no-ignore")) {
+				return cli.Exit("--exclude and --no-ignore shape the walk of --grep --sub or --ast-grep --rewrite: give one of those, or drop them", exitUsage)
+			}
+			if planned {
+				makes := "--grep --sub"
+				if cmd.IsSet("rewrite") {
+					makes = "--ast-grep --rewrite"
+				}
 				if cmd.IsSet("create") || cmd.IsSet("format") {
-					return cli.Exit("--grep --sub makes its own plan: drop --create and --format", exitUsage)
+					return cli.Exit(makes+" makes its own plan: drop --create and --format", exitUsage)
 				}
 				for _, a := range args {
 					if a == "-" {
-						return cli.Exit("--grep --sub makes its own plan: it takes paths to walk, not a PLAN or -", exitUsage)
+						return cli.Exit(makes+" makes its own plan: it takes paths to walk, not a PLAN or -", exitUsage)
 					}
 				}
 				if err := read.CheckExclude(cmd.StringSlice("exclude")); err != nil {
@@ -1400,13 +1439,19 @@ held or went unchecked.`,
 			}
 			var src io.Reader = os.Stdin
 			name := "<stdin>"
-			if cmd.IsSet("grep") {
+			if planned {
 				// ADR-161: the plan is made here, from the walk, and goes through
 				// the parse and apply every plan does. Recorded as read BEFORE it
 				// is applied, as a read records what it printed; a partial plan
 				// (a path the walk refused) writes nothing, since a plan that
 				// leaves a site out must never exit 0.
-				b, err := buildSub(cmd.Root().String("root"), args, cmd.String("grep"), cmd.String("sub"), cmd.StringSlice("exclude"), cmd.Bool("no-ignore"), os.Stderr)
+				var b *builtSub
+				var err error
+				if cmd.IsSet("rewrite") {
+					b, err = buildRewrite(cmd.Root().String("root"), args, cmd.String("ast-grep"), cmd.String("rewrite"), cmd.StringSlice("exclude"), cmd.Bool("no-ignore"), os.Stderr)
+				} else {
+					b, err = buildSub(cmd.Root().String("root"), args, cmd.String("grep"), cmd.String("sub"), cmd.StringSlice("exclude"), cmd.Bool("no-ignore"), os.Stderr)
+				}
 				if err == nil && b.problems > 0 {
 					err = cli.Exit(fmt.Sprintf("incomplete: %d path(s) or range(s) could not be served, so nothing was written", b.problems), exitNotApplied)
 				}
@@ -1424,6 +1469,9 @@ held or went unchecked.`,
 					return refuse(err.Error())
 				}
 				src, name = bytes.NewReader(b.plan), "--sub"
+				if cmd.IsSet("rewrite") {
+					name = "--rewrite"
+				}
 			} else if len(args) == 1 && args[0] != "-" {
 				// ADR-077: the plan is a shell argument and never passed the
 				// boundary; a plan naming mrw's ack store had its JSON quoted

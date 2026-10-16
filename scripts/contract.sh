@@ -9529,6 +9529,97 @@ else
   skip "a terminal on standard input (no python3 pty here)"
 fi
 
+# 264. ADR-161: `read --ast-grep P --rewrite R` prints ast-grep's own rewrite as a
+# plan, and `write --ast-grep P --rewrite R` applies it in one command; both give
+# the result ast-grep recorded. The fake answers what ast-grep 0.45.3 printed for
+# `--pattern 'foo($A, $B)' --rewrite 'bar($B, $A)' --json=stream` on a.go (one
+# match is multi-line, one sits after a multibyte rune). The pairs: the nested
+# matches ast-grep also reported ([59,76) holds [63,72)) are refused by name with
+# nothing printed or written (exit 1), and --rewrite without --ast-grep is
+# a usage error (2).
+fixture
+d264="$WORK/bin264"; mkdir -p "$d264"
+printf 'package a\n\nfunc f() {\n\tfoo(1, 2)\n\tx := foo(\n\t\t3,\n\t\t4)\n\t_ = foo(foo(5, 6), 7)\n\ts := "naïve"; foo(s, "ŝ")\n\t_ = x\n}\n' > "$WORK/a264.orig"
+printf 'package a\n\nfunc f() {\n\tbar(2, 1)\n\tx := bar(4, 3)\n\t_ = foo(foo(5, 6), 7)\n\ts := "naïve"; bar("ŝ", s)\n\t_ = x\n}\n' > "$WORK/a264.want"
+cat > "$WORK/stream264.jsonl" <<'JSONL'
+{"text":"foo(1, 2)","range":{"byteOffset":{"start":23,"end":32},"start":{"line":3,"column":1},"end":{"line":3,"column":10}},"file":"a.go","lines":"\tfoo(1, 2)","charCount":{"leading":1,"trailing":0},"replacement":"bar(2, 1)","replacementOffsets":{"start":23,"end":32},"language":"Go","metaVariables":{"single":{"A":{"text":"1","range":{"byteOffset":{"start":27,"end":28},"start":{"line":3,"column":5},"end":{"line":3,"column":6}}},"B":{"text":"2","range":{"byteOffset":{"start":30,"end":31},"start":{"line":3,"column":8},"end":{"line":3,"column":9}}}},"multi":{},"transformed":{}}}
+{"text":"foo(\n\t\t3,\n\t\t4)","range":{"byteOffset":{"start":39,"end":53},"start":{"line":4,"column":6},"end":{"line":6,"column":4}},"file":"a.go","lines":"\tx := foo(\n\t\t3,\n\t\t4)","charCount":{"leading":6,"trailing":0},"replacement":"bar(4, 3)","replacementOffsets":{"start":39,"end":53},"language":"Go","metaVariables":{"single":{"B":{"text":"4","range":{"byteOffset":{"start":51,"end":52},"start":{"line":6,"column":2},"end":{"line":6,"column":3}}},"A":{"text":"3","range":{"byteOffset":{"start":46,"end":47},"start":{"line":5,"column":2},"end":{"line":5,"column":3}}}},"multi":{},"transformed":{}}}
+{"text":"foo(s, \"ŝ\")","range":{"byteOffset":{"start":93,"end":105},"start":{"line":8,"column":15},"end":{"line":8,"column":26}},"file":"a.go","lines":"\ts := \"naïve\"; foo(s, \"ŝ\")","charCount":{"leading":15,"trailing":0},"replacement":"bar(\"ŝ\", s)","replacementOffsets":{"start":93,"end":105},"language":"Go","metaVariables":{"single":{"B":{"text":"\"ŝ\"","range":{"byteOffset":{"start":100,"end":104},"start":{"line":8,"column":22},"end":{"line":8,"column":25}}},"A":{"text":"s","range":{"byteOffset":{"start":97,"end":98},"start":{"line":8,"column":19},"end":{"line":8,"column":20}}}},"multi":{},"transformed":{}}}
+JSONL
+cat > "$WORK/nested264.jsonl" <<'JSONL'
+{"text":"foo(foo(5, 6), 7)","range":{"byteOffset":{"start":59,"end":76},"start":{"line":7,"column":5},"end":{"line":7,"column":22}},"file":"a.go","lines":"\t_ = foo(foo(5, 6), 7)","charCount":{"leading":5,"trailing":0},"replacement":"bar(7, foo(5, 6))","replacementOffsets":{"start":59,"end":76},"language":"Go","metaVariables":{"single":{"B":{"text":"7","range":{"byteOffset":{"start":74,"end":75},"start":{"line":7,"column":20},"end":{"line":7,"column":21}}},"A":{"text":"foo(5, 6)","range":{"byteOffset":{"start":63,"end":72},"start":{"line":7,"column":9},"end":{"line":7,"column":18}}}},"multi":{},"transformed":{}}}
+{"text":"foo(5, 6)","range":{"byteOffset":{"start":63,"end":72},"start":{"line":7,"column":9},"end":{"line":7,"column":18}},"file":"a.go","lines":"\t_ = foo(foo(5, 6), 7)","charCount":{"leading":9,"trailing":4},"replacement":"bar(6, 5)","replacementOffsets":{"start":63,"end":72},"language":"Go","metaVariables":{"single":{"B":{"text":"6","range":{"byteOffset":{"start":70,"end":71},"start":{"line":7,"column":16},"end":{"line":7,"column":17}}},"A":{"text":"5","range":{"byteOffset":{"start":67,"end":68},"start":{"line":7,"column":13},"end":{"line":7,"column":14}}}},"multi":{},"transformed":{}}}
+JSONL
+fake264() { printf '#!/bin/sh\ncat "%s"\n' "$1" > "$d264/ast-grep"; chmod +x "$d264/ast-grep"; }
+seed264() { cp "$WORK/a264.orig" "$R/a.go"; }
+fake264 "$WORK/stream264.jsonl"
+seed264
+good264=1
+PATH="$d264:$PATH" m read --ast-grep 'foo($A, $B)' --rewrite 'bar($B, $A)' . > "$WORK/plan264" 2> "$WORK/err264"; want 0 $? "a rewrite read exits 0"
+grep -q '^@@ a.go 4-7 replace sha=[0-9a-f]\{64\} body=2 raw=true anchor=' "$WORK/plan264" && ! grep -q -- '-- planned' "$WORK/plan264" && grep -qx -- '-- planned: 2 site(s) in 1 file(s)' "$WORK/err264" \
+  || { good264=0; bad "rewrite read plan on stdout, count on stderr: $(head -c 300 "$WORK/plan264") / $(head -c 200 "$WORK/err264")"; }
+m write --no-check - < "$WORK/plan264" >/dev/null 2>&1; want 0 $? "the rewrite plan piped to write applies"
+cmp -s "$R/a.go" "$WORK/a264.want" || { good264=0; bad "read --rewrite | write: a.go is $(head -c 300 "$R/a.go")"; }
+seed264
+PATH="$d264:$PATH" m write --no-check --ast-grep 'foo($A, $B)' --rewrite 'bar($B, $A)' . >/dev/null 2>&1; want 0 $? "a rewrite write exits 0"
+cmp -s "$R/a.go" "$WORK/a264.want" || { good264=0; bad "write --rewrite: a.go is $(head -c 300 "$R/a.go")"; }
+[ "$good264" = 1 ] && ok "a rewrite read piped to write, and a rewrite write, give ast-grep's result"
+# the pairs: nested matches change nothing, and --rewrite alone is a usage error
+fake264 "$WORK/nested264.jsonl"
+seed264
+out=$(PATH="$d264:$PATH" m read --ast-grep 'foo($A, $B)' --rewrite 'bar($B, $A)' . 2>"$WORK/nesterr264"); want 1 $? "a rewrite read of nested matches exits 1"
+{ [ -z "$out" ] && grep -q 'overlap' "$WORK/nesterr264"; } && ok "with nothing on stdout, and the overlap named" || bad "nested read: stdout '$out' stderr $(head -c 300 "$WORK/nesterr264")"
+out=$(PATH="$d264:$PATH" m write --no-check --ast-grep 'foo($A, $B)' --rewrite 'bar($B, $A)' . 2>&1); want 1 $? "a rewrite write of nested matches exits 1"
+{ cmp -s "$R/a.go" "$WORK/a264.orig" && grep -q 'overlap' <<<"$out"; } && ok "and writes nothing" || bad "nested write touched the tree or hid the overlap: $out"
+m read --rewrite 'bar($B, $A)' . >/dev/null 2>&1; want 2 $? "--rewrite without --ast-grep is a usage error"
+# more pairs: ast-grep 0.45.3 answers valid hits at exit 0 and names a path it
+# could not read on stderr, so the scan is partial and nothing is written; and
+# the plan is bound to one version of each file, so a file edited while the
+# second ast-grep run reads it (same length, same matched bytes) is refused.
+fake264 "$WORK/stream264.jsonl"
+printf '#!/bin/sh\ncat "%s"\necho "ERROR: d/bad: Permission denied (os error 13)" >&2\n' "$WORK/stream264.jsonl" > "$d264/ast-grep"
+seed264
+out=$(PATH="$d264:$PATH" m write --no-check --ast-grep 'foo($A, $B)' --rewrite 'bar($B, $A)' . 2>&1); want 1 $? "a rewrite write over a partial ast-grep scan exits 1"
+{ cmp -s "$R/a.go" "$WORK/a264.orig" && grep -q 'Permission denied' <<<"$out"; } && ok "naming the diagnostic and writing nothing" || bad "partial scan wrote or hid the diagnostic: $out"
+printf 'package a\n\nfunc f() {\n/foo(1, 2)\n\tx := foo(\n\t\t3,\n\t\t4)\n\t_ = foo(foo(5, 6), 7)\n\ts := "naïve"; foo(s, "ŝ")\n\t_ = x\n}\n' > "$WORK/a264.edit"
+rm -f "$WORK/count264"
+printf '#!/bin/sh\necho x >> "%s"\ncat "%s"\nif [ "$(wc -l < "%s")" -ge 2 ]; then cp "%s" "%s"; fi\n' "$WORK/count264" "$WORK/stream264.jsonl" "$WORK/count264" "$WORK/a264.edit" "$R/a.go" > "$d264/ast-grep"
+seed264
+out=$(PATH="$d264:$PATH" m write --no-check --ast-grep 'foo($A, $B)' --rewrite 'bar($B, $A)' . 2>&1); want 1 $? "a rewrite write of a file edited between the two ast-grep runs exits 1"
+{ cmp -s "$R/a.go" "$WORK/a264.edit" && grep -q 'changed while ast-grep ran' <<<"$out"; } && ok "naming the change and applying nothing" || bad "edited-between-runs file was rewritten or the change hidden: $out"
+# and the scan must be complete, and one version: a second ast-grep run that
+# finds other matches than the first (beside a stable sibling) writes no file,
+# and a file ast-grep cannot read, which 0.45.3 skips without a word (exit 0,
+# empty stderr), is named by mrw's own walk and fails the rewrite.
+printf 'package c\n\tfoo(1, 2)\n' > "$WORK/c264.orig"
+cline='{"text":"foo(1, 2)","range":{"byteOffset":{"start":11,"end":20}},"file":"c264.go","replacement":"bar(2, 1)"}'
+{ cat "$WORK/stream264.jsonl"; echo "$cline"; } > "$WORK/pass1264"
+{ head -n 1 "$WORK/stream264.jsonl"; echo "$cline"; } > "$WORK/pass2264"
+rm -f "$WORK/count264b"
+printf '#!/bin/sh\necho x >> "%s"\nif [ "$(wc -l < "%s")" -ge 2 ]; then cat "%s"; else cat "%s"; fi\n' "$WORK/count264b" "$WORK/count264b" "$WORK/pass2264" "$WORK/pass1264" > "$d264/ast-grep"
+seed264; cp "$WORK/c264.orig" "$R/c264.go"
+out=$(PATH="$d264:$PATH" m write --no-check --ast-grep 'foo($A, $B)' --rewrite 'bar($B, $A)' . 2>&1); want 1 $? "a rewrite write whose second ast-grep run finds other matches exits 1"
+{ cmp -s "$R/a.go" "$WORK/a264.orig" && cmp -s "$R/c264.go" "$WORK/c264.orig" && grep -q 'different matches' <<<"$out"; } && ok "naming the different matches and writing no file, the stable sibling included" || bad "differing match sets were applied or hidden: $out"
+printf '%s\n' "$cline" > "$WORK/only264"
+fake264 "$WORK/only264"
+printf 'package c\n\tfoo(3, 4)\n' > "$R/bad264.go"; chmod 000 "$R/bad264.go"
+if [ -r "$R/bad264.go" ]; then
+  skip "a rewrite beside an unreadable file (permission bits not enforced here — running as root?)"
+else
+  out=$(PATH="$d264:$PATH" m write --no-check --ast-grep 'foo($A, $B)' --rewrite 'bar($B, $A)' . 2>&1); rc=$?
+  chmod 644 "$R/bad264.go"
+  want 1 "$rc" "a rewrite write beside a file ast-grep skipped without a word exits 1"
+  { cmp -s "$R/c264.go" "$WORK/c264.orig" && grep -q 'bad264.go' <<<"$out" && grep -q 'cannot be scanned' <<<"$out"; } && ok "naming the unreadable file and writing nothing" || bad "unreadable file hidden or the sibling written: $out"
+fi
+chmod 644 "$R/bad264.go"
+# and a run that did not finish is no answer, however well its output parses: a
+# killed ast-grep leaves a valid prefix of the stream (exit 137, empty stderr).
+rm -f "$R/bad264.go"
+printf '#!/bin/sh\ncat "%s"\nkill -9 $$\n' "$WORK/stream264.jsonl" > "$d264/ast-grep"
+seed264
+out=$(PATH="$d264:$PATH" m write --no-check --ast-grep 'foo($A, $B)' --rewrite 'bar($B, $A)' . 2>&1); want 2 $? "a rewrite write over a killed ast-grep run exits 2"
+{ cmp -s "$R/a.go" "$WORK/a264.orig" && grep -q 'did not finish its scan' <<<"$out"; } && ok "naming the unfinished scan and writing nothing" || bad "a killed run's partial stream was applied: $out"
+
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
 # killed process is a zombie until its adopter reaps it, and pgrep lists
