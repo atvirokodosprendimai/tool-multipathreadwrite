@@ -354,21 +354,21 @@ func selfNames(root string) (map[string]bool, error) {
 			out[k] = true
 		}
 	}
-	// A checkout deleted under the caller is no longer found by Checkout, so
-	// every ancestor of root that is gone is the caller's own too: one of them
-	// was the top (the Codex review of ADR-161 T11). An ancestor that exists is
-	// not dead, and prune keeps it anyway.
-	if abs, err := filepath.Abs(root); err == nil {
-		for dir := filepath.Dir(abs); dir != filepath.Dir(dir); dir = filepath.Dir(dir) {
-			if _, err := os.Lstat(dir); !errors.Is(err, fs.ErrNotExist) {
-				continue
-			}
-			more, err := spellings(dir)
-			if err != nil {
-				return nil, err
-			}
-			for k := range more {
-				out[k] = true
+	// A checkout deleted under the caller is no longer found by Checkout; the
+	// root's own state directory names it (Dir writes the checkout marker), so
+	// that one entry stays the caller's own. Only that one: an outer
+	// repository that is also gone is another checkout (the Codex review of
+	// ADR-161 T11).
+	if d, err := DirPath(root); err == nil {
+		if b, err := os.ReadFile(filepath.Join(d, checkoutMarker)); err == nil {
+			if named := strings.TrimSuffix(string(b), "\n"); filepath.IsAbs(named) {
+				more, err := spellings(named)
+				if err != nil {
+					return nil, err
+				}
+				for k := range more {
+					out[k] = true
+				}
 			}
 		}
 	}
