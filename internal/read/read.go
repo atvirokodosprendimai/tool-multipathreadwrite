@@ -171,6 +171,10 @@ type Options struct {
 	// `-- licensed N line(s) in M file(s)`. For lines the caller already knows,
 	// without a scratch file and without the null device, which licenses nothing.
 	Quiet bool
+	// NextLine serves the line after each range that ends before the file does
+	// (ADR-161 Decision 10). The CLI read sets it; the MCP surface does not yet,
+	// since its pages are ranges too and a page must not repeat a line (T9).
+	NextLine bool
 }
 
 // msysHint recognises MSYS2 argument conversion, which rewrites a spec BEFORE
@@ -468,8 +472,11 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 		observed[key] = seen.Observation{SHA: sha, Spans: spans}
 	}
 	englishUnreadables := 0
-	neighbourNoted := false // the note is printed once per call, at the first range that needs it (ADR-136)
 	// ADR-153's total line.
+	// The note is printed once per call, at the first range that needs it
+	// (ADR-136), and only where the line after is not served (ADR-161): the
+	// CLI serves it, the MCP surface does not yet.
+	neighbourNoted := false
 	countedLines, countedFiles := 0, 0
 	fileLines := map[string]int{} // each file's length, for a quiet read's count of whole files
 	for _, sp := range specs {
@@ -642,6 +649,13 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 			}
 			continue
 		}
+		// ADR-161 Decision 10: a ranged read also serves the line after each
+		// range that ends before the file does, so a multi-line replace of
+		// exactly the lines read has the line below it licensed (ADR-052). It
+		// retires ADR-136's note, which only named that line.
+		if opt.NextLine && len(sp.Ranges) > 0 {
+			spans = withNextLine(spans, len(lines))
+		}
 		capped := opt.MaxLines != nil
 		budget := 0
 		if capped {
@@ -676,8 +690,7 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 			if !opt.Quiet {
 				fmt.Fprintf(w, "@@ %d-%d\n", sn.start, sn.start+n-1)
 			}
-			servedEnd := sn.start + n - 1
-			if n >= 2 && servedEnd < len(lines) && !neighbourNoted && !opt.Quiet {
+			if servedEnd := sn.start + n - 1; n >= 2 && servedEnd < len(lines) && !neighbourNoted && !opt.Quiet && !opt.NextLine {
 				neighbourNoted = true
 				fmt.Fprintf(w, "-- note: a multi-line replace of %d-%d needs a served line after %d\n",
 					sn.start, servedEnd, servedEnd)
@@ -976,6 +989,19 @@ func merge(in []span) []span {
 		out = append(out, s)
 	}
 	return out
+}
+
+// withNextLine extends each span that ends before the file does by its next
+// line, and merges the spans that then touch (ADR-161).
+func withNextLine(in []span, total int) []span {
+	out := make([]span, len(in))
+	for i, s := range in {
+		if s.end < total {
+			s.end++
+		}
+		out[i] = s
+	}
+	return merge(out)
 }
 
 // split numbers b's lines as the write engine does (ADR-065, lines.Split) and

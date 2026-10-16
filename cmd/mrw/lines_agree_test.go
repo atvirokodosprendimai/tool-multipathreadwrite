@@ -61,15 +61,16 @@ func TestACRLFFileReadWholeThenWrittenKeepsItsSha(t *testing.T) {
 	}
 }
 
-// ADR-065 T1 guard. A ranged read licenses only its span: after reading line
-// 1 of a CR-only file, a write to line 2 is refused and the file is unchanged.
+// ADR-065 T1 guard. A ranged read licenses only its span and the line after it
+// (ADR-161): after reading line 1 of a CR-only file, a write to line 3 is
+// refused and the file is unchanged.
 func TestAReadOfLineOneDoesNotLicenseLineTwoOfACROnlyFile(t *testing.T) {
 	root := t.TempDir()
 	writeCR(t, root, "cr.txt", "one\rtwo\rthree\r")
 	if _, err := readIn(t, root, "cr.txt:1"); err != nil {
 		t.Fatal(err)
 	}
-	if _, code := writeIn(t, root, "--no-check", planFile(t, "@@ cr.txt 2 replace\nX\n")); code != 1 {
+	if _, code := writeIn(t, root, "--no-check", planFile(t, "@@ cr.txt 3 replace\nX\n")); code != 1 {
 		t.Fatalf("a write to an unserved line was not refused with exit 1 (exit %d)", code)
 	}
 	if got := fileBytes(t, root, "cr.txt"); got != "one\rtwo\rthree\r" {

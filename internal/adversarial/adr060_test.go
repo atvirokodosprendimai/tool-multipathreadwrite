@@ -476,11 +476,11 @@ func adr060NeighbourHint(t *testing.T, label, state string, r *rand.Rand) {
 	root := tree(t, map[string]string{"f.txt": "one\ntwo\nthree\nfour\n"})
 	shape := r.Intn(5)
 	var args []string
-	wantNote := false
+	wantNext := false
 	switch shape {
 	case 0:
 		args = []string{"read", "f.txt:1-2"}
-		wantNote = true
+		wantNext = true // ADR-161: the CLI serves the line after, in place of ADR-136's note
 	case 1:
 		args = []string{"read", "f.txt"}
 	case 2:
@@ -494,12 +494,11 @@ func adr060NeighbourHint(t *testing.T, label, state string, r *rand.Rand) {
 	if code != 0 {
 		t.Fatalf("%s read %v exit %d\n%s", label, args, code, out)
 	}
-	has := strings.Contains(out, "needs a served line after")
-	if wantNote && !has {
-		t.Fatalf("%s %v missing neighbour note\n%s", label, args, out)
+	if strings.Contains(out, "needs a served line after") {
+		t.Fatalf("%s %v printed the neighbour note, which the CLI no longer prints\n%s", label, args, out)
 	}
-	if !wantNote && has {
-		t.Fatalf("%s %v printed neighbour note\n%s", label, args, out)
+	if wantNext && !strings.Contains(out, "    3| three") {
+		t.Fatalf("%s %v did not serve the line after the range\n%s", label, args, out)
 	}
 }
 

@@ -12,9 +12,10 @@ import (
 var servedLine = regexp.MustCompile(`(?m)^ *[0-9]+\| `)
 
 // ADR-153. `--grep P --count` says how many lines match in each file and in
-// all, serves none of them and licenses none: the count is the same number of
-// lines a plain `--grep P` serves, a line matching twice counts once, and a
-// write to a counted line is refused as unread.
+// all, serves none of them and licenses none: the count is the number of
+// matching lines a plain `--grep P` serves (it serves each one's next line too,
+// ADR-161), a line matching twice counts once, and a write to a counted line is
+// refused as unread.
 func TestAGrepCountSaysHowManyLinesMatchAndLicensesNothing(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	root := grepTree(t, map[string]string{
@@ -41,8 +42,8 @@ func TestAGrepCountSaysHowManyLinesMatchAndLicensesNothing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("--grep failed: %v\n%s", err, served)
 	}
-	if n := len(servedLine.FindAllString(served, -1)); n != 3 {
-		t.Fatalf("the same --grep serves %d lines, want the 3 --count counted:\n%s", n, served)
+	if n := len(regexp.MustCompile(`(?m)^ *[0-9]+\| .*NEEDLE`).FindAllString(served, -1)); n != 3 {
+		t.Fatalf("the same --grep serves %d matching lines, want the 3 --count counted:\n%s", n, served)
 	}
 
 	// A fresh ledger, so the serve above licenses nothing: only the count has

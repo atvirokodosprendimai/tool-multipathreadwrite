@@ -19,7 +19,9 @@ func TestANullDeviceReadNamesWhatIsStillLicensed(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	root := t.TempDir()
 	for _, f := range []string{"read.txt", "never.txt", "part.txt"} {
-		if err := os.WriteFile(filepath.Join(root, f), []byte("one\ntwo\n"), 0o644); err != nil {
+		// Three lines: a CLI read serves the line after its range (ADR-161), so a
+		// read of line 1 or 2 still leaves a line it did not serve.
+		if err := os.WriteFile(filepath.Join(root, f), []byte("one\ntwo\nthree\n"), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -98,7 +100,7 @@ func TestANullDeviceReadNamesWhatIsStillLicensed(t *testing.T) {
 	if err, _ := run(sink(), "@@ never.txt 2 replace\nTWO\n", "write", "--no-check", "-"); err == nil {
 		t.Fatal("a write to a file the line did not name applied")
 	}
-	if err, _ := run(sink(), "@@ part.txt 2 replace\nTWO\n", "write", "--no-check", "-"); err == nil {
+	if err, _ := run(sink(), "@@ part.txt 3 replace\nTHREE\n", "write", "--no-check", "-"); err == nil {
 		t.Fatal("a write to a partly licensed file's uncovered line applied")
 	}
 

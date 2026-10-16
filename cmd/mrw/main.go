@@ -1063,6 +1063,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				MaxCols:  cmd.Int("max-cols"),
 				Count:    cmd.Bool("count"),
 				Quiet:    cmd.Bool("quiet"),
+				NextLine: true,
 			})
 			skipNote()
 			// The answer reaches the caller BEFORE anything is recorded (ADR-088).
@@ -1983,8 +1984,9 @@ func iterCmd() *cli.Command {
   mrw iter note "scoped check wiring"
   mrw iter rm internal/read/read.go        # drops its ranged entries too
 
-Entries are read specs, so "mrw read" with no arguments returns exactly these
-ranges, and "mrw check" runs the project's check scoped to these files.`,
+Entries are read specs, so "mrw read" with no arguments returns these ranges,
+each with the line after it as any ranged read serves it (ADR-161), and
+"mrw check" runs the project's check scoped to these files.`,
 		Action: func(_ context.Context, cmd *cli.Command) error {
 			if err := refusePaddedArgs(cmd); err != nil {
 				return err
