@@ -37,7 +37,7 @@ func TestANewerLedgerReplacesTheNotReadReason(t *testing.T) {
 	}
 
 	root := checkout(t)
-	plantLedger(t, root, "#mrw-seen v6 v9.9.9")
+	plantLedger(t, root, "#mrw-seen v7 v9.9.9")
 	res := refused()
 	newerLedger(root, &res)
 	h := res.Hunks[0]

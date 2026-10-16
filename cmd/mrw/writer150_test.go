@@ -31,7 +31,7 @@ func TestTheCLINamesANewerLedgersWriter(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(ledger), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	newer := "#mrw-seen v6 v9.9.9 (fffffff)\n" + entry
+	newer := "#mrw-seen v7 v9.9.9 (fffffff)\n" + entry
 	if err := os.WriteFile(ledger, []byte(newer), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +67,7 @@ func TestTheCLINamesANewerLedgersWriter(t *testing.T) {
 	if out, code = runIn(t, root, "write", "--no-check", plan); code != 0 {
 		t.Errorf("the pair: a v4 ledger's entry did not license the write, exit %d: %s", code, out)
 	}
-	if got, _ := os.ReadFile(ledger); !strings.HasPrefix(string(got), "#mrw-seen v5 "+versionString()+"\n") {
+	if got, _ := os.ReadFile(ledger); !strings.HasPrefix(string(got), "#mrw-seen v6 "+versionString()+"\n") {
 		t.Errorf("the ledger the write saved does not name this mrw (%s): %q", versionString(), got)
 	}
 }

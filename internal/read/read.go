@@ -162,6 +162,10 @@ type Options struct {
 	// caller that has already decided to refuse the answer stops paying for the
 	// rest of it (ADR-078). Nil reads every spec.
 	Stop func() bool
+	// Sub, when set, makes the read print a plan instead of lines (ADR-161):
+	// w then carries only what could not be served, and Sub the plan. Only the
+	// lines planned are recorded as read.
+	Sub *Sub
 }
 
 // msysHint recognises MSYS2 argument conversion, which rewrites a spec BEFORE
@@ -583,7 +587,9 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 				}
 			}
 		}
-		fmt.Fprintln(w, header)
+		if opt.Sub == nil {
+			fmt.Fprintln(w, header)
+		}
 		if foreign != "" {
 			fmt.Fprintf(w, "-- note: %s %s: served as bytes; a write to it is refused\n", sp.Path, foreign)
 		}
@@ -617,6 +623,17 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 		for _, m := range missed {
 			fmt.Fprintf(w, "!! no match for %s\n", m)
 			problems++
+		}
+		if opt.Sub != nil {
+			planned := opt.Sub.file(sp.Path, sha, lines, spans)
+			if len(planned) == 0 {
+				note(sp.Path, sha, planned)
+			} else {
+				// Licensed and not shown (ADR-118): a plan's lines may be edited,
+				// but occurrence=N counts only lines a read showed.
+				observed[filepath.Clean(sp.Path)] = seen.Observation{SHA: sha, Spans: planned, Written: true, Shown: [][2]int{}}
+			}
+			continue
 		}
 		capped := opt.MaxLines != nil
 		budget := 0
@@ -693,6 +710,13 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 	}
 	if englishUnreadables >= 2 {
 		fmt.Fprint(w, hintSplitRegexAddress())
+	}
+	if opt.Sub != nil && len(opt.Sub.Refused) > 0 {
+		// A path the plan cannot carry makes the whole read void: nothing is
+		// planned, so nothing may be licensed.
+		opt.Sub.Plan.Reset()
+		opt.Sub.Sites, opt.Sub.Files = 0, 0
+		observed = map[string]seen.Observation{}
 	}
 	return observed, problems
 }

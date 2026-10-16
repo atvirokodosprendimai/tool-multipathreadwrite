@@ -117,10 +117,14 @@ func (o Observation) Served() string {
 	// served since (ADR-118); "the whole file" there contradicted a refusal
 	// naming unread lines, and hid in `mrw seen` why a write was refused.
 	if o.Written {
-		if len(o.Shown) == 0 {
-			return "no lines since mrw wrote it"
+		since := " since mrw wrote it"
+		if o.Spans != nil { // ADR-161: licensed by a --sub plan, not written by mrw
+			since = ", and a --sub plan licensed " + quoteSpans(o.Spans)
 		}
-		return quoteSpans(o.Shown) + " since mrw wrote it"
+		if len(o.Shown) == 0 {
+			return "no lines" + since
+		}
+		return quoteSpans(o.Shown) + since
 	}
 	if o.Whole() {
 		return "the whole file"
@@ -158,10 +162,13 @@ type Ledger map[string]Observation
 // read served (ADR-108 T10); v4 because a v3 whole-file record does not say
 // whether the caller read the file or mrw wrote it, and occurrence=N needs to
 // know (ADR-118). v5 only adds the writer to the line (ADR-150), so a v4 file
-// is still trusted.
+// is still trusted. v6 adds the line `w<shown>|<licensed>` of a --sub plan
+// (ADR-161), which an mrw reading v5 would take for a path no file has and
+// keep, or write back as a whole-file licence: v6 makes that mrw leave the
+// ledger alone (ADR-150), and v4 and v5 are still trusted, holding no such line.
 const (
 	headerTag     = "#mrw-seen v"
-	formatVersion = 5
+	formatVersion = 6
 	oldestCurrent = 4
 )
 
@@ -519,12 +526,21 @@ func parseLine(text string) (string, Observation, bool) {
 	spans, path, ok := strings.Cut(rest, "  ")
 	// A file mrw wrote is "w" and the lines shown since (ADR-118); checked
 	// before the legacy shape, which "w…" would otherwise read as a path.
-	if ok && path != "" && strings.HasPrefix(spans, "w") && spanShaped(spans[1:]) {
-		shown := [][2]int{}
-		if spans != "w" {
-			shown = parseSpans(spans[1:])
+	if ok && path != "" && strings.HasPrefix(spans, "w") {
+		// "w<shown>", or "w<shown>|<licensed>" for lines a plan may edit that no
+		// read has shown (ADR-161): the licence is those lines, not the whole file.
+		shownPart, licensedPart, partial := strings.Cut(spans[1:], "|")
+		if spanShaped(shownPart) && (!partial || spanShaped(licensedPart)) {
+			shown := [][2]int{}
+			if shownPart != "" {
+				shown = parseSpans(shownPart)
+			}
+			o := Observation{SHA: sha, Written: true, Shown: shown}
+			if partial {
+				o.Spans = parseSpans(licensedPart)
+			}
+			return path, o, true
 		}
-		return path, Observation{SHA: sha, Written: true, Shown: shown}, true
 	}
 	// If the middle field is not span-shaped, this is the legacy two-field
 	// line and `rest` is the whole path, spaces and all.
@@ -578,7 +594,15 @@ func formatSpans(o Observation) string {
 		for _, s := range o.Shown {
 			parts = append(parts, fmt.Sprintf("%d-%d", s[0], s[1]))
 		}
-		return "w" + strings.Join(parts, ",")
+		s := "w" + strings.Join(parts, ",")
+		if o.Spans != nil { // ADR-161: only these lines are licensed
+			lic := make([]string, 0, len(o.Spans))
+			for _, sp := range o.Spans {
+				lic = append(lic, fmt.Sprintf("%d-%d", sp[0], sp[1]))
+			}
+			s += "|" + strings.Join(lic, ",")
+		}
+		return s
 	}
 	if o.Whole() {
 		return "-"
@@ -746,6 +770,18 @@ func merge(old, new Observation) Observation {
 	}
 	switch {
 	case new.Written:
+		if new.Spans != nil {
+			// ADR-161: a plan's lines, licensed and not shown. Narrower than a
+			// write's whole-file licence, so it never widens what is known.
+			switch {
+			case old.Written && old.Spans == nil, old.Whole() && !old.Written:
+				return old
+			case old.Written:
+				return Observation{SHA: new.SHA, Written: true, Shown: old.Shown, Spans: mergeSpans(append(append([][2]int{}, old.Spans...), new.Spans...))}
+			default:
+				return Observation{SHA: new.SHA, Written: true, Shown: old.Spans, Spans: mergeSpans(append(append([][2]int{}, old.Spans...), new.Spans...))}
+			}
+		}
 		// A write that produced the version already recorded keeps what the
 		// caller was shown of it: the lines are the same lines.
 		switch {
@@ -761,7 +797,11 @@ func merge(old, new Observation) Observation {
 	case old.Written:
 		// A partial read of a file mrw wrote: still wholly licensed, and the
 		// lines it served are now shown (ADR-118).
-		return Observation{SHA: new.SHA, Written: true, Shown: mergeSpans(append(append([][2]int{}, old.Shown...), new.Spans...))}
+		o := Observation{SHA: new.SHA, Written: true, Shown: mergeSpans(append(append([][2]int{}, old.Shown...), new.Spans...))}
+		if old.Spans != nil { // ADR-161: a partial licence stays partial, plus what was read
+			o.Spans = mergeSpans(append(append([][2]int{}, old.Spans...), new.Spans...))
+		}
+		return o
 	case old.Whole():
 		return old
 	}

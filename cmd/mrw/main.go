@@ -743,6 +743,10 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				Usage: "serve every range matching `PATTERN` in the files under the given paths (a directory is walked)",
 			},
 			&cli.StringFlag{
+				Name:  "sub",
+				Usage: "with --grep, print a PLAN instead of lines: each matching line rewritten by `REPLACEMENT` (Go regexp: $1 and ${name} expand, $$ is a literal dollar), one replace hunk per line that changes, and license exactly those lines. Pipe it to `mrw write -`, or use `mrw write --grep P --sub R`. Not with -C, --count, --stat, --max-cols, --max-lines, -N, --files-from or --ast-grep (ADR-161)",
+			},
+			&cli.StringFlag{
 				Name:  "ast-grep",
 				Usage: "serve every range the ast-grep binary reports for `PATTERN` in the files under the given paths (a directory is walked). The binary must be on PATH. A hit in a file whose lines end in \\r alone is reported, not served (ADR-065)",
 			},
@@ -841,6 +845,21 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			if astSet && cmd.IsSet("context") {
 				return cli.Exit("-C widens a /pattern/ or --grep match, and an --ast-grep hit is served as the lines it spans: drop -C, or use --grep", exitUsage)
 			}
+			// ADR-161: --sub prints a plan of the lines a --grep matches, so it
+			// needs the --grep and a flag that shapes served lines has none.
+			if cmd.IsSet("sub") {
+				if astSet {
+					return cli.Exit("--sub rewrites the lines a --grep matches, and an --ast-grep hit is a span of lines: use --grep", exitUsage)
+				}
+				if !grepSet {
+					return cli.Exit("--sub rewrites the lines a --grep matches: give --grep PATTERN", exitUsage)
+				}
+				for _, f := range []string{"context", "count", "stat", "max-cols", "max-lines", "no-numbers", "files-from"} {
+					if cmd.IsSet(f) {
+						return cli.Exit(fmt.Sprintf("--sub prints a plan and serves no line, so --%s has nothing to act on: drop --%s", f, f), exitUsage)
+					}
+				}
+			}
 			// ADR-153: --count answers a --grep with counts and serves no line,
 			// so it needs a --grep, and a flag that acts on served lines has
 			// nothing to act on beside it.
@@ -869,6 +888,9 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			// with MCP; ADR-078).
 			if err := read.CheckExclude(excludes); err != nil {
 				return cli.Exit("--exclude "+err.Error(), exitUsage)
+			}
+			if cmd.IsSet("sub") {
+				return subRead(cmd, pattern, excludes, posArgs)
 			}
 
 			root := cmd.Root().String("root")
@@ -1181,6 +1203,22 @@ held or went unchecked.`,
 				Name:  "create",
 				Usage: "create `PATH` (relative to the root) from standard input, as the create plan of its lines would: each line ends in a newline, so a missing final newline is added and CRLF becomes LF; refused if PATH exists. Takes no PLAN argument and no --format (ADR-139)",
 			},
+			&cli.StringFlag{
+				Name:  "grep",
+				Usage: "with --sub, rewrite the lines matching `PATTERN` in the files under the given paths (a directory is walked) instead of applying a PLAN; the paths are given where the PLAN would be (ADR-161)",
+			},
+			&cli.StringFlag{
+				Name:  "sub",
+				Usage: "with --grep, rewrite each matching line by `REPLACEMENT` (Go regexp: $1 and ${name} expand, $$ is a literal dollar) and apply that as one plan: a verdict per site, nothing written if any fails or any matching file could not be read; --dry-run, --check and --then work as for any write. Not with a PLAN, - , --format or --create (ADR-161)",
+			},
+			&cli.StringSliceFlag{
+				Name:  "exclude",
+				Usage: "with --grep --sub, skip paths matching `GLOB` as read --grep does: the root-relative path and the basename, a bare directory name prunes its subtree (repeatable; ADR-161)",
+			},
+			&cli.BoolFlag{
+				Name:  "no-ignore",
+				Usage: "with --grep --sub, walk every regular file as read --grep --no-ignore does (ADR-161)",
+			},
 			&cli.IntFlag{
 				Name:  "echo-pad",
 				Value: 0,
@@ -1230,7 +1268,7 @@ held or went unchecked.`,
 			if cmd.Int("echo-pad") < 0 {
 				return cli.Exit("--echo-pad must be >= 0", exitUsage)
 			}
-			if len(args) > 1 {
+			if len(args) > 1 && !cmd.IsSet("grep") {
 				return cli.Exit("write takes at most one plan file", exitUsage)
 			}
 			if cmd.IsSet("create") {
@@ -1242,6 +1280,25 @@ held or went unchecked.`,
 				}
 				if cmd.IsSet("format") {
 					return cli.Exit("--create and --format contradict each other: drop one", exitUsage)
+				}
+			}
+			if cmd.IsSet("grep") != cmd.IsSet("sub") {
+				return cli.Exit("--grep and --sub go together: --sub is the replacement for the lines --grep matches", exitUsage)
+			}
+			if !cmd.IsSet("grep") && (cmd.IsSet("exclude") || cmd.IsSet("no-ignore")) {
+				return cli.Exit("--exclude and --no-ignore shape the walk of --grep --sub: give --grep P --sub R, or drop them", exitUsage)
+			}
+			if cmd.IsSet("grep") {
+				if cmd.IsSet("create") || cmd.IsSet("format") {
+					return cli.Exit("--grep --sub makes its own plan: drop --create and --format", exitUsage)
+				}
+				for _, a := range args {
+					if a == "-" {
+						return cli.Exit("--grep --sub makes its own plan: it takes paths to walk, not a PLAN or -", exitUsage)
+					}
+				}
+				if err := read.CheckExclude(cmd.StringSlice("exclude")); err != nil {
+					return cli.Exit("--exclude "+err.Error(), exitUsage)
 				}
 			}
 			// ADR-072: under --json every refusal after the plan is named is
@@ -1313,8 +1370,33 @@ held or went unchecked.`,
 			if err := askedStepsError(asked); err != nil {
 				return refuse(err.Error())
 			}
-			src, name := os.Stdin, "<stdin>"
-			if len(args) == 1 && args[0] != "-" {
+			var src io.Reader = os.Stdin
+			name := "<stdin>"
+			if cmd.IsSet("grep") {
+				// ADR-161: the plan is made here, from the walk, and goes through
+				// the parse and apply every plan does. Recorded as read BEFORE it
+				// is applied, as a read records what it printed; a partial plan
+				// (a path the walk refused) writes nothing, since a plan that
+				// leaves a site out must never exit 0.
+				b, err := buildSub(cmd.Root().String("root"), args, cmd.String("grep"), cmd.String("sub"), cmd.StringSlice("exclude"), cmd.Bool("no-ignore"), os.Stderr)
+				if err == nil && b.problems > 0 {
+					err = cli.Exit(fmt.Sprintf("incomplete: %d path(s) or range(s) could not be served, so nothing was written", b.problems), exitNotApplied)
+				}
+				if err != nil {
+					// ADR-072: under --json a refusal is one JSON document; it keeps
+					// its own exit, 1 for nothing planned, 2 for a usage mistake.
+					var ec cli.ExitCoder
+					if cmd.Bool("json") && errors.As(err, &ec) {
+						_ = refuse(ec.Error())
+						return cli.Exit(ec.Error(), ec.ExitCode())
+					}
+					return err
+				}
+				if err := seen.Record(cmd.Root().String("root"), b.observed); err != nil {
+					return refuse(err.Error())
+				}
+				src, name = bytes.NewReader(b.plan), "--sub"
+			} else if len(args) == 1 && args[0] != "-" {
 				// ADR-077: the plan is a shell argument and never passed the
 				// boundary; a plan naming mrw's ack store had its JSON quoted
 				// back as "text before the first @@ header" (Codex review of #238).

@@ -35,7 +35,7 @@ func TestAnMCPReadUnderANewerLedgerSaysNoAckLicenses(t *testing.T) {
 	for _, c := range []struct {
 		header string
 		newer  bool
-	}{{"#mrw-seen v6 v9.9.9", true}, {"#mrw-seen v5 v1.66.0 (05ec3f8)", false}} {
+	}{{"#mrw-seen v7 v9.9.9", true}, {"#mrw-seen v5 v1.66.0 (05ec3f8)", false}} {
 		root, path := checkout(t, "a.txt", "one\ntwo\n")
 		plantLedger157(t, root, c.header)
 		txt := served0(t, call(t, root, "mrw_read", map[string]any{"specs": []any{path}}))
@@ -62,7 +62,7 @@ func TestAnMCPReadUnderANewerLedgerSaysNoAckLicenses(t *testing.T) {
 		b.WriteString("line " + strconv.Itoa(i) + "\n")
 	}
 	root, path := checkout(t, "big.txt", b.String())
-	plantLedger157(t, root, "#mrw-seen v6 v9.9.9")
+	plantLedger157(t, root, "#mrw-seen v7 v9.9.9")
 	MaxResultChars = 6000
 	txt := served0(t, call(t, root, "mrw_read", map[string]any{"specs": []any{path}}))
 	if !strings.Contains(txt, "-- PARTIAL:") || !strings.Contains(txt, line) {
@@ -73,7 +73,7 @@ func TestAnMCPReadUnderANewerLedgerSaysNoAckLicenses(t *testing.T) {
 	// checkpoint and advises the CLI, whose read licenses nothing either here.
 	MaxResultChars = restore
 	root, path = checkout(t, "bad.txt", "one\n\xff two\nthree\n")
-	plantLedger157(t, root, "#mrw-seen v6 v9.9.9")
+	plantLedger157(t, root, "#mrw-seen v7 v9.9.9")
 	txt = served0(t, call(t, root, "mrw_read", map[string]any{"specs": []any{path}}))
 	if !strings.Contains(txt, "-- not licensed:") || !strings.Contains(txt, line) {
 		t.Errorf("a read of bytes that are not valid UTF-8, under a newer ledger, does not say %q:\n%s", line, txt)

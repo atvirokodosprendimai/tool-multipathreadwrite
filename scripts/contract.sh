@@ -9079,10 +9079,10 @@ rm -rf "$D253" "$WORK/srv253.py" "$WORK/port253" "$WORK/log253" "$WORK/out253" "
 fixture
 m read a.go >"$WORK/served.out"
 sd254=$(m seen | head -1)
-[ "$(head -1 "$sd254/seen")" = "#mrw-seen v5 $("$MRW" version)" ] \
+[ "$(head -1 "$sd254/seen")" = "#mrw-seen v6 $("$MRW" version)" ] \
   && ok "the header names its format and its writer" || bad "header: $(head -1 "$sd254/seen")"
 sha254=$(awk '$3 == "a.go" { print $1 }' "$sd254/seen")
-printf '#mrw-seen v6 v9.9.9 (fffffff)\n%s  -  a.go\n' "$sha254" > "$sd254/seen"
+printf '#mrw-seen v7 v9.9.9 (fffffff)\n%s  -  a.go\n' "$sha254" > "$sd254/seen"
 cp "$sd254/seen" "$WORK/l254"
 out=$(m read a.go 2>&1 >"$WORK/served.out"); want 0 $? "a read against a newer ledger exits 0"
 { [ "$(grep -c 'written by a newer mrw (v9.9.9 (fffffff))' <<<"$out")" = 1 ] && ! grep -q 'older mrw' <<<"$out" \
@@ -9334,7 +9334,7 @@ fixture
 m read a.go >"$WORK/served.out"
 sd260=$(m seen | head -1)
 sha260=$(awk '$3 == "a.go" { print $1 }' "$sd260/seen")
-printf '#mrw-seen v6 v9.9.9 (fffffff)\n%s  -  a.go\n' "$sha260" > "$sd260/seen"
+printf '#mrw-seen v7 v9.9.9 (fffffff)\n%s  -  a.go\n' "$sha260" > "$sd260/seen"
 printf '@@ a.go 3 replace\nfunc A() int { return 260 }\n' > "$WORK/p260"
 out=$(m write --no-check "$WORK/p260" 2>&1); want 1 $? "a write under a newer ledger is refused"
 { grep -q 'a.go cannot be edited by this mrw: the read ledger was written by a newer mrw (v9.9.9 (fffffff))' <<<"$out" \
@@ -9353,13 +9353,13 @@ fixture
 m read a.go >"$WORK/served.out"
 sd261=$(m seen | head -1)
 out=$(m seen 2>&1)
-grep -qF "# ledger format v5, written by $("$MRW" version)" <<<"$out" && ok "mrw seen names the ledger's format and writer" || bad "seen: $out"
+grep -qF "# ledger format v6, written by $("$MRW" version)" <<<"$out" && ok "mrw seen names the ledger's format and writer" || bad "seen: $out"
 printf '#mrw-seen v3\n' > "$sd261/seen"
 err=$(m help 2>&1 >/dev/null); want 0 $? "mrw help exits 0 under a stale ledger"
 { [ -z "$err" ] && [ "$(cat "$sd261/seen")" = "#mrw-seen v3" ]; } && ok "and says nothing of it, leaving it as it was" || bad "help under a stale ledger: $err"
 err=$(m read a.go 2>&1 >"$WORK/served.out"); want 0 $? "the pair: a read under the stale ledger exits 0"
 { grep -q 'it is not used, and the next recorded read or write replaces it' <<<"$err" && ! grep -q 'has been discarded' <<<"$err" \
-  && head -1 "$sd261/seen" | grep -q '^#mrw-seen v5 '; } && ok "tells the notice, claiming no discard, and replaces the ledger" || bad "stale read: $err"
+  && head -1 "$sd261/seen" | grep -q '^#mrw-seen v6 '; } && ok "tells the notice, claiming no discard, and replaces the ledger" || bad "stale read: $err"
 
 # 262. ADR-157: a read and a plan that name mrw's own state are refused with no
 # --root advice, which no --root could satisfy; the pair, a path that leaves the
@@ -9382,6 +9382,65 @@ grep -q 'begins with 2 UTF-8 byte order marks' <<<"$err" && ok "and names both" 
 printf '\357\273\277one\n' > "$WORK/bom262b"
 err=$(m write --create b262b.txt < "$WORK/bom262b" 2>&1 >/dev/null); want 0 $? "the pair: a create fed one mark lands"
 grep -q 'begins with a UTF-8 byte order mark' <<<"$err" && ok "and names it as one" || bad "one mark: $err"
+
+# 263. ADR-161: `read --grep P --sub R` prints a plan and licenses its lines, and
+# `write --grep P --sub R` applies the same plan in one command. Both change every
+# `Old` and neither neighbour (`OldX`, `xOld`), the pairs being a sub that changes
+# nothing (exit 1, nothing written), a matching file that cannot be read (exit 1,
+# NOTHING written, never a partial edit at exit 0) and --sub without --grep (2).
+fixture
+mkdir -p "$R/d263"
+seed263() {
+  printf 'Old\nOldX\nxOld\nkeep Old and Old\n' > "$R/d263/one.txt"
+  printf 'xOld\nOld\n' > "$R/d263/two.txt"
+  printf 'OldX\n' > "$R/d263/three.txt"
+}
+printf 'New\nOldX\nxOld\nkeep New and New\n' > "$WORK/one263"
+printf 'xOld\nNew\n' > "$WORK/two263"
+printf 'OldX\n' > "$WORK/three263"
+printf 'Old\nOldX\nxOld\nkeep Old and Old\n' > "$WORK/one263.orig"
+printf 'xOld\nOld\n' > "$WORK/two263.orig"
+# every Old is New and no neighbour moved (the argument is the expected-file suffix)
+tree263() { cmp -s "$R/d263/one.txt" "$WORK/one263$1" && cmp -s "$R/d263/two.txt" "$WORK/two263$1" && cmp -s "$R/d263/three.txt" "$WORK/three263"; }
+good263=1
+seed263
+m read --grep '\bOld\b' --sub New d263 > "$WORK/plan263" 2> "$WORK/err263"; want 0 $? "a sub read exits 0"
+grep -q '^@@ d263/one.txt 1 replace sha=[0-9a-f]\{64\} body=1 raw=true$' "$WORK/plan263" && ! grep -q -- '-- planned' "$WORK/plan263" && grep -qx -- '-- planned: 3 site(s) in 2 file(s)' "$WORK/err263" \
+  || { good263=0; bad "sub read plan on stdout, count on stderr: $(head -c 300 "$WORK/plan263") / $(head -c 200 "$WORK/err263")"; }
+m write --no-check - < "$WORK/plan263" >/dev/null 2>&1; want 0 $? "the sub plan piped to write applies"
+tree263 "" || { good263=0; bad "read --sub | write: a site or a neighbour is wrong: $(head -c 200 "$R/d263/one.txt") $(head -c 100 "$R/d263/two.txt")"; }
+seed263
+m write --no-check --grep '\bOld\b' --sub New d263 >/dev/null 2>&1; want 0 $? "a sub write exits 0"
+tree263 "" || { good263=0; bad "write --sub: a site or a neighbour is wrong: $(head -c 200 "$R/d263/one.txt") $(head -c 100 "$R/d263/two.txt")"; }
+[ "$good263" = 1 ] && ok "a sub read piped to write, and a sub write, change every site and no neighbour"
+# the pair: a plan is pinned to the version it was computed from
+seed263
+m read --grep '\bOld\b' --sub New d263 > "$WORK/stale263" 2>/dev/null
+printf 'extra\n' >> "$R/d263/one.txt"
+# read again, so the ledger licenses the new version and only the plan's own sha= can refuse it
+m read d263/one.txt d263/two.txt > "$WORK/reread263" 2>&1
+out=$(m write --no-check - < "$WORK/stale263" 2>&1); want 1 $? "a sub plan is refused once its file changed after the read"
+{ grep -q 'file changed: sha is' <<<"$out" && ! grep -q '^New$' "$R/d263/one.txt" && ! grep -q '^New$' "$R/d263/two.txt"; } && ok "by its sha= guard, and writes no file" || bad "stale sub plan: $out"
+# the pairs, each of which must change nothing
+seed263
+out=$(m read --grep 'xOld' --sub 'xOld' d263 2>&1 >"$WORK/same263"); want 1 $? "a sub read that changes no line exits 1"
+{ [ ! -s "$WORK/same263" ] && grep -q '^mrw: incomplete:' <<<"$out"; } && ok "with nothing on stdout, and incomplete: last" || bad "no-change read: $out"
+out=$(m write --no-check --grep 'xOld' --sub 'xOld' d263 2>&1); want 1 $? "a sub write that changes no line exits 1"
+tree263 ".orig" && ok "and writes nothing" || bad "no-change write touched the tree: $out"
+out=$(m write --no-check --grep 'NoSuchText263' --sub x d263 2>&1); want 1 $? "a sub write whose pattern matches no file exits 1"
+grep -q '^mrw: no match:' <<<"$out" && ok "with no match: last" || bad "no-match write: $out"
+chmod 000 "$R/d263/two.txt"
+if [ -r "$R/d263/two.txt" ]; then
+  skip "a sub write refuses an unreadable matching file (permission bits not enforced here — running as root?)"
+else
+  out=$(m write --no-check --grep '\bOld\b' --sub New d263 2>&1); rc=$?
+  chmod 644 "$R/d263/two.txt"
+  [ "$rc" -ne 0 ] && ok "a sub write with an unreadable matching file exits non-zero" || bad "unreadable file: exit $rc, want non-zero: $out"
+  { cmp -s "$R/d263/one.txt" "$WORK/one263.orig" && grep -q 'two.txt' <<<"$out"; } && ok "writes nothing, and names the file" || bad "unreadable file wrote or hid it: $out"
+fi
+chmod 644 "$R/d263/two.txt"
+m read --sub New d263 >/dev/null 2>&1; want 2 $? "--sub without --grep is a usage error"
+m write --no-check --grep Old d263 >/dev/null 2>&1; want 2 $? "--grep without --sub, on write, is a usage error"
 
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A

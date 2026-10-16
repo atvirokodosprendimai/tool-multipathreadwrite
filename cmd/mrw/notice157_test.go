@@ -69,7 +69,7 @@ func TestOnlyCommandsThatUseTheLedgerTellItIsStale(t *testing.T) {
 	if code != 0 || strings.Count(errOut, staleWords) != 1 {
 		t.Errorf("a read: exit %d, stderr %q; want the notice once", code, errOut)
 	}
-	if got, _ := os.ReadFile(ledger); !strings.HasPrefix(string(got), "#mrw-seen v5 ") {
+	if got, _ := os.ReadFile(ledger); !strings.HasPrefix(string(got), "#mrw-seen v6 ") {
 		t.Errorf("the read did not replace the ledger: %q", got)
 	}
 }
@@ -93,13 +93,13 @@ func TestSeenNamesTheLedgersFormatAndWriter(t *testing.T) {
 	if _, code := runIn(t, root, "read", "f.txt"); code != 0 {
 		t.Fatalf("read exited %d", code)
 	}
-	if out := seenOut(t); !strings.Contains(out, "# ledger format v5, written by "+versionString()+"\n") {
+	if out := seenOut(t); !strings.Contains(out, "# ledger format v6, written by "+versionString()+"\n") {
 		t.Errorf("after a read, mrw seen does not name this mrw:\n%s", out)
 	}
 	for header, want := range map[string]string{
 		"#mrw-seen v4":        "# ledger format v4, written by unknown\n",
 		"#mrw-seen v5":        "# ledger format v5, written by unknown\n",
-		"#mrw-seen v6 v9.9.9": "# ledger written by a newer mrw (v9.9.9), format v6: left untouched, licenses nothing\n",
+		"#mrw-seen v7 v9.9.9": "# ledger written by a newer mrw (v9.9.9), format v7: left untouched, licenses nothing\n",
 		"#mrw-seen v3":        "# ledger in an older format: not used; mrw replaces it the next time it records a read or a write\n",
 	} {
 		if err := os.WriteFile(ledger, []byte(header+"\n"), 0o600); err != nil {
