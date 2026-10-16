@@ -166,6 +166,11 @@ type Options struct {
 	// w then carries only what could not be served, and Sub the plan. Only the
 	// lines planned are recorded as read.
 	Sub *Sub
+	// Quiet records what the same read without it records and prints no line
+	// of it (ADR-161): each file's header, problems, and at the end
+	// `-- licensed N line(s) in M file(s)`. For lines the caller already knows,
+	// without a scratch file and without the null device, which licenses nothing.
+	Quiet bool
 }
 
 // msysHint recognises MSYS2 argument conversion, which rewrites a spec BEFORE
@@ -466,6 +471,7 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 	neighbourNoted := false // the note is printed once per call, at the first range that needs it (ADR-136)
 	// ADR-153's total line.
 	countedLines, countedFiles := 0, 0
+	fileLines := map[string]int{} // each file's length, for a quiet read's count of whole files
 	for _, sp := range specs {
 		if opt.Stop != nil && opt.Stop() {
 			break
@@ -566,6 +572,7 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 		// the read did its job, and a write to it is refused.
 		foreign := lines.Unsplittable(b)
 		lines, sha := split(b)
+		fileLines[filepath.Clean(sp.Path)] = len(lines)
 		header := fmt.Sprintf("==> %s  %dL  %dB  sha %s", sp.Path, len(lines), len(b), sha[:8])
 		// countMissed is the pattern a counted file no longer matches: the walk
 		// found it, and another writer changed it before this read. A plain
@@ -652,7 +659,11 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 		for _, sn := range spans {
 			n := sn.end - sn.start + 1
 			if capped && budget <= 0 {
-				fmt.Fprintf(w, "@@ %d-%d  WITHHELD %d line(s): --max-lines reached\n", sn.start, sn.end, n)
+				if opt.Quiet { // a quiet read prints no range line, a withheld one included
+					fmt.Fprintf(w, "!! lines %d-%d withheld (%d line(s)): --max-lines reached\n", sn.start, sn.end, n)
+				} else {
+					fmt.Fprintf(w, "@@ %d-%d  WITHHELD %d line(s): --max-lines reached\n", sn.start, sn.end, n)
+				}
 				problems++
 				whole = false
 				continue
@@ -662,9 +673,11 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 				cut, n = n-budget, budget
 				whole = false
 			}
-			fmt.Fprintf(w, "@@ %d-%d\n", sn.start, sn.start+n-1)
+			if !opt.Quiet {
+				fmt.Fprintf(w, "@@ %d-%d\n", sn.start, sn.start+n-1)
+			}
 			servedEnd := sn.start + n - 1
-			if n >= 2 && servedEnd < len(lines) && !neighbourNoted {
+			if n >= 2 && servedEnd < len(lines) && !neighbourNoted && !opt.Quiet {
 				neighbourNoted = true
 				fmt.Fprintf(w, "-- note: a multi-line replace of %d-%d needs a served line after %d\n",
 					sn.start, servedEnd, servedEnd)
@@ -684,9 +697,11 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 					whole = false
 					text = window(text, opt.MaxCols, res)
 				}
-				if opt.Numbers {
+				switch {
+				case opt.Quiet:
+				case opt.Numbers:
 					fmt.Fprintf(w, "%5d| %s\n", ln, text)
-				} else {
+				default:
 					fmt.Fprintln(w, text)
 				}
 			}
@@ -708,6 +723,10 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 	if opt.Count {
 		fmt.Fprintf(w, "-- %d matching line(s) in %d file(s)\n", countedLines, countedFiles)
 	}
+	if opt.Quiet {
+		n, files := licensedCount(observed, fileLines)
+		fmt.Fprintf(w, "-- licensed %d line(s) in %d file(s)\n", n, files)
+	}
 	if englishUnreadables >= 2 {
 		fmt.Fprint(w, hintSplitRegexAddress())
 	}
@@ -719,6 +738,28 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 		observed = map[string]seen.Observation{}
 	}
 	return observed, problems
+}
+
+// licensedCount is what a quiet read reports: how many lines its observations
+// license, each counted once, and how many files hold one.
+func licensedCount(observed map[string]seen.Observation, fileLines map[string]int) (n, files int) {
+	for k, o := range observed {
+		c := fileLines[k]
+		if !o.Whole() {
+			got := map[int]bool{}
+			for _, s := range o.Spans {
+				for l := s[0]; l <= s[1]; l++ {
+					got[l] = true
+				}
+			}
+			c = len(got)
+		}
+		if c > 0 {
+			n += c
+			files++
+		}
+	}
+	return n, files
 }
 
 // matchingLines counts the lines a spec's single-pattern ranges match, each

@@ -45,7 +45,7 @@ out=$(go test ./internal/read/ ./cmd/mrw/ -count=1 -v 2>&1) \
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| — | — | the test the fence names joins this table in the change that writes it, since `TestEveryTestNamedByARecordExists` holds every named test to exist | none | — |
+| `TestAQuietReadLicensesAndPrintsNoLine` | `cmd/mrw/quiet161_test.go` | the output (headers and the count, no numbered or range line), the exit and the ledger equal to a plain read's for a whole file, a range, patterns, `--max-lines`, `--max-cols` and `--grep`; a plan for a quietly read line applies; the three refusals | none | S2, S3 |
 
 ## Reachability
 
@@ -58,6 +58,11 @@ out=$(go test ./internal/read/ ./cmd/mrw/ -count=1 -v 2>&1) \
 
 ## Mutation Log
 (empty until execute)
+- 2026-10-16 · 3bef2660* · mutant killed · exit 1 · `internal/read/read.go` · S2: a quiet read prints its lines · acceptance-sha256:27fdd6ca66dae0e3aec4bb8228690902ff41712e23699d979f9461a1450aac1b
+- 2026-10-16 · 3bef2660* · mutant killed · exit 1 · `internal/read/read.go` · S2: the licensed count counts whole files for a ranged read · acceptance-sha256:27fdd6ca66dae0e3aec4bb8228690902ff41712e23699d979f9461a1450aac1b
+- 2026-10-16 · 3bef2660* · mutant killed · exit 1 · `cmd/mrw/main.go` · S3: --quiet beside --stat is not refused · acceptance-sha256:27fdd6ca66dae0e3aec4bb8228690902ff41712e23699d979f9461a1450aac1b
+- 2026-10-16 · 3bef2660* · mutant killed · exit 1 · `cmd/mrw/main.go` · S4: the --quiet flag is parsed and never reaches the read · acceptance-sha256:27fdd6ca66dae0e3aec4bb8228690902ff41712e23699d979f9461a1450aac1b
+- 2026-10-16 · 3bef2660* · mutant killed · exit 1 · `internal/read/read.go` · S2: a withheld span prints its @@ range line under --quiet (Codex review of T6) · acceptance-sha256:27fdd6ca66dae0e3aec4bb8228690902ff41712e23699d979f9461a1450aac1b
 
 ## Invariants
 
@@ -77,3 +82,12 @@ The observations a quiet read records cannot be made identical to a plain read's
 
 ## Verification Log
 (empty until execute)
+- 2026-10-16 · 3bef2660* · exit 1 · `set -o pipefail …` · acceptance-sha256:27fdd6ca66dae0e3aec4bb8228690902ff41712e23699d979f9461a1450aac1b · ms:51870 · test-lock-sha256:deeb36e69eee92091337010c87f199c96273cf4f30607b345e4a41e96cc4ff11 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIz
+  ```
+  ```
+- 2026-10-16 · 3bef2660* · exit 0 · `set -o pipefail …` · acceptance-sha256:27fdd6ca66dae0e3aec4bb8228690902ff41712e23699d979f9461a1450aac1b · ms:175821
+- 2026-10-16 · 3bef2660* · exit 0 · `set -o pipefail …` · acceptance-sha256:27fdd6ca66dae0e3aec4bb8228690902ff41712e23699d979f9461a1450aac1b · ms:163591
+- 2026-10-16 · 3bef2660* · exit 0 · `set -o pipefail …` · acceptance-sha256:27fdd6ca66dae0e3aec4bb8228690902ff41712e23699d979f9461a1450aac1b · ms:162513
+- 2026-10-16 · 3bef2660* · exit 0 · `set -o pipefail …` · acceptance-sha256:27fdd6ca66dae0e3aec4bb8228690902ff41712e23699d979f9461a1450aac1b · ms:122786
+- 2026-10-16 · 3bef2660* · exit 0 · `set -o pipefail …` · acceptance-sha256:27fdd6ca66dae0e3aec4bb8228690902ff41712e23699d979f9461a1450aac1b · ms:127568
+- 2026-10-16 · 3bef2660* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:27fdd6ca66dae0e3aec4bb8228690902ff41712e23699d979f9461a1450aac1b · ms:0 · test-lock-sha256:585406e7f0e4cd56ddcc2e157ab41e0ff9cfb2ff3668d17865ad2133fe7a543a · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJY21kL21ydy9xdWlldDE2MV90ZXN0LmdvCVRlc3RBUXVpZXRSZWFkTGljZW5zZXNBbmRQcmludHNOb0xpbmUJZjYwNzM2MTNmYTVmZTRmOGQyYTdiNGY4NDdkYmVmM2Y3NGRiOTBmNjIyMzI3ZjFmMTU2Y2M5MjYwMTFjNjhlMw · test-lock-kind:replace

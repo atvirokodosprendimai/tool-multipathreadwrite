@@ -37,7 +37,7 @@ T1, T6, T7 and T8 all edit `internal/read/read.go` and `cmd/mrw/main.go`; they r
 |----|-------|--------|--------|------------|
 | T1 | read --sub prints a plan; write --grep --sub applies it | done | — | `go test …` and contract §263 |
 | T2 | --rewrite with --ast-grep | pending | — | `go test …` and contract §264 |
-| T6 | read --quiet licenses what it serves and prints no line | pending | — | `go test …` and contract §266 |
+| T6 | read --quiet licenses what it serves and prints no line | done | — | `go test …` and contract §266 |
 | T7 | a ranged read serves the line after each range | pending | — | `go test …` and contract §267 |
 | T8 | mrw read - reads standard input | pending | — | `go test …` and contract §268 |
 | T3 | the recipes in mrw instructions and --core | pending | — | `go test …` and contract §265 |
