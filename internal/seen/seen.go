@@ -249,9 +249,21 @@ func printable(s string) string {
 	return b.String()
 }
 
+// Load is the ledger as root sees it: the checkout's entries below root, keyed
+// relative to it (ADR-161 Decision 14).
 func Load(root string) (Ledger, error) {
+	top, prefix := state.Checkout(root)
+	l, err := loadAll(top)
+	if err != nil {
+		return nil, err
+	}
+	return within(l, prefix), nil
+}
+
+// loadAll is the whole ledger of the checkout whose top is top.
+func loadAll(top string) (Ledger, error) {
 	l := Ledger{}
-	path, err := ReadPath(root)
+	path, err := ReadPath(top)
 	if err != nil {
 		return nil, err
 	}
@@ -648,14 +660,15 @@ func Drop(root string, paths []string) error {
 		if _, newer, err := Newer(root); err == nil && newer {
 			return nil
 		}
-		l, err := Load(root)
+		top, prefix := state.Checkout(root)
+		l, err := loadAll(top)
 		if err != nil {
 			return ledgerNotRead(err)
 		}
 		for _, p := range paths {
-			delete(l, p)
+			delete(l, storedKey(prefix, p))
 		}
-		return save(root, l)
+		return save(top, l)
 	})
 }
 
@@ -672,19 +685,22 @@ func Record(root string, obs map[string]Observation) error {
 		if _, newer, err := Newer(root); err == nil && newer {
 			return nil
 		}
-		l, err := Load(root)
+		top, prefix := state.Checkout(root)
+		l, err := loadAll(top)
 		if err != nil {
 			return ledgerNotRead(err)
 		}
 		for path, o := range obs {
-			l[path] = merge(l[path], o)
+			k := storedKey(prefix, path)
+			l[k] = merge(l[k], o)
 		}
-		return save(root, l)
+		return save(top, l)
 	})
 }
 
 func withLock(root string, fn func() error) error {
-	release, err := state.Hold(root, Name+".lock")
+	top, _ := state.Checkout(root)
+	release, err := state.Hold(top, Name+".lock")
 	if err != nil {
 		return err
 	}
@@ -708,7 +724,8 @@ func LockWrites(root string) (release func(), err error) {
 	if err != nil {
 		return nil, err
 	}
-	release, err = state.HoldWithin(root, Name+".write.lock", wait)
+	top, _ := state.Checkout(root)
+	release, err = state.HoldWithin(top, Name+".write.lock", wait)
 	var lt *state.LockTimeoutError
 	if errors.As(err, &lt) {
 		return nil, fmt.Errorf("this checkout's write lock: %w; nothing was applied — wait for that writer to finish, or end it; MRW_WRITE_LOCK_TIMEOUT sets the wait in seconds", err)
@@ -849,6 +866,13 @@ func save(root string, l Ledger) error {
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s%d %s\n", headerTag, formatVersion, writerName())
 	for _, p := range paths {
+		// A key holding a line feed would be read back as two records, the
+		// second one written by a file or directory name (the Codex review of
+		// ADR-161 T11): it is left out, as an unreadable record is, and that
+		// file needs reading again.
+		if strings.Contains(p, "\n") {
+			continue
+		}
 		line := fmt.Sprintf("%s  %s  %s\n", l[p].SHA, formatSpans(l[p]), p)
 		// ADR-108: a record the loader could not read back is left out, so
 		// that file needs reading again; merging its spans would license gaps.
@@ -897,6 +921,7 @@ func SHA(b []byte) string {
 // a caller who has not run a migrating command still sees data they already
 // have. Writes never use this — see writePath.
 func ReadPath(root string) (string, error) {
+	root, _ = state.Checkout(root)
 	p, err := state.Path(root, Name)
 	if err != nil {
 		return "", err

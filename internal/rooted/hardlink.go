@@ -74,7 +74,19 @@ func (s *stateLinks) prepare() {
 func (s *stateLinks) scan() {
 	s.scanned = true
 	s.ids = map[fileKey]struct{}{}
-	dir, err := state.DirPath(s.root)
+	// The ledger and the locks are the checkout's (ADR-161 Decision 14), so a
+	// hard link under a subdirectory root to the top's ledger is a second name
+	// of state too; the tally and the working set stay in the root's own.
+	top, _ := state.Checkout(s.root)
+	s.scanDir(s.root)
+	if top != s.root {
+		s.scanDir(top)
+	}
+}
+
+// scanDir adds the identities in the state directory keyed by root.
+func (s *stateLinks) scanDir(root string) {
+	dir, err := state.DirPath(root)
 	if err != nil {
 		s.bad = true
 		return
@@ -85,7 +97,7 @@ func (s *stateLinks) scan() {
 	// #361, second pass). It is listed where it really is.
 	dir = Real(dir)
 	if _, err := os.Stat(dir); err != nil {
-		s.bad = !errors.Is(err, fs.ErrNotExist)
+		s.bad = s.bad || !errors.Is(err, fs.ErrNotExist)
 		return
 	}
 	err = filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {

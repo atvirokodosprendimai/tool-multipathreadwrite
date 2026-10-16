@@ -338,6 +338,45 @@ func children(base *os.Root) ([]string, error) {
 // It cannot shield a different checkout: two distinct paths would have to
 // collide under sha256 for that.
 func selfNames(root string) (map[string]bool, error) {
+	out, err := spellings(root)
+	if err != nil {
+		return nil, err
+	}
+	// The checkout's top keeps the ledger root reads and writes (ADR-161
+	// Decision 14), so its entry is the caller's own too, even if the checkout
+	// has since gone.
+	if top, _ := Checkout(root); top != "" {
+		more, err := spellings(top)
+		if err != nil {
+			return nil, err
+		}
+		for k := range more {
+			out[k] = true
+		}
+	}
+	// A checkout deleted under the caller is no longer found by Checkout, so
+	// every ancestor of root that is gone is the caller's own too: one of them
+	// was the top (the Codex review of ADR-161 T11). An ancestor that exists is
+	// not dead, and prune keeps it anyway.
+	if abs, err := filepath.Abs(root); err == nil {
+		for dir := filepath.Dir(abs); dir != filepath.Dir(dir); dir = filepath.Dir(dir) {
+			if _, err := os.Lstat(dir); !errors.Is(err, fs.ErrNotExist) {
+				continue
+			}
+			more, err := spellings(dir)
+			if err != nil {
+				return nil, err
+			}
+			for k := range more {
+				out[k] = true
+			}
+		}
+	}
+	return out, nil
+}
+
+// spellings is every key one path could have been given its state under.
+func spellings(root string) (map[string]bool, error) {
 	out := map[string]bool{}
 	abs, err := filepath.Abs(root)
 	if err != nil {

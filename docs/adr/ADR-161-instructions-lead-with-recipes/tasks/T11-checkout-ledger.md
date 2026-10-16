@@ -1,0 +1,139 @@
+# Task ADR-161-T11: the read ledger belongs to the checkout, not the working directory
+
+**Depends-on:** T1
+**Covers:** none — no spec
+**Estimated scope:** M (one shared walk, one package's keying, one lock, the boundary, the prune guard, the write counter, four tests, one row)
+**Owner:** Zy
+**Produces:** `state.Checkout`; `seen` keyed by the enclosing checkout, the write lock, the write counter, the hard-link boundary and the prune guard with it
+**Consumes:** the v6 ledger (T1)
+**Data dependency:** hermetic
+**Proof map:** v1
+**Rests-on:** `a read in a subdirectory licenses a write from the top`, `a read at the top licenses a write from a subdirectory`, `a root outside any checkout keeps its own ledger`, `one writer per checkout across directories`, `a licence does not widen on the way across`, `a hard link to the checkout's ledger is refused from a subdirectory`, `a prune from a subdirectory keeps the checkout's entry`, `the write counter is the checkout's`, `a line feed in a key writes no record`, `a prune after the checkout is deleted keeps its entry`
+
+## Goal
+
+An agent that reads in `clients/claude-code` and writes from the checkout's top, or the reverse, is judged on one record of what it was shown, and two writers in two directories of one checkout take turns.
+
+## Affected Files
+
+| File | Change | Why |
+|------|--------|-----|
+| `internal/state/checkout.go` | add | `Checkout(root) (top, prefix string)`: the nearest directory at or above the root's real path holding a `.git` entry, and the root's path below it; the one rule seen, rooted, writer and prune share |
+| `internal/seen/checkout.go` | add | `Dir`, `storedKey` and `within`: the checkout's state directory, a key as the checkout's ledger holds it, and the ledger as one root sees it |
+| `internal/seen/seen.go` | edit | `Load`, `Record`, `Drop`, `Snapshot`, `ReadPath`, `IsStale`, `Newer`, `Header`, `DamageNotice`, `LockWrites` work on the checkout's ledger; relative keys gain the prefix when stored and lose it when loaded; keys outside the prefix are not loaded; Record and Drop save the whole ledger. Every key is root-relative (the boundary refuses a path outside the root; a read of an absolute path inside it is keyed relative, measured), so there is no absolute pass-through |
+| `internal/rooted/hardlink.go` | edit | the hard-link scan covers the checkout's state directory as well as the root's (ADR-134) |
+| `internal/state/prune.go` | edit | `selfNames` also names the checkout top's entry as the caller's own (ADR-034) |
+| `internal/writer/writes.go` | edit | the write counter is the checkout's (ADR-127) |
+| `cmd/mrw/main.go` | edit | `mrw seen` prints the checkout's state directory first, and `# this root's tally and working set: DIR` second when that differs |
+| `internal/seen/checkout161_test.go` | add | `TestALedgerBelongsToTheCheckoutNotTheDirectory` |
+| `cmd/mrw/checkout161_test.go` | add | `TestAReadInASubdirectoryLicensesAWriteFromTheTop` |
+| `internal/rooted/hardlink161_test.go` | add | `TestAHardLinkInASubdirectoryRootToTheCheckoutsLedgerIsRefused` |
+| `internal/state/checkout161_test.go` | add | `TestAPruneFromASubdirectoryKeepsTheCheckoutsEntry` |
+| `internal/writer/checkout161_test.go` | add | `TestAWriteFromASubdirectoryMovesTheCheckoutsCounter` |
+| `scripts/contract.sh` | edit | §271 |
+| `AGENTS.md`, `README.md` | edit | one sentence each where the ledger is described |
+
+## Ordered Steps
+
+1. [S1] Write the failing tests and the contract row and see them red. [proof: acceptance]
+2. [S2] `state.Checkout`: walk up from the root's real path to the first directory holding a `.git` entry (a directory, or a file as in a worktree or submodule); none, or the root itself, gives the root and an empty prefix. [proof: mutation]
+3. [S3] The ledger functions use the checkout's state directory; `Record` and `Drop` join the prefix to each key and save the whole ledger, `Load` keeps only keys under the prefix (a separator after it) and strips it; the merge and the v6 format are unchanged; a newer mrw's ledger at the top is left byte for byte by a record from below; `save` leaves out a key holding a line feed, since a directory name joined as the prefix, or a file name, would otherwise be read back as a second record (the Codex review of T11). [proof: mutation]
+4. [S4] `LockWrites` takes the checkout's write lock, so a writer in a subdirectory and one at the top take turns (ADR-075's "one writer per checkout"). [proof: mutation]
+5. [S5] Contract §271: from a checkout's subdirectory, `mrw read a.txt`; from its top, a plan replacing a line of `sub/a.txt` applies, exit 0; the pair, the same steps in a directory with no `.git` above it, is refused `has not been read`, exit 1. [proof: mutation]
+6. [S6] AGENTS.md and README say the ledger is the checkout's. [proof: acceptance]
+7. [S7] The hard-link scan, the prune guard and the write counter take the checkout's; the prune guard also names every ancestor of the root that is gone, since a deleted checkout is no longer found (the Codex review of T11); `mrw seen` names the second directory. [proof: mutation]
+
+## Acceptance
+
+```bash
+set -o pipefail
+names='TestALedgerBelongsToTheCheckoutNotTheDirectory TestAReadInASubdirectoryLicensesAWriteFromTheTop TestAHardLinkInASubdirectoryRootToTheCheckoutsLedgerIsRefused TestAPruneFromASubdirectoryKeepsTheCheckoutsEntry TestAWriteFromASubdirectoryMovesTheCheckoutsCounter TestALineFeedInAKeyWritesNoSecondRecord TestAPruneFromADeletedCheckoutKeepsItsEntry'
+out=$(go test ./internal/seen/ ./cmd/mrw/ ./internal/rooted/ ./internal/state/ ./internal/writer/ -count=1 -v -run "^($(tr ' ' '|' <<<"$names"))\$" 2>&1) \
+  && for n in $names; do grep -qE "^--- PASS: $n " <<<"$out" || exit 1; done \
+  && test -z "$(gofmt -l .)" \
+  && grep -qF 'the read ledger is the checkout'"'"'s' AGENTS.md \
+  && grep -qF 'the read ledger is the checkout'"'"'s, not the directory'"'"'s' README.md \
+  && go build -o bin/mrw ./cmd/mrw && c=$(./scripts/contract.sh 2>&1) \
+  && grep -qF 'PASS  a read in a subdirectory licenses a write from the checkout'"'"'s top' <<<"$c"
+```
+
+## Tests
+
+| Test name | File | Verifies | Covers | Steps |
+|-----------|------|----------|--------|-------|
+| `TestALedgerBelongsToTheCheckoutNotTheDirectory` | `internal/seen/checkout161_test.go` | a record from `top/sub` is stored as `sub/a.go` and loaded from `top/sub` as `a.go`; a record from the top under `sub/` loads in `sub`, and `other/d.go`, `subway/x.go` and `sub.go` do not; a record from `sub` keeps what the top held, and takes the top's `seen.lock`, not `sub`'s; a drop removes only its own entry; a `.git` file counts as a checkout; a root with no `.git` above keeps its own ledger; a held write lock in `sub` holds the top (`MRW_WRITE_LOCK_TIMEOUT=0`); a newer mrw's ledger at the top is byte-identical after a record from `sub`; lines 2-3 read in `sub` license 2 and 3 and not 1 or 5 at the top; Written and unshown survive; a file of the same name in `other` is another key | none | S2, S3, S4 |
+| `TestAReadInASubdirectoryLicensesAWriteFromTheTop` | `cmd/mrw/checkout161_test.go` | the built binary: read in `sub` with no `--root`, write `sub/a.txt` from the top, exit 0; read at the top, write `a.txt` from `sub`, exit 0; with no `.git`, the first write is refused, exit 1; `mrw seen` from `sub` names the checkout's directory first and this root's tally directory second, and the top names no second | none | S3, S5, S7 |
+| `TestAHardLinkInASubdirectoryRootToTheCheckoutsLedgerIsRefused` | `internal/rooted/hardlink161_test.go` | with the root `top/sub`, a hard link to the top's ledger is refused as mrw's own state; a hard link to an ordinary file is served | none | S7 |
+| `TestAPruneFromASubdirectoryKeepsTheCheckoutsEntry` | `internal/state/checkout161_test.go` | a root below a top names both the top's entry and its own as its own; a root with no `.git` names no other's | none | S2, S7 |
+| `TestAWriteFromASubdirectoryMovesTheCheckoutsCounter` | `internal/writer/checkout161_test.go` | a write from `sub` moves the count the top reads, and `sub` reads the same count | none | S7 |
+| `TestALineFeedInAKeyWritesNoSecondRecord` | `internal/seen/checkout161_test.go` | a key `x\n<sha>  -  victim.txt` recorded beside `a.txt` loads back as `a.txt` alone: no record licenses `victim.txt` | none | S3 |
+| `TestAPruneFromADeletedCheckoutKeepsItsEntry` | `internal/state/checkout161_test.go` | with the checkout's top deleted, a root in its subdirectory still names the top's entry as its own | none | S7 |
+
+## Reachability
+
+| Rung | How this task shows it |
+|------|------------------------|
+| 1 — exists | `state.Checkout` |
+| 2 — something selects it | every ledger function in `internal/seen` |
+| 3 — the caller can discover it | AGENTS.md and README; `mrw seen` lists the entries under the root and names the directory the ledger is in |
+| 4 — it is used | the Stage 4 rerun (ADR-160 T4), where the pilot's agents changed directory before mrw |
+
+## Mutation Log
+- 2026-10-16 · 3f7cc814* · mutant killed · exit 1 · `internal/state/checkout.go` · S2: no directory is a checkout, so a read in sub is its own ledger · acceptance-sha256:e1390b9c2db7cd885d4fe6bf775cb7b7357a035eee9360b9ff65d10a50e5ffc0
+- 2026-10-16 · 3f7cc814* · mutant killed · exit 1 · `internal/seen/checkout.go` · S3: Load keeps the prefix on the key, so a read at the top licenses nothing in sub · acceptance-sha256:e1390b9c2db7cd885d4fe6bf775cb7b7357a035eee9360b9ff65d10a50e5ffc0 · covers:a read at the top licenses a write from a subdirectory
+- 2026-10-16 · 3f7cc814* · mutant killed · exit 1 · `internal/seen/checkout.go` · S3: the separator boundary, sub.go and subway/x.go load in sub · acceptance-sha256:e1390b9c2db7cd885d4fe6bf775cb7b7357a035eee9360b9ff65d10a50e5ffc0
+- 2026-10-16 · 3f7cc814* · mutant killed · exit 1 · `internal/seen/seen.go` · S4: the write lock is keyed by the directory, so a writer in sub and one at the top do not take turns · acceptance-sha256:e1390b9c2db7cd885d4fe6bf775cb7b7357a035eee9360b9ff65d10a50e5ffc0 · covers:one writer per checkout across directories
+- 2026-10-16 · 3f7cc814* · mutant killed · exit 1 · `scripts/contract.sh` · S5: with no .git the row's good case is refused, so its PASS label never prints · acceptance-sha256:e1390b9c2db7cd885d4fe6bf775cb7b7357a035eee9360b9ff65d10a50e5ffc0 · covers:a read in a subdirectory licenses a write from the top
+- 2026-10-16 · 3f7cc814* · mutant killed · exit 1 · `internal/state/checkout.go` · S2: no directory is a checkout, so a read in sub keeps its own ledger · acceptance-sha256:4e91bee1088b58fb30234f48e2b1a782dd3069cac855b519f5a468f8c014803b · covers:a read in a subdirectory licenses a write from the top
+- 2026-10-16 · 3f7cc814* · mutant killed · exit 1 · `internal/seen/checkout.go` · S3: Load keeps the prefix on the key, so a read at the top licenses nothing in sub · acceptance-sha256:4e91bee1088b58fb30234f48e2b1a782dd3069cac855b519f5a468f8c014803b · covers:a read at the top licenses a write from a subdirectory
+- 2026-10-16 · 3f7cc814* · mutant killed · exit 1 · `internal/seen/checkout.go` · S3: the separator boundary: sub.go and subway/x.go load in sub as other names · acceptance-sha256:4e91bee1088b58fb30234f48e2b1a782dd3069cac855b519f5a468f8c014803b · covers:a licence does not widen on the way across
+- 2026-10-16 · 3f7cc814* · mutant killed · exit 1 · `internal/seen/seen.go` · S4: the write lock is keyed by the directory, so writers in sub and at the top do not take turns · acceptance-sha256:4e91bee1088b58fb30234f48e2b1a782dd3069cac855b519f5a468f8c014803b · covers:one writer per checkout across directories
+- 2026-10-16 · 3f7cc814* · mutant killed · exit 1 · `scripts/contract.sh` · S5: with no .git the row good case is refused, so its PASS label never prints · acceptance-sha256:4e91bee1088b58fb30234f48e2b1a782dd3069cac855b519f5a468f8c014803b
+- 2026-10-16 · 3f7cc814* · mutant killed · exit 1 · `internal/rooted/hardlink.go` · S7: the hard-link scan skips the checkout state, so a link from sub to the top ledger is served · acceptance-sha256:4e91bee1088b58fb30234f48e2b1a782dd3069cac855b519f5a468f8c014803b · covers:a hard link to the checkout's ledger is refused from a subdirectory
+- 2026-10-16 · 3f7cc814* · mutant killed · exit 1 · `internal/state/prune.go` · S7: the prune guard names only the root, so a subdirectory prune may remove the checkout entry · acceptance-sha256:4e91bee1088b58fb30234f48e2b1a782dd3069cac855b519f5a468f8c014803b · covers:a prune from a subdirectory keeps the checkout's entry
+- 2026-10-16 · 3f7cc814* · mutant killed · exit 1 · `internal/writer/writes.go` · S7: the counter a sub write bumps is its own, so a check at the top counts no drift · acceptance-sha256:4e91bee1088b58fb30234f48e2b1a782dd3069cac855b519f5a468f8c014803b · covers:the write counter is the checkout's
+- 2026-10-16 · 3f7cc814* · mutant killed · exit 1 · `internal/seen/seen.go` · S3: a key holding a line feed is saved, so a directory or file name writes a second record licensing a file nobody read · acceptance-sha256:ac81de7299b4182643465477136f83010b2659d442629d62e8c69b2e141290e0 · covers:a line feed in a key writes no record
+- 2026-10-16 · 3f7cc814* · mutant killed · exit 1 · `internal/state/prune.go` · S7: a deleted checkout is no longer named as the caller own, so a prune from its subdirectory may remove its entry · acceptance-sha256:ac81de7299b4182643465477136f83010b2659d442629d62e8c69b2e141290e0 · covers:a prune after the checkout is deleted keeps its entry
+
+## Invariants
+
+- Paths still resolve against the root; the boundary, the walk, the check, the receipts and every exit code are unchanged.
+- A root at its checkout's top, or outside any checkout, reads and writes the ledger it has today.
+- The ledger format stays v6: the stored keys are ordinary paths relative to the checkout's top.
+
+## Risks
+
+- A key spelled in another case than the directory's real name (on a case-folding filesystem) is not seen under the prefix: a refusal to re-read, never a wrong licence.
+- A subdirectory's own ledger from before this task is no longer read: one re-read; `mrw seen --prune` keeps its state directory, since its root still exists.
+- A `.git` far above the root (a dotfiles repository at `~`) makes every non-git directory under it share one ledger and one write lock: reads load and save that whole ledger, and unrelated projects queue on the lock. The nearest `.git` wins, so a project with its own `.git` is unaffected.
+
+## Stop Condition
+
+Any existing test or contract row changes outcome.
+
+## Out of Scope
+
+- The tally (`mrw stats`), the working set (`mrw iter`) and the MCP ack store stay per root (permanent: boundary: each answers a question about the calls made in that root; the licence, the lock, the hard-link boundary, the prune guard and the write counter are the checkout's)
+- Resolving caller paths against the checkout's top (permanent: boundary: Zy chose on 2026-10-16 that paths keep resolving against the working directory, as the pilot's agents typed them)
+
+## Verification Log
+- 2026-10-16 · 3f7cc814* · exit 1 · `set -o pipefail …` · acceptance-sha256:66b394ceb4f4b3e42bd3490deba8565ba19d655555241f49400a77a7f63b53d0 · ms:1383 · test-lock-sha256:ff8a63fcbc9083c3633d5b508e2d618dfdd53922c4f804ce78644dcab01a232b · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJY21kL21ydy9jaGVja291dDE2MV90ZXN0LmdvCVRlc3RBUmVhZEluQVN1YmRpcmVjdG9yeUxpY2Vuc2VzQVdyaXRlRnJvbVRoZVRvcAk4MjIxYmU5NjhmYWExYzA4YzI2YWM0ODQ4ZWM4ZWMyZjBmMjI5YmI5MmNkZTZmMGExZmQwNzRiMGQ3ODg0YTQ2CmJvZHkJaW50ZXJuYWwvc2Vlbi9jaGVja291dDE2MV90ZXN0LmdvCVRlc3RBTGVkZ2VyQmVsb25nc1RvVGhlQ2hlY2tvdXROb3RUaGVEaXJlY3RvcnkJYjU5YjY3MzJmYTkzMTU1NmNmNThhMmEzNDc1NTY3MTNiNmJmZDg2NzNhOTg1MDdjY2RmYWU2Mzc1NjI3ZGFmNgpib2R5CWludGVybmFsL3NlZW4vY2hlY2tvdXQxNjFfdGVzdC5nbwlhIC5naXQgZmlsZSBjb3VudHMgYXMgYSBjaGVja291dAkxMzdjMzVjN2RlOGRlYmE5OTRlNWE0OTMzZjNjYzFjZmYzZDg2OTdhNjc5MGM0YTBlMjJlZDIyOTVlMjMyZmRmCmJvZHkJaW50ZXJuYWwvc2Vlbi9jaGVja291dDE2MV90ZXN0LmdvCWEgZHJvcCBmcm9tIHRoZSBzdWJkaXJlY3RvcnkgcmVtb3ZlcyBvbmx5IGl0cyBvd24gZW50cnkJMmIzOTBkMDBjODhmMTUwYTdlNjFhYmM2YThjOTRkMjUxNDQ1Mzg2ZjBkNWI1YTM0ZjFhZWI1Y2YzMjdjZTQ0MApib2R5CWludGVybmFsL3NlZW4vY2hlY2tvdXQxNjFfdGVzdC5nbwlhIGhlbGQgd3JpdGUgbG9jayBpbiB0aGUgc3ViZGlyZWN0b3J5IGhvbGRzIHRoZSB0b3AJYmFhNWVhNjNiMWE3MzE0Y2Y0NGVkNWE5N2U2MGE1YzE1ZjM5NGMzNWQyMGE2MzdmNzBiNmVlMzUyNzFkOWRiOApib2R5CWludGVybmFsL3NlZW4vY2hlY2tvdXQxNjFfdGVzdC5nbwlhIHJlY29yZCBmcm9tIHRoZSBzdWJkaXJlY3Rvcnkga2VlcHMgd2hhdCB0aGUgdG9wIGFscmVhZHkgaGVsZAkwYTc2ZTcwOTUyZDUyOWE2OTAzOWZiYmRhYTVhN2FkYWYwMzJjMjM3Mzk1MzFlNTY3ZWFhMTY0ZTQ4OTg1NmU1CmJvZHkJaW50ZXJuYWwvc2Vlbi9jaGVja291dDE2MV90ZXN0LmdvCWEgcmVjb3JkIGZyb20gdGhlIHN1YmRpcmVjdG9yeSBsb2FkcyBmcm9tIHRoZSB0b3AgYW5kIGJhY2sJNDVlNjkxM2QwMWQwNjBlOGNkMGQ3MDY4MWFkNjM0MWU0ZjFmNWRhYjA3NTkyOTVhODViOTk2ZjkxNDIzOGE3ZApib2R5CWludGVybmFsL3NlZW4vY2hlY2tvdXQxNjFfdGVzdC5nbwlhIHJlY29yZCBmcm9tIHRoZSB0b3AgbG9hZHMgaW4gdGhlIHN1YmRpcmVjdG9yeSwgYW5kIHRoZSByZXN0IG9mIHRoZSB0b3AgZG9lcyBub3QJZDA1MDdhZWI3MmViNThjM2FiMjA0ZDY5MDM4OGQ0YzljY2E0NWEyNzYxOGViNDc1MmIzMDE0ZDQwMzNlZDRlMgpib2R5CWludGVybmFsL3NlZW4vY2hlY2tvdXQxNjFfdGVzdC5nbwlhIHJvb3Qgd2l0aCBubyAuZ2l0IGFib3ZlIGtlZXBzIGl0cyBvd24gbGVkZ2VyCTk4OTU1YThhYTcxMzhiYzUyYTYzOWNiMmMwODg1ZDFiOTU4ZWMwNzMwYmQ1YjE1NGE1M2M2MjI3ZDg1Y2MyZmEKYm9keQlpbnRlcm5hbC9zZWVuL2NoZWNrb3V0MTYxX3Rlc3QuZ28JYW4gYWJzb2x1dGUga2V5IHBhc3NlcyB0aHJvdWdoCWI4ODgxMzA2MGUzMjIzODk0YjBkMjg4OTU3M2NiZDU5MmNhMTNmYTMzMmFlYjJlYWYzMGIzYzZjYTYzMzhmMDA
+- 2026-10-16 · 3f7cc814* · exit 0 · `set -o pipefail …` · acceptance-sha256:e1390b9c2db7cd885d4fe6bf775cb7b7357a035eee9360b9ff65d10a50e5ffc0 · ms:80515
+- 2026-10-16 · 3f7cc814* · exit 0 · `set -o pipefail …` · acceptance-sha256:e1390b9c2db7cd885d4fe6bf775cb7b7357a035eee9360b9ff65d10a50e5ffc0 · ms:81331
+- 2026-10-16 · 3f7cc814* · exit 0 · `set -o pipefail …` · acceptance-sha256:e1390b9c2db7cd885d4fe6bf775cb7b7357a035eee9360b9ff65d10a50e5ffc0 · ms:84998
+- 2026-10-16 · 3f7cc814* · exit 0 · `set -o pipefail …` · acceptance-sha256:e1390b9c2db7cd885d4fe6bf775cb7b7357a035eee9360b9ff65d10a50e5ffc0 · ms:84967
+- 2026-10-16 · 3f7cc814* · exit 0 · `set -o pipefail …` · acceptance-sha256:e1390b9c2db7cd885d4fe6bf775cb7b7357a035eee9360b9ff65d10a50e5ffc0 · ms:83167
+- 2026-10-16 · 3f7cc814* · exit 0 · `set -o pipefail …` · acceptance-sha256:e1390b9c2db7cd885d4fe6bf775cb7b7357a035eee9360b9ff65d10a50e5ffc0 · ms:88616
+- 2026-10-16 · 3f7cc814* · exit 0 · `set -o pipefail …` · acceptance-sha256:4e91bee1088b58fb30234f48e2b1a782dd3069cac855b519f5a468f8c014803b · ms:81687
+- 2026-10-16 · 3f7cc814* · exit 0 · `set -o pipefail …` · acceptance-sha256:4e91bee1088b58fb30234f48e2b1a782dd3069cac855b519f5a468f8c014803b · ms:89124
+- 2026-10-16 · 3f7cc814* · exit 0 · `set -o pipefail …` · acceptance-sha256:4e91bee1088b58fb30234f48e2b1a782dd3069cac855b519f5a468f8c014803b · ms:99157
+- 2026-10-16 · 3f7cc814* · exit 0 · `set -o pipefail …` · acceptance-sha256:4e91bee1088b58fb30234f48e2b1a782dd3069cac855b519f5a468f8c014803b · ms:108845
+- 2026-10-16 · 3f7cc814* · exit 0 · `set -o pipefail …` · acceptance-sha256:4e91bee1088b58fb30234f48e2b1a782dd3069cac855b519f5a468f8c014803b · ms:111710
+- 2026-10-16 · 3f7cc814* · exit 0 · `set -o pipefail …` · acceptance-sha256:4e91bee1088b58fb30234f48e2b1a782dd3069cac855b519f5a468f8c014803b · ms:92657
+- 2026-10-16 · 3f7cc814* · exit 0 · `set -o pipefail …` · acceptance-sha256:4e91bee1088b58fb30234f48e2b1a782dd3069cac855b519f5a468f8c014803b · ms:125824
+- 2026-10-16 · 3f7cc814* · exit 0 · `set -o pipefail …` · acceptance-sha256:4e91bee1088b58fb30234f48e2b1a782dd3069cac855b519f5a468f8c014803b · ms:81229
+- 2026-10-16 · 3f7cc814* · exit 0 · `set -o pipefail …` · acceptance-sha256:4e91bee1088b58fb30234f48e2b1a782dd3069cac855b519f5a468f8c014803b · ms:81536
+- 2026-10-16 · 3f7cc814* · exit 0 · `set -o pipefail …` · acceptance-sha256:ac81de7299b4182643465477136f83010b2659d442629d62e8c69b2e141290e0 · ms:80234
+- 2026-10-16 · 3f7cc814* · exit 0 · `set -o pipefail …` · acceptance-sha256:ac81de7299b4182643465477136f83010b2659d442629d62e8c69b2e141290e0 · ms:80197
+- 2026-10-16 · 3f7cc814* · exit 0 · `set -o pipefail …` · acceptance-sha256:ac81de7299b4182643465477136f83010b2659d442629d62e8c69b2e141290e0 · ms:82129
+- 2026-10-16 · 3f7cc814* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:ac81de7299b4182643465477136f83010b2659d442629d62e8c69b2e141290e0 · ms:0 · test-lock-sha256:ba948fea2b2f70b969fd89fcf92df032d49bf931a186649fdc046f35550ee17d · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJY21kL21ydy9jaGVja291dDE2MV90ZXN0LmdvCVRlc3RBUmVhZEluQVN1YmRpcmVjdG9yeUxpY2Vuc2VzQVdyaXRlRnJvbVRoZVRvcAk2MWRiNGY4MjRkOTRkN2YyNDAzNjYzZTM4Y2Y1NDA5NjQ5MzMwM2Q0NjA0NTRhOTNiYjAwNDE2ZDQ3MTgxZGE3CmJvZHkJaW50ZXJuYWwvcm9vdGVkL2hhcmRsaW5rMTYxX3Rlc3QuZ28JVGVzdEFIYXJkTGlua0luQVN1YmRpcmVjdG9yeVJvb3RUb1RoZUNoZWNrb3V0c0xlZGdlcklzUmVmdXNlZAlkZjI1OWI2ZmVkNzg3MzVjMDAwMTM5N2ZjNjc3NDFmMmZkMDRmZmZlYjE5MzVhNjMzYjQ5M2U2N2ZkZmU2Y2Q5CmJvZHkJaW50ZXJuYWwvc2Vlbi9jaGVja291dDE2MV90ZXN0LmdvCVRlc3RBTGVkZ2VyQmVsb25nc1RvVGhlQ2hlY2tvdXROb3RUaGVEaXJlY3RvcnkJYzMwYzExM2IzNmFkNzQwZDU1NzM3MDk2NjMwNzIxMmFkN2Y1Y2JiODI1OTZlYmUzY2E4YjA4NmRlOWM2ZDM0Mwpib2R5CWludGVybmFsL3NlZW4vY2hlY2tvdXQxNjFfdGVzdC5nbwlUZXN0QUxpbmVGZWVkSW5BS2V5V3JpdGVzTm9TZWNvbmRSZWNvcmQJMzM5YjA0MGJlZGE0M2Y4OTYwNzBiYmVhMjM2MDNmZTdkNTIwYTQ0ZWMzNzM5YWM5ZDIzNTVkZGI0NTEyMDI5Zgpib2R5CWludGVybmFsL3NlZW4vY2hlY2tvdXQxNjFfdGVzdC5nbwlhIC5naXQgZmlsZSBjb3VudHMgYXMgYSBjaGVja291dAkxMzdjMzVjN2RlOGRlYmE5OTRlNWE0OTMzZjNjYzFjZmYzZDg2OTdhNjc5MGM0YTBlMjJlZDIyOTVlMjMyZmRmCmJvZHkJaW50ZXJuYWwvc2Vlbi9jaGVja291dDE2MV90ZXN0LmdvCWEgZHJvcCBmcm9tIHRoZSBzdWJkaXJlY3RvcnkgcmVtb3ZlcyBvbmx5IGl0cyBvd24gZW50cnkJMmIzOTBkMDBjODhmMTUwYTdlNjFhYmM2YThjOTRkMjUxNDQ1Mzg2ZjBkNWI1YTM0ZjFhZWI1Y2YzMjdjZTQ0MApib2R5CWludGVybmFsL3NlZW4vY2hlY2tvdXQxNjFfdGVzdC5nbwlhIGhlbGQgd3JpdGUgbG9jayBpbiB0aGUgc3ViZGlyZWN0b3J5IGhvbGRzIHRoZSB0b3AJYmFhNWVhNjNiMWE3MzE0Y2Y0NGVkNWE5N2U2MGE1YzE1ZjM5NGMzNWQyMGE2MzdmNzBiNmVlMzUyNzFkOWRiOApib2R5CWludGVybmFsL3NlZW4vY2hlY2tvdXQxNjFfdGVzdC5nbwlhIGxlZGdlciBmcm9tIGEgbmV3ZXIgbXJ3IGF0IHRoZSB0b3AgaXMgbGVmdCBieXRlIGZvciBieXRlCTNiODYxN2UxNTJkYjJiNzU1NWE3MWJkYjI5OGMwZDJhMjgzYjgyOTQ4M2FlMTI5ZWNhNWYwNjhmMzFmOTZkOTAKYm9keQlpbnRlcm5hbC9zZWVuL2NoZWNrb3V0MTYxX3Rlc3QuZ28JYSBsaWNlbmNlIGRvZXMgbm90IHdpZGVuIG9yIGNoYW5nZSBvbiB0aGUgd2F5IGFjcm9zcwk0NTE2MjM0MjdlNDBkYTY4OGM0OGU2OTE3MDBhODlkMThlNzg0NDJhZWE2NjI0NTcwZTk1ZjA5MTdmNzYwOGJkCmJvZHkJaW50ZXJuYWwvc2Vlbi9jaGVja291dDE2MV90ZXN0LmdvCWEgcmVjb3JkIGZyb20gdGhlIHN1YmRpcmVjdG9yeSBrZWVwcyB3aGF0IHRoZSB0b3AgYWxyZWFkeSBoZWxkCTBhNzZlNzA5NTJkNTI5YTY5MDM5ZmJiZGFhNWE3YWRhZjAzMmMyMzczOTUzMWU1NjdlYWExNjRlNDg5ODU2ZTUKYm9keQlpbnRlcm5hbC9zZWVuL2NoZWNrb3V0MTYxX3Rlc3QuZ28JYSByZWNvcmQgZnJvbSB0aGUgc3ViZGlyZWN0b3J5IGxvYWRzIGZyb20gdGhlIHRvcCBhbmQgYmFjawk0NWU2OTEzZDAxZDA2MGU4Y2QwZDcwNjgxYWQ2MzQxZTRmMWY1ZGFiMDc1OTI5NWE4NWI5OTZmOTE0MjM4YTdkCmJvZHkJaW50ZXJuYWwvc2Vlbi9jaGVja291dDE2MV90ZXN0LmdvCWEgcmVjb3JkIGZyb20gdGhlIHRvcCBsb2FkcyBpbiB0aGUgc3ViZGlyZWN0b3J5LCBhbmQgdGhlIHJlc3Qgb2YgdGhlIHRvcCBkb2VzIG5vdAkxZmY3MDMyMDNjZmNmMjYxM2M1NWU3MjA1MzJlZDlmODdhZjE3YTU0YzY2YWJjNDZkNGY4OGJiYzVjYjg0N2YzCmJvZHkJaW50ZXJuYWwvc2Vlbi9jaGVja291dDE2MV90ZXN0LmdvCWEgcm9vdCB3aXRoIG5vIC5naXQgYWJvdmUga2VlcHMgaXRzIG93biBsZWRnZXIJOTg5NTVhOGFhNzEzOGJjNTJhNjM5Y2IyYzA4ODVkMWI5NThlYzA3MzBiZDViMTU0YTUzYzYyMjdkODVjYzJmYQpib2R5CWludGVybmFsL3N0YXRlL2NoZWNrb3V0MTYxX3Rlc3QuZ28JVGVzdEFQcnVuZUZyb21BRGVsZXRlZENoZWNrb3V0S2VlcHNJdHNFbnRyeQk4NWRhYzkzMjYyNzY2NTUwMDZmYzNkZDhmOWQyZjRkM2E3ODM4MTM5MWEzODc1MTJhMGZkMGY0YzY1Mjg3NWRkCmJvZHkJaW50ZXJuYWwvc3RhdGUvY2hlY2tvdXQxNjFfdGVzdC5nbwlUZXN0QVBydW5lRnJvbUFTdWJkaXJlY3RvcnlLZWVwc1RoZUNoZWNrb3V0c0VudHJ5CWNiOTQzODcxZGI2ZjI3ZTMxZTc3NmMxNTVhYWQ5MmZkNjk0M2Y2ZDU1NThkNmM4MDQwNGFiYzJmYmMyNGNkZWQKYm9keQlpbnRlcm5hbC93cml0ZXIvY2hlY2tvdXQxNjFfdGVzdC5nbwlUZXN0QVdyaXRlRnJvbUFTdWJkaXJlY3RvcnlNb3Zlc1RoZUNoZWNrb3V0c0NvdW50ZXIJNDJmNzFlM2E5OWY0YjZlYTI2YzdlZThmNTg3YjJjZTc1MjYxZGViM2FhNjYxZmUwYzViZmQ4YmJjZGQ5YTdjNA · test-lock-kind:replace

@@ -16,7 +16,8 @@ const writesName = "writes"
 // its state directory says (ADR-127). A counter that is missing or cannot be
 // read is zero: the advisory it feeds is best effort, never a refusal.
 func Writes(root string) int64 {
-	p, err := state.Path(root, writesName)
+	top, _ := state.Checkout(root)
+	p, err := state.Path(top, writesName)
 	if err != nil {
 		return 0
 	}
@@ -35,7 +36,8 @@ func Writes(root string) int64 {
 // it could not (ADR-127). It is called under the write lock, so no two writers
 // bump at once.
 func bumpWrites(root string) int64 {
-	p, err := state.Path(root, writesName)
+	top, _ := state.Checkout(root)
+	p, err := state.Path(top, writesName)
 	if err != nil {
 		return 0
 	}

@@ -639,12 +639,17 @@ be a deleted checkout or a volume that is not mounted, and only you can tell.`,
 				return cli.Exit("mrw seen: --dry-run says what --prune would remove, "+
 					"and there is no --prune here; add it, or drop --dry-run", exitUsage)
 			}
-			dir, err := state.Dir(root)
+			dir, err := seen.Dir(root)
 			if err != nil {
 				return cli.Exit(err, exitUsage)
 			}
 			// Location first: "where is it" is the question that brought you here.
 			fmt.Println(dir)
+			// ADR-161 Decision 14: the ledger is the checkout's, the tally and the
+			// working set stay this root's own; below a checkout's top they differ.
+			if own, err := state.Dir(root); err == nil && own != dir {
+				fmt.Printf("# this root's tally and working set: %s\n", own)
+			}
 			// ⚠ AFTER THE DIRECTORY, NEVER BEFORE IT. `mrw seen | head -1` is
 			// the documented way to find the state directory and contract §54
 			// reads it that way, so this line goes second or it breaks them.

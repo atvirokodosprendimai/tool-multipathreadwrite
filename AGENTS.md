@@ -431,6 +431,8 @@ whole list arrives as one argument and the regex swallows the rest of the line.
   Read what you mean to edit: the licence stands for lines you saw, and
   a file you never open licenses all the same — mrw cannot tell, so redirecting a read to satisfy
   the guard defeats it.
+  Inside a git checkout the read ledger is the checkout's, not the directory's: a read in `sub/` licenses a write from
+  the top and the reverse, and so does the write lock (ADR-161 Decision 14); paths still resolve against the root.
 - **AFTER ANY MULTI-LINE BODY, READ ON PAST YOUR RANGE UNTIL YOU SEE THE
   ENCLOSING STRUCTURE CLOSE.** Unconditional, and deliberately wider than the
   write. What follows is explanation, not a trigger: a rule opening "if your body

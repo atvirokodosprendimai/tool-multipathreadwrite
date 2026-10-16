@@ -138,6 +138,7 @@ reads record nothing, every command that consults the ledger says it was written
 that one, and so does a write refused for an unread line (ADR-150). The writer name is information: a v5
 ledger is read whoever wrote it. An mrw up to v1.65.0 compares that line byte for byte, so it still calls a
 v5 ledger older and replaces it.
+Inside a git checkout (a `.git` directory or file at or above the root) the read ledger is the checkout's, not the directory's: relative keys are stored from the checkout's top, so a read in `sub/` licenses a write from the top and the reverse, and the write lock is the checkout's too. Paths still resolve against the root (ADR-161 Decision 14).
 
 **A shell glob and an address suffix do not mix.** `mrw read 'dir/*.go:1-3'`
 takes the star literally and reports the path UNREADABLE; unquoted, zsh refuses

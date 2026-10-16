@@ -20,6 +20,7 @@ README must be regenerated.
 | 7 | T4 | T3 |
 | 8 | T5 | T3 |
 | 9 | T9 | T1, T2, T3, T6, T7 |
+| 10 | T11 | T1 |
 
 ## Waves
 
@@ -29,6 +30,7 @@ README must be regenerated.
 | 2 | T2, T6, T8, T10 |
 | 3 | T7, T3 |
 | 4 | T4, T5, T9 |
+| 5 | T11 |
 
 T1, T6, T7 and T8 all edit `internal/read/read.go` and `cmd/mrw/main.go`; they run one at a time, whatever the wave.
 
@@ -46,6 +48,7 @@ T1, T6, T7 and T8 all edit `internal/read/read.go` and `cmd/mrw/main.go`; they r
 | T4 | AGENTS.md, the docs, the skill and the agent definitions carry the recipes | pending | — | the binary's recipe block in AGENTS.md; recipe 1 in the others |
 | T5 | a paired B pilot | done | — | `go run ./cmd/bench verify --stage pilot …` ×2 |
 | T9 | the MCP surface takes the same tools | done | — | `go test ./internal/mcp/ …` and contract §269 |
+| T11 | the read ledger belongs to the checkout | done | — | `go test …` and contract §271 |
 
 ## Contract Coupling
 
