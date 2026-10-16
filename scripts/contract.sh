@@ -6662,7 +6662,9 @@ grep -q 'dashfile' <<<"$out" && ok "and the path is served as given" || bad "ser
 # there, so `-- iter note --root='dir '` and `-- stats --root='dir '` reached
 # the trimmed root. And a lone "-" ends the parse (the parser keeps it and
 # drops the rest) while the guard read on and refused what the parser never
-# saw. Each is paired with the shape the parser keeps.
+# saw. Since ADR-161 a lone - moves last before parsing, so what follows it is
+# parsed and judged: the drop had turned `write - --dry-run` into a write. Each
+# is paired with the shape the parser keeps.
 fixture
 mkdir "$R/d "; printf 'in d\n' > "$R/d /x"
 out=$("$MRW" -C "$R" -- iter note --root="$R/d " revised 2>&1); rc=$?
@@ -6674,8 +6676,9 @@ want 0 $? "and the separate spelling is accepted after the --"
 want 2 $? "a subcommand with no guard of its own is covered by the whole-argv guard"
 "$MRW" -C "$R" -- stats --root "$R/d " >/dev/null 2>&1
 want 0 $? "and its separate spelling is accepted"
-printf '@@ a.go 1 replace\npackage demo\n' | m write --no-check --dry-run - '--format=plan ' >/dev/null 2>&1
-want 0 "${PIPESTATUS[1]}" "a lone - ends the parse and the guard: a token the parser drops is not refused"
+out=$(printf '@@ a.go 1 replace\npackage demo\n' | m write --no-check --dry-run - '--format=plan ' 2>&1); rc=$?
+want 2 "$rc" "a lone - no longer ends the parse: a padded token after it is judged (ADR-161)"
+grep -q 'own argument' <<<"$out" && ok "and refused as padded, as it is before the -" || bad "token after a lone -: $out"
 printf '@@ a.go 1 replace\npackage demo\n' | m write --no-check --dry-run '--format=plan ' - >/dev/null 2>&1
 want 2 "${PIPESTATUS[1]}" "and the same token before the - is refused"
 
@@ -9487,6 +9490,44 @@ printf '1\n2\n3\n4\n5\n6\n7\n8\n' > "$R/f.txt"
 m read 'f.txt:3-5' >"$WORK/served267.out" 2>&1
 out=$(printf '@@ f.txt 3-6 replace anchor="3" body=4\nC\nD\nE\nF\n' | m write --no-check - 2>&1); want 1 $? "the pair: a replace one line further is refused"
 { grep -qE 'after 6|line 7' <<<"$out" && grep -qx 4 "$R/f.txt"; } && ok "for the line after it, and writes nothing" || bad "the pair: $out"
+
+# 268. ADR-161: `mrw read -` serves standard input as one unnamed file and
+# licenses nothing: a --grep over it serves the matching line, and a plan for a
+# file the same command never read is refused. The pairs: a --grep that matches
+# nothing exits 1 `no match:`, and a flag after a lone - is honoured: the flag
+# parser stopped at - and dropped `--dry-run`, so `write - --dry-run` wrote; a
+# lone - now moves last before parsing.
+fixture
+printf 'a\nb\nc\n' > "$R/s268.txt"
+out=$(printf 'a\nb\nc\n' | m read --grep b - 2>&1); want 0 $? "a grep of standard input exits 0"
+good268=1
+{ grep -q '^==> -  3L' <<<"$out" && grep -q '^    2| b$' <<<"$out"; } || { good268=0; bad "the grep of stdin did not serve line 2: $out"; }
+out=$(printf '@@ s268.txt 2 replace\nB\n' | m write --no-check - 2>&1); want 1 $? "a plan for a file only standard input held is refused"
+{ grep -q 'has not been read' <<<"$out" && grep -qx b "$R/s268.txt"; } || { good268=0; bad "standard input licensed a file: $out"; }
+[ "$good268" = 1 ] && ok "a read of standard input serves it and licenses nothing"
+out=$(printf 'a\n' | m read --grep z - 2>&1); want 1 $? "the pair: a grep of stdin matching nothing exits 1"
+grep -q '^mrw: no match:' <<<"$out" && ok "with no match: last" || bad "no-match stdin grep: $out"
+m read s268.txt >"$WORK/served268.out"
+out=$(printf '@@ s268.txt 2 replace\nB\n' | m write - --dry-run 2>&1); want 0 $? "the pair: a flag after a lone - is honoured"
+{ grep -q 'dry run' <<<"$out" && grep -qx b "$R/s268.txt"; } && ok "--dry-run after - writes nothing" || bad "write - --dry-run: $out"
+# A terminal on standard input is refused before anything is read, rather than
+# waited on (a pseudo-terminal; python3's pty is in its standard library).
+if python3 -c 'import pty' 2>/dev/null; then
+  out=$(python3 - "$MRW" "$R" <<'PY' 2>&1
+import os, pty, subprocess, sys
+master, slave = pty.openpty()
+try:
+    p = subprocess.run([sys.argv[1], "-C", sys.argv[2], "read", "-"], stdin=slave,
+                       capture_output=True, text=True, timeout=10)
+    print("exit=%d %s" % (p.returncode, p.stderr.strip()))
+except subprocess.TimeoutExpired:
+    print("exit=timeout")
+PY
+)
+  grep -q '^exit=2 .*terminal' <<<"$out" && ok "a terminal on standard input is refused, not waited on" || bad "read - from a terminal: $out"
+else
+  skip "a terminal on standard input (no python3 pty here)"
+fi
 
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A

@@ -97,6 +97,10 @@ type Spec struct {
 	Path   string
 	Ranges []Range
 	Raw    string
+	// Data, when not nil, is what the read serves for Path instead of a file:
+	// standard input, read once by the caller (ADR-161). Nothing resolves it on
+	// disk, and the caller records no observation of it.
+	Data []byte
 }
 
 // Range is one span of a file. Exactly one of the numeric or regexp form is
@@ -483,96 +487,18 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 		if opt.Stop != nil && opt.Stop() {
 			break
 		}
-		// An ABSOLUTE path is honoured on this surface, not joined onto the
-		// root. A plan is a document whose paths are relative by design, and
-		// apply refuses an absolute one by name — but a command-line argument
-		// is shell-produced, tab completion emits absolute paths, and
-		// `mrw read /repo/x.go` is a reasonable thing to type. That is an input
-		// CONVENTION differing per surface, not a boundary holding on one path
-		// and not another: the result still goes through Resolve below, so
-		// containment is decided in exactly one place.
-		//
-		// Joining it was the bug a user hit: `mrw -C repo read /elsewhere/x.md`
-		// looked for `repo/elsewhere/x.md` and reported "no such file" about a
-		// path nobody wrote, while the header above echoed the path they did.
-		// They read it as a defect in the tool that called mrw. check already
-		// pre-screens this way and says its comment expects read to "say so" —
-		// this is read saying so.
-		argPath := sp.Path
-		if rooted.IsRooted(argPath) {
-			absRoot, absErr := rooted.Abs(root)
-			if absErr != nil {
-				fmt.Fprintf(w, "==> %s  REFUSED  %v\n", sp.Path, absErr)
-				problems++
-				continue
-			}
-			cleaned := rooted.Real(argPath)
-			if !rooted.Contains(absRoot, cleaned) {
-				fmt.Fprintf(w, "==> %s  REFUSED  %s is outside the root %s: "+
-					"read it with --root pointed where you mean\n", sp.Path, sp.Path, absRoot)
-				problems++
-				continue
-			}
-			if rel, relErr := filepath.Rel(absRoot, cleaned); relErr == nil {
-				sp.Path = rel
-				// ADR-076: Real cleaned the separator away; it is kept, so the
-				// spelling is judged below as the caller wrote it.
-				if rooted.SpelledAsDirectory(argPath) {
-					sp.Path += string(filepath.Separator)
+		var b []byte
+		if sp.Data != nil {
+			b = sp.Data // ADR-161: standard input, one unnamed file
+		} else {
+			var englishUnreadable, ok bool
+			if b, englishUnreadable, ok = load(w, root, &sp); !ok {
+				if englishUnreadable {
+					englishUnreadables++
 				}
+				problems++
+				continue
 			}
-		}
-		full, err := rooted.Resolve(root, sp.Path)
-		if rooted.RefusedByName(err) {
-			// ADR-081: no --root makes a device name, or a name Windows does not
-			// keep as written, a file, so the advice below would send the caller
-			// nowhere (the review of #243).
-			fmt.Fprintf(w, "==> %s  REFUSED  %v\n", sp.Path, err)
-			problems++
-			continue
-		}
-		if errors.Is(err, rooted.ErrNotADirectory) {
-			fmt.Fprintf(w, "==> %s  UNREADABLE  %v\n", sp.Path, err)
-			problems++
-			continue
-		}
-		if errors.Is(err, rooted.ErrOwnState) {
-			// ADR-157: no --root lifts this refusal, so none is advised.
-			fmt.Fprintf(w, "==> %s  REFUSED  %v\n", sp.Path, err)
-			problems++
-			continue
-		}
-		if err != nil {
-			// The same boundary the write path enforces. Serving a file the
-			// caller did not scope is a smaller harm than writing one, and it
-			// is the same mistake: mrw is pointed at a tree, and ../ and a
-			// symlink are the two ways out of it.
-			fmt.Fprintf(w, "==> %s  REFUSED  %v: read it with --root pointed where you mean\n", sp.Path, err)
-			problems++
-			continue
-		}
-		// ADR-074: opening a FIFO for reading blocks until something writes to
-		// it, and a device can stream without end. The walk has refused a
-		// non-regular candidate since ADR-007; a named spec is reported the
-		// same way. A directory keeps ReadFile's own "is a directory", and a
-		// stat that fails falls through to the error ReadFile gives.
-		fi, statErr := os.Stat(full)
-		if statErr == nil && !fi.Mode().IsRegular() && !fi.IsDir() {
-			fmt.Fprintf(w, "==> %s  UNREADABLE  %s\n", sp.Path, lines.NotRegular)
-			problems++
-			continue
-		}
-		// ADR-104: a file is read whole to serve any range of it, so readCapped
-		// refuses one over the cap by its size, and bounds the read itself.
-		b, err := readCapped(full)
-		if err != nil {
-			glob := hintUnexpandedGlob(sp.Path)
-			fmt.Fprintf(w, "==> %s  UNREADABLE  %v%s\n", sp.Path, err, glob)
-			if glob == "" && isEnglishWordToken(sp.Path) {
-				englishUnreadables++
-			}
-			problems++
-			continue
 		}
 		// ADR-073: a file mrw cannot split into lines (a UTF-16 or UTF-32 BOM,
 		// a NUL early on) is served as the bytes it is, with one note saying so:
@@ -751,6 +677,107 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 		observed = map[string]seen.Observation{}
 	}
 	return observed, problems
+}
+
+// load reads the file a spec names, inside root, and reports on w why it could
+// not; englishUnreadable says the failure was a path that reads as an English
+// word (hintSplitRegexAddress). It may rewrite sp.Path, an absolute path inside
+// the root becoming relative to it.
+func load(w io.Writer, root string, sp *Spec) (b []byte, englishUnreadable, ok bool) {
+	// An ABSOLUTE path is honoured on this surface, not joined onto the
+	// root. A plan is a document whose paths are relative by design, and
+	// apply refuses an absolute one by name — but a command-line argument
+	// is shell-produced, tab completion emits absolute paths, and
+	// `mrw read /repo/x.go` is a reasonable thing to type. That is an input
+	// CONVENTION differing per surface, not a boundary holding on one path
+	// and not another: the result still goes through Resolve below, so
+	// containment is decided in exactly one place.
+	//
+	// Joining it was the bug a user hit: `mrw -C repo read /elsewhere/x.md`
+	// looked for `repo/elsewhere/x.md` and reported "no such file" about a
+	// path nobody wrote, while the header above echoed the path they did.
+	// They read it as a defect in the tool that called mrw. check already
+	// pre-screens this way and says its comment expects read to "say so" —
+	// this is read saying so.
+	argPath := sp.Path
+	if rooted.IsRooted(argPath) {
+		absRoot, absErr := rooted.Abs(root)
+		if absErr != nil {
+			fmt.Fprintf(w, "==> %s  REFUSED  %v\n", sp.Path, absErr)
+			return nil, false, false
+		}
+		cleaned := rooted.Real(argPath)
+		if !rooted.Contains(absRoot, cleaned) {
+			fmt.Fprintf(w, "==> %s  REFUSED  %s is outside the root %s: "+
+				"read it with --root pointed where you mean\n", sp.Path, sp.Path, absRoot)
+			return nil, false, false
+		}
+		if rel, relErr := filepath.Rel(absRoot, cleaned); relErr == nil {
+			sp.Path = rel
+			// ADR-076: Real cleaned the separator away; it is kept, so the
+			// spelling is judged below as the caller wrote it.
+			if rooted.SpelledAsDirectory(argPath) {
+				sp.Path += string(filepath.Separator)
+			}
+		}
+	}
+	full, err := rooted.Resolve(root, sp.Path)
+	if rooted.RefusedByName(err) {
+		// ADR-081: no --root makes a device name, or a name Windows does not
+		// keep as written, a file, so the advice below would send the caller
+		// nowhere (the review of #243).
+		fmt.Fprintf(w, "==> %s  REFUSED  %v\n", sp.Path, err)
+		return nil, false, false
+	}
+	if errors.Is(err, rooted.ErrNotADirectory) {
+		fmt.Fprintf(w, "==> %s  UNREADABLE  %v\n", sp.Path, err)
+		return nil, false, false
+	}
+	if errors.Is(err, rooted.ErrOwnState) {
+		// ADR-157: no --root lifts this refusal, so none is advised.
+		fmt.Fprintf(w, "==> %s  REFUSED  %v\n", sp.Path, err)
+		return nil, false, false
+	}
+	if err != nil {
+		// The same boundary the write path enforces. Serving a file the
+		// caller did not scope is a smaller harm than writing one, and it
+		// is the same mistake: mrw is pointed at a tree, and ../ and a
+		// symlink are the two ways out of it.
+		fmt.Fprintf(w, "==> %s  REFUSED  %v: read it with --root pointed where you mean\n", sp.Path, err)
+		return nil, false, false
+	}
+	// ADR-074: opening a FIFO for reading blocks until something writes to
+	// it, and a device can stream without end. The walk has refused a
+	// non-regular candidate since ADR-007; a named spec is reported the
+	// same way. A directory keeps ReadFile's own "is a directory", and a
+	// stat that fails falls through to the error ReadFile gives.
+	fi, statErr := os.Stat(full)
+	if statErr == nil && !fi.Mode().IsRegular() && !fi.IsDir() {
+		fmt.Fprintf(w, "==> %s  UNREADABLE  %s\n", sp.Path, lines.NotRegular)
+		return nil, false, false
+	}
+	// ADR-104: a file is read whole to serve any range of it, so readCapped
+	// refuses one over the cap by its size, and bounds the read itself.
+	b, err = readCapped(full)
+	if err != nil {
+		glob := hintUnexpandedGlob(sp.Path)
+		fmt.Fprintf(w, "==> %s  UNREADABLE  %v%s\n", sp.Path, err, glob)
+		return nil, glob == "" && isEnglishWordToken(sp.Path), false
+	}
+	return b, false, true
+}
+
+// ReadStdin reads standard input whole for `mrw read -` (ADR-161), under the
+// bound a file is read under (ADR-104).
+func ReadStdin(r io.Reader) ([]byte, error) {
+	b, err := io.ReadAll(io.LimitReader(r, maxFileBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(b)) > maxFileBytes {
+		return nil, errOverFileCap{size: int64(len(b))}
+	}
+	return b, nil
 }
 
 // licensedCount is what a quiet read reports: how many lines its observations

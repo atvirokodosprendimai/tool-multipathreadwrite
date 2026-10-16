@@ -39,7 +39,7 @@ T1, T6, T7 and T8 all edit `internal/read/read.go` and `cmd/mrw/main.go`; they r
 | T2 | --rewrite with --ast-grep | pending | — | `go test …` and contract §264 |
 | T6 | read --quiet licenses what it serves and prints no line | done | — | `go test …` and contract §266 |
 | T7 | a ranged read serves the line after each range | done | — | `go test …` and contract §267 |
-| T8 | mrw read - reads standard input | pending | — | `go test …` and contract §268 |
+| T8 | mrw read - reads standard input | done | — | `go test …` and contract §268 |
 | T3 | the recipes in mrw instructions and --core | pending | — | `go test …` and contract §265 |
 | T4 | AGENTS.md, the docs, the skill and the agent definitions carry the recipes | pending | — | the binary's recipe block in AGENTS.md; recipe 1 in the others |
 | T5 | a paired B pilot | pending | — | `go run ./cmd/bench verify --stage pilot …` ×2 |

@@ -302,15 +302,22 @@ func posixQuote(s string) string {
 
 func main() {
 	root := rootCommand()
+	// ADR-161: a lone - moves last, or the parser drops every flag after it.
+	args, err := liftLoneDash(root, os.Args)
+	if err != nil {
+		args = os.Args // the refusal is reported below; nothing is run
+	}
 	// A padded ATTACHED flag value (--root='dir ') is trimmed by the parser
 	// before any Action runs, and a root flag never reaches a subcommand's raw
 	// tail, so the whole argv is checked here (ADR-069 T5).
-	err := refusePaddedFlagValues(root, os.Args[1:])
-	if v, ok := shortRoot(root, os.Args[1:]); ok {
+	if err == nil {
+		err = refusePaddedFlagValues(root, args[1:])
+	}
+	if v, ok := shortRoot(root, args[1:]); ok {
 		noteShortRoot(root, v)
 	}
 	if err == nil {
-		err = root.Run(context.Background(), os.Args)
+		err = root.Run(context.Background(), args)
 	}
 	// An unknown subcommand cannot be reported by returning an error: the
 	// framework's CommandNotFound hook returns nothing, so it leaves its
@@ -902,6 +909,11 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			// with MCP; ADR-078).
 			if err := read.CheckExclude(excludes); err != nil {
 				return cli.Exit("--exclude "+err.Error(), exitUsage)
+			}
+			// ADR-161: `-` is standard input, read as one unnamed file and
+			// recorded nowhere. A file named - is ./-.
+			if stdinSpec(posArgs) {
+				return stdinRead(cmd, pattern, grepSet, posArgs)
 			}
 			if cmd.IsSet("sub") {
 				return subRead(cmd, pattern, excludes, posArgs)
