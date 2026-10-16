@@ -24,8 +24,8 @@ plan '@@ f.txt /(/ replace\nX\n'; out=$(t "$MRW" write --quiet p.plan 2>&1); say
 plan '@@ f.txt /one/ replace\nX\n@@ f.txt 1 replace\nY\n'; out=$(t "$MRW" write --quiet p.plan 2>&1); say "pat+numeric-same-line" $? "$(tr '\n' '|' < f.txt) | $out"
 fresh; printf 'one\r\ntwo\r\n' > f.txt; t "$MRW" read f.txt >"$W/served.out"
 plan '@@ f.txt /two$/ replace\nX\n'; out=$(t "$MRW" write --quiet p.plan 2>&1); say "pat-dollar-on-crlf" $? "$(od -c f.txt | head -2 | tr -s ' ' | tr '\n' ' ') | $out"
-fresh; printf 'one\ntwo\n' > f.txt; t "$MRW" read f.txt:1 >"$W/served.out"
-plan '@@ f.txt /two/ replace\nX\n'; out=$(t "$MRW" write --quiet p.plan 2>&1); say "pat-resolves-to-unserved-line" $? "$(tr '\n' '|' < f.txt) | $out"
+fresh; printf 'one\ntwo\nthree\n' > f.txt; t "$MRW" read f.txt:1 >"$W/served.out"
+plan '@@ f.txt /three/ replace\nX\n'; out=$(t "$MRW" write --quiet p.plan 2>&1); say "pat-resolves-to-unserved-line" $? "$(tr '\n' '|' < f.txt) | $out"
 fresh; printf 'one\ntwo\n' > f.txt; t "$MRW" read f.txt >"$W/served.out"
 plan '@@ f.txt /one/ insert-after lines=1\nX\n'; out=$(t "$MRW" write --quiet p.plan 2>&1); say "pat-insert-after-lines-guard" $? "$(tr '\n' '|' < f.txt) | $out"
 

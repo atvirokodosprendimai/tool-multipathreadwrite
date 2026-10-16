@@ -15,7 +15,7 @@ Whether mrw pays for itself on agent runs is measured against a bar registered b
 
 Stage 2's attempts solved 156 of 160 and Stage 3's 70 of 80, so the solved difference had little room to move; [ADR-160](docs/adr/ADR-160-stage-4-measures-mrw-where-its-mechanism-should-matter.md) registers a harder Stage 4.
 
-**Status: stable at v1.67.0 (2026-10-15), the tag cut from `2586b4f`.** Break campaign for it: [docs/break/campaign-v1.67.0.txt](docs/break/campaign-v1.67.0.txt), 59 probes, exit codes identical to v1.66.0.
+**Status: stable at v1.68.0 (2026-10-17), the tag cut from `975c3ba`.** Break campaign for it: [docs/break/campaign-v1.68.0.txt](docs/break/campaign-v1.68.0.txt), 59 probes, exit codes identical to v1.67.0 but one: `pat-resolves-to-unserved-line` applies (exit 0, was 1), because a ranged read now serves and licenses the line after the range (ADR-161 Decision 10); the probe now edits a line the read does not reach.
 
 Decisions: [docs/adr/](docs/adr/). How a change reaches `main`: [CONTRIBUTING.md](CONTRIBUTING.md). Driving it from a checkout: [AGENTS.md](AGENTS.md).
 Caller practices: [BESTPRACTICES.md](BESTPRACTICES.md). Updating the binary: [UPDATE.md](UPDATE.md).
