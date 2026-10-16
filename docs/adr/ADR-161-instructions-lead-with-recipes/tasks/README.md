@@ -44,7 +44,7 @@ T1, T6, T7 and T8 all edit `internal/read/read.go` and `cmd/mrw/main.go`; they r
 | T10 | a plan or a read piped from PowerShell loses its trailing CRLF | done | — | `go test …` and contract §270 |
 | T3 | the recipes in mrw instructions and --core | done | — | `go test …` and contract §265 |
 | T4 | AGENTS.md, the docs, the skill and the agent definitions carry the recipes | pending | — | the binary's recipe block in AGENTS.md; recipe 1 in the others |
-| T5 | a paired B pilot | pending | — | `go run ./cmd/bench verify --stage pilot …` ×2 |
+| T5 | a paired B pilot | done | — | `go run ./cmd/bench verify --stage pilot …` ×2 |
 | T9 | the MCP surface takes the same tools | done | — | `go test ./internal/mcp/ …` and contract §269 |
 
 ## Contract Coupling
