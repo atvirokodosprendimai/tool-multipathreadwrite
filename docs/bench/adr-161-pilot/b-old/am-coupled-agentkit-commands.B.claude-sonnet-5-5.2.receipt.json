@@ -1,0 +1,43 @@
+{
+  "attempt": "am-coupled-agentkit-commands.B.claude-sonnet-5-5.2",
+  "stage": "pilot",
+  "task": "am-coupled-agentkit-commands",
+  "shape": "check-coupled",
+  "source": "own",
+  "model": "claude-sonnet-5-5",
+  "config": "B",
+  "repeat": 2,
+  "order": 14,
+  "started": "2026-10-16T16:52:27Z",
+  "wall_ms": 90220,
+  "cli_version": "2.1.301 (Claude Code)",
+  "mrw_version": "v1.66.0 (05ec3f8)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 8,
+  "tool_calls": 7,
+  "total_cost_usd": 0.16328319999999996,
+  "usage": {
+    "input_tokens": 16,
+    "output_tokens": 1894,
+    "cache_read_input_tokens": 233992,
+    "cache_creation_input_tokens": 30228
+  },
+  "init_tools": [
+    "Bash",
+    "Glob"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": true
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 2,
+    "insertions": 3,
+    "deletions": 3
+  },
+  "hook_reads": 4,
+  "exclusion": "setup",
+  "note": "slipped writes: the ledgers disagree on clients/claude-code/agentkit.go: which content mrw saw last cannot be told"
+}

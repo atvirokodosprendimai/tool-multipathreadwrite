@@ -1,0 +1,24 @@
+{
+  "stage": "pilot",
+  "tasks": [
+    "am-coupled-agentkit-commands",
+    "am-coupled-doctor-discarded",
+    "am-coupled-doctor-duplicated",
+    "am-coupled-installer-bash",
+    "am-wide-add-input",
+    "am-wide-entry-room",
+    "am-wide-migrations",
+    "am-wide-with-reranker"
+  ],
+  "models": [
+    "claude-sonnet-5-5"
+  ],
+  "configs": [
+    "B"
+  ],
+  "repeats": 2,
+  "seed": 156,
+  "cli_version": "2.1.301 (Claude Code)",
+  "mrw_version": "v1.66.0 (05ec3f8)",
+  "containment": "bypass"
+}
