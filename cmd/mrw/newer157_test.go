@@ -41,7 +41,7 @@ func newerRoot(t *testing.T) string {
 	if err := os.MkdirAll(filepath.Dir(ledger), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(ledger, []byte("#mrw-seen v6 v9.9.9 (fffffff)\n"), 0o600); err != nil {
+	if err := os.WriteFile(ledger, []byte("#mrw-seen v7 v9.9.9 (fffffff)\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	return root

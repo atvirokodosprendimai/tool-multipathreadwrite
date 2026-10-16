@@ -9,7 +9,7 @@ import (
 
 // header is the first line this package writes when nobody told it its writer:
 // the older tests compare a saved ledger, and plant fixtures, against it.
-const header = "#mrw-seen v5 unknown"
+const header = "#mrw-seen v6 unknown"
 
 // plant writes body as the ledger of root, byte for byte.
 func plant(t *testing.T, root, body string) string {
@@ -27,8 +27,8 @@ func plant(t *testing.T, root, body string) string {
 	return p
 }
 
-// ADR-150 Decisions 1 and 2: the header names its writer; v4 and v5 are
-// current, anything older or of another shape is discarded as stale.
+// ADR-150 Decisions 1 and 2: the header names its writer; v4, v5 and v6 are
+// current (ADR-161), anything older or of another shape is discarded as stale.
 func TestALedgerNamesItsWriter(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
@@ -50,7 +50,7 @@ func TestALedgerNamesItsWriter(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if first, _, _ := strings.Cut(string(b), "\n"); first != "#mrw-seen v5 v9.0.0 (abc1234)" {
+	if first, _, _ := strings.Cut(string(b), "\n"); first != "#mrw-seen v6 v9.0.0 (abc1234)" {
 		t.Errorf("the header is %q, want it to name its format and its writer", first)
 	}
 
@@ -58,6 +58,7 @@ func TestALedgerNamesItsWriter(t *testing.T) {
 		"#mrw-seen v4\n" + sha + "  -  k.go\n",
 		"#mrw-seen v5 v1.66.0 (1234567)\n" + sha + "  -  k.go\n",
 		"#mrw-seen v5\n" + sha + "  -  k.go\n",
+		"#mrw-seen v6 v1.68.0 (1234567)\n" + sha + "  -  k.go\n",
 	} {
 		plant(t, root, current)
 		if l, err := Load(root); err != nil || len(l) != 1 {
@@ -98,7 +99,7 @@ func TestANewerLedgerIsNeitherUsedNorOverwritten(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	sha := strings.Repeat("b", 64)
-	body := "#mrw-seen v6 v9.9.9 (fffffff)\n" + sha + "  -  a.go\nwhatever v6 means\n"
+	body := "#mrw-seen v7 v9.9.9 (fffffff)\n" + sha + "  -  a.go\nwhatever v7 means\n"
 	p := plant(t, root, body)
 
 	if l, err := Load(root); err != nil || len(l) != 0 {
