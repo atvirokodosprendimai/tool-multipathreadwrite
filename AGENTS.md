@@ -207,6 +207,13 @@ that line as NOT read: a plan that replaces it is refused until it is read whole
 and a line it served cut is in no checkpoint, named on a `-- not licensed:` line (ADR-154). `--stat` lists the files with their
 length and sha and `-N` drops the line numbers. `--grep P --count` prints each matching file's header with how many of
 its lines match, then a total, and serves no line, so it licenses none (ADR-153; `count` on `mrw_read`, with `grep`).
+The plan makers are on MCP too (ADR-161): `mrw_write` takes `grep` with `sub`, or `ast_grep` with `rewrite`, in place of
+`plan` (and `exclude`, `no_ignore` shape the walk of the whole root), builds the plan with the functions the CLI calls, and
+applies it as one plan with the write's check, `then` and `dry_run`; a file the walk could not read applies nothing.
+`mrw_read` with `sub` (needs `grep`) or `rewrite` (needs `ast_grep`) returns the plan as its text and licenses the planned
+lines with no ack: nothing is shown, so the checkpoints, which certify lines a host received, have nothing to certify, and a plan
+too large for one answer is refused whole, never paged. `quiet` licenses what the read serves at once and returns no line,
+for the same reason (`mrw read --quiet`).
 Cap a read with `--max-lines N` instead of `| head`: `| head` loses mrw's exit code, while `--max-lines` names what it
 withheld and the read exits 1 `incomplete:`.
 A flag grep has and `read` lacks (`-i`, `-n`, `-r`, `-l`, `-A`, `-e`, `--include`) is a usage error, exit 2, that ends with mrw's spelling (ADR-140).
@@ -446,10 +453,11 @@ whole list arrives as one argument and the regex swallows the rest of the line.
 
   A multi-line `replace` is refused unless the ledger already covers a line after
   `End` (ADR-052). Single-line replace is unchanged. When `End` is the last line
-  the licence is skipped. A ranged CLI read serves the line after each range that ends
-  before the file does, numbered and licensed, so a replace of exactly the lines read is
-  not refused for it (ADR-161); `mrw_read` does not yet, and prints a note, once per read,
-  that a multi-line replace needs a served line after End (ADR-136).
+  the licence is skipped. A ranged read, on the CLI and on `mrw_read`, serves the line
+  after each range that ends before the file does, numbered and licensed (on `mrw_read`
+  inside the checkpoint that brackets the range, counted in its `N lines follow`), so a
+  replace of exactly the lines read is not refused for it (ADR-161). A page of `mrw_read`
+  adds none, since its continuation serves the line a page ends on.
   `--echo-pad N` (MCP `echo_pad`, default 0) prints N
   lines after the body so a surviving closer is visible; the hunk stays `ok`.
   The pad is not a checker.

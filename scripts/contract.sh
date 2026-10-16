@@ -8130,10 +8130,10 @@ seq 1 100 > "$R/g202.txt"
 printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["g202.txt:/^(1|100)$/"]}}}' \
   '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["g202.txt:7-9"]}}}' \
   | "$MRW" -C "$R" mcp > "$WORK/j202" 2> /dev/null; want 0 $? "the server answers two reads and ends at EOF"
-jq -se '.[0].result.content[0].text | test("open lines 1-1 \\(1 lines? follows?\\)") and test("open lines 100-100 ") and (test("open lines 1-100") | not)' "$WORK/j202" > /dev/null \
-  && ok "lines 1 and 100 get a checkpoint each, none spanning the gap" || bad "gap checkpoint: $(head -c 600 "$WORK/j202")"
-jq -se '.[1].result.content[0].text | test("open lines 7-9 ") and ([scan("-- ck [^ ]+ open")] | length == 1)' "$WORK/j202" > /dev/null \
-  && ok "the pair: lines 7-9 get one checkpoint" || bad "run checkpoint: $(head -c 600 "$WORK/j202")"
+jq -se '.[0].result.content[0].text | test("open lines 1-2 \\(2 lines follow\\)") and test("open lines 100-100 ") and (test("open lines 1-100") | not)' "$WORK/j202" > /dev/null \
+  && ok "lines 1 (with the line after it) and 100 get a checkpoint each, none spanning the gap" || bad "gap checkpoint: $(head -c 600 "$WORK/j202")"
+jq -se '.[1].result.content[0].text | test("open lines 7-10 ") and ([scan("-- ck [^ ]+ open")] | length == 1)' "$WORK/j202" > /dev/null \
+  && ok "the pair: lines 7-9 and the line after them get one checkpoint" || bad "run checkpoint: $(head -c 600 "$WORK/j202")"
 
 # 203. ADR-108: a body=@ file keeps the target's line endings. Its lines were
 # split at \n alone, so a CRLF body kept its \r and a CRLF target came out
@@ -9620,6 +9620,38 @@ printf '#!/bin/sh\ncat "%s"\nkill -9 $$\n' "$WORK/stream264.jsonl" > "$d264/ast-
 seed264
 out=$(PATH="$d264:$PATH" m write --no-check --ast-grep 'foo($A, $B)' --rewrite 'bar($B, $A)' . 2>&1); want 2 $? "a rewrite write over a killed ast-grep run exits 2"
 { cmp -s "$R/a.go" "$WORK/a264.orig" && grep -q 'did not finish its scan' <<<"$out"; } && ok "naming the unfinished scan and writing nothing" || bad "a killed run's partial stream was applied: $out"
+
+# 269. ADR-161 Decision 12: `mrw_write` over `$MRW mcp` takes `grep` and `sub` in
+# place of a plan and applies the plan it builds in one call: every `Old` changes
+# and neither neighbour (`OldX`, `xOld`) does. The pairs, each of which must change
+# nothing: a matching file that cannot be read (skipped as root), and `sub` without
+# `grep` (refused by name).
+fixture
+mkdir -p "$R/d269"
+seed269() { printf 'Old\nOldX\nxOld\nkeep Old and Old\n' > "$R/d269/one.txt"; printf 'xOld\nOld\n' > "$R/d269/two.txt"; }
+printf 'New\nOldX\nxOld\nkeep New and New\n' > "$WORK/one269"
+printf 'xOld\nNew\n' > "$WORK/two269"
+printf 'Old\nOldX\nxOld\nkeep Old and Old\n' > "$WORK/one269.orig"
+mcpwrite269() { python3 -c 'import json,sys; print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":json.loads(sys.argv[1])}}))' "$1" | m mcp 2>/dev/null; }
+verdict269() { python3 -c 'import json,sys; r=json.loads(sys.stdin.readline())["result"]; sc=r.get("structuredContent") or {}; print("applied" if sc.get("applied") and not sc.get("failed") else "refused" if r.get("isError") or sc else "other")'; }
+seed269
+v269=$(mcpwrite269 '{"grep":"\\bOld\\b","sub":"New","check":false}' | verdict269)
+[ "$v269" = applied ] && cmp -s "$R/d269/one.txt" "$WORK/one269" && cmp -s "$R/d269/two.txt" "$WORK/two269" \
+  && ok "an MCP sub write changes every site in one call and no neighbour" \
+  || bad "an MCP sub write: verdict $v269, one.txt $(head -c 120 "$R/d269/one.txt"), two.txt $(head -c 60 "$R/d269/two.txt")"
+seed269
+chmod 000 "$R/d269/two.txt"
+if [ -r "$R/d269/two.txt" ]; then
+  skip "an MCP sub write refuses an unreadable matching file (permission bits not enforced here — running as root?)"
+else
+  v269=$(mcpwrite269 '{"grep":"\\bOld\\b","sub":"New","check":false}' | verdict269)
+  chmod 644 "$R/d269/two.txt"
+  { [ "$v269" = refused ] && cmp -s "$R/d269/one.txt" "$WORK/one269.orig"; } && ok "and an unreadable matching file applies nothing" || bad "an unreadable file: verdict $v269, one.txt $(head -c 120 "$R/d269/one.txt")"
+fi
+chmod 644 "$R/d269/two.txt"
+seed269
+v269=$(mcpwrite269 '{"sub":"New","check":false}' | verdict269)
+{ [ "$v269" = refused ] && cmp -s "$R/d269/one.txt" "$WORK/one269.orig"; } && ok "and sub without grep is refused" || bad "sub without grep: verdict $v269"
 
 # 270. ADR-161 Decision 13: PowerShell appends CRLF to what it pipes, so a plan
 # whose lines end in LF arrived with a last line holding only CR, and the write

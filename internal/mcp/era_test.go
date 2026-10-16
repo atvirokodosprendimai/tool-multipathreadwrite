@@ -238,7 +238,11 @@ func jsonInner(s string) string {
 // and once by ADR-130, whose no_ignore description names a nested repository: that clause, nothing else;
 // and once by ADR-132, whose MCP read refusal names mrw_read: those three sentences, nothing else;
 // and once by ADR-152, whose write receipt gained `check.hint`: that schema property, nothing else;
-// and once by ADR-154, whose read gained `max_cols`: that input property, nothing else.
+// and once by ADR-154, whose read gained `max_cols`: that input property, nothing else;
+// and once by ADR-161 T9, whose read gained `sub`, `rewrite` and `quiet` and whose write gained `grep`, `sub`,
+// `ast_grep`, `rewrite`, `exclude` and `no_ignore` and no longer requires `plan`: those input properties
+// and the `plan` description's lead, and the instructions' recipes with the prose cut to keep the
+// 4096-byte bound. No answer to a call changed: the transcript holds only initialize and tools/list.
 func TestALegacyResultIsUnchangedByTheModernPath(t *testing.T) {
 	got := legacyTranscript(t)
 	golden := filepath.Join("testdata", "legacy_golden.jsonl")
