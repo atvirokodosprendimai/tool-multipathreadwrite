@@ -15,6 +15,7 @@ README must be regenerated.
 | 3 | T6 | none |
 | 4 | T7 | T6 |
 | 5 | T8 | none |
+| 5a | T10 | T8 |
 | 6 | T3 | T1, T2, T6, T8 |
 | 7 | T4 | T3 |
 | 8 | T5 | T3 |
@@ -25,7 +26,7 @@ README must be regenerated.
 | Wave | Tasks |
 |------|-------|
 | 1 | T1 |
-| 2 | T2, T6, T8 |
+| 2 | T2, T6, T8, T10 |
 | 3 | T7, T3 |
 | 4 | T4, T5, T9 |
 
@@ -40,6 +41,7 @@ T1, T6, T7 and T8 all edit `internal/read/read.go` and `cmd/mrw/main.go`; they r
 | T6 | read --quiet licenses what it serves and prints no line | done | — | `go test …` and contract §266 |
 | T7 | a ranged read serves the line after each range | done | — | `go test …` and contract §267 |
 | T8 | mrw read - reads standard input | done | — | `go test …` and contract §268 |
+| T10 | a plan or a read piped from PowerShell loses its trailing CRLF | done | — | `go test …` and contract §270 |
 | T3 | the recipes in mrw instructions and --core | pending | — | `go test …` and contract §265 |
 | T4 | AGENTS.md, the docs, the skill and the agent definitions carry the recipes | pending | — | the binary's recipe block in AGENTS.md; recipe 1 in the others |
 | T5 | a paired B pilot | pending | — | `go run ./cmd/bench verify --stage pilot …` ×2 |
@@ -53,4 +55,5 @@ T1, T6, T7 and T8 all edit `internal/read/read.go` and `cmd/mrw/main.go`; they r
 | T2 | `--rewrite` | T3, T5 | before the recipes |
 | T6 | `read --quiet` | T7, T3 | before the recipes |
 | T8 | `read -` | T3 | before the recipes |
+| T8 | `read -` | T10 | T10 trims what T8 reads |
 | T3 | the `Recipes:` block | T4, T5, T9 | before the mirrors, the pilot and the MCP handshake |

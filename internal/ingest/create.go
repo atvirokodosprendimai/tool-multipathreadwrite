@@ -56,15 +56,26 @@ func CreateContent(raw []byte) ([]byte, []string) {
 	case marks > 1:
 		notes = append(notes, fmt.Sprintf("the content begins with %d UTF-8 byte order marks, kept as content (PowerShell adds one when $OutputEncoding is UTF-8 with a preamble, and Windows PowerShell 5.1 adds both when [Console]::InputEncoding has one too, as in a shell started under code page 65001)", marks))
 	}
-	body, cut := bytes.CutSuffix(raw, []byte("\r\n"))
-	switch {
-	case cut && bytes.IndexByte(body, '\n') >= 0 && bytes.IndexByte(body, '\r') < 0:
+	if trimmed, cut := TrimPipedCRLF(raw); cut {
 		notes = append(notes, "the content ended in CRLF after lines that end in LF; that CRLF is most likely the one PowerShell appends to what it pipes, so it was dropped")
-		raw = body
-	case bytes.HasSuffix(raw, []byte("\r\n\r\n")) && bytes.Count(raw, []byte("\n")) == bytes.Count(raw, []byte("\r\n")):
+		raw = trimmed
+	} else if bytes.HasSuffix(raw, []byte("\r\n\r\n")) && bytes.Count(raw, []byte("\n")) == bytes.Count(raw, []byte("\r\n")) {
 		notes = append(notes, "the content ends in an empty line after CRLF lines, kept; that line may be the CRLF PowerShell appends to what it pipes or a blank line the content has, and if it is the CRLF the file gains a blank line at its end (cmd and Git Bash add none)")
 	}
 	return raw, notes
+}
+
+// TrimPipedCRLF drops the CRLF PowerShell appends to what it pipes (ADR-142):
+// a final CRLF after text that holds an LF and no other CR. It reports whether
+// it dropped one; every other shape is returned as it came. A plan and a read
+// on standard input are trimmed by it too (ADR-161 Decision 13), since that
+// CRLF became a blank line the write added.
+func TrimPipedCRLF(raw []byte) ([]byte, bool) {
+	body, cut := bytes.CutSuffix(raw, []byte("\r\n"))
+	if cut && bytes.IndexByte(body, '\n') >= 0 && bytes.IndexByte(body, '\r') < 0 {
+		return body, true
+	}
+	return raw, false
 }
 
 // EndingNote names a line ending the create rewrites (the v1.64.0 Windows

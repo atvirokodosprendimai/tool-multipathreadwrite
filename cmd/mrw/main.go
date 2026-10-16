@@ -1492,6 +1492,18 @@ held or went unchecked.`,
 				src, name = f, args[0]
 			}
 
+			// ADR-161 Decision 13: PowerShell appends CRLF to what it pipes, and after
+			// a plan whose lines end in LF that CRLF was a blank last line the write
+			// added (found on Windows by a peer session). Dropped by ADR-142's rule as
+			// the plan streams past, so an unknown --format and an over-long line are
+			// refused as before; --create keeps ADR-142's own notes for its content.
+			if src == os.Stdin && !cmd.IsSet("create") {
+				piped := ingest.NewPipedCRLFReader(os.Stdin)
+				piped.OnTrim = func() {
+					fmt.Fprintln(os.Stderr, "mrw: the plan ended in CRLF after lines that end in LF; that CRLF is most likely the one PowerShell appends to what it pipes, so it was dropped")
+				}
+				src = piped
+			}
 			var hunks []plan.Hunk
 			var err error
 			format := cmd.String("format")
