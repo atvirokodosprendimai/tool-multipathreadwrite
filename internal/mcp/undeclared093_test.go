@@ -249,6 +249,9 @@ func TestEveryToolDecodesExactlyTheArgumentsItDeclares(t *testing.T) {
 		var fields []string
 		for i := 0; i < rt.NumField(); i++ {
 			tag, _, _ := strings.Cut(rt.Field(i).Tag.Get("json"), ",")
+			if tag == "-" {
+				continue // encoding/json never decodes it: the call's own bookkeeping
+			}
 			if tag == "" {
 				tag = rt.Field(i).Name // what encoding/json decodes an untagged field from
 			}

@@ -628,6 +628,20 @@ func tools() []tool {
 						"type":        "string",
 						"description": "Resume a paged index: send the SAME `grep` or `ast_grep` again with this set to the `next_index` the previous call returned, and matching files at or before it are skipped. Files are walked in path order, so this is a position you can read rather than an opaque cursor. Repeat until `next_index` is empty.",
 					},
+					"sub": map[string]any{
+						"type":        "string",
+						"description": "With `grep`: return a PLAN instead of lines, as `mrw read --grep P --sub R`: each matching line rewritten by this replacement (Go regexp: $1 and ${name} expand, $$ is a literal dollar; \"\" deletes the match), one replace hunk per line that changes, as the answer's text and nothing else. The planned lines are licensed without an ack: nothing is shown, so there is nothing to acknowledge, and each hunk carries the file's sha, so the plan applies to that version or to none. Pass the text to mrw_write as `plan`, or skip the read and call mrw_write with `grep` and `sub`. A plan too large for one answer is refused, not paged. Refused without `grep`, beside `ast_grep`, and beside `count`, `stat`, `quiet`, `max_cols`, `max_lines`, `files_from` and `after`.",
+						"examples":    []any{"New"},
+					},
+					"rewrite": map[string]any{
+						"type":        "string",
+						"description": "With `ast_grep`: return a PLAN of ast-grep's own rewrite of each match to this replacement (its $A metavariables expand; \"\" deletes the match), as `mrw read --ast-grep P --rewrite R`: one replace hunk per span of changed lines, licensed as `sub`'s are, with the line after each span. Matches that overlap are refused. Refused without `ast_grep` and beside the arguments `sub` is refused beside.",
+						"examples":    []any{"bar($B, $A)"},
+					},
+					"quiet": map[string]any{
+						"type":        "boolean",
+						"description": "License what the read serves and return no line of it, as `mrw read --quiet`: each file's header and `-- licensed N line(s) in M file(s)`. For lines you already know. It licenses at once, with no ack, because nothing is shown for a host to cut. Refused beside `count`, `stat`, `sub` and `rewrite`.",
+					},
 				},
 				"required": []string{},
 			},
@@ -717,7 +731,7 @@ func tools() []tool {
 					},
 					"plan": map[string]any{
 						"type": "string",
-						"description": "The plan document. Each hunk is a header line " +
+						"description": "The plan document (omit it only when `grep` with `sub`, or `ast_grep` with `rewrite`, makes the plan). Each hunk is a header line " +
 							"`@@ <path> <address> <op> [guards]` followed by its body lines. " +
 							"Ops: replace, insert-after, insert-before, delete, create, unlink, rename. " +
 							"unlink takes address `-` and no body; rename takes address `-` and one body line, the destination path. Among line-range ops, ONLY delete may carry no body: an empty file is `@@ new.txt 0 " +
@@ -747,8 +761,44 @@ func tools() []tool {
 						// TestEveryEmbeddedExamplePlanReallyApplies dry-runs it.
 						"examples": []string{examplePlan},
 					},
+					"grep": map[string]any{
+						"type":        "string",
+						"description": "A regexp. With `sub`, and in place of `plan`: walk the root, rewrite each matching line, and apply the plan that makes as ONE plan, as `mrw write --grep P --sub R`: every site, one verdict per hunk, nothing written if any fails or any matching file could not be read. The same change at many sites with none of them in your context. Use dry_run first to see it.",
+						"examples":    []any{"\\bOld\\b"},
+					},
+					"sub": map[string]any{
+						"type":        "string",
+						"description": "With `grep`: the replacement for each matching line (Go regexp: $1 and ${name} expand, $$ is a literal dollar; \"\" deletes the match). It rewrites one line for one line, so it holds no line break. Refused without `grep`, and beside `plan` or `format`.",
+						"examples":    []any{"New"},
+					},
+					"ast_grep": map[string]any{
+						"type":        "string",
+						"description": "A structural pattern for the ast-grep CLI on PATH. With `rewrite`, and in place of `plan`: apply ast-grep's own rewrite of every match as one plan, as `mrw write --ast-grep P --rewrite R`. Matches that overlap are refused. Missing ast-grep names ast-grep.",
+						"examples":    []any{"foo($A, $B)"},
+					},
+					"rewrite": map[string]any{
+						"type":        "string",
+						"description": "With `ast_grep`: the replacement for each match (its $A metavariables expand; \"\" deletes the match). Refused without `ast_grep`, and beside `grep`.",
+						"examples":    []any{"bar($B, $A)"},
+					},
+					"exclude": map[string]any{
+						"type":        "array",
+						"items":       map[string]any{"type": "string"},
+						"description": "Globs to skip in the walk of `grep` or `ast_grep`, matched against BOTH the root-relative path and the basename. Refused without one of them.",
+						"examples":    []any{[]any{"*_test.go", "vendor"}},
+					},
+					"no_ignore": map[string]any{
+						"type":        "boolean",
+						"description": "Walk every file of the walk of `grep` or `ast_grep`: no .gitignore, no binary skip, nested repositories entered. Refused without one of them.",
+					},
+					"paths": map[string]any{
+						"type":        "array",
+						"items":       map[string]any{"type": "string"},
+						"description": "Root-relative files and directories the walk of `grep` or `ast_grep` starts at, as the CLI's paths after `mrw write --grep P --sub R`; omitted, the whole root is walked. A path outside the root is refused, and a path carries no range. Refused without `grep` or `ast_grep`.",
+						"examples":    []any{[]any{"internal", "cmd/app/main.go"}},
+					},
 				},
-				"required": []string{"plan"},
+				"required": []string{},
 			},
 		},
 	}

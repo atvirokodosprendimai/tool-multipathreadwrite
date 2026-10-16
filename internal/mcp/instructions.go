@@ -60,19 +60,25 @@ var exampleReadSpecs = []string{
 // one worked plan, quoted twice, so the two copies cannot disagree about a
 // format that has no second source.
 func instructionsText() string {
-	return guide.Shared() + "\n\n" + guide.WhyAllOrNothing() + "\n\n" + fmt.Sprintf(`WHICH SURFACE.
-CLI has --context, --check on prose, --then steps, and
-check, iter, seen and stats. `+"`mrw --root DIR read`"+` points it at ANY checkout; --root goes
-BEFORE the subcommand, since after `+"`read`"+` the short -C is the context flag.
-This surface serves ONE fixed checkout, chosen at launch with `+"`--root DIR mcp`"+`,
-and returns structured JSON. With a shell prefer the CLI; prefer this one with
-none. Writers take turns on either surface: one writer per checkout.
+	return guide.Shared() + "\n\n" + guide.WhyAllOrNothing() + "\n\n" + fmt.Sprintf(`Recipes:
+1. the same change at many sites, none in context: mrw_write with grep and sub (grep \bOld\b, sub New)
+2. see it first: the same with dry_run true
+3. a change by syntax: mrw_write with ast_grep and rewrite
+4. look first: mrw_read with grep and count, then specs f.go:/P/
+5. different changes: one mrw_read of the sites, one mrw_write plan
+6. a step after the write: mrw_write with then [NAME]
+7. license known lines unseen: mrw_read with quiet true
+8. long lines: mrw_read with grep, max_cols 200
+mrw_read with sub or rewrite returns the plan, licensed, no ack: send it as plan.
 
-Only mrw_read serves lines; ack records them. Lines 10-12 do not license line 50.
+WHICH SURFACE. CLI has --context, --check on prose and more;
+`+"`mrw --root DIR read`"+` reaches ANY checkout. This surface serves ONE fixed checkout,
+chosen at launch with `+"`--root DIR mcp`"+`. With a shell prefer the CLI; prefer this one
+with none; one writer per checkout.
 
-READING. mrw_read takes specs: a bare path, path:N, path:N-M, path:A,+N (A plus
-the N lines after it), path:$ for the last line, or path:/regexp/ — the read
-finds its own site. Example: %v
+READING. mrw_read takes specs: a path, path:N-M, path:A,+N (A plus the N lines
+after it), path:$ (the last line) or path:/regexp/ — the read finds its own
+site. Example: %v
 To find files you cannot NAME, set grep (regexp) or ast_grep (structural; missing
 ast-grep is named). Too large? An INDEX — one spec per file, no content. exclude
 skips globs, grep ignored and binary files too; no range with either.
@@ -83,8 +89,7 @@ A read too large comes back as a PAGE: the lines that fit, a
 Repeat until next_read is absent; stopping early leaves part of a file.
 A SERVE LICENSES NOTHING UNTIL YOU ACKNOWLEDGE IT.
 %s
-An id you omit leaves its lines unwritable: a host can cut a result before you
-see it and mrw cannot tell, but you can.
+An id you omit leaves its lines unwritable: a host can cut a result unseen.
 
 WRITING. mrw_write takes one plan and those ck ids as ack. Optional format: plan (default), apply_patch, or search_replace. git is refused. Each hunk is a header line
 
@@ -94,24 +99,20 @@ An address is a line number, an N-M range, A,+N (ONE start
 plus the N lines after; a read clamps at the last line, a write refuses past
 it), $ for the last, or a PATTERN — /regexp/ for one line, /from/,/to/ for
 a range. The START must match EXACTLY ONE line: none or several fails that hunk
-and the refusal names its matches. Every address resolves against the
-ORIGINAL file, so hunks need no offset arithmetic; a pattern is NOT a way to
-edit a file you have not read — the line it resolves to must still have been
-served. Paths are relative to the server's root; an absolute one is
-refused by name, and two spellings of ONE file (case, symlink) are one, so
-a plan naming both is refused.
+and the refusal names its matches. Every address resolves against the ORIGINAL
+file; a pattern is NOT a way to edit a file you have not read — its line must
+have been served. Paths are relative to the root; two spellings of ONE file
+(case, symlink) are one: a plan naming both is refused.
 
-Guards: sha=<hex> whole file, on every op; lines=<n> the span and anchor="<text>"
-first addressed line, refused on create, unlink and rename. A BODY line
-beginning with @@ needs body=<n> and raw=true, or the plan is refused.
+Guards: sha=<hex> whole file, on every op; lines=<n> and anchor="<text>",
+refused on create, unlink and rename. A BODY line starting @@ needs body=<n> and raw=true.
 
 A worked plan:
 
 %s
-dry_run true: same receipt, no write. A refusal is the tool working.
+dry_run true: same receipt, no write.
 
-Both tools cap the ENCODED answer at the ceiling _meta names. An oversized
-write receipt drops the check's tail, then ok and skipped verdicts, then UNWRITTEN files, and says so in elided;
-smaller still, one sentence and no receipt.
+Both tools cap the ENCODED answer at the ceiling _meta names; an oversized write
+receipt drops the check's tail, then ok and skipped verdicts, then UNWRITTEN files, and says so in elided.
 `, exampleReadSpecs, AckRule, examplePlan)
 }

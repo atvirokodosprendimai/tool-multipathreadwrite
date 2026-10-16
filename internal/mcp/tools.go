@@ -293,6 +293,13 @@ type readArgs struct {
 	Count bool `json:"count"`
 	// MaxCols is `--max-cols` (ADR-154): 0 cuts nothing, as the CLI's 0 does.
 	MaxCols int `json:"max_cols"`
+	// Sub, Rewrite and Quiet are `--sub`, `--rewrite` and `--quiet` (ADR-161).
+	// Sub and Rewrite are pointers for ADR-033's reason: "" is a real replacement.
+	Sub     *string `json:"sub"`
+	Rewrite *string `json:"rewrite"`
+	Quiet   bool    `json:"quiet"`
+	// has is which arguments the call sent, apart from their values.
+	has map[string]bool `json:"-"`
 }
 
 // readTool serves ranges and records what it observed, exactly as `mrw read`
@@ -306,6 +313,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	if err := json.Unmarshal(args, &a); err != nil {
 		return errorResult("arguments: " + err.Error()), nil
 	}
+	a.has = presentKeys(args)
 	// Promote before serving: the caller is acknowledging the PREVIOUS page,
 	// and a write in the same turn must see the licence this call grants.
 	unknown, err := promote(root, a.Ack)
@@ -316,7 +324,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// With grep, no spec is required at all — the walk starts at the root, the
 	// way `mrw read --grep P` with no paths does. Without it, a read with
 	// nothing to read is the caller's mistake.
-	if a.Grep != "" && a.AstGrep != "" {
+	if a.hasGrep() && a.hasAst() {
 		return errorResult("--grep and --ast-grep are two sources of specs; use one"), nil
 	}
 	// ADR-117: files_from is a third source of specs, read here so every rule
@@ -353,10 +361,19 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 			return errorResult("count serves no line, so max_cols has nothing to cut; drop max_cols"), nil
 		}
 	}
-	if len(a.Specs) == 0 && a.Grep == "" && a.AstGrep == "" {
+	// ADR-161: sub and rewrite return a plan and quiet returns no line, so what
+	// shapes served lines has nothing to act on beside them. Before the check for
+	// a spec, so `sub` alone is told it needs grep.
+	if msg := a.planRefusal(); msg != "" {
+		return errorResult(msg), nil
+	}
+	if msg := a.quietRefusal(); msg != "" {
+		return errorResult(msg), nil
+	}
+	if len(a.Specs) == 0 && !a.hasGrep() && !a.hasAst() {
 		return errorResult("mrw_read needs at least one spec"), nil
 	}
-	if len(a.Exclude) > 0 && a.Grep == "" && a.AstGrep == "" {
+	if len(a.Exclude) > 0 && !a.hasGrep() && !a.hasAst() {
 		return errorResult("exclude without grep: there is nothing to exclude from"), nil
 	}
 	if err := read.CheckExclude(a.Exclude); err != nil {
@@ -367,11 +384,14 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// believes it is paging while re-reading page one forever — the same
 	// silence `exclude` already refuses, and it deserves the same sentence.
 	// Found by review of #80.
-	if a.After != "" && a.Grep == "" && a.AstGrep == "" {
+	if a.After != "" && !a.hasGrep() && !a.hasAst() {
 		return errorResult("after without grep or ast_grep: it resumes their index, and there is no index without one"), nil
 	}
-	if a.NoIgnore && a.Grep == "" && a.AstGrep == "" {
+	if a.NoIgnore && !a.hasGrep() && !a.hasAst() {
 		return errorResult("no_ignore without grep or ast_grep: it changes what their walk skips"), nil
+	}
+	if a.planned() {
+		return readPlan(root, a)
 	}
 	// finder names the source of the specs an index is built from, once, so no
 	// caller of matchIndex can tell the caller to resend a different one
@@ -476,7 +496,17 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	if a.Count {
 		counts = map[string]int{}
 	}
-	observed, problems := read.Run(w, root, specs, read.Options{Numbers: true, Stat: a.Stat, MaxLines: a.MaxLines, MaxCols: a.MaxCols, Count: a.Count, Counts: counts, Stop: stop})
+	// A quiet read answers with headers and a count, never a page of lines
+	// (ADR-161), so it has no first page to fall back to.
+	pageOf := func() (callToolResult, bool) {
+		if a.Quiet {
+			return callToolResult{}, false
+		}
+		return firstPage(root, a.Specs, cw, a.MaxCols)
+	}
+	// NextLine only here: firstPage's pages are ranges whose continuation serves
+	// the line they end on, so a page must not add it (ADR-161 Decision 10).
+	observed, problems := read.Run(w, root, specs, read.Options{Numbers: true, Stat: a.Stat, MaxLines: a.MaxLines, MaxCols: a.MaxCols, Count: a.Count, Counts: counts, Stop: stop, Quiet: a.Quiet, NextLine: true})
 	_ = w.Flush()
 
 	// A result over the declared limit is REFUSED, not truncated.
@@ -529,7 +559,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		if a.MaxLines != nil || a.Stat {
 			return errorResult(cappedOverflow(a, cw, cw.written, cw.stopped)), nil
 		}
-		if page, ok := firstPage(root, a.Specs, cw, a.MaxCols); ok {
+		if page, ok := pageOf(); ok {
 			return page, nil
 		}
 		return errorResult(overflowMessage(a.Specs, cw)), nil
@@ -616,10 +646,20 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		if a.MaxLines != nil || a.Stat {
 			return errorResult(cappedOverflow(a, cw, encodedSize(served), false)), nil
 		}
-		if page, ok := firstPage(root, a.Specs, cw, a.MaxCols); ok {
+		if page, ok := pageOf(); ok {
 			return page, nil
 		}
 		return errorResult(renderedFitMessage(encodedSize(served), cw)), nil
+	}
+
+	// ADR-161: a quiet read shows no line, so there is no checkpoint for a host to
+	// cut and no ack to wait for: it records what it served, as the CLI's --quiet
+	// does, for lines the caller says it already knows.
+	if a.Quiet && len(observed) > 0 {
+		if err := seen.Record(root, observed); err != nil {
+			return callToolResult{}, &rpcError{Code: codeInternal, Message: "recording the licensed lines: " + err.Error()}
+		}
+		return served, nil
 	}
 
 	// ADR-039: a fitting serve of numbered lines is held pending, not recorded.
@@ -648,7 +688,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 				if a.MaxLines != nil || a.Stat {
 					return errorResult(cappedOverflow(a, cw, encodedSize(markedServed), false)), nil
 				}
-				if page, ok := firstPage(root, a.Specs, cw, a.MaxCols); ok {
+				if page, ok := pageOf(); ok {
 					return page, nil
 				}
 				return errorResult(renderedFitMessage(encodedSize(markedServed), cw)), nil
@@ -772,6 +812,19 @@ type writeArgs struct {
 	StrictBalance bool     `json:"strict_balance"`
 	Check         *bool    `json:"check"`
 	Then          []string `json:"then"`
+	// Grep and Sub, or AstGrep and Rewrite, make the plan in place of Plan
+	// (ADR-161); Exclude and NoIgnore shape their walk. Sub and Rewrite are
+	// pointers because "" is a real replacement.
+	Grep     string          `json:"grep"`
+	Sub      *string         `json:"sub"`
+	AstGrep  string          `json:"ast_grep"`
+	Rewrite  *string         `json:"rewrite"`
+	Exclude  []string        `json:"exclude"`
+	has      map[string]bool `json:"-"`
+	NoIgnore bool            `json:"no_ignore"`
+	// Paths are the root-relative files and directories the walk starts at; none
+	// walks the whole root, as the CLI's paths do.
+	Paths []string `json:"paths"`
 }
 
 // writeTool applies a plan through apply.Apply and returns the same Result the
@@ -786,6 +839,7 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	if err := json.Unmarshal(args, &a); err != nil {
 		return errorResult("arguments: " + err.Error()), nil
 	}
+	a.has = presentKeys(args)
 	if a.EchoPad < 0 {
 		return errorResult("echo_pad must be >= 0"), nil
 	}
@@ -803,11 +857,25 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		return callToolResult{}, &rpcError{Code: codeInternal, Message: "ack: " + err.Error()}
 	}
 	noteAcks(unknown)
-	if strings.TrimSpace(a.Plan) == "" {
-		return errorResult("mrw_write needs a plan"), nil
+	// ADR-161: a walk makes the plan (grep and sub, ast_grep and rewrite), and it
+	// goes through the parse and apply every plan does.
+	planning := a.hasGrep() || a.hasAst() || a.Sub != nil || a.Rewrite != nil
+	if !planning && (len(a.Exclude) > 0 || a.NoIgnore || len(a.Paths) > 0) {
+		return errorResult("exclude, no_ignore and paths shape the walk of grep with sub or ast_grep with rewrite: give one of those, or drop them"), nil
 	}
-
-	doc := []byte(a.Plan)
+	var doc []byte
+	if planning {
+		built, refusal := planSource(root, a)
+		if refusal != "" {
+			return errorResult(refusal), nil
+		}
+		doc = built
+	} else {
+		if strings.TrimSpace(a.Plan) == "" {
+			return errorResult("mrw_write needs a plan"), nil
+		}
+		doc = []byte(a.Plan)
+	}
 	switch strings.TrimSpace(a.Format) {
 	case "", "plan":
 	case "apply_patch":

@@ -883,7 +883,9 @@ func TestAnIndexTooLargeToServePagesByFile(t *testing.T) {
 func TestTheIndexSurvivesAPatternThatLooksLikeARange(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
-	body := "alpha/,/beta here\n" + strings.Repeat("noise\n", 5) + "tail\n"
+	// A match is served with the line after it (ADR-161 Decision 10), so the line
+	// after the match is `tail`; `noise` is only ever reached by the range reading.
+	body := "alpha/,/beta here\ntail\n" + strings.Repeat("noise\n", 5)
 	for i := 0; i < 40; i++ {
 		name := filepath.Join(root, fmt.Sprintf("doc%03d.txt", i))
 		if err := os.WriteFile(name, []byte(strings.Repeat(body, 400)), 0o644); err != nil {
