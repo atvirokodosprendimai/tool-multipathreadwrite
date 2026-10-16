@@ -9666,6 +9666,38 @@ out=$(printf '@@ p270.txt 1 replace\nA\n\r\n' | m write --no-check - 2>&1); want
 out=$(printf '@@ p270.txt 2 replace\r\nB\r\n' | m write --no-check - 2>&1); want 0 $? "the pair: an all-CRLF plan exits 0"
 { [ "$(cat "$R/p270.txt")" = "$(printf 'A\nB')" ] && ! grep -q 'PowerShell appends' <<<"$out"; } && ok "and is applied as it always was, with no note" || bad "an all-CRLF plan: $out"
 
+# 271. ADR-161 Decision 14: the read ledger and the write lock belong to the
+# git checkout that holds the root, not to the directory mrw ran in. A read in
+# `sub` licenses a write from the top, and a read at the top licenses a write
+# from `sub`, neither with --root. The pair: the same steps in a tree with no
+# .git above it keep one ledger per directory, and the write is refused. And a
+# write lock held from `sub` holds a writer at the top.
+R=$(mktemp -d "$WORK/r271-XXXXXX"); mkdir -p "$R/.git" "$R/sub"
+printf 'one\ntwo\n' > "$R/sub/a.txt"; printf 'one\ntwo\n' > "$R/sub/b.txt"
+(cd "$R/sub" && "$MRW" read a.txt) >"$WORK/served.out" 2>&1; want 0 $? "a read in a subdirectory of a checkout exits 0"
+out=$(cd "$R" && printf '@@ sub/a.txt 1 replace\nONE\n' | "$MRW" write --no-check - 2>&1); want 0 $? "a write from the top after a read in sub exits 0"
+{ [ "$(cat "$R/sub/a.txt")" = "$(printf 'ONE\ntwo')" ]; } && ok "a read in a subdirectory licenses a write from the checkout's top" || bad "a read in sub, a write from the top: $out"
+(cd "$R" && "$MRW" read sub/b.txt) >"$WORK/served.out" 2>&1; want 0 $? "a read at the top of a checkout exits 0"
+out=$(cd "$R/sub" && printf '@@ b.txt 2 replace\nTWO\n' | "$MRW" write --no-check - 2>&1); want 0 $? "a write from sub after a read at the top exits 0"
+{ [ "$(cat "$R/sub/b.txt")" = "$(printf 'one\nTWO')" ]; } && ok "and a read at the top licenses a write from a subdirectory" || bad "a read at the top, a write from sub: $out"
+R=$(mktemp -d "$WORK/r271b-XXXXXX"); mkdir -p "$R/sub"
+printf 'one\ntwo\n' > "$R/sub/a.txt"
+(cd "$R/sub" && "$MRW" read a.txt) >"$WORK/served.out" 2>&1; want 0 $? "the pair: a read in a subdirectory with no .git above exits 0"
+out=$(cd "$R" && printf '@@ sub/a.txt 1 replace\nONE\n' | "$MRW" write --no-check - 2>&1); want 1 $? "and the same write from the top is refused"
+{ grep -q 'has not been read' <<<"$out" && [ "$(cat "$R/sub/a.txt")" = "$(printf 'one\ntwo')" ]; } && ok "as not read, and the file is unchanged" || bad "no .git: $out"
+R=$(mktemp -d "$WORK/r271c-XXXXXX"); mkdir -p "$R/.git" "$R/sub"
+printf 'one\ntwo\n' > "$R/sub/a.txt"
+(cd "$R/sub" && "$MRW" read a.txt) >"$WORK/served.out" 2>&1
+sd271=$(cd "$R/sub" && "$MRW" seen | head -1)
+python3 -c 'import fcntl, sys, time
+f = open(sys.argv[1], "a"); fcntl.flock(f, fcntl.LOCK_EX); open(sys.argv[2], "w").close(); time.sleep(60)' "$sd271/seen.write.lock" "$WORK/ready271" &
+holder271=$!
+for _ in $(seq 1 50); do [ -e "$WORK/ready271" ] && break; sleep 0.1; done
+printf '@@ sub/a.txt 1 replace\nONE\n' > "$WORK/p271.mrw"
+(cd "$R" && bounded 15 "$WORK/o271" env MRW_WRITE_LOCK_TIMEOUT=0 "$MRW" write --no-check "$WORK/p271.mrw"); want 2 $? "a write at the top is refused while the write lock is held from sub"
+kill "$holder271" 2>/dev/null; wait "$holder271" 2>/dev/null
+(cd "$R" && "$MRW" write --no-check "$WORK/p271.mrw") >/dev/null 2>&1; want 0 $? "the pair: once the holder lets go, the same write applies"
+
 # 265. ADR-161 Decision 6: the recipes are tested by running them. Recipes 1 and
 # 3 are taken from `$MRW instructions` — the line after `1. ` and after `3. `,
 # indented two spaces, each required to start `mrw write --` — and run as written

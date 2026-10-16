@@ -338,6 +338,27 @@ func children(base *os.Root) ([]string, error) {
 // It cannot shield a different checkout: two distinct paths would have to
 // collide under sha256 for that.
 func selfNames(root string) (map[string]bool, error) {
+	out, err := spellings(root)
+	if err != nil {
+		return nil, err
+	}
+	// The checkout's top keeps the ledger root reads and writes (ADR-161
+	// Decision 14), so its entry is the caller's own too while the checkout
+	// can be found. Once it is gone, its entry is a dead root's like any other.
+	if top, _ := Checkout(root); top != "" {
+		more, err := spellings(top)
+		if err != nil {
+			return nil, err
+		}
+		for k := range more {
+			out[k] = true
+		}
+	}
+	return out, nil
+}
+
+// spellings is every key one path could have been given its state under.
+func spellings(root string) (map[string]bool, error) {
 	out := map[string]bool{}
 	abs, err := filepath.Abs(root)
 	if err != nil {
