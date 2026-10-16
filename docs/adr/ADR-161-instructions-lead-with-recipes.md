@@ -30,9 +30,9 @@ Zy, 2026-10-16: "need to re-teach the agents to use mrw efficiently, no prose"; 
    1. the same change at many sites, nothing in your context: `mrw write --grep '\bOld\b' --sub 'New' .`
    2. see what it will do first, nothing written: `mrw write --grep '\bOld\b' --sub 'New' --dry-run .`
    3. a change by syntax, not text: `mrw write --ast-grep 'foo($A, $B)' --rewrite 'bar($B, $A)' .`
-   4. look before you change, only at what you will use: `mrw read --grep P --count`, then `mrw read 'f.go:/P/' -C 3 --max-lines 40`
-   5. different changes at several sites: one `mrw read` of all of them, one plan, `mrw write -`
-   6. a step after the write, in the same call: `mrw write - --then NAME` (a step from `.quality-harness.json`) — the project's check already runs after a code write; `--then-sh 'CMD'` runs any shell command, with ADR-092's caveat beside it
+   4. look before you change, only at what you will use: `mrw read --grep P --count . && mrw read 'f.go:/P/' -C 3 --max-lines 40`
+   5. different changes at several sites, one read of all of them, then one plan on standard input: `mrw read 'a.go:/func A/,+12' b.go:40-60 && printf '%s\n' "$plan" | mrw write -`
+   6. a step after the write, in the same call: `mrw write - --then NAME` (a step from `.quality-harness.json`) — the project's check already runs after a code write; the label carries ADR-092's `--then-sh` caveat. Every command line is commands only, joined by `&&` or `|`; the Codex review of T3 found two that held prose and exited 2 as printed.
    7. license lines you already know, without them in your context: `mrw read --quiet f.go:40-60` (a read into `/dev/null` licenses nothing); a file mrw just wrote needs no re-read
    8. a file of long lines (logs, JSONL): `mrw read --grep P --max-cols 200 f.jsonl` — each line cut to a window round the match
    9. narrow any command's output without leaving mrw: `cmd | mrw read --grep P --max-lines 20 -`

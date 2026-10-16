@@ -28,6 +28,33 @@ func WhyAllOrNothing() string {
 
 const whyAllOrNothing = `A plan that fails validation writes nothing because a write that changed nothing is invisible.`
 
+// Recipes is the block mrw instructions prints right after Shared (ADR-161
+// Decision 4): each recipe a numbered label line ending in ":" and its command on
+// the next line, indented two spaces, and no prose. It leads because an agent
+// that reads only the top of the contract should meet first the forms that keep
+// lines it does not need out of its context.
+func Recipes() string {
+	return `Recipes:
+1. the same change at many sites, nothing in your context:
+  mrw write --grep '\bOld\b' --sub 'New' .
+2. see what it will do first, nothing written:
+  mrw write --grep '\bOld\b' --sub 'New' --dry-run .
+3. a change by syntax, not text:
+  mrw write --ast-grep 'foo($A, $B)' --rewrite 'bar($B, $A)' .
+4. look before you change, only at what you will use (count first, then read the matches you need):
+  mrw read --grep P --count . && mrw read 'f.go:/P/' -C 3 --max-lines 40
+5. different changes at several sites: one read of all of them, then one plan on standard input:
+  mrw read 'a.go:/func A/,+12' b.go:40-60 && printf '%s\n' "$plan" | mrw write -
+6. a step after the write, in the same call (NAME is a step in .quality-harness.json; a code write already runs the project's check; ` + ThenShCaveat() + `):
+  mrw write - --then NAME
+7. license lines you already know, without them in your context (a read into /dev/null licenses nothing; a file mrw just wrote needs no re-read):
+  mrw read --quiet f.go:40-60
+8. a file of long lines (logs, JSONL), each line cut to a window round the match:
+  mrw read --grep P --max-cols 200 f.jsonl
+9. narrow any command's output without leaving mrw:
+  cmd | mrw read --grep P --max-lines 20 -`
+}
+
 // CLI is Shared plus the why, the operator traps that only the shell
 // surface can hit, the plan ops a PATH caller needs to drive a write, and
 // the read side — address forms and the flags that find sites a caller cannot
@@ -35,6 +62,8 @@ const whyAllOrNothing = `A plan that fails validation writes nothing because a w
 // Stdout of `mrw instructions` is exactly this string.
 func CLI() string {
 	return Shared() + `
+
+` + Recipes() + `
 
 ` + WhyAllOrNothing() + `
 
@@ -79,7 +108,7 @@ mrw instructions --core prints the eight rules that matter most.
 // flag it names to the binary.
 func Core() string {
 	return `The eight rules that matter most (mrw instructions prints the whole contract):
-1. Use mrw for every file read, edit and create: one read of every site, then one plan, then one write (mrw write PLAN, or mrw write - for a plan on standard input).
+1. Use mrw for every file read, edit and create: one read of every site, one plan, one write (mrw write PLAN, or mrw write - from standard input); the same change at many sites: mrw write --grep P --sub R.
 2. Read before you write, per line: a write to a line mrw has not served you is refused, except in a file mrw just wrote. After a multi-line body, read on past your range until the enclosing structure closes.
 3. A plan that fails validation writes nothing: read the refusal, which names the file, the plan line and the reason, and do not reach for --force. A commit that fails reports what reached disk.
 4. A multi-line replace needs anchor= copied from the line your read printed; body= is a line count and goes on the header.

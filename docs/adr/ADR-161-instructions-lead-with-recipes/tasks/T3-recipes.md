@@ -45,7 +45,8 @@ out=$(go test ./internal/guide/ ./cmd/mrw/ -count=1 -v 2>&1) \
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| — | — | the test the fence names joins this table in the change that writes it, since `TestEveryTestNamedByARecordExists` holds every named test to exist | none | — |
+| `TestInstructionsLeadWithTheRecipes` | `internal/guide/guide_test.go` | `CLI()` is `Shared()`, then `Recipes:`, then the reference; nine `N. label:` lines each followed by its command indented two spaces; recipe 1's command exact; recipe 6 carries ADR-092's caveat; no perl, awk or sed; the whole over 900 words | none | S2 |
+| `TestTheCoreNamesTheSubWrite` | `cmd/mrw/core141_test.go` | core rule 1 names `mrw write --grep P --sub R`; the core stays under 300 words | none | S3 |
 
 ## Reachability
 
@@ -58,6 +59,11 @@ out=$(go test ./internal/guide/ ./cmd/mrw/ -count=1 -v 2>&1) \
 
 ## Mutation Log
 (empty until execute)
+- 2026-10-16 · 05962d0b* · mutant killed · exit 1 · `internal/guide/guide.go` · S2: recipe 1 prints a plan instead of writing it · acceptance-sha256:c63a95f0531b54fae56b1767bc2003cf78c5bb3ffec26d45be7067184d1128fc
+- 2026-10-16 · 05962d0b* · mutant killed · exit 1 · `internal/guide/guide.go` · S3: the core no longer names the one-command wide edit · acceptance-sha256:c63a95f0531b54fae56b1767bc2003cf78c5bb3ffec26d45be7067184d1128fc
+- 2026-10-16 · 05962d0b* · mutant killed · exit 1 · `internal/guide/guide.go` · S4: recipe 3 prints a plan instead of applying it; only the contract row runs it · acceptance-sha256:c63a95f0531b54fae56b1767bc2003cf78c5bb3ffec26d45be7067184d1128fc
+- 2026-10-16 · 05962d0b* · mutant killed · exit 1 · `internal/guide/guide.go` · S2: recipe 6 loses ADR-092's caveat · acceptance-sha256:c63a95f0531b54fae56b1767bc2003cf78c5bb3ffec26d45be7067184d1128fc
+- 2026-10-16 · 05962d0b* · mutant killed · exit 1 · `internal/guide/guide.go` · S2: a recipe command line holds prose again and exits 2 as printed (the Codex review of T3) · acceptance-sha256:c63a95f0531b54fae56b1767bc2003cf78c5bb3ffec26d45be7067184d1128fc
 
 ## Invariants
 
@@ -77,3 +83,11 @@ A pinned phrase cannot stay without the reference staying as long as it is.
 
 ## Verification Log
 (empty until execute)
+- 2026-10-16 · 05962d0b* · exit 1 · `set -o pipefail …` · acceptance-sha256:c63a95f0531b54fae56b1767bc2003cf78c5bb3ffec26d45be7067184d1128fc · ms:55821 · test-lock-sha256:deeb36e69eee92091337010c87f199c96273cf4f30607b345e4a41e96cc4ff11 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIz
+  ```
+  ```
+- 2026-10-16 · 05962d0b* · exit 0 · `set -o pipefail …` · acceptance-sha256:c63a95f0531b54fae56b1767bc2003cf78c5bb3ffec26d45be7067184d1128fc · ms:135467
+- 2026-10-16 · 05962d0b* · exit 0 · `set -o pipefail …` · acceptance-sha256:c63a95f0531b54fae56b1767bc2003cf78c5bb3ffec26d45be7067184d1128fc · ms:135464
+- 2026-10-16 · 05962d0b* · exit 0 · `set -o pipefail …` · acceptance-sha256:c63a95f0531b54fae56b1767bc2003cf78c5bb3ffec26d45be7067184d1128fc · ms:135308
+- 2026-10-16 · 05962d0b* · exit 0 · `set -o pipefail …` · acceptance-sha256:c63a95f0531b54fae56b1767bc2003cf78c5bb3ffec26d45be7067184d1128fc · ms:137595
+- 2026-10-16 · 05962d0b* · exit 0 · `set -o pipefail …` · acceptance-sha256:c63a95f0531b54fae56b1767bc2003cf78c5bb3ffec26d45be7067184d1128fc · ms:136395
