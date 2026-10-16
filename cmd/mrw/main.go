@@ -762,6 +762,10 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				Name:  "no-ignore",
 				Usage: "under --grep or --ast-grep, walk every regular file: no .gitignore, no binary skip, nested repositories entered (ADR-116, ADR-122, ADR-130)",
 			},
+			&cli.BoolFlag{
+				Name:  "quiet",
+				Usage: "license what the read serves and print none of it: each file's header and `-- licensed N line(s) in M file(s)`, counting what this read licensed (not what earlier reads did), for lines you already know. A read whose answer goes to the null device licenses nothing; this is the way to license without reading. Not with --count, --stat or --sub (ADR-161)",
+			},
 		},
 		Action: func(_ context.Context, cmd *cli.Command) error {
 			if err := refusePaddedArgs(cmd); err != nil {
@@ -854,7 +858,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				if !grepSet {
 					return cli.Exit("--sub rewrites the lines a --grep matches: give --grep PATTERN", exitUsage)
 				}
-				for _, f := range []string{"context", "count", "stat", "max-cols", "max-lines", "no-numbers", "files-from"} {
+				for _, f := range []string{"context", "count", "stat", "quiet", "max-cols", "max-lines", "no-numbers", "files-from"} {
 					if cmd.IsSet(f) {
 						return cli.Exit(fmt.Sprintf("--sub prints a plan and serves no line, so --%s has nothing to act on: drop --%s", f, f), exitUsage)
 					}
@@ -879,6 +883,16 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				} {
 					if cmd.IsSet(f.flag) {
 						return cli.Exit(f.refusal, exitUsage)
+					}
+				}
+			}
+			// ADR-161: --quiet licenses what a read serves; --count and --stat
+			// serve no line and --sub licenses a plan's lines, so none of them
+			// has anything for it to keep quiet.
+			if cmd.Bool("quiet") {
+				for _, f := range []string{"count", "stat", "sub"} {
+					if cmd.IsSet(f) {
+						return cli.Exit(fmt.Sprintf("--quiet licenses the lines a read serves, and --%s serves or licenses differently: drop one", f), exitUsage)
 					}
 				}
 			}
@@ -1048,6 +1062,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				MaxLines: maxLines(cmd),
 				MaxCols:  cmd.Int("max-cols"),
 				Count:    cmd.Bool("count"),
+				Quiet:    cmd.Bool("quiet"),
 			})
 			skipNote()
 			// The answer reaches the caller BEFORE anything is recorded (ADR-088).

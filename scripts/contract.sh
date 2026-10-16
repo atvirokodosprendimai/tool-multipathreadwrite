@@ -9442,6 +9442,27 @@ chmod 644 "$R/d263/two.txt"
 m read --sub New d263 >/dev/null 2>&1; want 2 $? "--sub without --grep is a usage error"
 m write --no-check --grep Old d263 >/dev/null 2>&1; want 2 $? "--grep without --sub, on write, is a usage error"
 
+# 266. ADR-161: `read --quiet` licenses what it serves and prints none of it: no
+# numbered line, no range line, the count of what it licensed; a plan for a line
+# it served applies. The pair, the same read sent to /dev/null, licenses nothing,
+# and the same plan is refused as unread (ADR-133).
+fixture
+printf 'a\nb\nc\nd\n' > "$R/q266.txt"
+good266=1
+out=$(m read --quiet q266.txt:2-3); want 0 $? "a quiet read exits 0"
+{ ! grep -q '^ *[0-9][0-9]*| ' <<<"$out" && ! grep -q '^@@ [0-9]' <<<"$out" && grep -qx -- '-- licensed 2 line(s) in 1 file(s)' <<<"$out"; } \
+  || { good266=0; bad "a quiet read printed a line, or no count: $out"; }
+printf '@@ q266.txt 2 replace\nB\n' > "$WORK/p266"
+m write --no-check "$WORK/p266" >/dev/null 2>&1; want 0 $? "a plan for a quietly read line applies"
+[ "$(sed -n 2p "$R/q266.txt")" = B ] || { good266=0; bad "the quiet licence did not let line 2 be written: $(cat "$R/q266.txt")"; }
+[ "$good266" = 1 ] && ok "a quiet read licenses its lines and prints none of them"
+printf 'a\nb\nc\nd\n' > "$R/n266.txt"
+m read n266.txt:2-3 >/dev/null 2>&1
+printf '@@ n266.txt 2 replace\nB\n' > "$WORK/n266"
+out=$(m write --no-check "$WORK/n266" 2>&1); want 1 $? "the pair: the same read sent to the null device licenses nothing"
+{ grep -q 'has not been read' <<<"$out" && [ "$(sed -n 2p "$R/n266.txt")" = b ]; } && ok "and the same plan is refused as unread" || bad "a null-device read licensed: $out"
+m read --quiet --stat q266.txt >/dev/null 2>&1; want 2 $? "--quiet beside --stat is a usage error"
+
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
 # killed process is a zombie until its adopter reaps it, and pgrep lists
