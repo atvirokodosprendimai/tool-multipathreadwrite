@@ -176,8 +176,9 @@ type Options struct {
 	// without a scratch file and without the null device, which licenses nothing.
 	Quiet bool
 	// NextLine serves the line after each range that ends before the file does
-	// (ADR-161 Decision 10). The CLI read sets it; the MCP surface does not yet,
-	// since its pages are ranges too and a page must not repeat a line (T9).
+	// (ADR-161 Decision 10). The CLI read and mrw_read set it. A page of mrw_read
+	// does not: its continuation serves the line a page ends on, and a page must
+	// not repeat a line.
 	NextLine bool
 }
 
@@ -478,8 +479,8 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 	englishUnreadables := 0
 	// ADR-153's total line.
 	// The note is printed once per call, at the first range that needs it
-	// (ADR-136), and only where the line after is not served (ADR-161): the
-	// CLI serves it, the MCP surface does not yet.
+	// (ADR-136), and only where the line after is not served (ADR-161): a page
+	// of mrw_read, whose continuation serves it.
 	neighbourNoted := false
 	countedLines, countedFiles := 0, 0
 	fileLines := map[string]int{} // each file's length, for a quiet read's count of whole files

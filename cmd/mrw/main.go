@@ -1079,12 +1079,12 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				if h := patternFlagHint(pattern); h != "" {
 					hint = " — " + h + " (mrw took the value after --grep as the pattern)"
 				}
-				return cli.Exit(noMatchLine(pattern, len(refusals), hint), 1)
+				return cli.Exit(read.NoMatchLine(pattern, len(refusals), hint), 1)
 			}
 			if astSet && len(specs) == 0 {
 				skipNote()
 				_ = out.Flush() // exit 1 follows whether or not the refusals reached stdout
-				return cli.Exit(noMatchLine(astPattern, len(refusals), ""), 1)
+				return cli.Exit(read.NoMatchLine(astPattern, len(refusals), ""), 1)
 			}
 
 			observed, problems := read.Run(out, root, specs, read.Options{
@@ -1445,15 +1445,17 @@ held or went unchecked.`,
 				// is applied, as a read records what it printed; a partial plan
 				// (a path the walk refused) writes nothing, since a plan that
 				// leaves a site out must never exit 0.
-				var b *builtSub
+				var b *read.Built
 				var err error
 				if cmd.IsSet("rewrite") {
-					b, err = buildRewrite(cmd.Root().String("root"), args, cmd.String("ast-grep"), cmd.String("rewrite"), cmd.StringSlice("exclude"), cmd.Bool("no-ignore"), os.Stderr)
+					b, err = read.BuildRewrite(cmd.Root().String("root"), args, cmd.String("ast-grep"), cmd.String("rewrite"), cmd.StringSlice("exclude"), cmd.Bool("no-ignore"), os.Stderr)
 				} else {
-					b, err = buildSub(cmd.Root().String("root"), args, cmd.String("grep"), cmd.String("sub"), cmd.StringSlice("exclude"), cmd.Bool("no-ignore"), os.Stderr)
+					b, err = read.BuildSub(cmd.Root().String("root"), args, cmd.String("grep"), cmd.String("sub"), cmd.StringSlice("exclude"), cmd.Bool("no-ignore"), os.Stderr)
 				}
-				if err == nil && b.problems > 0 {
-					err = cli.Exit(fmt.Sprintf("incomplete: %d path(s) or range(s) could not be served, so nothing was written", b.problems), exitNotApplied)
+				if err != nil {
+					err = exitOf(err)
+				} else if b.Problems > 0 {
+					err = cli.Exit(fmt.Sprintf("incomplete: %d path(s) or range(s) could not be served, so nothing was written", b.Problems), exitNotApplied)
 				}
 				if err != nil {
 					// ADR-072: under --json a refusal is one JSON document; it keeps
@@ -1465,10 +1467,10 @@ held or went unchecked.`,
 					}
 					return err
 				}
-				if err := seen.Record(cmd.Root().String("root"), b.observed); err != nil {
+				if err := seen.Record(cmd.Root().String("root"), b.Observed); err != nil {
 					return refuse(err.Error())
 				}
-				src, name = bytes.NewReader(b.plan), "--sub"
+				src, name = bytes.NewReader(b.Plan), "--sub"
 				if cmd.IsSet("rewrite") {
 					name = "--rewrite"
 				}

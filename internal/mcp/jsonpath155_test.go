@@ -8,7 +8,7 @@ import (
 )
 
 // ADR-155. mrw_read takes a JSON path in its specs, through the same parser,
-// and serves the same span.
+// and serves the same span and, since ADR-161 Decision 10, the line after it.
 func TestAnMCPReadTakesAJSONPath(t *testing.T) {
 	root := t.TempDir()
 	doc := "{\n  \"name\": \"demo\",\n  \"scripts\": {\n    \"build\": \"go build\"\n  }\n}\n"
@@ -17,7 +17,7 @@ func TestAnMCPReadTakesAJSONPath(t *testing.T) {
 	}
 	res := call(t, root, "mrw_read", map[string]any{"specs": []any{"f.json:$.scripts.build"}})
 	text := resultText(res)
-	if isErr, _ := res["isError"].(bool); isErr || !strings.Contains(text, "@@ 4-4") || strings.Contains(text, "demo") {
-		t.Errorf("mrw_read of f.json:$.scripts.build did not serve line 4 alone:\n%s", text)
+	if isErr, _ := res["isError"].(bool); isErr || !strings.Contains(text, "@@ 4-5") || !strings.Contains(text, "5|   }") || strings.Contains(text, "demo") {
+		t.Errorf("mrw_read of f.json:$.scripts.build did not serve line 4 and the line after it, and no more:\n%s", text)
 	}
 }

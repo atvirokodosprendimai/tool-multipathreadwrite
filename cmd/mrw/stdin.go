@@ -91,7 +91,7 @@ func stdinRead(cmd *cli.Command, pattern string, grepSet bool, posArgs []string)
 		return nil
 	}
 	if re != nil && !anyLineMatches(re, string(b)) {
-		return cli.Exit(fmt.Sprintf("no match: no line of standard input matched /%s/", oneLine(pattern)), 1)
+		return cli.Exit(fmt.Sprintf("no match: no line of standard input matched /%s/", read.OneLine(pattern)), 1)
 	}
 	return cli.Exit(fmt.Sprintf("incomplete: %d range(s) could not be served", problems), 1)
 }
