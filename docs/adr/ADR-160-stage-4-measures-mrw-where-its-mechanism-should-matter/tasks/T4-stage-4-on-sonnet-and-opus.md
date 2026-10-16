@@ -56,7 +56,7 @@ go run ./cmd/bench verify --stage stage4 --tasks 24 --repeats 2 $R/stage-4-sonne
 # each manifest names it, and every receipt carries its manifest's stage and, for B, that build.
 v=$(jq -r '.mrw_version' $R/stage-4b-sonnet/run.json) && tag=${v%% *} \
   && git rev-parse -q --verify "refs/tags/$tag" > /dev/null \
-  && git cat-file -e "refs/tags/$tag:internal/mcp/sub161.go" \
+  && git cat-file -e "refs/tags/$tag:internal/mcp/sub161_test.go" \
   || exit 1
 for d in stage-4b-sonnet stage-4b-opus stage-4b-swe; do
   s=$(jq -r '.stage' $R/$d/run.json) \
@@ -112,6 +112,12 @@ The fence exits 0; or a stage shows the harness cannot measure what ADR-156 Deci
   ```
 - 2026-10-16 · human-observed · S2 Zy says go for all three Stage 4 stages, in order (2026-10-16, answered 'All three, in order'): Sonnet's own tasks, 96 attempts, about 2.5 to 3 hours; Opus's own tasks, 96 attempts, about 3 to 4 hours; the swe-multi-hunk slice on both models, 80 attempts and 20 image pulls of about 10 GB one at a time, about 5 to 6 hours; on this Mac, CLI 2.1.300, mrw v1.66.0, subscription
 - 2026-10-16 · 926aa273* · exit 1 · `set -o pipefail …` · acceptance-sha256:640f5d23c5d92e278b1e5f6cca587652357b84a6376e05d63ce58cd730726fab · ms:312
+  ```
+  --- last 2 line(s) of stderr
+  bench: open docs/bench/stage-4b-sonnet/run.json: no such file or directory
+  exit status 1
+  ```
+- 2026-10-16 · 76e092dd* · exit 1 · `set -o pipefail …` · acceptance-sha256:bd7c2320d415c774d1b65ed11a59dcf20dfdd5b96b8f86ced2b58fa4afc8cf3e · ms:173
   ```
   --- last 2 line(s) of stderr
   bench: open docs/bench/stage-4b-sonnet/run.json: no such file or directory
