@@ -4,44 +4,66 @@
 **Covers:** none — no spec
 **Estimated scope:** L (machine time: hours per model, rate-limited)
 **Owner:** Zy
-**Produces:** `docs/bench/stage-4-sonnet/`, `docs/bench/stage-4-opus/`, `docs/bench/stage-4-swe/` receipts
+**Produces:** `docs/bench/stage-4-sonnet/` receipts (mrw v1.66.0, kept as run); `docs/bench/stage-4b-sonnet/`, `docs/bench/stage-4b-opus/`, `docs/bench/stage-4b-swe/` receipts (the rerun)
 **Consumes:** the calibrated corpus (T3), `bench/stage-4-tasks.txt` and `bench/swe-bench/selection-adr-160.json` (T2)
 **Data dependency:** real agent runs on the subscription and SWE-bench images, on this Mac; each model's stage starts only on Zy's word
 **Proof map:** v1
-**Rests-on:** `every registered attempt has a receipt`, `the receipts verify`, `the stages ran the task list on the registered models`, `the slice ran the selection on both models`
+**Rests-on:** `every registered attempt has a receipt`, `the receipts verify`, `the stages ran the task list on the registered models`, `the slice ran the selection on both models`, `the rerun ran a release carrying ADR-161`
 
 ## Goal
 
 The registered Stage 4: 24 own tasks × A/B × 2 on each model, and the 20-instance `swe-multi-hunk` slice × A/B × 1 on each model, one image at a time.
+
+**Amended 2026-10-16 by ADR-161 T5, before the rerun.** Sonnet's own tasks ran on mrw v1.66.0 as stage `stage4` (`docs/bench/stage-4-sonnet/`, #437) and LOSES; Zy stopped the run there to re-teach the agents first (ADR-161) and said "Rerun Stage 4 on the new mrw". That stage is kept as run and published as v1.66.0's verdict. Stage 4 is rerun whole on the first release whose tree carries ADR-161's code: own tasks on each model as stage `stage4b`, the slice on both models as stage `stage-4b-swe`, the same tasks, selection, bar and order. `bench analyze` keys a verdict by stage, model and source, so the two builds are never pooled. Opus's partial v1.66.0 run was never counted and stays out of the repository.
 
 ## Affected Files
 
 | File | Change | Why |
 |------|--------|-----|
 | `docs/bench/stage-4-sonnet/` | add | own tasks on Sonnet 5.5, stage `stage4` |
-| `docs/bench/stage-4-opus/` | add | own tasks on Opus 5.5, stage `stage4` |
-| `docs/bench/stage-4-swe/` | add | the slice on both models, stage `stage-4-swe` |
+| `docs/bench/stage-4-opus/` | not made | the run stopped during Opus's own tasks (#437) |
+| `docs/bench/stage-4-swe/` | not made | the slice never ran on v1.66.0 |
+| `docs/bench/stage-4b-sonnet/` | add | own tasks on Sonnet 5.5, stage `stage4b`, on the release carrying ADR-161 |
+| `docs/bench/stage-4b-opus/` | add | own tasks on Opus 5.5, stage `stage4b`, the same release |
+| `docs/bench/stage-4b-swe/` | add | the slice on both models, stage `stage-4b-swe`, the same release |
 
 ## Ordered Steps
 
 1. [S1] See the fence red: no stage receipts. [proof: acceptance]
 2. [S2] Zy's word for each of the three stages — Sonnet's own tasks, Opus's own tasks, the slice on both models — given with its price. [proof: human: Zy says go for that Stage 4 stage]
 3. [S3] Each stage with `--task` for every id in `bench/stage-4-tasks.txt` (the slice with `--selection bench/swe-bench/selection-adr-160.json`), sequential, resumable, with a canary per model; every slice transcript scanned for a read of the dataset file, as in Stage 3. [proof: acceptance]
+4. [S4] Zy's word for the rerun on the release carrying ADR-161, given with its price. [proof: human: Zy says go for the Stage 4 rerun]
+5. [S5] The three stages again as in S3, on that release, as `stage4b` and `stage-4b-swe`. [proof: acceptance]
 
 ## Acceptance
 
 ```bash
 set -o pipefail
-go run ./cmd/bench verify --stage stage4 --tasks 24 --repeats 2 docs/bench/stage-4-sonnet \
-  && go run ./cmd/bench verify --stage stage4 --tasks 24 --repeats 2 docs/bench/stage-4-opus \
-  && jq -e '.models == ["claude-sonnet-5-5"]' docs/bench/stage-4-sonnet/run.json > /dev/null \
-  && jq -e '.models == ["claude-opus-5-5"]' docs/bench/stage-4-opus/run.json > /dev/null \
-  && diff <(jq -r '.tasks[]' docs/bench/stage-4-sonnet/run.json | sort) <(jq -r '.tasks[]' docs/bench/stage-4-opus/run.json | sort) \
-  && diff <(jq -r '.tasks[]' docs/bench/stage-4-sonnet/run.json | sort) \
-          <(sort bench/stage-4-tasks.txt) \
-  && go run ./cmd/bench verify --stage stage-4-swe --tasks 20 --repeats 1 docs/bench/stage-4-swe \
-  && jq -e '(.models | sort) == ["claude-opus-5-5", "claude-sonnet-5-5"]' docs/bench/stage-4-swe/run.json > /dev/null \
-  && diff <(jq -r '.tasks[]' docs/bench/stage-4-swe/run.json | sort) <(jq -r '.selected[]' bench/swe-bench/selection-adr-160.json | sort)
+R=docs/bench
+go run ./cmd/bench verify --stage stage4 --tasks 24 --repeats 2 $R/stage-4-sonnet \
+  && jq -e '.models == ["claude-sonnet-5-5"] and .mrw_version == "v1.66.0 (05ec3f8)"' $R/stage-4-sonnet/run.json > /dev/null \
+  && go run ./cmd/bench verify --stage stage4b --tasks 24 --repeats 2 $R/stage-4b-sonnet \
+  && go run ./cmd/bench verify --stage stage4b --tasks 24 --repeats 2 $R/stage-4b-opus \
+  && jq -e '.models == ["claude-sonnet-5-5"]' $R/stage-4b-sonnet/run.json > /dev/null \
+  && jq -e '.models == ["claude-opus-5-5"]' $R/stage-4b-opus/run.json > /dev/null \
+  && diff <(jq -r '.tasks[]' $R/stage-4b-sonnet/run.json | sort) <(sort bench/stage-4-tasks.txt) \
+  && diff <(jq -r '.tasks[]' $R/stage-4b-opus/run.json | sort) <(sort bench/stage-4-tasks.txt) \
+  && go run ./cmd/bench verify --stage stage-4b-swe --tasks 20 --repeats 1 $R/stage-4b-swe \
+  && jq -e '(.models | sort) == ["claude-opus-5-5", "claude-sonnet-5-5"]' $R/stage-4b-swe/run.json > /dev/null \
+  && diff <(jq -r '.tasks[]' $R/stage-4b-swe/run.json | sort) <(jq -r '.selected[]' bench/swe-bench/selection-adr-160.json | sort) \
+  || exit 1
+# One tagged release, whose tree holds ADR-161 T9 (the last of its code), ran every rerun:
+# each manifest names it, and every receipt carries its manifest's stage and, for B, that build.
+v=$(jq -r '.mrw_version' $R/stage-4b-sonnet/run.json) && tag=${v%% *} \
+  && git rev-parse -q --verify "refs/tags/$tag" > /dev/null \
+  && git cat-file -e "refs/tags/$tag:internal/mcp/sub161_test.go" \
+  || exit 1
+for d in stage-4b-sonnet stage-4b-opus stage-4b-swe; do
+  s=$(jq -r '.stage' $R/$d/run.json) \
+    && jq -e --arg v "$v" '.mrw_version == $v' $R/$d/run.json > /dev/null \
+    && jq -e -s --arg s "$s" --arg v "$v" 'length > 0 and all(.[]; .stage == $s and (.config != "B" or .mrw_version == $v))' $R/$d/*.receipt.json > /dev/null \
+    || exit 1
+done
 ```
 
 ## Tests
@@ -56,7 +78,7 @@ go run ./cmd/bench verify --stage stage4 --tasks 24 --repeats 2 docs/bench/stage
 |------|------------------------|
 | 1 — exists | the receipts |
 | 2 — something selects it | `bench verify`; `bench analyze` |
-| 3 — the caller can discover it | `docs/bench/stage-4-*/` |
+| 3 — the caller can discover it | `docs/bench/stage-4-*/`, `docs/bench/stage-4b-*/` |
 | 4 — it is used | T5 |
 
 ## Mutation Log
@@ -66,6 +88,7 @@ go run ./cmd/bench verify --stage stage4 --tasks 24 --repeats 2 docs/bench/stage
 
 - The mrw build, the CLI version and the host are one for each stage, named in every receipt.
 - Pilot receipts are never in a stage directory.
+- The rerun's stages are named `stage4b` and `stage-4b-swe`, never `stage4`, so no verdict pools two builds.
 
 ## Risks
 
@@ -88,3 +111,15 @@ The fence exits 0; or a stage shows the harness cannot measure what ADR-156 Deci
   exit status 1
   ```
 - 2026-10-16 · human-observed · S2 Zy says go for all three Stage 4 stages, in order (2026-10-16, answered 'All three, in order'): Sonnet's own tasks, 96 attempts, about 2.5 to 3 hours; Opus's own tasks, 96 attempts, about 3 to 4 hours; the swe-multi-hunk slice on both models, 80 attempts and 20 image pulls of about 10 GB one at a time, about 5 to 6 hours; on this Mac, CLI 2.1.300, mrw v1.66.0, subscription
+- 2026-10-16 · 926aa273* · exit 1 · `set -o pipefail …` · acceptance-sha256:640f5d23c5d92e278b1e5f6cca587652357b84a6376e05d63ce58cd730726fab · ms:312
+  ```
+  --- last 2 line(s) of stderr
+  bench: open docs/bench/stage-4b-sonnet/run.json: no such file or directory
+  exit status 1
+  ```
+- 2026-10-16 · 76e092dd* · exit 1 · `set -o pipefail …` · acceptance-sha256:bd7c2320d415c774d1b65ed11a59dcf20dfdd5b96b8f86ced2b58fa4afc8cf3e · ms:173
+  ```
+  --- last 2 line(s) of stderr
+  bench: open docs/bench/stage-4b-sonnet/run.json: no such file or directory
+  exit status 1
+  ```

@@ -1,0 +1,44 @@
+{
+  "attempt": "am-wide-migrations.B.claude-sonnet-5-5.2",
+  "stage": "pilot",
+  "task": "am-wide-migrations",
+  "shape": "wide-rename",
+  "source": "own",
+  "model": "claude-sonnet-5-5",
+  "config": "B",
+  "repeat": 2,
+  "order": 4,
+  "started": "2026-10-16T17:04:44Z",
+  "wall_ms": 67076,
+  "cli_version": "2.1.301 (Claude Code)",
+  "mrw_version": "adr161-9db0e7ba (9db0e7b)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 4,
+  "tool_calls": 3,
+  "total_cost_usd": 0.136026,
+  "usage": {
+    "input_tokens": 8,
+    "output_tokens": 1179,
+    "cache_read_input_tokens": 105400,
+    "cache_creation_input_tokens": 28420
+  },
+  "init_tools": [
+    "Bash",
+    "Glob"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": false,
+    "missing": [
+      "cmd/server/doctorschema_test.go: is not the reference result",
+      "cmd/server/doctorschema_test.go: still matches \\bMigrations\\b"
+    ]
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 21,
+    "insertions": 31,
+    "deletions": 31
+  }
+}

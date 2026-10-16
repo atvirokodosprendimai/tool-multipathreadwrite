@@ -1,0 +1,43 @@
+{
+  "attempt": "am-coupled-installer-bash.B.claude-sonnet-5-5.1",
+  "stage": "pilot",
+  "task": "am-coupled-installer-bash",
+  "shape": "check-coupled",
+  "source": "own",
+  "model": "claude-sonnet-5-5",
+  "config": "B",
+  "repeat": 1,
+  "order": 2,
+  "started": "2026-10-16T16:36:23Z",
+  "wall_ms": 84472,
+  "cli_version": "2.1.301 (Claude Code)",
+  "mrw_version": "v1.66.0 (05ec3f8)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 6,
+  "tool_calls": 5,
+  "total_cost_usd": 0.1872012,
+  "usage": {
+    "input_tokens": 12,
+    "output_tokens": 1618,
+    "cache_read_input_tokens": 196932,
+    "cache_creation_input_tokens": 37826
+  },
+  "init_tools": [
+    "Bash",
+    "Glob"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": true
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 2,
+    "insertions": 2,
+    "deletions": 2
+  },
+  "hook_reads": 3,
+  "exclusion": "setup",
+  "note": "slipped writes: the ledgers disagree on clients/claude-code/settings_test.go: which content mrw saw last cannot be told"
+}

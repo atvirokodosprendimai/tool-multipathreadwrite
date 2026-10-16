@@ -1,0 +1,41 @@
+{
+  "attempt": "am-coupled-agentkit-commands.B.claude-sonnet-5-5.1",
+  "stage": "pilot",
+  "task": "am-coupled-agentkit-commands",
+  "shape": "check-coupled",
+  "source": "own",
+  "model": "claude-sonnet-5-5",
+  "config": "B",
+  "repeat": 1,
+  "order": 15,
+  "started": "2026-10-16T16:56:15Z",
+  "wall_ms": 104368,
+  "cli_version": "2.1.301 (Claude Code)",
+  "mrw_version": "v1.66.0 (05ec3f8)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 7,
+  "tool_calls": 6,
+  "total_cost_usd": 0.1685835,
+  "usage": {
+    "input_tokens": 14,
+    "output_tokens": 1559,
+    "cache_read_input_tokens": 208655,
+    "cache_creation_input_tokens": 33025
+  },
+  "init_tools": [
+    "Bash",
+    "Glob"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": true
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 2,
+    "insertions": 2,
+    "deletions": 2
+  },
+  "hook_reads": 5
+}
