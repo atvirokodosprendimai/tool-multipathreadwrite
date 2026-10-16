@@ -52,11 +52,16 @@ go run ./cmd/bench verify --stage stage4 --tasks 24 --repeats 2 $R/stage-4-sonne
   && jq -e '(.models | sort) == ["claude-opus-5-5", "claude-sonnet-5-5"]' $R/stage-4b-swe/run.json > /dev/null \
   && diff <(jq -r '.tasks[]' $R/stage-4b-swe/run.json | sort) <(jq -r '.selected[]' bench/swe-bench/selection-adr-160.json | sort) \
   || exit 1
-# Each rerun ran a tagged release whose tree holds ADR-161 T9, the last of its code.
+# One tagged release, whose tree holds ADR-161 T9 (the last of its code), ran every rerun:
+# each manifest names it, and every receipt carries its manifest's stage and, for B, that build.
+v=$(jq -r '.mrw_version' $R/stage-4b-sonnet/run.json) && tag=${v%% *} \
+  && git rev-parse -q --verify "refs/tags/$tag" > /dev/null \
+  && git cat-file -e "refs/tags/$tag:internal/mcp/sub161.go" \
+  || exit 1
 for d in stage-4b-sonnet stage-4b-opus stage-4b-swe; do
-  tag=$(jq -r '.mrw_version | split(" ")[0]' $R/$d/run.json) \
-    && git rev-parse -q --verify "refs/tags/$tag" > /dev/null \
-    && git cat-file -e "refs/tags/$tag:internal/mcp/sub161.go" \
+  s=$(jq -r '.stage' $R/$d/run.json) \
+    && jq -e --arg v "$v" '.mrw_version == $v' $R/$d/run.json > /dev/null \
+    && jq -e -s --arg s "$s" --arg v "$v" 'length > 0 and all(.[]; .stage == $s and (.config != "B" or .mrw_version == $v))' $R/$d/*.receipt.json > /dev/null \
     || exit 1
 done
 ```
@@ -73,7 +78,7 @@ done
 |------|------------------------|
 | 1 — exists | the receipts |
 | 2 — something selects it | `bench verify`; `bench analyze` |
-| 3 — the caller can discover it | `docs/bench/stage-4-*/` |
+| 3 — the caller can discover it | `docs/bench/stage-4-*/`, `docs/bench/stage-4b-*/` |
 | 4 — it is used | T5 |
 
 ## Mutation Log
@@ -106,3 +111,9 @@ The fence exits 0; or a stage shows the harness cannot measure what ADR-156 Deci
   exit status 1
   ```
 - 2026-10-16 · human-observed · S2 Zy says go for all three Stage 4 stages, in order (2026-10-16, answered 'All three, in order'): Sonnet's own tasks, 96 attempts, about 2.5 to 3 hours; Opus's own tasks, 96 attempts, about 3 to 4 hours; the swe-multi-hunk slice on both models, 80 attempts and 20 image pulls of about 10 GB one at a time, about 5 to 6 hours; on this Mac, CLI 2.1.300, mrw v1.66.0, subscription
+- 2026-10-16 · 926aa273* · exit 1 · `set -o pipefail …` · acceptance-sha256:640f5d23c5d92e278b1e5f6cca587652357b84a6376e05d63ce58cd730726fab · ms:312
+  ```
+  --- last 2 line(s) of stderr
+  bench: open docs/bench/stage-4b-sonnet/run.json: no such file or directory
+  exit status 1
+  ```

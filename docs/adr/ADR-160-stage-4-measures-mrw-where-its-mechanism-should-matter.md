@@ -93,7 +93,7 @@ None — internal to `bench` (`internal/bench`, `cmd/bench`): one subcommand (`b
 | `bench/tasks/<stage-4 ids>/`, `bench/stage-4-tasks.txt`, `bench/swe-bench/selection-adr-160.json` | T2 | T3, T4 | No — new files |
 | the calibrated corpus and the pilots' sign-off | T3 | T4 | No |
 | the hook's interpreter rule, `test_package` and its oracle, the mine floor flags | T6 | T3, T4 | No — the hook refuses less, the oracle grades a new field, the flags default to today |
-| `docs/bench/stage-4-*/` receipts | T4 | T5 | No |
+| `docs/bench/stage-4-*/`, `docs/bench/stage-4b-*/` receipts | T4 | T5 | No |
 
 ## Implementation
 

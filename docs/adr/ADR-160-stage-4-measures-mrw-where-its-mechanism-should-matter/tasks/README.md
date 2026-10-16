@@ -40,7 +40,7 @@ Every task depends on the one before it, so each wave holds one task: T1, T2, T6
 | T2 | `bench/tasks/<stage-4 ids>/`, `selection-adr-160.json` | T3, T4 | T2 before T3 |
 | T6 | `test_package`, the hook's interpreter rule, `bench mine --min-occurrences --min-files` | T3, T4 | T6 before T3 |
 | T3 | the calibrated corpus | T4 | T3 before T4 |
-| T4 | `docs/bench/stage-4-*/` | T5 | T4 before T5 |
+| T4 | `docs/bench/stage-4-*/`, `docs/bench/stage-4b-*/` | T5 | T4 before T5 |
 
 ## Notes
 

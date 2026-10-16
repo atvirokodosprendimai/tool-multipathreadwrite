@@ -5,14 +5,14 @@
 **Estimated scope:** S (single file)
 **Owner:** Zy
 **Produces:** Stage 4's rows in `docs/bench/RESULTS.md`, README sentences
-**Consumes:** `docs/bench/stage-4-*/` receipts (T4)
+**Consumes:** `docs/bench/stage-4-*/`, `docs/bench/stage-4b-*/` receipts (T4)
 **Data dependency:** the published receipts
 **Proof map:** v1
 **Rests-on:** `the rows are bench analyze's own`, `every Stage 4 row is published`, `README states no more than the verdict`
 
 ## Goal
 
-Every Stage 4 verdict and descriptive row published as `bench analyze` prints it, and one README sentence per verdict.
+Every Stage 4 verdict and descriptive row published as `bench analyze` prints it, and one README sentence per verdict. Since ADR-161 T5 amended T4, the rows are Sonnet's `stage4` on v1.66.0, kept as run, and the rerun's `stage4b` on both models and `stage-4b-swe`; the two builds' rows sit side by side, never pooled.
 
 ## Affected Files
 
@@ -23,7 +23,7 @@ Every Stage 4 verdict and descriptive row published as `bench analyze` prints it
 
 ## Ordered Steps
 
-1. [S1] See the fence red: RESULTS.md, which ADR-156 T6 creates, has no `stage4` row. [proof: acceptance]
+1. [S1] See the fence red: RESULTS.md, which ADR-156 T6 creates, has no `stage4b` row. [proof: acceptance]
 2. [S2] Regenerate RESULTS.md from `bench analyze --selection bench/swe-bench/selection-adr-160.json docs/bench`; never edit a row by hand. [proof: acceptance]
 3. [S3] One README sentence per verdict, stating no more than it; Zy reads them before merge. [proof: human: Zy reads the README sentences against RESULTS.md]
 
@@ -33,9 +33,10 @@ Every Stage 4 verdict and descriptive row published as `bench analyze` prints it
 set -o pipefail
 go run ./cmd/bench analyze --selection bench/swe-bench/selection-adr-160.json docs/bench > /tmp/adr160-analyze.txt \
   && grep -q '^| stage4 | claude-sonnet-5-5 |' /tmp/adr160-analyze.txt \
-  && grep -q '^| stage4 | claude-opus-5-5 |' /tmp/adr160-analyze.txt \
-  && grep -q '^| stage-4-swe |' /tmp/adr160-analyze.txt \
-  && diff <(grep '^| stage4 \|^| stage-4-swe ' /tmp/adr160-analyze.txt) <(grep '^| stage4 \|^| stage-4-swe ' docs/bench/RESULTS.md)
+  && grep -q '^| stage4b | claude-sonnet-5-5 |' /tmp/adr160-analyze.txt \
+  && grep -q '^| stage4b | claude-opus-5-5 |' /tmp/adr160-analyze.txt \
+  && grep -q '^| stage-4b-swe |' /tmp/adr160-analyze.txt \
+  && diff <(grep '^| stage4 \|^| stage4b \|^| stage-4b-swe ' /tmp/adr160-analyze.txt) <(grep '^| stage4 \|^| stage4b \|^| stage-4b-swe ' docs/bench/RESULTS.md)
 ```
 
 ## Tests
@@ -58,7 +59,7 @@ go run ./cmd/bench analyze --selection bench/swe-bench/selection-adr-160.json do
 
 ## Invariants
 
-- Every Stage 4 row in RESULTS.md is a line `bench analyze` prints.
+- Every Stage 4 row in RESULTS.md is a line `bench analyze` prints; no row pools `stage4` with `stage4b`.
 
 ## Risks
 
