@@ -1,6 +1,7 @@
 package guide
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -159,5 +160,60 @@ func TestInstructionsTeachThePaddedPathRule(t *testing.T) {
 func TestInstructionsSayAWrittenFileIsWhollyKnown(t *testing.T) {
 	if got := CLI(); !strings.Contains(got, "A file mrw just wrote is wholly known") {
 		t.Error("mrw instructions do not state the write exception to the per-line rule")
+	}
+}
+
+// ADR-161 Decision 4. The full contract opens with ADR-037's five sentences and
+// then the recipes: nine numbered label lines ending in ":", each followed by
+// its command indented two spaces, no prose between; recipe 1 is the sub write,
+// recipe 6 carries ADR-092's caveat on its label, no recipe reaches for perl,
+// awk or sed, and the reference below keeps the whole over 900 words.
+func TestInstructionsLeadWithTheRecipes(t *testing.T) {
+	cli := CLI()
+	head := Shared() + "\n\nRecipes:\n"
+	if !strings.HasPrefix(cli, head) {
+		t.Fatalf("CLI() does not open with Shared() and then Recipes:\n%.400s", cli)
+	}
+	block, _, _ := strings.Cut(cli[len(head):], "\n\n")
+	lines := strings.Split(block, "\n")
+	if len(lines) != 18 {
+		t.Fatalf("the recipes are %d lines, want 9 label lines and 9 command lines:\n%s", len(lines), block)
+	}
+	for i := 0; i < 18; i += 2 {
+		n := i/2 + 1
+		label, command := lines[i], lines[i+1]
+		if !strings.HasPrefix(label, string(rune('0'+n))+". ") || !strings.HasSuffix(label, ":") {
+			t.Errorf("recipe %d's label is not `%d. …:`: %q", n, n, label)
+		}
+		if !strings.HasPrefix(command, "  ") || strings.HasPrefix(command, "   ") || !strings.Contains(command, "mrw ") {
+			t.Errorf("recipe %d's command is not an mrw command indented two spaces: %q", n, command)
+		}
+		for _, tool := range []string{"perl", "awk", "sed "} {
+			if strings.Contains(label+command, tool) {
+				t.Errorf("recipe %d reaches for %s: %q", n, tool, label+"\n"+command)
+			}
+		}
+		// A command line is commands, not prose: each segment between && and |
+		// starts with mrw, or is the stand-in for any command (recipe 9) or the
+		// printf that pipes a plan (the Codex review of T3: ", then" and "with the
+		// plan" made recipes 4 and 5 exit 2 as printed).
+		for _, seg := range regexp.MustCompile(`&&|\|`).Split(command, -1) {
+			seg = strings.TrimSpace(seg)
+			if !strings.HasPrefix(seg, "mrw ") && seg != "cmd" && !strings.HasPrefix(seg, "printf ") {
+				t.Errorf("recipe %d's command has a segment that is not a command: %q", n, seg)
+			}
+		}
+		if strings.Contains(command, ", then") || strings.Contains(command, " with ") {
+			t.Errorf("recipe %d's command holds prose: %q", n, command)
+		}
+	}
+	if got := lines[1]; got != `  mrw write --grep '\bOld\b' --sub 'New' .` {
+		t.Errorf("recipe 1's command is %q", got)
+	}
+	if !strings.Contains(lines[10], ThenShCaveat()) {
+		t.Errorf("recipe 6 does not carry ADR-092's caveat on its label: %q", lines[10])
+	}
+	if n := len(strings.Fields(cli)); n <= 900 {
+		t.Errorf("the full contract is %d words; the recipes were added, not the reference cut, so it stays over 900", n)
 	}
 }

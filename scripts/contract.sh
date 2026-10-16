@@ -6101,8 +6101,9 @@ assert not untaught, "instructions omit read flags: %r" % untaught
 # --then and --then-sh are write and check flags the instructions teach too (ADR-092),
 # and --no-check is the write flag they name for a depth past the limit (ADR-095);
 # --create is the write flag for a new file without a plan (ADR-139), and
-# --core is the instructions flag that prints the short form (ADR-141).
-unknown = set(re.findall(r"--([a-z][a-z-]*)", out)) - set(flags) - {"root", "help", "then", "then-sh", "no-check", "create", "core"}
+# --core is the instructions flag that prints the short form (ADR-141), and
+# --dry-run is the write flag ADR-161's recipe 2 shows before a wide edit.
+unknown = set(re.findall(r"--([a-z][a-z-]*)", out)) - set(flags) - {"root", "help", "then", "then-sh", "no-check", "create", "core", "dry-run"}
 assert not unknown, "instructions teach flags read does not have: %r" % sorted(unknown)
 assert re.search(r"^\s+--ast-grep PATTERN\b", opts, re.M), "read --help does not show --ast-grep PATTERN"
 PY
@@ -9632,6 +9633,28 @@ out=$(printf '@@ p270.txt 1 replace\nA\n\r\n' | m write --no-check - 2>&1); want
   && ok "a plan piped with PowerShell's trailing CRLF writes no extra line" || bad "a piped CRLF plan: $(od -c "$R/p270.txt" | head -3) :: $out"
 out=$(printf '@@ p270.txt 2 replace\r\nB\r\n' | m write --no-check - 2>&1); want 0 $? "the pair: an all-CRLF plan exits 0"
 { [ "$(cat "$R/p270.txt")" = "$(printf 'A\nB')" ] && ! grep -q 'PowerShell appends' <<<"$out"; } && ok "and is applied as it always was, with no note" || bad "an all-CRLF plan: $out"
+
+# 265. ADR-161 Decision 6: the recipes are tested by running them. Recipes 1 and
+# 3 are taken from `$MRW instructions` — the line after `1. ` and after `3. `,
+# indented two spaces, each required to start `mrw write --` — and run as written
+# in a scratch tree; recipe 3 against §264's fake ast-grep and its recorded
+# answer. A missing or misshapen line fails the row.
+inst265=$("$MRW" instructions)
+recipe265() { awk -v n="$1" 'f { print; exit } $0 ~ "^" n "\\. " { f = 1 }' <<<"$inst265" | sed 's/^  //'; }
+r1=$(recipe265 1); r3=$(recipe265 3)
+good265=1
+case "$r1" in "mrw write --"*) ;; *) good265=0; bad "recipe 1's command line is missing or misshapen: '$r1'";; esac
+case "$r3" in "mrw write --"*) ;; *) good265=0; bad "recipe 3's command line is missing or misshapen: '$r3'";; esac
+R=$(mktemp -d "$WORK/r265-XXXXXX")
+printf 'Old\nOldX\nkeep Old\n' > "$R/a.txt"
+(cd "$R" && eval "\"\$MRW\" ${r1#mrw }") >/dev/null 2>&1; want 0 $? "recipe 1 as printed exits 0"
+[ "$(cat "$R/a.txt")" = "$(printf 'New\nOldX\nkeep New')" ] || { good265=0; bad "recipe 1 left a.txt as $(cat "$R/a.txt")"; }
+R=$(mktemp -d "$WORK/r265b-XXXXXX")
+seed264
+fake264 "$WORK/stream264.jsonl"
+(cd "$R" && PATH="$d264:$PATH" eval "\"\$MRW\" ${r3#mrw }") >/dev/null 2>&1; want 0 $? "recipe 3 as printed exits 0"
+cmp -s "$R/a.go" "$WORK/a264.want" || { good265=0; bad "recipe 3 left a.go as $(head -c 300 "$R/a.go")"; }
+[ "$good265" = 1 ] && ok "the recipes mrw instructions prints run as written"
 
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A

@@ -52,3 +52,16 @@ func TestTheCoreNamesOnlyFlagsTheBinaryHas(t *testing.T) {
 		}
 	}
 }
+
+// ADR-161 Decision 5. The core's first rule names the one-command wide edit, so
+// an agent handed only the core meets it, and the core stays under 300 words.
+func TestTheCoreNamesTheSubWrite(t *testing.T) {
+	core := guide.Core()
+	rule1 := regexp.MustCompile(`(?m)^1\. .*$`).FindString(core)
+	if !regexp.MustCompile(`mrw write --grep P --sub R`).MatchString(rule1) {
+		t.Errorf("core rule 1 does not name mrw write --grep P --sub R: %q", rule1)
+	}
+	if n := len(regexp.MustCompile(`\S+`).FindAllString(core, -1)); n >= 300 {
+		t.Errorf("the core is %d words, want under 300", n)
+	}
+}
