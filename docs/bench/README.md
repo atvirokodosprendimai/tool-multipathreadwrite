@@ -17,9 +17,14 @@ and `bench run` refuses without a passing canary for the same CLI version.
 |---|---|---|---|
 | A | Bash, Read, Edit, Write, Glob, Grep | not on PATH | none |
 | B | Bash, Glob | a pinned build on PATH, `mrw instructions` appended | `bench hook --tree`: refuses writes by other means, command substitutions included, except a redirection or `tee` to an absolute path outside the attempt's tree (Zy, 2026-10-14, after the pilot); counts reads, not refuses them (Zy, 2026-10-14), and `bench analyze` reports the count beside each verdict |
+| P | A's | not on PATH | the quality-harness plugin's own, loaded with `--plugin-dir` at a tagged checkout; runs only under the stage5 profile (ADR-162) |
 
-Both run with `--strict-mcp-config` and an empty MCP config, a settings file
-written per attempt, `--disable-slash-commands`, `--no-session-persistence`,
+**The stage5 profile (ADR-162 Decision 1)** belongs to the stage, not to a configuration: under `--profile stage5` every configuration of every block runs with skills on (no `--disable-slash-commands`; `--include-hook-events` in its place), is offered `Skill` beside its own tools, finds the same real `node` on PATH (`--node`, else the one PATH finds), and has `CODEX_CLI_PATH` at a stub that refuses, so no plugin skill reaches an external model. Its settings switch off the config directory's account-synced skills (`syncClaudeAiSkills`) and plugins (each by name in `enabledPlugins`, read from `plugins/synced/*/*/.claude-plugin/plugin.json`; `syncClaudeAiPlugins` is not used, since it moves them into the config directory's trash), the bundled skills (`disableBundledSkills`) and the three built-in plugins. `Agent`, `Task`, `WebFetch` and `WebSearch` stay offered to none, so a plugin skill that would spawn a subagent or a Codex review runs without one: that is P's limitation, and it is said beside P's rows. P's `run.json` and receipts carry `plugin: {tag, commit}`; a plugin checkout that is untagged or has uncommitted changes is refused.
+
+Under the profile the canary (`CheckProfileCanary`) also reads the init line and the hook events, in the shapes Claude Code 2.1.302 printed on 2026-10-17: A's and B's skills are exactly the built-in `design` and `doctor`, with no plugin; P's are those and the plugin's own `quality-harness:*`, with that plugin alone. The hook events carry no source, so hooks are judged by configuration: A fires none; B only bench's own `PreToolUse:Bash`; P at least one of `SessionStart`, `UserPromptSubmit` or `Stop`, the plugin being the only hook source P has. In P the plugin's own text — hook output, its skills and agents in init, the `Skill` calls to its skills, their results and the skill text injected from the plugin's directory — is taken out before the mrw and marker checks, since the plugin itself names mrw and the markers; the agent's own text is read as A's.
+
+Every configuration runs with `--strict-mcp-config` and an empty MCP config, a settings file
+written per attempt, `--disable-slash-commands` (outside the stage5 profile), `--no-session-persistence`,
 `--no-chrome` and `--permission-mode bypassPermissions`, in a fresh tree whose
 `CLAUDE.md`, `CLAUDE.local.md`, `AGENTS.md` and `.cursorrules` keep every line
 but those naming mrw (the letters in any case, with no letter or digit on either
@@ -136,9 +141,11 @@ task tree's own instruction files without a line that names mrw, `AGENTS.md` inc
 ## Commands
 
 ```
-bench canary  --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass
+bench canary  --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass \
+              [--profile stage5 [--plugin-dir DIR] [--node PATH]]
 bench run     --stage S --out DIR --model M --claude PATH --mrw PATH --config-dir DIR \
               --containment bypass --canary DIR/canary.json [--task ID ...] [--repeats 2] \
+              [--configs A,B[,P]] [--profile stage5 [--plugin-dir DIR] [--node PATH]] \
               [--source swe-bench --dataset FILE --swebench-python PATH [--selection FILE] [--docker PATH]]
 bench verify  --stage S --tasks N --repeats R DIR
 bench analyze [--tasks-dir DIR] [--selection FILE ...] DIR

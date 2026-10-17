@@ -27,14 +27,20 @@ type transcript struct {
 	Model      string
 	Tools      []string
 	MCPServers []string
-	ToolCalls  int
-	Result     bool
-	IsError    bool
-	Subtype    string
-	NumTurns   int
-	ResultText string
-	CostUSD    *float64
-	Usage      Usage
+	// Under ADR-162's profile: the init line's skills and plugin names, and
+	// each hook that started, as event and name ("PreToolUse:Bash").
+	InitSkills  []string
+	InitPlugins []initPlugin
+	HookEvents  []string
+	HookNames   []string
+	ToolCalls   int
+	Result      bool
+	IsError     bool
+	Subtype     string
+	NumTurns    int
+	ResultText  string
+	CostUSD     *float64
+	Usage       Usage
 }
 
 func parseTranscript(b []byte) transcript {
@@ -50,7 +56,11 @@ func parseTranscript(b []byte) transcript {
 			MCPServers []struct {
 				Name string `json:"name"`
 			} `json:"mcp_servers"`
-			Message struct {
+			Skills    []string     `json:"skills"`
+			Plugins   []initPlugin `json:"plugins"`
+			HookEvent string       `json:"hook_event"`
+			HookName  string       `json:"hook_name"`
+			Message   struct {
 				Content []struct {
 					Type string `json:"type"`
 				} `json:"content"`
@@ -66,11 +76,15 @@ func parseTranscript(b []byte) transcript {
 		}
 		switch m.Type {
 		case "system":
-			if m.Subtype == "init" {
-				t.InitSeen, t.Model, t.Tools = true, m.Model, m.Tools
+			switch m.Subtype {
+			case "init":
+				t.InitSeen, t.Model, t.Tools, t.InitSkills = true, m.Model, m.Tools, m.Skills
 				for _, s := range m.MCPServers {
 					t.MCPServers = append(t.MCPServers, s.Name)
 				}
+				t.InitPlugins = append(t.InitPlugins, m.Plugins...)
+			case "hook_started":
+				t.HookEvents, t.HookNames = append(t.HookEvents, m.HookEvent), append(t.HookNames, m.HookName)
 			}
 		case "assistant":
 			for _, c := range m.Message.Content {
@@ -83,4 +97,12 @@ func parseTranscript(b []byte) transcript {
 		}
 	}
 	return t
+}
+
+// initPlugin is a plugin the init line lists: its name, where it was loaded
+// from ("quality-harness@inline" for --plugin-dir) and its directory.
+type initPlugin struct {
+	Name   string `json:"name"`
+	Source string `json:"source"`
+	Path   string `json:"path"`
 }

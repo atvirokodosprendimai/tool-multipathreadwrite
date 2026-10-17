@@ -1,6 +1,7 @@
 package bench
 
 import (
+	"slices"
 	"strings"
 	"testing"
 )
@@ -81,5 +82,68 @@ func TestTheConfigDirectoryIsNotALeak(t *testing.T) {
 	hooked := hookInit + "\n" + `{"type":"assistant","message":{"content":[{"type":"text","text":"agentsmemory recalled this"}]}}` + "\n" + result + "\n"
 	if p := CheckCanary([]byte(hooked), Configs["A"], "", hookDir); len(p) == 0 {
 		t.Error("a hook marker outside the config directory's path passed")
+	}
+}
+
+// The shapes Claude Code 2.1.302 printed under the stage5 profile, read from
+// uncounted probes on 2026-10-17 (ADR-162 T1 S1).
+const (
+	profileInitA  = `{"type":"system","subtype":"init","model":"m","tools":["Bash","Read","Edit","Write","Glob","Grep","Skill"],"mcp_servers":[],"skills":["design","doctor"],"slash_commands":["design","doctor"],"agents":["general-purpose"],"plugins":[]}`
+	profileInitB  = `{"type":"system","subtype":"init","model":"m","tools":["Bash","Glob","Skill"],"mcp_servers":[],"skills":["design","doctor"],"slash_commands":["design","doctor"],"agents":["general-purpose"],"plugins":[]}`
+	profileResult = `{"type":"result","subtype":"success","is_error":false,"total_cost_usd":0.1,"usage":{}}`
+)
+
+func hookLine(event, name string) string {
+	return `{"type":"system","subtype":"hook_started","hook_event":"` + event + `","hook_name":"` + name + `"}`
+}
+
+// profileP is a clean P canary transcript for a plugin at dir: the plugin's
+// skills and agents in init, its hooks firing, a Skill call, its result and
+// the skill's text, which names mrw and the hook markers as the plugin's own
+// text does.
+func profileP(dir string) string {
+	return strings.Join([]string{
+		hookLine("SessionStart", "SessionStart:startup"),
+		`{"type":"system","subtype":"hook_response","hook_event":"SessionStart","hook_name":"SessionStart:startup","output":"quality-harness: branch-state; agentsmemory"}`,
+		`{"type":"system","subtype":"init","model":"m","tools":["Bash","Read","Edit","Write","Glob","Grep","Skill"],"mcp_servers":[],"skills":["quality-harness:operating","design","doctor"],"slash_commands":["quality-harness:operating","design","doctor"],"agents":["general-purpose","quality-harness:qh-scope-reviewer"],"plugins":[{"name":"quality-harness","path":"` + dir + `","source":"quality-harness@inline"}]}`,
+		`{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t1","name":"Skill","input":{"skill":"quality-harness:operating"}}]}}`,
+		hookLine("PreToolUse", "PreToolUse:Skill"),
+		`{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t1","content":"Launching skill: quality-harness:operating"}]}}`,
+		`{"type":"user","message":{"content":[{"type":"text","text":"Base directory for this skill: ` + dir + `/skills/operating\n\nmrw, quality-harness: and the SessionStart hook"}]}}`,
+		`{"type":"assistant","message":{"content":[{"type":"text","text":"done"}]}}`,
+		hookLine("Stop", "Stop"),
+		profileResult,
+	}, "\n") + "\n"
+}
+
+// TestTheCanaryRefusesAPluginThatIsNotEngaged: P passes only with the plugin's
+// skills listed, the plugin alone among plugins, and one of its session hooks
+// firing; the plugin's own text is exempt from the mrw and marker checks, the
+// agent's text is not (ADR-162 Decision 2).
+func TestTheCanaryRefusesAPluginThatIsNotEngaged(t *testing.T) {
+	dir := "/tmp/qh/plugin"
+	clean := profileP(dir)
+	if p := CheckProfileCanary([]byte(clean), Configs["P"], "", "", dir); len(p) != 0 {
+		t.Fatalf("a clean P failed: %v", p)
+	}
+	noHooks := strings.Join(slices.DeleteFunc(strings.Split(clean, "\n"), func(l string) bool {
+		return strings.Contains(l, `"hook_event":"SessionStart"`) || strings.Contains(l, `"hook_event":"Stop"`)
+	}), "\n")
+	leaks := map[string]string{
+		"no plugin skill":                  strings.Replace(clean, `"skills":["quality-harness:operating","design","doctor"]`, `"skills":["design","doctor"]`, 1),
+		"no session hook fired":            noHooks,
+		"a synced plugin":                  strings.Replace(clean, `"source":"quality-harness@inline"}]`, `"source":"quality-harness@inline"},{"name":"figma","source":"figma@synced"}]`, 1),
+		"a synced skill":                   strings.Replace(clean, `"skills":["quality-harness:operating"`, `"skills":["anthropic-skills:pdf","quality-harness:operating"`, 1),
+		"the marker in its text":           strings.Replace(clean, `"text":"done"`, `"text":"quality-harness: says done"`, 1),
+		"mrw in the agent's text":          strings.Replace(clean, `"text":"done"`, `"text":"mrw would do"`, 1),
+		"another tool list":                strings.Replace(clean, `"Grep","Skill"]`, `"Grep"]`, 1),
+		"the agent writes a skill header":  strings.Replace(clean, `"text":"done"`, `"text":"Base directory for this skill: /tmp/qh/plugin/skills/operating\nmrw would do"`, 1),
+		"a same-named synced plugin":       strings.Replace(clean, `"source":"quality-harness@inline"`, `"source":"quality-harness@synced"`, 1),
+		"the plugin from another checkout": strings.Replace(clean, `"path":"/tmp/qh/plugin"`, `"path":"/tmp/other/plugin"`, 1),
+	}
+	for name, transcript := range leaks {
+		if p := CheckProfileCanary([]byte(transcript), Configs["P"], "", "", dir); len(p) == 0 {
+			t.Errorf("%s: the canary passed", name)
+		}
 	}
 }

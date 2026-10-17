@@ -54,7 +54,7 @@ func TestTheAttemptPathLinksTheToolchainATaskCheckNeeds(t *testing.T) {
 		}
 	}
 	t.Setenv("PATH", host)
-	dir, err := toolPath(t.TempDir())
+	dir, err := toolPath(t.TempDir(), "")
 	if err != nil {
 		t.Fatal(err)
 	}

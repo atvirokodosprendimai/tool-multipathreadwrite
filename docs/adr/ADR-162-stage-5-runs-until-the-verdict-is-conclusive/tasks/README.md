@@ -32,7 +32,7 @@ README must be regenerated.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | configuration P and the Stage 5 profile | pending | — | `go test ./internal/bench/ -run '^(TestConfigurationP…)$'` |
+| T1 | configuration P and the Stage 5 profile | done | — | `go test ./internal/bench/ -run '^(TestConfigurationP…)$'` |
 | T2 | the claim line, the harness's own result, and ADR-106's paired rows | pending | — | `go test ./internal/bench/ -run '^(TestTheStatusLine…)$'` |
 | T3 | the pool, the blocks and the looks | pending | — | `go test ./internal/bench/ -run '^(TestTheStage5Pool…)$'` |
 | T4 | the harness pilot, and room on the disk | pending | — | `go run ./cmd/bench verify --stage pilot-5 …` |
@@ -43,7 +43,7 @@ README must be regenerated.
 
 | Producer | Contract | Consumer(s) | Ordering note |
 |----------|----------|-------------|---------------|
-| T1 | configuration P, the Stage 5 profile, `--plugin-dir`, `--node`, `--codex-stub`, the receipt's `plugin` | T2, T4, T5 | T1 before T2 |
+| T1 | configuration P, the Stage 5 profile, `--plugin-dir`, `--node`, the receipt's `plugin` | T2, T4, T5 | T1 before T2 |
 | T2 | `--status-line`, `status`, `broke_tests`, `harness_resolved`, `export-paired` | T3, T4, T5, T6 | T2 before T3 |
 | T3 | `selection-adr-162.json`, `bench/repos.json`, `--block`, `--configs-for`, `bench look`, `analyze`'s stage levels | T4, T5, T6 | T3 before T4 |
 | T4 | the pilot's sign-off | T5 | T4 before T5 |
