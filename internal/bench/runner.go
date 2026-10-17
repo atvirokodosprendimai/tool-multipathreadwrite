@@ -36,6 +36,14 @@ var Configs = map[string]Config{
 	"P": {Name: "P", Tools: []string{"Bash", "Read", "Edit", "Write", "Glob", "Grep"}, Plugin: true},
 }
 
+// ErrStartErrors and ErrDiskFloor stop a run at an attempt boundary, resumable
+// (ADR-162 Decisions 5 and 9): three start errors in a row, rather than
+// retries spent on an outage, and free disk below the floor before an attempt.
+var (
+	ErrStartErrors = errors.New("three start errors in a row: the run stops rather than spend its retries")
+	ErrDiskFloor   = errors.New("free disk is below the floor")
+)
+
 // The registered budget (BACKLOG, "Pre-registered for ADR-156"): an attempt
 // past either is unsolved, its cost counted.
 const (
@@ -101,46 +109,53 @@ type DiffStat struct {
 // RunOptions is one stage's plan. Containment, ConfigDir and Canary are the
 // gates ADR-156 leaves to Zy: Run starts nothing until each is given.
 type RunOptions struct {
-	Tasks       []Task
-	Stage       string
-	Out         string
-	Models      []string
-	Configs     []string
-	Repeats     int
-	Seed        int64
-	Claude      string // the CLI, by absolute path
-	Mrw         string // the pinned mrw build configuration B gets
-	Bench       string // this binary, which configuration B's hook runs
-	ConfigDir   string // the dedicated CLAUDE_CONFIG_DIR
-	Containment string // "bypass"; "user:<name>" is Zy's other choice, not built yet
-	Canary      string // a passing canary receipt for this CLI version
-	Budget      time.Duration
-	Scratch     string     // where attempt trees are built; os.TempDir() when empty
-	SWE         *SWEGrader // grades the SWE-bench slice's attempts; nil for the corpus's own tasks
-	Profile     string     // "" or ProfileStage5: ADR-162's profile, applied to every configuration
-	PluginDir   string     // the plugin configuration P loads, a directory of a tagged checkout
-	Node        string     // the node the profile puts on every attempt's PATH; found on PATH when empty
-	plugin      *PluginRef // the plugin's tag and commit, read by resolveProfile
-	StatusLine  bool       // append StatusSentence to every instruction and read the claim (ADR-162)
+	Tasks        []Task
+	Stage        string
+	Out          string
+	Models       []string
+	Configs      []string
+	Repeats      int
+	Seed         int64
+	Claude       string // the CLI, by absolute path
+	Mrw          string // the pinned mrw build configuration B gets
+	Bench        string // this binary, which configuration B's hook runs
+	ConfigDir    string // the dedicated CLAUDE_CONFIG_DIR
+	Containment  string // "bypass"; "user:<name>" is Zy's other choice, not built yet
+	Canary       string // a passing canary receipt for this CLI version
+	Budget       time.Duration
+	Scratch      string              // where attempt trees are built; os.TempDir() when empty
+	SWE          *SWEGrader          // grades the SWE-bench slice's attempts; nil for the corpus's own tasks
+	Profile      string              // "" or ProfileStage5: ADR-162's profile, applied to every configuration
+	PluginDir    string              // the plugin configuration P loads, a directory of a tagged checkout
+	Node         string              // the node the profile puts on every attempt's PATH; found on PATH when empty
+	plugin       *PluginRef          // the plugin's tag and commit, read by resolveProfile
+	StatusLine   bool                // append StatusSentence to every instruction and read the claim (ADR-162)
+	Block        int                 // ADR-162: the block this run is, into a directory named block-K; 0 for a stage without blocks
+	ConfigsFor   map[string][]string // a model's own configurations, in place of Configs (a closed comparison's configuration is not run)
+	DiskPath     string              // the volume the disk floor is checked on: the one holding Docker's disk image
+	DiskFloorGiB float64             // the free space, in GiB, below which no attempt starts; 0 for no floor
 }
 
 // plan is what run.json records; a second Run into the same directory must
 // carry the same plan, or it is an earlier run's directory and is refused.
 type plan struct {
-	Stage            string     `json:"stage"`
-	Tasks            []string   `json:"tasks"`
-	Models           []string   `json:"models"`
-	Configs          []string   `json:"configs"`
-	Repeats          int        `json:"repeats"`
-	Seed             int64      `json:"seed"`
-	CLIVersion       string     `json:"cli_version"`
-	MrwVersion       string     `json:"mrw_version"`
-	Containment      string     `json:"containment"`
-	Profile          string     `json:"profile,omitempty"`
-	Plugin           *PluginRef `json:"plugin,omitempty"`
-	StatusLineSHA256 string     `json:"status_line_sha256,omitempty"`
-	BudgetSeconds    int        `json:"budget_seconds,omitempty"`
-	PromptSHA256     string     `json:"prompt_sha256,omitempty"`
+	Stage            string              `json:"stage"`
+	Tasks            []string            `json:"tasks"`
+	Models           []string            `json:"models"`
+	Configs          []string            `json:"configs"`
+	Repeats          int                 `json:"repeats"`
+	Seed             int64               `json:"seed"`
+	CLIVersion       string              `json:"cli_version"`
+	MrwVersion       string              `json:"mrw_version"`
+	Containment      string              `json:"containment"`
+	Profile          string              `json:"profile,omitempty"`
+	Plugin           *PluginRef          `json:"plugin,omitempty"`
+	StatusLineSHA256 string              `json:"status_line_sha256,omitempty"`
+	BudgetSeconds    int                 `json:"budget_seconds,omitempty"`
+	PromptSHA256     string              `json:"prompt_sha256,omitempty"`
+	Block            int                 `json:"block,omitempty"`
+	Looks            int                 `json:"looks,omitempty"`
+	ConfigsFor       map[string][]string `json:"configs_for,omitempty"`
 }
 
 // attempt is one run of one task in one configuration on one model.
@@ -177,8 +192,27 @@ func Run(o RunOptions) (err error) {
 	if err := checkCanary(o.Canary, cli, o); err != nil {
 		return err
 	}
+	if o.Block > 0 {
+		if want := fmt.Sprintf("block-%d", o.Block); filepath.Base(o.Out) != want {
+			return fmt.Errorf("block %d runs into a directory named %s, not %s (ADR-162 Decision 7)", o.Block, filepath.Base(o.Out), want)
+		}
+		if o.Repeats != 1 {
+			return fmt.Errorf("a Stage 5 block runs one repeat per configuration, which Tango's interval reads (ADR-162 Decision 7); --repeats is %d", o.Repeats)
+		}
+		if o.Block > 1 {
+			var first plan
+			if err := readJSON(filepath.Join(filepath.Dir(o.Out), "block-1", "run.json"), &first); err != nil {
+				return fmt.Errorf("block %d needs block 1's run.json beside it: %w", o.Block, err)
+			}
+			if first.CLIVersion != cli {
+				return fmt.Errorf("block 1 ran CLI %q and this one is %q: a stage keeps one CLI, and an upgrade starts a new stage (ADR-162 Decision 7)", first.CLIVersion, cli)
+			}
+		}
+	}
 	mrwVersion := ""
-	if slices.Contains(o.Configs, "B") {
+	// A Stage 5 block names the stage's mrw whether or not it still runs B, so
+	// a block after B's comparison closed is the same release (the review of T3).
+	if hasConfig(o, "B") || (o.Block > 0 && o.Mrw != "") {
 		if mrwVersion, err = firstLine(o.Mrw, "version"); err != nil {
 			return fmt.Errorf("%s version: %w", o.Mrw, err)
 		}
@@ -203,6 +237,10 @@ func Run(o RunOptions) (err error) {
 		}
 	}
 	p := plan{Stage: o.Stage, Models: o.Models, Configs: o.Configs, Repeats: o.Repeats, Seed: o.Seed, CLIVersion: cli, MrwVersion: mrwVersion, Containment: o.Containment, Profile: o.Profile, Plugin: o.plugin}
+	p.ConfigsFor = o.ConfigsFor
+	if o.Block > 0 {
+		p.Block, p.Looks = o.Block, Looks
+	}
 	if o.StatusLine {
 		p.StatusLineSHA256, p.PromptSHA256, p.BudgetSeconds = statusLineSHA256(), promptSHA256(), int(o.Budget.Seconds())
 	}
@@ -223,6 +261,7 @@ func Run(o RunOptions) (err error) {
 			err = fmt.Errorf("%w (the image %s, if it was pulled, is left in place: the resume drops it once that instance is done)", err, image)
 		}
 	}()
+	streak := 0
 	for i, a := range planAttempts(o) {
 		if a.Task.swe != nil && a.Task.swe.image != image {
 			if image != "" {
@@ -251,6 +290,15 @@ func Run(o RunOptions) (err error) {
 			case exists(base + ".started"):
 				r.Exclusion = "" // started and never finished: neither it nor a replacement runs
 			default:
+				if o.DiskFloorGiB > 0 {
+					free, err := freeGiB(o.DiskPath)
+					if err != nil {
+						return fmt.Errorf("the disk floor: %s: %w", o.DiskPath, err)
+					}
+					if free < o.DiskFloorGiB {
+						return fmt.Errorf("%w: %.1f GiB free on %s, the floor is %.1f GiB; free %.1f GiB and resume", ErrDiskFloor, free, o.DiskPath, o.DiskFloorGiB, o.DiskFloorGiB-free)
+					}
+				}
 				if a.Task.swe != nil {
 					if err := o.SWE.ensure(image); err != nil {
 						return err
@@ -269,6 +317,15 @@ func Run(o RunOptions) (err error) {
 				}
 				if err := writeOnce(base+".receipt.json", append(b, '\n')); err != nil {
 					return err
+				}
+				// Stage 5 alone (ADR-162 Decision 5): earlier stages keep ADR-156's
+				// replacements and run on.
+				if r.Exclusion == ExclusionStart && o.Block > 0 {
+					if streak++; streak >= 3 {
+						return fmt.Errorf("%w (the last at %s); resume once the CLI starts again", ErrStartErrors, at.ID)
+					}
+				} else {
+					streak = 0
 				}
 			}
 			if !replaced(r.Exclusion, try) {
@@ -330,17 +387,24 @@ func gates(o RunOptions) (string, error) {
 	case o.Repeats < 1 || len(o.Models) == 0 || len(o.Configs) == 0 || len(o.Tasks) == 0:
 		return "", errors.New("a stage needs tasks, models, configurations and at least one repeat")
 	}
-	for _, c := range o.Configs {
-		if _, ok := Configs[c]; !ok {
-			return "", fmt.Errorf("unknown configuration %q", c)
+	for _, cs := range append([][]string{o.Configs}, mapValues(o.ConfigsFor)...) {
+		for _, c := range cs {
+			if _, ok := Configs[c]; !ok {
+				return "", fmt.Errorf("unknown configuration %q", c)
+			}
+		}
+	}
+	for m := range o.ConfigsFor {
+		if !slices.Contains(o.Models, m) {
+			return "", fmt.Errorf("--configs-for names %s, which the stage does not run", m)
 		}
 	}
 	switch {
 	case o.Profile != "" && o.Profile != ProfileStage5:
 		return "", fmt.Errorf("--profile %q: the one profile is %s (ADR-162)", o.Profile, ProfileStage5)
-	case slices.Contains(o.Configs, "P") && o.Profile == "":
+	case hasConfig(o, "P") && o.Profile == "":
 		return "", fmt.Errorf("configuration P runs only under --profile %s, which every configuration shares (ADR-162 Decision 1)", ProfileStage5)
-	case slices.Contains(o.Configs, "P") && o.PluginDir == "":
+	case hasConfig(o, "P") && o.PluginDir == "":
 		return "", errors.New("configuration P needs --plugin-dir, the plugin's directory in a tagged checkout (ADR-162 Decision 1)")
 	}
 	cd, err := filepath.Abs(o.ConfigDir)
@@ -381,7 +445,7 @@ func Verify(dir, stage string, tasks, repeats int) error {
 	var missing []string
 	for _, t := range p.Tasks {
 		for _, m := range p.Models {
-			for _, c := range p.Configs {
+			for _, c := range plannedConfigs(p, m) {
 				for rep := 1; rep <= p.Repeats; rep++ {
 					id := fmt.Sprintf("%s.%s.%s.%d", t, c, safe(m), rep)
 					b, err := os.ReadFile(filepath.Join(dir, id+".receipt.json"))
@@ -481,11 +545,38 @@ func claimOut(out string, p plan) error {
 	return nil
 }
 
+// configsFor is what a model runs: its own list from --configs-for, else the
+// stage's.
+func configsFor(o RunOptions, model string) []string {
+	if cs, ok := o.ConfigsFor[model]; ok {
+		return cs
+	}
+	return o.Configs
+}
+
+// hasConfig says whether any model of the stage runs configuration c.
+func hasConfig(o RunOptions, c string) bool {
+	for _, m := range o.Models {
+		if slices.Contains(configsFor(o, m), c) {
+			return true
+		}
+	}
+	return slices.Contains(o.Configs, c) && len(o.Models) == 0
+}
+
+func mapValues(m map[string][]string) [][]string {
+	var out [][]string
+	for _, v := range m {
+		out = append(out, v)
+	}
+	return out
+}
+
 func planAttempts(o RunOptions) []attempt {
 	var as []attempt
 	for _, t := range o.Tasks {
 		for _, m := range o.Models {
-			for _, c := range o.Configs {
+			for _, c := range configsFor(o, m) {
 				for r := 1; r <= o.Repeats; r++ {
 					as = append(as, attempt{
 						ID:   fmt.Sprintf("%s.%s.%s.%d", t.ID, c, safe(m), r),

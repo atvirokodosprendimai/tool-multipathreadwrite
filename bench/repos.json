@@ -15,5 +15,7 @@
   "sphinx-doc/sphinx": {"url": "https://github.com/sphinx-doc/sphinx", "path": "~/.local/share/mrw-bench/swe-repos/sphinx-doc__sphinx"},
   "sympy/sympy": {"url": "https://github.com/sympy/sympy", "path": "~/.local/share/mrw-bench/swe-repos/sympy__sympy"},
   "pylint-dev/pylint": {"url": "https://github.com/pylint-dev/pylint", "path": "~/.local/share/mrw-bench/swe-repos/pylint-dev__pylint"},
-  "pydata/xarray": {"url": "https://github.com/pydata/xarray", "path": "~/.local/share/mrw-bench/swe-repos/pydata__xarray"}
+  "pydata/xarray": {"url": "https://github.com/pydata/xarray", "path": "~/.local/share/mrw-bench/swe-repos/pydata__xarray"},
+  "mwaskom/seaborn": {"url": "https://github.com/mwaskom/seaborn", "path": "~/.local/share/mrw-bench/swe-repos/mwaskom__seaborn"},
+  "psf/requests": {"url": "https://github.com/psf/requests", "path": "~/.local/share/mrw-bench/swe-repos/psf__requests"}
 }

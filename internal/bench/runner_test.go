@@ -5,6 +5,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -1027,5 +1029,98 @@ func TestTheHarnessVerdictSurvivesTheBudget(t *testing.T) {
 	}
 	if v := settle(Verdict{Solved: true}, true, false); v.Solved || v.HarnessResolved != nil || v.BrokeTests != nil {
 		t.Errorf("an own task carries the harness's fields: %+v", v)
+	}
+}
+
+// TestABlockRunsPerModelConfigurations: a block runs each model's own
+// configurations into block-K, named so; a block whose CLI differs from
+// block 1's is refused; three start errors in a row stop the run; and the
+// pool's blocks are 40 instances, the last the rest (ADR-162 Decisions 4, 5, 7).
+func TestABlockRunsPerModelConfigurations(t *testing.T) {
+	opts, _ := runOptions(t)
+	stage := filepath.Join(filepath.Dir(opts.Out), "stage-5")
+	opts.Out, opts.Block = filepath.Join(stage, "block-1"), 1
+	opts.ConfigsFor = map[string][]string{"stub-model": {"A"}}
+	if err := Run(opts); err != nil {
+		t.Fatal(err)
+	}
+	got := receipts(t, opts.Out)
+	if _, ok := got[opts.Tasks[0].ID+".A.stub-model.1.receipt.json"]; len(got) != 1 || !ok {
+		t.Errorf("receipts %v, want the model's one configuration, A", got)
+	}
+	var p plan
+	b, err := os.ReadFile(filepath.Join(opts.Out, "run.json"))
+	if err != nil || json.Unmarshal(b, &p) != nil || p.Block != 1 || p.Looks != Looks || len(p.ConfigsFor["stub-model"]) != 1 || p.MrwVersion == "" {
+		t.Errorf("run.json does not name the block, the looks and the model's configurations: %s", b)
+	}
+	if err := Verify(opts.Out, "test", 1, 1); err != nil {
+		t.Errorf("a block with per-model configurations did not verify: %v", err)
+	}
+	misnamed := opts
+	misnamed.Out = filepath.Join(stage, "elsewhere")
+	if err := Run(misnamed); err == nil {
+		t.Error("block 1 ran into a directory not named block-1")
+	}
+	two := opts
+	two.Repeats, two.Out = 2, filepath.Join(stage, "two", "block-1")
+	if err := Run(two); err == nil {
+		t.Error("a block ran two repeats, which Tango's interval cannot read")
+	}
+	second := opts
+	second.Out, second.Block = filepath.Join(stage, "block-2"), 2
+	if err := os.WriteFile(filepath.Join(stage, "block-1", "run.json"), bytes.Replace(b, []byte(`9.9.9 (Claude Code)`), []byte(`0.0.1 (Claude Code)`), 1), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := Run(second); err == nil {
+		t.Error("block 2 ran on another CLI than block 1's")
+	}
+	// A CLI that never opens a session: three start errors in a row stop.
+	dead := filepath.Join(filepath.Dir(stage), "claude-dead")
+	if err := os.WriteFile(dead, []byte("#!/bin/sh\nfor a in \"$@\"; do [ \"$a\" = \"--version\" ] && { echo \"9.9.9 (Claude Code)\"; exit 0; }; done\necho 'rate limit' >&2\nexit 1\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	stop := opts
+	stop.Claude, stop.Out, stop.Block, stop.ConfigsFor = dead, filepath.Join(filepath.Dir(stage), "dead", "block-1"), 1, nil
+	stop.Configs = []string{"A", "B"}
+	if err := Run(stop); !errors.Is(err, ErrStartErrors) {
+		t.Errorf("three start errors in a row: %v, want ErrStartErrors", err)
+	}
+	if n := len(receipts(t, stop.Out)); n != 3 {
+		t.Errorf("%d receipts, want the three start errors and no more", n)
+	}
+	var pool []Task
+	for i := range 191 {
+		pool = append(pool, Task{ID: fmt.Sprintf("x%03d", i)})
+	}
+	for k, want := range map[int][2]string{1: {"x000", "x039"}, 4: {"x120", "x159"}, 5: {"x160", "x190"}} {
+		ts, err := BlockTasks(pool, k)
+		if err != nil || ts[0].ID != want[0] || ts[len(ts)-1].ID != want[1] {
+			t.Errorf("block %d: %v %v, want %s to %s", k, len(ts), err, want[0], want[1])
+		}
+	}
+	if _, err := BlockTasks(pool, 6); err == nil {
+		t.Error("a sixth block was cut")
+	}
+}
+
+// TestTheRunStopsBelowTheDiskFloor: below the floor no attempt starts, and the
+// error is the disk floor's, so the caller can say what to free (ADR-162
+// Decision 9).
+func TestTheRunStopsBelowTheDiskFloor(t *testing.T) {
+	opts, _ := runOptions(t)
+	opts.DiskPath, opts.DiskFloorGiB = t.TempDir(), 1e9
+	if err := Run(opts); !errors.Is(err, ErrDiskFloor) {
+		t.Fatalf("a floor above the free space: %v, want ErrDiskFloor", err)
+	}
+	if n := len(receipts(t, opts.Out)); n != 0 {
+		t.Errorf("%d receipts below the floor, want none", n)
+	}
+	matches, _ := filepath.Glob(filepath.Join(opts.Out, "*.started"))
+	if len(matches) != 0 {
+		t.Errorf("attempts started below the floor: %v", matches)
+	}
+	opts.DiskFloorGiB = 0.000001
+	if err := Run(opts); err != nil {
+		t.Errorf("a floor below the free space: %v", err)
 	}
 }

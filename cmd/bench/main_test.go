@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -80,5 +81,41 @@ func TestTheMineFloorIsAFlag(t *testing.T) {
 	}
 	if got := coupled("--min-test-files", "2"); strings.Contains(got, `"active"`) || !strings.Contains(got, `"ready"`) {
 		t.Errorf("with --min-test-files 2 only the literal two test files hold is listed: %q", got)
+	}
+}
+
+// TestTheVerbsReachTheirCommands drives the built binary: analyze prints its
+// table, and look a Stage 5 directory's report with its exit code. A case of
+// the verb switch that falls through to another prints nothing and exits 0,
+// which no unit test of the commands themselves can see (found while
+// executing ADR-162 T3: a look case inserted inside analyze's).
+func TestTheVerbsReachTheirCommands(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("bench runs on the operator's macOS or Linux machine")
+	}
+	bin := filepath.Join(t.TempDir(), "bench")
+	if out, err := exec.Command("go", "build", "-o", bin, ".").CombinedOutput(); err != nil {
+		t.Fatalf("go build: %v: %s", err, out)
+	}
+	empty := t.TempDir()
+	out, err := exec.Command(bin, "analyze", "--tasks-dir", filepath.Join("..", "..", "bench", "tasks"), empty).Output()
+	if err != nil || !strings.HasPrefix(string(out), "| stage | model | source | verdict |") {
+		t.Errorf("bench analyze printed %q, %v; want its table", out, err)
+	}
+	stage := t.TempDir()
+	block := filepath.Join(stage, "block-1")
+	if err := os.MkdirAll(block, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(block, "run.json"), []byte(`{"stage":"stage5","tasks":[],"models":["m"],"configs":["A","B"],"repeats":1,"block":1,"looks":5}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command(bin, "look", stage)
+	var stdout bytes.Buffer
+	cmd.Stdout = &stdout
+	err = cmd.Run()
+	var ee *exec.ExitError
+	if !errors.As(err, &ee) || ee.ExitCode() != 1 || !strings.Contains(stdout.String(), "block 2 is due") {
+		t.Errorf("bench look on one open block: %q, %v; want exit 1 and block 2 due", stdout.String(), err)
 	}
 }

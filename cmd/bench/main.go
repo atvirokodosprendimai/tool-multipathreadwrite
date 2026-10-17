@@ -7,14 +7,16 @@
 //	              [--configs A,B[,P]] [--repeats N] [--seed N] [--budget 20m]
 //	              [--profile stage5 [--plugin-dir DIR] [--node PATH]] [--status-line]
 //	              [--source swe-bench --dataset FILE --swebench-python PATH [--selection FILE] [--docker PATH]]
+//	              [--block K [--configs-for MODEL=A,B,P ...]] [--disk-path PATH --disk-floor GiB]
 //	bench canary  --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass
 //	              [--profile stage5 [--plugin-dir DIR] [--node PATH]]
 //	bench export-paired --pair X,Y --model M --scorer-sha SHA --selection FILE --canary FILE DIR...
 //	bench verify  --stage S --tasks N --repeats R DIR
+//	bench look    DIR                                     (a Stage 5 directory: exit 0 complete, 1 a block due)
 //	bench analyze [--tasks-dir DIR] [--selection FILE ...] DIR
 //	bench hook    --log FILE --tree DIR (configuration B's PreToolUse hook)
 //	bench swebench-select [--n 20]                         (instance ids on stdin; Stage 3's rule)
-//	bench swebench-select --dataset FILE --min-hunks N [--exclude FILE] [--salt S] [--n 20]
+//	bench swebench-select --dataset FILE --min-hunks N [--exclude FILE ...] [--salt S] [--n 20] [--subset-min-hunks N] [--no-unnamed]
 //	bench mine    --kind wide-rename|check-coupled --repo DIR --commit SHA [--n N] [--min-occurrences 15 --min-files 8] [--min-test-files 1]
 //
 // Nothing runs an agent until Zy has chosen how an attempt is contained and
@@ -24,6 +26,7 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -38,11 +41,13 @@ const usageText = `usage:
   bench run     --stage S --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass --canary FILE [--task ID ...] [--configs A,B[,P]] [--repeats N] [--seed N] [--budget 20m] [--profile stage5 [--plugin-dir DIR] [--node PATH]] [--status-line] [--source swe-bench --dataset FILE --swebench-python PATH [--selection FILE] [--docker PATH]]
   bench canary  --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass [--profile stage5 [--plugin-dir DIR] [--node PATH]]
   bench verify  --stage S --tasks N --repeats R DIR
+  bench run     … [--block K [--configs-for MODEL=A,B,P ...]] [--disk-path PATH --disk-floor GiB]
+  bench look    DIR
   bench export-paired --pair X,Y --model M --scorer-sha SHA --selection FILE --canary FILE DIR...
   bench analyze [--tasks-dir DIR] [--selection FILE ...] DIR
   bench hook    --log FILE --tree DIR
   bench swebench-select [--n 20] < ids
-  bench swebench-select --dataset FILE --min-hunks N [--exclude FILE] [--salt S] [--n 20]
+  bench swebench-select --dataset FILE --min-hunks N [--exclude FILE ...] [--salt S] [--n 20] [--subset-min-hunks N] [--no-unnamed]
   bench mine    --kind wide-rename|check-coupled --repo DIR --commit SHA [--n N] [--min-occurrences 15 --min-files 8] [--min-test-files 1]
 `
 
@@ -63,6 +68,8 @@ func main() {
 		err = exportPaired(os.Args[2:], os.Stdout)
 	case "analyze":
 		err = analyze(os.Args[2:], os.Stdout)
+	case "look":
+		os.Exit(look(os.Args[2:], os.Stdout, os.Stderr))
 	case "hook":
 		fs := flag.NewFlagSet("hook", flag.ExitOnError)
 		log := fs.String("log", "", "where refusals and counted reads are appended")
@@ -82,6 +89,10 @@ func main() {
 	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "bench:", err)
+		// A run stopped at a boundary is resumable, not failed (ADR-162).
+		if errors.Is(err, bench.ErrStartErrors) || errors.Is(err, bench.ErrDiskFloor) {
+			os.Exit(2)
+		}
 		os.Exit(1)
 	}
 }
@@ -121,6 +132,11 @@ func run(args []string) error {
 	fs.IntVar(&o.Repeats, "repeats", 2, "attempts per task, configuration and model")
 	fs.Int64Var(&o.Seed, "seed", 156, "the order's seed")
 	fs.BoolVar(&o.StatusLine, "status-line", false, "append the registered STATUS sentence to every instruction and record the claim (ADR-162)")
+	fs.IntVar(&o.Block, "block", 0, "ADR-162: run block K of the selection (instances 40(K−1)+1 to 40K, the fifth the rest) into --out, named block-K")
+	var configsFor multi
+	fs.Var(&configsFor, "configs-for", "MODEL=A,B,P: a model's own configurations, as bench look printed (repeatable)")
+	fs.StringVar(&o.DiskPath, "disk-path", "", "the volume the disk floor is checked on: the one holding Docker's disk image")
+	fs.Float64Var(&o.DiskFloorGiB, "disk-floor", 0, "GiB free below which no attempt starts (ADR-162 Decision 9); 0 for none")
 	source := fs.String("source", "own", "the task source: own (the corpus), or swe-bench (the registered slice, ADR-156 T5)")
 	selection := fs.String("selection", filepath.Join("bench", "swe-bench", "selection.json"), "the SWE-bench slice")
 	dataset := fs.String("dataset", "", "the SWE-bench dataset file the harness reads, at the revision T5 recorded")
@@ -130,6 +146,19 @@ func run(args []string) error {
 		return err
 	}
 	o.Models, o.Configs = *models, strings.Split(*configs, ",")
+	for _, s := range configsFor {
+		m, list, ok := strings.Cut(s, "=")
+		if !ok || m == "" || list == "" {
+			return fmt.Errorf("--configs-for %q: MODEL=A,B,P", s)
+		}
+		if o.ConfigsFor == nil {
+			o.ConfigsFor = map[string][]string{}
+		}
+		o.ConfigsFor[m] = strings.Split(list, ",")
+	}
+	if o.DiskFloorGiB > 0 && o.DiskPath == "" {
+		return fmt.Errorf("--disk-floor needs --disk-path, the volume to check")
+	}
 	var all []bench.Task
 	var err error
 	switch *source {
@@ -156,6 +185,11 @@ func run(args []string) error {
 	}
 	if o.Tasks, err = bench.SelectTasks(all, only); err != nil {
 		return err
+	}
+	if o.Block > 0 {
+		if o.Tasks, err = bench.BlockTasks(o.Tasks, o.Block); err != nil {
+			return err
+		}
 	}
 	if o.Bench, err = os.Executable(); err != nil {
 		return err
@@ -257,9 +291,22 @@ func analyze(args []string, w io.Writer) error {
 		}
 	}
 	var rs []bench.Receipt
+	// A Stage 5 directory (ADR-162) is read by its looks, not pooled here:
+	// its receipts stay out of the 95% table and get a table of their own.
+	var lookDirs []string
 	err = filepath.Walk(fs.Arg(0), func(p string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() || !strings.HasSuffix(p, ".receipt.json") {
+		if err != nil {
 			return err
+		}
+		if info.IsDir() {
+			if bench.LookStage(p) {
+				lookDirs = append(lookDirs, p)
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(p, ".receipt.json") {
+			return nil
 		}
 		b, err := os.ReadFile(p)
 		if err != nil {
@@ -282,12 +329,18 @@ func analyze(args []string, w io.Writer) error {
 			return err
 		}
 		var sel struct {
-			Unnamed []string `json:"unnamed"`
+			Unnamed []string       `json:"unnamed"`
+			Subset  *bench.HunkSet `json:"min_hunks_subset"`
 		}
 		if err := json.Unmarshal(b, &sel); err != nil {
 			return fmt.Errorf("%s: %w", f, err)
 		}
-		subsets = append(subsets, bench.Subset{Label: bench.OnlyUnnamedFiles, Tasks: sel.Unnamed})
+		if len(sel.Unnamed) > 0 {
+			subsets = append(subsets, bench.Subset{Label: bench.OnlyUnnamedFiles, Tasks: sel.Unnamed})
+		}
+		if sel.Subset != nil {
+			subsets = append(subsets, bench.Subset{Label: bench.OnlyHunks(sel.Subset.MinHunks), Tasks: sel.Subset.Selected})
+		}
 	}
 	results, err := bench.Analyze(rs, superseded...)
 	if len(subsets) > 0 {
@@ -312,6 +365,32 @@ func analyze(args []string, w io.Writer) error {
 		fmt.Fprintf(w, "| %s | %s | %s | %s | %d | %d | %d | %+.3f [%+.3f, %+.3f] | %+.3f [%+.3f, %+.3f] | %s | %d | %d |\n",
 			r.Stage, r.Model, source, verdict, r.Tasks, r.Attempts, r.Excluded, r.RelCost, r.RelLo, r.RelHi, r.SolvedDiff, r.SolvedLo, r.SolvedHi, silent, r.ReadsB, r.SlippedB)
 	}
+	for _, dir := range lookDirs {
+		rep, err := bench.Look(dir)
+		if err != nil {
+			return err
+		}
+		desc, err := bench.LookDescriptive(dir, rep, subsets)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintln(w)
+		fmt.Fprintln(w, "| stage | model | source | verdict | look | tasks | attempts | excluded | cost (X−A)/A [99%] | solved X−A [99%, Tango] | B shell reads |")
+		fmt.Fprintln(w, "|---|---|---|---|---|---|---|---|---|---|---|")
+		for _, row := range rep.Rows {
+			look := fmt.Sprintf("open after look %d", rep.Blocks)
+			if row.ClosedAt != 0 {
+				look = fmt.Sprintf("closed at look %d", row.ClosedAt)
+			}
+			r := row.Result
+			fmt.Fprintf(w, "| %s | %s | swe-bench, %s against A | %s | %s | %d | %d | %d | %+.3f [%+.3f, %+.3f] | %+.3f [%+.3f, %+.3f] | %d |\n",
+				r.Stage, r.Model, row.Comparison, row.Verdict, look, r.Tasks, r.Attempts, r.Excluded, r.RelCost, r.RelLo, r.RelHi, r.SolvedDiff, r.SolvedLo, r.SolvedHi, r.ReadsB)
+		}
+		for _, r := range desc {
+			fmt.Fprintf(w, "| %s | %s | swe-bench, %s against A (%s) | (%s) | look %d | %d | %d | %d | %+.3f [%+.3f, %+.3f] | %+.3f [%+.3f, %+.3f] | %d |\n",
+				r.Stage, r.Model, r.Comparison, r.Descriptive, r.Verdict, r.Look, r.Tasks, r.Attempts, r.Excluded, r.RelCost, r.RelLo, r.RelHi, r.SolvedDiff, r.SolvedLo, r.SolvedHi, r.ReadsB)
+		}
+	}
 	return nil
 }
 
@@ -321,14 +400,20 @@ func swebenchSelect(args []string, r io.Reader, w io.Writer) error {
 	salt := fs.String("salt", "adr-156", "with --dataset, the salt hashed before each id (adr-160 for Stage 4)")
 	dataset := fs.String("dataset", "", "with --min-hunks, select from this dataset file instead of ids on stdin (ADR-160)")
 	minHunks := fs.Int("min-hunks", 0, "keep instances whose gold patch has at least this many hunks")
-	exclude := fs.String("exclude", "", "a selection file whose selected ids are left out")
+	var excludes multi
+	fs.Var(&excludes, "exclude", "a selection file whose selected ids are left out (repeatable)")
+	subset := fs.Int("subset-min-hunks", 0, "with --dataset, also write the selected instances with at least this many hunks (ADR-162's descriptive row)")
+	noUnnamed := fs.Bool("no-unnamed", false, "with --dataset, leave out ADR-160's unnamed-files subset")
+	name := fs.String("name", "", "with --dataset, the dataset's name to record (ADR-106 reads it)")
+	revision := fs.String("revision", "", "with --dataset, the dataset revision to record")
+	split := fs.String("split", "", "with --dataset, the dataset split to record")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if *dataset != "" {
 		var ex []string
-		if *exclude != "" {
-			b, err := os.ReadFile(*exclude)
+		for _, f := range excludes {
+			b, err := os.ReadFile(f)
 			if err != nil {
 				return err
 			}
@@ -336,18 +421,32 @@ func swebenchSelect(args []string, r io.Reader, w io.Writer) error {
 				Selected []string `json:"selected"`
 			}
 			if err := json.Unmarshal(b, &sel); err != nil {
-				return fmt.Errorf("%s: %w", *exclude, err)
+				return fmt.Errorf("%s: %w", f, err)
 			}
-			ex = sel.Selected
+			ex = append(ex, sel.Selected...)
 		}
 		got, err := bench.SelectMultiHunk(*dataset, *salt+":", *minHunks, ex, *n)
 		if err != nil {
 			return err
 		}
+		if *noUnnamed {
+			got.Unnamed = nil
+		}
+		if *subset > 0 {
+			ids, err := bench.HunkSubset(*dataset, got.Selected, *subset)
+			if err != nil {
+				return err
+			}
+			got.Subset = &bench.HunkSet{MinHunks: *subset, Selected: ids}
+		}
 		out := struct {
-			Rule string `json:"rule"`
+			Rule     string `json:"rule"`
+			Dataset  string `json:"dataset,omitempty"`
+			Revision string `json:"revision,omitempty"`
+			Split    string `json:"split,omitempty"`
 			bench.MultiHunk
-		}{fmt.Sprintf("the %d instance ids with the lowest sha256(%q + instance_id) among those whose gold patch has at least %d hunk headers, less the ids selected in %s (BACKLOG, Pre-registered for ADR-160; bench swebench-select)", *n, *salt+":", *minHunks, *exclude), got}
+		}{fmt.Sprintf("the %d instance ids with the lowest sha256(%q + instance_id) among those whose gold patch has at least %d hunk headers, less the ids selected in %s (BACKLOG, Pre-registered for %s; bench swebench-select)",
+			*n, *salt+":", *minHunks, strings.Join(excludes, " and "), strings.ToUpper(*salt)), *name, *revision, *split, got}
 		enc := json.NewEncoder(w)
 		enc.SetIndent("", "  ")
 		return enc.Encode(out)
@@ -428,4 +527,24 @@ func mine(args []string, w io.Writer) error {
 		fmt.Fprintln(w, l)
 	}
 	return nil
+}
+
+// look applies ADR-162's stop rule to a Stage 5 directory and prints what it
+// found: exit 0 when the stage is complete, 1 when a block is due, 2 when the
+// directory cannot be read as one.
+func look(args []string, stdout, stderr io.Writer) int {
+	if len(args) != 1 {
+		fmt.Fprintln(stderr, "bench look takes one Stage 5 directory")
+		return 2
+	}
+	rep, err := bench.Look(args[0])
+	if err != nil {
+		fmt.Fprintln(stderr, "bench:", err)
+		return 2
+	}
+	fmt.Fprint(stdout, rep.Text())
+	if rep.Complete {
+		return 0
+	}
+	return 1
 }

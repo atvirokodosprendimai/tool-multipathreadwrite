@@ -50,7 +50,17 @@ type MultiHunk struct {
 	// Unnamed are the selected instances whose problem statement contains
 	// none of the patched files' paths and none of their basenames but
 	// __init__.py: the agent has to find the code first (ADR-160 Decision 5).
-	Unnamed []string `json:"unnamed"`
+	Unnamed []string `json:"unnamed,omitempty"`
+	// Subset is a registered descriptive subset by hunk count: ADR-162's
+	// instances with 5 or more hunks. Absent unless asked for.
+	Subset *HunkSet `json:"min_hunks_subset,omitempty"`
+}
+
+// HunkSet is the instances of a selection whose gold patch has at least
+// MinHunks hunk headers, in the selection's order.
+type HunkSet struct {
+	MinHunks int      `json:"min_hunks"`
+	Selected []string `json:"selected"`
 }
 
 var patchHunk = regexp.MustCompile(`(?m)^@@ -`)
@@ -111,6 +121,37 @@ func SelectMultiHunk(dataset, salt string, minHunks int, exclude []string, n int
 	for _, id := range out.Selected {
 		if unnamed[id] {
 			out.Unnamed = append(out.Unnamed, id)
+		}
+	}
+	return out, nil
+}
+
+// HunkSubset is the ids, in the order given, whose gold patch in the dataset
+// file has at least min hunk headers (ADR-162 Decision 4's descriptive row).
+func HunkSubset(dataset string, ids []string, min int) ([]string, error) {
+	b, err := os.ReadFile(dataset)
+	if err != nil {
+		return nil, err
+	}
+	var rows []struct {
+		ID    string `json:"instance_id"`
+		Patch string `json:"patch"`
+	}
+	if err := json.Unmarshal(b, &rows); err != nil {
+		return nil, fmt.Errorf("%s: %w", dataset, err)
+	}
+	hunks := map[string]int{}
+	for _, r := range rows {
+		hunks[r.ID] = len(patchHunk.FindAllStringIndex(r.Patch, -1))
+	}
+	out := []string{}
+	for _, id := range ids {
+		n, ok := hunks[id]
+		if !ok {
+			return nil, fmt.Errorf("%s is not in %s", id, dataset)
+		}
+		if n >= min {
+			out = append(out, id)
 		}
 	}
 	return out, nil
