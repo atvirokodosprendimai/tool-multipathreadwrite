@@ -6,14 +6,17 @@ writes nothing, because a write that changed nothing is invisible.
 
 The numbers — two calls for any N, shapes A–D — live in [docs/measure.md](docs/measure.md). The six-guarantee comparison lives in [docs/comparison.md](docs/comparison.md). Model × score readings live in [docs/model-benches.md](docs/model-benches.md).
 
-Whether mrw pays for itself on agent runs is measured against a bar registered before any run ([ADR-156](docs/adr/ADR-156-whether-mrw-pays-for-itself-is-measured-on-agent-runs.md); every verdict and row in [docs/bench/RESULTS.md](docs/bench/RESULTS.md)). Every verdict so far is **INCONCLUSIVE**:
+Whether mrw pays for itself on agent runs is measured against a bar registered before any run ([ADR-156](docs/adr/ADR-156-whether-mrw-pays-for-itself-is-measured-on-agent-runs.md); every verdict and row in [docs/bench/RESULTS.md](docs/bench/RESULTS.md)). Every verdict so far is **INCONCLUSIVE** but one, Stage 4 on mrw v1.66.0, which **LOSES**:
 
 - **Stage 1**, Sonnet 5.5, 30 own tasks: INCONCLUSIVE, cost (B−A)/A +2.6% [−3.9%, +9.0%]. Configuration B made more silent mis-edits than A, 4 against 2, all on three tasks later superseded as misgraded (ADR-158, ADR-159).
 - **Stage 1b**, Sonnet 5.5, 40 own tasks: INCONCLUSIVE, cost −0.4% [−5.0%, +4.2%].
 - **Stage 2**, Opus 5.5, 40 own tasks: INCONCLUSIVE, cost −2.7% [−7.8%, +2.1%]. B made more silent mis-edits than A, 2 against 0: both renamed a test function beside the asked rename, and said so.
 - **Stage 3**, 20 SWE-bench Verified instances: Sonnet 5.5 INCONCLUSIVE, cost −6.1% [−17.0%, +4.6%]; Opus 5.5 INCONCLUSIVE, cost −5.3% [−22.9%, +14.8%].
+- **Stage 4**, Sonnet 5.5, 24 own tasks of the kinds where mrw's mechanism should matter ([ADR-160](docs/adr/ADR-160-stage-4-measures-mrw-where-its-mechanism-should-matter.md)), on mrw v1.66.0: LOSES, cost +17.1% [+9.6%, +24.7%]. The stage stopped there, and was rerun as Stage 4b after [ADR-161](docs/adr/ADR-161-instructions-lead-with-recipes.md) changed what mrw teaches.
+- **Stage 4b**, the same 24 tasks on mrw v1.68.0: Sonnet 5.5 INCONCLUSIVE, cost −2.1% [−6.2%, +1.8%]; Opus 5.5 INCONCLUSIVE, cost −1.6% [−4.6%, +1.4%].
+- **Stage 4b**, 20 multi-hunk SWE-bench Verified instances on mrw v1.68.0: Sonnet 5.5 INCONCLUSIVE, cost −17.0% [−26.6%, −7.6%]; Opus 5.5 INCONCLUSIVE, cost −20.9% [−32.3%, −8.6%]. B cost less on both models, but PAYS also needs the solved-rate interval's lower bound at −5 points or above, and it reached −30 on Sonnet and −20 on Opus.
 
-Stage 2's attempts solved 156 of 160 and Stage 3's 70 of 80, so the solved difference had little room to move; [ADR-160](docs/adr/ADR-160-stage-4-measures-mrw-where-its-mechanism-should-matter.md) registers a harder Stage 4.
+Stage 2's attempts solved 156 of 160 and Stage 3's 70 of 80, so the solved difference had little room to move; [ADR-160](docs/adr/ADR-160-stage-4-measures-mrw-where-its-mechanism-should-matter.md) registered the harder Stage 4 above.
 
 **Status: stable at v1.68.0 (2026-10-17), the tag cut from `975c3ba`.** Break campaign for it: [docs/break/campaign-v1.68.0.txt](docs/break/campaign-v1.68.0.txt), 59 probes, exit codes identical to v1.67.0 but one: `pat-resolves-to-unserved-line` applies (exit 0, was 1), because a ranged read now serves and licenses the line after the range (ADR-161 Decision 10); the probe now edits a line the read does not reach.
 
