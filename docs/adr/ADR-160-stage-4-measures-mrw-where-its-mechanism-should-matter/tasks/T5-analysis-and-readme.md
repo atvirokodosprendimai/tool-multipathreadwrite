@@ -56,6 +56,8 @@ go run ./cmd/bench analyze --selection bench/swe-bench/selection-adr-160.json do
 
 ## Mutation Log
 (empty until execute)
+- 2026-10-17 · b16cf72e* · mutant killed · exit 1 · `docs/bench/RESULTS.md` · a Stage 4 row edited by hand fails the diff against bench analyze · acceptance-sha256:d10472ff2d58281f32585b6f4da86798d3db411b91df7216c071ab39ee0765c6 · covers:the rows are bench analyze's own
+- 2026-10-17 · b16cf72e* · mutant killed · exit 1 · `docs/bench/RESULTS.md` · a Stage 4 row missing from RESULTS.md fails it · acceptance-sha256:d10472ff2d58281f32585b6f4da86798d3db411b91df7216c071ab39ee0765c6 · covers:every Stage 4 row is published
 
 ## Invariants
 
@@ -75,3 +77,21 @@ go run ./cmd/bench analyze --selection bench/swe-bench/selection-adr-160.json do
 
 ## Verification Log
 (empty until execute)
+- 2026-10-17 · b16cf72e · exit 1 · `set -o pipefail …` · acceptance-sha256:d10472ff2d58281f32585b6f4da86798d3db411b91df7216c071ab39ee0765c6 · ms:239 · test-lock-sha256:7875947846e94d6921265c031a584cbf52caf35a23d6f94c00a98eb09c647251 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJaW50ZXJuYWwvYmVuY2gvYW5hbHl6ZV90ZXN0LmdvCVRlc3RBUGlsb3RJc05ldmVyQ291bnRlZAkxNzExNDE3YjczMzQ5NzMxMzgwMzNjODE4ZWM1NGFjM2Y2M2Q2NWUyYWUyYjFhNzhkOThiYTU1NjFlYjIwYTVhCmJvZHkJaW50ZXJuYWwvYmVuY2gvYW5hbHl6ZV90ZXN0LmdvCVRlc3RBUm93V2l0aG91dFRoZVRhc2tzU3VwZXJzZWRlZFNpbmNlSXNEZXNjcmlwdGl2ZQkwYTc3OGYzZDBjZjE3NWRiMTkyNzEwOWI4YWMwNDRjM2JjOGJhMGJkNDM0OTE4YWY0YjA1ZWUyMTU1MjhlNzY0CmJvZHkJaW50ZXJuYWwvYmVuY2gvYW5hbHl6ZV90ZXN0LmdvCVRlc3RBbmFseXplUHJpbnRzQVN0YWdlNENhdGVnb3J5Um93CWU0MzJiODc4Njg0YjcyZjA3YjVjMzBkOGUzZDI0MWFmM2JhMjZhY2IwNjliZmE3MmJmY2FjZDBkZTEyMjY4ZjIKYm9keQlpbnRlcm5hbC9iZW5jaC9hbmFseXplX3Rlc3QuZ28JVGVzdE9ubHlUaGVSZWdpc3RlcmVkRXhjbHVzaW9uc0FyZUFkbWl0dGVkCWRiODQ3NDI0Yzc2NzRlNzBhZTU0Nzc3ZTk5MzQ0NjFhZThkNTkwMmJmZDZlMmRjOTBiNGI0MTZiYWM4YmJmNWYKYm9keQlpbnRlcm5hbC9iZW5jaC9hbmFseXplX3Rlc3QuZ28JVGVzdFN0YWdlT25lc1B1Ymxpc2hlZFZlcmRpY3RJc1VuY2hhbmdlZAk5NjA5YmJlZTM2OTBiYTFkMWIxY2UyMjVjYmZmOTQzNTFmNmYwY2Q0NzNkOTljOTdhNTViNjFkMmU2NTJjYTQ1CmJvZHkJaW50ZXJuYWwvYmVuY2gvYW5hbHl6ZV90ZXN0LmdvCVRlc3RUaGVBbmFseXNpc1BhaXJzQnlUYXNrQW5kS2VlcHNFdmVyeUF0dGVtcHQJYjA5MDNmZGRmZjVmMzJmOWRjOGE0YWU1NjI5M2ZlMWUwNDI0MDIwZjUxNTU4ZWY5MDI2ZmM0NzcxMGMyNzAxYgpib2R5CWludGVybmFsL2JlbmNoL2FuYWx5emVfdGVzdC5nbwlUZXN0VGhlUHVibGlzaGVkU3RhZ2VzV2l0aG91dFRoZVRhc2tzU3VwZXJzZWRlZFNpbmNlCTgwYWE5ZTk2ZjIyMGNiMDJjMzUwMTFiOGUzZGMyYTlmM2EyMDNkYWE3Yjk5OTc2ZmZkNGZiNmY1N2U4MDk2ZmIKYm9keQlpbnRlcm5hbC9iZW5jaC9hbmFseXplX3Rlc3QuZ28JVGVzdFRoZVZhcmllZE11bHRpU2l0ZVJvd0lzRGVzY3JpcHRpdmUJNmVlZjQzMWFhNmU3YzliZGJmYjk4ZmJlNzhjN2EzMTZiN2JjMGU0ZmNjYWFiMWNlNjA1ZWExZTZiN2UyOTU0MQpib2R5CWludGVybmFsL2JlbmNoL2FuYWx5emVfdGVzdC5nbwlUZXN0VGhlVmVyZGljdEZvbGxvd3NUaGVSZWdpc3RlcmVkQmFyCTUxNjUxNjM0MmUwNmE3YjYzOTVkZjA4NDJhNzQ5N2ZjMTdiNGQ1MDcwZDAxZDIzM2Y1NWZkMzIwYjg1MzM5ZTMKYm9keQlpbnRlcm5hbC9iZW5jaC9hbmFseXplX3Rlc3QuZ28JVGVzdFR3b1N0YWdlc0FyZU5ldmVyUG9vbGVkCTU4MTBmOTZmYTYyNmNmMzhiODg2NTlmMjljZDVjNTA5ZDg5NmQ2MWNkNmRmODZlYmUwYzhmZmQzZWZiZjFmMDY
+  ```
+  --- last 10 line(s) of stdout (of 20 after folding 20 raw)
+  < | stage4b | claude-opus-5-5 | own | INCONCLUSIVE | 24 | 96 | 0 | -0.016 [-0.046, +0.014] | -0.021 [-0.083, +0.042] | 2 / 2 | 37 | 0 |
+  < | stage4b | claude-opus-5-5 | own (only the check-coupled tasks; descriptive, not the verdict) | (INCONCLUSIVE) | 8 | 32 | 0 | -0.021 [-0.072, +0.028] | -0.062 [-0.188, +0.000] | 0 / 0 | 6 | 0 |
+  < | stage4b | claude-opus-5-5 | own (only the single-line tasks; descriptive, not the verdict) | (INCONCLUSIVE) | 6 | 24 | 0 | -0.044 [-0.097, +0.014] | +0.000 [+0.000, +0.000] | 0 / 0 | 0 | 0 |
+  < | stage4b | claude-opus-5-5 | own (only the wide-rename tasks; descriptive, not the verdict) | (INCONCLUSIVE) | 10 | 40 | 0 | +0.004 [-0.039, +0.054] | +0.000 [-0.150, +0.150] | 2 / 2 | 31 | 0 |
+  < | stage4b | claude-opus-5-5 | own (without the tasks whose own check is red at base; descriptive, not the verdict) | (INCONCLUSIVE) | 23 | 92 | 0 | -0.012 [-0.042, +0.019] | -0.022 [-0.087, +0.043] | 2 / 2 | 37 | 0 |
+  < | stage4b | claude-sonnet-5-5 | own | INCONCLUSIVE | 24 | 96 | 0 | -0.021 [-0.062, +0.018] | -0.083 [-0.208, +0.021] | 2 / 3 | 33 | 0 |
+  < | stage4b | claude-sonnet-5-5 | own (only the check-coupled tasks; descriptive, not the verdict) | (INCONCLUSIVE) | 8 | 32 | 0 | -0.017 [-0.108, +0.058] | -0.125 [-0.375, +0.125] | 2 / 1 | 16 | 0 |
+  < | stage4b | claude-sonnet-5-5 | own (only the single-line tasks; descriptive, not the verdict) | (PAYS) | 6 | 24 | 0 | -0.103 [-0.170, -0.033] | +0.000 [+0.000, +0.000] | 0 / 0 | 0 | 0 |
+  < | stage4b | claude-sonnet-5-5 | own (only the wide-rename tasks; descriptive, not the verdict) | (INCONCLUSIVE) | 10 | 40 | 0 | +0.025 [-0.001, +0.057] | -0.100 [-0.300, +0.000] | 0 / 2 | 17 | 0 |
+  < | stage4b | claude-sonnet-5-5 | own (without the tasks whose own check is red at base; descriptive, not the verdict) | (INCONCLUSIVE) | 23 | 92 | 0 | -0.012 [-0.052, +0.025] | -0.087 [-0.217, +0.022] | 2 / 3 | 33 | 0 |
+  ```
+- 2026-10-17 · b16cf72e* · exit 0 · `set -o pipefail …` · acceptance-sha256:d10472ff2d58281f32585b6f4da86798d3db411b91df7216c071ab39ee0765c6 · ms:824
+- 2026-10-17 · b16cf72e* · exit 0 · `set -o pipefail …` · acceptance-sha256:d10472ff2d58281f32585b6f4da86798d3db411b91df7216c071ab39ee0765c6 · ms:681
+- 2026-10-17 · human-observed · S3 approved: Zy read the README sentences (README.md:9-19) against docs/bench/RESULTS.md on 2026-10-17, first 'Approved as written', then, after the Codex review's P2 added the silent mis-edit clauses BACKLOG:2708 requires (Stage 4 Sonnet 1 against 0; Stage 4b Sonnet 3 against 2, Opus 2 each), 'Approved as amended'
+- 2026-10-17 · 5a4a5754* · exit 0 · `set -o pipefail …` · acceptance-sha256:d10472ff2d58281f32585b6f4da86798d3db411b91df7216c071ab39ee0765c6 · ms:339

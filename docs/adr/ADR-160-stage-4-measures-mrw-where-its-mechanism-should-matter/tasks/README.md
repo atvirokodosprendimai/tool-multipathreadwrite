@@ -30,7 +30,7 @@ Every task depends on the one before it, so each wave holds one task: T1, T2, T6
 | T6 | the pilot's fixes: B's interpreter rule, check-coupled graded by its tests, the mine floor as a flag | done | — | `go test ./internal/bench/ ./cmd/bench/ -run '^(TestAnInterpreter…)$'` |
 | T3 | difficulty calibrated on A outside the sample, and harness pilots that choose nothing | done | — | `go run ./cmd/bench verify --stage pilot …` |
 | T4 | Stage 4 on Sonnet 5.5 and Opus 5.5 | done | — | `go run ./cmd/bench verify --stage stage4 …` |
-| T5 | Stage 4's verdicts in RESULTS.md, and one README sentence each | pending | — | `go run ./cmd/bench analyze --selection … docs/bench …` |
+| T5 | Stage 4's verdicts in RESULTS.md, and one README sentence each | done | — | `go run ./cmd/bench analyze --selection … docs/bench …` |
 
 ## Contract Coupling
 
