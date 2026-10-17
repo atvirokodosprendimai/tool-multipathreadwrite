@@ -1066,6 +1066,41 @@ func TestABlockRunsPerModelConfigurations(t *testing.T) {
 	if err := Run(two); err == nil {
 		t.Error("a block ran two repeats, which Tango's interval cannot read")
 	}
+	// A continuation with no B and no --mrw carries block 1's mrw, and the
+	// stage still reads (the re-review of T3).
+	carry := filepath.Join(filepath.Dir(stage), "carry")
+	b1 := opts
+	b1.Out, b1.Block, b1.ConfigsFor = filepath.Join(carry, "block-1"), 1, nil
+	b1.Configs = []string{"A", "B"}
+	if err := Run(b1); err != nil {
+		t.Fatal(err)
+	}
+	b2 := b1
+	b2.Out, b2.Block, b2.Mrw = filepath.Join(carry, "block-2"), 2, ""
+	b2.Configs = []string{"A"}
+	if err := Run(b2); err != nil {
+		t.Fatal(err)
+	}
+	var p1, p2 plan
+	r1, _ := os.ReadFile(filepath.Join(carry, "block-1", "run.json"))
+	r2, _ := os.ReadFile(filepath.Join(carry, "block-2", "run.json"))
+	if json.Unmarshal(r1, &p1) != nil || json.Unmarshal(r2, &p2) != nil || p1.MrwVersion == "" || p2.MrwVersion != p1.MrwVersion {
+		t.Errorf("block 2 without --mrw names mrw %q, block 1 %q", p2.MrwVersion, p1.MrwVersion)
+	}
+	// A profiled canary that tested only A authorizes no model's P.
+	pdir := pluginRepo(t, true)
+	po := profiledOptions(t, pdir, "A")
+	po.ConfigsFor = map[string][]string{"stub-model": {"A", "P"}}
+	if err := resolveProfile(&po); err != nil {
+		t.Fatal(err)
+	}
+	pb, _ := json.Marshal(po.plugin)
+	if err := os.WriteFile(po.Canary, []byte(`{"pass":true,"cli_version":"9.9.9 (Claude Code)","profile":"stage5","configs":["A"],"plugin":`+string(pb)+`}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := Run(po); err == nil {
+		t.Error("a canary that never ran P authorized a model's P")
+	}
 	second := opts
 	second.Out, second.Block = filepath.Join(stage, "block-2"), 2
 	if err := os.WriteFile(filepath.Join(stage, "block-1", "run.json"), bytes.Replace(b, []byte(`9.9.9 (Claude Code)`), []byte(`0.0.1 (Claude Code)`), 1), 0o644); err != nil {

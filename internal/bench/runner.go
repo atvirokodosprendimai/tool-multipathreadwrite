@@ -217,6 +217,20 @@ func Run(o RunOptions) (err error) {
 			return fmt.Errorf("%s version: %w", o.Mrw, err)
 		}
 	}
+	// A later block carries block 1's mrw when it names none itself, and may
+	// not name another (the re-review of T3): Look compares every block's with
+	// block 1's, so a block that drops the pin would poison the stage.
+	if o.Block > 1 {
+		var first plan
+		if err := readJSON(filepath.Join(filepath.Dir(o.Out), "block-1", "run.json"), &first); err != nil {
+			return fmt.Errorf("block %d needs block 1's run.json beside it: %w", o.Block, err)
+		}
+		if mrwVersion == "" {
+			mrwVersion = first.MrwVersion
+		} else if mrwVersion != first.MrwVersion {
+			return fmt.Errorf("block 1 ran mrw %q and this one names %q: a stage keeps one release (ADR-162 Decision 7)", first.MrwVersion, mrwVersion)
+		}
+	}
 	if p := onPath("mrw", systemPath); p != "" {
 		return fmt.Errorf("configuration A's PATH would hold %s: an attempt runs with %s, and mrw must not be on it", p, systemPath)
 	}
@@ -505,9 +519,13 @@ func checkCanary(path, cli string, o RunOptions) error {
 		if c.Profile != o.Profile {
 			return fmt.Errorf("canary %s ran without the %s profile this stage runs", path, o.Profile)
 		}
-		for _, name := range o.Configs {
-			if !slices.Contains(c.Configs, name) {
-				return fmt.Errorf("canary %s did not test configuration %s", path, name)
+		// Every configuration any model runs, its own list included (the
+		// re-review of T3): a canary that never ran P authorizes no P.
+		for _, m := range o.Models {
+			for _, name := range configsFor(o, m) {
+				if !slices.Contains(c.Configs, name) {
+					return fmt.Errorf("canary %s did not test configuration %s, which %s runs", path, name, m)
+				}
 			}
 		}
 		if o.plugin != nil && (c.Plugin == nil || *c.Plugin != *o.plugin) {
