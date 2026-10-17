@@ -1,0 +1,40 @@
+{
+  "attempt": "am-yaml-funding.B.claude-sonnet-5-5.2",
+  "stage": "stage4b",
+  "task": "am-yaml-funding",
+  "shape": "single-line",
+  "source": "own",
+  "model": "claude-sonnet-5-5",
+  "config": "B",
+  "repeat": 2,
+  "order": 77,
+  "started": "2026-10-16T22:16:17Z",
+  "wall_ms": 34279,
+  "cli_version": "2.1.302 (Claude Code)",
+  "mrw_version": "v1.68.0 (975c3ba)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 3,
+  "tool_calls": 2,
+  "total_cost_usd": 0.11284269999999999,
+  "usage": {
+    "input_tokens": 6,
+    "output_tokens": 270,
+    "cache_read_input_tokens": 68587,
+    "cache_creation_input_tokens": 25818
+  },
+  "init_tools": [
+    "Bash",
+    "Glob"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": true
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 1,
+    "insertions": 1,
+    "deletions": 1
+  }
+}

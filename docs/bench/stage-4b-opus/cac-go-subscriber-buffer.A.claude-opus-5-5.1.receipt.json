@@ -1,0 +1,43 @@
+{
+  "attempt": "cac-go-subscriber-buffer.A.claude-opus-5-5.1",
+  "stage": "stage4b",
+  "task": "cac-go-subscriber-buffer",
+  "shape": "single-line",
+  "source": "own",
+  "model": "claude-opus-5-5",
+  "config": "A",
+  "repeat": 1,
+  "order": 42,
+  "started": "2026-10-16T23:00:53Z",
+  "wall_ms": 11822,
+  "cli_version": "2.1.302 (Claude Code)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 3,
+  "tool_calls": 2,
+  "total_cost_usd": 0.0326066,
+  "usage": {
+    "input_tokens": 6,
+    "output_tokens": 324,
+    "cache_read_input_tokens": 20793,
+    "cache_creation_input_tokens": 2743
+  },
+  "init_tools": [
+    "Bash",
+    "Edit",
+    "Glob",
+    "Grep",
+    "Read",
+    "Write"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": true
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 1,
+    "insertions": 1,
+    "deletions": 1
+  }
+}

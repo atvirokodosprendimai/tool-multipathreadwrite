@@ -83,6 +83,11 @@ done
 
 ## Mutation Log
 (empty until execute)
+- 2026-10-17 · 50479b4e* · mutant killed · exit 1 · `docs/bench/stage-4b-opus/am-coupled-agentkit-claude-md.B.claude-opus-5-5.1.receipt.json` · one B attempt on another build fails the rerun · acceptance-sha256:bd7c2320d415c774d1b65ed11a59dcf20dfdd5b96b8f86ced2b58fa4afc8cf3e · covers:the rerun ran a release carrying ADR-161
+- 2026-10-17 · 50479b4e* · mutant killed · exit 1 · `docs/bench/stage-4b-opus/am-coupled-agentkit-claude-md.B.claude-opus-5-5.1.receipt.json` · a receipt from another stage in a rerun dir fails it · acceptance-sha256:bd7c2320d415c774d1b65ed11a59dcf20dfdd5b96b8f86ced2b58fa4afc8cf3e · covers:the receipts verify
+- 2026-10-17 · 50479b4e* · mutant killed · exit 1 · `docs/bench/stage-4b-swe/run.json` · the slice on a model other than the registered two fails it · acceptance-sha256:bd7c2320d415c774d1b65ed11a59dcf20dfdd5b96b8f86ced2b58fa4afc8cf3e · covers:the slice ran the selection on both models
+- 2026-10-17 · 50479b4e* · mutant killed · exit 1 · `docs/bench/stage-4b-sonnet/am-coupled-agentkit-claude-md.A.claude-sonnet-5-5.2.receipt.json` · an attempt with no receipt of its own fails verify · acceptance-sha256:bd7c2320d415c774d1b65ed11a59dcf20dfdd5b96b8f86ced2b58fa4afc8cf3e · covers:every registered attempt has a receipt
+- 2026-10-17 · 50479b4e* · mutant killed · exit 1 · `docs/bench/stage-4b-sonnet/run.json` · a manifest whose task list is not the registered one fails it · acceptance-sha256:bd7c2320d415c774d1b65ed11a59dcf20dfdd5b96b8f86ced2b58fa4afc8cf3e · covers:the stages ran the task list on the registered models
 
 ## Invariants
 
@@ -123,3 +128,12 @@ The fence exits 0; or a stage shows the harness cannot measure what ADR-156 Deci
   bench: open docs/bench/stage-4b-sonnet/run.json: no such file or directory
   exit status 1
   ```
+- 2026-10-17 · human-observed · S4 Zy says go for the Stage 4 rerun (2026-10-16, answered 'Go, all three in order' to: 272 attempts on the subscription, Sonnet own tasks about 2.5 to 3 hours, Opus own tasks about 3 to 4 hours, the SWE slice on both models about 5 to 6 hours with 20 image pulls of about 10 GB); approved for mrw v1.68.0 (975c3ba), on this Mac, CLI 2.1.302
+- 2026-10-17 · 50479b4e* · exit 0 · `set -o pipefail …` · acceptance-sha256:bd7c2320d415c774d1b65ed11a59dcf20dfdd5b96b8f86ced2b58fa4afc8cf3e · ms:1075
+- 2026-10-17 · human-observed · S5 observed 2026-10-17: run 2026-10-16T21:35Z to 2026-10-17T02:20Z on mrw v1.68.0 (975c3ba), CLI 2.1.302, each stage after a passing canary for its model; stage4b Sonnet 96 receipts, stage4b Opus 96, stage-4b-swe 80 (20 instances x A/B x 1 on both models), no retries, no exclusion lines in any stage output; the 80 slice transcripts scanned for the dataset file, the probe venv, Hugging Face paths and the selection file found zero matches; no SWE-bench image and no container of the run left
+- 2026-10-17 · 50479b4e* · exit 0 · `set -o pipefail …` · acceptance-sha256:bd7c2320d415c774d1b65ed11a59dcf20dfdd5b96b8f86ced2b58fa4afc8cf3e · ms:1061
+- 2026-10-17 · 50479b4e* · exit 0 · `set -o pipefail …` · acceptance-sha256:bd7c2320d415c774d1b65ed11a59dcf20dfdd5b96b8f86ced2b58fa4afc8cf3e · ms:954
+- 2026-10-17 · 50479b4e* · exit 0 · `set -o pipefail …` · acceptance-sha256:bd7c2320d415c774d1b65ed11a59dcf20dfdd5b96b8f86ced2b58fa4afc8cf3e · ms:929
+- 2026-10-17 · 50479b4e* · exit 0 · `set -o pipefail …` · acceptance-sha256:bd7c2320d415c774d1b65ed11a59dcf20dfdd5b96b8f86ced2b58fa4afc8cf3e · ms:924
+- 2026-10-17 · 50479b4e* · exit 0 · `set -o pipefail …` · acceptance-sha256:bd7c2320d415c774d1b65ed11a59dcf20dfdd5b96b8f86ced2b58fa4afc8cf3e · ms:951
+- 2026-10-17 · 50479b4e* · exit 0 · `set -o pipefail …` · acceptance-sha256:bd7c2320d415c774d1b65ed11a59dcf20dfdd5b96b8f86ced2b58fa4afc8cf3e · ms:333

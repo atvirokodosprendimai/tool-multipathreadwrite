@@ -1,0 +1,50 @@
+{
+  "attempt": "am-coupled-drawers-snippet.A.claude-sonnet-5-5.1",
+  "stage": "stage4b",
+  "task": "am-coupled-drawers-snippet",
+  "shape": "check-coupled",
+  "source": "own",
+  "model": "claude-sonnet-5-5",
+  "config": "A",
+  "repeat": 1,
+  "order": 0,
+  "started": "2026-10-16T21:35:41Z",
+  "wall_ms": 22172,
+  "cli_version": "2.1.302 (Claude Code)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 5,
+  "tool_calls": 4,
+  "total_cost_usd": 0.1482508,
+  "usage": {
+    "input_tokens": 10,
+    "output_tokens": 1706,
+    "cache_read_input_tokens": 133788,
+    "cache_creation_input_tokens": 29448
+  },
+  "init_tools": [
+    "Bash",
+    "Edit",
+    "Glob",
+    "Grep",
+    "Read",
+    "Write"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": false,
+    "outside": [
+      "internal/mcptest/anchorlabel_test.go: a file outside the package whose tests grade the task",
+      "internal/mcptest/contract_axis_assertions_test.go: a file outside the package whose tests grade the task",
+      "internal/mcptest/regions_test.go: a file outside the package whose tests grade the task",
+      "internal/mcptest/registry_test.go: a file outside the package whose tests grade the task",
+      "internal/mcptest/scoping_audit_test.go: a file outside the package whose tests grade the task"
+    ]
+  },
+  "silent_mis_edit": true,
+  "diff": {
+    "files": 8,
+    "insertions": 25,
+    "deletions": 25
+  }
+}

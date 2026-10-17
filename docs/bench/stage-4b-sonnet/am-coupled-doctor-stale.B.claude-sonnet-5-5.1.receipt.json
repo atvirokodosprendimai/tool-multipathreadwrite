@@ -1,0 +1,40 @@
+{
+  "attempt": "am-coupled-doctor-stale.B.claude-sonnet-5-5.1",
+  "stage": "stage4b",
+  "task": "am-coupled-doctor-stale",
+  "shape": "check-coupled",
+  "source": "own",
+  "model": "claude-sonnet-5-5",
+  "config": "B",
+  "repeat": 1,
+  "order": 78,
+  "started": "2026-10-16T22:16:52Z",
+  "wall_ms": 42529,
+  "cli_version": "2.1.302 (Claude Code)",
+  "mrw_version": "v1.68.0 (975c3ba)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 4,
+  "tool_calls": 3,
+  "total_cost_usd": 0.1443496,
+  "usage": {
+    "input_tokens": 8,
+    "output_tokens": 1044,
+    "cache_read_input_tokens": 105976,
+    "cache_creation_input_tokens": 30824
+  },
+  "init_tools": [
+    "Bash",
+    "Glob"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": true
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 3,
+    "insertions": 4,
+    "deletions": 4
+  }
+}

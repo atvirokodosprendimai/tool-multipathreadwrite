@@ -1,0 +1,44 @@
+{
+  "attempt": "qh-json-keyword.A.claude-opus-5-5.2",
+  "stage": "stage4b",
+  "task": "qh-json-keyword",
+  "shape": "single-line",
+  "source": "own",
+  "model": "claude-opus-5-5",
+  "config": "A",
+  "repeat": 2,
+  "order": 53,
+  "started": "2026-10-16T23:06:51Z",
+  "wall_ms": 16067,
+  "cli_version": "2.1.302 (Claude Code)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 5,
+  "tool_calls": 4,
+  "total_cost_usd": 0.13157600000000003,
+  "usage": {
+    "input_tokens": 8,
+    "output_tokens": 939,
+    "cache_read_input_tokens": 57100,
+    "cache_creation_input_tokens": 12668
+  },
+  "init_tools": [
+    "Bash",
+    "Edit",
+    "Glob",
+    "Grep",
+    "Read",
+    "Write"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": true
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 1,
+    "insertions": 1,
+    "deletions": 1
+  },
+  "check_red_at_base": true
+}

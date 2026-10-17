@@ -1,0 +1,43 @@
+{
+  "attempt": "am-wide-short12.A.claude-opus-5-5.1",
+  "stage": "stage4b",
+  "task": "am-wide-short12",
+  "shape": "wide-rename",
+  "source": "own",
+  "model": "claude-opus-5-5",
+  "config": "A",
+  "repeat": 1,
+  "order": 92,
+  "started": "2026-10-16T23:37:52Z",
+  "wall_ms": 36757,
+  "cli_version": "2.1.302 (Claude Code)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 4,
+  "tool_calls": 3,
+  "total_cost_usd": 0.25255960000000005,
+  "usage": {
+    "input_tokens": 8,
+    "output_tokens": 903,
+    "cache_read_input_tokens": 98258,
+    "cache_creation_input_tokens": 26852
+  },
+  "init_tools": [
+    "Bash",
+    "Edit",
+    "Glob",
+    "Grep",
+    "Read",
+    "Write"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": true
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 13,
+    "insertions": 31,
+    "deletions": 31
+  }
+}
