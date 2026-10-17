@@ -672,3 +672,273 @@ func TestASupersededTaskIsNotRunByDefault(t *testing.T) {
 		t.Error("--task naming no task was accepted")
 	}
 }
+
+// pluginRepo makes a repository holding a plugin at plugin/, committed and,
+// when tagged is set, tagged v1.0.0, and returns the plugin's directory.
+func pluginRepo(t *testing.T, tagged bool) string {
+	t.Helper()
+	needGit(t)
+	repo := t.TempDir()
+	manifest := filepath.Join(repo, "plugin", ".claude-plugin")
+	if err := os.MkdirAll(manifest, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(manifest, "plugin.json"), []byte(`{"name":"quality-harness","version":"1.0.0"}`+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{{"init", "-q"}, {"add", "-A"}, {"-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-q", "-m", "plugin"}} {
+		if err := git(repo, args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if tagged {
+		if err := git(repo, "tag", "v1.0.0"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return filepath.Join(repo, "plugin")
+}
+
+// profiledOptions are runOptions under ADR-162's stage5 profile, with the
+// plugin at pluginDir ("" for none) and the configurations given.
+func profiledOptions(t *testing.T, pluginDir string, configs ...string) RunOptions {
+	t.Helper()
+	opts, _ := runOptions(t)
+	opts.Profile, opts.PluginDir, opts.Node, opts.Configs = ProfileStage5, pluginDir, "/bin/sh", configs
+	return opts
+}
+
+// envOf is the value of key in an environment list, or "".
+func envOf(env []string, key string) string {
+	for _, kv := range env {
+		if k, v, ok := strings.Cut(kv, "="); ok && k == key {
+			return v
+		}
+	}
+	return ""
+}
+
+// scrub replaces the scratch directory in each argument, so two attempts'
+// arguments compare by what they say rather than where they were built.
+func scrub(args []string, scratch string) []string {
+	out := make([]string, len(args))
+	for i, a := range args {
+		out[i] = strings.ReplaceAll(a, scratch, "<scratch>")
+	}
+	return out
+}
+
+// TestConfigurationPIsAPlusThePluginAndSkills: P's arguments are A's and the
+// plugin's directory, under the profile every configuration shares (ADR-162
+// Decision 1); the plugin's tag and commit go into run.json and P's receipts,
+// and a plugin that is untagged or carries uncommitted changes is refused.
+func TestConfigurationPIsAPlusThePluginAndSkills(t *testing.T) {
+	dir := pluginRepo(t, true)
+	opts := profiledOptions(t, dir, "A", "P")
+	if _, err := gates(opts); err != nil {
+		t.Fatal(err)
+	}
+	if err := resolveProfile(&opts); err != nil {
+		t.Fatal(err)
+	}
+	if opts.plugin == nil || opts.plugin.Tag != "v1.0.0" || len(opts.plugin.Commit) != 40 {
+		t.Fatalf("the plugin's identity is %+v, want v1.0.0 at a full commit", opts.plugin)
+	}
+	argsOf := func(name string) ([]string, []string) {
+		scratch := t.TempDir()
+		args, env, err := invocation(opts, attempt{ID: "x", Task: opts.Tasks[0], Model: "m", Config: Configs[name], Repeat: 1}, scratch)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return scrub(args, scratch), env
+	}
+	a, _ := argsOf("A")
+	p, env := argsOf("P")
+	i := slices.Index(p, "--plugin-dir")
+	if i < 0 || p[i+1] != dir {
+		t.Fatalf("P's arguments name no --plugin-dir %s: %v", dir, p)
+	}
+	if without := slices.Delete(slices.Clone(p), i, i+2); !slices.Equal(without, a) {
+		t.Errorf("P is not A plus the plugin:\nA %v\nP %v", a, p)
+	}
+	if slices.Contains(p, "--disable-slash-commands") || !slices.Contains(p, "--include-hook-events") {
+		t.Errorf("P runs without the profile's skills or hook events: %v", p)
+	}
+	if tools := p[slices.Index(p, "--tools")+1]; !strings.HasSuffix(tools, ",Skill") {
+		t.Errorf("P is not offered Skill: %s", tools)
+	}
+	stub := envOf(env, "CODEX_CLI_PATH")
+	if out, err := exec.Command(stub).CombinedOutput(); err == nil || !strings.Contains(string(out), "external models are not part of this stage") {
+		t.Errorf("CODEX_CLI_PATH %q is not the refusing stub: %v %s", stub, err, out)
+	}
+	// An A/B canary, as runOptions writes, never saw P or the profile: refused.
+	if err := Run(opts); err == nil {
+		t.Fatal("a profiled stage started on a canary that never ran the profile or P")
+	}
+	write := func(profile, configs string, plugin *PluginRef) {
+		pb, _ := json.Marshal(plugin)
+		if err := os.WriteFile(opts.Canary, []byte(`{"pass":true,"cli_version":"9.9.9 (Claude Code)","profile":"`+profile+`","configs":`+configs+`,"plugin":`+string(pb)+`}`), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("", `["A","P"]`, opts.plugin)
+	if err := Run(opts); err == nil {
+		t.Fatal("a profiled stage started on a canary that ran without the profile")
+	}
+	write(ProfileStage5, `["A"]`, opts.plugin)
+	if err := Run(opts); err == nil {
+		t.Fatal("a profiled stage started on a canary that did not test P")
+	}
+	write(ProfileStage5, `["A","P"]`, &PluginRef{Tag: "v0.0.1", Commit: opts.plugin.Commit})
+	if err := Run(opts); err == nil {
+		t.Fatal("a profiled stage started on a canary that loaded another plugin")
+	}
+	write(ProfileStage5, `["A","P"]`, opts.plugin)
+	if err := Run(opts); err != nil {
+		t.Fatal(err)
+	}
+	var plan struct {
+		Profile string     `json:"profile"`
+		Plugin  *PluginRef `json:"plugin"`
+	}
+	b, err := os.ReadFile(filepath.Join(opts.Out, "run.json"))
+	if err != nil || json.Unmarshal(b, &plan) != nil || plan.Profile != ProfileStage5 || plan.Plugin == nil || *plan.Plugin != *opts.plugin {
+		t.Errorf("run.json does not name the profile and the plugin: %s %v", b, err)
+	}
+	for _, c := range []string{"A", "P"} {
+		var r Receipt
+		b, err := os.ReadFile(filepath.Join(opts.Out, opts.Tasks[0].ID+"."+c+".stub-model.1.receipt.json"))
+		if err != nil || json.Unmarshal(b, &r) != nil {
+			t.Fatalf("configuration %s's receipt: %v", c, err)
+		}
+		if (c == "P") != (r.Plugin != nil) || (r.Plugin != nil && *r.Plugin != *opts.plugin) {
+			t.Errorf("configuration %s's receipt carries plugin %+v", c, r.Plugin)
+		}
+	}
+	untagged := profiledOptions(t, pluginRepo(t, false), "A", "P")
+	if err := resolveProfile(&untagged); err == nil {
+		t.Error("an untagged plugin was accepted")
+	}
+	dirtyDir := pluginRepo(t, true)
+	if err := os.WriteFile(filepath.Join(dirtyDir, "new.md"), []byte("x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	dirty := profiledOptions(t, dirtyDir, "A", "P")
+	if err := resolveProfile(&dirty); err == nil {
+		t.Error("a plugin with uncommitted changes was accepted")
+	}
+	noProfile := profiledOptions(t, dir, "A", "P")
+	noProfile.Profile = ""
+	if _, err := gates(noProfile); err == nil {
+		t.Error("configuration P ran without the stage5 profile")
+	}
+	noDir := profiledOptions(t, "", "A", "P")
+	if _, err := gates(noDir); err == nil {
+		t.Error("configuration P ran without --plugin-dir")
+	}
+}
+
+// TestTheProfileOutlivesP: a profiled block that no longer runs P keeps the
+// profile in A and B — skills, Skill, node, the stub and the exclusions — so a
+// comparison that closes does not change the other one's arms (ADR-162
+// Decision 1; the re-review of the record). Without the profile, A and B are
+// today's.
+func TestTheProfileOutlivesP(t *testing.T) {
+	opts := profiledOptions(t, "", "A", "B")
+	if _, err := gates(opts); err != nil {
+		t.Fatalf("a profiled block without P was refused: %v", err)
+	}
+	if err := resolveProfile(&opts); err != nil {
+		t.Fatal(err)
+	}
+	// A relative --node becomes an absolute link (the review of T1).
+	rel := t.TempDir()
+	if err := os.WriteFile(filepath.Join(rel, "node-rel"), []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(rel)
+	relOpts := profiledOptions(t, "", "A")
+	relOpts.Node = "node-rel"
+	if err := resolveProfile(&relOpts); err != nil {
+		t.Fatal(err)
+	}
+	if _, env, err := invocation(relOpts, attempt{ID: "x", Task: relOpts.Tasks[0], Model: "m", Config: Configs["A"], Repeat: 1}, t.TempDir()); err != nil || onPath("node", envOf(env, "PATH")) == "" {
+		t.Errorf("a relative --node did not reach the attempt's PATH: %v", err)
+	}
+	for _, name := range []string{"A", "B"} {
+		args, env, err := invocation(opts, attempt{ID: "x", Task: opts.Tasks[0], Model: "m", Config: Configs[name], Repeat: 1}, t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if slices.Contains(args, "--disable-slash-commands") || !slices.Contains(args, "--include-hook-events") || slices.Contains(args, "--plugin-dir") {
+			t.Errorf("configuration %s under the profile: %v", name, args)
+		}
+		if tools := args[slices.Index(args, "--tools")+1]; !strings.HasSuffix(tools, ",Skill") {
+			t.Errorf("configuration %s is not offered Skill: %s", name, tools)
+		}
+		if envOf(env, "CODEX_CLI_PATH") == "" || onPath("node", envOf(env, "PATH")) == "" || onPath("codex", envOf(env, "PATH")) != "" {
+			t.Errorf("configuration %s lacks the stub or node, or has codex on PATH: %v", name, env)
+		}
+		b, err := os.ReadFile(args[slices.Index(args, "--settings")+1])
+		if err != nil {
+			t.Fatal(err)
+		}
+		var s map[string]any
+		if err := json.Unmarshal(b, &s); err != nil || s["syncClaudeAiSkills"] != false || s["disableBundledSkills"] != true || s["enabledPlugins"] == nil {
+			t.Errorf("configuration %s's settings do not exclude synced and bundled entries: %s", name, b)
+		}
+	}
+	plain, _ := runOptions(t)
+	args, env, err := invocation(plain, attempt{ID: "x", Task: plain.Tasks[0], Model: "m", Config: Configs["A"], Repeat: 1}, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(args, "--disable-slash-commands") || slices.Contains(args, "--include-hook-events") || strings.Contains(args[slices.Index(args, "--tools")+1], "Skill") || envOf(env, "CODEX_CLI_PATH") != "" {
+		t.Errorf("without the profile, A's arguments changed: %v", args)
+	}
+}
+
+// TestAAndBCarryNoPluginInAStageWithP: in a stage that runs P, A's and B's
+// arguments name no plugin, and their canary refuses the plugin's skills, its
+// marker and a hook other than bench's own (ADR-162 Decision 2).
+func TestAAndBCarryNoPluginInAStageWithP(t *testing.T) {
+	dir := pluginRepo(t, true)
+	opts := profiledOptions(t, dir, "A", "B", "P")
+	if err := resolveProfile(&opts); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"A", "B"} {
+		args, _, err := invocation(opts, attempt{ID: "x", Task: opts.Tasks[0], Model: "m", Config: Configs[name], Repeat: 1}, t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if slices.Contains(args, "--plugin-dir") {
+			t.Errorf("configuration %s carries the plugin: %v", name, args)
+		}
+	}
+	a := profileInitA + "\n" + profileResult + "\n"
+	if p := CheckProfileCanary([]byte(a), Configs["A"], "", "", dir); len(p) != 0 {
+		t.Fatalf("a clean A failed: %v", p)
+	}
+	b := profileInitB + "\n" + hookLine("PreToolUse", "PreToolUse:Bash") + "\n" + `{"type":"assistant","message":{"content":[{"type":"text","text":"used mrw read"}]}}` + "\n" + profileResult + "\n"
+	if p := CheckProfileCanary([]byte(b), Configs["B"], "", "", dir); len(p) != 0 {
+		t.Fatalf("a clean B failed: %v", p)
+	}
+	leaks := map[string]struct {
+		c          string
+		transcript string
+	}{
+		"A lists a plugin skill":    {"A", strings.Replace(a, `"skills":["design","doctor"]`, `"skills":["design","doctor","quality-harness:work"]`, 1)},
+		"A lists the plugin":        {"A", strings.Replace(a, `"plugins":[]`, `"plugins":[{"name":"quality-harness","source":"quality-harness@inline"}]`, 1)},
+		"A fires a hook":            {"A", profileInitA + "\n" + hookLine("SessionStart", "SessionStart:startup") + "\n" + profileResult + "\n"},
+		"A carries the marker":      {"A", profileInitA + "\n" + `{"type":"assistant","message":{"content":[{"type":"text","text":"quality-harness: says"}]}}` + "\n" + profileResult + "\n"},
+		"B fires the plugin's hook": {"B", strings.Replace(b, `"PreToolUse:Bash"`, `"PreToolUse:Skill"`, 1)},
+		"B lists a synced plugin":   {"B", strings.Replace(b, `"plugins":[]`, `"plugins":[{"name":"figma","source":"figma@synced"}]`, 1)},
+		"B lists a synced skill":    {"B", strings.Replace(b, `"skills":["design","doctor"]`, `"skills":["design","doctor","anthropic-skills:pdf"]`, 1)},
+	}
+	for name, l := range leaks {
+		if p := CheckProfileCanary([]byte(l.transcript), Configs[l.c], "", "", dir); len(p) == 0 {
+			t.Errorf("%s: the canary passed", name)
+		}
+	}
+}

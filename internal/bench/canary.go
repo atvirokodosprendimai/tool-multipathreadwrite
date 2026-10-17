@@ -72,7 +72,12 @@ type CanaryReceipt struct {
 	Model      string              `json:"model"`
 	Started    string              `json:"started"`
 	Problems   map[string][]string `json:"problems"`
-	Costs      map[string]*float64 `json:"total_cost_usd"`
+	// Under ADR-162's profile: the profile, the configurations it tested and the
+	// plugin it loaded, which a profiled stage must match.
+	Profile string              `json:"profile,omitempty"`
+	Configs []string            `json:"configs,omitempty"`
+	Plugin  *PluginRef          `json:"plugin,omitempty"`
+	Costs   map[string]*float64 `json:"total_cost_usd"`
 }
 
 // RunCanary runs the task once in each configuration and writes canary.json
@@ -85,6 +90,9 @@ func RunCanary(o RunOptions, task Task, claudeMD string) (CanaryReceipt, error) 
 		return c, err
 	}
 	o.ConfigDir = cd
+	if err := resolveProfile(&o); err != nil {
+		return c, err
+	}
 	if o.Budget == 0 {
 		o.Budget = DefaultBudget
 	}
@@ -108,8 +116,11 @@ func RunCanary(o RunOptions, task Task, claudeMD string) (CanaryReceipt, error) 
 		return c, err
 	}
 	c = CanaryReceipt{Pass: true, CLIVersion: cli, Model: o.Models[0], Started: time.Now().UTC().Format(time.RFC3339),
-		Problems: map[string][]string{}, Costs: map[string]*float64{}}
-	for i, name := range []string{"A", "B"} {
+		Problems: map[string][]string{}, Costs: map[string]*float64{}, Profile: o.Profile, Plugin: o.plugin}
+	if o.Profile != "" {
+		c.Configs = o.Configs
+	}
+	for i, name := range o.Configs {
 		a := attempt{ID: "canary." + name, Task: task, Model: o.Models[0], Config: Configs[name], Repeat: 1}
 		r := runAttempt(o, a, i, cli, mrwVersion)
 		if r.interrupted {
@@ -124,7 +135,11 @@ func RunCanary(o RunOptions, task Task, claudeMD string) (CanaryReceipt, error) 
 		if err != nil {
 			return c, err
 		}
-		problems = append(problems, CheckCanary(b, Configs[name], claudeMD, o.ConfigDir)...)
+		if o.Profile != "" {
+			problems = append(problems, CheckProfileCanary(b, Configs[name], claudeMD, o.ConfigDir, o.PluginDir)...)
+		} else {
+			problems = append(problems, CheckCanary(b, Configs[name], claudeMD, o.ConfigDir)...)
+		}
 		if len(problems) > 0 {
 			c.Pass = false
 			c.Problems[name] = problems
@@ -139,6 +154,138 @@ func RunCanary(o RunOptions, task Task, claudeMD string) (CanaryReceipt, error) 
 		return c, err
 	}
 	return c, writeOnce(filepath.Join(o.Out, "canary.json"), append(b, '\n'))
+}
+
+// CheckProfileCanary is the canary under ADR-162's stage5 profile (Decision 2):
+// CheckCanary over the transcript with the configuration's profiled tools, and
+// then what the profile adds. A's and B's init line lists exactly the built-in
+// skills and no plugin; P's lists those and the plugin's own, and the plugin
+// alone. A fires no hook; B only bench's own, PreToolUse:Bash; P at least one
+// of the plugin's session hooks — the events carry no source, and in a profiled
+// attempt the plugin is the only hook source P has. In P the plugin's own text
+// — its hook output, its skills in init, the Skill calls to them, their results
+// and the skill text they inject — is taken out before the mrw and marker
+// checks read it, since the plugin itself names mrw and the markers; the
+// agent's own text is read as in A.
+func CheckProfileCanary(transcript []byte, c Config, claudeMD, configDir, pluginDir string) []string {
+	text := transcript
+	if c.Plugin {
+		text = withoutPluginText(transcript, pluginDir)
+	}
+	problems := CheckCanary(text, profiled(c), claudeMD, configDir)
+	t := parseTranscript(transcript)
+	if !t.InitSeen {
+		return problems
+	}
+	var own, other []string
+	for _, s := range t.InitSkills {
+		if strings.HasPrefix(s, pluginName+":") {
+			own = append(own, s)
+		} else {
+			other = append(other, s)
+		}
+	}
+	if !slices.Equal(sorted(other), sorted(builtinSkills)) {
+		problems = append(problems, fmt.Sprintf("skills %v beside the plugin's, want exactly the built-in %v", other, builtinSkills))
+	}
+	var plugins []string
+	if c.Plugin {
+		plugins = []string{pluginName}
+		if len(own) == 0 {
+			problems = append(problems, "configuration P lists none of the plugin's skills: the plugin is not engaged")
+		}
+	} else if len(own) > 0 {
+		problems = append(problems, fmt.Sprintf("configuration %s lists the plugin's skills %v", c.Name, own))
+	}
+	var names []string
+	for _, p := range t.InitPlugins {
+		names = append(names, p.Name)
+		// A plugin of the right name from elsewhere — a synced copy, another
+		// checkout — is not the one the receipt names (the review of T1).
+		if c.Plugin && p.Name == pluginName && (p.Source != pluginName+"@inline" || filepath.Clean(p.Path) != filepath.Clean(pluginDir)) {
+			problems = append(problems, fmt.Sprintf("the plugin was loaded from %s (%s), want %s@inline from %s", p.Path, p.Source, pluginName, pluginDir))
+		}
+	}
+	if !slices.Equal(sorted(names), plugins) {
+		problems = append(problems, fmt.Sprintf("plugins %v, want %v", names, plugins))
+	}
+	switch {
+	case c.Plugin:
+		if !slices.ContainsFunc(t.HookEvents, func(e string) bool { return e == "SessionStart" || e == "UserPromptSubmit" || e == "Stop" }) {
+			problems = append(problems, "no session hook of the plugin fired: the plugin is not engaged")
+		}
+	case c.Mrw:
+		for _, h := range t.HookNames {
+			if h != "PreToolUse:Bash" {
+				problems = append(problems, fmt.Sprintf("a hook other than bench's own fired: %s", h))
+			}
+		}
+	default:
+		if len(t.HookNames) > 0 {
+			problems = append(problems, fmt.Sprintf("configuration %s fired hooks %v", c.Name, t.HookNames))
+		}
+	}
+	return problems
+}
+
+// withoutPluginText is a P transcript without the plugin's own text: its hook
+// lines, its skills, agents and plugin entry in init, the Skill calls to its
+// skills, their results, and the skill text injected from pluginDir.
+func withoutPluginText(transcript []byte, pluginDir string) []byte {
+	calls := map[any]bool{}
+	var out [][]byte
+	for _, line := range bytes.Split(transcript, []byte("\n")) {
+		var m map[string]any
+		if json.Unmarshal(line, &m) != nil {
+			out = append(out, line)
+			continue
+		}
+		switch m["type"] {
+		case "system":
+			switch m["subtype"] {
+			case "hook_started", "hook_response":
+				continue
+			case "init":
+				for _, k := range []string{"skills", "slash_commands", "agents", "plugins"} {
+					delete(m, k)
+				}
+			}
+		case "assistant", "user":
+			msg, _ := m["message"].(map[string]any)
+			content, ok := msg["content"].([]any)
+			if !ok {
+				break
+			}
+			var kept []any
+			for _, item := range content {
+				b, _ := item.(map[string]any)
+				if b["type"] == "tool_use" && b["name"] == "Skill" {
+					if in, _ := b["input"].(map[string]any); in != nil {
+						if s, _ := in["skill"].(string); strings.HasPrefix(s, pluginName+":") {
+							calls[b["id"]] = true
+							continue
+						}
+					}
+				}
+				if b["type"] == "tool_result" && calls[b["tool_use_id"]] {
+					continue
+				}
+				// Only the CLI injects a skill's text, as a user message; the
+				// agent's own text is never exempt (the review of T1).
+				if s, _ := b["text"].(string); m["type"] == "user" && b["type"] == "text" && pluginDir != "" && strings.HasPrefix(s, "Base directory for this skill: "+pluginDir+"/") {
+					continue
+				}
+				kept = append(kept, item)
+			}
+			msg["content"] = kept
+		}
+		b, err := json.Marshal(m)
+		if err != nil {
+			continue
+		}
+		out = append(out, b)
+	}
+	return bytes.Join(out, []byte("\n"))
 }
 
 // decodedStrings joins every string value of every JSON line of a transcript.

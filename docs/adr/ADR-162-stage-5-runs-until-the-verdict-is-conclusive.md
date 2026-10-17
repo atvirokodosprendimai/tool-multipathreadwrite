@@ -195,7 +195,7 @@ The plugin is read from another repository's worktree and never changed. ADR-106
 
 | Surface | Change | Producer | Consumer(s) |
 |---------|--------|----------|-------------|
-| `bench run --profile stage5 --configs …,P --plugin-dir DIR --node PATH --codex-stub` | configuration P; the Stage 5 profile in `run.json`, applied to every configuration and block | T1 | T4, T5 |
+| `bench run --profile stage5 --configs …,P --plugin-dir DIR --node PATH` | configuration P; the Stage 5 profile in `run.json`, applied to every configuration and block, the Codex stub included | T1 | T4, T5 |
 | `bench canary` | judges skills, plugins, hook sources and markers per configuration | T1 | T4, T5 |
 | receipt and `run.json` `plugin: {tag, commit}` | new | T1 | T2, T6 |
 | `bench run --status-line` | the registered `STATUS:` sentence; its sha in `run.json` | T2 | T4, T5 |

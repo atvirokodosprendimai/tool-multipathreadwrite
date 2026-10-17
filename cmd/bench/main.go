@@ -4,9 +4,11 @@
 //
 //	bench run     --stage S --out DIR --model M [--model M2] --claude PATH --mrw PATH
 //	              --config-dir DIR --containment bypass --canary FILE [--task ID ...]
-//	              [--configs A,B] [--repeats N] [--seed N] [--budget 20m]
+//	              [--configs A,B[,P]] [--repeats N] [--seed N] [--budget 20m]
+//	              [--profile stage5 [--plugin-dir DIR] [--node PATH]]
 //	              [--source swe-bench --dataset FILE --swebench-python PATH [--selection FILE] [--docker PATH]]
 //	bench canary  --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass
+//	              [--profile stage5 [--plugin-dir DIR] [--node PATH]]
 //	bench verify  --stage S --tasks N --repeats R DIR
 //	bench analyze [--tasks-dir DIR] [--selection FILE ...] DIR
 //	bench hook    --log FILE --tree DIR (configuration B's PreToolUse hook)
@@ -32,8 +34,8 @@ import (
 )
 
 const usageText = `usage:
-  bench run     --stage S --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass --canary FILE [--task ID ...] [--configs A,B] [--repeats N] [--seed N] [--budget 20m] [--source swe-bench --dataset FILE --swebench-python PATH [--selection FILE] [--docker PATH]]
-  bench canary  --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass
+  bench run     --stage S --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass --canary FILE [--task ID ...] [--configs A,B[,P]] [--repeats N] [--seed N] [--budget 20m] [--profile stage5 [--plugin-dir DIR] [--node PATH]] [--source swe-bench --dataset FILE --swebench-python PATH [--selection FILE] [--docker PATH]]
+  bench canary  --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass [--profile stage5 [--plugin-dir DIR] [--node PATH]]
   bench verify  --stage S --tasks N --repeats R DIR
   bench analyze [--tasks-dir DIR] [--selection FILE ...] DIR
   bench hook    --log FILE --tree DIR
@@ -99,6 +101,9 @@ func stageFlags(name string) (*flag.FlagSet, *bench.RunOptions, *multi, *string)
 	fs.StringVar(&o.Containment, "containment", "", "bypass, or user:<name> once Zy chooses it")
 	fs.DurationVar(&o.Budget, "budget", bench.DefaultBudget, "an attempt's wall-clock budget")
 	fs.StringVar(&o.Scratch, "scratch", os.TempDir(), "where attempt trees are built")
+	fs.StringVar(&o.Profile, "profile", "", "stage5: ADR-162's profile, for every configuration (skills on, Skill offered, node on PATH, no external model)")
+	fs.StringVar(&o.PluginDir, "plugin-dir", "", "the plugin configuration P loads: its directory in a tagged checkout (ADR-162)")
+	fs.StringVar(&o.Node, "node", "", "the node the profile links on every attempt's PATH; found on PATH when empty")
 	return fs, o, models, tasks
 }
 
@@ -108,7 +113,7 @@ func run(args []string) error {
 	fs.StringVar(&o.Stage, "stage", "", "the stage's name")
 	fs.StringVar(&o.Canary, "canary", "", "a passing canary.json for this CLI version")
 	fs.Var(&only, "task", "run only this task (repeatable); default every measured task")
-	configs := fs.String("configs", "A,B", "the configurations")
+	configs := fs.String("configs", "A,B", "the configurations: A, B, and P (the quality-harness plugin, under --profile stage5 with --plugin-dir)")
 	fs.IntVar(&o.Repeats, "repeats", 2, "attempts per task, configuration and model")
 	fs.Int64Var(&o.Seed, "seed", 156, "the order's seed")
 	source := fs.String("source", "own", "the task source: own (the corpus), or swe-bench (the registered slice, ADR-156 T5)")
@@ -159,6 +164,9 @@ func canary(args []string) error {
 		return err
 	}
 	o.Models, o.Stage, o.Repeats, o.Configs = *models, "canary", 1, []string{"A", "B"}
+	if o.PluginDir != "" {
+		o.Configs = append(o.Configs, "P")
+	}
 	task, err := bench.LoadTask(filepath.Join(*tasksDir, "canary"))
 	if err != nil {
 		return err

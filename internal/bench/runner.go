@@ -18,18 +18,22 @@ import (
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/subproc"
 )
 
-// Config is one of the two configurations ADR-156 Decision 1 compares.
+// Config is one of the configurations ADR-156 Decision 1 compares, and
+// ADR-162's third.
 type Config struct {
-	Name  string
-	Tools []string
-	Mrw   bool // a pinned mrw on PATH, its instructions appended, the hook installed
+	Name   string
+	Tools  []string
+	Mrw    bool // a pinned mrw on PATH, its instructions appended, the hook installed
+	Plugin bool // the quality-harness plugin loaded with --plugin-dir (ADR-162)
 }
 
-// Configs are A (the baseline) and B (mrw forced). Task, Agent, WebFetch and
-// WebSearch are offered to neither.
+// Configs are A (the baseline), B (mrw forced) and P (A with the
+// quality-harness plugin, run only under the stage5 profile). Task, Agent,
+// WebFetch and WebSearch are offered to none.
 var Configs = map[string]Config{
 	"A": {Name: "A", Tools: []string{"Bash", "Read", "Edit", "Write", "Glob", "Grep"}},
 	"B": {Name: "B", Tools: []string{"Bash", "Glob"}, Mrw: true},
+	"P": {Name: "P", Tools: []string{"Bash", "Read", "Edit", "Write", "Glob", "Grep"}, Plugin: true},
 }
 
 // The registered budget (BACKLOG, "Pre-registered for ADR-156"): an attempt
@@ -47,37 +51,38 @@ const (
 
 // Receipt is one attempt's record, written once and never replaced.
 type Receipt struct {
-	Attempt       string   `json:"attempt"`
-	Stage         string   `json:"stage"`
-	Task          string   `json:"task"`
-	Shape         string   `json:"shape"`
-	Source        string   `json:"source"` // "own" or "swe-bench"
-	Model         string   `json:"model"`
-	Config        string   `json:"config"`
-	Repeat        int      `json:"repeat"`
-	Order         int      `json:"order"`
-	Started       string   `json:"started"`
-	WallMS        int64    `json:"wall_ms"`
-	CLIVersion    string   `json:"cli_version"`
-	MrwVersion    string   `json:"mrw_version,omitempty"`
-	ExitCode      int      `json:"exit_code"`
-	TimedOut      bool     `json:"timed_out,omitempty"`
-	OverBudget    bool     `json:"over_budget,omitempty"`
-	IsError       bool     `json:"is_error"`
-	NumTurns      int      `json:"num_turns"`
-	ToolCalls     int      `json:"tool_calls"`
-	CostUSD       *float64 `json:"total_cost_usd"`
-	Usage         Usage    `json:"usage"`
-	InitTools     []string `json:"init_tools"`
-	InitMCP       []string `json:"init_mcp_servers"`
-	Oracle        Verdict  `json:"oracle"`
-	SilentMisEdit bool     `json:"silent_mis_edit"`
-	Diff          DiffStat `json:"diff"`
-	HookRefused   int      `json:"hook_refused,omitempty"`
-	HookReads     int      `json:"hook_reads,omitempty"`
-	SlippedWrites []string `json:"slipped_writes,omitempty"`
-	Exclusion     string   `json:"exclusion,omitempty"`
-	Note          string   `json:"note,omitempty"`
+	Attempt       string     `json:"attempt"`
+	Stage         string     `json:"stage"`
+	Task          string     `json:"task"`
+	Shape         string     `json:"shape"`
+	Source        string     `json:"source"` // "own" or "swe-bench"
+	Model         string     `json:"model"`
+	Config        string     `json:"config"`
+	Repeat        int        `json:"repeat"`
+	Order         int        `json:"order"`
+	Started       string     `json:"started"`
+	WallMS        int64      `json:"wall_ms"`
+	CLIVersion    string     `json:"cli_version"`
+	MrwVersion    string     `json:"mrw_version,omitempty"`
+	ExitCode      int        `json:"exit_code"`
+	TimedOut      bool       `json:"timed_out,omitempty"`
+	OverBudget    bool       `json:"over_budget,omitempty"`
+	IsError       bool       `json:"is_error"`
+	NumTurns      int        `json:"num_turns"`
+	ToolCalls     int        `json:"tool_calls"`
+	CostUSD       *float64   `json:"total_cost_usd"`
+	Usage         Usage      `json:"usage"`
+	InitTools     []string   `json:"init_tools"`
+	InitMCP       []string   `json:"init_mcp_servers"`
+	Oracle        Verdict    `json:"oracle"`
+	SilentMisEdit bool       `json:"silent_mis_edit"`
+	Diff          DiffStat   `json:"diff"`
+	HookRefused   int        `json:"hook_refused,omitempty"`
+	HookReads     int        `json:"hook_reads,omitempty"`
+	SlippedWrites []string   `json:"slipped_writes,omitempty"`
+	Plugin        *PluginRef `json:"plugin,omitempty"` // configuration P's plugin (ADR-162)
+	Exclusion     string     `json:"exclusion,omitempty"`
+	Note          string     `json:"note,omitempty"`
 	// CheckRedAtBase is the task's flag (Task.CheckRedAtBase), copied so the
 	// receipt alone says the attempt ran against a check that was red at base.
 	CheckRedAtBase bool `json:"check_red_at_base,omitempty"`
@@ -111,20 +116,26 @@ type RunOptions struct {
 	Budget      time.Duration
 	Scratch     string     // where attempt trees are built; os.TempDir() when empty
 	SWE         *SWEGrader // grades the SWE-bench slice's attempts; nil for the corpus's own tasks
+	Profile     string     // "" or ProfileStage5: ADR-162's profile, applied to every configuration
+	PluginDir   string     // the plugin configuration P loads, a directory of a tagged checkout
+	Node        string     // the node the profile puts on every attempt's PATH; found on PATH when empty
+	plugin      *PluginRef // the plugin's tag and commit, read by resolveProfile
 }
 
 // plan is what run.json records; a second Run into the same directory must
 // carry the same plan, or it is an earlier run's directory and is refused.
 type plan struct {
-	Stage       string   `json:"stage"`
-	Tasks       []string `json:"tasks"`
-	Models      []string `json:"models"`
-	Configs     []string `json:"configs"`
-	Repeats     int      `json:"repeats"`
-	Seed        int64    `json:"seed"`
-	CLIVersion  string   `json:"cli_version"`
-	MrwVersion  string   `json:"mrw_version"`
-	Containment string   `json:"containment"`
+	Stage       string     `json:"stage"`
+	Tasks       []string   `json:"tasks"`
+	Models      []string   `json:"models"`
+	Configs     []string   `json:"configs"`
+	Repeats     int        `json:"repeats"`
+	Seed        int64      `json:"seed"`
+	CLIVersion  string     `json:"cli_version"`
+	MrwVersion  string     `json:"mrw_version"`
+	Containment string     `json:"containment"`
+	Profile     string     `json:"profile,omitempty"`
+	Plugin      *PluginRef `json:"plugin,omitempty"`
 }
 
 // attempt is one run of one task in one configuration on one model.
@@ -148,6 +159,9 @@ func Run(o RunOptions) (err error) {
 		return err
 	}
 	o.ConfigDir = cd
+	if err := resolveProfile(&o); err != nil {
+		return err
+	}
 	if o.Budget == 0 {
 		o.Budget = DefaultBudget
 	}
@@ -155,7 +169,7 @@ func Run(o RunOptions) (err error) {
 	if err != nil {
 		return fmt.Errorf("%s --version: %w", o.Claude, err)
 	}
-	if err := checkCanary(o.Canary, cli); err != nil {
+	if err := checkCanary(o.Canary, cli, o); err != nil {
 		return err
 	}
 	mrwVersion := ""
@@ -183,7 +197,7 @@ func Run(o RunOptions) (err error) {
 			}
 		}
 	}
-	p := plan{Stage: o.Stage, Models: o.Models, Configs: o.Configs, Repeats: o.Repeats, Seed: o.Seed, CLIVersion: cli, MrwVersion: mrwVersion, Containment: o.Containment}
+	p := plan{Stage: o.Stage, Models: o.Models, Configs: o.Configs, Repeats: o.Repeats, Seed: o.Seed, CLIVersion: cli, MrwVersion: mrwVersion, Containment: o.Containment, Profile: o.Profile, Plugin: o.plugin}
 	for _, t := range o.Tasks {
 		p.Tasks = append(p.Tasks, t.ID)
 	}
@@ -313,6 +327,14 @@ func gates(o RunOptions) (string, error) {
 			return "", fmt.Errorf("unknown configuration %q", c)
 		}
 	}
+	switch {
+	case o.Profile != "" && o.Profile != ProfileStage5:
+		return "", fmt.Errorf("--profile %q: the one profile is %s (ADR-162)", o.Profile, ProfileStage5)
+	case slices.Contains(o.Configs, "P") && o.Profile == "":
+		return "", fmt.Errorf("configuration P runs only under --profile %s, which every configuration shares (ADR-162 Decision 1)", ProfileStage5)
+	case slices.Contains(o.Configs, "P") && o.PluginDir == "":
+		return "", errors.New("configuration P needs --plugin-dir, the plugin's directory in a tagged checkout (ADR-162 Decision 1)")
+	}
 	cd, err := filepath.Abs(o.ConfigDir)
 	if err != nil {
 		return "", err
@@ -386,20 +408,39 @@ func Verify(dir, stage string, tasks, repeats int) error {
 }
 
 // checkCanary refuses a stage whose canary did not pass for this CLI version.
-func checkCanary(path, cli string) error {
+func checkCanary(path, cli string, o RunOptions) error {
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("canary: %w", err)
 	}
 	var c struct {
-		Pass       bool   `json:"pass"`
-		CLIVersion string `json:"cli_version"`
+		Pass       bool       `json:"pass"`
+		CLIVersion string     `json:"cli_version"`
+		Profile    string     `json:"profile"`
+		Configs    []string   `json:"configs"`
+		Plugin     *PluginRef `json:"plugin"`
 	}
 	if err := json.Unmarshal(b, &c); err != nil {
 		return fmt.Errorf("canary %s: %w", path, err)
 	}
 	if !c.Pass || c.CLIVersion != cli {
 		return fmt.Errorf("canary %s: pass %v for CLI %q; this CLI is %q, and a stage needs a passing canary for it", path, c.Pass, c.CLIVersion, cli)
+	}
+	// A profiled stage needs a canary that ran under the profile, tested each
+	// of its configurations and loaded its plugin (ADR-162 Decision 2; the
+	// review of T1): an A/B canary never saw P or the profile's settings.
+	if o.Profile != "" {
+		if c.Profile != o.Profile {
+			return fmt.Errorf("canary %s ran without the %s profile this stage runs", path, o.Profile)
+		}
+		for _, name := range o.Configs {
+			if !slices.Contains(c.Configs, name) {
+				return fmt.Errorf("canary %s did not test configuration %s", path, name)
+			}
+		}
+		if o.plugin != nil && (c.Plugin == nil || *c.Plugin != *o.plugin) {
+			return fmt.Errorf("canary %s loaded plugin %v; this stage runs %v", path, c.Plugin, *o.plugin)
+		}
 	}
 	return nil
 }
@@ -481,6 +522,9 @@ func runAttempt(o RunOptions, a attempt, order int, cli, mrwVersion string) Rece
 		CheckRedAtBase: a.Task.CheckRedAtBase != ""}
 	if a.Config.Mrw {
 		r.MrwVersion = mrwVersion
+	}
+	if a.Config.Plugin {
+		r.Plugin = o.plugin
 	}
 	scratch, err := os.MkdirTemp(o.Scratch, "bench-")
 	if err != nil {
@@ -626,14 +670,19 @@ func shellQuote(s string) string {
 // npm and npx, which quality-harness's declared check runs (without them it
 // stops at once with `node: command not found`, a failure the harness made);
 // and python3, so a script finds the host's own rather than an older system
-// one (Zy, 2026-10-14: "Keep, add node, declare it").
-func toolPath(scratch string) (string, error) {
+// one (Zy, 2026-10-14: "Keep, add node, declare it"). node, when given, is
+// linked in place of the one PATH finds (ADR-162: on this Mac PATH's node is
+// a shell function).
+func toolPath(scratch, node string) (string, error) {
 	dir := filepath.Join(scratch, "tools")
 	if err := os.Mkdir(dir, 0o755); err != nil {
 		return "", err
 	}
 	for _, name := range []string{"git", "go", "gofmt", "node", "npm", "npx", "python3"} {
 		p, err := exec.LookPath(name)
+		if name == "node" && node != "" {
+			p, err = node, nil
+		}
 		if err != nil {
 			continue
 		}
@@ -655,19 +704,29 @@ func invocation(o RunOptions, a attempt, scratch string) ([]string, []string, er
 		return nil, nil, err
 	}
 	settings := map[string]any{}
-	tools, err := toolPath(scratch)
+	tools, err := toolPath(scratch, o.Node)
 	if err != nil {
 		return nil, nil, err
 	}
 	path := tools + ":" + systemPath
+	// Under ADR-162's profile every configuration is offered Skill, keeps its
+	// skills, and reports its hooks; --include-hook-events takes the place
+	// --disable-slash-commands has, so P's arguments are A's and the plugin.
+	c, skills := a.Config, "--disable-slash-commands"
+	if o.Profile != "" {
+		c, skills = profiled(c), "--include-hook-events"
+	}
 	args := []string{"-p", a.Task.Instruction, "--output-format", "stream-json", "--verbose", "--model", a.Model,
-		"--tools", strings.Join(a.Config.Tools, ","), "--strict-mcp-config", "--mcp-config", empty,
-		"--disable-slash-commands", "--no-session-persistence", "--no-chrome", "--permission-mode", "bypassPermissions",
+		"--tools", strings.Join(c.Tools, ","), "--strict-mcp-config", "--mcp-config", empty,
+		skills, "--no-session-persistence", "--no-chrome", "--permission-mode", "bypassPermissions",
 		// The attempt's own directory would otherwise sit in the system prompt
 		// ahead of B's appended instructions, so B wrote them to the cache in
 		// every attempt; with the flag they are read from it, as a user's own
 		// checkout reads them (ADR-156 Decision 2, measured 2026-10-14).
 		"--exclude-dynamic-system-prompt-sections"}
+	if a.Config.Plugin {
+		args = append(args, "--plugin-dir", o.PluginDir)
+	}
 	// USER is how the CLI finds the subscription's credentials in the macOS
 	// keychain: without it a logged-in config directory answers "Not logged
 	// in" (the first real canary, 2026-10-14).
@@ -684,6 +743,26 @@ func invocation(o RunOptions, a attempt, scratch string) ([]string, []string, er
 		env = append(env, k+"="+own[k])
 	}
 	env = append(env, "CLAUDE_CODE_SHELL=/bin/bash", "GIT_CONFIG_GLOBAL=/dev/null", "PYTHONNOUSERSITE=1")
+	if o.Profile != "" {
+		ps, err := profileSettings(o.ConfigDir)
+		if err != nil {
+			return nil, nil, err
+		}
+		for k, v := range ps {
+			settings[k] = v
+		}
+		if onPath("node", tools) == "" {
+			return nil, nil, errors.New("the stage5 profile needs node on the attempt's PATH: the plugin's hooks run it")
+		}
+		if p := onPath("codex", tools+":"+systemPath); p != "" {
+			return nil, nil, fmt.Errorf("the stage5 profile reaches no external model, and %s is on the attempt's PATH", p)
+		}
+		stub, err := writeCodexStub(scratch)
+		if err != nil {
+			return nil, nil, err
+		}
+		env = append(env, "CODEX_CLI_PATH="+stub)
+	}
 	if a.Config.Mrw {
 		bin := filepath.Join(scratch, "bin")
 		if err := os.Mkdir(bin, 0o755); err != nil {
