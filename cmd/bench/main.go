@@ -5,10 +5,11 @@
 //	bench run     --stage S --out DIR --model M [--model M2] --claude PATH --mrw PATH
 //	              --config-dir DIR --containment bypass --canary FILE [--task ID ...]
 //	              [--configs A,B[,P]] [--repeats N] [--seed N] [--budget 20m]
-//	              [--profile stage5 [--plugin-dir DIR] [--node PATH]]
+//	              [--profile stage5 [--plugin-dir DIR] [--node PATH]] [--status-line]
 //	              [--source swe-bench --dataset FILE --swebench-python PATH [--selection FILE] [--docker PATH]]
 //	bench canary  --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass
 //	              [--profile stage5 [--plugin-dir DIR] [--node PATH]]
+//	bench export-paired --pair X,Y --model M --scorer-sha SHA --selection FILE --canary FILE DIR...
 //	bench verify  --stage S --tasks N --repeats R DIR
 //	bench analyze [--tasks-dir DIR] [--selection FILE ...] DIR
 //	bench hook    --log FILE --tree DIR (configuration B's PreToolUse hook)
@@ -34,9 +35,10 @@ import (
 )
 
 const usageText = `usage:
-  bench run     --stage S --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass --canary FILE [--task ID ...] [--configs A,B[,P]] [--repeats N] [--seed N] [--budget 20m] [--profile stage5 [--plugin-dir DIR] [--node PATH]] [--source swe-bench --dataset FILE --swebench-python PATH [--selection FILE] [--docker PATH]]
+  bench run     --stage S --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass --canary FILE [--task ID ...] [--configs A,B[,P]] [--repeats N] [--seed N] [--budget 20m] [--profile stage5 [--plugin-dir DIR] [--node PATH]] [--status-line] [--source swe-bench --dataset FILE --swebench-python PATH [--selection FILE] [--docker PATH]]
   bench canary  --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass [--profile stage5 [--plugin-dir DIR] [--node PATH]]
   bench verify  --stage S --tasks N --repeats R DIR
+  bench export-paired --pair X,Y --model M --scorer-sha SHA --selection FILE --canary FILE DIR...
   bench analyze [--tasks-dir DIR] [--selection FILE ...] DIR
   bench hook    --log FILE --tree DIR
   bench swebench-select [--n 20] < ids
@@ -57,6 +59,8 @@ func main() {
 		err = canary(os.Args[2:])
 	case "verify":
 		err = verify(os.Args[2:])
+	case "export-paired":
+		err = exportPaired(os.Args[2:], os.Stdout)
 	case "analyze":
 		err = analyze(os.Args[2:], os.Stdout)
 	case "hook":
@@ -116,6 +120,7 @@ func run(args []string) error {
 	configs := fs.String("configs", "A,B", "the configurations: A, B, and P (the quality-harness plugin, under --profile stage5 with --plugin-dir)")
 	fs.IntVar(&o.Repeats, "repeats", 2, "attempts per task, configuration and model")
 	fs.Int64Var(&o.Seed, "seed", 156, "the order's seed")
+	fs.BoolVar(&o.StatusLine, "status-line", false, "append the registered STATUS sentence to every instruction and record the claim (ADR-162)")
 	source := fs.String("source", "own", "the task source: own (the corpus), or swe-bench (the registered slice, ADR-156 T5)")
 	selection := fs.String("selection", filepath.Join("bench", "swe-bench", "selection.json"), "the SWE-bench slice")
 	dataset := fs.String("dataset", "", "the SWE-bench dataset file the harness reads, at the revision T5 recorded")
@@ -207,6 +212,27 @@ func verify(args []string) error {
 		return fmt.Errorf("verify takes one directory")
 	}
 	return bench.Verify(fs.Arg(0), *stage, *tasks, *repeats)
+}
+
+// exportPaired writes quality-harness ADR-106's paired rows for one model and
+// one pair of configurations (ADR-162 Decision 3).
+func exportPaired(args []string, w io.Writer) error {
+	fs := flag.NewFlagSet("export-paired", flag.ContinueOnError)
+	pair := fs.String("pair", "A,P", "the two configurations, the control first")
+	o := bench.ExportOptions{}
+	fs.StringVar(&o.Model, "model", "", "the model whose rows are written")
+	fs.StringVar(&o.ScorerSHA, "scorer-sha", "", "the git blob sha of ADR-106's scorer, from its pre-registration")
+	fs.StringVar(&o.Selection, "selection", "", "the selection file the stage drew from")
+	fs.StringVar(&o.Canary, "canary", "", "the canary.json the stage ran on")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	x, y, ok := strings.Cut(*pair, ",")
+	if !ok || x == "" || y == "" || strings.Contains(y, ",") {
+		return fmt.Errorf("--pair %q: two configurations, X,Y", *pair)
+	}
+	o.X, o.Y, o.Dirs = x, y, fs.Args()
+	return bench.ExportPaired(o, w)
 }
 
 func analyze(args []string, w io.Writer) error {

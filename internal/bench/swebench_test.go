@@ -481,3 +481,28 @@ func TestAnEmptySWEBenchDiffIsUnsolvedWithoutTheHarness(t *testing.T) {
 		t.Errorf("an empty diff: %+v, %v; want unsolved, and no harness started", v, err)
 	}
 }
+
+// TestABrokenPassToPassTestIsRecorded: the harness's report (swebench 5.0.2,
+// harness/grading.py: tests_status.PASS_TO_PASS.failure) sets broke_tests
+// beside resolved (ADR-162 Decision 3).
+func TestABrokenPassToPassTestIsRecorded(t *testing.T) {
+	report := func(resolved bool, p2pFail string) []byte {
+		return []byte(`{"x__y-1":{"patch_is_None":false,"patch_exists":true,"patch_successfully_applied":true,"resolved":` + strconv.FormatBool(resolved) +
+			`,"tests_status":{"FAIL_TO_PASS":{"success":["t1"],"failure":[]},"PASS_TO_PASS":{"success":["t2"],"failure":[` + p2pFail + `]}}}}`)
+	}
+	v, err := readReport(report(false, `"test_old (m.T)"`), "x__y-1")
+	if err != nil || v.Solved || v.BrokeTests == nil || !*v.BrokeTests {
+		t.Errorf("a failing PASS_TO_PASS test: %+v %v", v, err)
+	}
+	v, err = readReport(report(true, ``), "x__y-1")
+	if err != nil || !v.Solved || v.BrokeTests == nil || *v.BrokeTests {
+		t.Errorf("no failing PASS_TO_PASS test: %+v %v", v, err)
+	}
+	v, err = readReport([]byte(`{"x__y-1":{"patch_successfully_applied":false,"resolved":false}}`), "x__y-1")
+	if err != nil || v.BrokeTests == nil || *v.BrokeTests {
+		t.Errorf("a report with no tests_status: %+v %v", v, err)
+	}
+	if _, err := readReport(report(true, ``), "other__z-2"); err == nil {
+		t.Error("a report that does not name the instance was read")
+	}
+}
