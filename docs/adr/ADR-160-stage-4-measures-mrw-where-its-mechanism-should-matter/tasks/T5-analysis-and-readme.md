@@ -93,3 +93,5 @@ go run ./cmd/bench analyze --selection bench/swe-bench/selection-adr-160.json do
   ```
 - 2026-10-17 · b16cf72e* · exit 0 · `set -o pipefail …` · acceptance-sha256:d10472ff2d58281f32585b6f4da86798d3db411b91df7216c071ab39ee0765c6 · ms:824
 - 2026-10-17 · b16cf72e* · exit 0 · `set -o pipefail …` · acceptance-sha256:d10472ff2d58281f32585b6f4da86798d3db411b91df7216c071ab39ee0765c6 · ms:681
+- 2026-10-17 · human-observed · S3 approved: Zy read the README sentences (README.md:9-19) against docs/bench/RESULTS.md on 2026-10-17, first 'Approved as written', then, after the Codex review's P2 added the silent mis-edit clauses BACKLOG:2708 requires (Stage 4 Sonnet 1 against 0; Stage 4b Sonnet 3 against 2, Opus 2 each), 'Approved as amended'
+- 2026-10-17 · 5a4a5754* · exit 0 · `set -o pipefail …` · acceptance-sha256:d10472ff2d58281f32585b6f4da86798d3db411b91df7216c071ab39ee0765c6 · ms:339
