@@ -299,17 +299,37 @@ func (g SWEGrader) grade(t Task, tree, scratch, run string) (Verdict, error) {
 	if err != nil {
 		return Verdict{}, fmt.Errorf("the harness wrote no report for %s: %w", t.ID, err)
 	}
+	v, err := readReport(rb, t.ID)
+	if err != nil {
+		return Verdict{}, err
+	}
+	return v, nil
+}
+
+// readReport reads the harness's report for one instance: resolved, and
+// whether any PASS_TO_PASS test failed. The shape is swebench 5.0.2's,
+// harness/grading.py:249-257 (tests_status by FAIL_TO_PASS and PASS_TO_PASS,
+// each with success and failure) and :390-391, which run_evaluation.py:266
+// asks for with include_tests_status=True. A report with no tests_status (a
+// patch that did not apply ran no test) broke none.
+func readReport(b []byte, id string) (Verdict, error) {
 	var rep map[string]struct {
-		Resolved bool `json:"resolved"`
+		Resolved    bool `json:"resolved"`
+		TestsStatus *struct {
+			PassToPass struct {
+				Failure []string `json:"failure"`
+			} `json:"PASS_TO_PASS"`
+		} `json:"tests_status"`
 	}
-	if err := json.Unmarshal(rb, &rep); err != nil {
-		return Verdict{}, fmt.Errorf("the harness's report for %s: %w", t.ID, err)
+	if err := json.Unmarshal(b, &rep); err != nil {
+		return Verdict{}, fmt.Errorf("the harness's report for %s: %w", id, err)
 	}
-	r, ok := rep[t.ID]
+	r, ok := rep[id]
 	if !ok {
-		return Verdict{}, fmt.Errorf("the harness's report does not name %s", t.ID)
+		return Verdict{}, fmt.Errorf("the harness's report does not name %s", id)
 	}
-	return Verdict{Solved: r.Resolved}, nil
+	broke := r.TestsStatus != nil && len(r.TestsStatus.PassToPass.Failure) > 0
+	return Verdict{Solved: r.Resolved, BrokeTests: &broke}, nil
 }
 
 // removeContainers removes every container the harness started for this

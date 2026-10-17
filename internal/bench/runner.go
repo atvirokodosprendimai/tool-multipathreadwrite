@@ -80,6 +80,7 @@ type Receipt struct {
 	HookRefused   int        `json:"hook_refused,omitempty"`
 	HookReads     int        `json:"hook_reads,omitempty"`
 	SlippedWrites []string   `json:"slipped_writes,omitempty"`
+	Status        string     `json:"status,omitempty"` // the STATUS line's claim, with --status-line (ADR-162)
 	Plugin        *PluginRef `json:"plugin,omitempty"` // configuration P's plugin (ADR-162)
 	Exclusion     string     `json:"exclusion,omitempty"`
 	Note          string     `json:"note,omitempty"`
@@ -120,22 +121,26 @@ type RunOptions struct {
 	PluginDir   string     // the plugin configuration P loads, a directory of a tagged checkout
 	Node        string     // the node the profile puts on every attempt's PATH; found on PATH when empty
 	plugin      *PluginRef // the plugin's tag and commit, read by resolveProfile
+	StatusLine  bool       // append StatusSentence to every instruction and read the claim (ADR-162)
 }
 
 // plan is what run.json records; a second Run into the same directory must
 // carry the same plan, or it is an earlier run's directory and is refused.
 type plan struct {
-	Stage       string     `json:"stage"`
-	Tasks       []string   `json:"tasks"`
-	Models      []string   `json:"models"`
-	Configs     []string   `json:"configs"`
-	Repeats     int        `json:"repeats"`
-	Seed        int64      `json:"seed"`
-	CLIVersion  string     `json:"cli_version"`
-	MrwVersion  string     `json:"mrw_version"`
-	Containment string     `json:"containment"`
-	Profile     string     `json:"profile,omitempty"`
-	Plugin      *PluginRef `json:"plugin,omitempty"`
+	Stage            string     `json:"stage"`
+	Tasks            []string   `json:"tasks"`
+	Models           []string   `json:"models"`
+	Configs          []string   `json:"configs"`
+	Repeats          int        `json:"repeats"`
+	Seed             int64      `json:"seed"`
+	CLIVersion       string     `json:"cli_version"`
+	MrwVersion       string     `json:"mrw_version"`
+	Containment      string     `json:"containment"`
+	Profile          string     `json:"profile,omitempty"`
+	Plugin           *PluginRef `json:"plugin,omitempty"`
+	StatusLineSHA256 string     `json:"status_line_sha256,omitempty"`
+	BudgetSeconds    int        `json:"budget_seconds,omitempty"`
+	PromptSHA256     string     `json:"prompt_sha256,omitempty"`
 }
 
 // attempt is one run of one task in one configuration on one model.
@@ -198,6 +203,9 @@ func Run(o RunOptions) (err error) {
 		}
 	}
 	p := plan{Stage: o.Stage, Models: o.Models, Configs: o.Configs, Repeats: o.Repeats, Seed: o.Seed, CLIVersion: cli, MrwVersion: mrwVersion, Containment: o.Containment, Profile: o.Profile, Plugin: o.plugin}
+	if o.StatusLine {
+		p.StatusLineSHA256, p.PromptSHA256, p.BudgetSeconds = statusLineSHA256(), promptSHA256(), int(o.Budget.Seconds())
+	}
 	for _, t := range o.Tasks {
 		p.Tasks = append(p.Tasks, t.ID)
 	}
@@ -600,6 +608,9 @@ func runAttempt(o RunOptions, a attempt, order int, cli, mrwVersion string) Rece
 	r.IsError, r.NumTurns, r.ToolCalls, r.CostUSD, r.Usage = t.IsError || !t.Result || r.ExitCode != 0, t.NumTurns, t.ToolCalls, t.CostUSD, t.Usage
 	r.InitTools, r.InitMCP = t.Tools, t.MCPServers
 	r.OverBudget = r.TimedOut || t.NumTurns > MaxTurns
+	if o.StatusLine {
+		r.Status = claimStatus(t.ResultText)
+	}
 	if errText, _ := os.ReadFile(base + ".stderr"); startFailed(t, r, string(errText)) {
 		r.Exclusion = ExclusionStart
 	}
@@ -621,9 +632,7 @@ func runAttempt(o RunOptions, a attempt, order int, cli, mrwVersion string) Rece
 		r.Exclusion, r.Note = ExclusionSetup, "oracle: "+err.Error()
 		return r
 	}
-	if r.OverBudget {
-		v.Solved = false
-	}
+	v = settle(v, r.OverBudget, a.Task.swe != nil)
 	r.Oracle = v
 	r.SilentMisEdit = !r.IsError && (len(v.Outside) > 0 || len(v.Structure) > 0)
 	if r.Diff, err = diffStat(tree); err != nil {
@@ -716,7 +725,11 @@ func invocation(o RunOptions, a attempt, scratch string) ([]string, []string, er
 	if o.Profile != "" {
 		c, skills = profiled(c), "--include-hook-events"
 	}
-	args := []string{"-p", a.Task.Instruction, "--output-format", "stream-json", "--verbose", "--model", a.Model,
+	instruction := a.Task.Instruction
+	if o.StatusLine {
+		instruction = strings.Replace(PromptTemplate, "{instruction}", a.Task.Instruction, 1)
+	}
+	args := []string{"-p", instruction, "--output-format", "stream-json", "--verbose", "--model", a.Model,
 		"--tools", strings.Join(c.Tools, ","), "--strict-mcp-config", "--mcp-config", empty,
 		skills, "--no-session-persistence", "--no-chrome", "--permission-mode", "bypassPermissions",
 		// The attempt's own directory would otherwise sit in the system prompt

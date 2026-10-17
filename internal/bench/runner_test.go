@@ -2,6 +2,8 @@ package bench
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"os"
 	"os/exec"
@@ -940,5 +942,90 @@ func TestAAndBCarryNoPluginInAStageWithP(t *testing.T) {
 		if p := CheckProfileCanary([]byte(l.transcript), Configs[l.c], "", "", dir); len(p) == 0 {
 			t.Errorf("%s: the canary passed", name)
 		}
+	}
+}
+
+// TestTheStatusLineIsReadFromTheFinalMessage: the claim is one structured
+// line, read without classifying prose; the sentence asking for it is appended
+// only with --status-line, and run.json names its SHA-256 (ADR-162 Decision 3).
+func TestTheStatusLineIsReadFromTheFinalMessage(t *testing.T) {
+	for text, want := range map[string]string{
+		"Fixed it.\nSTATUS: done":                     "done",
+		"STATUS: not done: the tests need a database": "not done",
+		"I think it works.":                           "unreadable",
+		"STATUS: done\nSTATUS: not done: no":          "unreadable",
+		"STATUS: finished":                            "unreadable",
+		"STATUS: not done:":                           "unreadable",
+		"done.\n  STATUS: done  ":                     "unreadable",
+		"Summary\n\nSTATUS: done\n":                   "done",
+	} {
+		if got := claimStatus(text); got != want {
+			t.Errorf("claimStatus(%q) = %q, want %q", text, got, want)
+		}
+	}
+	opts, _ := runOptions(t)
+	plain, _, err := invocation(opts, attempt{ID: "x", Task: opts.Tasks[0], Model: "m", Config: Configs["A"], Repeat: 1}, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plain[1] != opts.Tasks[0].Instruction {
+		t.Errorf("without --status-line the instruction changed: %q", plain[1])
+	}
+	opts.StatusLine = true
+	asked, _, err := invocation(opts, attempt{ID: "x", Task: opts.Tasks[0], Model: "m", Config: Configs["A"], Repeat: 1}, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if asked[1] != opts.Tasks[0].Instruction+"\n\n"+StatusSentence {
+		t.Errorf("with --status-line the instruction is %q", asked[1])
+	}
+	// A stub whose final message makes a claim: the receipt reads it.
+	claimer := filepath.Join(filepath.Dir(opts.Out), "claude-claims")
+	script := `#!/bin/sh
+for a in "$@"; do [ "$a" = "--version" ] && { echo "9.9.9 (Claude Code)"; exit 0; }; done
+printf '%s\n' '{"type":"system","subtype":"init","model":"m","tools":["Bash","Read","Edit","Write","Glob","Grep"],"mcp_servers":[]}' '{"type":"result","subtype":"success","is_error":false,"num_turns":1,"total_cost_usd":0.1,"usage":{},"result":"Fixed it.\nSTATUS: done"}'
+`
+	if err := os.WriteFile(claimer, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	opts.Claude, opts.Configs = claimer, []string{"A"}
+	if err := Run(opts); err != nil {
+		t.Fatal(err)
+	}
+	var plan struct {
+		SHA    string `json:"status_line_sha256"`
+		Prompt string `json:"prompt_sha256"`
+	}
+	b, err := os.ReadFile(filepath.Join(opts.Out, "run.json"))
+	sum := sha256.Sum256([]byte(StatusSentence))
+	tsum := sha256.Sum256([]byte(PromptTemplate))
+	if err != nil || json.Unmarshal(b, &plan) != nil || plan.SHA != hex.EncodeToString(sum[:]) || plan.Prompt != hex.EncodeToString(tsum[:]) {
+		t.Errorf("run.json does not name the status sentence's and the prompt template's SHA-256: %s", b)
+	}
+	var r Receipt
+	b, err = os.ReadFile(filepath.Join(opts.Out, opts.Tasks[0].ID+".A.stub-model.1.receipt.json"))
+	if err != nil || json.Unmarshal(b, &r) != nil || r.Status != "done" {
+		t.Errorf("the receipt's status is %q, want done for the stub's claim: %v", r.Status, err)
+	}
+}
+
+// TestTheHarnessVerdictSurvivesTheBudget: an attempt over the budget is
+// unsolved for ADR-156's bar, and keeps what the harness said for ADR-106's
+// rows (ADR-162 Decision 3; Codex's challenge of the record).
+func TestTheHarnessVerdictSurvivesTheBudget(t *testing.T) {
+	v := settle(Verdict{Solved: true}, true, true)
+	if v.Solved || v.HarnessResolved == nil || !*v.HarnessResolved {
+		t.Errorf("over the budget, a resolved SWE attempt became %+v", v)
+	}
+	v = settle(Verdict{Solved: true}, false, true)
+	if !v.Solved || v.HarnessResolved == nil || !*v.HarnessResolved {
+		t.Errorf("within the budget, a resolved SWE attempt became %+v", v)
+	}
+	v = settle(Verdict{Solved: false}, false, true)
+	if v.Solved || v.HarnessResolved == nil || *v.HarnessResolved || v.BrokeTests == nil {
+		t.Errorf("an unresolved SWE attempt became %+v", v)
+	}
+	if v := settle(Verdict{Solved: true}, true, false); v.Solved || v.HarnessResolved != nil || v.BrokeTests != nil {
+		t.Errorf("an own task carries the harness's fields: %+v", v)
 	}
 }

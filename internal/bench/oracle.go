@@ -28,6 +28,11 @@ type Verdict struct {
 	Missing   []string `json:"missing,omitempty"`   // a require not met, or a forbid matched
 	Outside   []string `json:"outside,omitempty"`   // a change outside the allowed regions
 	Structure []string `json:"structure,omitempty"` // a changed file its structural check refuses
+	// For a SWE-bench attempt (ADR-162 Decision 3): the harness's own verdict,
+	// kept when the budget makes Solved false, and whether any PASS_TO_PASS
+	// test failed. Absent for the corpus's own tasks.
+	HarnessResolved *bool `json:"harness_resolved,omitempty"`
+	BrokeTests      *bool `json:"broke_tests,omitempty"`
 }
 
 // Oracle grades the tree at dir, a git work tree whose HEAD is the task's

@@ -99,8 +99,11 @@ deleted.
 ## Receipts: `docs/bench/<date>-<stage>/`
 
 - `run.json` — the plan: stage, tasks, models, configurations, repeats, seed,
-  CLI version, mrw version, containment. A second run with another plan into the
-  same directory is refused.
+  CLI version, mrw version, containment; under ADR-162 also `profile`, `plugin`
+  (`tag`, `commit`), and with `--status-line` `status_line_sha256`, `prompt_sha256`
+  (of `PromptTemplate`, the task's instruction, a blank line, the status sentence) and
+  `budget_seconds`. A second run with another plan into the same directory is
+  refused.
 - `<task>.<config>.<model>.<repeat>.started` — written before the attempt starts.
   An attempt with this file and no receipt crashed or was stopped, and is not run
   again on resume; an interrupt to `bench` leaves the attempt in flight just so,
@@ -113,11 +116,30 @@ deleted.
   `num_turns`, `tool_calls`, `total_cost_usd`, `usage` (`input_tokens`,
   `output_tokens`, `cache_read_input_tokens`, `cache_creation_input_tokens`),
   `init_tools`, `init_mcp_servers`, `oracle` (`solved`, `missing`, `outside`,
-  `structure`), `silent_mis_edit`, `diff` (`files`, `insertions`, `deletions`),
-  `hook_refused`, `hook_reads`, `slipped_writes` (B only), `exclusion`
+  `structure`; for a SWE-bench attempt also `harness_resolved`, the harness's own
+  verdict, kept when the budget makes `solved` false, and `broke_tests`, any
+  PASS_TO_PASS test failing), `silent_mis_edit`, `diff` (`files`, `insertions`, `deletions`),
+  `hook_refused`, `hook_reads`, `slipped_writes` (B only), `plugin` (P only),
+  `status` (`done`, `not done` or `unreadable`, with `--status-line`), `exclusion`
   (`start-error` or `setup`, the registered two), `note`, `check_red_at_base`
   (the task's flag, when it carries one).
 - `….transcript.jsonl`, `….stderr` — what the CLI printed.
+
+**The claim line (ADR-162 Decision 3).** With `--status-line` every instruction
+ends with one sentence, the same in every configuration: "When you have
+finished, end your reply with one line, exactly `STATUS: done` if the task is
+complete, or `STATUS: not done: <reason>` if it is not." The receipt's `status`
+is `done` or `not done` when exactly one line of the final message has that form,
+`unreadable` otherwise; no prose is classified. `bench export-paired` writes
+quality-harness ADR-106's rows for one model and one pair: a `{"config": …}` line
+naming the dataset, split, revision, selection rule and salt, the instance count
+and the SHA-256 of the instance list, `k`, `n`, the model, the CLI, the plugin,
+the scaffold, the prompt's and status sentence's SHA-256, the turn and time
+limits, the scorer's blob sha (`--scorer-sha`, from ADR-106's pre-registration),
+the exporter's revision and the canary's result; then one row per instance, arm
+and repeat — `instance`, `arm`, `repeat`, `status`, `resolved` (the harness's
+own), `brokeTests`, `limit`, `unrun` — a retry chain read from its last try, and
+`unrun` only when every try was excluded.
 - `canary.json` — `pass`, `cli_version`, `model`, `started`, `problems` by
   configuration (and `sentinel`), `total_cost_usd` by configuration.
 
@@ -148,6 +170,7 @@ bench run     --stage S --out DIR --model M --claude PATH --mrw PATH --config-di
               [--configs A,B[,P]] [--profile stage5 [--plugin-dir DIR] [--node PATH]] \
               [--source swe-bench --dataset FILE --swebench-python PATH [--selection FILE] [--docker PATH]]
 bench verify  --stage S --tasks N --repeats R DIR
+bench export-paired --pair X,Y --model M --scorer-sha SHA --selection FILE --canary FILE DIR...
 bench analyze [--tasks-dir DIR] [--selection FILE ...] DIR
 bench swebench-select [--n 20] < instance-ids
 bench swebench-select --dataset FILE --min-hunks N [--exclude FILE] [--salt S] [--n 20]
