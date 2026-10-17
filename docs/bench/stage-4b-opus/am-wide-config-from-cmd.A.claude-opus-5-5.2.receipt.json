@@ -1,0 +1,43 @@
+{
+  "attempt": "am-wide-config-from-cmd.A.claude-opus-5-5.2",
+  "stage": "stage4b",
+  "task": "am-wide-config-from-cmd",
+  "shape": "wide-rename",
+  "source": "own",
+  "model": "claude-opus-5-5",
+  "config": "A",
+  "repeat": 2,
+  "order": 93,
+  "started": "2026-10-16T23:38:30Z",
+  "wall_ms": 33059,
+  "cli_version": "2.1.302 (Claude Code)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 4,
+  "tool_calls": 3,
+  "total_cost_usd": 0.2591736,
+  "usage": {
+    "input_tokens": 8,
+    "output_tokens": 1240,
+    "cache_read_input_tokens": 98348,
+    "cache_creation_input_tokens": 26834
+  },
+  "init_tools": [
+    "Bash",
+    "Edit",
+    "Glob",
+    "Grep",
+    "Read",
+    "Write"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": true
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 17,
+    "insertions": 25,
+    "deletions": 25
+  }
+}

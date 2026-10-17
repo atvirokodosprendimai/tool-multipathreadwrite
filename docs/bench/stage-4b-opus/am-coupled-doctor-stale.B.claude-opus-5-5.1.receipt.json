@@ -1,0 +1,41 @@
+{
+  "attempt": "am-coupled-doctor-stale.B.claude-opus-5-5.1",
+  "stage": "stage4b",
+  "task": "am-coupled-doctor-stale",
+  "shape": "check-coupled",
+  "source": "own",
+  "model": "claude-opus-5-5",
+  "config": "B",
+  "repeat": 1,
+  "order": 78,
+  "started": "2026-10-16T23:25:01Z",
+  "wall_ms": 49202,
+  "cli_version": "2.1.302 (Claude Code)",
+  "mrw_version": "v1.68.0 (975c3ba)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 5,
+  "tool_calls": 4,
+  "total_cost_usd": 0.30953800000000004,
+  "usage": {
+    "input_tokens": 10,
+    "output_tokens": 1800,
+    "cache_read_input_tokens": 144890,
+    "cache_creation_input_tokens": 30565
+  },
+  "init_tools": [
+    "Bash",
+    "Glob"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": true
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 3,
+    "insertions": 6,
+    "deletions": 6
+  },
+  "hook_reads": 2
+}

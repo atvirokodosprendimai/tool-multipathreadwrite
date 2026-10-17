@@ -1,0 +1,42 @@
+{
+  "attempt": "sympy__sympy-13878.B.claude-sonnet-5-5.1",
+  "stage": "stage-4b-swe",
+  "task": "sympy__sympy-13878",
+  "shape": "swe-bench",
+  "source": "swe-bench",
+  "model": "claude-sonnet-5-5",
+  "config": "B",
+  "repeat": 1,
+  "order": 51,
+  "started": "2026-10-17T01:29:14Z",
+  "wall_ms": 52875,
+  "cli_version": "2.1.302 (Claude Code)",
+  "mrw_version": "v1.68.0 (975c3ba)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 10,
+  "tool_calls": 9,
+  "total_cost_usd": 0.1684812,
+  "usage": {
+    "input_tokens": 20,
+    "output_tokens": 7793,
+    "cache_read_input_tokens": 174672,
+    "cache_creation_input_tokens": 18261
+  },
+  "init_tools": [
+    "Bash",
+    "Glob"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": true
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 1,
+    "insertions": 69,
+    "deletions": 0
+  },
+  "hook_refused": 1,
+  "hook_reads": 5
+}

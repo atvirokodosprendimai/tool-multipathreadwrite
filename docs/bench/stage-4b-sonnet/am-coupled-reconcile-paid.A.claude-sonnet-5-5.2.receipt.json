@@ -1,0 +1,43 @@
+{
+  "attempt": "am-coupled-reconcile-paid.A.claude-sonnet-5-5.2",
+  "stage": "stage4b",
+  "task": "am-coupled-reconcile-paid",
+  "shape": "check-coupled",
+  "source": "own",
+  "model": "claude-sonnet-5-5",
+  "config": "A",
+  "repeat": 2,
+  "order": 58,
+  "started": "2026-10-16T22:07:38Z",
+  "wall_ms": 16664,
+  "cli_version": "2.1.302 (Claude Code)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 6,
+  "tool_calls": 5,
+  "total_cost_usd": 0.142319,
+  "usage": {
+    "input_tokens": 10,
+    "output_tokens": 1554,
+    "cache_read_input_tokens": 131310,
+    "cache_creation_input_tokens": 28407
+  },
+  "init_tools": [
+    "Bash",
+    "Edit",
+    "Glob",
+    "Grep",
+    "Read",
+    "Write"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": true
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 1,
+    "insertions": 8,
+    "deletions": 1
+  }
+}

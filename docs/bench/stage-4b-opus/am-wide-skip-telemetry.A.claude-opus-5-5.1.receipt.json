@@ -1,0 +1,43 @@
+{
+  "attempt": "am-wide-skip-telemetry.A.claude-opus-5-5.1",
+  "stage": "stage4b",
+  "task": "am-wide-skip-telemetry",
+  "shape": "wide-rename",
+  "source": "own",
+  "model": "claude-opus-5-5",
+  "config": "A",
+  "repeat": 1,
+  "order": 57,
+  "started": "2026-10-16T23:09:40Z",
+  "wall_ms": 42162,
+  "cli_version": "2.1.302 (Claude Code)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 5,
+  "tool_calls": 4,
+  "total_cost_usd": 0.29682860000000005,
+  "usage": {
+    "input_tokens": 10,
+    "output_tokens": 1389,
+    "cache_read_input_tokens": 137643,
+    "cache_creation_input_tokens": 30185
+  },
+  "init_tools": [
+    "Bash",
+    "Edit",
+    "Glob",
+    "Grep",
+    "Read",
+    "Write"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": true
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 15,
+    "insertions": 32,
+    "deletions": 32
+  }
+}

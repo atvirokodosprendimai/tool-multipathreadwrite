@@ -1,0 +1,41 @@
+{
+  "attempt": "am-coupled-skills-teamid.B.claude-sonnet-5-5.2",
+  "stage": "stage4b",
+  "task": "am-coupled-skills-teamid",
+  "shape": "check-coupled",
+  "source": "own",
+  "model": "claude-sonnet-5-5",
+  "config": "B",
+  "repeat": 2,
+  "order": 81,
+  "started": "2026-10-16T22:19:19Z",
+  "wall_ms": 45387,
+  "cli_version": "2.1.302 (Claude Code)",
+  "mrw_version": "v1.68.0 (975c3ba)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 5,
+  "tool_calls": 4,
+  "total_cost_usd": 0.14041019999999999,
+  "usage": {
+    "input_tokens": 10,
+    "output_tokens": 1455,
+    "cache_read_input_tokens": 135842,
+    "cache_creation_input_tokens": 28064
+  },
+  "init_tools": [
+    "Bash",
+    "Glob"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": true
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 6,
+    "insertions": 36,
+    "deletions": 36
+  },
+  "hook_reads": 1
+}

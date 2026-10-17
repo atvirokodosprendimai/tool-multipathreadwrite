@@ -1,0 +1,47 @@
+{
+  "attempt": "am-coupled-trace-am-rerank-timeout.A.claude-sonnet-5-5.2",
+  "stage": "stage4b",
+  "task": "am-coupled-trace-am-rerank-timeout",
+  "shape": "check-coupled",
+  "source": "own",
+  "model": "claude-sonnet-5-5",
+  "config": "A",
+  "repeat": 2,
+  "order": 52,
+  "started": "2026-10-16T22:05:12Z",
+  "wall_ms": 55413,
+  "cli_version": "2.1.302 (Claude Code)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 5,
+  "tool_calls": 4,
+  "total_cost_usd": 0.1264584,
+  "usage": {
+    "input_tokens": 10,
+    "output_tokens": 1108,
+    "cache_read_input_tokens": 127304,
+    "cache_creation_input_tokens": 25657
+  },
+  "init_tools": [
+    "Bash",
+    "Edit",
+    "Glob",
+    "Grep",
+    "Read",
+    "Write"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": false,
+    "outside": [
+      "docker-compose.full.yml: a file outside the package whose tests grade the task",
+      "docs/adr/ADR-034-a-degraded-ranking-you-can-count.md: a file outside the package whose tests grade the task"
+    ]
+  },
+  "silent_mis_edit": true,
+  "diff": {
+    "files": 5,
+    "insertions": 7,
+    "deletions": 7
+  }
+}

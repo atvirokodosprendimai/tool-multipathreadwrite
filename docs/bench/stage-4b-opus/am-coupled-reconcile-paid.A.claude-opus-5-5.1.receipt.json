@@ -1,0 +1,47 @@
+{
+  "attempt": "am-coupled-reconcile-paid.A.claude-opus-5-5.1",
+  "stage": "stage4b",
+  "task": "am-coupled-reconcile-paid",
+  "shape": "check-coupled",
+  "source": "own",
+  "model": "claude-opus-5-5",
+  "config": "A",
+  "repeat": 1,
+  "order": 45,
+  "started": "2026-10-16T23:02:26Z",
+  "wall_ms": 16823,
+  "cli_version": "2.1.302 (Claude Code)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 3,
+  "tool_calls": 2,
+  "total_cost_usd": 0.3041854,
+  "usage": {
+    "input_tokens": 6,
+    "output_tokens": 1349,
+    "cache_read_input_tokens": 72227,
+    "cache_creation_input_tokens": 32842
+  },
+  "init_tools": [
+    "Bash",
+    "Edit",
+    "Glob",
+    "Grep",
+    "Read",
+    "Write"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": false,
+    "missing": [
+      "internal/billing/reconcile.go: no match for \"pAID\"",
+      "internal/billing/reconcile.go: still matches \"PAID\""
+    ]
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 0,
+    "insertions": 0,
+    "deletions": 0
+  }
+}

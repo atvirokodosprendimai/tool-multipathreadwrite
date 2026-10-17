@@ -1,0 +1,44 @@
+{
+  "attempt": "qh-json-keyword.A.claude-sonnet-5-5.2",
+  "stage": "stage4b",
+  "task": "qh-json-keyword",
+  "shape": "single-line",
+  "source": "own",
+  "model": "claude-sonnet-5-5",
+  "config": "A",
+  "repeat": 2,
+  "order": 53,
+  "started": "2026-10-16T22:06:08Z",
+  "wall_ms": 10516,
+  "cli_version": "2.1.302 (Claude Code)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 4,
+  "tool_calls": 3,
+  "total_cost_usd": 0.059912599999999996,
+  "usage": {
+    "input_tokens": 8,
+    "output_tokens": 718,
+    "cache_read_input_tokens": 56046,
+    "cache_creation_input_tokens": 11778
+  },
+  "init_tools": [
+    "Bash",
+    "Edit",
+    "Glob",
+    "Grep",
+    "Read",
+    "Write"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": true
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 1,
+    "insertions": 1,
+    "deletions": 1
+  },
+  "check_red_at_base": true
+}

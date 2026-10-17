@@ -1,0 +1,41 @@
+{
+  "attempt": "astropy__astropy-8707.B.claude-sonnet-5-5.1",
+  "stage": "stage-4b-swe",
+  "task": "astropy__astropy-8707",
+  "shape": "swe-bench",
+  "source": "swe-bench",
+  "model": "claude-sonnet-5-5",
+  "config": "B",
+  "repeat": 1,
+  "order": 4,
+  "started": "2026-10-16T23:46:48Z",
+  "wall_ms": 17873,
+  "cli_version": "2.1.302 (Claude Code)",
+  "mrw_version": "v1.68.0 (975c3ba)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 6,
+  "tool_calls": 5,
+  "total_cost_usd": 0.0520217,
+  "usage": {
+    "input_tokens": 12,
+    "output_tokens": 1682,
+    "cache_read_input_tokens": 65297,
+    "cache_creation_input_tokens": 7162
+  },
+  "init_tools": [
+    "Bash",
+    "Glob"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": true
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 2,
+    "insertions": 10,
+    "deletions": 4
+  },
+  "hook_reads": 3
+}

@@ -1,0 +1,46 @@
+{
+  "attempt": "am-wide-search-query.A.claude-opus-5-5.2",
+  "stage": "stage4b",
+  "task": "am-wide-search-query",
+  "shape": "wide-rename",
+  "source": "own",
+  "model": "claude-opus-5-5",
+  "config": "A",
+  "repeat": 2,
+  "order": 40,
+  "started": "2026-10-16T22:58:54Z",
+  "wall_ms": 102881,
+  "cli_version": "2.1.302 (Claude Code)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 9,
+  "tool_calls": 8,
+  "total_cost_usd": 0.3646278,
+  "usage": {
+    "input_tokens": 18,
+    "output_tokens": 2512,
+    "cache_read_input_tokens": 283139,
+    "cache_creation_input_tokens": 32211
+  },
+  "init_tools": [
+    "Bash",
+    "Edit",
+    "Glob",
+    "Grep",
+    "Read",
+    "Write"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": false,
+    "outside": [
+      "docs/evidence/search-path-variable-map.md: a file the task does not touch"
+    ]
+  },
+  "silent_mis_edit": true,
+  "diff": {
+    "files": 34,
+    "insertions": 121,
+    "deletions": 121
+  }
+}

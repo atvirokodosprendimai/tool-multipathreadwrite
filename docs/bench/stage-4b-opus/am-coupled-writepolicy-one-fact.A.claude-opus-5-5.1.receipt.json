@@ -1,0 +1,43 @@
+{
+  "attempt": "am-coupled-writepolicy-one-fact.A.claude-opus-5-5.1",
+  "stage": "stage4b",
+  "task": "am-coupled-writepolicy-one-fact",
+  "shape": "check-coupled",
+  "source": "own",
+  "model": "claude-opus-5-5",
+  "config": "A",
+  "repeat": 1,
+  "order": 70,
+  "started": "2026-10-16T23:18:25Z",
+  "wall_ms": 71679,
+  "cli_version": "2.1.302 (Claude Code)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 7,
+  "tool_calls": 6,
+  "total_cost_usd": 0.3353914,
+  "usage": {
+    "input_tokens": 14,
+    "output_tokens": 2580,
+    "cache_read_input_tokens": 203117,
+    "cache_creation_input_tokens": 30389
+  },
+  "init_tools": [
+    "Bash",
+    "Edit",
+    "Glob",
+    "Grep",
+    "Read",
+    "Write"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": true
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 3,
+    "insertions": 4,
+    "deletions": 4
+  }
+}

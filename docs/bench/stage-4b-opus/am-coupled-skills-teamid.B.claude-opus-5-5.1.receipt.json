@@ -1,0 +1,44 @@
+{
+  "attempt": "am-coupled-skills-teamid.B.claude-opus-5-5.1",
+  "stage": "stage4b",
+  "task": "am-coupled-skills-teamid",
+  "shape": "check-coupled",
+  "source": "own",
+  "model": "claude-opus-5-5",
+  "config": "B",
+  "repeat": 1,
+  "order": 86,
+  "started": "2026-10-16T23:35:17Z",
+  "wall_ms": 24714,
+  "cli_version": "2.1.302 (Claude Code)",
+  "mrw_version": "v1.68.0 (975c3ba)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 4,
+  "tool_calls": 3,
+  "total_cost_usd": 0.27923000000000003,
+  "usage": {
+    "input_tokens": 8,
+    "output_tokens": 1495,
+    "cache_read_input_tokens": 102290,
+    "cache_creation_input_tokens": 28605
+  },
+  "init_tools": [
+    "Bash",
+    "Glob"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": false,
+    "missing": [
+      "internal/web/skills.go: no match for \"TeamID\"",
+      "internal/web/skills.go: still matches \"teamID\""
+    ]
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 0,
+    "insertions": 0,
+    "deletions": 0
+  }
+}

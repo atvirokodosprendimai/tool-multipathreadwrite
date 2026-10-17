@@ -1,0 +1,42 @@
+{
+  "attempt": "pylint-dev__pylint-6528.B.claude-opus-5-5.1",
+  "stage": "stage-4b-swe",
+  "task": "pylint-dev__pylint-6528",
+  "shape": "swe-bench",
+  "source": "swe-bench",
+  "model": "claude-opus-5-5",
+  "config": "B",
+  "repeat": 1,
+  "order": 59,
+  "started": "2026-10-17T01:43:10Z",
+  "wall_ms": 77820,
+  "cli_version": "2.1.302 (Claude Code)",
+  "mrw_version": "v1.68.0 (975c3ba)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 15,
+  "tool_calls": 14,
+  "total_cost_usd": 0.2896496,
+  "usage": {
+    "input_tokens": 30,
+    "output_tokens": 6163,
+    "cache_read_input_tokens": 233628,
+    "cache_creation_input_tokens": 14943
+  },
+  "init_tools": [
+    "Bash",
+    "Glob"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": false
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 5,
+    "insertions": 44,
+    "deletions": 3
+  },
+  "hook_refused": 3,
+  "hook_reads": 1
+}

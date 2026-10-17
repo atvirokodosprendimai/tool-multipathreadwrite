@@ -1,0 +1,41 @@
+{
+  "attempt": "am-wide-data-flags.B.claude-opus-5-5.2",
+  "stage": "stage4b",
+  "task": "am-wide-data-flags",
+  "shape": "wide-rename",
+  "source": "own",
+  "model": "claude-opus-5-5",
+  "config": "B",
+  "repeat": 2,
+  "order": 49,
+  "started": "2026-10-16T23:04:15Z",
+  "wall_ms": 43355,
+  "cli_version": "2.1.302 (Claude Code)",
+  "mrw_version": "v1.68.0 (975c3ba)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 4,
+  "tool_calls": 3,
+  "total_cost_usd": 0.258065,
+  "usage": {
+    "input_tokens": 8,
+    "output_tokens": 948,
+    "cache_read_input_tokens": 102445,
+    "cache_creation_input_tokens": 27323
+  },
+  "init_tools": [
+    "Bash",
+    "Glob"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": true
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 16,
+    "insertions": 26,
+    "deletions": 26
+  },
+  "hook_reads": 4
+}
