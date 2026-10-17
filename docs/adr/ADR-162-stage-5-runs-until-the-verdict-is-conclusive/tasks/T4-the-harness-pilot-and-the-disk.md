@@ -18,7 +18,7 @@ Before any counted attempt: see two instances run in A, B and P on both models, 
 
 | File | Change | Why |
 |------|--------|-----|
-| `docs/bench/stage-5-pilot/` | add | the pilot's receipts, `run.json`, `canary.json`, stage `pilot-5` (never counted) |
+| `docs/bench/stage-5-pilot/` | add | the pilot's receipts, `run.json`, one canary per model (`canary.json`, the one the run named, and `canary-opus-5-5.json`), stage `pilot-5` (never counted) |
 
 ## Ordered Steps
 
@@ -39,10 +39,10 @@ Before any counted attempt: see two instances run in A, B and P on both models, 
 set -o pipefail
 R=docs/bench/stage-5-pilot
 go run ./cmd/bench verify --stage pilot-5 --tasks 2 --repeats 1 $R \
-  && jq -e '.pass == true' $R/canary.json > /dev/null \
+  && jq -e -s 'length == 2 and all(.[]; .pass == true) and (map(.model) | sort) == ["claude-opus-5-5","claude-sonnet-5-5"]' $R/canary*.json > /dev/null \
   && jq -e '(.configs | sort) == ["A","B","P"] and (.models | length) == 2 and .profile == "stage5" and (.plugin.tag | test("^v[0-9]")) and (.plugin.commit | test("^[0-9a-f]{40}$")) and (.status_line_sha256 | test("^[0-9a-f]{64}$"))' $R/run.json > /dev/null \
-  && jq -e -s 'map(select(.exclusion == null)) | length >= 12 and all(.[]; (.status | IN("done","not done","unreadable")) and (.oracle.broke_tests | type) == "boolean" and (.oracle.harness_resolved | type) == "boolean" and ((.config == "P") == (.plugin != null)))' $R/*.receipt.json > /dev/null \
-  && for m in claude-sonnet-5-5 claude-opus-5-5; do go run ./cmd/bench export-paired --pair A,P --model $m --scorer-sha pilot-before-the-scorer --selection bench/swe-bench/selection-adr-160.json --canary $R/canary.json $R | jq -e -s '(.[0] | has("config")) and length == 5' > /dev/null || exit 1; done
+  && jq -e -s --slurpfile run $R/run.json 'map(select(.exclusion == null)) | length >= 12 and all(.[]; .stage == "pilot-5" and (.status | IN("done","not done","unreadable")) and (.oracle.broke_tests | type) == "boolean" and (.oracle.harness_resolved | type) == "boolean" and ((.config == "P") == (.plugin != null)) and (.plugin == null or .plugin == $run[0].plugin))' $R/*.receipt.json > /dev/null \
+  && for m in claude-sonnet-5-5 claude-opus-5-5; do c=$(for f in $R/canary*.json; do jq -e --arg m $m '.model == $m' $f > /dev/null && echo $f; done); [ -n "$c" ] || exit 1; go run ./cmd/bench export-paired --pair A,P --model $m --scorer-sha pilot-before-the-scorer --selection bench/swe-bench/selection-adr-160.json --canary $c $R | jq -e -s --arg m $m '.[0].config.model == $m and .[0].config.canary.model == $m and .[0].config.canary.pass == true and length == 5' > /dev/null || exit 1; done
 ```
 
 ## Tests
@@ -63,6 +63,9 @@ go run ./cmd/bench verify --stage pilot-5 --tasks 2 --repeats 1 $R \
 ## Mutation Log
 (empty until execute)
 - 2026-10-17 · 8b435f8f* · mutant killed · exit 1 · `docs/bench/stage-5-pilot/astropy__astropy-8707.P.claude-opus-5-5.1.receipt.json` · claim field: a receipt whose STATUS is outside done/not done/unreadable is caught · acceptance-sha256:4a407a7842e63fb2cebad69aad15c58ad89131621ab880eb410fdbbf640df236
+- 2026-10-17 · c1ab35bb* · mutant killed · exit 1 · `docs/bench/stage-5-pilot/canary-opus-5-5.json` · per-model canary: a missing Opus canary (Sonnet twice) is caught · acceptance-sha256:ada178dd20c0b26458605f839cc01d2bf143f7cbbffa2b60fe4fff245ccffbb4
+- 2026-10-17 · c1ab35bb* · mutant killed · exit 1 · `docs/bench/stage-5-pilot/scikit-learn__scikit-learn-25973.A.claude-sonnet-5-5.1.receipt.json` · receipt provenance: a receipt from another stage under this run.json is caught · acceptance-sha256:ada178dd20c0b26458605f839cc01d2bf143f7cbbffa2b60fe4fff245ccffbb4
+- 2026-10-17 · c1ab35bb* · mutant killed · exit 1 · `docs/bench/stage-5-pilot/scikit-learn__scikit-learn-25973.P.claude-sonnet-5-5.1.receipt.json` · receipt provenance: a P receipt from another plugin commit is caught · acceptance-sha256:ada178dd20c0b26458605f839cc01d2bf143f7cbbffa2b60fe4fff245ccffbb4
 
 ## Invariants
 
@@ -93,3 +96,7 @@ The fence exits 0 and S3's sign-off is recorded; or P's canary fails, or a synce
 - 2026-10-17 · human-observed · S3 observed and approved by the executor, 2026-10-17. Disk (Docker Data volume): 6 GiB free before the prune; 144 GiB after docker image prune -a and the Go build-cache clear Zy approved; 142 GiB after the pilot. Canary: pass for claude-sonnet-5-5 and claude-opus-5-5, configs A, B, P, profile stage5. P transcript (astropy__astropy-8707.P.claude-opus-5-5.1) read through: init lists the 17 quality-harness skills plus the built-ins design and doctor, one plugin (quality-harness 3.8.40, inline, the pinned worktree), no MCP server; the plugin's hooks answered on SessionStart, UserPromptSubmit, PreToolUse and PostToolUse and Stop; no synced skill or plugin appears. Time: 12 attempts from 11:02:36Z to 11:16:07Z, 68 s each with grading; mean agent wall 36 s (A 31, B 28, P 50). Export: bench export-paired --pair A,P writes the config line and 4 rows per model, and ADR-106's scorer --plan reads both. Observed as well: the checkouts hold no test dependencies (numpy, pytest, built extensions), so the claim line read done on 5 of 12 attempts while all 12 resolved (A 1 of 4, B 4 of 4, P 0 of 4); Zy chose on 2026-10-17 to proceed as designed.
 - 2026-10-17 · human-observed · S3 approved: the sign-off above is the executor's observation, and the hook name it lists last is the session-end hook event, not a verdict. The pilot is signed off.
 - 2026-10-17 · 8b435f8f* · exit 0 · `set -o pipefail …` · acceptance-sha256:4a407a7842e63fb2cebad69aad15c58ad89131621ab880eb410fdbbf640df236 · ms:987
+- 2026-10-17 · c1ab35bb* · exit 0 · `set -o pipefail …` · acceptance-sha256:ada178dd20c0b26458605f839cc01d2bf143f7cbbffa2b60fe4fff245ccffbb4 · ms:380
+- 2026-10-17 · c1ab35bb* · exit 0 · `set -o pipefail …` · acceptance-sha256:ada178dd20c0b26458605f839cc01d2bf143f7cbbffa2b60fe4fff245ccffbb4 · ms:1276
+- 2026-10-17 · c1ab35bb* · exit 0 · `set -o pipefail …` · acceptance-sha256:ada178dd20c0b26458605f839cc01d2bf143f7cbbffa2b60fe4fff245ccffbb4 · ms:1225
+- 2026-10-17 · c1ab35bb* · exit 0 · `set -o pipefail …` · acceptance-sha256:ada178dd20c0b26458605f839cc01d2bf143f7cbbffa2b60fe4fff245ccffbb4 · ms:1266
