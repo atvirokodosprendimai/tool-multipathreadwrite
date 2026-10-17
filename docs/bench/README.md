@@ -160,6 +160,28 @@ not a leak; the canary does not check them. What they could carry in is what
 the canary does check — no CLAUDE.md text, no hook output, no MCP server, and the
 task tree's own instruction files without a line that names mrw, `AGENTS.md` included.
 
+## Stage 5: blocks and looks (ADR-162)
+
+The pool is `bench/swe-bench/selection-adr-162.json`: the 191 SWE-bench Verified instances with 2 or more hunks
+less the 40 Stages 3 and 4b used, in `sha256("adr-162:" + id)` order, with the 31 that have 5 or more as a
+descriptive subset; `bench swebench-select` regenerates it byte for byte. A block is 40 of them in that order
+(`--block K`; the fifth block the remaining 31), run into `docs/bench/stage-5/block-K/` with its own `run.json`
+naming the block and the five looks. A model's configurations come from `--configs-for MODEL=…`, as `bench look`
+printed after the last block; a block whose CLI differs from block 1's is refused, since an upgrade starts a new
+stage. Three start errors in a row stop the run, exit 2, resumable, rather than spending its retries on an
+outage; with `--disk-floor N --disk-path P` no attempt starts below N GiB free on P, exit 2, resumable.
+
+`bench look docs/bench/stage-5` reads the blocks and applies the stop rule. Each model's comparisons with A (B,
+and P) are read at 99% — 1 − 0.05/5, a nominal Bonferroni allocation over the five looks — the cost by the
+percentile bootstrap and the solved difference by Tango's score interval, which does not collapse to [0, 0] when
+no instance is discordant. A look is eligible when every scheduled attempt has a receipt (with the replacements
+owed), at most 5% of the instances are excluded in either configuration, and at least 95% are paired. A
+comparison closes at its first eligible PAYS or LOSES, and its configuration is not run again for that model; a
+model whose comparisons are both closed runs no more blocks; a block holding a configuration the rule did not
+schedule is refused. It exits 0 when the stage is complete — after the fifth look, or when no model runs on — and
+1 when a block is due, naming each model's next configurations. `bench analyze` prints a Stage 5 directory in a
+table of its own, each verdict with the look it closed at, and leaves it out of the 95% table.
+
 ## Commands
 
 ```
@@ -168,12 +190,15 @@ bench canary  --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --co
 bench run     --stage S --out DIR --model M --claude PATH --mrw PATH --config-dir DIR \
               --containment bypass --canary DIR/canary.json [--task ID ...] [--repeats 2] \
               [--configs A,B[,P]] [--profile stage5 [--plugin-dir DIR] [--node PATH]] \
+              [--status-line] [--block K [--configs-for MODEL=A,B,P ...]] [--disk-path PATH --disk-floor GiB] \
               [--source swe-bench --dataset FILE --swebench-python PATH [--selection FILE] [--docker PATH]]
+bench look    DIR
 bench verify  --stage S --tasks N --repeats R DIR
 bench export-paired --pair X,Y --model M --scorer-sha SHA --selection FILE --canary FILE DIR...
 bench analyze [--tasks-dir DIR] [--selection FILE ...] DIR
 bench swebench-select [--n 20] < instance-ids
-bench swebench-select --dataset FILE --min-hunks N [--exclude FILE] [--salt S] [--n 20]
+bench swebench-select --dataset FILE --min-hunks N [--exclude FILE ...] [--salt S] [--n 20] \
+              [--subset-min-hunks N] [--no-unnamed] [--name D --revision R --split S]
 bench mine    --kind wide-rename|check-coupled --repo DIR --commit SHA [--n N] [--min-occurrences 15 --min-files 8] [--min-test-files 1]
 ```
 

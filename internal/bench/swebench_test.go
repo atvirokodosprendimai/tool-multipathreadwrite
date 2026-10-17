@@ -506,3 +506,63 @@ func TestABrokenPassToPassTestIsRecorded(t *testing.T) {
 		t.Error("a report that does not name the instance was read")
 	}
 }
+
+// TestTheStage5PoolIsTheSaltedTwoHunkSetLessEarlierSlices holds ADR-162
+// Decision 4: every instance with 2 or more hunks, less two exclusion files'
+// ids, ordered by sha256("adr-162:" + id), with the 5-or-more-hunk subset
+// beside it; Stages 3's and 4's rules are unchanged by it.
+func TestTheStage5PoolIsTheSaltedTwoHunkSetLessEarlierSlices(t *testing.T) {
+	patch := func(hunks int) string {
+		s := "diff --git a/m.py b/m.py\n--- a/m.py\n+++ b/m.py\n"
+		for i := range hunks {
+			s += fmt.Sprintf("@@ -%d,1 +%d,1 @@\n-x\n+y\n", i*10+1, i*10+1)
+		}
+		return s
+	}
+	type row struct {
+		ID      string `json:"instance_id"`
+		Patch   string `json:"patch"`
+		Problem string `json:"problem_statement"`
+	}
+	var rows []row
+	hunksOf := map[string]int{}
+	for i := range 30 {
+		id := fmt.Sprintf("org__repo-%d", 3000+i)
+		hunksOf[id] = 1 + i%6
+		rows = append(rows, row{id, patch(hunksOf[id]), "something is wrong"})
+	}
+	ds := filepath.Join(t.TempDir(), "ds.json")
+	b, err := json.Marshal(rows)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(ds, b, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	first, second := []string{"org__repo-3001", "org__repo-3003"}, []string{"org__repo-3005"}
+	got, err := SelectMultiHunk(ds, "adr-162:", 2, append(slices.Clone(first), second...), 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var eligible []string
+	for _, r := range rows {
+		if hunksOf[r.ID] >= 2 && !slices.Contains(first, r.ID) && !slices.Contains(second, r.ID) {
+			eligible = append(eligible, r.ID)
+		}
+	}
+	if want := SelectSWEBenchSalted(eligible, 100, "adr-162:"); !slices.Equal(got.Selected, want) {
+		t.Fatalf("selected %v, want every eligible id in adr-162: order %v", got.Selected, want)
+	}
+	five, err := HunkSubset(ds, got.Selected, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range got.Selected {
+		if slices.Contains(five, id) != (hunksOf[id] >= 5) {
+			t.Errorf("%s with %d hunks: in the 5+ subset %v", id, hunksOf[id], slices.Contains(five, id))
+		}
+	}
+	if !slices.IsSortedFunc(five, func(a, b string) int { return slices.Index(got.Selected, a) - slices.Index(got.Selected, b) }) {
+		t.Errorf("the subset %v is not in the pool's order", five)
+	}
+}

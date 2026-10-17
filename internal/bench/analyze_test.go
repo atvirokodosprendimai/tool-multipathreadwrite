@@ -407,3 +407,44 @@ func TestAnalyzePrintsAStage4CategoryRow(t *testing.T) {
 		t.Errorf("the first row is descriptive (%q); the verdict comes first", got[0].Descriptive)
 	}
 }
+
+// TestAnalyzePrintsPAgainstA: a stage that ran P gets P against A by the same
+// rule as B against A, never P against B, and P's silent mis-edits count in
+// its own row (ADR-162 Decision 6).
+func TestAnalyzePrintsPAgainstA(t *testing.T) {
+	rs := receiptsFor("m", "own", repeat(1.0, 10), repeat(0.5, 10), repeat(true, 10), repeat(true, 10))
+	for i := range 10 {
+		c := 2.0
+		rs = append(rs, Receipt{Task: taskName(i), Source: "own", Model: "m", Config: "P", Repeat: 1, CostUSD: &c, Oracle: Verdict{Solved: true}, SilentMisEdit: i == 0})
+	}
+	results, err := Analyze(rs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var b, p *Result
+	for i := range results {
+		if results[i].Descriptive != "" {
+			continue
+		}
+		switch results[i].Comparison {
+		case "B":
+			b = &results[i]
+		case "P":
+			p = &results[i]
+		default:
+			t.Errorf("a row compares %q", results[i].Comparison)
+		}
+	}
+	if b == nil || p == nil {
+		t.Fatalf("rows %+v, want B against A and P against A", results)
+	}
+	if b.RelCost > -0.49 || p.RelCost < 0.99 || p.Verdict != "LOSES" {
+		t.Errorf("B against A %+v, P against A %+v: P is not compared with A", b, p)
+	}
+	if b.SilentB != 0 || p.SilentB != 1 {
+		t.Errorf("P's silent mis-edit counted in B's row (%d) or missing from P's (%d)", b.SilentB, p.SilentB)
+	}
+	if b.Level != 0.95 || p.Level != 0.95 {
+		t.Errorf("a stage without looks reads %v and %v, want 95%%", b.Level, p.Level)
+	}
+}

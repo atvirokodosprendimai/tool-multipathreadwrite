@@ -34,7 +34,7 @@ README must be regenerated.
 |----|-------|--------|--------|------------|
 | T1 | configuration P and the Stage 5 profile | done | — | `go test ./internal/bench/ -run '^(TestConfigurationP…)$'` |
 | T2 | the claim line, the harness's own result, and ADR-106's paired rows | done | — | `go test ./internal/bench/ -run '^(TestTheStatusLine…)$'` |
-| T3 | the pool, the blocks and the looks | pending | — | `go test ./internal/bench/ -run '^(TestTheStage5Pool…)$'` |
+| T3 | the pool, the blocks and the looks | done | — | `go test ./internal/bench/ -run '^(TestTheStage5Pool…)$'` |
 | T4 | the harness pilot, and room on the disk | pending | — | `go run ./cmd/bench verify --stage pilot-5 …` |
 | T5 | ADR-106 amended, then Stage 5 block by block | pending | — | `go run ./cmd/bench look docs/bench/stage-5 …` |
 | T6 | Stage 5's verdicts and the rows handed to quality-harness | pending | — | `go run ./cmd/bench analyze --selection … docs/bench …` |

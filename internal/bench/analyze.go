@@ -2,6 +2,7 @@ package bench
 
 import (
 	"fmt"
+	"math"
 	"math/rand"
 	"slices"
 	"sort"
@@ -33,6 +34,13 @@ type Result struct {
 	// Descriptive is empty on the verdict. On a second row it names what was
 	// left out; that row is not a verdict of the registered bar (ADR-156 T6 S5).
 	Descriptive string `json:"descriptive,omitempty"`
+	// Comparison is the configuration compared with A: "B" (mrw) or "P" (the
+	// quality-harness plugin, ADR-162). Level is the interval's level: 0.95
+	// for ADR-156's bar, 1 − 0.05/5 at an ADR-162 look; Look is the look a
+	// Stage 5 verdict was read at.
+	Comparison string  `json:"comparison"`
+	Level      float64 `json:"level"`
+	Look       int     `json:"look,omitempty"`
 }
 
 // The bootstrap the registration fixes, and the tolerance a boundary of the
@@ -107,6 +115,15 @@ func AnalyzeSubsets(rs []Receipt, superseded []string, subsets []Subset) ([]Resu
 			return nil, err
 		}
 		out = append(out, res)
+		// A stage that ran P gets P against A by the same rule, never P
+		// against B (ADR-162 Decision 6).
+		if slices.ContainsFunc(g, func(r Receipt) bool { return r.Config == "P" }) {
+			p, err := judgeWith(k.stage, k.model, k.source, g, "P", 0.95, false)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, p)
+		}
 		// One descriptive row beside the verdict, without the tasks whose own
 		// check was measured red at base (Zy, 2026-10-14): it shows how much of
 		// the verdict those tasks carry, and is never the verdict itself.
@@ -199,7 +216,10 @@ func AnalyzeSubsets(rs []Receipt, superseded []string, subsets []Subset) ([]Resu
 		if out[i].Source != out[j].Source {
 			return out[i].Source < out[j].Source
 		}
-		return out[i].Descriptive < out[j].Descriptive
+		if out[i].Descriptive != out[j].Descriptive {
+			return out[i].Descriptive < out[j].Descriptive
+		}
+		return out[i].Comparison < out[j].Comparison
 	})
 	return out, nil
 }
@@ -217,15 +237,28 @@ const onlyVariedMultiSite = "only the varied-multi-site tasks; descriptive, not 
 const withoutSupersededSince = "without the tasks superseded after the stage ran; registered after it ran, descriptive, not the verdict"
 
 // judge computes one row of the registered bar from one model's and one task
-// source's receipts.
+// source's receipts: B against A at 95%, ADR-156's bar.
 func judge(stage, model, source string, g []Receipt) (Result, error) {
-	res := Result{Stage: stage, Model: model, Source: source, Attempts: len(g)}
+	return judgeWith(stage, model, source, g, "B", 0.95, false)
+}
+
+// judgeWith is judge for any configuration against A, at any interval level.
+// With tango set, the solved interval is Tango's score interval for a paired
+// difference of proportions, which needs one attempt per instance and
+// configuration; the cost interval stays the percentile bootstrap (ADR-162
+// Decision 5).
+func judgeWith(stage, model, source string, g []Receipt, second string, level float64, tango bool) (Result, error) {
+	res := Result{Stage: stage, Model: model, Source: source, Comparison: second, Level: level}
 	type side struct {
 		cost         float64
 		solved, runs int
 	}
 	perTask := map[string]map[string]*side{}
 	for _, r := range g {
+		if r.Config != "A" && r.Config != second {
+			continue
+		}
+		res.Attempts++
 		if r.Exclusion != "" {
 			res.Excluded++
 			continue
@@ -265,10 +298,13 @@ func judge(stage, model, source string, g []Receipt) (Result, error) {
 	sort.Strings(tasks)
 	var rel, diff []float64
 	for _, t := range tasks {
-		a, b := perTask[t]["A"], perTask[t]["B"]
+		a, b := perTask[t]["A"], perTask[t][second]
 		if a == nil || b == nil {
 			res.Unpaired = append(res.Unpaired, t)
 			continue
+		}
+		if tango && (a.runs != 1 || b.runs != 1) {
+			return res, fmt.Errorf("task %s: Tango's interval needs one attempt per instance and configuration, found %d and %d", t, a.runs, b.runs)
 		}
 		meanA, meanB := a.cost/float64(a.runs), b.cost/float64(b.runs)
 		if meanA <= 0 {
@@ -283,7 +319,21 @@ func judge(stage, model, source string, g []Receipt) (Result, error) {
 		return res, nil
 	}
 	res.RelCost, res.SolvedDiff = mean(rel), mean(diff)
-	res.RelLo, res.RelHi, res.SolvedLo, res.SolvedHi = bootstrap(rel, diff)
+	res.RelLo, res.RelHi, res.SolvedLo, res.SolvedHi = bootstrapAt(rel, diff, level)
+	if tango {
+		var x12, x21 int
+		for _, d := range diff {
+			switch {
+			case d == 1:
+				x12++
+			case d == -1:
+				x21++
+			case d != 0:
+				return res, fmt.Errorf("stage %s, model %s: Tango's interval needs one attempt per instance and configuration", stage, model)
+			}
+		}
+		res.SolvedLo, res.SolvedHi = tangoInterval(x12, x21, len(diff), level)
+	}
 	switch {
 	case res.RelLo > eps || res.SolvedHi < -eps:
 		res.Verdict = "LOSES"
@@ -303,9 +353,10 @@ func mean(xs []float64) float64 {
 	return s / float64(len(xs))
 }
 
-// bootstrap resamples tasks with replacement, both measures from the same
-// draw, and returns the 95% percentile intervals.
-func bootstrap(rel, diff []float64) (relLo, relHi, diffLo, diffHi float64) {
+// bootstrapAt resamples tasks with replacement, both measures from the same
+// draw, and returns the percentile intervals at the level given: at 0.95 the
+// 250th and 9,750th of 10,000 sorted means, as ADR-156 registered.
+func bootstrapAt(rel, diff []float64, level float64) (relLo, relHi, diffLo, diffHi float64) {
 	rng := rand.New(rand.NewSource(bootstrapSeed))
 	n := len(rel)
 	rs, ds := make([]float64, bootstrapResamples), make([]float64, bootstrapResamples)
@@ -320,6 +371,57 @@ func bootstrap(rel, diff []float64) (relLo, relHi, diffLo, diffHi float64) {
 	}
 	sort.Float64s(rs)
 	sort.Float64s(ds)
-	lo, hi := int(0.025*bootstrapResamples), int(0.975*bootstrapResamples)-1
+	tail := (1 - level) / 2
+	lo, hi := int(math.Round(tail*bootstrapResamples)), int(math.Round((1-tail)*bootstrapResamples))-1
 	return rs[lo], rs[hi], ds[lo], ds[hi]
+}
+
+// tangoInterval is Tango's (1998) score interval for the difference of two
+// paired proportions, here p₂ − p₁ for the second configuration against A:
+// x12 instances the second solved and A did not, x21 the reverse, n in all.
+// It solves |T(δ)| = z, where T(δ) = (x12 − x21 − nδ) / √(n(2p̃21 + δ(1 − δ)))
+// with p̃21 the restricted maximum-likelihood estimate; at δ = 0 T is
+// McNemar's statistic. Unlike a percentile bootstrap it does not collapse to
+// [0, 0] when no instance is discordant: there it is ±z²/(n + z²).
+func tangoInterval(x12, x21, n int, level float64) (lo, hi float64) {
+	if n == 0 {
+		return -1, 1
+	}
+	z := math.Sqrt2 * math.Erfinv(level)
+	fn, b, c := float64(n), float64(x12), float64(x21)
+	t := func(d float64) float64 {
+		a := 2 * fn
+		bb := -b - c + (2*fn-b+c)*d
+		cc := -c * d * (1 - d)
+		p21 := (math.Sqrt(math.Max(bb*bb-4*a*cc, 0)) - bb) / (2 * a)
+		num := b - c - fn*d
+		v := fn * (2*p21 + d*(1-d))
+		if v <= 0 {
+			switch {
+			case num > 0:
+				return math.Inf(1)
+			case num < 0:
+				return math.Inf(-1)
+			}
+			return 0
+		}
+		return num / math.Sqrt(v)
+	}
+	est := (b - c) / fn
+	// T falls as δ rises through 0 at the estimate, so |T| grows on either
+	// side: each bound is the last δ, walking out from the estimate, where
+	// |T| ≤ z.
+	solve := func(in, out float64) float64 {
+		for range 200 {
+			mid := (in + out) / 2
+			if math.Abs(t(mid)) <= z {
+				in = mid
+			} else {
+				out = mid
+			}
+		}
+		return in
+	}
+	const edge = 1 - 1e-12
+	return solve(est, -edge), solve(est, edge)
 }
