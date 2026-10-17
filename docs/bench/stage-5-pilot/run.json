@@ -1,0 +1,29 @@
+{
+  "stage": "pilot-5",
+  "tasks": [
+    "scikit-learn__scikit-learn-25973",
+    "astropy__astropy-8707"
+  ],
+  "models": [
+    "claude-sonnet-5-5",
+    "claude-opus-5-5"
+  ],
+  "configs": [
+    "A",
+    "B",
+    "P"
+  ],
+  "repeats": 1,
+  "seed": 156,
+  "cli_version": "2.1.302 (Claude Code)",
+  "mrw_version": "v1.68.0 (975c3ba)",
+  "containment": "bypass",
+  "profile": "stage5",
+  "plugin": {
+    "tag": "v3.8.40",
+    "commit": "ae3bdb850749b4b92f4493eebed3ba943f3764eb"
+  },
+  "status_line_sha256": "171a9b5ce5b38cea2dc5d8eaab69fd5efa977d020394cc0a2b0645b32189bf47",
+  "budget_seconds": 1200,
+  "prompt_sha256": "4ab9117eb27510a1d2e6151a579aa66a1c5ae175f4e2797c087084db527cb333"
+}
