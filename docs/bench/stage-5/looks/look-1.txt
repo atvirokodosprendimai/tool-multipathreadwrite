@@ -1,0 +1,9 @@
+looks read: 1 of 5
+claude-sonnet-5-5 · B against A · open · INCONCLUSIVE · eligible true · cost -0.164 [-0.267, -0.052] · solved -0.025 [-0.199, +0.142] at 99% · tasks 40
+claude-sonnet-5-5 · P against A · closed at look 1 · LOSES · eligible true · cost +0.701 [+0.477, +0.926] · solved -0.025 [-0.182, +0.121] at 99% · tasks 40
+claude-opus-5-5 · B against A · open · INCONCLUSIVE · eligible true · cost -0.232 [-0.323, -0.138] · solved +0.025 [-0.142, +0.199] at 99% · tasks 40
+claude-opus-5-5 · P against A · closed at look 1 · LOSES · eligible true · cost +0.486 [+0.312, +0.674] · solved +0.000 [-0.166, +0.166] at 99% · tasks 39
+next: claude-opus-5-5 runs A,B
+next: claude-sonnet-5-5 runs A,B
+block 2 is due
+exit status 1
