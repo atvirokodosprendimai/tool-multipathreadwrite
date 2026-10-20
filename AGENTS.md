@@ -134,7 +134,7 @@ need out of your context (ADR-161). Fill the placeholders (`P`, `f.go`, `NAME`, 
 ```sh
 # 1. the same change at many sites, nothing in your context
 mrw write --grep '\bOld\b' --sub 'New' .
-# 2. see what it will do first, nothing written
+# 2. see what it will do first, nothing written (a --sub or --rewrite dry run shows each change)
 mrw write --grep '\bOld\b' --sub 'New' --dry-run .
 # 3. a change by syntax, not text
 mrw write --ast-grep 'foo($A, $B)' --rewrite 'bar($B, $A)' .
@@ -506,8 +506,12 @@ whole list arrives as one argument and the regex swallows the rest of the line.
   re-sending the plan would apply it again. `then` names steps declared in `.quality-harness.json`
   to run after a passing check, as `--then` does (ADR-115); `--then-sh` stays CLI-only. A
   `scoped_check` whose template contains `{files}` or `{dirs}` and not `{packages}` still
-  runs on a `.rs` write when `packages()` cannot map (ADR-061); `{packages}`-only
-  still falls back. `{packages}` is Go's alone; `{files}` (the edited paths) and `{dirs}` (their directories,
+  runs on a `.rs` write when `packages()` cannot map (ADR-061). A `{packages}`-only template that places
+  some of the written files runs over those packages and names the rest on an `outside the scoped check:` line
+  (`outside_scope` in `--json`, ADR-164); it falls back to the whole check when nothing places, or when a path is
+  an unplaceable `.go`, a directory holding no package, `go.mod`/`go.sum`/`go.work`/`go.work.sum`, or a file the write removed.
+  Its pass is for the packages it could place: a Go test that reads a named file is not run for it.
+  `{packages}` is Go's alone; `{files}` (the edited paths) and `{dirs}` (their directories,
   `./dir`, each once — ADR-124) are the portable forms, e.g. `"scoped_check": "pytest {dirs}"`. A whole-project
   check that took 60 s or more for the files a write touched adds a `hint:` line saying to declare `"scoped_check"`
   (ADR-152). A

@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"slices"
 	"strings"
+	"unicode"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/iter"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
@@ -55,6 +57,9 @@ func BuildSub(root string, posArgs []string, pattern, repl string, excludes []st
 	if err != nil {
 		return nil, usageError("--grep %q: %v", pattern, err)
 	}
+	if ref, ok := missingGroup(re, repl); ok {
+		return nil, usageError("--sub %q names %s, which /%s/ does not define: Go would write it as nothing; write $$ for a literal $, and ${1}x for group 1 before x", repl, ref, OneLine(pattern))
+	}
 	posArgs, err = RangeFreePaths(root, posArgs, "--grep")
 	if err != nil {
 		return nil, err
@@ -89,6 +94,62 @@ func BuildSub(root string, posArgs []string, pattern, repl string, excludes []st
 		return nil, notApplied("incomplete: %d file(s) matched /%s/ and the substitution changed no line", len(specs), OneLine(pattern))
 	}
 	return &Built{Plan: []byte(sub.Plan.String()), Observed: observed, Sites: sub.Sites, Files: sub.Files, Problems: problems + len(refusals), Skipped: skipped}, nil
+}
+
+// missingGroup finds the first reference in repl that re defines no group for,
+// by the scan regexp.Expand makes (its unexported extract): after a $, either
+// {name} or the longest run of letters, digits and _; a name of ASCII digits is
+// a group number while the number stays under 1e8 and has no leading zero, and
+// is looked up as a group's name otherwise; $$ is a literal $; a $ that starts no
+// name is kept as text. So it names exactly the references Go expands to nothing.
+func missingGroup(re *regexp.Regexp, repl string) (string, bool) {
+	for {
+		i := strings.IndexByte(repl, '$')
+		if i < 0 {
+			return "", false
+		}
+		repl = repl[i+1:]
+		if strings.HasPrefix(repl, "$") {
+			repl = repl[1:]
+			continue
+		}
+		s, brace := repl, strings.HasPrefix(repl, "{")
+		if brace {
+			s = s[1:]
+		}
+		n := strings.IndexFunc(s, func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '_' })
+		if n < 0 {
+			n = len(s)
+		}
+		if n == 0 || brace && (n >= len(s) || s[n] != '}') {
+			continue
+		}
+		name, ref := s[:n], "$"+s[:n]
+		if brace {
+			ref = "${" + name + "}"
+		}
+		// Go's own number scan: a digit past 1e8 makes the name a name.
+		num := 0
+		for i := 0; i < len(name); i++ {
+			if name[i] < '0' || '9' < name[i] || num >= 1e8 {
+				num = -1
+				break
+			}
+			num = num*10 + int(name[i]-'0')
+		}
+		if name[0] == '0' && len(name) > 1 {
+			num = -1
+		}
+		if num >= 0 {
+			if num > re.NumSubexp() {
+				return ref, true
+			}
+			continue
+		}
+		if !slices.Contains(re.SubexpNames()[1:], name) {
+			return ref, true
+		}
+	}
 }
 
 // BuildRewrite asks ast-grep for its own rewrite of pattern to repl in the

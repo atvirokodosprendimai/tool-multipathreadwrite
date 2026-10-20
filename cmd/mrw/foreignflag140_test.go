@@ -42,7 +42,7 @@ func TestAForeignReadFlagIsAnsweredWithMrwsSpelling(t *testing.T) {
 	}{
 		{[]string{"read", "--bogus"}, 2, "; "},
 		{[]string{"write", "-i"}, 2, "(?i)"},
-		{[]string{"read", "--grep", "-v", "f.txt"}, 1, "took the value"},
+		{[]string{"read", "--grep", "-z", "f.txt"}, 1, "took the value"}, // -v has a pointer since ADR-164 T5; -z has none
 		{[]string{"read", "--grep", "-ii", "f.txt"}, 1, "took the value"},
 		{[]string{"read", "--grep", "-count", "f.txt"}, 1, "took the value"}, // a real search string that is also a table key: only a dash and ONE letter is a flag
 	} {
@@ -71,6 +71,8 @@ func TestEveryForeignFlagHintIsATrueSpelling(t *testing.T) {
 		{"-w is \\b…\\b", []string{"read", "--grep", `\bword\b`, "f.txt"}, "a.b word"},
 		{"-A/-B is -C N", []string{"read", "--grep", "dash", "-C", "1", "f.txt"}, "Alpha NEEDLE x"},
 		{"-n is on, -N drops", []string{"read", "-N", "f.txt:1"}, "Alpha NEEDLE x"},
+		{"-o is --max-cols N: the line cut to a window round its match", []string{"read", "--grep", "NEEDLE", "--max-cols", "8", "f.txt"}, "[cols 6-13 of 14]"},
+		{"-v has no equivalent: --grep serves only the lines that match", []string{"read", "--grep", "NEEDLE", "f.txt"}, "Alpha NEEDLE x"},
 	} {
 		out, code := runIn(t, root, c.argv...)
 		if code != 0 || !strings.Contains(out, c.want) {

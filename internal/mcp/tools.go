@@ -26,6 +26,7 @@ import (
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/iter"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/lines"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/plan"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/preview"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/refusal"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/regular"
@@ -980,7 +981,8 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		steps = append(steps, check.Step{Name: n})
 	}
 	prep, err := writer.Prepare(writer.Request{Root: root, In: in, Check: mode, Steps: steps, StepFlag: "then",
-		Opts: apply.Options{DryRun: a.DryRun, EchoPad: a.EchoPad, StrictBalance: a.StrictBalance, NoForce: true}})
+		Opts: apply.Options{DryRun: a.DryRun, EchoPad: a.EchoPad, StrictBalance: a.StrictBalance, NoForce: true,
+			Preview: a.DryRun && (a.hasGrep() || a.hasAst())}}) // ADR-164: a plan maker's dry run shows each change
 	if err != nil {
 		return errorResult(gateRefusal(err)), nil
 	}
@@ -1128,6 +1130,9 @@ func writeReport(res apply.Result, hunks []apply.HunkResult, applyErr error, eli
 		// Same as CLI report: a pad describes an applied body. Skip and
 		// fail write nothing, so their Echo (if any) must not print.
 		if h.Status == apply.StatusOK {
+			for _, line := range preview.Lines(h.Before, h.After, h.Start) {
+				fmt.Fprintln(&b, line)
+			}
 			for _, line := range h.Echo {
 				fmt.Fprintln(&b, line)
 			}
@@ -1141,6 +1146,27 @@ func writeReport(res apply.Result, hunks []apply.HunkResult, applyErr error, eli
 		fmt.Fprintf(&b, "-- %s\n", elided)
 	}
 	return b.String()
+}
+
+// previewed counts the hunks that carry ADR-164's preview.
+func previewed(hunks []apply.HunkResult) int {
+	n := 0
+	for _, h := range hunks {
+		if len(h.Before) > 0 {
+			n++
+		}
+	}
+	return n
+}
+
+// withoutPreview is res with every hunk's Before and After dropped: the text
+// rows are made from them, so one cut takes both.
+func withoutPreview(res apply.Result) apply.Result {
+	res.Hunks = slices.Clone(res.Hunks)
+	for i := range res.Hunks {
+		res.Hunks[i].Before, res.Hunks[i].After = nil, nil
+	}
+	return res
 }
 
 // boundedReceipt is the answer mrw_write sends: the whole receipt when it fits
@@ -1204,11 +1230,28 @@ func checkedReceipt(root string, res apply.Result, v *writer.Verified, applyErr 
 	}
 	whole := encodedSize(full)
 
+	// ADR-164 Decision 2: a plan maker's preview is the first thing to go,
+	// before the check's tail and before any verdict.
+	previewNote := ""
+	if n := previewed(res.Hunks); n > 0 {
+		res = withoutPreview(res)
+		previewNote = fmt.Sprintf("the preview (hunks[].before and after, and the ~ - + rows) of %d hunk(s)", n)
+		note := fmt.Sprintf("elided to fit the %d-byte budget, which the whole receipt exceeded at %d: %s is not here. "+
+			"Every hunk verdict and file record is here, and the counts are of the whole plan.", MaxResultChars, whole, previewNote)
+		out, rpcErr := render(res, res.Hunks, chk, then, note)
+		if rpcErr != nil || encodedSize(out) <= ceiling() {
+			return out, rpcErr
+		}
+	}
+
 	// ADR-113, ADR-115: the check's and the steps' tails are the first thing
 	// to go. The verdicts stay, and each tail is in its output_file.
 	tailNote := ""
 	if (chk != nil && len(chk.Tail) > 0) || stepTailLines(then) > 0 {
 		var dropped []string
+		if previewNote != "" {
+			dropped = append(dropped, previewNote)
+		}
 		cutChk, cutThen := chk, then
 		if chk != nil && len(chk.Tail) > 0 {
 			cut := *chk
@@ -1257,6 +1300,9 @@ func checkedReceipt(root string, res apply.Result, v *writer.Verified, applyErr 
 		tailNote = ", nor " + gone
 	}
 
+	if tailNote == "" && previewNote != "" {
+		tailNote = ", nor " + previewNote
+	}
 	kept := make([]apply.HunkResult, 0, res.Failed)
 	for _, h := range res.Hunks {
 		if h.Status == apply.StatusFailed {
@@ -1412,6 +1458,9 @@ func checkReport(c *check.Result, checkErr error, drift []string, others int) (l
 		if c.OutputFile != "" {
 			fmt.Fprintf(&b, "check output: %s\n", c.OutputFile)
 		}
+		if l := c.OutsideLine(); l != "" {
+			fmt.Fprintf(&b, "%s\n", l)
+		}
 		if c.Hint != "" {
 			fmt.Fprintf(&b, "hint: %s\n", c.Hint)
 		}
@@ -1435,14 +1484,40 @@ func checkPhrase(c *check.Result, checkErr error) string {
 	case c == nil:
 		return ""
 	case c.OK():
+		if n := len(c.OutsideScope); n > 0 {
+			return passedOutside(n)
+		}
 		return " Its check passed."
 	}
-	return fmt.Sprintf(" Its check did not pass (exit %d): the tree is changed and unverified.", c.ExitCode)
+	return fmt.Sprintf(" Its check did not pass (exit %d): the tree is changed and unverified.", c.ExitCode) + leftOut(len(c.OutsideScope))
+}
+
+// passedOutside is the terminal phrase for a check that passed over the
+// packages it could place and left n files out (ADR-164 Decision 4): the list
+// may go with the structured receipt, the count never does.
+func passedOutside(n int) string {
+	return fmt.Sprintf(" Its check passed for the packages it could place; %d file(s) were outside it.", n)
+}
+
+// leftOut is what a check that did not pass adds when its scoped command left
+// n files out: the count survives the ceiling whatever the verdict.
+func leftOut(n int) string {
+	if n == 0 {
+		return ""
+	}
+	return fmt.Sprintf(" %d file(s) were outside the scoped check.", n)
 }
 
 // longestCheckPhrase is the widest checkPhrase can be: a failed check at the
-// widest exit code.
-var longestCheckPhrase = checkPhrase(&check.Result{Ran: true, ExitCode: math.MinInt}, nil)
+// widest exit code that left the widest count out, or a pass that did.
+var longestCheckPhrase = longer(checkPhrase(&check.Result{Ran: true, ExitCode: math.MinInt}, nil)+leftOut(math.MaxInt), passedOutside(math.MaxInt))
+
+func longer(a, b string) string {
+	if len(b) > len(a) {
+		return b
+	}
+	return a
+}
 
 // stepsReport is one line per step asked for (ADR-115), after the check's
 // lines: its verdict, and the tail of a step that stopped the sequence.

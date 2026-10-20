@@ -283,7 +283,11 @@ func (l *Landed) Verify(ctx context.Context) Verified {
 		written, _ := CheckPaths(res.Files)
 		// ADR-112: the baseline is what the write left on disk, taken now.
 		before := Before(root, res)
-		cr, err := check.Run(ctx, root, cfg, written)
+		var opts []check.Option
+		if removedCode(res.Files) {
+			opts = append(opts, check.Whole())
+		}
+		cr, err := check.Run(ctx, root, cfg, written, opts...)
 		if err != nil {
 			_ = authoring.Reclassify(root, authoring.Applied, authoring.CheckNotRun)
 			if len(steps) > 0 {
@@ -378,6 +382,27 @@ func CheckPaths(files []apply.FileResult) (paths []string, code bool) {
 		}
 	}
 	return paths, code
+}
+
+// removedCode says whether the write took a Go or module file away, by unlink
+// or as the source of a rename. The check only ever sees its parent directory
+// (CheckPaths), and the packages that import it are not among the paths, so a
+// {packages}-only scoped_check runs the whole check instead (ADR-164
+// Decision 4).
+func removedCode(files []apply.FileResult) bool {
+	for _, f := range files {
+		if !f.Removed {
+			continue
+		}
+		switch filepath.Base(f.Path) {
+		case "go.mod", "go.sum", "go.work", "go.work.sum":
+			return true
+		}
+		if filepath.Ext(f.Path) == ".go" {
+			return true
+		}
+	}
+	return false
 }
 
 // touchesCode says whether a plan names a path a check could cover, judged

@@ -4,7 +4,7 @@ description: Read-only hostile correctness review of a diff in tool-multipathrea
 model: opus
 effort: high
 color: red
-tools: Bash, mcp__agentsmemory__am_search, mcp__agentsmemory__am_get_drawer
+tools: Bash, mcp__memoryd__recall, mcp__memoryd__search_text, mcp__memoryd__get, mcp__memoryd__list, mcp__agentsmemory__am_search
 disallowedTools: Write, Edit, NotebookEdit
 ---
 
@@ -24,6 +24,9 @@ push, or run `mrw write`. You may build and run tests into a scratch directory o
 - A file outside the checkout: `mrw --root DIR read path`.
 - `git diff`, `git show`, `git log` are fine.
 - Never send an mrw read to /dev/null (ADR-133): it records nothing.
+- The why behind a decision: memoryd `recall` over spaces [tool-multipathreadwrite, craft]
+  (principal {"id":"zy","kind":"human","name":"zy"}, agent go-reviewer); a memory is evidence, check
+  it against the code. `am_search` only for what other machines filed to the palace.
 
 ## What to check
 

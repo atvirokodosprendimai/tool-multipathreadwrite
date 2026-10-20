@@ -5,8 +5,8 @@ import "strings"
 // foreignFlags maps a flag a caller types on `mrw read` — one grep, ripgrep or
 // ack has and read does not — to what mrw spells instead (ADR-140). Every
 // equivalent was run against the built binary on 2026-10-10, not read from a
-// document; a flag with no equivalent and no honest pointer (-v, -o, -z) is not
-// here and gets the old message.
+// document. -v and -o were left out then for having no equivalent; ADR-164 T5
+// gives them the honest pointer that there is none. -z still has no pointer.
 var foreignFlags = map[string]string{
 	"i":       "case-insensitive: start the pattern with (?i), as in --grep '(?i)PATTERN'",
 	"n":       "line numbers are printed by default; -N drops them",
@@ -24,6 +24,8 @@ var foreignFlags = map[string]string{
 	"H":       "every file is announced by a ==> header; there is no flag for it",
 	"include": "there is no --include: name the directories to walk or pipe a list to --files-from; --exclude GLOB drops files",
 	"m":       "--max-lines N caps the lines served per spec; what is withheld is reported",
+	"v":       "there is no inverted match: --grep serves the lines that match",
+	"o":       "there is no match-only output: --max-cols N cuts each line to a window round its match",
 }
 
 // planFlags maps a flag a caller types on `mrw write` to name the plan — the

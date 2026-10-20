@@ -110,6 +110,16 @@ type HunkResult struct {
 	// or failed hunk.
 	Closer string `json:"closer,omitempty"`
 
+	// Before and After are ADR-164's preview: the lines a replace hunk takes
+	// out and the body that goes in, filled only under Options.Preview, for an
+	// ok replace. Empty otherwise, so a real write's receipt is unchanged.
+	Before []string `json:"before,omitempty"`
+	After  []string `json:"after,omitempty"`
+
+	// Start is the first line of the span Before took out, in the file as it
+	// was. Set with Before; not a receipt field.
+	Start int `json:"-"`
+
 	// Kind classifies a refusal the parser also makes, and the not-read
 	// refusal, so a caller compares kinds instead of Reason's words (ADR-087).
 	// Not a receipt field.
@@ -328,6 +338,10 @@ type Options struct {
 	// failed hunk: siblings skip, nothing is written. Off by default; the
 	// same hunk then applies with a balance row.
 	StrictBalance bool
+
+	// Preview fills HunkResult.Before and After for each ok replace hunk
+	// (ADR-164). A plan maker's dry run sets it; nothing else does.
+	Preview bool
 }
 
 // Apply validates every hunk against the working tree rooted at root and, if
@@ -1257,7 +1271,7 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 			return false
 		}
 		failK(h, refusal.NotRead, "%s of %s has not been read: mrw served %s. A line address means nothing in lines "+
-			"you have not seen — read them, or pass --force",
+			"you have not seen — read them, or pass --force (a line --max-cols served cut is not read: read it whole, or --quiet)",
 			addrString(from, to), path, obs.Served())
 		return false
 	}
@@ -1350,15 +1364,15 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 		// create was accepted. Found by the review of PR #130, on the question
 		// the record said it must not get wrong.
 		if h.Op == "create" && h.StartPat != nil {
-			failK(h, refusal.CreateAddress, "create takes no address, use %q", "-")
+			failK(h, refusal.CreateAddress, "create takes no address, use %q or %q", "-", "0")
 			continue
 		}
 		if h.Op == "create" && (h.Start != 0 || h.End != 0) {
-			failK(h, refusal.CreateAddress, "create takes no address, use %q", "-")
+			failK(h, refusal.CreateAddress, "create takes no address, use %q or %q", "-", "0")
 			continue
 		}
 		if h.Op == "create" && h.RelEnd > 0 {
-			failK(h, refusal.CreateRelEnd, "create takes no address, so it takes no relative end either: use %q", "-")
+			failK(h, refusal.CreateRelEnd, "create takes no address, so it takes no relative end either: use %q or %q", "-", "0")
 			continue
 		}
 		if h.Op == "create" && (h.Anchor != "" || h.Lines >= 0) {
@@ -1675,8 +1689,18 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 			// the requirement would have been conditional on address form —
 			// the hole ADR-026 and ADR-027 each found once.
 			if h.Op == "replace" && end > start && h.Anchor == "" {
-				fail(h, "replace of %s covers %d lines and carries no anchor=: say anchor=\"<text from the first line>\" so a wrong range fails instead of overwriting",
-					addrString(start, end), end-start+1)
+				// ADR-164 T1: a field report's caller gave a matching sha= and
+				// took it for this guard; lines= can be taken for it the same
+				// way. Each clause is said only when its guard is there.
+				guardNote := ""
+				if h.SHA != "" {
+					guardNote += "; sha= checks that the whole file is unchanged, not which lines this range covers"
+				}
+				if h.Lines >= 0 {
+					guardNote += "; lines= checks how many lines this range covers, not which"
+				}
+				fail(h, "replace of %s covers %d lines and carries no anchor=: say anchor=\"<text from the first line>\" so a wrong range fails instead of overwriting%s",
+					addrString(start, end), end-start+1, guardNote)
 				continue
 			}
 			// ADR-052. A multi-line replace whose ledger never covered the
@@ -1820,6 +1844,9 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 			res = append(res, h.Body...)
 			r.Removed, r.Added = h.End-h.Start+1, len(h.Body)
 			consumed, written = orig[h.Start-1:h.End], h.Body
+			if opt.Preview {
+				r.Before, r.After, r.Start = append([]string(nil), consumed...), append([]string(nil), h.Body...), h.Start
+			}
 			cursor = h.End + 1
 		case "delete":
 			r.Removed = h.End - h.Start + 1

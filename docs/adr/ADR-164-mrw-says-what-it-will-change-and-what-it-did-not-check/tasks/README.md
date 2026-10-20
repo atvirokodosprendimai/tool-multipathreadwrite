@@ -1,0 +1,38 @@
+# ADR-164 Tasks
+
+Implementation tasks for ADR-164: mrw says what it will change, what a guard does not cover, and what its check left out. See the parent ADR.
+
+**Source of truth:** the task files' `Depends-on` / `Produces` / `Consumes` / `Covers` headers.
+This README is a derived index — when it disagrees with a task file, the task file wins and the
+README must be regenerated.
+
+## Task Index
+
+| ID | Title | Status | Depends-on | Acceptance |
+|----|-------|--------|------------|------------|
+| T5 | -v and -o on read get a pointer | done | none | `docs/adr/ADR-164-mrw-says-what-it-will-change-and-what-it-did-not-check/tasks/T5-an-inverted-grep-says-there-is-none.md` fence |
+| T1 | a refusal says sha= does not stand in for anchor= | done | none | `docs/adr/ADR-164-mrw-says-what-it-will-change-and-what-it-did-not-check/tasks/T1-sha-is-not-an-anchor.md` fence |
+| T6 | a refusal names its real cause | done | T1 | `docs/adr/ADR-164-mrw-says-what-it-will-change-and-what-it-did-not-check/tasks/T6-a-refusal-names-its-real-cause.md` fence |
+| T4 | a check that places some files runs those and names the rest | done | none | `docs/adr/ADR-164-mrw-says-what-it-will-change-and-what-it-did-not-check/tasks/T4-partial-map-runs-scoped.md` fence |
+| T2 | a plan maker's dry run shows each change | done | T1, T4 | `docs/adr/ADR-164-mrw-says-what-it-will-change-and-what-it-did-not-check/tasks/T2-dry-run-shows-each-change.md` fence |
+| T3 | the state-directory hint reaches every surface | pending | T2 | `docs/adr/ADR-164-mrw-says-what-it-will-change-and-what-it-did-not-check/tasks/T3-mrw-mcp-names-its-state-directory.md` fence |
+| T7 | a --max-cols window holds the match | done | none | `docs/adr/ADR-164-mrw-says-what-it-will-change-and-what-it-did-not-check/tasks/T7-window-holds-the-match.md` fence |
+| T8 | a --sub replacement may not name a missing group | done | none | `docs/adr/ADR-164-mrw-says-what-it-will-change-and-what-it-did-not-check/tasks/T8-sub-refuses-a-missing-group.md` fence |
+
+Status: `pending` | `partial` | `blocked` | `done`.
+
+## Waves
+
+| Wave | Tasks | Why together |
+|------|-------|--------------|
+| 1 | T5, T1, T4, T7, T8 | no task depends on another |
+| 2 | T6, T2 | T6 after T1; T2 after T1 and T4 |
+| 3 | T3 | after T2 |
+
+## Notes
+
+- Execution order is the table's. T2 edits `internal/apply` after T1 and `internal/mcp` after T4; T3 edits `internal/mcp` after T2.
+- The record merges after PR #460 (its BACKLOG section, `cmd/mrw/statehint.go`).
+- Engine packages `internal/apply` (T1, T2), `internal/check` (T4), `internal/read` (T3, T7, T8) and `internal/plan` (T6) change; this record owns each change.
+- Contract sections §273 (T1), §274 (T2), §275 (T3), §276 (T4), §277 (T5), §278 (T6), §279 (T7), §280 (T8); §272 is PR #460's.
+- A planned test is named without backticks until it exists: `internal/adversarial/record_test.go` checks every backticked name in a Tests table against its file. The executor moves it into the table, backticked, when it is written.

@@ -22,7 +22,8 @@ import (
 //   {files}-only + named non-Go path → SCOPED <path>, not FULL
 //   {packages}-only or mixed on that path → FULL
 //   --full (nil paths) → FULL even with {files}-only
-//   root-level .go + any non-empty scoped_check → scoped substitution
+//   root-level .go (beside a non-Go file or not, ADR-164) + any non-empty
+//   scoped_check → scoped substitution; {files} still names every path
 //   no scoped_check → FULL (Zeus today; not their JSON file)
 //
 // Pools (v2), measured 2026-09-16:
@@ -114,17 +115,17 @@ func TestRandomisedCheckMatrixMatchesTheFilesScopeOracle(t *testing.T) {
 		label := fmt.Sprintf("seed=%d iter=%d tmpl=%d full=%v json=%v paths=%v\n%s", seed, i, kind, full, asJSON, paths, out)
 
 		wantCmd, wantScoped := "echo FULL", false
-		allGo := true
+		anyGo := false
 		for _, p := range paths {
-			if !strings.HasSuffix(p, ".go") {
-				allGo = false
+			if strings.HasSuffix(p, ".go") {
+				anyGo = true
 				break
 			}
 		}
 		switch {
 		case full || kind == tmplNone:
 			// Check. --full is an empty path list.
-		case allGo && kind != tmplNone:
+		case anyGo && kind != tmplNone:
 			wantScoped = true
 			switch kind {
 			case tmplFiles:

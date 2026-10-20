@@ -9666,6 +9666,117 @@ out=$(printf '@@ p270.txt 1 replace\nA\n\r\n' | m write --no-check - 2>&1); want
 out=$(printf '@@ p270.txt 2 replace\r\nB\r\n' | m write --no-check - 2>&1); want 0 $? "the pair: an all-CRLF plan exits 0"
 { [ "$(cat "$R/p270.txt")" = "$(printf 'A\nB')" ] && ! grep -q 'PowerShell appends' <<<"$out"; } && ok "and is applied as it always was, with no note" || bad "an all-CRLF plan: $out"
 
+# 272. A state directory mrw cannot make is named as mrw's, with the variable
+# that moves it: a sandbox's "mrw: mkdir /nonexistent: read-only file system"
+# named neither (field report, 2026-10-20). A file where `<XDG_STATE_HOME>/mrw`
+# must go fails the mkdir for any user, root included. The pair: the same read
+# with a writable XDG_STATE_HOME is served.
+R=$(mktemp -d "$WORK/r272-XXXXXX"); printf 'one\n' > "$R/a.txt"
+mkdir -p "$WORK/s272" "$WORK/s272ok"; : > "$WORK/s272/mrw"
+out=$(cd "$R" && XDG_STATE_HOME="$WORK/s272" "$MRW" read a.txt 2>&1); want 2 $? "a read whose state directory cannot be made exits 2"
+{ grep -q "mrw's state directory" <<<"$out" && grep -q 'set XDG_STATE_HOME to a writable absolute directory' <<<"$out"; } \
+  && ok "and names mrw's state directory and the variable that moves it" || bad "an unmakeable state directory: $out"
+out=$(cd "$R" && XDG_STATE_HOME="$WORK/s272ok" "$MRW" read a.txt 2>&1); want 0 $? "the pair: the same read with a writable XDG_STATE_HOME exits 0"
+
+# 277. ADR-164 T5: -v gets a pointer — `--grep -v P f` (no match) and
+# `--grep -v ' P' f` (refused for the padded value before any read) both say
+# there is no inverted match. The pair: `--grep -i` keeps ADR-140's pointer.
+R=$(mktemp -d "$WORK/r277-XXXXXX"); printf 'needle\n' > "$R/f.txt"
+out=$(cd "$R" && "$MRW" read --grep -v a f.txt 2>&1); want 1 $? "--grep -v a f.txt exits 1"
+grep -q 'there is no inverted match: --grep serves the lines that match' <<<"$out" && ok "and says there is no inverted match" || bad "--grep -v: $out"
+out=$(cd "$R" && "$MRW" read --grep -v ' a' f.txt 2>&1); want 2 $? "--grep -v ' a' is refused for the padded value, exit 2"
+{ grep -q 'has edge whitespace' <<<"$out" && grep -q 'there is no inverted match' <<<"$out"; } && ok "and names the inverted match there too" || bad "--grep -v padded: $out"
+out=$(cd "$R" && "$MRW" read --grep -i a f.txt 2>&1); want 1 $? "the pair: --grep -i a f.txt exits 1"
+grep -q "start the pattern with (?i)" <<<"$out" && ok "with ADR-140's pointer" || bad "--grep -i: $out"
+# 276. ADR-164 Decision 4: a {packages}-only scoped_check that can place some of
+# the files a write touched runs those and names the rest — a .go + .sh write's
+# receipt shows the scoped command and `outside the scoped check: run.sh`, and
+# `mrw check a.go run.sh` the same. The pair: a .sh-only write places nothing,
+# so its receipt shows the whole command and no outside line.
+R=$(mktemp -d "$WORK/r276-XXXXXX"); printf 'package a\n' > "$R/a.go"; printf 'true\n' > "$R/run.sh"
+printf '{"check":"echo WHOLE","scoped_check":"echo SCOPED {packages}"}\n' > "$R/.quality-harness.json"
+(cd "$R" && "$MRW" read a.go run.sh) >"$WORK/served.out" 2>&1
+out=$(cd "$R" && printf '@@ a.go 1 replace\npackage a // x\n@@ run.sh 1 replace\nfalse\n' | "$MRW" write - 2>&1); want 0 $? "a .go + .sh write with a {packages}-only scoped_check exits 0"
+{ grep -q 'check (declared): echo SCOPED \.$' <<<"$out" && grep -q '^outside the scoped check: run.sh — scoped_check "echo SCOPED {packages}" runs {packages}, which names Go packages only$' <<<"$out"; } \
+  && ok "and runs the scoped command and names run.sh" || bad "a .go + .sh write: $out"
+out=$(cd "$R" && "$MRW" check a.go run.sh 2>&1); want 0 $? "mrw check a.go run.sh exits 0"
+{ grep -q 'echo SCOPED \.$' <<<"$out" && grep -q '^outside the scoped check: run.sh' <<<"$out"; } && ok "and names run.sh the same way" || bad "mrw check a.go run.sh: $out"
+(cd "$R" && "$MRW" read run.sh) >"$WORK/served.out" 2>&1
+out=$(cd "$R" && printf '@@ run.sh 1 replace\ntrue\n' | "$MRW" write - 2>&1); want 0 $? "the pair: a .sh-only write exits 0"
+{ grep -q 'check (declared): echo WHOLE$' <<<"$out" && ! grep -q 'outside the scoped check' <<<"$out"; } && ok "and runs the whole check with no outside line" || bad "a .sh-only write: $out"
+
+
+# 279. ADR-164 T7: a --max-cols window centres on the match itself, so a match
+# no wider than the window is whole — `--max-cols 8` over "Alpha NEEDLE x"
+# showed "pha NEED". The pair: the cut line is still not read, and a plan to it
+# is refused (ADR-137).
+R=$(mktemp -d "$WORK/r279-XXXXXX"); printf 'Alpha NEEDLE x\n' > "$R/f.txt"
+out=$(cd "$R" && "$MRW" read --grep NEEDLE --max-cols 8 f.txt 2>&1); want 0 $? "--grep NEEDLE --max-cols 8 exits 0"
+grep -q '1| … NEEDLE …  \[cols 6-13 of 14\]' <<<"$out" && ok "and serves the match whole in its window" || bad "--max-cols 8: $out"
+out=$(cd "$R" && printf '@@ f.txt 1 replace\nnew\n' | "$MRW" write --no-check - 2>&1); want 1 $? "the pair: a plan to the cut line is refused, exit 1"
+[ "$(cat "$R/f.txt")" = 'Alpha NEEDLE x' ] && ok "and the file is unchanged" || bad "a plan to a cut line: $out"
+
+# 273. ADR-164 T1: a multi-line replace refused for having no anchor= says,
+# when it carries sha=, that sha= checks the whole file and not the range — a
+# field report's caller took a matching sha= for the guard. Nothing is written
+# and the exit is 1, as before. The pair: the same plan with anchor= applies.
+R=$(mktemp -d "$WORK/r273-XXXXXX"); printf '1\n2\n3\n4\n5\n6\n7\n' > "$R/f.txt"
+(cd "$R" && "$MRW" read f.txt) >"$WORK/served.out" 2>&1
+sha273=$(shasum -a 256 "$R/f.txt" | cut -c1-64)
+out=$(cd "$R" && printf '@@ f.txt 3-5 replace sha=%s\nNEW\n' "$sha273" | "$MRW" write --no-check - 2>&1); want 1 $? "a sha=-only multi-line replace is refused, exit 1"
+{ grep -q 'carries no anchor=' <<<"$out" && grep -q 'sha= checks that the whole file is unchanged, not which lines this range covers' <<<"$out" \
+  && [ "$(cat "$R/f.txt")" = "$(printf '1\n2\n3\n4\n5\n6\n7')" ]; } \
+  && ok "and says sha= does not stand in for anchor=, nothing written" || bad "a sha=-only multi-line replace: $out"
+out=$(cd "$R" && printf '@@ f.txt 3-5 replace lines=3\nNEW\n' | "$MRW" write --no-check - 2>&1); want 1 $? "a lines=-only multi-line replace is refused, exit 1"
+grep -q 'lines= checks how many lines this range covers, not which' <<<"$out" && ok "and says lines= does not stand in for anchor= either" || bad "a lines=-only multi-line replace: $out"
+out=$(cd "$R" && printf '@@ f.txt 3-5 replace sha=%s anchor="3"\nNEW\n' "$sha273" | "$MRW" write --no-check - 2>&1); want 0 $? "the pair: the same plan with anchor= applies"
+
+# 274. ADR-164 T2: a --grep --sub dry run prints each line it would change, the
+# change marked in place, and writes nothing — a field report's caller could not
+# see what a dry run would do. The pair: a hand-written plan's dry run prints no
+# such row, since its author wrote every body line.
+R=$(mktemp -d "$WORK/r274-XXXXXX"); printf '.a { color: red; }\nkeep\n' > "$R/f.css"
+out=$(cd "$R" && "$MRW" write --dry-run --no-check --grep '\bred\b' --sub blue . 2>&1); want 0 $? "a --sub dry run exits 0"
+{ grep -qF '   ~ 1| .a { color: [-red-]{+blue+}; }' <<<"$out" && [ "$(cat "$R/f.css")" = "$(printf '.a { color: red; }\nkeep')" ]; } \
+  && ok "and prints the changed line marked in place, nothing written" || bad "a --sub dry run: $out"
+(cd "$R" && "$MRW" read f.css) >"$WORK/served.out" 2>&1
+out=$(cd "$R" && printf '@@ f.css 1 replace\n.a { color: blue; }\n' | "$MRW" write --dry-run --no-check - 2>&1); want 0 $? "the pair: a plain plan's dry run exits 0"
+{ grep -q '1 hunk(s), 1 file(s), 0 failed' <<<"$out" && ! grep -q '^   [~+-] ' <<<"$out"; } \
+  && ok "and prints no ~, - or + row" || bad "a plain plan's dry run: $out"
+
+# 278. ADR-164 T6: three refusals name their real cause. A pattern address
+# ended by an unescaped / inside it says so and how to write the slash (exit 2);
+# a not-read refusal says a line --max-cols served cut is not read (exit 1); an
+# addressed create names both "-" and "0" (exit 2). Nothing is written. The
+# pair: the escaped pattern and `0 create` apply.
+R=$(mktemp -d "$WORK/r278-XXXXXX"); printf '| `scripts/release.mjs` | edit | x |\n' > "$R/t.md"; printf 'a\nb\nc\n' > "$R/f.txt"
+(cd "$R" && "$MRW" read --quiet t.md f.txt:3) >"$WORK/served.out" 2>&1
+out=$(cd "$R" && printf '@@ t.md /^\\| `scripts/release.mjs` \\| edit/ replace\nZ\n' | "$MRW" write --no-check - 2>&1); want 2 $? "a pattern ended by an unescaped / is refused, exit 2"
+grep -q 'ended at the first unescaped "/"; write a "/" inside a pattern as "\\/"' <<<"$out" && ok "and names the early end and the escape" || bad "an early-ended pattern: $out"
+out=$(cd "$R" && printf '@@ f.txt 1 replace\nX\n' | "$MRW" write --no-check - 2>&1); want 1 $? "a write to an unserved line is refused, exit 1"
+grep -q 'a line --max-cols served cut is not read: read it whole, or --quiet' <<<"$out" && ok "and says a cut line is not read" || bad "not-read: $out"
+out=$(cd "$R" && printf '@@ n.txt 1 create\nhi\n' | "$MRW" write --no-check - 2>&1); want 2 $? "an addressed create is refused, exit 2"
+{ grep -q 'use "-" or "0"' <<<"$out" && [ ! -e "$R/n.txt" ]; } && ok "and names both spellings, nothing created" || bad "addressed create: $out"
+out=$(cd "$R" && printf '@@ t.md /^\\| `scripts\\/release.mjs` \\| edit/ replace\nZ\n' | "$MRW" write --no-check - 2>&1); want 0 $? "the pair: the escaped pattern applies"
+out=$(cd "$R" && printf '@@ n.txt 0 create\nhi\n' | "$MRW" write --no-check - 2>&1); want 0 $? "the pair: 0 create applies"
+
+# 280. ADR-164 T8: a --sub replacement naming a group the pattern lacks wrote
+# the line without it — a peer's `--sub '$1 x'` over `head -1` dropped the text.
+# It is refused, exit 2, nothing written, naming the reference and $$, on the
+# CLI and on mrw_write, whose server then answers the next request. The pair:
+# the same replacement over a pattern that defines the group applies.
+R=$(mktemp -d "$WORK/r280-XXXXXX"); printf 'x | head -1\n' > "$R/s.sh"
+out=$(cd "$R" && "$MRW" write --no-check --grep 'head -1' --sub '$1 x' . 2>&1); want 2 $? "--sub naming a missing group is refused, exit 2"
+{ grep -qF 'names $1, which' <<<"$out" && grep -qF '$$' <<<"$out" && [ "$(cat "$R/s.sh")" = 'x | head -1' ]; } \
+  && ok "and names the reference and \$\$, nothing written" || bad "--sub \$1 over no group: $out"
+v280=$(python3 -c 'import json; print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"grep":"head -1","sub":"$1 x","check":False}}})); print(json.dumps({"jsonrpc":"2.0","id":2,"method":"ping"}))' \
+  | (cd "$R" && "$MRW" mcp 2>/dev/null) \
+  | python3 -c 'import json,sys; ls=[json.loads(l) for l in sys.stdin if l.strip()]; r=ls[0].get("result") or {}; t="".join(c.get("text","") for c in r.get("content",[])); print(("refused" if r.get("isError") and "$1" in t else "other"), ("answered" if len(ls) > 1 and ls[1].get("id") == 2 and "result" in ls[1] else "silent"))')
+{ [ "$v280" = "refused answered" ] && [ "$(cat "$R/s.sh")" = 'x | head -1' ]; } \
+  && ok "mrw_write with the same sub is an isError result, and the server answers the next request" || bad "mrw_write sub \$1: $v280"
+out=$(cd "$R" && "$MRW" write --no-check --grep '(head) -1' --sub '$1 x' . 2>&1); want 0 $? "the pair: a pattern that defines group 1 applies"
+[ "$(cat "$R/s.sh")" = 'x | head x' ] && ok "and writes the group's text" || bad "the pair: $(cat "$R/s.sh") $out"
+
 # 271. ADR-161 Decision 14: the read ledger and the write lock belong to the
 # git checkout that holds the root, not to the directory mrw ran in. A read in
 # `sub` licenses a write from the top, and a read at the top licenses a write
