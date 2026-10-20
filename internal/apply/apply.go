@@ -1257,7 +1257,7 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 			return false
 		}
 		failK(h, refusal.NotRead, "%s of %s has not been read: mrw served %s. A line address means nothing in lines "+
-			"you have not seen — read them, or pass --force",
+			"you have not seen — read them, or pass --force (a line --max-cols served cut is not read: read it whole, or --quiet)",
 			addrString(from, to), path, obs.Served())
 		return false
 	}
@@ -1350,15 +1350,15 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 		// create was accepted. Found by the review of PR #130, on the question
 		// the record said it must not get wrong.
 		if h.Op == "create" && h.StartPat != nil {
-			failK(h, refusal.CreateAddress, "create takes no address, use %q", "-")
+			failK(h, refusal.CreateAddress, "create takes no address, use %q or %q", "-", "0")
 			continue
 		}
 		if h.Op == "create" && (h.Start != 0 || h.End != 0) {
-			failK(h, refusal.CreateAddress, "create takes no address, use %q", "-")
+			failK(h, refusal.CreateAddress, "create takes no address, use %q or %q", "-", "0")
 			continue
 		}
 		if h.Op == "create" && h.RelEnd > 0 {
-			failK(h, refusal.CreateRelEnd, "create takes no address, so it takes no relative end either: use %q", "-")
+			failK(h, refusal.CreateRelEnd, "create takes no address, so it takes no relative end either: use %q or %q", "-", "0")
 			continue
 		}
 		if h.Op == "create" && (h.Anchor != "" || h.Lines >= 0) {

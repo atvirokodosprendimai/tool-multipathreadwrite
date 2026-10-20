@@ -362,6 +362,51 @@ func Parse(r io.Reader) ([]Hunk, error) {
 	return hunks, nil
 }
 
+// optionField is a key=value option, whose value may hold a "/" for reasons
+// of its own (anchor="a/b", body=@dir/file).
+var optionField = regexp.MustCompile(`^\w+=`)
+
+// earlyEnd is the clause an unknown op gets when its address is a pattern that
+// a later field shows ended early: an unescaped "/" inside a pattern closes it,
+// and the rest of the header is read as the op — a peer's
+// `/^\| `scripts/release.mjs` \| edit/` was refused `unknown op "\\|"` (ADR-164 T6).
+func earlyEnd(fields []string) string {
+	a := fields[1]
+	if len(a) < 2 || a[0] != '/' {
+		return ""
+	}
+	// Where the pattern closes, read as splitHeader reads it: a backslash takes
+	// the next byte, and `/a/,/b/` is one address. A pattern that closed inside
+	// this field left the rest of it in the same token.
+	rest, closed := "", false
+	for i := 1; i < len(a); i++ {
+		switch {
+		case a[i] == '\\' && i+1 < len(a):
+			i++
+		case a[i] == '/' && strings.HasPrefix(a[i+1:], ",/"):
+			i += 2
+		case a[i] == '/':
+			rest, closed = a[i+1:], true
+		}
+		if closed {
+			break
+		}
+	}
+	early := closed && rest != "" && !relEndSuffix.MatchString(rest)
+	for _, f := range fields[2:] {
+		if !optionField.MatchString(f) && strings.Contains(f, "/") {
+			early = true
+		}
+	}
+	if !early {
+		return ""
+	}
+	return fmt.Sprintf(` — the address %q ended at the first unescaped "/"; write a "/" inside a pattern as "\/"`, a)
+}
+
+// relEndSuffix is what may follow a pattern in one address: a relative end.
+var relEndSuffix = regexp.MustCompile(`^,\+\d+$`)
+
 // parseHeader splits an "@@ path addr op key=value..." line. It returns the
 // explicit body line count (-1 when the body runs to the next header).
 func parseHeader(line string, srcLine int) (Hunk, int, error) {
@@ -381,7 +426,7 @@ func parseHeader(line string, srcLine int) (Hunk, int, error) {
 	switch h.Op {
 	case OpReplace, OpInsertAfter, OpInsertBefore, OpDelete, OpCreate, OpUnlink, OpRename:
 	default:
-		return Hunk{}, 0, fmt.Errorf("unknown op %q (want replace, insert-after, insert-before, delete, create, unlink or rename)", fields[2])
+		return Hunk{}, 0, fmt.Errorf("unknown op %q (want replace, insert-after, insert-before, delete, create, unlink or rename)%s", fields[2], earlyEnd(fields))
 	}
 	if h.Addr, err = ParseAddr(fields[1]); err != nil {
 		return Hunk{}, 0, err
@@ -810,13 +855,13 @@ func validate(h *Hunk) error {
 		// address forms in one grammar have to be refused on the same inputs.
 		// Caught in review of PR #74.
 		if h.Addr.StartPat != nil {
-			return refusal.New(refusal.CreateAddress, "create takes no address, use %q", "-")
+			return refusal.New(refusal.CreateAddress, "create takes no address, use %q or %q", "-", "0")
 		}
 		if !patterned && (h.Addr.Start != 0 || h.Addr.End != 0) {
-			return refusal.New(refusal.CreateAddress, "create takes no address, use %q", "-")
+			return refusal.New(refusal.CreateAddress, "create takes no address, use %q or %q", "-", "0")
 		}
 		if h.Addr.RelEnd > 0 {
-			return refusal.New(refusal.CreateRelEnd, "create takes no address, so it takes no relative end either: use %q", "-")
+			return refusal.New(refusal.CreateRelEnd, "create takes no address, so it takes no relative end either: use %q or %q", "-", "0")
 		}
 		if h.Anchor != "" || h.Lines >= 0 {
 			return refusal.New(refusal.CreateGuard, "create takes no anchor= or lines= (the file must not exist yet)")
