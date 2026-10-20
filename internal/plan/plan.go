@@ -393,15 +393,31 @@ func earlyEnd(fields []string) string {
 		}
 	}
 	early := closed && rest != "" && !relEndSuffix.MatchString(rest)
-	for _, f := range fields[2:] {
-		if !optionField.MatchString(f) && strings.Contains(f, "/") {
-			early = true
+	// A "/" in a later word shows the pattern ran on only when the op the
+	// caller meant comes after it: a misspelled op beside `x/y` is just that.
+	if !early && laterOp(fields[3:]) {
+		for _, f := range fields[2:] {
+			if !optionField.MatchString(f) && strings.Contains(f, "/") {
+				early = true
+			}
 		}
 	}
 	if !early {
 		return ""
 	}
-	return fmt.Sprintf(` — the address %q ended at the first unescaped "/"; write a "/" inside a pattern as "\/"`, a)
+	// The address is quoted as written: %q would double each backslash.
+	return ` — the address "` + a + `" ended at the first unescaped "/"; write a "/" inside a pattern as "\/"`
+}
+
+// laterOp reports whether a field names an op, as the one an early end displaced.
+func laterOp(fields []string) bool {
+	for _, f := range fields {
+		switch Op(f) {
+		case OpReplace, OpInsertAfter, OpInsertBefore, OpDelete, OpCreate, OpUnlink, OpRename:
+			return true
+		}
+	}
+	return false
 }
 
 // relEndSuffix is what may follow a pattern in one address: a relative end.
