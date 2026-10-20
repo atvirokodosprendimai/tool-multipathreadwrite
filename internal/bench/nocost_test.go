@@ -58,4 +58,28 @@ func TestAKilledAttemptWithNoCostLeavesOnlyTheCostComparison(t *testing.T) {
 	if _, err := Look(stage); err == nil {
 		t.Error("an attempt with no cost that did not time out was accepted")
 	}
+
+	// When every pair has lost its cost, success still decides: B killed at
+	// the budget on all 40 against A solving them all LOSES, never an empty
+	// INCONCLUSIVE (the Codex review of 80e50bd2).
+	stage = t.TempDir()
+	writeBlock(t, stage, 1, ids(1, 40), []string{"m"}, both, func(id, m, c string) outcome { return outcome{cost: 1, solved: c == "A"} })
+	for _, id := range ids(1, 40) {
+		path := filepath.Join(stage, "block-1", id+".B.m.1.receipt.json")
+		var r Receipt
+		if err := readJSON(path, &r); err != nil {
+			t.Fatal(err)
+		}
+		killed(&r)
+		out, _ := json.Marshal(r)
+		if err := os.WriteFile(path, out, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if r, err = Look(stage); err != nil {
+		t.Fatal(err)
+	}
+	if row := rowOf(t, r, "m", "B"); row.Verdict != "LOSES" || row.Result.SolvedDiff != -1 || len(row.Result.CostUnpaired) != 40 {
+		t.Errorf("every pair without a cost: verdict %s, solved %v, cost-unpaired %d; want LOSES, -1, 40", row.Verdict, row.Result.SolvedDiff, len(row.Result.CostUnpaired))
+	}
 }

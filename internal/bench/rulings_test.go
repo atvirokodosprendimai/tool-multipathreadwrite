@@ -49,14 +49,23 @@ func TestARulingExcludesAnAttemptTheMachineEnded(t *testing.T) {
 	if row := rowOf(t, r, "m", "B"); !row.Eligible || row.Result.Excluded != b.Excluded+1 || row.Result.Tasks != b.Tasks-1 {
 		t.Errorf("one ruled attempt: eligible %v, excluded %d, paired %d; want eligible, %d, %d", row.Eligible, row.Result.Excluded, row.Result.Tasks, b.Excluded+1, b.Tasks-1)
 	}
-	desc, err := LookDescriptive(stage, r, nil)
+	// The descriptive row over a subset is read the same way.
+	desc, err := LookDescriptive(stage, r, []Subset{{Label: "every instance", Tasks: ids(1, 40)}})
 	if err != nil {
 		t.Fatal(err)
 	}
+	seen := false
 	for _, d := range desc {
-		if d.Comparison == "B" && d.Excluded != b.Excluded+1 {
+		if d.Comparison != "B" {
+			continue
+		}
+		seen = true
+		if d.Excluded != b.Excluded+1 {
 			t.Errorf("the descriptive row counts %d excluded, want %d", d.Excluded, b.Excluded+1)
 		}
+	}
+	if !seen {
+		t.Error("no descriptive row for B against A")
 	}
 
 	// Three of 40 is over the 5% cap: the look is not eligible.

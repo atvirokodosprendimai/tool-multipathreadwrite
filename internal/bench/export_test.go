@@ -98,6 +98,39 @@ func TestExportPairedWritesADR106Rows(t *testing.T) {
 			t.Errorf("row %s = %+v, want %+v", k, got[k], w)
 		}
 	}
+	// A Stage 5 ruling beside the blocks marks the ruled attempt unrun however
+	// the block directory is spelled, and one naming no attempt is refused
+	// (the Codex review of 80e50bd2).
+	rulePath := filepath.Join(filepath.Dir(dir), "exclusions.json")
+	t.Cleanup(func() { _ = os.Remove(rulePath) })
+	for _, spelling := range []string{dir, dir + string(filepath.Separator)} {
+		if err := os.WriteFile(rulePath, []byte(`{"i1.P.m1.1": "the machine ended it"}`), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		o := opts
+		o.Dirs = []string{spelling}
+		var b bytes.Buffer
+		if err := ExportPaired(o, &b); err != nil {
+			t.Fatalf("%q: %v", spelling, err)
+		}
+		unrun := false
+		for _, l := range strings.Split(strings.TrimSpace(b.String()), "\n")[1:] {
+			var r row
+			if err := json.Unmarshal([]byte(l), &r); err == nil && r.Instance == "i1" && r.Arm == "P" {
+				unrun = r.Unrun
+			}
+		}
+		if !unrun {
+			t.Errorf("%q: the ruled attempt was not marked unrun:\n%s", spelling, b.String())
+		}
+	}
+	if err := os.WriteFile(rulePath, []byte(`{"i1.P.m1.9": "x"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := ExportPaired(opts, &bytes.Buffer{}); err == nil || !strings.Contains(err.Error(), "i1.P.m1.9") {
+		t.Errorf("a ruling naming no attempt: %v", err)
+	}
+	_ = os.Remove(rulePath)
 	for name, broken := range map[string]ExportOptions{
 		"no scorer sha":   {Dirs: opts.Dirs, X: "A", Y: "P", Model: "m1", Selection: sel, Canary: canary},
 		"no canary":       {Dirs: opts.Dirs, X: "A", Y: "P", Model: "m1", ScorerSHA: opts.ScorerSHA, Selection: sel},

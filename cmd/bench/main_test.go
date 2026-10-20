@@ -119,3 +119,23 @@ func TestTheVerbsReachTheirCommands(t *testing.T) {
 		t.Errorf("bench look on one open block: %q, %v; want exit 1 and block 2 due", stdout.String(), err)
 	}
 }
+
+// TestAnalyzeRefusesAStage5Block: a Stage 5 block is read by its stage's look,
+// which applies the stage's rulings; analyze on one block would read its raw
+// receipts at the ordinary 95% bar (the Codex review of 80e50bd2).
+func TestAnalyzeRefusesAStage5Block(t *testing.T) {
+	stage := t.TempDir()
+	block := filepath.Join(stage, "block-2")
+	for _, d := range []string{block, filepath.Join(stage, "block-1")} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(stage, "block-1", "run.json"), []byte(`{"stage":"stage5","block":1,"looks":5}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	err := analyze([]string{block + string(filepath.Separator)}, &bytes.Buffer{})
+	if err == nil || !strings.Contains(err.Error(), "bench look") {
+		t.Errorf("analyze over a Stage 5 block: %v, want a refusal naming bench look", err)
+	}
+}

@@ -392,6 +392,18 @@ func rulings(stageDir string) (map[string]string, error) {
 	if err := json.Unmarshal(b, &m); err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
+	// Every id must name a receipt the stage holds, so a misspelled ruling
+	// fails here on every reader rather than excluding nothing.
+	var missing []string
+	for id := range m {
+		if hits, _ := filepath.Glob(filepath.Join(stageDir, "*", id+".receipt.json")); len(hits) == 0 {
+			missing = append(missing, id)
+		}
+	}
+	if len(missing) > 0 {
+		slices.Sort(missing)
+		return nil, fmt.Errorf("exclusions.json names %s, which no block of the stage holds", strings.Join(missing, ", "))
+	}
 	return m, nil
 }
 

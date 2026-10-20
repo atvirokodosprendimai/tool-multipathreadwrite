@@ -280,6 +280,11 @@ func analyze(args []string, w io.Writer) error {
 	if fs.NArg() != 1 {
 		return fmt.Errorf("analyze takes one directory")
 	}
+	// A Stage 5 block is read by its stage's look, which applies the stage's
+	// rulings; its raw receipts are not a slice of the 95% table.
+	if abs, err := filepath.Abs(fs.Arg(0)); err == nil && bench.LookStage(filepath.Dir(abs)) {
+		return fmt.Errorf("%s is a block of a Stage 5 stage: read it with bench look %s", fs.Arg(0), filepath.Dir(abs))
+	}
 	tasks, err := bench.LoadTasks(*tasksDir)
 	if err != nil {
 		return err

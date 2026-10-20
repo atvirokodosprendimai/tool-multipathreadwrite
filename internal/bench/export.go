@@ -99,7 +99,11 @@ func ExportPaired(o ExportOptions, w io.Writer) error {
 		}
 		// A Stage 5 ruling (exclusions.json beside the blocks) applies here as
 		// it does to the look: a ruled attempt is a row marked unrun.
-		ruled, err := rulings(filepath.Dir(dir))
+		abs, err := filepath.Abs(dir) // a trailing separator or "." must still find the stage
+		if err != nil {
+			return err
+		}
+		ruled, err := rulings(filepath.Dir(abs))
 		if err != nil {
 			return err
 		}

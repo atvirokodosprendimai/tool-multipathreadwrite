@@ -331,17 +331,23 @@ func judgeWith(stage, model, source string, g []Receipt, second string, level fl
 		rel = append(rel, (meanB-meanA)/meanA)
 	}
 	res.Tasks = len(diff)
-	if len(rel) == 0 {
+	if len(diff) == 0 {
 		res.Verdict = "INCONCLUSIVE"
 		return res, nil
 	}
-	res.RelCost, res.SolvedDiff = mean(rel), mean(diff)
-	if len(rel) == len(diff) {
+	res.SolvedDiff = mean(diff)
+	switch {
+	case len(rel) == len(diff):
+		res.RelCost = mean(rel)
 		res.RelLo, res.RelHi, res.SolvedLo, res.SolvedHi = bootstrapAt(rel, diff, level)
-	} else {
+	case len(rel) > 0:
 		// The two comparisons cover different instances, so each is resampled
 		// on its own. With none left out, the joint draw above is unchanged.
+		res.RelCost = mean(rel)
 		res.RelLo, res.RelHi, _, _ = bootstrapAt(rel, rel, level)
+		_, _, res.SolvedLo, res.SolvedHi = bootstrapAt(diff, diff, level)
+	default:
+		// No pair kept its cost: success alone can decide, and only LOSES.
 		_, _, res.SolvedLo, res.SolvedHi = bootstrapAt(diff, diff, level)
 	}
 	if tango {
@@ -359,9 +365,9 @@ func judgeWith(stage, model, source string, g []Receipt, second string, level fl
 		res.SolvedLo, res.SolvedHi = tangoInterval(x12, x21, len(diff), level)
 	}
 	switch {
-	case res.RelLo > eps || res.SolvedHi < -eps:
+	case len(rel) > 0 && res.RelLo > eps || res.SolvedHi < -eps:
 		res.Verdict = "LOSES"
-	case res.RelCost <= -0.10+eps && res.RelHi < -eps && res.SolvedLo >= -0.05-eps:
+	case len(rel) > 0 && res.RelCost <= -0.10+eps && res.RelHi < -eps && res.SolvedLo >= -0.05-eps:
 		res.Verdict = "PAYS"
 	default:
 		res.Verdict = "INCONCLUSIVE"
