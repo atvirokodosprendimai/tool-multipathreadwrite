@@ -50,7 +50,7 @@ unverified. Not a rollback.
 
 ## Quote `anchor=`
 
-`anchor=` is required on a multi-line `replace`. Take it from the `NNN| content`
+`anchor=` is required on a multi-line `replace`; `sha=` and `lines=` do not stand in for it. Take it from the `NNN| content`
 a read printed. An unquoted value is consumed until the next key.
 
 ## MCP ack
