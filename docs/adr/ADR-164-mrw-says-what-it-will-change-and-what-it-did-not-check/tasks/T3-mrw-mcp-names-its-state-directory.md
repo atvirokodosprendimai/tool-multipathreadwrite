@@ -32,6 +32,25 @@ Decision 3: the CLI's plan makers and the MCP surface say what the CLI's read an
 ## Ordered Steps
 
 1. [S1] Enumerate the routes and record here the command, the count and the list: `mrw read --grep 'seen\.(Record|Snapshot|Drop|Load)\(|state\.(Hold|Dir|Path|WriteSynced)\(|iter\.Load\(|\.Land\(|land\.Err|LedgerErr|promote\(|hold\(' --exclude '*_test.go' internal/mcp`, keeping call sites and dropping helper definitions (`func hold`, `func promote`, `pendingPath`, `readPending`). Say for `firstPage`'s dropped `hold` error (`tools.go`, `return callToolResult{}, false`) whether it is routed or stays dropped, and why. Then write the failing tests and see them red: TestTheMCPSurfaceNamesItsStateDirectory (with `XDG_STATE_HOME` a file: `mrw_read` of a file, `mrw_read` with `grep`+`sub` and an explicit path, `mrw_write` with a plan, and `mrw_write` with `grep`+`sub` and an explicit path each answer naming `mrw's state directory`, with the same `isError` or JSON-RPC shape and code as today; an MCP error not about the state directory is unchanged), and the `--sub` case in `cmd/mrw/statehint_test.go`. [proof: acceptance]
+
+   **S1 record (2026-10-20, on dd51f3e6).** Command, as written above, run in the T3 worktree: 22 matching lines in 3 files (`ack.go` 8, `sub161.go` 2, `tools.go` 12, one of them a comment at 2461 and not a call). Dropping the helper definitions (`func hold`, `func promote`, `pendingPath`, `readPending`, and `promote`'s own inner `hold`/`Hold`/`seen.Record` calls, which return their error to the route that called them), the call sites are 11, each routed by `statehint.Hint` where it makes the answer:
+
+   | # | Site | Answer today (unchanged) |
+   |---|------|--------------------------|
+   | 1 | `tools.go` readTool `promote` (`ack: …`) | JSON-RPC -32603 |
+   | 2 | `tools.go` readTool quiet `seen.Record` | JSON-RPC -32603 |
+   | 3 | `tools.go` readTool `hold` (`holding checkpoints: …`) | JSON-RPC -32603 |
+   | 4 | `tools.go` writeTool `promote` | JSON-RPC -32603 |
+   | 5 | `tools.go` writeTool `iter.Load` | JSON-RPC -32603 |
+   | 6 | `tools.go` writeTool `prep.Land()` error | JSON-RPC -32603 |
+   | 7 | `tools.go` `land.LedgerErr` → `checkedReceipt` | isError receipt |
+   | 8 | `tools.go` `land.Err` → `boundedReceipt` | isError receipt (the write lock a directory blocks lands here) |
+   | 9 | `tools.go` `firstPage`'s `hold` | see below |
+   | 10 | `sub161.go` readPlan `seen.Record` | JSON-RPC -32603 |
+   | 11 | `sub161.go` planSource `seen.Record` | isError text |
+
+   Two more routes carry the error without a line of the command naming it: `readPlan` and `planSource` turn `read.BuildSub`/`BuildRewrite`'s `*BuildError` into an isError text (`iter.Load` in `RangeFreePaths`), now through `BuildError.Err`. `firstPage`'s dropped `hold` error is **routed**, because it hid the cause: an unusable state directory surfaced as the flat "does not fit" refusal. When `statehint.Hint` recognises the error it returns an `errorResult` with `true`, which every caller already returns as the page (an isError result, as the flat refusal was); any other `hold` failure still returns `false` and falls through as before.
+   Uncovered, declared: `writeTool`'s `prep.Land()` error (the ledger loaded after `writer.Prepare`) is routed but no test reaches it. With the state directory unusable from the start, `Prepare` fails first and the answer comes through the route before it; reaching `Land`'s own failure needs the directory to break between the two, and I found no fixture that produces that. A mutant dropping its hint survived (Mutation Log); the route before it carries the S4 mutant.
 2. [S2] `BuildError.Err`; `exitOf` keeps it. [proof: mutation]
 3. [S3] Move the judgement into `internal/statehint`; `main` calls it. [proof: mutation]
 4. [S4] Wrap and route each site from S1. [proof: mutation]
@@ -42,8 +61,10 @@ Decision 3: the CLI's plan makers and the MCP surface say what the CLI's read an
 ```bash
 set -o pipefail
 out=$(mktemp) \
-  && go test ./internal/mcp/ -count=1 -timeout 300s -run 'TestTheMCPSurfaceNamesItsStateDirectory$' -v 2>&1 | tee "$out" \
+  && go test ./internal/mcp/ -count=1 -timeout 300s -run 'TestTheMCPSurfaceNamesItsStateDirectory$|TestTheMCPLandingNamesItsStateDirectory$|TestTheWriteToolReturnsTheSameResultAsTheCLI$' -v 2>&1 | tee "$out" \
   && grep -qE '^--- PASS: TestTheMCPSurfaceNamesItsStateDirectory \(' "$out" \
+  && grep -qE '^--- PASS: TestTheMCPLandingNamesItsStateDirectory \(' "$out" \
+  && grep -qE '^--- PASS: TestTheWriteToolReturnsTheSameResultAsTheCLI \(' "$out" \
   && go test ./internal/statehint/ ./cmd/mrw/ ./internal/read/ -count=1 -timeout 300s -run 'TestAStateFailureIsNamedByItsType|TestAStateDirectoryThatCannotBeMadeNamesTheVariableThatMovesIt|TestAWriteThatCannotUseTheStateDirectoryNamesIt|TestALandingThatCannotTakeTheWriteLockNamesTheStateDirectory|TestNoCommandExitsWithAnErrorThroughCliExit' -v 2>&1 | tee "$out" \
   && grep -qE '^--- PASS: TestAStateFailureIsNamedByItsType \(' "$out" \
   && grep -qE '^--- PASS: TestAStateDirectoryThatCannotBeMadeNamesTheVariableThatMovesIt \(' "$out" \
@@ -57,8 +78,13 @@ out=$(mktemp) \
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
 | `TestTheWriteToolReturnsTheSameResultAsTheCLI` | `internal/mcp/tools_test.go` | the two surfaces agree (ADR-010), which this task extends to the state error | none | — |
-
-Planned, named without backticks until they exist on `main`: TestTheMCPSurfaceNamesItsStateDirectory in `internal/mcp/statehint164_test.go` (S1, S4), TestAStateFailureIsNamedByItsType in `internal/statehint/statehint_test.go` (S3), and #460's TestAStateDirectoryThatCannotBeMadeNamesTheVariableThatMovesIt, TestAWriteThatCannotUseTheStateDirectoryNamesIt (S1, S2: its `--sub` case) and TestNoCommandExitsWithAnErrorThroughCliExit in `cmd/mrw/statehint_test.go`.
+| `TestAStateFailureIsNamedByItsType` | `internal/statehint/statehint_test.go` | `Hint` names a state failure by type, through a `%w` wrap, a link error and a default base; an error not about the state directory, or echoing its path as text, comes back unchanged | none | S3 |
+| `TestTheMCPSurfaceNamesItsStateDirectory` | `internal/mcp/statehint164_test.go` | each MCP route of S1 names the state directory with an unusable `XDG_STATE_HOME`, with its shape and code unchanged | none | S1, S4 |
+| `TestTheMCPLandingNamesItsStateDirectory` | `internal/mcp/statehint164_test.go` | a write lock that is a directory, and a ledger that cannot be updated after landing, name it and keep their isError receipt | none | S4 |
+| `TestAStateDirectoryThatCannotBeMadeNamesTheVariableThatMovesIt` | `cmd/mrw/statehint_test.go` | #460's cases that go through `exitWith` still hint, with the exit code kept | none | S3 |
+| `TestAWriteThatCannotUseTheStateDirectoryNamesIt` | `cmd/mrw/statehint_test.go` | `write`/`read --grep --sub` over a path name it, exit 2 | none | S1, S2 |
+| `TestALandingThatCannotTakeTheWriteLockNamesTheStateDirectory` | `cmd/mrw/statehint_test.go` | the landing's lock failure still hints | none | S3 |
+| `TestNoCommandExitsWithAnErrorThroughCliExit` | `cmd/mrw/statehint_test.go` | no command flattens an error that `Hint` must see | none | S2 |
 
 ## Reachability
 
@@ -71,9 +97,54 @@ Planned, named without backticks until they exist on `main`: TestTheMCPSurfaceNa
 
 ## Mutation Log
 (empty until execute)
+- 2026-10-20 · dd51f3e6* · mutant killed · exit 1 · `internal/read/plansource.go` · a plan maker drops the error it was built from, so the hint cannot reach it · acceptance-sha256:50729e9042f0106845017fbcb9ea0684358509f6885fc9b877c1de8d844ee75a
+- 2026-10-20 · dd51f3e6* · mutant inconclusive · exit 1 · `cmd/mrw/main.go` · main stops hinting · acceptance-sha256:50729e9042f0106845017fbcb9ea0684358509f6885fc9b877c1de8d844ee75a
+  ```
+  the fence failed on a build/parse error, not an assertion
+  ```
+- 2026-10-20 · dd51f3e6* · mutant survived · exit 0 · `internal/mcp/tools.go` · mrw_write loading the ledger answers without the hint · acceptance-sha256:50729e9042f0106845017fbcb9ea0684358509f6885fc9b877c1de8d844ee75a
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
+- 2026-10-20 · dd51f3e6* · mutant killed · exit 1 · `internal/mcp/tools.go` · mrw_read promoting an ack answers without the hint · acceptance-sha256:50729e9042f0106845017fbcb9ea0684358509f6885fc9b877c1de8d844ee75a
+- 2026-10-20 · dd51f3e6* · mutant survived · exit 0 · `cmd/mrw/main.go` · main prints the bare error, unhinted · acceptance-sha256:50729e9042f0106845017fbcb9ea0684358509f6885fc9b877c1de8d844ee75a
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
+- 2026-10-20 · dd51f3e6* · mutant killed · exit 1 · `internal/mcp/tools.go` · mrw_write preparing the plan answers without the hint · acceptance-sha256:50729e9042f0106845017fbcb9ea0684358509f6885fc9b877c1de8d844ee75a
+- 2026-10-20 · dd51f3e6* · mutant killed · exit 1 · `internal/statehint/statehint.go` · Hint never names the state directory: the judgement moved into internal/statehint is what every surface calls · acceptance-sha256:50729e9042f0106845017fbcb9ea0684358509f6885fc9b877c1de8d844ee75a
+- 2026-10-20 · dd51f3e6* · mutant killed · exit 1 · `internal/read/plansource.go` · a plan maker drops the error it was built from, so the hint cannot reach it · acceptance-sha256:2accaf1b0519709bcfe28e1e5c4d58bd857cd2c46c9aa21514b08ec2ebe30b8a
+- 2026-10-20 · dd51f3e6* · mutant killed · exit 1 · `internal/statehint/statehint.go` · Hint never names the state directory: the judgement every surface calls · acceptance-sha256:2accaf1b0519709bcfe28e1e5c4d58bd857cd2c46c9aa21514b08ec2ebe30b8a
+- 2026-10-20 · dd51f3e6* · mutant killed · exit 1 · `internal/mcp/tools.go` · mrw_write preparing the plan answers without the hint · acceptance-sha256:2accaf1b0519709bcfe28e1e5c4d58bd857cd2c46c9aa21514b08ec2ebe30b8a
 
 ## Verification Log
 (empty until execute)
+- 2026-10-20 · dd51f3e6* · exit 1 · `set -o pipefail …` · acceptance-sha256:50729e9042f0106845017fbcb9ea0684358509f6885fc9b877c1de8d844ee75a · ms:1612 · test-lock-sha256:ee19d23ce05646ebe01002c8150885871ef1f782b583d17c0064b461aaab9498 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJY21kL21ydy9zdGF0ZWhpbnRfdGVzdC5nbwlUZXN0QUxhbmRpbmdUaGF0Q2Fubm90VGFrZVRoZVdyaXRlTG9ja05hbWVzVGhlU3RhdGVEaXJlY3RvcnkJYTgwMWJlZDZkNzc4MjE1OTdlMTA1ZDU4MjMzOWZlMWViMDliNWM0ZGM4MDA3MzliZjMzMzY0NWM0NTAxOTBlNQpib2R5CWNtZC9tcncvc3RhdGVoaW50X3Rlc3QuZ28JVGVzdEFTdGF0ZURpcmVjdG9yeVRoYXRDYW5ub3RCZU1hZGVOYW1lc1RoZVZhcmlhYmxlVGhhdE1vdmVzSXQJNzkyZDZiY2Q4YjQxODRiNGU1ZTI2MWQ2MGFhMmVlZWIyOGIxYzc3YTc4OGYyNTQxZTM0ZTIxYmY3ZTIxZDA2Zgpib2R5CWNtZC9tcncvc3RhdGVoaW50X3Rlc3QuZ28JVGVzdEFXcml0ZVRoYXRDYW5ub3RVc2VUaGVTdGF0ZURpcmVjdG9yeU5hbWVzSXQJNDQxOTNhMzVlMTMyNmJiMGRkYWNkYjQ2NDA1ODAxNDMzMmZiNGE3YjQwOWNiZTI2YTQzZjljOTE1OTE4MDQwNQpib2R5CWNtZC9tcncvc3RhdGVoaW50X3Rlc3QuZ28JVGVzdE5vQ29tbWFuZEV4aXRzV2l0aEFuRXJyb3JUaHJvdWdoQ2xpRXhpdAk0ZTIyZWUwMWRhYTc0Y2MxNTc4Yjg2NTZmZDM4ZDZhY2ZkZmMzNzJiYTQ0MDJhNDM4ZDExMTA0MjVkMDAyYTZiCmJvZHkJaW50ZXJuYWwvbWNwL3N0YXRlaGludDE2NF90ZXN0LmdvCVRlc3RUaGVNQ1BMYW5kaW5nTmFtZXNJdHNTdGF0ZURpcmVjdG9yeQkxYWRkYzcxNWE1MGYyODNkY2M4M2JhZjQwMDJhYjM5ZTI1YzJlNDBiMTg2Y2E4YTk3ZGI0NzAxZGE5NGMwM2E0CmJvZHkJaW50ZXJuYWwvbWNwL3N0YXRlaGludDE2NF90ZXN0LmdvCVRlc3RUaGVNQ1BTdXJmYWNlTmFtZXNJdHNTdGF0ZURpcmVjdG9yeQllMDI5MmFmMjg1ODg2N2VhYWVlMGZmOGY3NjBiN2VjMzZmM2Q0NDhmY2MwYjI2ZmEwMGQ1ZjBkNDYwMDdhNzc0CmJvZHkJaW50ZXJuYWwvbWNwL3Rvb2xzX3Rlc3QuZ28JVGVzdEFQYWdlSXNLbm93bkJ5SXRzU2VydmVkVGV4dAkwYzc1Zjg0YjYxMTFlZTk1MjU4NjIxY2E5NTU0N2JhYTZlNGI0NTU5NmYzZjkwNTBhNjdmMjRmNzY2ZmRmZDI5CmJvZHkJaW50ZXJuYWwvbWNwL3Rvb2xzX3Rlc3QuZ28JVGVzdEFQYWdlSXNNZWFzdXJlZEFmdGVySXRzTWFya2Vyc0FuZEZvb3RlcgllZDYzMGI2ODhhOTIxY2UxOTRlODI1Zjc1MmVjOWZkZDhlZWRkODQxZDE4MGY1NzM5NjViM2YwOWU1M2QxNWE4CmJvZHkJaW50ZXJuYWwvbWNwL3Rvb2xzX3Rlc3QuZ28JVGVzdEFQYWdlTGljZW5zZXNPbmx5V2hhdEl0U2VydmVkCTRhZDU3YWViOGY2NTU4ZDgyNzgzYmQ0MmI0MDQyZTVlYmZkOWJmMTUyNGE0ZDgwMDEzMWQ4YzU1MTVjZWQ1MzcKYm9keQlpbnRlcm5hbC9tY3AvdG9vbHNfdGVzdC5nbwlUZXN0QVBhZ2VUaGF0Q2Fubm90Rml0SXNOb3RBUGFnZQk2NTc3ODc5M2YxZjVjYjJjOWY5MTg0Yzc3MWM3MDU2NDM2NGNkNzk4OWU0ZDViMDY4ZGU3OGNhMzU1NmRkNGY0CmJvZHkJaW50ZXJuYWwvbWNwL3Rvb2xzX3Rlc3QuZ28JVGVzdEFQYWdlZEZvb3RlckNhcnJpZXNUaGVPbmVSdWxlCWE0ZDFlZDE0NDNhMGYyYmFlM2U0NTQxNmM2Mjk0Y2EyOWI3N2E0ZWVjODI2YzFjODcwOGQ3YWE4YTYwNWI2ZjYKYm9keQlpbnRlcm5hbC9tY3AvdG9vbHNfdGVzdC5nbwlUZXN0QVBhZ2VkUmVhZFJlYXNzZW1ibGVzVGhlV2hvbGVGaWxlCTMzNTNmODUzNDZhYzMzYjA3MTRlY2Y4YjhkYjMxZjgwMzBmNWJiODBkZDM3ZTliMjFjNmQxMTIzNDE4NDA0NDcKYm9keQlpbnRlcm5hbC9tY3AvdG9vbHNfdGVzdC5nbwlUZXN0QVJlYWRPdmVyVGhlTGltaXRJc1JlZnVzZWROb3RUcnVuY2F0ZWQJMDBmY2JlY2Q4ZGJjYmZmMDEyN2ViZjM2NDBhNDQzZDllN2UzZDdjYTEyYWM2NzA5ODI0MmYxMjI3NzczZGVmNgpib2R5CWludGVybmFsL21jcC90b29sc190ZXN0LmdvCVRlc3RBUmVhZFRoYXRTZXJ2ZWROb3RoaW5nSXNBbkVycm9yCTZhN2E0NDM0NThlMGY2NWQyNWUzMGI0OTE1NjhlZWQ5MjRkYTU5MTVmMjM4ZWIwZDkxYzllNmNjY2NmZDcxYjkKYm9keQlpbnRlcm5hbC9tY3AvdG9vbHNfdGVzdC5nbwlUZXN0QVJlYWRVbmRlclRoZUxpbWl0SXNVbmNoYW5nZWQJNzE0NzNhNWI5MTczMWRmZTE5MDk1MmFlNDI5ZTU1ZTQxZGUxYmE4NDEzYmViYWZiZjZiMzZiZjc1ZWNkNGU4Nwpib2R5CWludGVybmFsL21jcC90b29sc190ZXN0LmdvCVRlc3RBV2Fsa1Byb2JsZW1Jc1JlcG9ydGVkQW5kTm90U3dhbGxvd2VkCTNlNmU2MjkwOGJlNmFiODlmNmI5YWI5MTUwMTA4MzRlZTk0NDEzZDUyZGIxMjBiNDc3NGVmOGRiNTUyNTk4MTUKYm9keQlpbnRlcm5hbC9tY3AvdG9vbHNfdGVzdC5nbwlUZXN0QVdhbGtQcm9ibGVtU3Vydml2ZXNBVmFsaWRTaWJsaW5nCWJlZTcwODhlNWNjMjIxZTc3NTI2OTU0NTI0MDU1YzU4OWY4ZjAyMGU2Mjk4YzUwZjgxY2FjOTc1YzRhYjkxYmIKYm9keQlpbnRlcm5hbC9tY3AvdG9vbHNfdGVzdC5nbwlUZXN0QVdyaXRlVG9BblVucmVhZEZpbGVJc1JlZnVzZWRPdmVyTUNQCWJiMmE0ZTFmYzI0MTRhM2NjNTA2MzE3NWEwMzRjOTcwY2VkOTA1YTc1N2UwYjZkYTJkZjA3ZWNhOWI5ZTk5YWMKYm9keQlpbnRlcm5hbC9tY3AvdG9vbHNfdGVzdC5nbwlUZXN0QWNrT25BUmVhZFByb21vdGVzVG9vCTc3Yjg3MWNjM2QzMjA5YTg3NTRjMjkxNjVlZjRkYWE5MGU3ZGY1MjFkNmFkMDU0ZTA4MzI2NjgwYjVlZDc1MDgKYm9keQlpbnRlcm5hbC9tY3AvdG9vbHNfdGVzdC5nbwlUZXN0QWZ0ZXJXaXRob3V0R3JlcElzUmVmdXNlZAk5MTc1MmIwN2JkZjY2NzAzOGI1YWNiOGZlODI4MjNmYzQyYzJiNzFmODU2MWJmYzQzYjA1ZDNiZTAxYTVjYjI4CmJvZHkJaW50ZXJuYWwvbWNwL3Rvb2xzX3Rlc3QuZ28JVGVzdEFuSW5kZXhUb29MYXJnZVRvU2VydmVQYWdlc0J5RmlsZQk2YjYyNDE0ZWNhOWQzODEyY2E1Njg0ZDExNDY5ZmU2MzU1NjBkZmVkZmM0YjdjMGExODFmNzFhYzA3NjEyYjdiCmJvZHkJaW50ZXJuYWwvbWNwL3Rvb2xzX3Rlc3QuZ28JVGVzdEFuTUNQUmVhZExpY2Vuc2VzQUNMSVdyaXRlCThhOTRlMTg1OTVmODUxNjI3MWRmNGFmNzFiOWMzY2Q0MTZhMDE1N2RjNjA5YmQ2OTljZjcxYzcxMTQ0ZTRjZjMKYm9keQlpbnRlcm5hbC9tY3AvdG9vbHNfdGVzdC5nbwlUZXN0QW5PdmVyc2l6ZWRHcmVwUmV0dXJuc1RoZUluZGV4QW5kTm90QURlYWRFbmQJNzNkNTJkNzA1YjI4NzVhMjFjM2M0MzdiZTFmNWE3YzY1MTU0NzM3YzMxYzQyNWZiZDkwNDBkOTZhYzJjZWQ1MQpib2R5CWludGVybmFsL21jcC90b29sc190ZXN0LmdvCVRlc3RBbk92ZXJzaXplZFJlYWRTdGlsbFJlYWRzQXNJbmNvbXBsZXRlCTM4ZjI1NGI2NWYzZGJjMDFmOGQyZmYxZTY4YzQ4NWQzOTg2MTU1OGM5NTZkZjRlNjlmMDUzMDA4MjczODg5YzEKYm9keQlpbnRlcm5hbC9tY3AvdG9vbHNfdGVzdC5nbwlUZXN0Qm90aFRvb2xzQWR2ZXJ0aXNlQWNrCTlhMzYxM2UzMGFmNjE1ZWY2MDg0YjRmMzBmNGY0ZjBlZDFmMjEzNmYzNjYxMzZjZmY0MGQ5ZTllYjE1MzRjYjkKYm9keQlpbnRlcm5hbC9tY3AvdG9vbHNfdGVzdC5nbwlUZXN0Q29uY3VycmVudFRvb2xDYWxsc0RvTm90TG9zZUFMZWRnZXJFbnRyeQk4MTUxOGJlN2MyZjdjYjA2NzYyMDk0YjUyYWZmNTEyYTQ3ZTA4MDUyOWI4N2RiZWNhZjdmOThkYTJkNGE5ZDU5CmJvZHkJaW50ZXJuYWwvbWNwL3Rvb2xzX3Rlc3QuZ28JVGVzdEdyZXBSZWZ1c2VzQVJhbmdlZFNwZWMJODQ2MTliOGE0ZTJjM2I5OTI2MmM3NDU1MmVlYTQyMDc3YjRmMzBmYjNlODA4ZGQ4Mzk4ZWEzMTc4MTZmOTIzNApib2R5CWludGVybmFsL21jcC90b29sc190ZXN0LmdvCVRlc3RHcmVwU2VydmVzV2hhdEl0RmluZHNBbmRSZWNvcmRzSXQJNTI5MTcxM2I4MGNmYzg4ZjIzODkyZGVkZjgwMzQwZTYyY2FmODYxNjYxZGE2ZjIxNGZiMWI0NjBjMTFkNjZmMgpib2R5CWludGVybmFsL21jcC90b29sc190ZXN0LmdvCVRlc3ROb0dyZXBBbnN3ZXJFeGNlZWRzVGhlRGVjbGFyZWRDYXAJMGUzMmYzN2MyNTAzNDRlN2Q3YWQ1NjI0ODJmNjNkZmIzZmJiYWExMDBkODQ0MThkOGZlNTY5NDE4ZTg3YjZhMwpib2R5CWludGVybmFsL21jcC90b29sc190ZXN0LmdvCVRlc3RUaGVDTElSZWFkSXNVbmFmZmVjdGVkQnlUaGVNQ1BMaW1pdAk0ZTU4MGViMThlZTYxNDBlNjBlZGZmMzM0NzY5N2U2ZjBlZjY1MzUyMjhjZTM0ZDNkODk1Mjc0OTkxZTFkZmY1CmJvZHkJaW50ZXJuYWwvbWNwL3Rvb2xzX3Rlc3QuZ28JVGVzdFRoZUNhcHBlZFdyaXRlclJldGFpbnNOb01vcmVUaGFuSXRzTGltaXQJNTc3N2MxMjU3YjRhZWFlODc3ODU0OTk0Njc0MzUyYjBhNjdlM2I1NjFiZmEzODYyNTY4YTU4YmMxZjdmOTgxMQpib2R5CWludGVybmFsL21jcC90b29sc190ZXN0LmdvCVRlc3RUaGVJbmRleFN1cnZpdmVzQVBhdHRlcm5UaGF0TG9va3NMaWtlQVJhbmdlCTEwZjlmNzYzMTQxNzBkOTcxMDgyYTQ2ZGIwNjM2OTJmNzE0N2Q0NTZkOWQ3YjhhZjA5YzI2NzAyYWM0NTdmNTYKYm9keQlpbnRlcm5hbC9tY3AvdG9vbHNfdGVzdC5nbwlUZXN0VGhlUmVhZFRvb2xPYnNlcnZlc1doYXRUaGVDTElXb3VsZE9ic2VydmUJNDE0Njc0YjgxMjZhZDFiMWY1OGRlN2QwNmI2MTliZjY3MzMyOGNjOTgyMWRjZjRjMjc1ZDJiMWQzM2U4Mzc0Nwpib2R5CWludGVybmFsL21jcC90b29sc190ZXN0LmdvCVRlc3RUaGVSZWZ1c2FsRG9lc05vdEludmVudEFuSW52YWxpZFNwZWMJMWJmNWZlYWRkYWRhODIyZDJlZDRjNTYzNjhjNTY3NDc4N2U3NWZjYjg4MTM3ODEyNmZjYWQwZjhlYWMxODIwMQpib2R5CWludGVybmFsL21jcC90b29sc190ZXN0LmdvCVRlc3RUaGVSZWZ1c2FsTmFtZXNUaGVMaW1pdEFuZEFSYW5nZVRvUmV0cnkJMzgxNmZhMDEyOTcyOTY0NTg0OTY3MWU5MzUzNjAyMWM0ZGY3Yzk5MTU3MDlkMzk5ZWZiZjM0MmE3NDMxNGQyOApib2R5CWludGVybmFsL21jcC90b29sc190ZXN0LmdvCVRlc3RUaGVUb29sUmVzdWx0Q2Fycmllc0NvbnRlbnRBbmRTdHJ1Y3R1cmVkQ29udGVudAkwYWQyYjM3ZmY5MGQ4M2Y1YjUyODE3ZjE5YmMxNmZhOTBmMjBlNzFkMjI1ODg1Yzg0ZjZmYjQ0OWI4ZjliMWE3CmJvZHkJaW50ZXJuYWwvbWNwL3Rvb2xzX3Rlc3QuZ28JVGVzdFRoZVVuc2VydmFibGVMaW5lSXNEaWFnbm9zZWRQZXJGaWxlCTUzYzZiMTRlZWZkYjNjOWExZTU4MzcyYTZkYmY4NTc4OTg1YzdjMmYxNzRiNGE3ZGQ4YTMwNDYxNTdjNTdiODkKYm9keQlpbnRlcm5hbC9tY3AvdG9vbHNfdGVzdC5nbwlUZXN0VGhlV3JpdGVUb29sUmV0dXJuc1RoZVNhbWVSZXN1bHRBc1RoZUNMSQlhYTI3MjBlNzAzZDhkMWFjYzNlMjhmMjAxMjRjZTQ4MzZjMzYzYTJiMTk3ZTA2ZTgzZDg0NGQwNDA0NTg4ZDM4CmJvZHkJaW50ZXJuYWwvc3RhdGVoaW50L3N0YXRlaGludF90ZXN0LmdvCVRlc3RBU3RhdGVGYWlsdXJlSXNOYW1lZEJ5SXRzVHlwZQllMTVjOTIxOTNmZjAwZTk1ZDgxNzRkMDY4ZmQwMzIyNmM3NDdmMDM5Y2RlZWYwYmQ4MDk0NTc2NzA4N2FhZjM0
+  ```
+  --- last 10 line(s) of stdout (of 45 after folding 45 raw)
+      --- FAIL: TestTheMCPSurfaceNamesItsStateDirectory/a_read_promotes_an_ack (0.00s)
+      --- FAIL: TestTheMCPSurfaceNamesItsStateDirectory/a_read_plan_with_a_path_loads_the_working_set (0.00s)
+      --- FAIL: TestTheMCPSurfaceNamesItsStateDirectory/a_read_plan_records_the_planned_lines (0.00s)
+      --- FAIL: TestTheMCPSurfaceNamesItsStateDirectory/a_write_loads_the_ledger (0.00s)
+      --- FAIL: TestTheMCPSurfaceNamesItsStateDirectory/a_write_promotes_an_ack (0.00s)
+      --- FAIL: TestTheMCPSurfaceNamesItsStateDirectory/a_write_plan_with_a_path_loads_the_working_set (0.00s)
+      --- FAIL: TestTheMCPSurfaceNamesItsStateDirectory/a_write_plan_records_the_planned_lines (0.00s)
+  FAIL
+  FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/mcp	0.279s
+  FAIL
+  ```
+- 2026-10-20 · dd51f3e6* · exit 0 · `set -o pipefail …` · acceptance-sha256:50729e9042f0106845017fbcb9ea0684358509f6885fc9b877c1de8d844ee75a · ms:4361
+- 2026-10-20 · dd51f3e6* · exit 0 · `set -o pipefail …` · acceptance-sha256:50729e9042f0106845017fbcb9ea0684358509f6885fc9b877c1de8d844ee75a · ms:3108
+- 2026-10-20 · dd51f3e6* · exit 0 · `set -o pipefail …` · acceptance-sha256:50729e9042f0106845017fbcb9ea0684358509f6885fc9b877c1de8d844ee75a · ms:2840
+- 2026-10-20 · dd51f3e6* · exit 0 · `set -o pipefail …` · acceptance-sha256:50729e9042f0106845017fbcb9ea0684358509f6885fc9b877c1de8d844ee75a · ms:2574
+- 2026-10-20 · dd51f3e6* · exit 0 · `set -o pipefail …` · acceptance-sha256:50729e9042f0106845017fbcb9ea0684358509f6885fc9b877c1de8d844ee75a · ms:3285
+- 2026-10-20 · dd51f3e6* · exit 0 · `set -o pipefail …` · acceptance-sha256:50729e9042f0106845017fbcb9ea0684358509f6885fc9b877c1de8d844ee75a · ms:2821
+- 2026-10-20 · dd51f3e6* · exit 0 · `set -o pipefail …` · acceptance-sha256:50729e9042f0106845017fbcb9ea0684358509f6885fc9b877c1de8d844ee75a · ms:5340
+- 2026-10-20 · human-observed · Claude observed: ./scripts/contract.sh exit 0 at the final T3 tree (2026-10-20): §275 all 8 rows PASS (mrw_read and mrw_write over mrw mcp name the state directory and the variable that moves it; read and write --grep --sub over a path with the state directory unusable exit 2 and name it; both pairs with a writable XDG_STATE_HOME serve), and §272's 3 rows PASS · acceptance-sha256:50729e9042f0106845017fbcb9ea0684358509f6885fc9b877c1de8d844ee75a
+- 2026-10-20 · dd51f3e6* · exit 0 · `set -o pipefail …` · acceptance-sha256:2accaf1b0519709bcfe28e1e5c4d58bd857cd2c46c9aa21514b08ec2ebe30b8a · ms:7176
+- 2026-10-20 · dd51f3e6* · exit 0 · `set -o pipefail …` · acceptance-sha256:2accaf1b0519709bcfe28e1e5c4d58bd857cd2c46c9aa21514b08ec2ebe30b8a · ms:4194
+- 2026-10-20 · dd51f3e6* · exit 0 · `set -o pipefail …` · acceptance-sha256:2accaf1b0519709bcfe28e1e5c4d58bd857cd2c46c9aa21514b08ec2ebe30b8a · ms:5694
+- 2026-10-20 · human-observed · Claude observed: ./scripts/contract.sh exit 0 at the final T3 tree (2026-10-20), §275 all 8 rows PASS (mrw_read and mrw_write over mrw mcp name the state directory and the variable that moves it; read and write --grep --sub over a path with the state directory unusable exit 2 and name it; both pairs with a writable XDG_STATE_HOME serve), and §272's 3 rows PASS · acceptance-sha256:2accaf1b0519709bcfe28e1e5c4d58bd857cd2c46c9aa21514b08ec2ebe30b8a
 
 ## Invariants
 

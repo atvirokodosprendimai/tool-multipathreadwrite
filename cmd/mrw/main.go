@@ -50,6 +50,7 @@ import (
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/speclist"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/state"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/statehint"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/writer"
 )
 
@@ -329,7 +330,7 @@ func main() {
 		}
 	}
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "mrw:", stateHint(err))
+		fmt.Fprintln(os.Stderr, "mrw:", statehint.Hint(err))
 		os.Exit(exitCode(err))
 	}
 }

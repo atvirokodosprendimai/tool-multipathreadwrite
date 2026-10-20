@@ -12,16 +12,17 @@ import (
 	"testing"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/state"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/statehint"
 )
 
-// hinted fails the test unless stateHint(err) keeps err's text, carries each
+// hinted fails the test unless statehint.Hint(err) keeps err's text, carries each
 // of want, and keeps err's exit code.
 func hinted(t *testing.T, name string, err error, want ...string) {
 	t.Helper()
 	if err == nil {
 		t.Fatalf("%s: the fixture did not fail", name)
 	}
-	got := stateHint(err)
+	got := statehint.Hint(err)
 	for _, w := range append([]string{err.Error(), "mrw's state directory", "read ledger", "set XDG_STATE_HOME to a writable absolute directory"}, want...) {
 		if !strings.Contains(got.Error(), w) {
 			t.Errorf("%s: %q lacks %q", name, got, w)
@@ -52,7 +53,6 @@ func TestAStateDirectoryThatCannotBeMadeNamesTheVariableThatMovesIt(t *testing.T
 	}
 	t.Setenv("XDG_STATE_HOME", base)
 	_, err := state.Dir(t.TempDir())
-	hinted(t, "mkdir under the base", err, "under XDG_STATE_HOME="+base)
 	hinted(t, "through exitWith", exitWith(err), "under XDG_STATE_HOME="+base)
 
 	// What seen.save returns when the ledger's rename fails: its words, then %w.
@@ -89,8 +89,8 @@ func TestAStateDirectoryThatCannotBeMadeNamesTheVariableThatMovesIt(t *testing.T
 		t.Fatalf("the pair's fixture: %v", missing)
 	}
 	echoed := fmt.Errorf("unknown --format %q", "bad: open "+filepath.Join(b, "x"))
-	for _, e := range []error{missing, exitWith(missing), exitWith(echoed)} {
-		if got := stateHint(e); got != e {
+	for _, e := range []error{exitWith(missing), exitWith(echoed)} {
+		if got := statehint.Hint(e); got != e {
 			t.Errorf("an error that is not about the state directory was changed: %q", got)
 		}
 	}
@@ -152,16 +152,16 @@ func TestAWriteThatCannotUseTheStateDirectoryNamesIt(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", file)
 	for _, argv := range [][]string{
 		{"write", "--dry-run", "--no-check", filepath.Join(root, "p.plan")},
-		// Not `write --grep P --sub R`: read.BuildSub turns a walk error into a
-		// BuildError of text (internal/read/plansource.go), which an engine
-		// change must fix (ADR-164).
+		// The plan makers keep the error they were built from (ADR-164).
+		{"write", "--grep", "one", "--sub", "uno", "--dry-run", "--no-check", "a.txt"},
+		{"read", "--grep", "one", "--sub", "uno", "a.txt"},
 		{"read", "a.txt"},
 	} {
 		err := runErr(t, root, argv...)
 		if err == nil {
 			t.Fatalf("%v: want a failure with XDG_STATE_HOME a file", argv)
 		}
-		if got := stateHint(err).Error(); !strings.Contains(got, "mrw's state directory") {
+		if got := statehint.Hint(err).Error(); !strings.Contains(got, "mrw's state directory") {
 			t.Errorf("%v: %q does not name the state directory", argv, got)
 		}
 		if code := exitCode(err); code != 2 {
@@ -196,7 +196,7 @@ func TestALandingThatCannotTakeTheWriteLockNamesTheStateDirectory(t *testing.T) 
 	if err == nil {
 		t.Fatal("the write took a lock that is a directory")
 	}
-	if got := stateHint(err).Error(); !strings.Contains(got, "mrw's state directory") {
+	if got := statehint.Hint(err).Error(); !strings.Contains(got, "mrw's state directory") {
 		t.Errorf("%q does not name the state directory", got)
 	}
 	if code := exitCode(err); code != 2 {

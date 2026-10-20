@@ -15,16 +15,26 @@ import (
 
 // BuildError is why a plan could not be made from a walk (ADR-161). Usage says
 // the caller's request was malformed (the CLI's exit 2); otherwise nothing was
-// planned, or a path cannot be carried in a plan (exit 1).
+// planned, or a path cannot be carried in a plan (exit 1). Err is the error the
+// refusal was built from, when it has one: a caller that judges errors by type
+// (the state directory's hint, ADR-164) reaches it through Unwrap.
 type BuildError struct {
 	Msg   string
 	Usage bool
+	Err   error
 }
 
 func (e *BuildError) Error() string { return e.Msg }
+func (e *BuildError) Unwrap() error { return e.Err }
 
 func usageError(format string, a ...any) error {
 	return &BuildError{Msg: fmt.Sprintf(format, a...), Usage: true}
+}
+
+// usageFrom is a usage refusal that keeps the error it was built from, so a
+// caller judging by type (ADR-164) reaches it through Unwrap; the words are err's.
+func usageFrom(err error) error {
+	return &BuildError{Msg: err.Error(), Usage: true, Err: err}
 }
 
 func notApplied(format string, a ...any) error {
@@ -67,7 +77,7 @@ func BuildSub(root string, posArgs []string, pattern, repl string, excludes []st
 	var skipped WalkSkipped
 	specs, refusals, err := Walk(root, posArgs, WalkOptions{Pattern: re, Exclude: excludes, NoIgnore: noIgnore, Skipped: &skipped})
 	if err != nil {
-		return nil, usageError("%v", err)
+		return nil, usageFrom(err)
 	}
 	for _, p := range refusals {
 		fmt.Fprintf(diag, "==> %s  REFUSED  %s\n", p.Path, p.Reason)
@@ -168,7 +178,7 @@ func BuildRewrite(root string, posArgs []string, pattern, repl string, excludes 
 		return nil, usageError("%s", err.Error())
 	}
 	if err != nil {
-		return nil, usageError("%v", err)
+		return nil, usageFrom(err)
 	}
 	for _, p := range refusals {
 		fmt.Fprintf(diag, "==> %s  REFUSED  %s\n", p.Path, p.Reason)
@@ -204,16 +214,16 @@ func RangeFreePaths(root string, posArgs []string, flag string) ([]string, error
 	if len(posArgs) > 0 {
 		set, err := iter.Load(root)
 		if err != nil {
-			return nil, usageError("%v", err)
+			return nil, usageFrom(err)
 		}
 		if posArgs, err = set.ResolveAll(posArgs); err != nil {
-			return nil, usageError("%v", err)
+			return nil, usageFrom(err)
 		}
 	}
 	for _, a := range posArgs {
 		sp, err := ParseSpec(a)
 		if err != nil {
-			return nil, usageError("%v", err)
+			return nil, usageFrom(err)
 		}
 		if len(sp.Ranges) > 0 {
 			return nil, usageError("%s: a range and %s are two answers to one question", a, flag)
