@@ -67,8 +67,12 @@ out=$(mktemp) \
 |-----------|------|----------|--------|-------|
 | `TestDryRunPrintsParsedHunkBodies` | `cmd/mrw/dryrun_parsed_test.go` | the `parsed:` lines unchanged | none | — |
 | `TestASubWriteAppliesThePlanInOneCommand` | `cmd/mrw/sub161_test.go` | ADR-161's summary line unchanged | none | — |
-
-Planned, named without backticks until they exist: TestALineChangeIsMarkedInPlace and TestAMultiLineChangeShowsOldThenNew in `internal/preview/preview_test.go` (S1, S2), TestASubDryRunShowsEachChange, TestARewriteDryRunShowsEachChange and TestAPlainDryRunShowsNoPreview in `cmd/mrw/preview164_test.go` (S1, S3, S4, S6), TestAnMCPSubDryRunShowsEachChange in `internal/mcp/preview164_test.go` (S1, S5).
+| `TestALineChangeIsMarkedInPlace` | `internal/preview/preview_test.go` | the `~` form: a double match on one line, a span over 160 characters and a change past column 200 stay visible | none | S1, S2 |
+| `TestAMultiLineChangeShowsOldThenNew` | `internal/preview/preview_test.go` | the `-`/`+` form: two adjacent 300-character lines changed at columns 10 and 290 show both changes on each | none | S1, S2 |
+| `TestASubDryRunShowsEachChange` | `cmd/mrw/preview164_test.go` | a `--sub` dry run prints the `~` rows and `--json` carries before/after, on a CRLF file and a file with no final newline | none | S1, S3, S4 |
+| `TestARewriteDryRunShowsEachChange` | `cmd/mrw/preview164_test.go` | an `--ast-grep --rewrite` dry run over a three-line span prints the `-`/`+` rows | none | S1, S3, S4 |
+| `TestAPlainDryRunShowsNoPreview` | `cmd/mrw/preview164_test.go` | a hand-written plan's dry run and a real `--sub` write print no row and carry no before | none | S1, S4 |
+| `TestAnMCPSubDryRunShowsEachChange` | `internal/mcp/preview164_test.go` | `grep`+`sub` and `ast_grep`+`rewrite` with `dry_run` show each change; under a ceiling the preview goes first and `elided` names it | none | S1, S5 |
 
 ## Reachability
 
@@ -81,9 +85,34 @@ Planned, named without backticks until they exist: TestALineChangeIsMarkedInPlac
 
 ## Mutation Log
 (empty until execute)
+- 2026-10-20 · df4d511a* · mutant killed · exit 1 · `internal/preview/preview.go` · a one-line change loses its in-place ~ row · acceptance-sha256:0304d71e34802e08a51cb59eaa258123f7dd110369b874fbc19e5f75f7220f16
+- 2026-10-20 · df4d511a* · mutant killed · exit 1 · `internal/apply/apply.go` · apply never fills Before/After · acceptance-sha256:0304d71e34802e08a51cb59eaa258123f7dd110369b874fbc19e5f75f7220f16
+- 2026-10-20 · df4d511a* · mutant killed · exit 1 · `cmd/mrw/main.go` · the CLI never asks for the preview · acceptance-sha256:0304d71e34802e08a51cb59eaa258123f7dd110369b874fbc19e5f75f7220f16
+- 2026-10-20 · df4d511a* · mutant killed · exit 1 · `internal/mcp/tools.go` · mrw_write never asks for the preview · acceptance-sha256:0304d71e34802e08a51cb59eaa258123f7dd110369b874fbc19e5f75f7220f16
+- 2026-10-20 · df4d511a* · mutant killed · exit 1 · `docs/receipts.txt` · the write receipt key hunks[].before is not listed · acceptance-sha256:0304d71e34802e08a51cb59eaa258123f7dd110369b874fbc19e5f75f7220f16
 
 ## Verification Log
 (empty until execute)
+- 2026-10-20 · df4d511a* · exit 1 · `set -o pipefail …` · acceptance-sha256:0304d71e34802e08a51cb59eaa258123f7dd110369b874fbc19e5f75f7220f16 · ms:1783 · test-lock-sha256:dc19d3ed4bfa8419088f78e3ee7f6bdacc335bea13b3090086d847313efa2d00 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJY21kL21ydy9kcnlydW5fcGFyc2VkX3Rlc3QuZ28JVGVzdERyeVJ1blByaW50c1BhcnNlZEh1bmtCb2RpZXMJNGY2Mjg3ZTk2MzQwZTRjNmMxMTBhZDExNWNhYmMzYjliMmQ5YTg2Y2ExM2FiODc3MzM5OWUyNzQwY2IzYjlkNgpib2R5CWNtZC9tcncvcHJldmlldzE2NF90ZXN0LmdvCVRlc3RBUGxhaW5EcnlSdW5TaG93c05vUHJldmlldwkwYzIwN2I5MGIyYWUyZDI5N2NhM2MzNWMxYzlhNjZjNDgzYTc0MzM5OTlhYTM4YWVlNDg3YWVkNjFlNDQ0NTU3CmJvZHkJY21kL21ydy9wcmV2aWV3MTY0X3Rlc3QuZ28JVGVzdEFSZXdyaXRlRHJ5UnVuU2hvd3NFYWNoQ2hhbmdlCWZiZDRmNTlkMzhmZTg3YjI3M2YxYTlhZTkyNWVhNWU3NGYyYjY2ODhhMDU4ZTFiMWUwNjIyZjI0MjE0ODc1ZjAKYm9keQljbWQvbXJ3L3ByZXZpZXcxNjRfdGVzdC5nbwlUZXN0QVN1YkRyeVJ1blNob3dzRWFjaENoYW5nZQk2YjgzMWFmYjI0ODE4ZGU4MjUyYWU2NTk0MTkwNWM3MDFkNjBhNzZhZjZhNmJiZTY3ZGVlNmY3Mjc0MThlOWJmCmJvZHkJY21kL21ydy9zdWIxNjFfdGVzdC5nbwlUZXN0QVN1YlJlYWRSZWZ1c2Fsc0FuZEV4aXRzCWVhYTg2YmJiNWYwMzFlOTI5ZmFhNTNmOTM2YjhjOWQ4ZTA2NzdhZWZkZDhlYjg3NDI5NzFkYTUwMTk2ZTZjMjEKYm9keQljbWQvbXJ3L3N1YjE2MV90ZXN0LmdvCVRlc3RBU3ViV3JpdGVBcHBsaWVzVGhlUGxhbkluT25lQ29tbWFuZAk3ZDYwYTQ1MzEyMTE3YmY2ZDU4NmU5YmVjNTY1ZWUyNjE2NzhhNmFiYThlZDM0NDI2NzE5MjEzM2JjODQzYzBkCmJvZHkJY21kL21ydy9zdWIxNjFfdGVzdC5nbwlUZXN0QVN1YldyaXRlTmV2ZXJSZWFkc0FGaWxlTmFtZUFzQVBvaW50ZXIJZTMyMDQ1ZGEzZjNjMmJiYjRmZThlYWQ0ODJhZWFlNTEwOTk3YzdmMDM4NmQ5YjM4Mjc4MGJmNzE2ZjNlNjkyMwpib2R5CWludGVybmFsL21jcC9wcmV2aWV3MTY0X3Rlc3QuZ28JVGVzdEFuTUNQU3ViRHJ5UnVuU2hvd3NFYWNoQ2hhbmdlCWQ0NzlmYzkzY2Q5YmNjMjM4ODViNTczZmRmNWUyNDdiYTk4YzI1MDUwZjRhZDg0M2U3ZDZjM2Q1NWY0ZDc5MWIKYm9keQlpbnRlcm5hbC9tY3AvcHJldmlldzE2NF90ZXN0LmdvCWFzdF9ncmVwIGFuZCByZXdyaXRlCTMwNDJhODg4NTRmNjllMzgxOWM4ZDJlMDU5YWQ0ZmU0N2U4N2Y1NjE0ZjVkYjkzMDQ4ZmQxNmM1NTMwOWVmYWUKYm9keQlpbnRlcm5hbC9tY3AvcHJldmlldzE2NF90ZXN0LmdvCWdyZXAgYW5kIHN1YglmNjc1YmMwYzgyNjVmN2ZlNmNlMTczM2M1MDE4NTgxNzE3MjVmMGJhODIwMDc1YTdjNGQzMWI1ZWQxNDM0YjU1CmJvZHkJaW50ZXJuYWwvbWNwL3ByZXZpZXcxNjRfdGVzdC5nbwl1bmRlciBhIGNlaWxpbmcgdGhlIHByZXZpZXcgZ29lcyBmaXJzdCBhbmQgZWxpZGVkIG5hbWVzIGl0CTc3NDM2NWYxZTNkYzRkMjBkNmVkYzM4Yzg1ZTc3M2FhMDhmMzhiZjBiNDQ5ZmEwZTNmMzVjNTU2N2EzYzBhMDUKYm9keQlpbnRlcm5hbC9wcmV2aWV3L3ByZXZpZXdfdGVzdC5nbwlUZXN0QUxpbmVDaGFuZ2VJc01hcmtlZEluUGxhY2UJZGFmODkyMThiYTdjYWI1NmY2ZjFkMmZjMzAzNzQxODQ5YThlMGNhODFmMmE2NDM1NGJlYjFmZGM4Zjc1MmUxMQpib2R5CWludGVybmFsL3ByZXZpZXcvcHJldmlld190ZXN0LmdvCVRlc3RBTXVsdGlMaW5lQ2hhbmdlU2hvd3NPbGRUaGVuTmV3CWRmODJlNTgwZDM4MTY5NTNjNDhlODkyNDgwZGQwYjUwNWVhMmEzZTgzMWM5YjMyZWFjMTEzN2I1M2U4ZTRiMzE
+  ```
+  --- last 10 line(s) of stdout (of 90 after folding 91 raw)
+          5 hunk(s), 4 file(s), 0 failed, 0 advisories — dry run, nothing written
+      preview164_test.go:79: a.css: before [] after [], want one line each  (x2)
+      preview164_test.go:79: crlf.css: before [] after [], want one line each
+      preview164_test.go:79: last.css: before [] after [], want one line each
+      preview164_test.go:79: twice.go: before [] after [], want one line each
+      preview164_test.go:88: hunks with before/after for map[], want all four files
+  --- FAIL: TestASubDryRunShowsEachChange (0.57s)
+  FAIL
+  FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/cmd/mrw	0.817s
+  FAIL
+  ```
+- 2026-10-20 · df4d511a* · exit 0 · `set -o pipefail …` · acceptance-sha256:0304d71e34802e08a51cb59eaa258123f7dd110369b874fbc19e5f75f7220f16 · ms:5351
+- 2026-10-20 · df4d511a* · exit 0 · `set -o pipefail …` · acceptance-sha256:0304d71e34802e08a51cb59eaa258123f7dd110369b874fbc19e5f75f7220f16 · ms:4978
+- 2026-10-20 · df4d511a* · exit 0 · `set -o pipefail …` · acceptance-sha256:0304d71e34802e08a51cb59eaa258123f7dd110369b874fbc19e5f75f7220f16 · ms:4954
+- 2026-10-20 · df4d511a* · exit 0 · `set -o pipefail …` · acceptance-sha256:0304d71e34802e08a51cb59eaa258123f7dd110369b874fbc19e5f75f7220f16 · ms:5268
+- 2026-10-20 · df4d511a* · exit 0 · `set -o pipefail …` · acceptance-sha256:0304d71e34802e08a51cb59eaa258123f7dd110369b874fbc19e5f75f7220f16 · ms:5114
+- 2026-10-20 · human-observed · Claude observed: ./scripts/contract.sh exit 0 at the T2 tree on df4d511a (2026-10-20), §274 all 4 rows PASS: a --sub dry run exits 0 and prints the changed line marked in place with nothing written; the pair: a plain plan's dry run prints no ~, - or + row · acceptance-sha256:0304d71e34802e08a51cb59eaa258123f7dd110369b874fbc19e5f75f7220f16
 
 ## Invariants
 

@@ -101,7 +101,9 @@ mcp_write hints
 mcp_write hunks
 mcp_write hunks[].added
 mcp_write hunks[].addr
+mcp_write hunks[].after
 mcp_write hunks[].balance
+mcp_write hunks[].before
 mcp_write hunks[].closer
 mcp_write hunks[].echo
 mcp_write hunks[].op
@@ -183,7 +185,9 @@ write hints
 write hunks
 write hunks[].added
 write hunks[].addr
+write hunks[].after
 write hunks[].balance
+write hunks[].before
 write hunks[].closer
 write hunks[].echo
 write hunks[].op

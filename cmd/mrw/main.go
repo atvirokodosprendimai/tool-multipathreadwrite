@@ -44,6 +44,7 @@ import (
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/iter"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/mcp"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/plan"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/preview"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
@@ -1667,6 +1668,7 @@ held or went unchecked.`,
 					DryRun:        cmd.Bool("dry-run"),
 					Force:         cmd.Bool("force"),
 					EchoPad:       cmd.Int("echo-pad"),
+					Preview:       cmd.Bool("dry-run") && planned, // ADR-164: a plan maker's dry run shows each change
 					StrictBalance: cmd.Bool("strict-balance"),
 				},
 			})
@@ -2442,6 +2444,9 @@ func report(w *os.File, res apply.Result, quiet bool) {
 				bounds = fmt.Sprintf(" from %q to %q", h.RemovedFirst, h.RemovedLast)
 			}
 			fmt.Fprintf(out, "ok   %s %s %s  -%d +%d%s\n", h.Path, h.Addr, h.Op, h.Removed, h.Added, bounds)
+			for _, line := range preview.Lines(h.Before, h.After, h.Start) {
+				fmt.Fprintln(out, line)
+			}
 			if h.Balance != "" {
 				// ADR-054: the delta is a row under the ok line, like Echo.
 				// It never fails the hunk; it says the closer count moved.

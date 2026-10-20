@@ -37,7 +37,7 @@ func Recipes() string {
 	return `Recipes:
 1. the same change at many sites, nothing in your context:
   mrw write --grep '\bOld\b' --sub 'New' .
-2. see what it will do first, nothing written:
+2. see what it will do first, nothing written (a --sub or --rewrite dry run shows each change):
   mrw write --grep '\bOld\b' --sub 'New' --dry-run .
 3. a change by syntax, not text:
   mrw write --ast-grep 'foo($A, $B)' --rewrite 'bar($B, $A)' .

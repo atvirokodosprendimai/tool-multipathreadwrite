@@ -9731,6 +9731,19 @@ out=$(cd "$R" && printf '@@ f.txt 3-5 replace lines=3\nNEW\n' | "$MRW" write --n
 grep -q 'lines= checks how many lines this range covers, not which' <<<"$out" && ok "and says lines= does not stand in for anchor= either" || bad "a lines=-only multi-line replace: $out"
 out=$(cd "$R" && printf '@@ f.txt 3-5 replace sha=%s anchor="3"\nNEW\n' "$sha273" | "$MRW" write --no-check - 2>&1); want 0 $? "the pair: the same plan with anchor= applies"
 
+# 274. ADR-164 T2: a --grep --sub dry run prints each line it would change, the
+# change marked in place, and writes nothing — a field report's caller could not
+# see what a dry run would do. The pair: a hand-written plan's dry run prints no
+# such row, since its author wrote every body line.
+R=$(mktemp -d "$WORK/r274-XXXXXX"); printf '.a { color: red; }\nkeep\n' > "$R/f.css"
+out=$(cd "$R" && "$MRW" write --dry-run --no-check --grep '\bred\b' --sub blue . 2>&1); want 0 $? "a --sub dry run exits 0"
+{ grep -qF '   ~ 1| .a { color: [-red-]{+blue+}; }' <<<"$out" && [ "$(cat "$R/f.css")" = "$(printf '.a { color: red; }\nkeep')" ]; } \
+  && ok "and prints the changed line marked in place, nothing written" || bad "a --sub dry run: $out"
+(cd "$R" && "$MRW" read f.css) >"$WORK/served.out" 2>&1
+out=$(cd "$R" && printf '@@ f.css 1 replace\n.a { color: blue; }\n' | "$MRW" write --dry-run --no-check - 2>&1); want 0 $? "the pair: a plain plan's dry run exits 0"
+{ grep -q '1 hunk(s), 1 file(s), 0 failed' <<<"$out" && ! grep -q '^   [~+-] ' <<<"$out"; } \
+  && ok "and prints no ~, - or + row" || bad "a plain plan's dry run: $out"
+
 # 278. ADR-164 T6: three refusals name their real cause. A pattern address
 # ended by an unescaped / inside it says so and how to write the slash (exit 2);
 # a not-read refusal says a line --max-cols served cut is not read (exit 1); an
