@@ -4,10 +4,16 @@ Substantive development starts with `/quality-harness:work` in the main session;
 the lifecycle mechanics and the templates. This file is what THIS repository requires at each step.
 It collects failures met here, and each section names the one it came from.
 
+**Which of this applies.** §§2-6 are for a change a record owns. A bounded change — no new public
+contract, exit code, persistent state or trust boundary (`CONTRIBUTING.md`, "What a change needs") —
+needs a red test, the gates in `AGENTS.md` §Build and check, and a pull request.
+
 ## 1. A durable decision starts as a record
 
-`CONTRIBUTING.md` says which changes need a record. Here one starts as
-`docs/adr/ADR-NNN-<slug>.md` with `tasks/README.md` and one `tasks/T<n>-<slug>.md` per task.
+`CONTRIBUTING.md` says which changes need a record. Here one starts as `docs/adr/ADR-NNN-<slug>.md`
+with `docs/adr/ADR-NNN/tasks/README.md` and one `docs/adr/ADR-NNN/tasks/T<n>-<slug>.md` per task: the
+folder carries the number only, so a long slug does not spend the 120-character path budget
+(`CONTRIBUTING.md`, Prerequisites). Records before 2026-10-20 keep their `ADR-NNN-<slug>/` folders.
 
 **Reserve the number by reading, not by listing.** A number can be reserved in prose before its
 directory exists — ADR-019 was reserved for reach while ADR-018 shipped — so `grep -rn 'ADR-0NN'
@@ -58,13 +64,16 @@ case that must fail. See `contract.md`.
 - The gates are the ones in `AGENTS.md` §Build and check, each run stand-alone, never through a pipe.
 - **Run `./scripts/contract.sh` before committing, not after.** §50 went red on a commit whose author
   had run only the Go tests.
-- **Engine go/no-go:** `internal/read`, `internal/apply`, `internal/plan`, `internal/seen`,
-  `internal/check`, `internal/state` stay byte-identical against the merge-base unless the record
-  owns that change. `go.mod` declares exactly one requirement.
+- **Engine changes are owned, not frozen.** A diff to `internal/read`, `internal/apply`,
+  `internal/plan`, `internal/seen`, `internal/check` or `internal/state` names in its PR body the ADR
+  or issue that owns it, and gets a `go-reviewer` pass before the Codex review. A record's fence keeps
+  the byte-identical clause for each engine package it does not own (`adr.md`). A new module
+  requirement follows `CONTRIBUTING.md`, Prerequisites.
 
 ## 7. Then the branch, the review, the merge, the memory
 
-`git.md` → `reviews.md` → persist what the session learned (`am_diary_write`, `am_kg_add`).
+`git.md` → `reviews.md` → persist what the session learned in memoryd: `insert` or `fact` in the space
+`tool-multipathreadwrite` (`craft` when it holds in any project), and an `open-thread` where you stopped.
 
 ## The habit to watch for
 

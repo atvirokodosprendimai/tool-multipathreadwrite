@@ -34,8 +34,8 @@ pipeline reports the *last* command's status, not the script's.
 
 ## The rules this codebase is built around
 
-These are decided, recorded in `docs/adr/`, and asserted by
-`scripts/contract.sh`. Do not relax one without retiring the ADR.
+These are decided, recorded in `docs/adr/`, and asserted by `scripts/contract.sh`. Change one
+through a new ADR that supersedes the old one and updates its contract rows in the same PR.
 
 1. **A plan applies whole or not at all.** Any hunk that fails validation writes
    nothing. Siblings report `skip`, never `ok`; a filesystem failure while

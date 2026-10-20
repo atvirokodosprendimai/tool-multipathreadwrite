@@ -4,7 +4,7 @@ description: >-
   Cut an mrw release: gates on merged main, break campaign diffed against the
   previous tag, a strict vX.Y.Z tag on the MERGE commit with the shape the last
   tags use, CI publishes, then ONE Status PR naming the tagged SHA, and reinstall
-  the local CLI from the tag. Use when M says "release", "cut", "tag it", or
+  the local CLI from the tag. Use when Zy (M in older notes) says "release", "cut", "tag it", or
   after a served-path change merges. CONTRIBUTING §Releasing owns the tag rule
   and the Status-names-the-tagged-SHA rule; this is the drill around them.
 ---
@@ -27,11 +27,19 @@ squash. Everything below is the order that satisfies both without a second tag.
 
 ## 1. Gates on the MERGED tree, stand-alone, never piped
 
+Every gate in `AGENTS.md` §Build and check, each on its own, exit code read directly:
+
 ```sh
-go build -o bin/mrw ./cmd/mrw && go test ./...; echo TEST:$?
+go build -o bin/mrw ./cmd/mrw && go test -timeout 30m ./...; echo TEST:$?
+go test -race -timeout 30m ./...; echo RACE:$?
 ./scripts/contract.sh > /tmp/c.out 2>&1; echo CONTRACT:$?; tail -1 /tmp/c.out
+./scripts/static.sh > /tmp/s.out 2>&1; echo STATIC:$?
+(cd cmd/opencode/mrw-plugin && npm ci && npm run build && npm test); echo PLUGIN:$?
 ```
 
+`static.sh` is the dead-code scan the release needs (deadcode, staticcheck U1000): put its tools,
+versions and finding count in the tag message, zero included. `-timeout 30m` because `internal/bench`
+alone took 504 s on a loaded machine (2026-10-20), near `go test`'s 10-minute default.
 The PR's green tick was for a different tree.
 
 ## 2. Break campaign, and DIFF it
@@ -58,8 +66,8 @@ git tag -a vX.Y.Z <merge-sha> -m "vX.Y.Z — <one line: what a caller sees diffe
 
 <What changed on the served path, flag by flag. Exit codes.>
 
-Contract §NN–§MM. Tagged at <merge-sha> (#PR). Do not retag v<prev> or the
-README status squash."
+Contract §NN–§MM. Dead code: deadcode and staticcheck U1000 (static.sh), N findings.
+Tagged at <merge-sha> (#PR). Do not retag v<prev> or the README status squash."
 git push origin vX.Y.Z
 git ls-remote --tags origin vX.Y.Z | cut -c1-7     # the TAG object's sha, not the commit's
 ```
@@ -93,17 +101,17 @@ install -m 0755 /tmp/mrw ~/.local/bin/mrw && git checkout main && mrw version
 Same flags CI uses. Then one write that exercises the change through the
 installed binary — not `bin/mrw` — and read the receipt.
 
+Between releases, after a merge, install from `main` instead, stamped so `mrw version` names the commit:
+`go build -ldflags "-X main.version=v<next>-dev+$(git rev-parse --short=8 HEAD)" -o "$(command -v mrw)" ./cmd/mrw`.
+This is the one place that says how the local CLI is installed; `~/.claude/CLAUDE.md` points here.
+
 ## 7. Write it down
 
-`am_kg_add(tool-multipathreadwrite.releases, released, vX.Y.Z@<sha>)` and a diary line — on the
-`.releases` child, not the bare `tool-multipathreadwrite` node, which was split on 2026-09-28 after
-release edges pushed it past the ~35-edge fan-out a reader can take in one page.
-The centralised `mrw` skill mirrors AGENTS.md: if the release changed what
-AGENTS.md teaches, `am_update_skill("mrw")` with the provenance pin moved to
-this tag — a skill one release behind teaches a plan the binary now rejects
-(v8 was two behind). The body is ~40 KB: upload it from a file, `aiagentmemory mcp update_skill
-mrw.md --write`, with `name` and `description` in the frontmatter — not `-a description=…`, which
-splits at the first comma, and with no `'` in the description, whose escape is stored literally.
+memoryd `fact`, space `tool-multipathreadwrite`: subject `tool-multipathreadwrite.releases`, predicate
+`released`, object `vX.Y.Z@<sha>`; and an `open-thread` naming what is left. If the release changed
+what AGENTS.md teaches, update the `mrw` skill in memoryd's `craft` space (`update_skill`, its one
+store) with the provenance pin moved to this tag — a skill one release behind teaches a plan the
+binary now rejects (v8 was two behind) — then mirror it to `.claude/skills/mrw/SKILL.md`.
 
 ## What went wrong before, so it does not again
 
