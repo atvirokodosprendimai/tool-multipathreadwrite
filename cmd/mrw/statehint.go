@@ -64,11 +64,24 @@ func exitWith(err error) cli.ExitCoder {
 	return &exitError{err: err}
 }
 
+// exitSaying is exitWith with the words a site already printed, so a failure
+// keeps its text and its type: the landing's exitTwoLine points at the FAIL
+// line instead of repeating the reason, and still unwraps to the error.
+func exitSaying(msg string, err error) cli.ExitCoder {
+	return &exitError{err: err, msg: msg}
+}
+
 // exitError is a usage-or-filesystem failure (exit 2), unwrapping to its error.
 type exitError struct {
 	err error
+	msg string // what to print, when it is not err's own text
 }
 
-func (e *exitError) Error() string { return e.err.Error() }
+func (e *exitError) Error() string {
+	if e.msg != "" {
+		return e.msg
+	}
+	return e.err.Error()
+}
 func (e *exitError) ExitCode() int { return exitUsage }
 func (e *exitError) Unwrap() error { return e.err }

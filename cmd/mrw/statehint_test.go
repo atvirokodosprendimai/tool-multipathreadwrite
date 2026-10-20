@@ -113,7 +113,7 @@ func TestNoCommandExitsWithAnErrorThroughCliExit(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, flat := range []string{"cli.Exit(err, ", "refuse(err.Error())", "Err.Error())"} {
+		for _, flat := range []string{"cli.Exit(err, ", "refuse(err.Error())", "Err.Error())", "cli.Exit(exitTwoLine("} {
 			if strings.Contains(string(src), flat) {
 				t.Errorf("%s calls %s…; use exitWith or refuseErr so the error stays unwrappable", f, flat)
 			}
@@ -167,5 +167,39 @@ func TestAWriteThatCannotUseTheStateDirectoryNamesIt(t *testing.T) {
 		if code := exitCode(err); code != 2 {
 			t.Errorf("%v: exit %d, want 2", argv, code)
 		}
+	}
+}
+
+// The landing's own failure keeps its words and its type: a directory where the
+// write lock goes lets the read and the ledger load succeed, then fails the lock,
+// which the human receipt reported through exitTwoLine as text (Codex, fifth
+// review of #460).
+func TestALandingThatCannotTakeTheWriteLockNamesTheStateDirectory(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	root := t.TempDir()
+	for name, body := range map[string]string{"a.txt": "one\n", "p.plan": "@@ a.txt 1 replace\nuno\n"} {
+		if err := os.WriteFile(filepath.Join(root, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := runErr(t, root, "read", "a.txt"); err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	dir, err := state.Dir(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(filepath.Join(dir, "seen.write.lock"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	err = runErr(t, root, "write", "--no-check", filepath.Join(root, "p.plan"))
+	if err == nil {
+		t.Fatal("the write took a lock that is a directory")
+	}
+	if got := stateHint(err).Error(); !strings.Contains(got, "mrw's state directory") {
+		t.Errorf("%q does not name the state directory", got)
+	}
+	if code := exitCode(err); code != 2 {
+		t.Errorf("exit %d, want 2", code)
 	}
 }

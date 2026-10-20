@@ -1711,7 +1711,7 @@ held or went unchecked.`,
 				if len(res.Hunks) > 0 {
 					report(os.Stdout, res, cmd.Bool("quiet"))
 				}
-				return cli.Exit(exitTwoLine(land.Res, land.Err), exitUsage)
+				return exitSaying(exitTwoLine(land.Res, land.Err), land.Err)
 			}
 			// The landing (writer's applyCounted) recorded what the files now hold before it released
 			// the write lock. This is why a chain of edits needs no re-read
