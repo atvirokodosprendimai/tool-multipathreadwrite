@@ -2,8 +2,10 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -36,7 +38,11 @@ func hinted(t *testing.T, name string, err error, want ...string) {
 // call prefixed to it. A file where a directory must go fails for any user,
 // root included. The pair: an error outside the state directory is unchanged.
 func TestAStateDirectoryThatCannotBeMadeNamesTheVariableThatMovesIt(t *testing.T) {
-	base := filepath.Join(t.TempDir(), "state: data") // ": " inside a path name
+	name := "state: data" // ": " inside a path name
+	if runtime.GOOS == "windows" {
+		name = "state data" // Windows refuses a colon in a name
+	}
+	base := filepath.Join(t.TempDir(), name)
 	if err := os.MkdirAll(base, 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -82,5 +88,13 @@ func TestAStateDirectoryThatCannotBeMadeNamesTheVariableThatMovesIt(t *testing.T
 	}
 	if got := stateHint(cli.Exit(other, 2)); got.Error() != other.Error() {
 		t.Errorf("an error outside the state directory was changed through cli.Exit: %q", got)
+	}
+	b, err := state.Base()
+	if err != nil {
+		t.Fatal(err)
+	}
+	echoed := cli.Exit(fmt.Errorf("unknown --format %q", "open "+filepath.Join(b, "x")), 2)
+	if got := stateHint(echoed); got.Error() != echoed.Error() {
+		t.Errorf("a refusal echoing the caller's text was given the hint: %q", got)
 	}
 }

@@ -35,12 +35,12 @@ func stateHint(err error) error {
 // and a prefix such as the ledger's "could not be updated" does not hide it.
 func aboutState(msg, base string) bool {
 	for _, op := range []string{"mkdir ", "open ", "openat ", "rename ", "remove ", "chmod ", "stat ", "lstat "} {
-		if strings.Contains(msg, op+base+string(filepath.Separator)) || strings.Contains(msg, op+base+": ") {
+		if atCause(msg, op+base+string(filepath.Separator)) || atCause(msg, op+base+": ") {
 			return true
 		}
 	}
 	for dir := filepath.Dir(base); ; {
-		if strings.Contains(msg, "mkdir "+dir+": ") || strings.Contains(msg, "open "+dir+": ") || strings.Contains(msg, "openat "+dir+": ") {
+		if atCause(msg, "mkdir "+dir+": ") || atCause(msg, "open "+dir+": ") || atCause(msg, "openat "+dir+": ") {
 			return true
 		}
 		parent := filepath.Dir(dir)
@@ -48,5 +48,21 @@ func aboutState(msg, base string) bool {
 			return false
 		}
 		dir = parent
+	}
+}
+
+// atCause reports whether needle starts msg or follows a ": ", where Go joins a
+// wrapped error to its context. Anywhere else it is text the caller typed and a
+// refusal echoed, such as --format='open <base>/x' (Codex, re-check of #460).
+func atCause(msg, needle string) bool {
+	for i := 0; ; {
+		j := strings.Index(msg[i:], needle)
+		if j < 0 {
+			return false
+		}
+		if at := i + j; at == 0 || strings.HasSuffix(msg[:at], ": ") {
+			return true
+		}
+		i += j + 1
 	}
 }
