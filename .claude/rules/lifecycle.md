@@ -6,7 +6,8 @@ It collects failures met here, and each section names the one it came from.
 
 **Which of this applies.** §§2-6 are for a change a record owns. A bounded change — no new public
 contract, exit code, persistent state or trust boundary (`CONTRIBUTING.md`, "What a change needs") —
-needs a red test, the gates in `AGENTS.md` §Build and check, and a pull request.
+needs a red test, the gates in `AGENTS.md` §Build and check, and a pull request. One §6 rule applies
+to every change, bounded or not: an engine diff names its owner and gets a `go-reviewer` pass.
 
 ## 1. A durable decision starts as a record
 

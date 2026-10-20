@@ -1,9 +1,11 @@
 # Reviews: a different lineage, acknowledged at once, merged when clean
 
 **Every PR that changes code, a receipt, an exit code, a contract row or a record's decision goes
-through Codex** — `/quality-harness:codex-review` — in addition to whatever in-process review runs. A
-prose-only PR (README, docs, BACKLOG, a release's Status PR) may merge on green CI without one (Zy,
-2026-10-20). M, 2026-09-04: *"use codex reviews"*, then *"add this as a standing rule."*
+through Codex** — `/quality-harness:codex-review` — in addition to whatever in-process review runs, and
+so does every PR that states what mrw does: README, AGENTS.md, help text, `docs/receipts.txt`. Only an
+editorial or status PR — wording that changes no claim, a BACKLOG status mark, a release's Status PR —
+may merge on green CI without one (Zy, 2026-10-20). M, 2026-09-04: *"use codex reviews"*, then *"add
+this as a standing rule."*
 A different lineage with fresh context fails differently: on #72 it found the wrong `hunks.status`
 enum independently of the in-repo review that found it too, and on #79 it returned five findings
 that all held, among them documentation claims the in-repo review had approved.
