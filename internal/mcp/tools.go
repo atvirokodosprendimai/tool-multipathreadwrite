@@ -33,6 +33,7 @@ import (
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/speclist"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/statehint"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/writer"
 )
 
@@ -319,7 +320,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// and a write in the same turn must see the licence this call grants.
 	unknown, err := promote(root, a.Ack)
 	if err != nil {
-		return callToolResult{}, &rpcError{Code: codeInternal, Message: "ack: " + err.Error()}
+		return callToolResult{}, &rpcError{Code: codeInternal, Message: "ack: " + statehint.Hint(err).Error()}
 	}
 	noteAcks(unknown)
 	// With grep, no spec is required at all — the walk starts at the root, the
@@ -658,7 +659,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// does, for lines the caller says it already knows.
 	if a.Quiet && len(observed) > 0 {
 		if err := seen.Record(root, observed); err != nil {
-			return callToolResult{}, &rpcError{Code: codeInternal, Message: "recording the licensed lines: " + err.Error()}
+			return callToolResult{}, &rpcError{Code: codeInternal, Message: "recording the licensed lines: " + statehint.Hint(err).Error()}
 		}
 		return served, nil
 	}
@@ -704,7 +705,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 					continue // every slice of it came from a version since replaced
 				}
 				if err := hold(root, path, o.SHA, spans); err != nil {
-					return callToolResult{}, &rpcError{Code: codeInternal, Message: "holding checkpoints: " + err.Error()}
+					return callToolResult{}, &rpcError{Code: codeInternal, Message: "holding checkpoints: " + statehint.Hint(err).Error()}
 				}
 			}
 			return markedServed, nil
@@ -855,7 +856,7 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// before the ledger is consulted (ADR-031).
 	unknown, err := promote(root, a.Ack)
 	if err != nil {
-		return callToolResult{}, &rpcError{Code: codeInternal, Message: "ack: " + err.Error()}
+		return callToolResult{}, &rpcError{Code: codeInternal, Message: "ack: " + statehint.Hint(err).Error()}
 	}
 	noteAcks(unknown)
 	// ADR-161: a walk makes the plan (grep and sub, ast_grep and rewrite), and it
@@ -917,7 +918,7 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		// ADR-083: from here, a plan refused before it fully landed is one
 		// refused_apply, as the CLI counts it, whatever the reason.
 		_ = authoring.Record(root, authoring.RefusedApply)
-		return callToolResult{}, &rpcError{Code: codeInternal, Message: err.Error()}
+		return callToolResult{}, &rpcError{Code: codeInternal, Message: statehint.Hint(err).Error()}
 	}
 
 	in := make([]apply.Input, 0, len(hunks))
@@ -989,7 +990,7 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	land, err := prep.Land()
 	if err != nil {
 		// The ledger could not be loaded: refused, nothing written.
-		return callToolResult{}, &rpcError{Code: codeInternal, Message: err.Error()}
+		return callToolResult{}, &rpcError{Code: codeInternal, Message: statehint.Hint(err).Error()}
 	}
 	res := land.Res
 
@@ -1005,12 +1006,12 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// is answered with the receipt (ADR-102): a bare RPC error could not be told
 	// from a write that did nothing, and a client might send the plan again.
 	if land.LedgerErr != nil {
-		return checkedReceipt(root, res, &writer.Verified{Then: land.Then}, land.LedgerErr, true)
+		return checkedReceipt(root, res, &writer.Verified{Then: land.Then}, statehint.Hint(land.LedgerErr), true)
 	}
 	// ADR-001 rule 3: the receipt is filled even when the filesystem failed, so
 	// it is rendered on whichever path we are on rather than discarded.
 	if land.Err != nil {
-		return boundedReceipt(root, res, land.Err)
+		return boundedReceipt(root, res, statehint.Hint(land.Err))
 	}
 	// ADR-113 Decision 4: a check that ran and did not pass is not isError —
 	// the call did what it was asked, and the verdict is data; one that could
@@ -1891,6 +1892,12 @@ func firstPage(root string, specs []string, cw *capped, maxCols int) (callToolRe
 			return callToolResult{}, false
 		}
 		if err := hold(root, filepath.Clean(path), o.SHA, spans); err != nil {
+			// A state-directory failure is answered as one (an isError result either
+			// way, so the caller's fall-through to the flat refusal is skipped);
+			// any other hold failure stays unpaged, as it was.
+			if msg := "holding checkpoints: " + statehint.Hint(err).Error(); statehint.About(err) && fitsAsError(msg) {
+				return errorResult(msg), true
+			}
 			return callToolResult{}, false
 		}
 		return res, true

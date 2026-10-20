@@ -100,6 +100,7 @@ out=$(mktemp) \
 - 2026-10-20 · e9061544* · exit 0 · `set -o pipefail …` · acceptance-sha256:ca8132f48f77dad62f6ebd678f93f342144ab861de1c6630a61f65856a47fdcd · ms:102189
 - 2026-10-20 · e9061544* · exit 0 · `set -o pipefail …` · acceptance-sha256:ca8132f48f77dad62f6ebd678f93f342144ab861de1c6630a61f65856a47fdcd · ms:70091
 - 2026-10-20 · human-observed · Claude observed: ./scripts/contract.sh exit 0 at the T6 tree (2026-10-20), §278 all 8 rows PASS: early-ended pattern refused exit 2 naming the escape, cut line not read exit 1, addressed create names - and 0 exit 2, both pairs apply · acceptance-sha256:ca8132f48f77dad62f6ebd678f93f342144ab861de1c6630a61f65856a47fdcd
+- 2026-10-20 · human-observed · Claude observed, restated 2026-10-20 so the note reads as the verdict it is: ./scripts/contract.sh exit 0 at the T6 tree, §278 all 8 rows PASS: an early-ended pattern exits 2 and names the escape; a line --max-cols served cut is named as not read, exit 1; an addressed create names - and 0, exit 2; both pairs apply · acceptance-sha256:ca8132f48f77dad62f6ebd678f93f342144ab861de1c6630a61f65856a47fdcd
 
 ## Invariants
 

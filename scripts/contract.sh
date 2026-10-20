@@ -9688,6 +9688,30 @@ out=$(cd "$R" && "$MRW" read --grep -v ' a' f.txt 2>&1); want 2 $? "--grep -v ' 
 { grep -q 'has edge whitespace' <<<"$out" && grep -q 'there is no inverted match' <<<"$out"; } && ok "and names the inverted match there too" || bad "--grep -v padded: $out"
 out=$(cd "$R" && "$MRW" read --grep -i a f.txt 2>&1); want 1 $? "the pair: --grep -i a f.txt exits 1"
 grep -q "start the pattern with (?i)" <<<"$out" && ok "with ADR-140's pointer" || bad "--grep -i: $out"
+
+# 275. ADR-164 T3: the state-directory hint reaches the plan makers and the MCP
+# surface, not only `read` and `write PLAN`. A file where `<XDG_STATE_HOME>/mrw`
+# must go fails the mkdir for any user, root included: `mrw mcp` driven over
+# standard input (mrw_read, mrw_write) and `read --grep --sub` / `write --grep
+# --sub` over a named path (both through read.BuildSub) each name mrw's state
+# directory. The pair: the same calls with a writable XDG_STATE_HOME serve.
+R=$(mktemp -d "$WORK/r275-XXXXXX"); printf 'one\n' > "$R/a.txt"
+mkdir -p "$WORK/s275" "$WORK/s275ok"; : > "$WORK/s275/mrw"
+mcp275() { printf '%s\n' "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"$2\",\"arguments\":$3}}" | XDG_STATE_HOME="$1" "$MRW" --root "$R" mcp 2>&1; }
+out=$(mcp275 "$WORK/s275" mrw_read '{"specs":["a.txt"]}')
+{ grep -q "mrw's state directory" <<<"$out" && grep -q 'set XDG_STATE_HOME to a writable absolute directory' <<<"$out"; } \
+  && ok "mrw mcp: mrw_read names mrw's state directory and the variable that moves it" || bad "mrw_read, unusable state: $out"
+out=$(mcp275 "$WORK/s275" mrw_write '{"plan":"@@ a.txt 1 replace\nuno\n"}')
+grep -q "mrw's state directory" <<<"$out" && ok "and mrw_write does" || bad "mrw_write, unusable state: $out"
+out=$(mcp275 "$WORK/s275" mrw_write '{"grep":"one","sub":"uno","paths":["a.txt"]}')
+grep -q "mrw's state directory" <<<"$out" && ok "and mrw_write with grep and sub does" || bad "mrw_write grep+sub, unusable state: $out"
+out=$(cd "$R" && XDG_STATE_HOME="$WORK/s275" "$MRW" read --grep one --sub uno a.txt 2>&1); want 2 $? "read --grep --sub over a path, state directory unusable, exits 2"
+grep -q "mrw's state directory" <<<"$out" && ok "and names mrw's state directory" || bad "read --sub, unusable state: $out"
+out=$(cd "$R" && XDG_STATE_HOME="$WORK/s275" "$MRW" write --dry-run --no-check --grep one --sub uno a.txt 2>&1); want 2 $? "write --grep --sub over a path, state directory unusable, exits 2"
+grep -q "mrw's state directory" <<<"$out" && ok "and names mrw's state directory" || bad "write --sub, unusable state: $out"
+out=$(mcp275 "$WORK/s275ok" mrw_read '{"specs":["a.txt"]}')
+{ grep -q 'one' <<<"$out" && ! grep -q "state directory" <<<"$out"; } && ok "the pair: mrw mcp with a writable XDG_STATE_HOME serves" || bad "mrw_read, usable state: $out"
+out=$(cd "$R" && XDG_STATE_HOME="$WORK/s275ok" "$MRW" read --grep one --sub uno a.txt 2>&1); want 0 $? "the pair: read --grep --sub with a writable XDG_STATE_HOME exits 0"
 # 276. ADR-164 Decision 4: a {packages}-only scoped_check that can place some of
 # the files a write touched runs those and names the rest — a .go + .sh write's
 # receipt shows the scoped command and `outside the scoped check: run.sh`, and

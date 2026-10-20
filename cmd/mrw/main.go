@@ -50,6 +50,7 @@ import (
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/speclist"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/state"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/statehint"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/writer"
 )
 
@@ -329,7 +330,7 @@ func main() {
 		}
 	}
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "mrw:", stateHint(err))
+		fmt.Fprintln(os.Stderr, "mrw:", statehint.Hint(err))
 		os.Exit(exitCode(err))
 	}
 }
@@ -1475,8 +1476,9 @@ held or went unchecked.`,
 					var ec cli.ExitCoder
 					if cmd.Bool("json") && errors.As(err, &ec) {
 						_ = refuse(ec.Error())
-						return cli.Exit(ec.Error(), ec.ExitCode())
 					}
+					// err itself, not a cli.Exit rebuilt from its text: the chain exitOf
+					// kept is what lets main name a state-directory failure (ADR-164).
 					return err
 				}
 				if err := seen.Record(cmd.Root().String("root"), b.Observed); err != nil {
