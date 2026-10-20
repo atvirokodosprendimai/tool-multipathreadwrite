@@ -113,7 +113,7 @@ func TestNoCommandExitsWithAnErrorThroughCliExit(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, flat := range []string{"cli.Exit(err, ", "refuse(err.Error())", "Err.Error())", "cli.Exit(exitTwoLine("} {
+		for _, flat := range []string{"cli.Exit(err, ", "refuse(err.Error())", "Err.Error())", "cli.Exit(exitTwoLine(", "cli.Exit(ec.Error()"} {
 			if strings.Contains(string(src), flat) {
 				t.Errorf("%s calls %s…; use exitWith or refuseErr so the error stays unwrappable", f, flat)
 			}
@@ -154,6 +154,7 @@ func TestAWriteThatCannotUseTheStateDirectoryNamesIt(t *testing.T) {
 		{"write", "--dry-run", "--no-check", filepath.Join(root, "p.plan")},
 		// The plan makers keep the error they were built from (ADR-164).
 		{"write", "--grep", "one", "--sub", "uno", "--dry-run", "--no-check", "a.txt"},
+		{"write", "--json", "--dry-run", "--no-check", "--grep", "one", "--sub", "uno", "a.txt"}, // --json re-spelled the exit and dropped the chain
 		{"read", "--grep", "one", "--sub", "uno", "a.txt"},
 		{"read", "a.txt"},
 	} {

@@ -1895,8 +1895,8 @@ func firstPage(root string, specs []string, cw *capped, maxCols int) (callToolRe
 			// A state-directory failure is answered as one (an isError result either
 			// way, so the caller's fall-through to the flat refusal is skipped);
 			// any other hold failure stays unpaged, as it was.
-			if statehint.About(err) {
-				return errorResult("holding checkpoints: " + statehint.Hint(err).Error()), true
+			if msg := "holding checkpoints: " + statehint.Hint(err).Error(); statehint.About(err) && fitsAsError(msg) {
+				return errorResult(msg), true
 			}
 			return callToolResult{}, false
 		}

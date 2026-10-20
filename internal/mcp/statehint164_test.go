@@ -109,6 +109,46 @@ func TestTheMCPSurfaceNamesItsStateDirectory(t *testing.T) {
 	}
 }
 
+// A hint that does not fit must not turn an answer into another kind: a plan
+// maker's isError refusal that fit the ceiling before the hint keeps its kind
+// and its words when the hinted one would not fit, rather than falling through
+// withinCeiling to a JSON-RPC error (Codex, review of #470).
+func TestAHintThatDoesNotFitLeavesTheAnswerAnIsErrorResult(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "a.txt"), []byte("one\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	file := filepath.Join(t.TempDir(), "state")
+	if err := os.WriteFile(file, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("XDG_STATE_HOME", file)
+	args := map[string]any{"grep": "one", "sub": "uno", "specs": []any{"a.txt"}}
+	hinted := ask(t, root, "mrw_read", args)
+	i := strings.Index(hinted.text, " — mrw's state directory")
+	if hinted.rpc || !hinted.isError || i < 0 {
+		t.Fatalf("the fixture: %+v", hinted)
+	}
+	plain := hinted.text[:i]
+	fit := encodedSize(decorateCall(errorResult(plain)))
+	if fit >= encodedSize(decorateCall(errorResult(hinted.text))) {
+		t.Fatalf("the fixture: the hint adds nothing to measure")
+	}
+	withCeiling(t, fit+8)
+	for _, tc := range []struct {
+		tool string
+		args map[string]any
+	}{
+		{"mrw_read", args},
+		{"mrw_write", map[string]any{"grep": "one", "sub": "uno", "paths": []any{"a.txt"}}},
+	} {
+		got := ask(t, root, tc.tool, tc.args)
+		if got.rpc || !got.isError || got.text != plain {
+			t.Errorf("%s at a ceiling the hinted answer overflows: %+v, want the plain isError %q", tc.tool, got, plain)
+		}
+	}
+}
+
 // The landing is the other half: the write lock a directory blocks, and a
 // ledger that cannot be updated after the tree changed. Both answer as they did
 // (an isError receipt, the ledger's carrying the landed write) and name the
@@ -120,10 +160,27 @@ func TestTheMCPLandingNamesItsStateDirectory(t *testing.T) {
 		t.Fatal(err)
 	}
 	lock := filepath.Join(dir, "seen.write.lock")
-	if err := os.Mkdir(lock, 0o700); err != nil {
+	// The ledger's own lock a directory: Prepare does not load the ledger, Land does
+	// (seen.Snapshot, state.Hold), and answers a JSON-RPC error, nothing written.
+	sl := filepath.Join(dir, "seen.lock")
+	_ = os.Remove(sl) // seen.Record left the lock file; a directory goes in its place
+	if err := os.Mkdir(sl, 0o700); err != nil {
 		t.Fatal(err)
 	}
 	got := ask(t, root, "mrw_write", map[string]any{"plan": "@@ a.txt 1 replace\nuno\n"})
+	if !got.rpc || got.code != codeInternal || !strings.Contains(got.text, "mrw's state directory") {
+		t.Errorf("a ledger lock that is a directory: %+v", got)
+	}
+	if b, _ := os.ReadFile(filepath.Join(root, "a.txt")); string(b) != "one\n" {
+		t.Errorf("a.txt changed: %q", b)
+	}
+	if err := os.Remove(sl); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(lock, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	got = ask(t, root, "mrw_write", map[string]any{"plan": "@@ a.txt 1 replace\nuno\n"})
 	if got.rpc || !got.isError || !strings.Contains(got.text, "mrw's state directory") {
 		t.Errorf("a write lock that is a directory: %+v", got)
 	}

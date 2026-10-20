@@ -91,6 +91,23 @@ func refusalText(err error, diag *bytes.Buffer) string {
 	return err.Error()
 }
 
+// fitsAsError reports whether msg, sent as an isError answer, is within the
+// ceiling withinCeiling enforces.
+func fitsAsError(msg string) bool {
+	return encodedSize(decorateCall(errorResult(msg))) <= MaxResultChars
+}
+
+// hintedText is the state-directory hint's words when the isError answer they
+// make still fits the ceiling, else the plain ones: a hint is only ever added
+// to an answer that would have been sent, so it cannot turn an isError result
+// into the JSON-RPC error withinCeiling gives what fits no way (ADR-164).
+func hintedText(plain, hinted string) string {
+	if fitsAsError(hinted) {
+		return hinted
+	}
+	return plain
+}
+
 // planned reports whether the call asks for a plan made by a walk.
 func (a readArgs) planned() bool { return a.Sub != nil || a.Rewrite != nil }
 
@@ -178,7 +195,7 @@ func readPlan(root string, a readArgs) (callToolResult, *rpcError) {
 		b, err = read.BuildSub(root, a.Specs, a.Grep, *a.Sub, a.Exclude, a.NoIgnore, &diag)
 	}
 	if err != nil {
-		return errorResult(refusalText(statehint.Hint(err), &diag)), nil
+		return errorResult(hintedText(refusalText(err, &diag), refusalText(statehint.Hint(err), &diag))), nil
 	}
 	if b.Problems > 0 {
 		return errorResult(refusalText(fmt.Errorf("incomplete: %d path(s) or range(s) could not be served, so no plan is returned and nothing is licensed", b.Problems), &diag)), nil
@@ -235,13 +252,13 @@ func planSource(root string, a writeArgs) ([]byte, string) {
 		b, err = read.BuildSub(root, a.Paths, a.Grep, *a.Sub, a.Exclude, a.NoIgnore, &diag)
 	}
 	if err != nil {
-		return nil, refusalText(statehint.Hint(err), &diag)
+		return nil, hintedText(refusalText(err, &diag), refusalText(statehint.Hint(err), &diag))
 	}
 	if b.Problems > 0 {
 		return nil, refusalText(fmt.Errorf("incomplete: %d path(s) or range(s) could not be served, so nothing was written", b.Problems), &diag)
 	}
 	if err := seen.Record(root, b.Observed); err != nil {
-		return nil, "recording the planned lines: " + statehint.Hint(err).Error()
+		return nil, hintedText("recording the planned lines: "+err.Error(), "recording the planned lines: "+statehint.Hint(err).Error())
 	}
 	return b.Plan, ""
 }
