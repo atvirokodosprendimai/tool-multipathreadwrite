@@ -149,4 +149,12 @@ func TestAPlainDryRunShowsNoPreview(t *testing.T) {
 	if code != 0 || hasRow(out) || !strings.Contains(out, "2 hunk(s), 2 file(s), 0 failed") || subFile(t, root, "b.css") != ".b { color: blue; }\n" {
 		t.Errorf("a real --sub write: exit %d, want 0, the write made and no preview row:\n%s%s", code, out, errOut)
 	}
+
+	// A hunk a sibling's refusal demotes to skipped carries no preview (the
+	// Codex review of #468): every demotion clears it.
+	subTree(t, root, map[string]string{"c.txt": "red\n", "d.go": "red{\n"})
+	out, errOut, code = run("", "write", "--dry-run", "--json", "--strict-balance", "--grep", `red[{]?`, "--sub", "blue", "c.txt", "d.go")
+	if code != 1 || strings.Contains(out, `"before"`) || strings.Contains(out, `"after"`) || !strings.Contains(out, "c.txt") {
+		t.Errorf("a skipped hunk beside a refused one: exit %d, want 1 and no before or after:\n%s%s", code, out, errOut)
+	}
 }
