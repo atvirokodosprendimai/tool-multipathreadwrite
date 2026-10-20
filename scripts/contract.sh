@@ -9688,6 +9688,23 @@ out=$(cd "$R" && "$MRW" read --grep -v ' a' f.txt 2>&1); want 2 $? "--grep -v ' 
 { grep -q 'has edge whitespace' <<<"$out" && grep -q 'there is no inverted match' <<<"$out"; } && ok "and names the inverted match there too" || bad "--grep -v padded: $out"
 out=$(cd "$R" && "$MRW" read --grep -i a f.txt 2>&1); want 1 $? "the pair: --grep -i a f.txt exits 1"
 grep -q "start the pattern with (?i)" <<<"$out" && ok "with ADR-140's pointer" || bad "--grep -i: $out"
+# 276. ADR-164 Decision 4: a {packages}-only scoped_check that can place some of
+# the files a write touched runs those and names the rest — a .go + .sh write's
+# receipt shows the scoped command and `outside the scoped check: run.sh`, and
+# `mrw check a.go run.sh` the same. The pair: a .sh-only write places nothing,
+# so its receipt shows the whole command and no outside line.
+R=$(mktemp -d "$WORK/r276-XXXXXX"); printf 'package a\n' > "$R/a.go"; printf 'true\n' > "$R/run.sh"
+printf '{"check":"echo WHOLE","scoped_check":"echo SCOPED {packages}"}\n' > "$R/.quality-harness.json"
+(cd "$R" && "$MRW" read a.go run.sh) >"$WORK/served.out" 2>&1
+out=$(cd "$R" && printf '@@ a.go 1 replace\npackage a // x\n@@ run.sh 1 replace\nfalse\n' | "$MRW" write - 2>&1); want 0 $? "a .go + .sh write with a {packages}-only scoped_check exits 0"
+{ grep -q 'check (declared): echo SCOPED \.$' <<<"$out" && grep -q '^outside the scoped check: run.sh — scoped_check "echo SCOPED {packages}" runs {packages}, which names Go packages only$' <<<"$out"; } \
+  && ok "and runs the scoped command and names run.sh" || bad "a .go + .sh write: $out"
+out=$(cd "$R" && "$MRW" check a.go run.sh 2>&1); want 0 $? "mrw check a.go run.sh exits 0"
+{ grep -q 'echo SCOPED \.$' <<<"$out" && grep -q '^outside the scoped check: run.sh' <<<"$out"; } && ok "and names run.sh the same way" || bad "mrw check a.go run.sh: $out"
+(cd "$R" && "$MRW" read run.sh) >"$WORK/served.out" 2>&1
+out=$(cd "$R" && printf '@@ run.sh 1 replace\ntrue\n' | "$MRW" write - 2>&1); want 0 $? "the pair: a .sh-only write exits 0"
+{ grep -q 'check (declared): echo WHOLE$' <<<"$out" && ! grep -q 'outside the scoped check' <<<"$out"; } && ok "and runs the whole check with no outside line" || bad "a .sh-only write: $out"
+
 
 # 279. ADR-164 T7: a --max-cols window centres on the match itself, so a match
 # no wider than the window is whole — `--max-cols 8` over "Alpha NEEDLE x"

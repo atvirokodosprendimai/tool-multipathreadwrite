@@ -18,6 +18,7 @@ check duration_ms
 check exit_code
 check hint
 check output_file
+check outside_scope
 check pruned_logs
 check ran
 check skipped
@@ -73,6 +74,7 @@ mcp_write check.duration_ms
 mcp_write check.exit_code
 mcp_write check.hint
 mcp_write check.output_file
+mcp_write check.outside_scope
 mcp_write check.pruned_logs
 mcp_write check.ran
 mcp_write check.skipped
@@ -155,6 +157,7 @@ write check.duration_ms
 write check.exit_code
 write check.hint
 write check.output_file
+write check.outside_scope
 write check.pruned_logs
 write check.ran
 write check.skipped

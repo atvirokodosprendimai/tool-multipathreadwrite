@@ -122,6 +122,8 @@ how the file-edit ban gets broken by a good intention.
   `filepath.IsAbs`, to ask whether a caller's path is relative to the root.
 - `.quality-harness.json` declares the check: `go test ./...`.
 - A `{files}`-only `scoped_check` still runs on a `.rs` write when `packages()`
-  cannot map (ADR-061); `{packages}`-only still falls back.
+  cannot map (ADR-061). A `{packages}`-only one that places some written files runs
+  those packages and names the rest on an `outside the scoped check:` line (ADR-164);
+  nothing placed, an unplaceable `.go`, a module file or a removed Go file runs the whole check.
 - The read-before-modify guard arrived in **v0.0.2**. A `bin/mrw` built from a
   working tree reports `dev`, which is newer than any tag, not older.

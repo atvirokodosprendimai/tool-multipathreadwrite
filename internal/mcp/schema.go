@@ -235,6 +235,7 @@ var writeDescriptions = map[string]string{
 	"check.duration_ms":          "How long the check ran, in milliseconds.",
 	"check.hint":                 "How to scope a check that ran the whole project's command for the files this write touched and took 60 s or more (ADR-152): declare `scoped_check`, or why the declared one could not name those paths. Absent otherwise.",
 	"check.output_file":          "The file holding the check's whole output. The tail here is its last lines.",
+	"check.outside_scope":        "Each edited file a `scoped_check` that names only `{packages}` ran without, because it names Go packages and could not place the file (ADR-164): the scoped command ran over the packages it could place, and its verdict is about those. The text names the same files on an `outside the scoped check:` line; under a ceiling too small for the receipt, the closing sentence keeps their count. Absent when nothing was left out.",
 	"check.tail":                 "The last lines of the check's output, each capped. The first thing cut when the receipt exceeds the ceiling (see `elided`).",
 	"check.truncated_lines":      "How many lines of output came before the tail and are only in output_file.",
 	"check.pruned_logs":          "How many old check logs this run removed from the temp directory.",

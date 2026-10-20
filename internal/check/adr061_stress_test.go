@@ -17,6 +17,8 @@ import (
 //   {packages}-only or mixed + empty map → Check
 //   empty path list → Check (mrw check --full)
 //   packages() maps → scoped, both placeholders substituted (ADR-003)
+//   a map that places some paths and sets the rest aside (ADR-164) → scoped,
+//   {files} still names every path
 //
 // Layer 1 quotes with a byte walk + an inert charset string; shellArg uses
 // ContainsFunc + a switch. Layer 2 draws template × path-class; mapped vs
@@ -26,7 +28,8 @@ import (
 // Pools (v2), measured 2026-09-16:
 //   templates: rg -n '\{packages\}|\{files\}' internal/check/check.go
 //     → both placeholders, plus absent / neither (the Decision's other arms).
-//   path class: empty | allGo (root-level .go) | unmapped (.rs / .toml / mix).
+//   path class: empty | allGo (root-level .go) | unmapped (.rs / .toml, no .go)
+//   | partial (a root-level .go beside a .rs / .toml).
 //   Left out: `{files_extra}` substring; nested packages() trees (would force
 //   the oracle to reimplement packages()); Zeus's real JSON (no scoped_check —
 //   a fixture that required that file is a tripwire against adding one).
@@ -132,10 +135,11 @@ const (
 	classEmpty pathClass = iota
 	classAllGo
 	classUnmapped
+	classPartial
 )
 
 func (c pathClass) String() string {
-	return [...]string{"empty", "allGo", "unmapped"}[c]
+	return [...]string{"empty", "allGo", "unmapped", "partial"}[c]
 }
 
 const checkFull = "echo FULL"
@@ -148,7 +152,7 @@ func filesScopeOracle(tmpl scopeTmpl, class pathClass, paths []string) (string, 
 	if scoped == "" {
 		return checkFull, false
 	}
-	if class == classAllGo {
+	if class == classAllGo || class == classPartial {
 		r := strings.NewReplacer("{packages}", refShellArg("."), "{files}", refShellArgs(paths))
 		return r.Replace(scoped), true
 	}
@@ -175,13 +179,17 @@ func TestRandomisedCommandMatchesTheFilesScopeOracle(t *testing.T) {
 		{"a.rs"},
 		{"Cargo.toml"},
 		{"a.rs", "Cargo.toml"},
-		{"a.go", "a.rs"},
 		{"two words.rs"},
+	}
+	partialPool := [][]string{
+		{"a.go", "a.rs"},
+		{"a.go", "Cargo.toml"},
+		{"two words.rs", "a.go"},
 	}
 
 	for i := 0; i < iterations; i++ {
 		tmpl := scopeTmpl(r.Intn(5))
-		class := pathClass(r.Intn(3))
+		class := pathClass(r.Intn(4))
 		root := t.TempDir()
 		var paths []string
 		switch class {
@@ -197,8 +205,12 @@ func TestRandomisedCommandMatchesTheFilesScopeOracle(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-		case classUnmapped:
-			paths = append([]string(nil), unmappedPool[r.Intn(len(unmappedPool))]...)
+		case classUnmapped, classPartial:
+			pool := unmappedPool
+			if class == classPartial {
+				pool = partialPool
+			}
+			paths = append([]string(nil), pool[r.Intn(len(pool))]...)
 			for _, p := range paths {
 				full := filepath.Join(root, p)
 				if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
@@ -214,14 +226,18 @@ func TestRandomisedCommandMatchesTheFilesScopeOracle(t *testing.T) {
 			}
 		}
 
-		if class == classAllGo && len(packages(root, paths)) == 0 {
+		pkgs, outside := place(root, paths)
+		if class == classAllGo && len(pkgs) == 0 {
 			t.Fatalf("seed=%d iter=%d: allGo fixture did not map: %v", seed, i, paths)
 		}
-		if class == classUnmapped && len(packages(root, paths)) > 0 {
-			t.Fatalf("seed=%d iter=%d: unmapped fixture mapped: %v → %v", seed, i, paths, packages(root, paths))
+		if class == classPartial && (len(pkgs) != 1 || len(outside) != 1) {
+			t.Fatalf("seed=%d iter=%d: partial fixture placed %v, set aside %v: %v", seed, i, pkgs, outside, paths)
 		}
-		if class == classEmpty && len(packages(root, paths)) > 0 {
-			t.Fatalf("seed=%d iter=%d: empty paths mapped: %v", seed, i, packages(root, paths))
+		if class == classUnmapped && len(pkgs) > 0 {
+			t.Fatalf("seed=%d iter=%d: unmapped fixture mapped: %v → %v", seed, i, paths, pkgs)
+		}
+		if class == classEmpty && len(pkgs) > 0 {
+			t.Fatalf("seed=%d iter=%d: empty paths mapped: %v", seed, i, pkgs)
 		}
 
 		cfg := Config{Check: checkFull, ScopedCheck: tmpl.text()}

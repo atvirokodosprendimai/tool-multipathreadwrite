@@ -80,6 +80,7 @@ func TestScopeDerivation(t *testing.T) {
 		"cmd/mrw/main.go":              "package main\n",
 		"main.go":                      "package probe\n",
 		"docs/guide.md":                "# prose\n",
+		"README.md":                    "# readme\n",
 	} {
 		full := filepath.Join(root, path)
 		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
@@ -94,12 +95,14 @@ func TestScopeDerivation(t *testing.T) {
 		paths []string
 		want  string
 	}{
-		"one package":       {[]string{"internal/apply/apply.go"}, "go test ./internal/apply"},
-		"two packages":      {[]string{"internal/apply/a.go", "cmd/mrw/main.go"}, "go test ./cmd/mrw ./internal/apply"},
-		"deduplicated":      {[]string{"internal/apply/a.go", "internal/apply/b.go"}, "go test ./internal/apply"},
-		"root package":      {[]string{"main.go"}, "go test ."},
-		"non-Go falls back": {[]string{"internal/apply/a.go", "README.md"}, "FULL"},
-		"no paths":          {nil, "FULL"},
+		"one package":  {[]string{"internal/apply/apply.go"}, "go test ./internal/apply"},
+		"two packages": {[]string{"internal/apply/a.go", "cmd/mrw/main.go"}, "go test ./cmd/mrw ./internal/apply"},
+		"deduplicated": {[]string{"internal/apply/a.go", "internal/apply/b.go"}, "go test ./internal/apply"},
+		"root package": {[]string{"main.go"}, "go test ."},
+		// ADR-164: a non-Go FILE beside a mapped path is set aside, not a reason
+		// to run everything; Run names it in OutsideScope.
+		"a non-Go file is set aside": {[]string{"internal/apply/a.go", "README.md"}, "go test ./internal/apply"},
+		"no paths":                   {nil, "FULL"},
 
 		// The bug the first round was one row short of catching: the README
 		// spells the scoped form with a DIRECTORY, and a directory has no .go
@@ -109,7 +112,7 @@ func TestScopeDerivation(t *testing.T) {
 		"a directory and a file":   {[]string{"internal/apply", "cmd/mrw/main.go"}, "go test ./cmd/mrw ./internal/apply/..."},
 		"a directory twice over":   {[]string{"internal/apply", "internal/apply/a.go"}, "go test ./internal/apply/..."},
 		"a path that is not there": {[]string{"internal/aply"}, "FULL"},
-		"a directory and a non-Go": {[]string{"internal/apply", "README.md"}, "FULL"},
+		"a directory and a non-Go": {[]string{"internal/apply", "README.md"}, "go test ./internal/apply/..."},
 
 		// And what THAT round was one row short of: a named directory must
 		// cover its SUBTREE. Go's `.` is the root package alone, so `mrw check

@@ -226,7 +226,12 @@ These are gates, not a tour of the records behind them.
 - **Check by default.** A CLI write to a non-prose path runs the project's
   check when one exists; `--no-check` opts out; a markdown-only plan does not
   spawn it. A `{files}`- or `{dirs}`-only `scoped_check` still runs on a `.rs` write when
-  `packages()` cannot map; `{packages}`-only still falls back. A non-prose hunk
+  `packages()` cannot map. A `{packages}`-only one that places some of the written files runs over
+  those packages and names the rest on an `outside the scoped check:` line (`check.outside_scope`
+  in `--json`); it runs the whole check when nothing places, or a `.go` path cannot be placed, a
+  directory holds no package, a module file (`go.mod`, `go.sum`, `go.work`, `go.work.sum`) was
+  written, or the write removed a Go or module file. Its pass covers the packages it could place only.
+  A non-prose hunk
   whose `{}` `()` `[]` nets moved prints a balance row and stays `ok` — a
   balanced insert in the wrong place is invisible to it.
   A replace whose body ends in a closer (a fence, `}`, `</div>`, `@endif`) that
