@@ -2669,9 +2669,16 @@ func refusePaddedArgs(cmd *cli.Command) error {
 	kinds := flagKinds(cmd.Lineage()...)
 	positionals := 0
 	value := false
+	// The value that followed --grep: a padded path after `--grep -v` is
+	// refused here, before the read, so the table's pointer for the flag the
+	// pattern took is said here too (ADR-164 T5).
+	grepValue, valueOfGrep := "", false
 	for _, tok := range raw {
 		if value {
 			value = false
+			if valueOfGrep {
+				grepValue, valueOfGrep = tok, false
+			}
 			continue
 		}
 		role, next := flagRole(tok, kinds)
@@ -2683,6 +2690,7 @@ func refusePaddedArgs(cmd *cli.Command) error {
 				return err
 			}
 			value = next
+			valueOfGrep = next && strings.TrimLeft(tok, "-") == "grep"
 			continue
 		}
 		// A positional, or the token the parser stops at. Of the two stop
@@ -2708,8 +2716,12 @@ func refusePaddedArgs(cmd *cli.Command) error {
 				}
 				head := fmt.Sprintf("mrw %s -- ", prefix)
 				fix := head + posixQuote(tok)
+				pointer := ""
+				if s := patternFlagHint(grepValue); s != "" {
+					pointer = " — " + s + " (mrw took the value after --grep as the pattern)"
+				}
 				return cli.Exit(fmt.Sprintf("'%s' has edge whitespace the argument parser strips; "+
-					"put -- before the path: %s%s", tok, fix, cmdExeForm(head, tok)), exitUsage)
+					"put -- before the path: %s%s%s", tok, fix, cmdExeForm(head, tok), pointer), exitUsage)
 			}
 		}
 		if role == roleStop {
