@@ -9700,6 +9700,8 @@ out=$(cd "$R" && printf '@@ f.txt 3-5 replace sha=%s\nNEW\n' "$sha273" | "$MRW" 
 { grep -q 'carries no anchor=' <<<"$out" && grep -q 'sha= checks that the whole file is unchanged, not which lines this range covers' <<<"$out" \
   && [ "$(cat "$R/f.txt")" = "$(printf '1\n2\n3\n4\n5\n6\n7')" ]; } \
   && ok "and says sha= does not stand in for anchor=, nothing written" || bad "a sha=-only multi-line replace: $out"
+out=$(cd "$R" && printf '@@ f.txt 3-5 replace lines=3\nNEW\n' | "$MRW" write --no-check - 2>&1); want 1 $? "a lines=-only multi-line replace is refused, exit 1"
+grep -q 'lines= checks how many lines this range covers, not which' <<<"$out" && ok "and says lines= does not stand in for anchor= either" || bad "a lines=-only multi-line replace: $out"
 out=$(cd "$R" && printf '@@ f.txt 3-5 replace sha=%s anchor="3"\nNEW\n' "$sha273" | "$MRW" write --no-check - 2>&1); want 0 $? "the pair: the same plan with anchor= applies"
 
 # 271. ADR-161 Decision 14: the read ledger and the write lock belong to the

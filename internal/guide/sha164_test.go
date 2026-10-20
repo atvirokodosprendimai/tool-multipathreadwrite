@@ -9,7 +9,7 @@ import (
 // core does not, because it is at its word ceiling (ADR-141) and the refusal
 // reaches the caller who made the mistake.
 func TestTheFullGuideSaysShaDoesNotStandInForAnAnchor(t *testing.T) {
-	const s = "sha= does not stand in for it"
+	const s = "sha= and lines= do not stand in for it"
 	if !strings.Contains(CLI(), "A multi-line replace requires anchor= taken from the served first line. "+s+".") {
 		t.Errorf("the full guide does not say %q beside the anchor rule", s)
 	}

@@ -1676,13 +1676,17 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 			// the hole ADR-026 and ADR-027 each found once.
 			if h.Op == "replace" && end > start && h.Anchor == "" {
 				// ADR-164 T1: a field report's caller gave a matching sha= and
-				// took it for this guard. Said only when sha= is there.
-				shaNote := ""
+				// took it for this guard; lines= can be taken for it the same
+				// way. Each clause is said only when its guard is there.
+				guardNote := ""
 				if h.SHA != "" {
-					shaNote = "; sha= checks that the whole file is unchanged, not which lines this range covers"
+					guardNote += "; sha= checks that the whole file is unchanged, not which lines this range covers"
+				}
+				if h.Lines >= 0 {
+					guardNote += "; lines= checks how many lines this range covers, not which"
 				}
 				fail(h, "replace of %s covers %d lines and carries no anchor=: say anchor=\"<text from the first line>\" so a wrong range fails instead of overwriting%s",
-					addrString(start, end), end-start+1, shaNote)
+					addrString(start, end), end-start+1, guardNote)
 				continue
 			}
 			// ADR-052. A multi-line replace whose ledger never covered the
