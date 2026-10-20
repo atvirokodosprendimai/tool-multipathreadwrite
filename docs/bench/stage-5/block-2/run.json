@@ -1,0 +1,79 @@
+{
+  "stage": "stage5",
+  "tasks": [
+    "scikit-learn__scikit-learn-10297",
+    "django__django-11138",
+    "pytest-dev__pytest-7571",
+    "sphinx-doc__sphinx-7910",
+    "django__django-13346",
+    "sympy__sympy-19783",
+    "django__django-15916",
+    "django__django-16315",
+    "sympy__sympy-16597",
+    "sympy__sympy-21596",
+    "sympy__sympy-15599",
+    "django__django-11265",
+    "pydata__xarray-4687",
+    "sphinx-doc__sphinx-8548",
+    "pydata__xarray-7229",
+    "pydata__xarray-3095",
+    "sphinx-doc__sphinx-8120",
+    "sphinx-doc__sphinx-9602",
+    "django__django-14631",
+    "scikit-learn__scikit-learn-9288",
+    "sphinx-doc__sphinx-7440",
+    "sympy__sympy-24562",
+    "django__django-11276",
+    "django__django-11333",
+    "django__django-15103",
+    "psf__requests-1724",
+    "django__django-13195",
+    "django__django-15022",
+    "sphinx-doc__sphinx-7748",
+    "django__django-14559",
+    "matplotlib__matplotlib-14623",
+    "matplotlib__matplotlib-26208",
+    "django__django-11603",
+    "django__django-15561",
+    "matplotlib__matplotlib-26466",
+    "psf__requests-1766",
+    "sphinx-doc__sphinx-8056",
+    "pydata__xarray-3305",
+    "sympy__sympy-20801",
+    "pytest-dev__pytest-10051"
+  ],
+  "models": [
+    "claude-sonnet-5-5",
+    "claude-opus-5-5"
+  ],
+  "configs": [
+    "A",
+    "B",
+    "P"
+  ],
+  "repeats": 1,
+  "seed": 156,
+  "cli_version": "2.1.302 (Claude Code)",
+  "mrw_version": "v1.68.0 (975c3ba)",
+  "containment": "bypass",
+  "profile": "stage5",
+  "plugin": {
+    "tag": "v3.8.40",
+    "commit": "ae3bdb850749b4b92f4493eebed3ba943f3764eb"
+  },
+  "status_line_sha256": "171a9b5ce5b38cea2dc5d8eaab69fd5efa977d020394cc0a2b0645b32189bf47",
+  "budget_seconds": 1200,
+  "prompt_sha256": "4ab9117eb27510a1d2e6151a579aa66a1c5ae175f4e2797c087084db527cb333",
+  "block": 2,
+  "looks": 5,
+  "configs_for": {
+    "claude-opus-5-5": [
+      "A",
+      "B"
+    ],
+    "claude-sonnet-5-5": [
+      "A",
+      "B"
+    ]
+  }
+}

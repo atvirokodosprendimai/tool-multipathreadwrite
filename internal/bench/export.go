@@ -97,6 +97,12 @@ func ExportPaired(o ExportOptions, w io.Writer) error {
 		if err != nil {
 			return err
 		}
+		// A Stage 5 ruling (exclusions.json beside the blocks) applies here as
+		// it does to the look: a ruled attempt is a row marked unrun.
+		ruled, err := rulings(filepath.Dir(dir))
+		if err != nil {
+			return err
+		}
 		// A retry chain collapses within the directory that ran it; the same
 		// attempt in two directories is refused, never picked by argument
 		// order (the review of T2).
@@ -104,6 +110,9 @@ func ExportPaired(o ExportOptions, w io.Writer) error {
 		for _, path := range paths {
 			var r Receipt
 			if err := readJSON(path, &r); err != nil {
+				return err
+			}
+			if err := rule(ruled, &r, map[string]bool{}); err != nil {
 				return err
 			}
 			if r.Model != o.Model || (r.Config != o.X && r.Config != o.Y) {

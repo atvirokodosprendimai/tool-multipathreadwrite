@@ -1,0 +1,9 @@
+looks read: 2 of 5
+claude-sonnet-5-5 · B against A · open · INCONCLUSIVE · eligible true · cost -0.088 [-0.176, +0.003] · solved -0.062 [-0.178, +0.034] at 99% · tasks 80
+claude-sonnet-5-5 · P against A · closed at look 1 · LOSES · eligible true · cost +0.701 [+0.477, +0.926] · solved -0.025 [-0.182, +0.121] at 99% · tasks 40 · excluded 2
+claude-opus-5-5 · B against A · open · INCONCLUSIVE · eligible true · cost -0.210 [-0.288, -0.130] · solved +0.000 [-0.107, +0.107] at 99% · tasks 79 · excluded 1 · cost leaves out sympy__sympy-16597
+claude-opus-5-5 · P against A · closed at look 1 · LOSES · eligible true · cost +0.486 [+0.312, +0.674] · solved +0.000 [-0.166, +0.166] at 99% · tasks 39 · excluded 4
+next: claude-opus-5-5 runs A,B
+next: claude-sonnet-5-5 runs A,B
+block 3 is due
+exit status 1

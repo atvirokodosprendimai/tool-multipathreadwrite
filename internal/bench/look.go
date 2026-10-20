@@ -70,6 +70,11 @@ type lookBlock struct {
 // scheduled for a model is refused.
 func Look(stageDir string) (LookReport, error) {
 	rep := LookReport{Next: map[string][]string{}}
+	ruled, err := rulings(stageDir)
+	if err != nil {
+		return rep, err
+	}
+	applied := map[string]bool{}
 	var blocks []lookBlock
 	for k := 1; k <= Looks; k++ {
 		dir := filepath.Join(stageDir, fmt.Sprintf("block-%d", k))
@@ -99,12 +104,18 @@ func Look(stageDir string) (LookReport, error) {
 			if err := readJSON(path, &r); err != nil {
 				return rep, err
 			}
+			if err := rule(ruled, &r, applied); err != nil {
+				return rep, err
+			}
 			if !slices.Contains(plannedConfigs(p, r.Model), r.Config) {
 				return rep, fmt.Errorf("%s holds %s, a configuration block %d did not plan for %s", dir, r.Attempt, k, r.Model)
 			}
 			b.rs = append(b.rs, r)
 		}
 		blocks = append(blocks, b)
+	}
+	if err := unapplied(ruled, applied); err != nil {
+		return rep, err
 	}
 	rep.Blocks = len(blocks)
 	first := blocks[0].plan
@@ -263,8 +274,17 @@ func (r LookReport) Text() string {
 			state = fmt.Sprintf("closed at look %d", row.ClosedAt)
 		}
 		res := row.Result
-		fmt.Fprintf(&b, "%s · %s against A · %s · %s · eligible %v · cost %+.3f [%+.3f, %+.3f] · solved %+.3f [%+.3f, %+.3f] at %.0f%% · tasks %d\n",
+		fmt.Fprintf(&b, "%s · %s against A · %s · %s · eligible %v · cost %+.3f [%+.3f, %+.3f] · solved %+.3f [%+.3f, %+.3f] at %.0f%% · tasks %d",
 			row.Model, row.Comparison, state, row.Verdict, row.Eligible, res.RelCost, res.RelLo, res.RelHi, res.SolvedDiff, res.SolvedLo, res.SolvedHi, res.Level*100, res.Tasks)
+		// What a ruling or a killed attempt left out is said on the row it
+		// shaped, and only there, so a row without either reads as before.
+		if res.Excluded > 0 {
+			fmt.Fprintf(&b, " · excluded %d", res.Excluded)
+		}
+		if len(res.CostUnpaired) > 0 {
+			fmt.Fprintf(&b, " · cost leaves out %s", strings.Join(res.CostUnpaired, ", "))
+		}
+		b.WriteString("\n")
 	}
 	for _, m := range sortedKeysOf(r.Next) {
 		fmt.Fprintf(&b, "next: %s runs %s\n", m, strings.Join(r.Next[m], ","))
@@ -306,6 +326,10 @@ func OnlyHunks(n int) string {
 // closed at, or the latest, at the look's level (ADR-162 Decision 4).
 func LookDescriptive(stageDir string, rep LookReport, subsets []Subset) ([]Result, error) {
 	var out []Result
+	ruled, err := rulings(stageDir)
+	if err != nil {
+		return nil, err
+	}
 	for _, row := range rep.Rows {
 		upTo := row.ClosedAt
 		if upTo == 0 {
@@ -320,6 +344,9 @@ func LookDescriptive(stageDir string, rep LookReport, subsets []Subset) ([]Resul
 			for _, p := range paths {
 				var r Receipt
 				if err := readJSON(p, &r); err != nil {
+					return nil, err
+				}
+				if err := rule(ruled, &r, map[string]bool{}); err != nil {
 					return nil, err
 				}
 				if r.Model == row.Model && (r.Config == "A" || r.Config == row.Comparison) {
@@ -346,4 +373,55 @@ func LookDescriptive(stageDir string, rep LookReport, subsets []Subset) ([]Resul
 		}
 	}
 	return out, nil
+}
+
+// rulings reads the stage's exclusions.json: an attempt id and why the
+// machine, not the agent, ended it (Zy's ruling of 2026-10-20 on Stage 5 block
+// 2, an attempt cut by a sleeping Mac). No file, no rulings. The receipts stay
+// as the runner wrote them; a ruling is applied where they are read.
+func rulings(stageDir string) (map[string]string, error) {
+	path := filepath.Join(stageDir, "exclusions.json")
+	b, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var m map[string]string
+	if err := json.Unmarshal(b, &m); err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
+	}
+	return m, nil
+}
+
+// rule excludes r as infrastructure when a ruling names it, and refuses a
+// ruling over an attempt the runner already excluded.
+func rule(ruled map[string]string, r *Receipt, applied map[string]bool) error {
+	why, ok := ruled[r.Attempt]
+	if !ok {
+		return nil
+	}
+	if r.Exclusion != "" {
+		return fmt.Errorf("exclusions.json rules %s, which the runner already excluded (%s)", r.Attempt, r.Exclusion)
+	}
+	r.Exclusion, r.Note = ExclusionInfra, why
+	applied[r.Attempt] = true
+	return nil
+}
+
+// unapplied refuses a ruling that named no attempt the stage holds: a typo
+// would otherwise exclude nothing and say nothing.
+func unapplied(ruled map[string]string, applied map[string]bool) error {
+	var missing []string
+	for id := range ruled {
+		if !applied[id] {
+			missing = append(missing, id)
+		}
+	}
+	if len(missing) > 0 {
+		slices.Sort(missing)
+		return fmt.Errorf("exclusions.json names %s, which no block of the stage holds", strings.Join(missing, ", "))
+	}
+	return nil
 }
