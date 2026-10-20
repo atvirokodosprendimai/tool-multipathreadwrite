@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -94,9 +96,10 @@ func TestAStateDirectoryThatCannotBeMadeNamesTheVariableThatMovesIt(t *testing.T
 	}
 }
 
-// Every command fails through exitWith, never cli.Exit, when it has an error to
-// fail on: cli.Exit's error has no Unwrap, so stateHint could not see a
-// state-directory failure under it. A new `cli.Exit(err, ` fails this.
+// Every command fails through exitWith or refuseErr, never cli.Exit or refuse
+// with the error's text, when it has an error to fail on: cli.Exit's error has
+// no Unwrap and a flattened message has no type, so stateHint could not see a
+// state-directory failure under either. A new such call fails this.
 func TestNoCommandExitsWithAnErrorThroughCliExit(t *testing.T) {
 	files, err := filepath.Glob("*.go")
 	if err != nil {
@@ -110,8 +113,59 @@ func TestNoCommandExitsWithAnErrorThroughCliExit(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if strings.Contains(string(src), "cli.Exit(err, ") {
-			t.Errorf("%s calls cli.Exit(err, …); use exitWith so the error stays unwrappable", f)
+		for _, flat := range []string{"cli.Exit(err, ", "refuse(err.Error())", "Err.Error())"} {
+			if strings.Contains(string(src), flat) {
+				t.Errorf("%s calls %s…; use exitWith or refuseErr so the error stays unwrappable", f, flat)
+			}
+		}
+	}
+}
+
+// runErr runs one command in-process and returns its error as main gets it.
+func runErr(t *testing.T, root string, argv ...string) error {
+	t.Helper()
+	var sink bytes.Buffer
+	var ran error
+	_, _ = captureStdout(t, func() error {
+		cmd := rootCommand()
+		cmd.Writer, cmd.ErrWriter = &sink, &sink
+		ran = cmd.Run(context.Background(), append([]string{"mrw", "-C", root}, argv...))
+		return ran
+	})
+	return ran
+}
+
+// A write that cannot use the state directory names it as a read does: the
+// write's own refusals keep the error unwrappable (Codex, fourth review of
+// #460, which found a write --create exiting 2 with no hint). Exit 2 either way.
+func TestAWriteThatCannotUseTheStateDirectoryNamesIt(t *testing.T) {
+	root := t.TempDir()
+	for name, body := range map[string]string{"a.txt": "one\n", "p.plan": "@@ a.txt 1 replace\nuno\n"} {
+		if err := os.WriteFile(filepath.Join(root, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	file := filepath.Join(t.TempDir(), "state")
+	if err := os.WriteFile(file, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("XDG_STATE_HOME", file)
+	for _, argv := range [][]string{
+		{"write", "--dry-run", "--no-check", filepath.Join(root, "p.plan")},
+		// Not `write --grep P --sub R`: read.BuildSub turns a walk error into a
+		// BuildError of text (internal/read/plansource.go), which an engine
+		// change must fix (ADR-164).
+		{"read", "a.txt"},
+	} {
+		err := runErr(t, root, argv...)
+		if err == nil {
+			t.Fatalf("%v: want a failure with XDG_STATE_HOME a file", argv)
+		}
+		if got := stateHint(err).Error(); !strings.Contains(got, "mrw's state directory") {
+			t.Errorf("%v: %q does not name the state directory", argv, got)
+		}
+		if code := exitCode(err); code != 2 {
+			t.Errorf("%v: exit %d, want 2", argv, code)
 		}
 	}
 }
