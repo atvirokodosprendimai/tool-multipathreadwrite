@@ -14,20 +14,25 @@ import (
 // on runes, never inside a character.
 func window(text string, width int, res []*regexp.Regexp) string {
 	total := utf8.RuneCountInString(text)
-	first := -1
+	first, last := -1, -1
 	for _, re := range res {
 		if re == nil {
 			continue
 		}
 		if loc := re.FindStringIndex(text); loc != nil {
 			if c := utf8.RuneCountInString(text[:loc[0]]); first < 0 || c < first {
-				first = c
+				first, last = c, c+utf8.RuneCountInString(text[loc[0]:loc[1]])
 			}
 		}
 	}
+	// Centre on the match itself, so one no wider than the window is never cut
+	// (ADR-164 Decision 7); a wider one starts the window.
 	start := 0
 	if first >= 0 {
-		start = first - width/2
+		start = first
+		if n := last - first; n <= width {
+			start = first + n/2 - width/2
+		}
 	}
 	start = max(start, 0)
 	end := start + width

@@ -47,8 +47,7 @@ out=$(mktemp) \
 |-----------|------|----------|--------|-------|
 | `TestASubReadPrintsAPlanAndLicensesItsLines` | `internal/read/sub161_test.go` | a valid replacement plans as before (ADR-161) | none | — |
 | `TestASubPlanParsesBackToTheSamePathsAndBodies` | `internal/read/sub161_test.go` | the plan text unchanged | none | — |
-
-Planned, named without backticks until it exists: TestASubNamingAMissingGroupIsRefused in `internal/read/sub164_test.go` (S1, S2).
+| `TestASubNamingAMissingGroupIsRefused` | `internal/read/sub164_test.go` | a reference Go would expand to nothing is a usage error naming it and $$; every other spelling plans | none | S1, S2 |
 
 ## Reachability
 
@@ -61,9 +60,25 @@ Planned, named without backticks until it exists: TestASubNamingAMissingGroupIsR
 
 ## Mutation Log
 (empty until execute)
+- 2026-10-20 · 497e9ffc* · mutant killed · exit 1 · `internal/read/plansource.go` · without the check a missing group expands to nothing again · acceptance-sha256:2a373104180f587405b77ffbddd416b0d89068897d3c57e1a52e7f2e53f844da
 
 ## Verification Log
 (empty until execute)
+- 2026-10-20 · 497e9ffc* · exit 1 · `set -o pipefail …` · acceptance-sha256:2a373104180f587405b77ffbddd416b0d89068897d3c57e1a52e7f2e53f844da · ms:746 · test-lock-sha256:02e14d1c52bdb23391641c32d002802077b645ac2d3976597ac9aa8513762192 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJaW50ZXJuYWwvcmVhZC9zdWIxNjFfdGVzdC5nbwlUZXN0QVN1YlBsYW5QYXJzZXNCYWNrVG9UaGVTYW1lUGF0aHNBbmRCb2RpZXMJOTQ4ODg0NmQxYzU1NzMwZDc5OWY2YjQ3MWNjZWZmMWM4ZjQ3MTcyYzgwOGQ5YWE1YTlkZTY5Y2IyYjA4YWViMgpib2R5CWludGVybmFsL3JlYWQvc3ViMTYxX3Rlc3QuZ28JVGVzdEFTdWJSZWFkUHJpbnRzQVBsYW5BbmRMaWNlbnNlc0l0c0xpbmVzCTNmYmEyNWQwN2UyYmRhYjA0ZDNhZmMyMDE4OTBkZDgxZGZjZDg4YzY4MTQ1NDgzYTk1YTBlN2FlNjk5M2YxOTkKYm9keQlpbnRlcm5hbC9yZWFkL3N1YjE2MV90ZXN0LmdvCVRlc3RBU3ViUmVmdXNlc0FOZXdUZXh0RW5kaW5nSW5BQ1IJMDZjZmZjZDQzNzQ4YWI3ODFhNmZiMTY1N2Q0YjcxMDc1OWZkZWJhYTM0MjUzZjljOTYwNjExZjU5YWZkZGE0Mg
+  ```
+  --- last 9 line(s) of stdout
+  === RUN   TestASubNamingAMissingGroupIsRefused
+      sub164_test.go:36: --grep "head -1" --sub "^0?$1 x": want a usage BuildError, got <nil>
+      sub164_test.go:36: --grep "(head) -1" --sub "$1x": want a usage BuildError, got <nil>
+      sub164_test.go:36: --grep "(head) -1" --sub "${2}": want a usage BuildError, got <nil>
+      sub164_test.go:36: --grep "(head) -1" --sub "${name}": want a usage BuildError, got <nil>
+  --- FAIL: TestASubNamingAMissingGroupIsRefused (0.00s)
+  FAIL
+  FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read	0.129s
+  FAIL
+  ```
+- 2026-10-20 · 497e9ffc* · exit 0 · `set -o pipefail …` · acceptance-sha256:2a373104180f587405b77ffbddd416b0d89068897d3c57e1a52e7f2e53f844da · ms:6645
+- 2026-10-20 · human-observed · Claude observed: ./scripts/contract.sh exit 0 at the T7+T8 tree (2026-10-20), §280 all 5 rows PASS: --sub naming a missing group refused exit 2 naming it and $$, nothing written; mrw_write answers isError and the server answers the next request; the pair applies the group's text · acceptance-sha256:2a373104180f587405b77ffbddd416b0d89068897d3c57e1a52e7f2e53f844da
 
 ## Invariants
 

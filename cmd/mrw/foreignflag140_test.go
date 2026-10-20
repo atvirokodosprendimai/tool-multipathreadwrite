@@ -71,7 +71,7 @@ func TestEveryForeignFlagHintIsATrueSpelling(t *testing.T) {
 		{"-w is \\b…\\b", []string{"read", "--grep", `\bword\b`, "f.txt"}, "a.b word"},
 		{"-A/-B is -C N", []string{"read", "--grep", "dash", "-C", "1", "f.txt"}, "Alpha NEEDLE x"},
 		{"-n is on, -N drops", []string{"read", "-N", "f.txt:1"}, "Alpha NEEDLE x"},
-		{"-o is --max-cols N: the line cut to a window round its match", []string{"read", "--grep", "NEEDLE", "--max-cols", "8", "f.txt"}, "[cols 3-10 of 14]"},
+		{"-o is --max-cols N: the line cut to a window round its match", []string{"read", "--grep", "NEEDLE", "--max-cols", "8", "f.txt"}, "[cols 6-13 of 14]"},
 		{"-v has no equivalent: --grep serves only the lines that match", []string{"read", "--grep", "NEEDLE", "f.txt"}, "Alpha NEEDLE x"},
 	} {
 		out, code := runIn(t, root, c.argv...)

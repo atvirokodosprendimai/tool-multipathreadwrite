@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"slices"
+	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/iter"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
@@ -55,6 +58,9 @@ func BuildSub(root string, posArgs []string, pattern, repl string, excludes []st
 	if err != nil {
 		return nil, usageError("--grep %q: %v", pattern, err)
 	}
+	if ref, ok := missingGroup(re, repl); ok {
+		return nil, usageError("--sub %q names %s, which /%s/ does not define: Go would write it as nothing; write $$ for a literal $, and ${1}x for group 1 before x", repl, ref, OneLine(pattern))
+	}
 	posArgs, err = RangeFreePaths(root, posArgs, "--grep")
 	if err != nil {
 		return nil, err
@@ -89,6 +95,49 @@ func BuildSub(root string, posArgs []string, pattern, repl string, excludes []st
 		return nil, notApplied("incomplete: %d file(s) matched /%s/ and the substitution changed no line", len(specs), OneLine(pattern))
 	}
 	return &Built{Plan: []byte(sub.Plan.String()), Observed: observed, Sites: sub.Sites, Files: sub.Files, Problems: problems + len(refusals), Skipped: skipped}, nil
+}
+
+// missingGroup finds the first reference in repl that re defines no group for,
+// by the scan regexp.Expand makes (its unexported extract): after a $, either
+// {name} or the longest run of letters, digits and _; an all-digit name without
+// a leading zero is a group number; $$ is a literal $; a $ that starts no name
+// is kept as text. So it names exactly the references Go expands to nothing.
+func missingGroup(re *regexp.Regexp, repl string) (string, bool) {
+	for {
+		i := strings.IndexByte(repl, '$')
+		if i < 0 {
+			return "", false
+		}
+		repl = repl[i+1:]
+		if strings.HasPrefix(repl, "$") {
+			repl = repl[1:]
+			continue
+		}
+		s, brace := repl, strings.HasPrefix(repl, "{")
+		if brace {
+			s = s[1:]
+		}
+		n := strings.IndexFunc(s, func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '_' })
+		if n < 0 {
+			n = len(s)
+		}
+		if n == 0 || brace && (n >= len(s) || s[n] != '}') {
+			continue
+		}
+		name, ref := s[:n], "$"+s[:n]
+		if brace {
+			ref = "${" + name + "}"
+		}
+		if strings.Trim(name, "0123456789") == "" && (name == "0" || name[0] != '0') {
+			if num, err := strconv.Atoi(name); err != nil || num > re.NumSubexp() {
+				return ref, true
+			}
+			continue
+		}
+		if !slices.Contains(re.SubexpNames()[1:], name) {
+			return ref, true
+		}
+	}
 }
 
 // BuildRewrite asks ast-grep for its own rewrite of pattern to repl in the
