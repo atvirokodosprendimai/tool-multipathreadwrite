@@ -12,26 +12,56 @@ import (
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/state"
 )
 
-// A state directory mrw cannot make is named as mrw's, with the variable that
-// moves it, whether XDG_STATE_HOME is set or not. A file where a directory must
-// go fails the mkdir for any user, root included. The pair: a filesystem error
-// outside the state base is left as it was.
+// hinted fails the test unless stateHint(err) keeps err's text, carries each
+// of want, and keeps err's exit code.
+func hinted(t *testing.T, name string, err error, want ...string) {
+	t.Helper()
+	if err == nil {
+		t.Fatalf("%s: the fixture did not fail", name)
+	}
+	got := stateHint(err)
+	for _, w := range append([]string{err.Error(), "mrw's state directory", "read ledger", "set XDG_STATE_HOME to a writable absolute directory"}, want...) {
+		if !strings.Contains(got.Error(), w) {
+			t.Errorf("%s: %q lacks %q", name, got, w)
+		}
+	}
+	if exitCode(got) != exitCode(err) {
+		t.Errorf("%s: exit %d, want %d", name, exitCode(got), exitCode(err))
+	}
+}
+
+// A failure in mrw's state directory is named as mrw's, with the variable that
+// moves it, whether XDG_STATE_HOME is set or not, whether the error reaches
+// main bare or through cli.Exit (whose error has no Unwrap), and whatever the
+// call prefixed to it. A file where a directory must go fails for any user,
+// root included. The pair: an error outside the state directory is unchanged.
 func TestAStateDirectoryThatCannotBeMadeNamesTheVariableThatMovesIt(t *testing.T) {
-	base := t.TempDir()
+	base := filepath.Join(t.TempDir(), "state: data") // ": " inside a path name
+	if err := os.MkdirAll(base, 0o700); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.WriteFile(filepath.Join(base, "mrw"), nil, 0o600); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("XDG_STATE_HOME", base)
 	_, err := state.Dir(t.TempDir())
-	if err == nil {
-		t.Fatal("Dir made a state directory under a file")
+	hinted(t, "mkdir under the base", err, "under XDG_STATE_HOME="+base)
+	hinted(t, "through cli.Exit", cli.Exit(err, 2), "under XDG_STATE_HOME="+base)
+
+	// What seen.save says when the ledger's rename fails: a prefix, then the error.
+	ledger := filepath.Join(base, "mrw", "0123456789abcdef", "seen")
+	renamed := &os.LinkError{Op: "rename", Old: ledger + ".tmp", New: ledger, Err: os.ErrPermission}
+	hinted(t, "a ledger that could not be updated", cli.Exit(errors.New("the read ledger could not be updated; whatever this call already did stands: "+renamed.Error()), 2))
+
+	// What prune says when the home itself cannot be opened: os.OpenRoot of
+	// base's parent, here a file.
+	file := filepath.Join(t.TempDir(), "home")
+	if err := os.WriteFile(file, nil, 0o600); err != nil {
+		t.Fatal(err)
 	}
-	got := stateHint(err).Error()
-	for _, want := range []string{err.Error(), "state directory", "read ledger", "under XDG_STATE_HOME=" + base, "set XDG_STATE_HOME to a writable absolute directory"} {
-		if !strings.Contains(got, want) {
-			t.Errorf("with XDG_STATE_HOME set: %q lacks %q", got, want)
-		}
-	}
+	t.Setenv("XDG_STATE_HOME", file)
+	_, err = os.OpenRoot(file)
+	hinted(t, "prune opening the state home", cli.Exit(err, 2))
 
 	home := t.TempDir()
 	if err := os.WriteFile(filepath.Join(home, ".local"), nil, 0o600); err != nil {
@@ -41,15 +71,7 @@ func TestAStateDirectoryThatCannotBeMadeNamesTheVariableThatMovesIt(t *testing.T
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
 	_, err = state.Dir(t.TempDir())
-	if err == nil {
-		t.Fatal("Dir made a state directory under a file")
-	}
-	got = stateHint(err).Error()
-	for _, want := range []string{"state directory", "XDG_STATE_HOME is not set", "set XDG_STATE_HOME to a writable absolute directory"} {
-		if !strings.Contains(got, want) {
-			t.Errorf("with XDG_STATE_HOME unset: %q lacks %q", got, want)
-		}
-	}
+	hinted(t, "a parent of the default base", cli.Exit(err, 2), "XDG_STATE_HOME is not set")
 
 	_, other := os.ReadFile(filepath.Join(t.TempDir(), "missing"))
 	if !errors.Is(other, os.ErrNotExist) {
@@ -57,13 +79,6 @@ func TestAStateDirectoryThatCannotBeMadeNamesTheVariableThatMovesIt(t *testing.T
 	}
 	if got := stateHint(other); got != other {
 		t.Errorf("an error outside the state directory was changed: %q", got)
-	}
-
-	// Most commands return cli.Exit(err, …), whose error has no Unwrap: the
-	// hint reads the message, and the exit code stays the command's.
-	exited := stateHint(cli.Exit(err, 2))
-	if !strings.Contains(exited.Error(), "XDG_STATE_HOME is not set") || exitCode(exited) != 2 {
-		t.Errorf("through cli.Exit: %q, exit %d", exited, exitCode(exited))
 	}
 	if got := stateHint(cli.Exit(other, 2)); got.Error() != other.Error() {
 		t.Errorf("an error outside the state directory was changed through cli.Exit: %q", got)

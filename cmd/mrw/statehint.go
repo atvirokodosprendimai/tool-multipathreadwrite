@@ -1,12 +1,9 @@
 package main
 
 import (
-	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/state"
@@ -15,17 +12,11 @@ import (
 // stateHint names a filesystem failure in mrw's own state directory as that,
 // with the variable that moves it. Bare, a sandbox's error read "mrw: mkdir
 // /nonexistent: read-only file system", and the agent there could not tell what
-// mrw was making or that XDG_STATE_HOME moves it (field report, 2026-10-20). A
-// path under the state base is mrw's; so is a mkdir of one of the base's
-// parents, which is where MkdirAll stops when the home itself cannot be made.
+// mrw was making or that XDG_STATE_HOME moves it (field report, 2026-10-20).
 // The exit code is err's: the hint only adds words.
 func stateHint(err error) error {
 	base, berr := state.Base()
-	if berr != nil {
-		return err
-	}
-	op, path, ok := failedPath(err)
-	if !ok || !within(path, base) && (op != "mkdir" || !within(base, path)) {
+	if berr != nil || !aboutState(err.Error(), base) {
 		return err
 	}
 	where := "XDG_STATE_HOME is not set, so it is under ~/.local/state"
@@ -35,26 +26,27 @@ func stateHint(err error) error {
 	return fmt.Errorf("%w — mrw's state directory, where it keeps the read ledger outside the checkout; %s: set XDG_STATE_HOME to a writable absolute directory", err, where)
 }
 
-// pathError is the text of an *fs.PathError, "<op> <path>: <reason>", for when
-// errors.As cannot reach one: most commands return cli.Exit(err, …), and
-// urfave/cli's exit error has no Unwrap.
-var pathError = regexp.MustCompile(`^(mkdir|open) (.+?): `)
-
-// failedPath is the op and path of the filesystem call err reports.
-func failedPath(err error) (op, path string, ok bool) {
-	var pe *fs.PathError
-	if errors.As(err, &pe) {
-		return pe.Op, pe.Path, true
+// aboutState reports whether msg names a filesystem call on mrw's state
+// directory: an op on base or a path below it, or a mkdir or open of one of
+// base's parents, which is where MkdirAll stops and where prune opens the home.
+// It reads text because most commands return cli.Exit(err, …), and urfave/cli's
+// exit error has no Unwrap for errors.As to follow; and it searches for the
+// paths it knows rather than parsing one out, so a path holding ": " is found,
+// and a prefix such as the ledger's "could not be updated" does not hide it.
+func aboutState(msg, base string) bool {
+	for _, op := range []string{"mkdir ", "open ", "openat ", "rename ", "remove ", "chmod ", "stat ", "lstat "} {
+		if strings.Contains(msg, op+base+string(filepath.Separator)) || strings.Contains(msg, op+base+": ") {
+			return true
+		}
 	}
-	m := pathError.FindStringSubmatch(err.Error())
-	if m == nil {
-		return "", "", false
+	for dir := filepath.Dir(base); ; {
+		if strings.Contains(msg, "mkdir "+dir+": ") || strings.Contains(msg, "open "+dir+": ") || strings.Contains(msg, "openat "+dir+": ") {
+			return true
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return false
+		}
+		dir = parent
 	}
-	return m[1], m[2], true
-}
-
-// within reports whether p is dir or a path below it.
-func within(p, dir string) bool {
-	p, dir = filepath.Clean(p), filepath.Clean(dir)
-	return p == dir || strings.HasPrefix(p, dir+string(filepath.Separator))
 }
