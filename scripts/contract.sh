@@ -9666,6 +9666,18 @@ out=$(printf '@@ p270.txt 1 replace\nA\n\r\n' | m write --no-check - 2>&1); want
 out=$(printf '@@ p270.txt 2 replace\r\nB\r\n' | m write --no-check - 2>&1); want 0 $? "the pair: an all-CRLF plan exits 0"
 { [ "$(cat "$R/p270.txt")" = "$(printf 'A\nB')" ] && ! grep -q 'PowerShell appends' <<<"$out"; } && ok "and is applied as it always was, with no note" || bad "an all-CRLF plan: $out"
 
+# 272. A state directory mrw cannot make is named as mrw's, with the variable
+# that moves it: a sandbox's "mrw: mkdir /nonexistent: read-only file system"
+# named neither (field report, 2026-10-20). A file where `<XDG_STATE_HOME>/mrw`
+# must go fails the mkdir for any user, root included. The pair: the same read
+# with a writable XDG_STATE_HOME is served.
+R=$(mktemp -d "$WORK/r272-XXXXXX"); printf 'one\n' > "$R/a.txt"
+mkdir -p "$WORK/s272" "$WORK/s272ok"; : > "$WORK/s272/mrw"
+out=$(cd "$R" && XDG_STATE_HOME="$WORK/s272" "$MRW" read a.txt 2>&1); want 2 $? "a read whose state directory cannot be made exits 2"
+{ grep -q "mrw's state directory" <<<"$out" && grep -q 'set XDG_STATE_HOME to a writable absolute directory' <<<"$out"; } \
+  && ok "and names mrw's state directory and the variable that moves it" || bad "an unmakeable state directory: $out"
+out=$(cd "$R" && XDG_STATE_HOME="$WORK/s272ok" "$MRW" read a.txt 2>&1); want 0 $? "the pair: the same read with a writable XDG_STATE_HOME exits 0"
+
 # 271. ADR-161 Decision 14: the read ledger and the write lock belong to the
 # git checkout that holds the root, not to the directory mrw ran in. A read in
 # `sub` licenses a write from the top, and a read at the top licenses a write

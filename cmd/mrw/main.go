@@ -328,7 +328,7 @@ func main() {
 		}
 	}
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "mrw:", err)
+		fmt.Fprintln(os.Stderr, "mrw:", stateHint(err))
 		os.Exit(exitCode(err))
 	}
 }
