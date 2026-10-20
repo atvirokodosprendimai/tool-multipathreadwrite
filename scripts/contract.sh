@@ -9706,6 +9706,16 @@ out=$(cd "$R" && printf '@@ run.sh 1 replace\ntrue\n' | "$MRW" write - 2>&1); wa
 { grep -q 'check (declared): echo WHOLE$' <<<"$out" && ! grep -q 'outside the scoped check' <<<"$out"; } && ok "and runs the whole check with no outside line" || bad "a .sh-only write: $out"
 
 
+# 279. ADR-164 T7: a --max-cols window centres on the match itself, so a match
+# no wider than the window is whole — `--max-cols 8` over "Alpha NEEDLE x"
+# showed "pha NEED". The pair: the cut line is still not read, and a plan to it
+# is refused (ADR-137).
+R=$(mktemp -d "$WORK/r279-XXXXXX"); printf 'Alpha NEEDLE x\n' > "$R/f.txt"
+out=$(cd "$R" && "$MRW" read --grep NEEDLE --max-cols 8 f.txt 2>&1); want 0 $? "--grep NEEDLE --max-cols 8 exits 0"
+grep -q '1| … NEEDLE …  \[cols 6-13 of 14\]' <<<"$out" && ok "and serves the match whole in its window" || bad "--max-cols 8: $out"
+out=$(cd "$R" && printf '@@ f.txt 1 replace\nnew\n' | "$MRW" write --no-check - 2>&1); want 1 $? "the pair: a plan to the cut line is refused, exit 1"
+[ "$(cat "$R/f.txt")" = 'Alpha NEEDLE x' ] && ok "and the file is unchanged" || bad "a plan to a cut line: $out"
+
 # 273. ADR-164 T1: a multi-line replace refused for having no anchor= says,
 # when it carries sha=, that sha= checks the whole file and not the range — a
 # field report's caller took a matching sha= for the guard. Nothing is written
@@ -9736,6 +9746,23 @@ out=$(cd "$R" && printf '@@ n.txt 1 create\nhi\n' | "$MRW" write --no-check - 2>
 { grep -q 'use "-" or "0"' <<<"$out" && [ ! -e "$R/n.txt" ]; } && ok "and names both spellings, nothing created" || bad "addressed create: $out"
 out=$(cd "$R" && printf '@@ t.md /^\\| `scripts\\/release.mjs` \\| edit/ replace\nZ\n' | "$MRW" write --no-check - 2>&1); want 0 $? "the pair: the escaped pattern applies"
 out=$(cd "$R" && printf '@@ n.txt 0 create\nhi\n' | "$MRW" write --no-check - 2>&1); want 0 $? "the pair: 0 create applies"
+
+# 280. ADR-164 T8: a --sub replacement naming a group the pattern lacks wrote
+# the line without it — a peer's `--sub '$1 x'` over `head -1` dropped the text.
+# It is refused, exit 2, nothing written, naming the reference and $$, on the
+# CLI and on mrw_write, whose server then answers the next request. The pair:
+# the same replacement over a pattern that defines the group applies.
+R=$(mktemp -d "$WORK/r280-XXXXXX"); printf 'x | head -1\n' > "$R/s.sh"
+out=$(cd "$R" && "$MRW" write --no-check --grep 'head -1' --sub '$1 x' . 2>&1); want 2 $? "--sub naming a missing group is refused, exit 2"
+{ grep -qF 'names $1, which' <<<"$out" && grep -qF '$$' <<<"$out" && [ "$(cat "$R/s.sh")" = 'x | head -1' ]; } \
+  && ok "and names the reference and \$\$, nothing written" || bad "--sub \$1 over no group: $out"
+v280=$(python3 -c 'import json; print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"grep":"head -1","sub":"$1 x","check":False}}})); print(json.dumps({"jsonrpc":"2.0","id":2,"method":"ping"}))' \
+  | (cd "$R" && "$MRW" mcp 2>/dev/null) \
+  | python3 -c 'import json,sys; ls=[json.loads(l) for l in sys.stdin if l.strip()]; r=ls[0].get("result") or {}; t="".join(c.get("text","") for c in r.get("content",[])); print(("refused" if r.get("isError") and "$1" in t else "other"), ("answered" if len(ls) > 1 and ls[1].get("id") == 2 and "result" in ls[1] else "silent"))')
+{ [ "$v280" = "refused answered" ] && [ "$(cat "$R/s.sh")" = 'x | head -1' ]; } \
+  && ok "mrw_write with the same sub is an isError result, and the server answers the next request" || bad "mrw_write sub \$1: $v280"
+out=$(cd "$R" && "$MRW" write --no-check --grep '(head) -1' --sub '$1 x' . 2>&1); want 0 $? "the pair: a pattern that defines group 1 applies"
+[ "$(cat "$R/s.sh")" = 'x | head x' ] && ok "and writes the group's text" || bad "the pair: $(cat "$R/s.sh") $out"
 
 # 271. ADR-161 Decision 14: the read ledger and the write lock belong to the
 # git checkout that holds the root, not to the directory mrw ran in. A read in

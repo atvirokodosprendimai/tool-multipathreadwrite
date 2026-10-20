@@ -48,8 +48,7 @@ out=$(mktemp) \
 |-----------|------|----------|--------|-------|
 | `TestTheWindowCentresOnTheMatch` | `internal/read/maxcols137_test.go` | ADR-137's window cases unchanged | none | — |
 | `TestAnOverlongLineIsCutToAWindowAndLicensesNothing` | `internal/read/maxcols137_test.go` | a cut line still licenses nothing | none | — |
-
-Planned, named without backticks until it exists: TestAMatchThatFitsIsWholeInItsWindow in `internal/read/maxcols164_test.go` (S1, S2).
+| `TestAMatchThatFitsIsWholeInItsWindow` | `internal/read/maxcols164_test.go` | a match that fits is whole; a longer one starts the window; an empty one does not panic | none | S1, S2 |
 
 ## Reachability
 
@@ -62,9 +61,26 @@ Planned, named without backticks until it exists: TestAMatchThatFitsIsWholeInIts
 
 ## Mutation Log
 (empty until execute)
+- 2026-10-20 · 497e9ffc* · mutant killed · exit 1 · `internal/read/maxcols.go` · centring on the match start instead of its middle cuts a match that fits · acceptance-sha256:b4bf02be1270c43a2ce39e4fc20a5cd5589dfb59a24c983fb050252a3c6f25e9
 
 ## Verification Log
 (empty until execute)
+- 2026-10-20 · 497e9ffc* · exit 1 · `set -o pipefail …` · acceptance-sha256:b4bf02be1270c43a2ce39e4fc20a5cd5589dfb59a24c983fb050252a3c6f25e9 · ms:1263 · test-lock-sha256:9c8bd7b49e2b92ac6e022687a5e11ed134603428292178eba01b3a3ee3f8905d · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJaW50ZXJuYWwvcmVhZC9tYXhjb2xzMTM3X3Rlc3QuZ28JVGVzdEFuT3ZlcmxvbmdMaW5lSXNDdXRUb0FXaW5kb3dBbmRMaWNlbnNlc05vdGhpbmcJZTljYTU1NTY5ZjZlZjZlOGQ2MzI3ZDUyMGEzOGJlMmQ2ODBlZWJlMzFhMTc5NGNiNzhkMzg5N2FhNmM5OWEzOQpib2R5CWludGVybmFsL3JlYWQvbWF4Y29sczEzN190ZXN0LmdvCVRlc3RUaGVXaW5kb3dDZW50cmVzT25UaGVNYXRjaAk4MGIwNmQ3ZDZiYmFiMmY5ZjNmNDJhMGJiNTA0ZGUxYzJjZTNlNWVjYzE1OTRhMTYzODVmNmNjZWRmMTAxZDVi
+  ```
+  --- last 10 line(s) of stdout (of 14 after folding 14 raw)
+  === RUN   TestTheWindowCentresOnTheMatch
+  --- PASS: TestTheWindowCentresOnTheMatch (0.00s)
+  === RUN   TestAMatchThatFitsIsWholeInItsWindow
+      maxcols164_test.go:17: a 6-character match in an 8-column window must be whole: "…pha NEED…  [cols 3-10 of 14]"
+      maxcols164_test.go:21: a 30-character match in a 20-column window must start the window: "…aaaaaaaaaaMMMMMMMMMM…  [cols 41-60 of 130]"
+      maxcols164_test.go:24: a window as wide as the match must be exactly the match: "…aaaNEE…  [cols 48-53 of 106]"
+  --- FAIL: TestAMatchThatFitsIsWholeInItsWindow (0.00s)
+  FAIL
+  FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read	0.256s
+  FAIL
+  ```
+- 2026-10-20 · 497e9ffc* · exit 0 · `set -o pipefail …` · acceptance-sha256:b4bf02be1270c43a2ce39e4fc20a5cd5589dfb59a24c983fb050252a3c6f25e9 · ms:3593
+- 2026-10-20 · human-observed · Claude observed: ./scripts/contract.sh exit 0 at the T7+T8 tree (2026-10-20), §279 all 4 rows PASS: --max-cols 8 serves NEEDLE whole in its window, and a plan to the cut line is still refused exit 1 with the file unchanged · acceptance-sha256:b4bf02be1270c43a2ce39e4fc20a5cd5589dfb59a24c983fb050252a3c6f25e9
 
 ## Invariants
 
