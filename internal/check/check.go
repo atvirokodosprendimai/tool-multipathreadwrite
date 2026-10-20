@@ -753,8 +753,8 @@ var moduleFiles = map[string]bool{"go.mod": true, "go.sum": true, "go.work": tru
 // before this is reached, because falling back would answer about a tree
 // the caller never named.
 //
-// Paths reaching here from a write are always files, so `write --check` meets
-// none of this.
+// Paths reaching here from a write are files, or the parent directory of a file
+// the write removed (writer.CheckPaths), which places as that directory's tree.
 func place(root string, paths []string) (pkgs, outside []string) {
 	trees := map[string]bool{} // a named directory, covered recursively
 	dirs := map[string]bool{}  // the directory of a named .go file

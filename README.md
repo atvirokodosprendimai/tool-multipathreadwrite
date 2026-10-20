@@ -114,7 +114,7 @@ rg -l 'func Handle' . | sed 's|$|:/func Handle/|' | mrw read -C 3 --files-from -
 | `--count` | with `--grep`: each matching file's header and how many of its lines match, then a total — no content, so it licenses nothing (ADR-153) |
 | `-C N` | context around a single-pattern match |
 | `--max-lines N` | cap per spec, where zero means zero: `0` serves nothing. Omit the flag for no cap. Use it instead of `\| head`, which loses mrw's exit code: what it withholds is named, and the read exits 1 |
-| `--max-cols N` | cut a line longer than N characters to a window of N round the first match of a pattern (the start otherwise), marked `[cols A-B of L]`; a line served cut is not recorded as read, so a plan that replaces it is refused until it is read whole (ADR-137). `max_cols` on `mrw_read` does the same, and a line it served cut is in no checkpoint, so no ack licenses it (ADR-154) |
+| `--max-cols N` | cut a line longer than N characters to a window of N centred on the first match of a pattern (the start otherwise), holding the whole match when it fits, marked `[cols A-B of L]`; a line served cut is not recorded as read, so a plan that replaces it is refused until it is read whole (ADR-137, ADR-164). `max_cols` on `mrw_read` does the same, and a line it served cut is in no checkpoint, so no ack licenses it (ADR-154) |
 | `--grep PATTERN` | serve every regexp match under the given paths (measured 2026-09-03: the walk took 0.76× the time of a `grep -rl … \| mrw read --files-from -` pipeline over this repository, ADR-007) |
 | `--ast-grep PATTERN` | serve every `ast-grep` hit (binary on PATH; missing is exit 2; a hang is, on unix, sent SIGTERM at 2 s and killed by 3 s if it ignores it; on Windows it is killed at 2 s). A hit in a file whose lines end in `\r` alone is reported, not served — read that file directly |
 | `--exclude GLOB` | skip matching paths (needs `--grep` or `--ast-grep`) |
@@ -174,7 +174,7 @@ Ops are `replace`, `insert-after`, `insert-before`, `delete`, `create`,
 `unlink`, `rename`. `@@ path - unlink` removes the path. `@@ old - rename`
 with a one-line dest body moves it, edited first when the plan also edits it; on a filesystem that folds case it may change only the case of the name (`a.txt` → `A.txt`, ADR-129). Only `delete` may carry no body among
 the line-range ops: a lost body reads like one never written, so an
-empty file is `@@ new.txt 0 create body=0`. A bare `create` with nothing under
+empty file is `@@ new.txt 0 create body=0`; a create's address is `-` or `0`. A bare `create` with nothing under
 it is refused and leaves no file behind.
 
 `--format=apply_patch` compiles a Codex `*** Begin Patch` document to that same
@@ -191,8 +191,9 @@ the same lock, check and receipt. It is refused if PATH exists and takes no PLAN
 
 `anchor=` is required on a `replace` that addresses more than one line. Take it
 from the `NNN| content` a read printed; one typed from memory can be wrong in
-the same way the address is. `sha=` and `lines=` are optional and are checked
-on every op, insertions included.
+the same way the address is. `sha=` and `lines=` do not stand in for it: `sha=`
+pins the whole file and `lines=` the count, neither which lines (ADR-164). Both
+are optional and are checked on every op, insertions included.
 
 Addresses are 1-based and inclusive; `$` is the last line, and `A,+N` is the line `A` plus the `N` lines AFTER it. A read CLAMPS a relative end at the last line; a write REFUSES one that runs past it. `/from/,/to/` means the same on both paths: the end is the first match
 at or after the start. A write refuses unless the start matches exactly once, or

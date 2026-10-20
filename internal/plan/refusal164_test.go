@@ -20,6 +20,7 @@ func TestAPatternEndedByASlashSaysSo(t *testing.T) {
 		{"@@ t.md /x/,+3 frob\nZ\n", false}, // a relative end is part of the address
 		{"@@ t.md /x/ frob anchor=\"a/b\"\nZ\n", false},
 		{"@@ t.md /x/ frob body=@dir/file\nZ\n", false},
+		{"@@ s.css /a\\/b/ replac x/y\nZ\n", false}, // a misspelled op; the slash is in a later word, not the pattern
 	} {
 		_, err := Parse(strings.NewReader(c.doc))
 		if err == nil {
@@ -34,6 +35,9 @@ func TestAPatternEndedByASlashSaysSo(t *testing.T) {
 		}
 		if c.hint && !strings.Contains(msg, `\/`) {
 			t.Errorf("%q: the hint does not say how to write the slash: %s", c.doc, msg)
+		}
+		if c.hint && !strings.Contains(msg, "the address \"/^\\| `scripts/") {
+			t.Errorf("%q: the hint does not quote the address as written: %s", c.doc, msg)
 		}
 	}
 	if _, err := Parse(strings.NewReader("@@ t.md /^\\| `scripts\\/release.mjs` \\| edit/ replace\nZ\n")); err != nil {
