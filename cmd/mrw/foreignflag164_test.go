@@ -39,6 +39,18 @@ func TestAnInvertedGrepSaysThereIsNone(t *testing.T) {
 			}
 		}
 	}
+	// The pointer follows the parsed pattern: the last --grep, attached or not
+	// (Codex, review of #463).
+	if out, code := runIn(t, root, "read", "--grep=-v", " a", "f.txt"); code != 2 || !strings.Contains(out, inverted) {
+		t.Errorf("--grep=-v ' a': exit %d, want 2 with the pointer:\n%s", code, out)
+	}
+	if out, _ := runIn(t, root, "read", "--grep", "-v", "--grep=needle", " a", "f.txt"); strings.Contains(out, inverted) {
+		t.Errorf("a superseded --grep -v still named the inverted match:\n%s", out)
+	}
+	// write has no --max-cols: its padded refusal names no read pointer.
+	if out, _ := runIn(t, root, "write", "--grep", "-o", "--sub", "x", " a"); strings.Contains(out, "--max-cols") || strings.Contains(out, "took the value") {
+		t.Errorf("a write refusal carried read's pointer:\n%s", out)
+	}
 	if out, _ := runIn(t, root, "read", "--grep", "-z", "f.txt"); strings.Contains(out, "took the value") {
 		t.Errorf("-z got a pointer:\n%s", out)
 	}

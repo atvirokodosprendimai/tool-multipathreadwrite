@@ -67,6 +67,8 @@ out=$(mktemp) \
 (empty until execute)
 - 2026-10-20 · abd7d4fe* · mutant killed · exit 1 · `cmd/mrw/foreignflag.go` · the table has no -v entry · acceptance-sha256:41ee32fed105a1f457221c9b8af6ac1dae6bf6e9430911584776d9dc5ae9db4f
 - 2026-10-20 · abd7d4fe* · mutant killed · exit 1 · `cmd/mrw/main.go` · the padded-value refusal never names the pointer · acceptance-sha256:41ee32fed105a1f457221c9b8af6ac1dae6bf6e9430911584776d9dc5ae9db4f
+- 2026-10-20 · 0583c537* · mutant killed · exit 1 · `cmd/mrw/main.go` · read's pointer leaks into a write refusal · acceptance-sha256:41ee32fed105a1f457221c9b8af6ac1dae6bf6e9430911584776d9dc5ae9db4f
+- 2026-10-20 · 0583c537* · mutant killed · exit 1 · `cmd/mrw/main.go` · the padded refusal ignores the parsed pattern · acceptance-sha256:41ee32fed105a1f457221c9b8af6ac1dae6bf6e9430911584776d9dc5ae9db4f
 
 ## Verification Log
 (empty until execute)
@@ -88,6 +90,9 @@ out=$(mktemp) \
 - 2026-10-20 · abd7d4fe* · exit 0 · `set -o pipefail …` · acceptance-sha256:41ee32fed105a1f457221c9b8af6ac1dae6bf6e9430911584776d9dc5ae9db4f · ms:1809
 - 2026-10-20 · human-observed · observed by the executor 2026-10-20: S5 ./scripts/contract.sh exit 0 ('contract holds'); the §277 rows PASS — --grep -v a exits 1 saying there is no inverted match, --grep -v ' a' exits 2 naming it beside the padded-value refusal, and --grep -i keeps ADR-140's pointer; S4 the -v negative case of foreignflag140_test.go now runs on -z · acceptance-sha256:41ee32fed105a1f457221c9b8af6ac1dae6bf6e9430911584776d9dc5ae9db4f
 - 2026-10-20 · 5bf52ac6 · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:41ee32fed105a1f457221c9b8af6ac1dae6bf6e9430911584776d9dc5ae9db4f · ms:0 · test-lock-sha256:56e2536b151cf171b16b6207c07571660ffb259ef56ba09017540cc5593bce62 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJY21kL21ydy9mb3JlaWduZmxhZzE0MF90ZXN0LmdvCVRlc3RBRm9yZWlnblJlYWRGbGFnSXNBbnN3ZXJlZFdpdGhNcndzU3BlbGxpbmcJM2RhZDBmZDMwZDg5NjY1YTY0ZDllODhmZTYzMGE2OGJiNjNhMDY3YzhmM2QxYjcyZjRjNjhhZGIwMGRiNDczZApib2R5CWNtZC9tcncvZm9yZWlnbmZsYWcxNDBfdGVzdC5nbwlUZXN0RXZlcnlGb3JlaWduRmxhZ0hpbnRJc0FUcnVlU3BlbGxpbmcJZmZkMWRkMDZiNDUzYzhiMzdjYTgwOTVlN2U3YzhlM2NmNWIwMzljMjdjMGQ4YWQ5NmM1MjNkOGEwODkxMWRmYQpib2R5CWNtZC9tcncvZm9yZWlnbmZsYWcxNjRfdGVzdC5nbwlUZXN0QW5JbnZlcnRlZEdyZXBTYXlzVGhlcmVJc05vbmUJZjE4NmVhMzEzMmZhZjdkMjk2MWI3ZDJjNWNiZTgwZTI3N2M1OTE2YzhmYTljY2RmNTdjNTAxZDU2ZDk2OWJjOQ · test-lock-kind:replace
+- 2026-10-20 · 0583c537* · exit 0 · `set -o pipefail …` · acceptance-sha256:41ee32fed105a1f457221c9b8af6ac1dae6bf6e9430911584776d9dc5ae9db4f · ms:2663
+- 2026-10-20 · 0583c537* · exit 0 · `set -o pipefail …` · acceptance-sha256:41ee32fed105a1f457221c9b8af6ac1dae6bf6e9430911584776d9dc5ae9db4f · ms:1804
+- 2026-10-20 · 0583c537* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:41ee32fed105a1f457221c9b8af6ac1dae6bf6e9430911584776d9dc5ae9db4f · ms:0 · test-lock-sha256:71244e1fb1a6421a8b63b13c65b6404635713ed4610df137d26044a6c8a0ad30 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJY21kL21ydy9mb3JlaWduZmxhZzE0MF90ZXN0LmdvCVRlc3RBRm9yZWlnblJlYWRGbGFnSXNBbnN3ZXJlZFdpdGhNcndzU3BlbGxpbmcJM2RhZDBmZDMwZDg5NjY1YTY0ZDllODhmZTYzMGE2OGJiNjNhMDY3YzhmM2QxYjcyZjRjNjhhZGIwMGRiNDczZApib2R5CWNtZC9tcncvZm9yZWlnbmZsYWcxNDBfdGVzdC5nbwlUZXN0RXZlcnlGb3JlaWduRmxhZ0hpbnRJc0FUcnVlU3BlbGxpbmcJZmZkMWRkMDZiNDUzYzhiMzdjYTgwOTVlN2U3YzhlM2NmNWIwMzljMjdjMGQ4YWQ5NmM1MjNkOGEwODkxMWRmYQpib2R5CWNtZC9tcncvZm9yZWlnbmZsYWcxNjRfdGVzdC5nbwlUZXN0QW5JbnZlcnRlZEdyZXBTYXlzVGhlcmVJc05vbmUJZGM4MWY5MjI1NTcyMmU5ZWViMzQ4OTg4NjdkOTIyMjA0YzJmNmUwODk5M2IxNTg4MGJjNGVkZjQ3OWI0NzQ1OA · test-lock-kind:replace
 
 ## Invariants
 
