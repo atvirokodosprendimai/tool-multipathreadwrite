@@ -9704,6 +9704,22 @@ out=$(cd "$R" && printf '@@ f.txt 3-5 replace lines=3\nNEW\n' | "$MRW" write --n
 grep -q 'lines= checks how many lines this range covers, not which' <<<"$out" && ok "and says lines= does not stand in for anchor= either" || bad "a lines=-only multi-line replace: $out"
 out=$(cd "$R" && printf '@@ f.txt 3-5 replace sha=%s anchor="3"\nNEW\n' "$sha273" | "$MRW" write --no-check - 2>&1); want 0 $? "the pair: the same plan with anchor= applies"
 
+# 278. ADR-164 T6: three refusals name their real cause. A pattern address
+# ended by an unescaped / inside it says so and how to write the slash (exit 2);
+# a not-read refusal says a line --max-cols served cut is not read (exit 1); an
+# addressed create names both "-" and "0" (exit 2). Nothing is written. The
+# pair: the escaped pattern and `0 create` apply.
+R=$(mktemp -d "$WORK/r278-XXXXXX"); printf '| `scripts/release.mjs` | edit | x |\n' > "$R/t.md"; printf 'a\nb\nc\n' > "$R/f.txt"
+(cd "$R" && "$MRW" read --quiet t.md f.txt:3) >"$WORK/served.out" 2>&1
+out=$(cd "$R" && printf '@@ t.md /^\\| `scripts/release.mjs` \\| edit/ replace\nZ\n' | "$MRW" write --no-check - 2>&1); want 2 $? "a pattern ended by an unescaped / is refused, exit 2"
+grep -q 'ended at the first unescaped "/"; write a "/" inside a pattern as "\\/"' <<<"$out" && ok "and names the early end and the escape" || bad "an early-ended pattern: $out"
+out=$(cd "$R" && printf '@@ f.txt 1 replace\nX\n' | "$MRW" write --no-check - 2>&1); want 1 $? "a write to an unserved line is refused, exit 1"
+grep -q 'a line --max-cols served cut is not read: read it whole, or --quiet' <<<"$out" && ok "and says a cut line is not read" || bad "not-read: $out"
+out=$(cd "$R" && printf '@@ n.txt 1 create\nhi\n' | "$MRW" write --no-check - 2>&1); want 2 $? "an addressed create is refused, exit 2"
+{ grep -q 'use "-" or "0"' <<<"$out" && [ ! -e "$R/n.txt" ]; } && ok "and names both spellings, nothing created" || bad "addressed create: $out"
+out=$(cd "$R" && printf '@@ t.md /^\\| `scripts\\/release.mjs` \\| edit/ replace\nZ\n' | "$MRW" write --no-check - 2>&1); want 0 $? "the pair: the escaped pattern applies"
+out=$(cd "$R" && printf '@@ n.txt 0 create\nhi\n' | "$MRW" write --no-check - 2>&1); want 0 $? "the pair: 0 create applies"
+
 # 271. ADR-161 Decision 14: the read ledger and the write lock belong to the
 # git checkout that holds the root, not to the directory mrw ran in. A read in
 # `sub` licenses a write from the top, and a read at the top licenses a write
