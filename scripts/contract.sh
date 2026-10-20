@@ -9689,6 +9689,21 @@ out=$(cd "$R" && "$MRW" read --grep -v ' a' f.txt 2>&1); want 2 $? "--grep -v ' 
 out=$(cd "$R" && "$MRW" read --grep -i a f.txt 2>&1); want 1 $? "the pair: --grep -i a f.txt exits 1"
 grep -q "start the pattern with (?i)" <<<"$out" && ok "with ADR-140's pointer" || bad "--grep -i: $out"
 
+# 273. ADR-164 T1: a multi-line replace refused for having no anchor= says,
+# when it carries sha=, that sha= checks the whole file and not the range — a
+# field report's caller took a matching sha= for the guard. Nothing is written
+# and the exit is 1, as before. The pair: the same plan with anchor= applies.
+R=$(mktemp -d "$WORK/r273-XXXXXX"); printf '1\n2\n3\n4\n5\n6\n7\n' > "$R/f.txt"
+(cd "$R" && "$MRW" read f.txt) >"$WORK/served.out" 2>&1
+sha273=$(shasum -a 256 "$R/f.txt" | cut -c1-64)
+out=$(cd "$R" && printf '@@ f.txt 3-5 replace sha=%s\nNEW\n' "$sha273" | "$MRW" write --no-check - 2>&1); want 1 $? "a sha=-only multi-line replace is refused, exit 1"
+{ grep -q 'carries no anchor=' <<<"$out" && grep -q 'sha= checks that the whole file is unchanged, not which lines this range covers' <<<"$out" \
+  && [ "$(cat "$R/f.txt")" = "$(printf '1\n2\n3\n4\n5\n6\n7')" ]; } \
+  && ok "and says sha= does not stand in for anchor=, nothing written" || bad "a sha=-only multi-line replace: $out"
+out=$(cd "$R" && printf '@@ f.txt 3-5 replace lines=3\nNEW\n' | "$MRW" write --no-check - 2>&1); want 1 $? "a lines=-only multi-line replace is refused, exit 1"
+grep -q 'lines= checks how many lines this range covers, not which' <<<"$out" && ok "and says lines= does not stand in for anchor= either" || bad "a lines=-only multi-line replace: $out"
+out=$(cd "$R" && printf '@@ f.txt 3-5 replace sha=%s anchor="3"\nNEW\n' "$sha273" | "$MRW" write --no-check - 2>&1); want 0 $? "the pair: the same plan with anchor= applies"
+
 # 271. ADR-161 Decision 14: the read ledger and the write lock belong to the
 # git checkout that holds the root, not to the directory mrw ran in. A read in
 # `sub` licenses a write from the top, and a read at the top licenses a write
