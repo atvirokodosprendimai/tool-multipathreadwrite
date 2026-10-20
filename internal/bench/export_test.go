@@ -124,11 +124,17 @@ func TestExportPairedWritesADR106Rows(t *testing.T) {
 			t.Errorf("%q: the ruled attempt was not marked unrun:\n%s", spelling, b.String())
 		}
 	}
-	if err := os.WriteFile(rulePath, []byte(`{"i1.P.m1.9": "x"}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := ExportPaired(opts, &bytes.Buffer{}); err == nil || !strings.Contains(err.Error(), "i1.P.m1.9") {
-		t.Errorf("a ruling naming no attempt: %v", err)
+	// export reads no unapplied list, so an id must be refused for being no
+	// attempt at all: a misspelling, a wildcard, or a path to another stage's
+	// receipt (the Codex re-check of cc1e0ecf).
+	for _, id := range []string{"i1.P.m1.9", "*", "../" + filepath.Base(dir) + "/i1.P.m1.1"} {
+		body, _ := json.Marshal(map[string]string{id: "x"})
+		if err := os.WriteFile(rulePath, body, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := ExportPaired(opts, &bytes.Buffer{}); err == nil || !strings.Contains(err.Error(), id) {
+			t.Errorf("a ruling naming %q: %v", id, err)
+		}
 	}
 	_ = os.Remove(rulePath)
 	for name, broken := range map[string]ExportOptions{

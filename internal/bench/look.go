@@ -392,11 +392,20 @@ func rulings(stageDir string) (map[string]string, error) {
 	if err := json.Unmarshal(b, &m); err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
-	// Every id must name a receipt the stage holds, so a misspelled ruling
-	// fails here on every reader rather than excluding nothing.
+	// Every id must be exactly an attempt the stage holds, so a misspelled,
+	// wildcard or path-shaped ruling fails here on every reader rather than
+	// excluding nothing. The pattern is fixed; an id is only compared.
+	held := map[string]bool{}
+	paths, err := filepath.Glob(filepath.Join(stageDir, "*", "*.receipt.json"))
+	if err != nil {
+		return nil, err
+	}
+	for _, p := range paths {
+		held[strings.TrimSuffix(filepath.Base(p), ".receipt.json")] = true
+	}
 	var missing []string
 	for id := range m {
-		if hits, _ := filepath.Glob(filepath.Join(stageDir, "*", id+".receipt.json")); len(hits) == 0 {
+		if !held[id] {
 			missing = append(missing, id)
 		}
 	}

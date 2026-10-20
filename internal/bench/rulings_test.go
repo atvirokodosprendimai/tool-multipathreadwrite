@@ -82,6 +82,8 @@ func TestARulingExcludesAnAttemptTheMachineEnded(t *testing.T) {
 	for name, m := range map[string]map[string]string{
 		"no such attempt":  {"i1-00.A.m.9": "x"},
 		"already excluded": {"i1-39.B.m.1": "x"},
+		"a wildcard":       {"*": "x"},
+		"a path":           {"../block-1/i1-00.A.m.1": "x"},
 	} {
 		rule(m)
 		_, err := Look(stage)
