@@ -9678,6 +9678,17 @@ out=$(cd "$R" && XDG_STATE_HOME="$WORK/s272" "$MRW" read a.txt 2>&1); want 2 $? 
   && ok "and names mrw's state directory and the variable that moves it" || bad "an unmakeable state directory: $out"
 out=$(cd "$R" && XDG_STATE_HOME="$WORK/s272ok" "$MRW" read a.txt 2>&1); want 0 $? "the pair: the same read with a writable XDG_STATE_HOME exits 0"
 
+# 277. ADR-164 T5: -v gets a pointer — `--grep -v P f` (no match) and
+# `--grep -v ' P' f` (refused for the padded value before any read) both say
+# there is no inverted match. The pair: `--grep -i` keeps ADR-140's pointer.
+R=$(mktemp -d "$WORK/r277-XXXXXX"); printf 'needle\n' > "$R/f.txt"
+out=$(cd "$R" && "$MRW" read --grep -v a f.txt 2>&1); want 1 $? "--grep -v a f.txt exits 1"
+grep -q 'there is no inverted match: --grep serves the lines that match' <<<"$out" && ok "and says there is no inverted match" || bad "--grep -v: $out"
+out=$(cd "$R" && "$MRW" read --grep -v ' a' f.txt 2>&1); want 2 $? "--grep -v ' a' is refused for the padded value, exit 2"
+{ grep -q 'has edge whitespace' <<<"$out" && grep -q 'there is no inverted match' <<<"$out"; } && ok "and names the inverted match there too" || bad "--grep -v padded: $out"
+out=$(cd "$R" && "$MRW" read --grep -i a f.txt 2>&1); want 1 $? "the pair: --grep -i a f.txt exits 1"
+grep -q "start the pattern with (?i)" <<<"$out" && ok "with ADR-140's pointer" || bad "--grep -i: $out"
+
 # 271. ADR-161 Decision 14: the read ledger and the write lock belong to the
 # git checkout that holds the root, not to the directory mrw ran in. A read in
 # `sub` licenses a write from the top, and a read at the top licenses a write

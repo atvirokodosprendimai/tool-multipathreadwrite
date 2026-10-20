@@ -49,10 +49,10 @@ out=$(mktemp) \
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
+| `TestAnInvertedGrepSaysThereIsNone` | `cmd/mrw/foreignflag164_test.go` | both `--grep -v` shapes, `-v`, `-o`; `-z` unchanged | none | S1, S2, S3 |
 | `TestAForeignReadFlagIsAnsweredWithMrwsSpelling` | `cmd/mrw/foreignflag140_test.go` | ADR-140's entries; the negative case now on `-z` | none | S4 |
 | `TestEveryForeignFlagHintIsATrueSpelling` | `cmd/mrw/foreignflag140_test.go` | the spellings, `-v`/`-o` cases added | none | S4 |
 
-Planned, named without backticks until it exists: TestAnInvertedGrepSaysThereIsNone in `cmd/mrw/foreignflag164_test.go` (S1, S2, S3).
 
 ## Reachability
 
@@ -65,9 +65,34 @@ Planned, named without backticks until it exists: TestAnInvertedGrepSaysThereIsN
 
 ## Mutation Log
 (empty until execute)
+- 2026-10-20 · abd7d4fe* · mutant killed · exit 1 · `cmd/mrw/foreignflag.go` · the table has no -v entry · acceptance-sha256:41ee32fed105a1f457221c9b8af6ac1dae6bf6e9430911584776d9dc5ae9db4f
+- 2026-10-20 · abd7d4fe* · mutant killed · exit 1 · `cmd/mrw/main.go` · the padded-value refusal never names the pointer · acceptance-sha256:41ee32fed105a1f457221c9b8af6ac1dae6bf6e9430911584776d9dc5ae9db4f
+- 2026-10-20 · 0583c537* · mutant killed · exit 1 · `cmd/mrw/main.go` · read's pointer leaks into a write refusal · acceptance-sha256:41ee32fed105a1f457221c9b8af6ac1dae6bf6e9430911584776d9dc5ae9db4f
+- 2026-10-20 · 0583c537* · mutant killed · exit 1 · `cmd/mrw/main.go` · the padded refusal ignores the parsed pattern · acceptance-sha256:41ee32fed105a1f457221c9b8af6ac1dae6bf6e9430911584776d9dc5ae9db4f
 
 ## Verification Log
 (empty until execute)
+- 2026-10-20 · abd7d4fe* · exit 1 · `set -o pipefail …` · acceptance-sha256:41ee32fed105a1f457221c9b8af6ac1dae6bf6e9430911584776d9dc5ae9db4f · ms:628 · test-lock-sha256:db3f46037cb53b635e38126d6d2143677e0586cb2dd80d3aed6f1227d9c8db06 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJY21kL21ydy9mb3JlaWduZmxhZzE0MF90ZXN0LmdvCVRlc3RBRm9yZWlnblJlYWRGbGFnSXNBbnN3ZXJlZFdpdGhNcndzU3BlbGxpbmcJYjdjNDU3M2EwNDNiYzMzY2E0ZmU1MjIzMGVlZDI2OGYzODE3M2M0ODU1OWZhNjE2NGE5ZTY1MWI4M2Y4NWEwNgpib2R5CWNtZC9tcncvZm9yZWlnbmZsYWcxNDBfdGVzdC5nbwlUZXN0RXZlcnlGb3JlaWduRmxhZ0hpbnRJc0FUcnVlU3BlbGxpbmcJMTZjNThjYWRhNmU3Y2I2NzYxNzdiOWIxMTdkNzgwM2U1MjQ4MWMyM2RmY2Y3MmUzZjM3M2UxNjZlOTdiOWM2OA
+  ```
+  --- last 10 line(s) of stdout (of 16 after folding 16 raw)
+      foreignflag164_test.go:38: mrw ["read" "--grep" "-i" " a" "f.txt"]: lacks "(?i)":
+          ' a' has edge whitespace the argument parser strips; put -- before the path: mrw read -- ' a'
+      foreignflag164_test.go:38: mrw ["read" "-v" "f.txt"]: lacks "there is no inverted match: --grep serves the lines that match":
+          flag provided but not defined: -v (see: mrw read --help)
+      foreignflag164_test.go:38: mrw ["read" "-o" "f.txt"]: lacks "there is no match-only output: --max-cols N cuts each line to a window round its match":
+          flag provided but not defined: -o (see: mrw read --help)
+  --- FAIL: TestAnInvertedGrepSaysThereIsNone (0.00s)
+  FAIL
+  FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/cmd/mrw	0.262s
+  FAIL
+  ```
+- 2026-10-20 · abd7d4fe* · exit 0 · `set -o pipefail …` · acceptance-sha256:41ee32fed105a1f457221c9b8af6ac1dae6bf6e9430911584776d9dc5ae9db4f · ms:2117
+- 2026-10-20 · abd7d4fe* · exit 0 · `set -o pipefail …` · acceptance-sha256:41ee32fed105a1f457221c9b8af6ac1dae6bf6e9430911584776d9dc5ae9db4f · ms:1809
+- 2026-10-20 · human-observed · observed by the executor 2026-10-20: S5 ./scripts/contract.sh exit 0 ('contract holds'); the §277 rows PASS — --grep -v a exits 1 saying there is no inverted match, --grep -v ' a' exits 2 naming it beside the padded-value refusal, and --grep -i keeps ADR-140's pointer; S4 the -v negative case of foreignflag140_test.go now runs on -z · acceptance-sha256:41ee32fed105a1f457221c9b8af6ac1dae6bf6e9430911584776d9dc5ae9db4f
+- 2026-10-20 · 5bf52ac6 · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:41ee32fed105a1f457221c9b8af6ac1dae6bf6e9430911584776d9dc5ae9db4f · ms:0 · test-lock-sha256:56e2536b151cf171b16b6207c07571660ffb259ef56ba09017540cc5593bce62 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJY21kL21ydy9mb3JlaWduZmxhZzE0MF90ZXN0LmdvCVRlc3RBRm9yZWlnblJlYWRGbGFnSXNBbnN3ZXJlZFdpdGhNcndzU3BlbGxpbmcJM2RhZDBmZDMwZDg5NjY1YTY0ZDllODhmZTYzMGE2OGJiNjNhMDY3YzhmM2QxYjcyZjRjNjhhZGIwMGRiNDczZApib2R5CWNtZC9tcncvZm9yZWlnbmZsYWcxNDBfdGVzdC5nbwlUZXN0RXZlcnlGb3JlaWduRmxhZ0hpbnRJc0FUcnVlU3BlbGxpbmcJZmZkMWRkMDZiNDUzYzhiMzdjYTgwOTVlN2U3YzhlM2NmNWIwMzljMjdjMGQ4YWQ5NmM1MjNkOGEwODkxMWRmYQpib2R5CWNtZC9tcncvZm9yZWlnbmZsYWcxNjRfdGVzdC5nbwlUZXN0QW5JbnZlcnRlZEdyZXBTYXlzVGhlcmVJc05vbmUJZjE4NmVhMzEzMmZhZjdkMjk2MWI3ZDJjNWNiZTgwZTI3N2M1OTE2YzhmYTljY2RmNTdjNTAxZDU2ZDk2OWJjOQ · test-lock-kind:replace
+- 2026-10-20 · 0583c537* · exit 0 · `set -o pipefail …` · acceptance-sha256:41ee32fed105a1f457221c9b8af6ac1dae6bf6e9430911584776d9dc5ae9db4f · ms:2663
+- 2026-10-20 · 0583c537* · exit 0 · `set -o pipefail …` · acceptance-sha256:41ee32fed105a1f457221c9b8af6ac1dae6bf6e9430911584776d9dc5ae9db4f · ms:1804
+- 2026-10-20 · 0583c537* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:41ee32fed105a1f457221c9b8af6ac1dae6bf6e9430911584776d9dc5ae9db4f · ms:0 · test-lock-sha256:71244e1fb1a6421a8b63b13c65b6404635713ed4610df137d26044a6c8a0ad30 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJY21kL21ydy9mb3JlaWduZmxhZzE0MF90ZXN0LmdvCVRlc3RBRm9yZWlnblJlYWRGbGFnSXNBbnN3ZXJlZFdpdGhNcndzU3BlbGxpbmcJM2RhZDBmZDMwZDg5NjY1YTY0ZDllODhmZTYzMGE2OGJiNjNhMDY3YzhmM2QxYjcyZjRjNjhhZGIwMGRiNDczZApib2R5CWNtZC9tcncvZm9yZWlnbmZsYWcxNDBfdGVzdC5nbwlUZXN0RXZlcnlGb3JlaWduRmxhZ0hpbnRJc0FUcnVlU3BlbGxpbmcJZmZkMWRkMDZiNDUzYzhiMzdjYTgwOTVlN2U3YzhlM2NmNWIwMzljMjdjMGQ4YWQ5NmM1MjNkOGEwODkxMWRmYQpib2R5CWNtZC9tcncvZm9yZWlnbmZsYWcxNjRfdGVzdC5nbwlUZXN0QW5JbnZlcnRlZEdyZXBTYXlzVGhlcmVJc05vbmUJZGM4MWY5MjI1NTcyMmU5ZWViMzQ4OTg4NjdkOTIyMjA0YzJmNmUwODk5M2IxNTg4MGJjNGVkZjQ3OWI0NzQ1OA · test-lock-kind:replace
 
 ## Invariants
 

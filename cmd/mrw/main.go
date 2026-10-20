@@ -2708,8 +2708,18 @@ func refusePaddedArgs(cmd *cli.Command) error {
 				}
 				head := fmt.Sprintf("mrw %s -- ", prefix)
 				fix := head + posixQuote(tok)
+				// ADR-164 T5: a padded path after `read --grep -v` is refused here,
+				// before the read, so the table's pointer for the flag the parsed
+				// pattern is (the last --grep, attached or not) is said here too.
+				// read only: the pointers name read's flags.
+				pointer := ""
+				if cmd.Name == "read" {
+					if s := patternFlagHint(cmd.String("grep")); s != "" {
+						pointer = " — " + s + " (mrw took the value after --grep as the pattern)"
+					}
+				}
 				return cli.Exit(fmt.Sprintf("'%s' has edge whitespace the argument parser strips; "+
-					"put -- before the path: %s%s", tok, fix, cmdExeForm(head, tok)), exitUsage)
+					"put -- before the path: %s%s%s", tok, fix, cmdExeForm(head, tok), pointer), exitUsage)
 			}
 		}
 		if role == roleStop {
