@@ -10,8 +10,8 @@ README must be regenerated.
 
 | ID | Title | Status | Depends-on | Acceptance |
 |----|-------|--------|------------|------------|
-| T1 | a refusal says sha= does not stand in for anchor= | pending | none | `docs/adr/ADR-164-mrw-says-what-it-will-change-and-what-it-did-not-check/tasks/T1-sha-is-not-an-anchor.md` fence |
 | T5 | -v and -o on read get a pointer | done | none | `docs/adr/ADR-164-mrw-says-what-it-will-change-and-what-it-did-not-check/tasks/T5-an-inverted-grep-says-there-is-none.md` fence |
+| T1 | a refusal says sha= does not stand in for anchor= | done | none | `docs/adr/ADR-164-mrw-says-what-it-will-change-and-what-it-did-not-check/tasks/T1-sha-is-not-an-anchor.md` fence |
 | T6 | a refusal names its real cause | pending | T1 | `docs/adr/ADR-164-mrw-says-what-it-will-change-and-what-it-did-not-check/tasks/T6-a-refusal-names-its-real-cause.md` fence |
 | T4 | a check that places some files runs those and names the rest | pending | none | `docs/adr/ADR-164-mrw-says-what-it-will-change-and-what-it-did-not-check/tasks/T4-partial-map-runs-scoped.md` fence |
 | T2 | a plan maker's dry run shows each change | pending | T1, T4 | `docs/adr/ADR-164-mrw-says-what-it-will-change-and-what-it-did-not-check/tasks/T2-dry-run-shows-each-change.md` fence |

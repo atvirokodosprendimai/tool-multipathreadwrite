@@ -87,7 +87,7 @@ The checkout is named by global -C DIR or --root DIR before the subcommand (mrw 
 A path with a leading or trailing space goes after --: the argument parser trims a positional before -- (mrw read 'x ' would reach x), so mrw refuses it, exit 2, and names the fix: mrw read -- 'x '. In cmd.exe, which keeps single quotes as characters, the refusal also names the double-quoted form. An attached flag value that ends in whitespace (--files-from='list ') is refused too: pass it as its own argument, --files-from 'list ', which the parser keeps as given.
 Ops: replace, insert-after, insert-before, delete, create, unlink, rename.
 @@ path 0 create makes a new file; empty is body=0. A new file is not a reason to skip mrw.
-A multi-line replace requires anchor= taken from the served first line.
+A multi-line replace requires anchor= taken from the served first line. sha= does not stand in for it.
 A file mrw just wrote is wholly known: it produced every line, so a chain of edits to it needs no re-read, until something else changes it.
 Read every site in one call: mrw read a.go:40-60 'b.go:/func Start/,+12' c.go:$
 A spec is a bare path (the whole file) or PATH:RANGE[,RANGE...]. A RANGE is N, N-M, N- (to the end), -M (from the start), A,+N (A plus the N lines after it), $ (the last line), /regexp/ (every matching line; -C N, or --context N, adds lines either side), /from/,/to/ (to the first match of to at or after from) or, in a JSON file, a path such as $.a.b, $.a[0] or $["k"] (the lines of that one value). Quote a spec that contains a space.
