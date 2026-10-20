@@ -2793,3 +2793,19 @@ Zy, 2026-10-17: "we need conclusive resutls, go for them"; then "One run, A/B/P"
 
 - **A plugin arm with `Agent` or external models allowed** (2026-10-17): ADR-162 keeps `Agent` out of every configuration (ADR-156) and stubs Codex, so the plugin's subagent and review skills run without them. Whether to measure P with them offered to A and P alike, their cost captured, is Zy's call after Stage 5's P against A is read.
 - **Other datasets** (2026-10-17): if a comparison stays INCONCLUSIVE at 191 instances, SWE-rebench or SWE-bench Pro would give a larger multi-hunk pool; Zy's call then.
+
+## Pre-registered for ADR-163 (Stage 6, for quality-harness ADR-112) — written with the record, before any code, pilot or run
+
+Zy, 2026-10-18, approved measuring the plugin where its mechanism can work; 2026-10-19: "Draft now, run after". Registered in ADR-163's first commit:
+
+- **What bench provides:** every configuration runs `python`, `python3`, `pytest` and `py.test` through shims inside a per-attempt container of the instance's own image, with no network and `/testbed/.git` replaced by a one-commit repository before the agent starts; one shim command at a time; the agent's change synced in before each command without touching its index; a sync that does not apply fails the command, never the attempt. Host interpreters reached by absolute path, `env -i`, `command -p` or `xcrun` are counted; a command naming `docker`, a pool image or the container stops the stage.
+- **The declared check:** one whole runner per pool repository in `bench/swe-bench/checks.json`, with no path or subset arguments, from the repository's own files with a file:line@commit source, never from the dataset; written as `.quality-harness.json` into every arm's tree before the base commit. Its SHA-256 is written here before T4's baseline pilot (pending: ADR-163 T2 S2); an amendment after that reruns the pilot on unused instances.
+- **The arms:** A, P, and W (P plus quality-harness's pre-registered `/quality-harness:work` line). The caps come from ADR-112 D3, set from W's pilot medians, never below 1200 s and 60 turns.
+- **The instances:** after ADR-112 D1 passes (read against 1200 s) and before quality-harness pre-registers, one baseline run of the declared check per pool instance on its unmodified tree; the green ones in ADR-162's pool order are the surviving pool (`bench/swe-bench/selection-adr-163.json`), whose digest and count the pre-registration carries; blocks are its 40-instance slices, the last partial; red ones are counted, never named.
+- **The stop rule is ADR-112's:** after each block, quality-harness's scorer at its pre-registered blob reads the rows per model and pair; its output is the look; bench runs the open arms next.
+- **Pilots first, all after Stage 5 closes:** a baseline pilot with no model on 10 instances outside the pool, listed by rule before it runs, settles ADR-112 D1; then the whole-pool baseline; then, after quality-harness's pre-registration, an agent pilot of 24 attempts at 1200 s and 60 turns, which sets D3's caps from W's medians over both models.
+
+## From ADR-163
+
+- **Arms P+mrw and P with a batching cue** (2026-10-19): quality-harness ADR-107 T4 asks for them with turns per attempt as the target. ADR-112's stage measures A, P and W only; these need their own pre-registration and a stage after ADR-163's.
+- **Hiding the host interpreters from the attempt** (2026-10-19): ADR-163 counts calls to host interpreters by absolute path, `env -i`, `command -p` or `xcrun`. If T4's agent pilot counts any, how to hide them before block 1 is decided with Zy then, and this entry closes.
