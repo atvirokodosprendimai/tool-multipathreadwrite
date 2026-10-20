@@ -1,0 +1,47 @@
+{
+  "attempt": "pydata__xarray-6938.A.claude-sonnet-5-5.1",
+  "stage": "stage5",
+  "task": "pydata__xarray-6938",
+  "shape": "swe-bench",
+  "source": "swe-bench",
+  "model": "claude-sonnet-5-5",
+  "config": "A",
+  "repeat": 1,
+  "order": 86,
+  "started": "2026-10-20T20:15:42Z",
+  "wall_ms": 15241,
+  "cli_version": "2.1.302 (Claude Code)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 6,
+  "tool_calls": 5,
+  "total_cost_usd": 0.0432126,
+  "usage": {
+    "input_tokens": 10,
+    "output_tokens": 1546,
+    "cache_read_input_tokens": 47566,
+    "cache_creation_input_tokens": 5744
+  },
+  "init_tools": [
+    "Bash",
+    "Edit",
+    "Glob",
+    "Grep",
+    "Read",
+    "Skill",
+    "Write"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": false,
+    "harness_resolved": false,
+    "broke_tests": false
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 1,
+    "insertions": 1,
+    "deletions": 1
+  },
+  "status": "not done"
+}

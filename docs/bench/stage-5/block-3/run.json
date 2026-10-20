@@ -1,0 +1,79 @@
+{
+  "stage": "stage5",
+  "tasks": [
+    "pytest-dev__pytest-10356",
+    "astropy__astropy-14369",
+    "sympy__sympy-13031",
+    "django__django-12155",
+    "django__django-13512",
+    "astropy__astropy-7606",
+    "sphinx-doc__sphinx-9320",
+    "matplotlib__matplotlib-26342",
+    "sphinx-doc__sphinx-10449",
+    "sympy__sympy-14248",
+    "astropy__astropy-13579",
+    "astropy__astropy-7166",
+    "django__django-14752",
+    "sphinx-doc__sphinx-9229",
+    "django__django-13809",
+    "pytest-dev__pytest-7490",
+    "django__django-11734",
+    "django__django-14608",
+    "django__django-14170",
+    "matplotlib__matplotlib-24870",
+    "sympy__sympy-20154",
+    "pydata__xarray-6938",
+    "django__django-15629",
+    "django__django-13297",
+    "sphinx-doc__sphinx-8551",
+    "astropy__astropy-14365",
+    "django__django-11400",
+    "django__django-16454",
+    "django__django-12039",
+    "scikit-learn__scikit-learn-26323",
+    "django__django-16502",
+    "django__django-16631",
+    "mwaskom__seaborn-3187",
+    "sphinx-doc__sphinx-7462",
+    "sympy__sympy-15345",
+    "sympy__sympy-13091",
+    "django__django-14053",
+    "django__django-11095",
+    "django__django-16145",
+    "scikit-learn__scikit-learn-13142"
+  ],
+  "models": [
+    "claude-sonnet-5-5",
+    "claude-opus-5-5"
+  ],
+  "configs": [
+    "A",
+    "B",
+    "P"
+  ],
+  "repeats": 1,
+  "seed": 156,
+  "cli_version": "2.1.302 (Claude Code)",
+  "mrw_version": "v1.68.0 (975c3ba)",
+  "containment": "bypass",
+  "profile": "stage5",
+  "plugin": {
+    "tag": "v3.8.40",
+    "commit": "ae3bdb850749b4b92f4493eebed3ba943f3764eb"
+  },
+  "status_line_sha256": "171a9b5ce5b38cea2dc5d8eaab69fd5efa977d020394cc0a2b0645b32189bf47",
+  "budget_seconds": 1200,
+  "prompt_sha256": "4ab9117eb27510a1d2e6151a579aa66a1c5ae175f4e2797c087084db527cb333",
+  "block": 3,
+  "looks": 5,
+  "configs_for": {
+    "claude-opus-5-5": [
+      "A",
+      "B"
+    ],
+    "claude-sonnet-5-5": [
+      "A",
+      "B"
+    ]
+  }
+}

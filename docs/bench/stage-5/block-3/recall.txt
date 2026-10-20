@@ -1,0 +1,43 @@
+# ADR-162 Decision 8 scan of block 3, amended (docs/bench/stage-5/scan.py): every RECALL line, attempt then test name.
+# A RECALL is a FAIL_TO_PASS name the base commit lacks whose first appearance is the agent's own writing.
+# Scan of block 3 (2026-10-20T22:04Z): 160 transcript(s), 0 hit(s), 40 recall(s); exit 0.
+RECALL astropy__astropy-13579.A.claude-opus-5-5.1: astropy/wcs/wcsapi/wrappers/tests/test_sliced_wcs.py::test_coupled_world_slicing
+RECALL django__django-11095.A.claude-opus-5-5.1: test_get_inline_instances_override_get_inlines (generic_inline_admin.tests.GenericInlineModelAdminTest)
+RECALL django__django-11095.B.claude-opus-5-5.1: test_get_inline_instances_override_get_inlines (generic_inline_admin.tests.GenericInlineModelAdminTest)
+RECALL django__django-11400.A.claude-opus-5-5.1: test_get_choices_default_ordering (model_fields.tests.GetChoicesOrderingTests)
+RECALL django__django-11400.A.claude-opus-5-5.1: test_get_choices_reverse_related_field_default_ordering (model_fields.tests.GetChoicesOrderingTests)
+RECALL django__django-11400.A.claude-opus-5-5.1: RelatedFieldListFilter ordering respects Model.ordering.
+RECALL django__django-11400.A.claude-opus-5-5.1: RelatedOnlyFieldListFilter ordering respects Meta.ordering.
+RECALL django__django-11400.A.claude-opus-5-5.1: RelatedOnlyFieldListFilter ordering respects ModelAdmin.ordering.
+RECALL django__django-11734.B.claude-opus-5-5.1: test_subquery_exclude_outerref (queries.tests.ExcludeTests)
+RECALL django__django-12039.A.claude-opus-5-5.1: test_descending_columns_list_sql (indexes.tests.SchemaIndexesTests)
+RECALL django__django-12155.A.claude-opus-5-5.1: test_parse_rst_with_docstring_no_leading_line_feed (admin_docs.test_utils.TestUtils)
+RECALL django__django-13297.A.claude-opus-5-5.1: test_template_params_filtering (generic_views.test_base.DeprecationTests)
+RECALL django__django-13297.B.claude-opus-5-5.1: test_template_params_filtering (generic_views.test_base.DeprecationTests)
+RECALL django__django-14752.A.claude-opus-5-5.1: test_serialize_result (admin_views.test_autocomplete_view.AutocompleteJsonViewTests)
+RECALL django__django-15629.A.claude-opus-5-5.1: AlterField operation of db_collation on primary keys changes any FKs
+RECALL django__django-16145.A.claude-opus-5-5.1: test_zero_ip_addr (admin_scripts.tests.ManageRunserver)
+RECALL django__django-16145.B.claude-opus-5-5.1: test_zero_ip_addr (admin_scripts.tests.ManageRunserver)
+RECALL django__django-16454.A.claude-opus-5-5.1: test_subparser_error_formatting (user_commands.tests.CommandRunTests.test_subparser_error_formatting)
+RECALL django__django-16502.A.claude-opus-5-5.1: test_no_body_returned_for_head_requests (servers.test_basehttp.WSGIRequestHandlerTestCase.test_no_body_returned_for_head_requests)
+RECALL django__django-16631.A.claude-opus-5-5.1: test_get_user_fallback_secret (auth_tests.test_basic.TestGetUser.test_get_user_fallback_secret)
+RECALL django__django-16631.B.claude-opus-5-5.1: test_get_user_fallback_secret (auth_tests.test_basic.TestGetUser.test_get_user_fallback_secret)
+RECALL matplotlib__matplotlib-24870.A.claude-opus-5-5.1: lib/matplotlib/tests/test_contour.py::test_bool_autolevel
+RECALL matplotlib__matplotlib-24870.B.claude-opus-5-5.1: lib/matplotlib/tests/test_contour.py::test_bool_autolevel
+RECALL matplotlib__matplotlib-26342.A.claude-opus-5-5.1: lib/matplotlib/tests/test_contour.py::test_contour_set_paths[png]
+RECALL matplotlib__matplotlib-26342.B.claude-opus-5-5.1: lib/matplotlib/tests/test_contour.py::test_contour_set_paths[png]
+RECALL pytest-dev__pytest-7490.A.claude-opus-5-5.1: testing/test_skipping.py::TestXFail::test_dynamic_xfail_set_during_runtest_failed
+RECALL pytest-dev__pytest-7490.A.claude-opus-5-5.1: testing/test_skipping.py::TestXFail::test_dynamic_xfail_set_during_runtest_passed_strict
+RECALL pytest-dev__pytest-7490.B.claude-opus-5-5.1: testing/test_skipping.py::TestXFail::test_dynamic_xfail_set_during_runtest_failed
+RECALL pytest-dev__pytest-7490.B.claude-opus-5-5.1: testing/test_skipping.py::TestXFail::test_dynamic_xfail_set_during_runtest_passed_strict
+RECALL scikit-learn__scikit-learn-13142.A.claude-opus-5-5.1: sklearn/mixture/tests/test_bayesian_mixture.py::test_bayesian_mixture_fit_predict_n_init
+RECALL scikit-learn__scikit-learn-13142.A.claude-opus-5-5.1: sklearn/mixture/tests/test_gaussian_mixture.py::test_gaussian_mixture_fit_predict_n_init
+RECALL scikit-learn__scikit-learn-13142.B.claude-opus-5-5.1: sklearn/mixture/tests/test_gaussian_mixture.py::test_gaussian_mixture_fit_predict_n_init
+RECALL scikit-learn__scikit-learn-26323.A.claude-opus-5-5.1: sklearn/compose/tests/test_column_transformer.py::test_remainder_set_output
+RECALL sphinx-doc__sphinx-8551.A.claude-opus-5-5.1: tests/test_domain_py.py::test_info_field_list
+RECALL sphinx-doc__sphinx-9229.A.claude-opus-5-5.1: tests/test_ext_autodoc_autoclass.py::test_class_alias_having_doccomment
+RECALL sphinx-doc__sphinx-9229.B.claude-opus-5-5.1: tests/test_ext_autodoc_autoclass.py::test_class_alias_having_doccomment
+RECALL sphinx-doc__sphinx-9320.A.claude-opus-5-5.1: tests/test_quickstart.py::test_exits_when_existing_confpy
+RECALL sympy__sympy-13091.A.claude-opus-5-5.1: test_comparisons_with_unknown_type
+RECALL sympy__sympy-14248.A.claude-opus-5-5.1: test_MatrixSymbol_printing
+RECALL sympy__sympy-14248.B.claude-opus-5-5.1: test_MatrixSymbol_printing
