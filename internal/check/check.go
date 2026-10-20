@@ -204,6 +204,23 @@ type Result struct {
 	// Hint says how to scope a check that ran the whole project's command for
 	// named paths and took SlowAfter or longer, or is empty (ADR-152).
 	Hint string `json:"hint,omitempty"`
+	// OutsideScope is each edited file a {packages}-only scoped_check ran
+	// without, because it names Go packages and cannot place the file; the
+	// scoped command ran over the files it could place (ADR-164 Decision 4).
+	// Empty when nothing was left out, which is every other run.
+	OutsideScope []string `json:"outside_scope,omitempty"`
+	// outsideTemplate is the scoped_check that left them out, for OutsideLine.
+	outsideTemplate string
+}
+
+// OutsideLine is the line both surfaces print for OutsideScope, or "" when
+// the scoped check left nothing out.
+func (r Result) OutsideLine() string {
+	if len(r.OutsideScope) == 0 {
+		return ""
+	}
+	return fmt.Sprintf("outside the scoped check: %s — scoped_check %q runs {packages}, which names Go packages only",
+		shellArgs(r.OutsideScope), r.outsideTemplate)
 }
 
 // OK reports whether the check ran and passed. A check that did not run is not
@@ -273,7 +290,11 @@ func pruneLogs(dir string, cutoff time.Time) int {
 // root's own tests went red. read and write refuse such a path (ADR-006);
 // reporting a pass for a scope that never ran is the silent pass ADR-003
 // rule 2 forbids.
-func Run(ctx context.Context, root string, cfg Config, editedPaths []string) (Result, error) {
+func Run(ctx context.Context, root string, cfg Config, editedPaths []string, opts ...Option) (Result, error) {
+	var o runOptions
+	for _, opt := range opts {
+		opt(&o)
+	}
 	if err := confine(root, editedPaths); err != nil {
 		// Nothing runs and nothing is filled in but -1, which is no exit
 		// status: a refusal must not hand back a shape a caller could read a
@@ -281,6 +302,9 @@ func Run(ctx context.Context, root string, cfg Config, editedPaths []string) (Re
 		return Result{Declared: cfg.declared, ExitCode: -1}, err
 	}
 	cmdline, scoped := command(root, cfg, editedPaths)
+	if o.whole && packagesOnly(cfg) {
+		cmdline, scoped = cfg.Check, false
+	}
 	if cmdline == "" {
 		return Result{Declared: cfg.declared, Skipped: "no check declared and no go.mod found", ExitCode: -1}, nil
 	}
@@ -298,6 +322,10 @@ func Run(ctx context.Context, root string, cfg Config, editedPaths []string) (Re
 	res.Declared = cfg.declared
 	if err != nil {
 		return res, err
+	}
+	if scoped && res.Ran && packagesOnly(cfg) {
+		_, res.OutsideScope = place(root, editedPaths)
+		res.outsideTemplate = cfg.ScopedCheck
 	}
 	res.Hint = scopeHint(cfg, scoped, editedPaths, res)
 	// Pruned only once the check has exited AND been judged. Before the start,
@@ -594,7 +622,9 @@ func Placeholder(cmdline string) string {
 // names every path the caller wrote, so it cannot omit the way an empty
 // {packages} can (ADR-061). A {packages}-only or mixed template still
 // falls back, as does an empty path list (mrw check --full). A scoped
-// run that quietly omits a changed file is worse than a slow complete one.
+// run that quietly omits a changed file is worse than a slow complete one:
+// a {packages}-only template that places only SOME paths runs over those and
+// Run names the rest in Result.OutsideScope (ADR-164 Decision 4).
 //
 // root is needed to tell a directory from a typo; see packages. The tokens it
 // substitutes are listed in placeholders, which Placeholder reports (ADR-094).
@@ -602,7 +632,7 @@ func command(root string, cfg Config, paths []string) (cmdline string, scoped bo
 	if cfg.ScopedCheck == "" {
 		return cfg.Check, false
 	}
-	pkgs := packages(root, paths)
+	pkgs, _ := place(root, paths)
 	if len(pkgs) > 0 {
 		r := strings.NewReplacer("{packages}", shellArgs(pkgs), "{files}", shellArgs(paths), "{dirs}", shellArgs(dirsOf(root, paths)))
 		return r.Replace(cfg.ScopedCheck), true
@@ -615,6 +645,24 @@ func command(root string, cfg Config, paths []string) (cmdline string, scoped bo
 		return r.Replace(cfg.ScopedCheck), true
 	}
 	return cfg.Check, false
+}
+
+// Option changes how Run chooses its command.
+type Option func(*runOptions)
+
+type runOptions struct{ whole bool }
+
+// Whole makes a {packages}-only scoped_check run the whole check: the write
+// removed or renamed away a Go or module file, and the packages that import it
+// are not among the paths (ADR-164 Decision 4). The path stays out of the
+// list, so confine still refuses one that is not there (ADR-042).
+func Whole() Option { return func(o *runOptions) { o.whole = true } }
+
+// packagesOnly reports whether scoped_check names {packages} and neither
+// {files} nor {dirs}: the one template that cannot be handed every path.
+func packagesOnly(cfg Config) bool {
+	s := cfg.ScopedCheck
+	return strings.Contains(s, "{packages}") && !strings.Contains(s, "{files}") && !strings.Contains(s, "{dirs}")
 }
 
 // scopeHint is Result.Hint (ADR-152): empty unless the check ran the whole
@@ -658,9 +706,15 @@ func dirsOf(root string, paths []string) []string {
 	return out
 }
 
-// packages maps paths to the go patterns that cover them, or returns "" when
-// any of them is a path this package cannot place — in which case the caller
-// falls back to the full check.
+// moduleFiles are the files that define what every package builds against: an
+// edit to one is not an edit to a package, and nothing narrower than the whole
+// check covers it.
+var moduleFiles = map[string]bool{"go.mod": true, "go.sum": true, "go.work": true, "go.work.sum": true}
+
+// place maps paths to the go patterns that cover them, and sets aside the
+// regular files it cannot place. It returns no patterns when any path is one
+// it cannot reason about — in which case the caller falls back to the full
+// check — or when no path maps.
 //
 // A .go FILE maps to its own directory, ./dir. That is the package the edit
 // touched, and nothing below it was touched by naming it.
@@ -680,51 +734,70 @@ func dirsOf(root string, paths []string) []string {
 // because those paths exist and `go test` on them exits 1 for a reason that
 // is not about the code.
 //
+// Any other regular file inside the root — a script, prose, a fixture — is
+// not a package and cannot empty the map: it is returned in outside, in the
+// order named, and the caller says so (ADR-164 Decision 4). A .go path that
+// cannot be placed and a module file (moduleFiles) still empty it.
+//
 // A path OUTSIDE the root is not refused here at all — Run refuses it
 // before this is reached, because falling back would answer about a tree
 // the caller never named.
 //
 // Paths reaching here from a write are always files, so `write --check` meets
 // none of this.
-func packages(root string, paths []string) []string {
+func place(root string, paths []string) (pkgs, outside []string) {
 	trees := map[string]bool{} // a named directory, covered recursively
-	pkgs := map[string]bool{}  // the directory of a named .go file
+	dirs := map[string]bool{}  // the directory of a named .go file
+	aside := map[string]bool{}
 	for _, p := range paths {
+		if moduleFiles[filepath.Base(p)] {
+			return nil, nil
+		}
 		if filepath.Ext(p) == ".go" {
 			if !isFile(root, p) {
-				return nil
+				return nil, nil
 			}
 			dir, ok := placed(root, filepath.Dir(p))
 			if !ok {
-				return nil
+				return nil, nil
 			}
-			pkgs[dir] = true
+			dirs[dir] = true
+			continue
+		}
+		if isFile(root, p) {
+			if _, ok := placed(root, p); !ok {
+				return nil, nil
+			}
+			if !aside[p] {
+				aside[p] = true
+				outside = append(outside, p)
+			}
 			continue
 		}
 		dir, ok := placed(root, strings.TrimSuffix(p, "/..."))
 		if !ok || !holdsPackage(filepath.Join(root, dir)) {
-			return nil
+			return nil, nil
 		}
 		trees[dir] = true
 	}
-	out := make([]string, 0, len(trees)+len(pkgs))
+	out := make([]string, 0, len(trees)+len(dirs))
 	for d := range trees {
 		if covered(trees, d, false) {
 			continue
 		}
 		out = append(out, treePattern(d))
 	}
-	for d := range pkgs {
+	for d := range dirs {
 		if covered(trees, d, true) {
 			continue
 		}
 		out = append(out, pkgPattern(d))
 	}
 	if len(out) == 0 {
-		return nil
+		return nil, nil
 	}
 	sort.Strings(out)
-	return out
+	return out, outside
 }
 
 // placed returns p as a cleaned, slash-separated path relative to root, and

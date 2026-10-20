@@ -2322,8 +2322,13 @@ func reportCheck(w *os.File, r *check.Result) {
 	out := bufio.NewWriter(w)
 	defer func() { _ = out.Flush() }()
 	// ADR-152: a slow whole-project check says how to scope it, last, under
-	// its verdict; this runs before the flush above.
+	// its verdict; this runs before the flush above. ADR-164: so does the line
+	// naming the files a scoped check left out, which a scoped run has instead
+	// of a hint.
 	defer func() {
+		if l := r.OutsideLine(); l != "" {
+			fmt.Fprintf(out, "%s\n", l)
+		}
 		if r.Hint != "" {
 			fmt.Fprintf(out, "hint: %s\n", r.Hint)
 		}

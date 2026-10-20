@@ -1412,6 +1412,9 @@ func checkReport(c *check.Result, checkErr error, drift []string, others int) (l
 		if c.OutputFile != "" {
 			fmt.Fprintf(&b, "check output: %s\n", c.OutputFile)
 		}
+		if l := c.OutsideLine(); l != "" {
+			fmt.Fprintf(&b, "%s\n", l)
+		}
 		if c.Hint != "" {
 			fmt.Fprintf(&b, "hint: %s\n", c.Hint)
 		}
@@ -1435,14 +1438,31 @@ func checkPhrase(c *check.Result, checkErr error) string {
 	case c == nil:
 		return ""
 	case c.OK():
+		if n := len(c.OutsideScope); n > 0 {
+			return passedOutside(n)
+		}
 		return " Its check passed."
 	}
 	return fmt.Sprintf(" Its check did not pass (exit %d): the tree is changed and unverified.", c.ExitCode)
 }
 
+// passedOutside is the terminal phrase for a check that passed over the
+// packages it could place and left n files out (ADR-164 Decision 4): the list
+// may go with the structured receipt, the count never does.
+func passedOutside(n int) string {
+	return fmt.Sprintf(" Its check passed for the packages it could place; %d file(s) were outside it.", n)
+}
+
 // longestCheckPhrase is the widest checkPhrase can be: a failed check at the
-// widest exit code.
-var longestCheckPhrase = checkPhrase(&check.Result{Ran: true, ExitCode: math.MinInt}, nil)
+// widest exit code, or a pass that left the widest count out.
+var longestCheckPhrase = longer(checkPhrase(&check.Result{Ran: true, ExitCode: math.MinInt}, nil), passedOutside(math.MaxInt))
+
+func longer(a, b string) string {
+	if len(b) > len(a) {
+		return b
+	}
+	return a
+}
 
 // stepsReport is one line per step asked for (ADR-115), after the check's
 // lines: its verdict, and the tail of a step that stopped the sequence.
