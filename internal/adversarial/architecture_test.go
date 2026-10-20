@@ -104,18 +104,44 @@ func TestEachSurfaceHasOneRoot(t *testing.T) {
 // D3: inside the mrw binary only these start a process: check runs the
 // project's command, read finds ast-grep, subproc owns the process group.
 func TestOnlyTheseStartAProcess(t *testing.T) {
-	g := imports(t)
+	for _, p := range startsAProcess(imports(t), "cmd/mrw") {
+		t.Errorf("%s imports os/exec", p)
+	}
+}
+
+// startsAProcess lists the module packages root reaches, itself included, that
+// import os/exec without being allowed to. A package is the module's when g
+// lists it: judged by membership, never by how its path is spelled.
+func startsAProcess(g map[string][]string, root string) []string {
 	allowed := map[string]bool{"internal/check": true, "internal/read": true, "internal/subproc": true}
-	r := reach(g, "cmd/mrw")
-	r["cmd/mrw"] = true
+	r := reach(g, root)
+	r[root] = true
+	var bad []string
 	for p := range r {
-		if strings.Contains(p, ".") || !(strings.HasPrefix(p, "internal/") || strings.HasPrefix(p, "cmd/")) {
+		if _, ours := g[p]; !ours || allowed[p] {
 			continue
 		}
 		for _, d := range g[p] {
-			if d == "os/exec" && !allowed[p] {
-				t.Errorf("%s imports os/exec", p)
+			if d == "os/exec" {
+				bad = append(bad, p)
 			}
 		}
+	}
+	sort.Strings(bad)
+	return bad
+}
+
+// The D3 judge itself: a module package is judged wherever it lives and however
+// its path is spelled, and a standard-library or third-party import is not one.
+func TestStartsAProcessJudgesEveryModulePackage(t *testing.T) {
+	g := map[string][]string{
+		"cmd/mrw":             {"pkg/process", "internal/process.v1", "internal/check", "github.com/x/y"},
+		"pkg/process":         {"os/exec"},
+		"internal/process.v1": {"os/exec"},
+		"internal/check":      {"os/exec"},
+	}
+	got := strings.Join(startsAProcess(g, "cmd/mrw"), " ")
+	if got != "internal/process.v1 pkg/process" {
+		t.Errorf("startsAProcess = %q, want the two unallowed module packages", got)
 	}
 }
