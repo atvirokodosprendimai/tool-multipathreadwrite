@@ -62,7 +62,7 @@ var exampleReadSpecs = []string{
 func instructionsText() string {
 	return guide.Shared() + "\n\n" + guide.WhyAllOrNothing() + "\n\n" + fmt.Sprintf(`Recipes:
 1. the same change at many sites, none in context: mrw_write with grep and sub (grep \bOld\b, sub New)
-2. see it first: the same with dry_run true
+2. see each change: the same with dry_run true
 3. a change by syntax: mrw_write with ast_grep and rewrite
 4. look first: mrw_read with grep and count, then specs f.go:/P/
 5. different changes: one mrw_read of the sites, one mrw_write plan

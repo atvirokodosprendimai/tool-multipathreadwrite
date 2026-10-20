@@ -110,6 +110,16 @@ type HunkResult struct {
 	// or failed hunk.
 	Closer string `json:"closer,omitempty"`
 
+	// Before and After are ADR-164's preview: the lines a replace hunk takes
+	// out and the body that goes in, filled only under Options.Preview, for an
+	// ok replace. Empty otherwise, so a real write's receipt is unchanged.
+	Before []string `json:"before,omitempty"`
+	After  []string `json:"after,omitempty"`
+
+	// Start is the first line of the span Before took out, in the file as it
+	// was. Set with Before; not a receipt field.
+	Start int `json:"-"`
+
 	// Kind classifies a refusal the parser also makes, and the not-read
 	// refusal, so a caller compares kinds instead of Reason's words (ADR-087).
 	// Not a receipt field.
@@ -328,6 +338,10 @@ type Options struct {
 	// failed hunk: siblings skip, nothing is written. Off by default; the
 	// same hunk then applies with a balance row.
 	StrictBalance bool
+
+	// Preview fills HunkResult.Before and After for each ok replace hunk
+	// (ADR-164). A plan maker's dry run sets it; nothing else does.
+	Preview bool
 }
 
 // Apply validates every hunk against the working tree rooted at root and, if
@@ -1830,6 +1844,9 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 			res = append(res, h.Body...)
 			r.Removed, r.Added = h.End-h.Start+1, len(h.Body)
 			consumed, written = orig[h.Start-1:h.End], h.Body
+			if opt.Preview {
+				r.Before, r.After, r.Start = append([]string(nil), consumed...), append([]string(nil), h.Body...), h.Start
+			}
 			cursor = h.End + 1
 		case "delete":
 			r.Removed = h.End - h.Start + 1
