@@ -28,6 +28,8 @@ func TestASubNamingAMissingGroupIsRefused(t *testing.T) {
 		{`(head) -1`, `$1x`, `$1x`},
 		{`(head) -1`, `${2}`, `${2}`},
 		{`(head) -1`, `${name}`, `${name}`},
+		{`(head) -1`, `${100000000}`, `${100000000}`},
+		{`(head) -1`, `${1000000000}`, `${1000000000}`},
 	}
 	for _, c := range refused {
 		err := build(c.pattern, c.repl)
@@ -47,6 +49,8 @@ func TestASubNamingAMissingGroupIsRefused(t *testing.T) {
 		{`head -1`, `$$1 x`},
 		{`head -1`, `x $`},
 		{`head -1`, `x $-`},
+		{`(?P<1000000000>head) -1`, `${1000000000}x`},
+		{`(?P<1000000000>head) -1`, `$1000000000 x`},
 	}
 	for _, c := range planned {
 		if err := build(c.pattern, c.repl); err != nil {

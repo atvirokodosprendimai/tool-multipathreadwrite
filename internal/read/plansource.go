@@ -6,7 +6,6 @@ import (
 	"io"
 	"regexp"
 	"slices"
-	"strconv"
 	"strings"
 	"unicode"
 
@@ -99,9 +98,10 @@ func BuildSub(root string, posArgs []string, pattern, repl string, excludes []st
 
 // missingGroup finds the first reference in repl that re defines no group for,
 // by the scan regexp.Expand makes (its unexported extract): after a $, either
-// {name} or the longest run of letters, digits and _; an all-digit name without
-// a leading zero is a group number; $$ is a literal $; a $ that starts no name
-// is kept as text. So it names exactly the references Go expands to nothing.
+// {name} or the longest run of letters, digits and _; a name of ASCII digits is
+// a group number while the number stays under 1e8 and has no leading zero, and
+// is looked up as a group's name otherwise; $$ is a literal $; a $ that starts no
+// name is kept as text. So it names exactly the references Go expands to nothing.
 func missingGroup(re *regexp.Regexp, repl string) (string, bool) {
 	for {
 		i := strings.IndexByte(repl, '$')
@@ -128,8 +128,20 @@ func missingGroup(re *regexp.Regexp, repl string) (string, bool) {
 		if brace {
 			ref = "${" + name + "}"
 		}
-		if strings.Trim(name, "0123456789") == "" && (name == "0" || name[0] != '0') {
-			if num, err := strconv.Atoi(name); err != nil || num > re.NumSubexp() {
+		// Go's own number scan: a digit past 1e8 makes the name a name.
+		num := 0
+		for i := 0; i < len(name); i++ {
+			if name[i] < '0' || '9' < name[i] || num >= 1e8 {
+				num = -1
+				break
+			}
+			num = num*10 + int(name[i]-'0')
+		}
+		if name[0] == '0' && len(name) > 1 {
+			num = -1
+		}
+		if num >= 0 {
+			if num > re.NumSubexp() {
 				return ref, true
 			}
 			continue
