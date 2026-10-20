@@ -328,7 +328,7 @@ func main() {
 		}
 	}
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "mrw:", err)
+		fmt.Fprintln(os.Stderr, "mrw:", stateHint(err))
 		os.Exit(exitCode(err))
 	}
 }
@@ -409,7 +409,7 @@ this subcommand is not useful to run by hand.`,
 			// showing "mrw 0.0.14" is never talking to a different build.
 			mcp.Version = versionString()
 			if err := mcp.Serve(os.Stdin, os.Stdout, root); err != nil {
-				return cli.Exit(err, exitUsage)
+				return exitWith(err)
 			}
 			return nil
 		},
@@ -529,7 +529,7 @@ size is the form that gets quoted out of the population it was measured on.`,
 			if cmd.Bool("reset") {
 				discarded, err := authoring.Reset(root)
 				if err != nil {
-					return cli.Exit(err, exitUsage)
+					return exitWith(err)
 				}
 				// Say what was discarded. A reset that reports nothing is
 				// indistinguishable from a reset that did nothing.
@@ -538,7 +538,7 @@ size is the form that gets quoted out of the population it was measured on.`,
 			}
 			t, err := authoring.Load(root)
 			if err != nil {
-				return cli.Exit(err, exitUsage)
+				return exitWith(err)
 			}
 			if cmd.Bool("json") {
 				// ADR-054: every vocabulary key is present, zero included, so
@@ -641,7 +641,7 @@ be a deleted checkout or a volume that is not mounted, and only you can tell.`,
 			}
 			dir, err := seen.Dir(root)
 			if err != nil {
-				return cli.Exit(err, exitUsage)
+				return exitWith(err)
 			}
 			// Location first: "where is it" is the question that brought you here.
 			fmt.Println(dir)
@@ -681,7 +681,7 @@ be a deleted checkout or a volume that is not mounted, and only you can tell.`,
 
 			path, err := seen.ReadPath(root)
 			if err != nil {
-				return cli.Exit(err, exitUsage)
+				return exitWith(err)
 			}
 			if path != filepath.Join(dir, seen.Name) {
 				fmt.Printf("# reading a legacy in-tree ledger: %s\n", path)
@@ -690,7 +690,7 @@ be a deleted checkout or a volume that is not mounted, and only you can tell.`,
 			// `mrw seen` never prints a ledger another process emptied to rewrite.
 			ledger, err := seen.Snapshot(root)
 			if err != nil {
-				return cli.Exit(err, exitUsage)
+				return exitWith(err)
 			}
 			paths := make([]string, 0, len(ledger))
 			for p := range ledger {
@@ -966,10 +966,10 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			if len(posArgs) > 0 {
 				set, err := iter.Load(root)
 				if err != nil {
-					return cli.Exit(err, exitUsage)
+					return exitWith(err)
 				}
 				if posArgs, err = set.ResolveAll(posArgs); err != nil {
-					return cli.Exit(err, exitUsage)
+					return exitWith(err)
 				}
 			}
 			switch {
@@ -977,7 +977,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				for _, a := range posArgs {
 					sp, err := read.ParseSpec(a)
 					if err != nil {
-						return cli.Exit(err, exitUsage)
+						return exitWith(err)
 					}
 					if len(sp.Ranges) > 0 {
 						return cli.Exit(fmt.Sprintf("%s: a range and --grep are two answers to one question", a), exitUsage)
@@ -993,13 +993,13 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				// them out (mrw read --grep P @1 @2).
 				specs, refusals, err = read.Walk(root, posArgs, read.WalkOptions{Pattern: re, Exclude: excludes, NoIgnore: cmd.Bool("no-ignore"), Skipped: &skipped})
 				if err != nil {
-					return cli.Exit(err, exitUsage)
+					return exitWith(err)
 				}
 			case astSet:
 				for _, a := range posArgs {
 					sp, err := read.ParseSpec(a)
 					if err != nil {
-						return cli.Exit(err, exitUsage)
+						return exitWith(err)
 					}
 					if len(sp.Ranges) > 0 {
 						return cli.Exit(fmt.Sprintf("%s: a range and --ast-grep are two answers to one question", a), exitUsage)
@@ -1010,20 +1010,20 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 					return cli.Exit(err.Error(), exitUsage)
 				}
 				if err != nil {
-					return cli.Exit(err, exitUsage)
+					return exitWith(err)
 				}
 			default:
 				args := posArgs
 				if filesFromSet {
 					list, err := specList(root, filesFrom)
 					if err != nil {
-						return cli.Exit(err, exitUsage)
+						return exitWith(err)
 					}
 					args = list
 				}
 				set, err := iter.Load(root)
 				if err != nil {
-					return cli.Exit(err, exitUsage)
+					return exitWith(err)
 				}
 				if len(args) == 0 {
 					// No arguments means "what I am working on": the working set
@@ -1034,13 +1034,13 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 					args = set.Entries
 					note = set.Note
 				} else if args, err = set.ResolveAll(args); err != nil {
-					return cli.Exit(err, exitUsage)
+					return exitWith(err)
 				}
 				specs = make([]read.Spec, 0, len(args))
 				for _, a := range args {
 					sp, err := read.ParseSpec(a)
 					if err != nil {
-						return cli.Exit(err, 2)
+						return exitWith(err)
 					}
 					specs = append(specs, sp)
 				}
@@ -1129,7 +1129,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 					}
 				}
 			} else if err := seen.Record(root, observed); err != nil {
-				return cli.Exit(err, exitUsage)
+				return exitWith(err)
 			}
 			problems += len(refusals)
 			if problems > 0 {
@@ -1394,7 +1394,8 @@ held or went unchecked.`,
 			// every step not_run: the check could not run, or the ledger could not
 			// record the landing, so none followed it (ADR-092 T4; the 2026-09-29 gap survey, C3).
 			var stepsNotRun *check.StepsResult
-			refuseWith := func(res apply.Result, msg string) error {
+			refuseWith := func(res apply.Result, err error) error {
+				msg := err.Error()
 				// A refusal after the write landed (the ledger could not be
 				// written, the check could not start) still says what landed
 				// and counts it: the tree changed either way. In human form the
@@ -1434,13 +1435,18 @@ held or went unchecked.`,
 					enc.SetIndent("", "  ")
 					_ = enc.Encode(receipt{Result: res, Pattern: authoring.PatternOf(root), Error: msg, Then: stepsNotRun})
 				}
-				return cli.Exit(msg, exitUsage)
+				return exitWith(err)
 			}
 			refuse := func(msg string) error {
-				return refuseWith(apply.Result{DryRun: cmd.Bool("dry-run")}, msg)
+				return refuseWith(apply.Result{DryRun: cmd.Bool("dry-run")}, errors.New(msg))
+			}
+			// refuseErr keeps err unwrappable, so main can name a state-directory
+			// failure under it (stateHint); refuse with err's text would flatten it.
+			refuseErr := func(err error) error {
+				return refuseWith(apply.Result{DryRun: cmd.Bool("dry-run")}, err)
 			}
 			if err := askedStepsError(asked); err != nil {
-				return refuse(err.Error())
+				return refuseErr(err)
 			}
 			var src io.Reader = os.Stdin
 			name := "<stdin>"
@@ -1473,7 +1479,7 @@ held or went unchecked.`,
 					return err
 				}
 				if err := seen.Record(cmd.Root().String("root"), b.Observed); err != nil {
-					return refuse(err.Error())
+					return refuseErr(err)
 				}
 				src, name = bytes.NewReader(b.Plan), "--sub"
 				if cmd.IsSet("rewrite") {
@@ -1493,7 +1499,7 @@ held or went unchecked.`,
 					// the working directory. That split is defensible and
 					// invisible, so a miss says where it looked rather than
 					// leaving the caller to doubt the plan instead of the path.
-					return refuse(planOpenError(args[0], cmd.String("root"), err).Error())
+					return refuseErr(planOpenError(args[0], cmd.String("root"), err))
 				}
 				defer func() { _ = f.Close() }()
 				src, name = f, args[0]
@@ -1608,7 +1614,7 @@ held or went unchecked.`,
 			}
 			set, err := iter.Load(root)
 			if err != nil {
-				return refuse(err.Error())
+				return refuseErr(err)
 			}
 
 			in := make([]apply.Input, 0, len(hunks))
@@ -1666,12 +1672,12 @@ held or went unchecked.`,
 			})
 			if err != nil {
 				tallied = true // Prepare counted it
-				return refuse(gateRefusal(err))
+				return refuseErr(gateRefusal(err))
 			}
 			land, err := prep.Land()
 			if err != nil {
 				tallied = true // Land counted it
-				return refuse(gateRefusal(err))
+				return refuseErr(gateRefusal(err))
 			}
 			// Land counted the landing, whatever it was.
 			tallied = true
@@ -1700,12 +1706,12 @@ held or went unchecked.`,
 					// verdict yet. Rendered only when it had hunks, a failure
 					// before the first one — a plan naming a directory —
 					// printed nothing under --json (review of #229, B2).
-					return refuseWith(res, land.Err.Error())
+					return refuseWith(res, land.Err)
 				}
 				if len(res.Hunks) > 0 {
 					report(os.Stdout, res, cmd.Bool("quiet"))
 				}
-				return cli.Exit(exitTwoLine(land.Res, land.Err), exitUsage)
+				return exitSaying(exitTwoLine(land.Res, land.Err), land.Err)
 			}
 			// The landing (writer's applyCounted) recorded what the files now hold before it released
 			// the write lock. This is why a chain of edits needs no re-read
@@ -1716,7 +1722,7 @@ held or went unchecked.`,
 			// and every step asked for named not_run (ADR-092 Decision 5).
 			if land.LedgerErr != nil {
 				stepsNotRun = land.Then
-				return refuseWith(res, land.LedgerErr.Error())
+				return refuseWith(res, land.LedgerErr)
 			}
 
 			receipt := receipt{Result: res}
@@ -1754,7 +1760,7 @@ held or went unchecked.`,
 				// The write landed and its check could not run: that is
 				// check_not_run, not applied (review of #229).
 				stepsNotRun = v.Then
-				return refuseWith(res, v.CheckErr.Error())
+				return refuseWith(res, v.CheckErr)
 			}
 			receipt.Check, receipt.Drift, receipt.DriftWriters, receipt.Then = v.Check, shownPaths(v.Drift), v.DriftWriters, v.Then
 
@@ -1762,7 +1768,7 @@ held or went unchecked.`,
 				enc := json.NewEncoder(os.Stdout)
 				enc.SetIndent("", "  ")
 				if err := enc.Encode(receipt); err != nil {
-					return cli.Exit(err, exitUsage)
+					return exitWith(err)
 				}
 			} else {
 				reportCheck(os.Stdout, receipt.Check)
@@ -1809,20 +1815,18 @@ func patternLine(entries []authoring.RecentEntry) string {
 // gateRefusal is the CLI's words for a write the shared sequence refused before
 // anything was written (ADR-113): the harness, the steps, the depth limit, or
 // a ledger that could not be loaded.
-func gateRefusal(err error) string {
+func gateRefusal(err error) error {
 	var r *writer.Refusal
 	if !errors.As(err, &r) {
-		return err.Error()
+		return err
 	}
 	switch r.Stage {
-	case writer.StageHarness:
-		return fmt.Sprintf("%v: nothing was written", r.Err)
-	case writer.StageSteps:
-		return r.Err.Error() + ": nothing was written"
+	case writer.StageHarness, writer.StageSteps:
+		return fmt.Errorf("%w: nothing was written", r.Err)
 	case writer.StageDepth:
-		return r.Err.Error() + "; --no-check writes without it: nothing was written"
+		return fmt.Errorf("%w; --no-check writes without it: nothing was written", r.Err)
 	}
-	return r.Err.Error()
+	return r.Err
 }
 
 // receipt is what one write produced: the edit and, when asked for, the
@@ -2162,7 +2166,7 @@ each with the line after it as any ranged read serves it (ADR-161), and
 				if errors.As(err, &exit) {
 					return err
 				}
-				return cli.Exit(err, exitUsage)
+				return exitWith(err)
 			}
 			if set.Note != "" {
 				fmt.Printf("# %s\n", set.Note)
@@ -2213,7 +2217,7 @@ touched, which is a finding about the machine and not about your change.`,
 				} else {
 					reportSteps(os.Stdout, then)
 				}
-				return cli.Exit(err, exitUsage)
+				return exitWith(err)
 			}
 			// ADR-095: mrw check asks for nothing but a check, so at the depth
 			// limit it is refused in every form, before anything runs — and
@@ -2272,7 +2276,7 @@ touched, which is a finding about the machine and not about your change.`,
 				enc := json.NewEncoder(os.Stdout)
 				enc.SetIndent("", "  ")
 				if err := enc.Encode(checkReceipt{Result: res, Then: then}); err != nil {
-					return cli.Exit(err, exitUsage)
+					return exitWith(err)
 				}
 			} else {
 				reportCheck(os.Stdout, &res)
@@ -2524,11 +2528,11 @@ func report(w *os.File, res apply.Result, quiet bool) {
 func prune(root string, dry bool) error {
 	entries, err := state.Entries()
 	if err != nil {
-		return cli.Exit(err, exitUsage)
+		return exitWith(err)
 	}
 	removed, err := state.Prune(root, entries, dry)
 	if err != nil {
-		return cli.Exit(err, exitUsage)
+		return exitWith(err)
 	}
 
 	// Two words, not one: "removed" prefixes a line about ONE directory and

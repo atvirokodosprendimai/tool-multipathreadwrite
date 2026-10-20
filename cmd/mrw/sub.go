@@ -51,7 +51,7 @@ func servePlan(root string, b *read.Built) error {
 	if toNullDevice(os.Stdout) {
 		fmt.Fprintln(os.Stderr, "mrw: the answer went to the null device, so nothing was recorded: a write to these lines needs a read whose answer you see (ADR-133)")
 	} else if err := seen.Record(root, b.Observed); err != nil {
-		return cli.Exit(err, exitUsage)
+		return exitWith(err)
 	}
 	if b.Problems > 0 {
 		return cli.Exit(fmt.Sprintf("incomplete: %d range(s) could not be served", b.Problems), exitNotApplied)
