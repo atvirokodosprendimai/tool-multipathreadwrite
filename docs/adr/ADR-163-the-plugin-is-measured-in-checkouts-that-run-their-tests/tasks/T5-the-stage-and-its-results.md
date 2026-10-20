@@ -54,7 +54,7 @@ blocks=$(ls -d $R/block-*/ | wc -l | tr -d ' ')
   && test "$(jq -r -s '[.[].plugin | select(. != null) | .commit] | unique | length' $R/block-*/*.receipt.json)" = 1 \
   && test "$(jq -r -s '[.[].checks_sha256] | unique | length' $R/block-*/run.json)" = 1 \
   && test "$(jq -r -s '[.[].work_line_sha256] | unique | length' $R/block-*/run.json)" = 1 \
-  && grep -q '^## Stage 6' docs/bench/RESULTS.md
+  && grep '^## Stage 6' docs/bench/RESULTS.md > /tmp/adr163-s6.txt
 ```
 
 The fence goes green only when every look has a valid verdict file for each model and pair, every next block ran exactly A plus the arms its previous look left open, a stopped pair kept the same verdict at every later look, and the last look leaves no pair open or every surviving block has run. Each block is verified against its own instance count, so a partial last block passes.
