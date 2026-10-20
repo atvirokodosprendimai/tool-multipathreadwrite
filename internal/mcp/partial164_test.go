@@ -59,4 +59,17 @@ func TestTheMCPTextKeepsTheCountOutsideTheScopedCheck(t *testing.T) {
 			t.Errorf("the list survived a ceiling that dropped the receipt:\n%s", text)
 		}
 	})
+
+	t.Run("a failed check keeps the count too", func(t *testing.T) {
+		restore := MaxResultChars
+		MaxResultChars = minWriteCeiling()
+		t.Cleanup(func() { MaxResultChars = restore })
+		files := map[string]string{"a.go": "package a\nfunc A() {}\n", "run.sh": "true\n",
+			".quality-harness.json": `{"check":"echo WHOLE","scoped_check":"false {packages}"}`}
+		res := call(t, licensed(t, files), "mrw_write", map[string]any{"plan": plan})
+		text := firstText(t, res)
+		if !strings.Contains(text, "Its check did not pass") || !strings.Contains(text, "1 file(s) were outside the scoped check") {
+			t.Fatalf("at ceiling %d a failed check lost the count:\n%s", MaxResultChars, text)
+		}
+	})
 }

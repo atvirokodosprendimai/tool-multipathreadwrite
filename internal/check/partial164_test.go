@@ -89,6 +89,17 @@ func TestAWriteThatPlacesSomeFilesRunsThoseAndNamesTheRest(t *testing.T) {
 		t.Errorf("a result with nothing outside printed %q", got)
 	}
 
+	// The files left out are taken with the command, before it runs: a check
+	// that removes one still names it (the Codex review of #467).
+	if err := os.WriteFile(filepath.Join(root, "gone.sh"), []byte("true\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	rm := Config{Check: whole, ScopedCheck: "echo {packages} && rm gone.sh"}
+	res, err = Run(context.Background(), root, rm, []string{"a/a.go", "gone.sh"})
+	if err != nil || !reflect.DeepEqual(res.OutsideScope, []string{"gone.sh"}) {
+		t.Errorf("a check that removed a file it ran without: outside %v, err %v", res.OutsideScope, err)
+	}
+
 	// ADR-042: a path that is not there is refused, with or without the flag,
 	// and a module file that is there is never handed to Run when missing.
 	for _, opts := range [][]Option{nil, {Whole()}} {
@@ -97,4 +108,11 @@ func TestAWriteThatPlacesSomeFilesRunsThoseAndNamesTheRest(t *testing.T) {
 			t.Errorf("a missing path was not refused: %v", err)
 		}
 	}
+}
+
+// command is scope without the files left out: the shape the scoping tests
+// were written against.
+func command(root string, cfg Config, paths []string) (cmdline string, scoped bool) {
+	cmdline, scoped, _ = scope(root, cfg, paths)
+	return cmdline, scoped
 }

@@ -301,9 +301,11 @@ func Run(ctx context.Context, root string, cfg Config, editedPaths []string, opt
 		// verdict out of, and exit_code 0 is one (ADR-101).
 		return Result{Declared: cfg.declared, ExitCode: -1}, err
 	}
-	cmdline, scoped := command(root, cfg, editedPaths)
+	// The files left out are taken here, with the command: the check, or a
+	// writer beside it, can change what placing them would answer afterwards.
+	cmdline, scoped, outside := scope(root, cfg, editedPaths)
 	if o.whole && packagesOnly(cfg) {
-		cmdline, scoped = cfg.Check, false
+		cmdline, scoped, outside = cfg.Check, false, nil
 	}
 	if cmdline == "" {
 		return Result{Declared: cfg.declared, Skipped: "no check declared and no go.mod found", ExitCode: -1}, nil
@@ -323,8 +325,8 @@ func Run(ctx context.Context, root string, cfg Config, editedPaths []string, opt
 	if err != nil {
 		return res, err
 	}
-	if scoped && res.Ran && packagesOnly(cfg) {
-		_, res.OutsideScope = place(root, editedPaths)
+	if scoped && res.Ran && len(outside) > 0 {
+		res.OutsideScope = outside
 		res.outsideTemplate = cfg.ScopedCheck
 	}
 	res.Hint = scopeHint(cfg, scoped, editedPaths, res)
@@ -595,12 +597,12 @@ func confine(root string, paths []string) error {
 	return nil
 }
 
-// placeholders are the tokens command substitutes into scoped_check, in the
-// order Placeholder looks for them. A token added to command belongs here too.
+// placeholders are the tokens scope substitutes into scoped_check, in the
+// order Placeholder looks for them. A token added to scope belongs here too.
 var placeholders = []string{"{packages}", "{files}", "{dirs}"}
 
 // Placeholder returns the first of {packages}, {files} and {dirs} that cmdline holds,
-// or "" when it holds neither. command is the one place mrw gives the tokens a
+// or "" when it holds neither. scope is the one place mrw gives the tokens a
 // meaning; a step runs as written, so a step command holding one is refused
 // rather than run with the literal text (ADR-094).
 func Placeholder(cmdline string) string {
@@ -612,7 +614,7 @@ func Placeholder(cmdline string) string {
 	return ""
 }
 
-// command chooses between the scoped and whole-project forms.
+// scope chooses between the scoped and whole-project forms.
 //
 // When every path maps to a Go package, the scoped form runs and both
 // {packages} and {files} are substituted.
@@ -626,25 +628,33 @@ func Placeholder(cmdline string) string {
 // a {packages}-only template that places only SOME paths runs over those and
 // Run names the rest in Result.OutsideScope (ADR-164 Decision 4).
 //
-// root is needed to tell a directory from a typo; see packages. The tokens it
+// It also returns the files a {packages}-only template ran without, taken
+// here with the command because the check, or a writer beside it, can change
+// what placing them would answer afterwards. A template with {files} or {dirs}
+// hands every path to the command, so it leaves none out.
+//
+// root is needed to tell a directory from a typo; see place. The tokens it
 // substitutes are listed in placeholders, which Placeholder reports (ADR-094).
-func command(root string, cfg Config, paths []string) (cmdline string, scoped bool) {
+func scope(root string, cfg Config, paths []string) (cmdline string, scoped bool, outside []string) {
 	if cfg.ScopedCheck == "" {
-		return cfg.Check, false
+		return cfg.Check, false, nil
 	}
-	pkgs, _ := place(root, paths)
+	pkgs, aside := place(root, paths)
 	if len(pkgs) > 0 {
 		r := strings.NewReplacer("{packages}", shellArgs(pkgs), "{files}", shellArgs(paths), "{dirs}", shellArgs(dirsOf(root, paths)))
-		return r.Replace(cfg.ScopedCheck), true
+		if packagesOnly(cfg) {
+			outside = aside
+		}
+		return r.Replace(cfg.ScopedCheck), true, outside
 	}
 	// ADR-061, ADR-124: a template of {files} or {dirs}, and no {packages},
 	// names every path the caller wrote, so it runs scoped for any language.
 	portable := strings.Contains(cfg.ScopedCheck, "{files}") || strings.Contains(cfg.ScopedCheck, "{dirs}")
 	if len(paths) > 0 && portable && !strings.Contains(cfg.ScopedCheck, "{packages}") {
 		r := strings.NewReplacer("{files}", shellArgs(paths), "{dirs}", shellArgs(dirsOf(root, paths)))
-		return r.Replace(cfg.ScopedCheck), true
+		return r.Replace(cfg.ScopedCheck), true, nil
 	}
-	return cfg.Check, false
+	return cfg.Check, false, nil
 }
 
 // Option changes how Run chooses its command.

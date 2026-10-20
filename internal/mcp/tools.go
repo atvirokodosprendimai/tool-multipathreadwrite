@@ -1443,7 +1443,7 @@ func checkPhrase(c *check.Result, checkErr error) string {
 		}
 		return " Its check passed."
 	}
-	return fmt.Sprintf(" Its check did not pass (exit %d): the tree is changed and unverified.", c.ExitCode)
+	return fmt.Sprintf(" Its check did not pass (exit %d): the tree is changed and unverified.", c.ExitCode) + leftOut(len(c.OutsideScope))
 }
 
 // passedOutside is the terminal phrase for a check that passed over the
@@ -1453,9 +1453,18 @@ func passedOutside(n int) string {
 	return fmt.Sprintf(" Its check passed for the packages it could place; %d file(s) were outside it.", n)
 }
 
+// leftOut is what a check that did not pass adds when its scoped command left
+// n files out: the count survives the ceiling whatever the verdict.
+func leftOut(n int) string {
+	if n == 0 {
+		return ""
+	}
+	return fmt.Sprintf(" %d file(s) were outside the scoped check.", n)
+}
+
 // longestCheckPhrase is the widest checkPhrase can be: a failed check at the
-// widest exit code, or a pass that left the widest count out.
-var longestCheckPhrase = longer(checkPhrase(&check.Result{Ran: true, ExitCode: math.MinInt}, nil), passedOutside(math.MaxInt))
+// widest exit code that left the widest count out, or a pass that did.
+var longestCheckPhrase = longer(checkPhrase(&check.Result{Ran: true, ExitCode: math.MinInt}, nil)+leftOut(math.MaxInt), passedOutside(math.MaxInt))
 
 func longer(a, b string) string {
 	if len(b) > len(a) {
