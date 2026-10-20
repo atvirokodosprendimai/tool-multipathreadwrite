@@ -9,8 +9,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/urfave/cli/v3"
-
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/state"
 )
 
@@ -34,9 +32,10 @@ func hinted(t *testing.T, name string, err error, want ...string) {
 
 // A failure in mrw's state directory is named as mrw's, with the variable that
 // moves it, whether XDG_STATE_HOME is set or not, whether the error reaches
-// main bare or through cli.Exit (whose error has no Unwrap), and whatever the
-// call prefixed to it. A file where a directory must go fails for any user,
-// root included. The pair: an error outside the state directory is unchanged.
+// main bare or through exitWith, and whatever the call wrapped it in. A file
+// where a directory must go fails for any user, root included. The pair: an
+// error that is not about the state directory is unchanged, a refusal that
+// echoes caller text naming the base among them.
 func TestAStateDirectoryThatCannotBeMadeNamesTheVariableThatMovesIt(t *testing.T) {
 	name := "state: data" // ": " inside a path name
 	if runtime.GOOS == "windows" {
@@ -52,14 +51,14 @@ func TestAStateDirectoryThatCannotBeMadeNamesTheVariableThatMovesIt(t *testing.T
 	t.Setenv("XDG_STATE_HOME", base)
 	_, err := state.Dir(t.TempDir())
 	hinted(t, "mkdir under the base", err, "under XDG_STATE_HOME="+base)
-	hinted(t, "through cli.Exit", cli.Exit(err, 2), "under XDG_STATE_HOME="+base)
+	hinted(t, "through exitWith", exitWith(err), "under XDG_STATE_HOME="+base)
 
-	// What seen.save says when the ledger's rename fails: a prefix, then the error.
+	// What seen.save returns when the ledger's rename fails: its words, then %w.
 	ledger := filepath.Join(base, "mrw", "0123456789abcdef", "seen")
 	renamed := &os.LinkError{Op: "rename", Old: ledger + ".tmp", New: ledger, Err: os.ErrPermission}
-	hinted(t, "a ledger that could not be updated", cli.Exit(errors.New("the read ledger could not be updated; whatever this call already did stands: "+renamed.Error()), 2))
+	hinted(t, "a ledger that could not be updated", exitWith(fmt.Errorf("the read ledger could not be updated; whatever this call already did stands: %w", renamed)))
 
-	// What prune says when the home itself cannot be opened: os.OpenRoot of
+	// What prune returns when the home itself cannot be opened: os.OpenRoot of
 	// base's parent, here a file.
 	file := filepath.Join(t.TempDir(), "home")
 	if err := os.WriteFile(file, nil, 0o600); err != nil {
@@ -67,7 +66,7 @@ func TestAStateDirectoryThatCannotBeMadeNamesTheVariableThatMovesIt(t *testing.T
 	}
 	t.Setenv("XDG_STATE_HOME", file)
 	_, err = os.OpenRoot(file)
-	hinted(t, "prune opening the state home", cli.Exit(err, 2))
+	hinted(t, "prune opening the state home", exitWith(err))
 
 	home := t.TempDir()
 	if err := os.WriteFile(filepath.Join(home, ".local"), nil, 0o600); err != nil {
@@ -77,24 +76,42 @@ func TestAStateDirectoryThatCannotBeMadeNamesTheVariableThatMovesIt(t *testing.T
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
 	_, err = state.Dir(t.TempDir())
-	hinted(t, "a parent of the default base", cli.Exit(err, 2), "XDG_STATE_HOME is not set")
+	hinted(t, "a parent of the default base", exitWith(err), "XDG_STATE_HOME is not set")
 
-	_, other := os.ReadFile(filepath.Join(t.TempDir(), "missing"))
-	if !errors.Is(other, os.ErrNotExist) {
-		t.Fatalf("the pair's fixture: %v", other)
-	}
-	if got := stateHint(other); got != other {
-		t.Errorf("an error outside the state directory was changed: %q", got)
-	}
-	if got := stateHint(cli.Exit(other, 2)); got.Error() != other.Error() {
-		t.Errorf("an error outside the state directory was changed through cli.Exit: %q", got)
-	}
 	b, err := state.Base()
 	if err != nil {
 		t.Fatal(err)
 	}
-	echoed := cli.Exit(fmt.Errorf("unknown --format %q", "open "+filepath.Join(b, "x")), 2)
-	if got := stateHint(echoed); got.Error() != echoed.Error() {
-		t.Errorf("a refusal echoing the caller's text was given the hint: %q", got)
+	_, missing := os.ReadFile(filepath.Join(t.TempDir(), "missing"))
+	if !errors.Is(missing, os.ErrNotExist) {
+		t.Fatalf("the pair's fixture: %v", missing)
+	}
+	echoed := fmt.Errorf("unknown --format %q", "bad: open "+filepath.Join(b, "x"))
+	for _, e := range []error{missing, exitWith(missing), exitWith(echoed)} {
+		if got := stateHint(e); got != e {
+			t.Errorf("an error that is not about the state directory was changed: %q", got)
+		}
+	}
+}
+
+// Every command fails through exitWith, never cli.Exit, when it has an error to
+// fail on: cli.Exit's error has no Unwrap, so stateHint could not see a
+// state-directory failure under it. A new `cli.Exit(err, ` fails this.
+func TestNoCommandExitsWithAnErrorThroughCliExit(t *testing.T) {
+	files, err := filepath.Glob("*.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range files {
+		if strings.HasSuffix(f, "_test.go") {
+			continue
+		}
+		src, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(src), "cli.Exit(err, ") {
+			t.Errorf("%s calls cli.Exit(err, …); use exitWith so the error stays unwrappable", f)
+		}
 	}
 }
