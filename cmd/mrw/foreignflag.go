@@ -7,6 +7,8 @@ import "strings"
 // equivalent was run against the built binary on 2026-10-10, not read from a
 // document. -v and -o were left out then for having no equivalent; ADR-164 T5
 // gives them the honest pointer that there is none. -z still has no pointer.
+// A flag mrw itself defines, typed after a subcommand that refused it, is
+// answered before this table, with its home spelling (rootFlagHint, ADR-165).
 var foreignFlags = map[string]string{
 	"i":       "case-insensitive: start the pattern with (?i), as in --grep '(?i)PATTERN'",
 	"n":       "line numbers are printed by default; -N drops them",

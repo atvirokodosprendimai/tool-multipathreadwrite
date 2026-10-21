@@ -428,11 +428,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 			for _, p := range walkProblems {
 				report += fmt.Sprintf("\n-- %s: %s", p.Path, p.Reason)
 			}
-			return readResult(withSkipped(map[string]any{
-				"observed": map[string]seen.Observation{},
-				"problems": len(walkProblems),
-				"matches":  0,
-			}, skipped), report, len(walkProblems) > 0)
+			return readResult(NoMatchReceipt(len(walkProblems), skipped), report, len(walkProblems) > 0)
 		}
 	} else if a.Grep != "" {
 		var err error
@@ -454,11 +450,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 			for _, p := range walkProblems {
 				report += fmt.Sprintf("\n-- %s: %s", p.Path, p.Reason)
 			}
-			return readResult(withSkipped(map[string]any{
-				"observed": map[string]seen.Observation{},
-				"problems": len(walkProblems),
-				"matches":  0,
-			}, skipped), report, len(walkProblems) > 0)
+			return readResult(NoMatchReceipt(len(walkProblems), skipped), report, len(walkProblems) > 0)
 		}
 	} else {
 		specs = make([]read.Spec, 0, len(a.Specs))
@@ -622,10 +614,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// ADR-024 removed the flag from answers that DELIVERED something; this restores
 	// it for the one case its enumeration missed, so :202 and this return agree
 	// rather than disagreeing on whether `grep` was passed.
-	served, rpcErr := readResult(withCounts(withSkipped(map[string]any{
-		"observed": slashKeys(observed, filepath.Separator),
-		"problems": problems,
-	}, skipped), counts), report, len(observed) == 0)
+	served, rpcErr := readResult(ReadReceipt(observed, problems, skipped, counts), report, len(observed) == 0)
 	if rpcErr != nil {
 		return callToolResult{}, rpcErr
 	}
@@ -673,10 +662,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 			marked += newerLine(root)
 		}
 		if marked != report {
-			markedServed, markErr := readResult(withCounts(withSkipped(map[string]any{
-				"observed": slashKeys(observed, filepath.Separator),
-				"problems": problems,
-			}, skipped), counts), marked, false)
+			markedServed, markErr := readResult(ReadReceipt(observed, problems, skipped, counts), marked, false)
 			if markErr != nil {
 				return callToolResult{}, markErr
 			}
