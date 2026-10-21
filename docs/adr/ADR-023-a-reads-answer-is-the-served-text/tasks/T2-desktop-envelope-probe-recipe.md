@@ -94,3 +94,4 @@ Stop if the probe finds a host defect that needs an engine ADR — that is a new
   FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/adversarial	0.389s
   FAIL
   ```
+- 2026-10-21 · f770e7fc · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:1eb5a3f3aa491687d58d15aace5e910100c5222b89f1e3acebd555663b4b650a · ms:0 · test-lock-sha256:e5f3c18d10c0bc3fd4d8c4a6e2b84f4daec2302fb01d19ab753e260bcfde2f54 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJaW50ZXJuYWwvYWR2ZXJzYXJpYWwvZGVza3RvcF9wcm9iZV90ZXN0LmdvCVRlc3RBblVucnVuRGVza3RvcFByb2JlSXNOb3RBTWlzc1JhdGUJODhhODUyNjg0ZDMwYWFkYzU3MTFkYzA3MjMxNjU4NTczOWQyZjFjYjZmY2U3ZWRkZGQ1YzcwYjcyOTA0NTRlMApib2R5CWludGVybmFsL2FkdmVyc2FyaWFsL2Rlc2t0b3BfcHJvYmVfdGVzdC5nbwlUZXN0VGhlRGVza3RvcEVudmVsb3BlUHJvYmVSZWNpcGVJc0ZpbGVkCTYyYWY0ZjAyNGE5NmNjMzE4NTVkZGFmMDAyYzU5MWQxMmMzMzhkYjIxZGMxY2FmNWM5OWQ2Y2NmODE0YjllYjI · test-lock-kind:replace
