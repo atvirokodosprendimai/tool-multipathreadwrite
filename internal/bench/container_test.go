@@ -81,7 +81,7 @@ func seedImage(t *testing.T, root string) {
 	activate := "export PATH=" + shellQuote(filepath.Join(root, "fakebin")) + ":$PATH\n"
 	put(t, filepath.Join(root, "opt", "miniconda3", "bin", "activate"), activate, 0o644)
 	py := "#!/bin/sh\nROOT=" + shellQuote(root) + "\ncase \"$*\" in\n" +
-		"*sys.platform*) cat \"$ROOT/platform\" 2>/dev/null || echo linux; exit 0;;\n" +
+		"*sys.platform*) cat \"$ROOT/platform\" 2>/dev/null || echo linux; if [ -e \"$ROOT/sick\" ]; then exit 3; fi; exit 0;;\n" +
 		"*create_connection*) if [ -e \"$ROOT/net-open\" ]; then echo open; else echo blocked; fi; exit 0;;\n" +
 		"esac\nif [ \"$1\" = -c ]; then exec sh -c \"$2\"; fi\n" +
 		"echo \"$(basename \"$0\") $*\"\n"
@@ -108,6 +108,9 @@ exec)
 	case "$*" in *"git apply"*) if [ -e "$ROOT/break-apply" ]; then echo "error: patch failed: notes.txt:1" >&2; exit 1; fi;; esac
 	case "$*" in *"git init -q"*) if [ -e "$ROOT/skew" ]; then echo extra > "$ROOT/testbed/skew.txt"; fi;; esac
 	if [ -n "$dir" ]; then cd "$dir"; fi
+	if [ -e "$ROOT/slow-sync" ]; then for i in "${!args[@]}"; do case "${args[$i]}" in *pid.sync*) args[$i]="${args[$i]//git reset -q --hard/sleep 30; git reset -q --hard}";; esac; done; fi
+	if [ -e "$ROOT/slow-kill" ]; then for i in "${!args[@]}"; do case "${args[$i]}" in *pid.sync*) args[$i]="${args[$i]//for f in /sleep 30; for f in }";; esac; done; fi
+	if [ -e "$ROOT/slow-post" ]; then for i in "${!args[@]}"; do case "${args[$i]}" in *pid.post*) args[$i]="${args[$i]//git diff-tree/sleep 30; git diff-tree}";; esac; done; fi
 	if [ -e "$ROOT/leftover" ]; then if [ -e "$ROOT/leader" ]; then set -m; fi; "${args[@]}" <&0 & wait $!; exit $?; fi
 	exec "${args[@]}";;
 *) exit 0;;
@@ -243,6 +246,7 @@ func (g *stage6Rig) claude(pre string, commands ...string) {
 // container starts.
 func TestStage6ShimsRunInTheInstanceContainer(t *testing.T) {
 	t.Run("the variables of the command are forwarded", theCommandVariablesAreForwarded)
+	t.Run("the built bench runs a shim transaction", theBuiltBenchRunsAShim)
 	for _, profile := range []string{"", ProfileStage5} {
 		g := newStage6Rig(t)
 		o := g.opts
@@ -447,6 +451,7 @@ func TestTheContainerHasNoNetworkAndNoHistory(t *testing.T) {
 // check file syncs.
 func TestAShimStartsFromTheHostBaseAndKeepsWhatPythonWrote(t *testing.T) {
 	t.Run("a failed write-back is counted apart", aFailedWriteBackIsCountedApart)
+	t.Run("a file that becomes ignored is kept", aFileThatBecomesIgnoredIsKept)
 	g := newStage6Rig(t)
 	cfg := g.start()
 	tb := filepath.Join(g.root, "testbed")
@@ -524,6 +529,7 @@ func TestShimCallsTakeTurnsAndNeverTouchTheIndex(t *testing.T) {
 	t.Run("an orphaned command is killed", anOrphanedCommandIsKilled)
 	t.Run("a signal kills the container command", aSignalKillsTheContainerCommand)
 	t.Run("a command group is killed with its leader", aCommandGroupIsKilledWithItsLeader)
+	t.Run("a shim killed mid-sync leaves no shell behind", aShimKilledMidSyncLeavesNoShellBehind)
 	g := newStage6Rig(t)
 	cfg := g.start()
 	order := filepath.Join(g.work, "order")
@@ -590,6 +596,7 @@ func TestShimCallsTakeTurnsAndNeverTouchTheIndex(t *testing.T) {
 func TestAShimRefusesAPathOutsideTheTreeAndCountsHostCalls(t *testing.T) {
 	t.Run("the longest spelling of the tree maps first", theLongestSpellingMapsFirst)
 	t.Run("an unlogged call matches no log entry", anUnloggedCallMatchesNoLogEntry)
+	t.Run("a tree path needs a boundary", aTreePathNeedsABoundary)
 	g := newStage6Rig(t)
 	cfg := g.start()
 	outside := t.TempDir()
@@ -621,6 +628,15 @@ func TestAShimRefusesAPathOutsideTheTreeAndCountsHostCalls(t *testing.T) {
 		{"env -i python3 t.py", 1, 0, 0},
 		{"command -p python3 t.py", 1, 0, 0},
 		{"xcrun python3 t.py", 1, 0, 0},
+		{"env PATH=/usr/bin python3 -c 1", 1, 0, 0},
+		{"python -c 'print(\"env PATH=/usr/bin python3 -V\")'", 0, 1, 0},
+		{"cd x && env PATH=/usr/bin python3 -V", 1, 0, 0},
+		{"echo $(ls) && env PATH=/usr/bin python3 -V", 1, 0, 0},
+		{"echo env PATH=/usr/bin python3 -V", 0, 0, 0},
+		{"env - python3 t.py", 1, 0, 0},
+		{"env --ignore-environment python3 t.py", 1, 0, 0},
+		{"env -u X PATH=/x pytest", 1, 0, 0},
+		{"env FOO=1 python3 t.py", 0, 0, 0},
 		{"pytest -q tests/", 0, 1, 0},
 		{"FOO=1 python3 -m pytest", 0, 1, 0},
 		{"cd sub; python t.py && pytest", 0, 2, 0},
@@ -992,5 +1008,145 @@ func aCommandGroupIsKilledWithItsLeader(t *testing.T) {
 	}
 	if alive() {
 		t.Error("a child of the command survived: only its leader was killed")
+	}
+}
+
+// aFileThatBecomesIgnoredIsKept: a file the sync brought and the command then
+// ignored by an entry in .gitignore is still there afterwards, and is not
+// deleted from the tree by the write-back.
+func aFileThatBecomesIgnoredIsKept(t *testing.T) {
+	g := newStage6Rig(t)
+	cfg := g.start()
+	put(t, filepath.Join(cfg.Tree, "new.py"), "x = 1\n", 0o644)
+	if _, stderr, code := g.shim(cfg, cfg.Tree, "python", "-c", "echo new.py >> .gitignore"); code != 0 {
+		t.Fatalf("the shim call failed: %d %s", code, stderr)
+	}
+	if b, err := os.ReadFile(filepath.Join(cfg.Tree, "new.py")); err != nil || string(b) != "x = 1\n" {
+		t.Errorf("new.py was lost to the write-back: %q %v", b, err)
+	}
+	if b, _ := os.ReadFile(filepath.Join(cfg.Tree, ".gitignore")); !strings.Contains(string(b), "new.py") {
+		t.Errorf("the change to .gitignore did not reach the tree: %q", b)
+	}
+	// A file the command really deleted is deleted from the tree.
+	if _, stderr, code := g.shim(cfg, cfg.Tree, "python", "-c", "rm notes.txt"); code != 0 {
+		t.Fatalf("the deleting shim call failed: %d %s", code, stderr)
+	}
+	if exists(filepath.Join(cfg.Tree, "notes.txt")) {
+		t.Error("a file the command deleted is still in the tree")
+	}
+}
+
+// aTreePathNeedsABoundary: the path of the tree is mapped where it ends, not
+// inside the name of a sibling directory.
+func aTreePathNeedsABoundary(t *testing.T) {
+	c := shimConfig{Tree: "/x/tree"}
+	got := c.mapArgs([]string{"/x/tree-backup/f", "/x/tree/f", "open('/x/tree')", "PYTHONPATH=/x/tree:/other", "/x/tree", "/x/tree.py", "/prefix/x/tree/f", "/x/tree\u00e9/f", "/x//x/tree"})
+	want := []string{"/x/tree-backup/f", "/testbed/f", "open('/testbed')", "PYTHONPATH=/testbed:/other", "/testbed", "/x/tree.py", "/prefix/x/tree/f", "/x/tree\u00e9/f", "/x//x/tree"}
+	if !slices.Equal(got, want) {
+		t.Errorf("mapped %q, want %q", got, want)
+	}
+}
+
+// theBuiltBenchRunsAShim: the bench that ships answers `bench shim`, not only
+// the dispatcher of this test binary: one transaction through a built cmd/bench.
+func theBuiltBenchRunsAShim(t *testing.T) {
+	g := newStage6Rig(t)
+	bin := filepath.Join(t.TempDir(), "bench")
+	build := exec.Command("go", "build", "-o", bin, "github.com/atvirokodosprendimai/tool-multipathreadwrite/cmd/bench")
+	if out, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("go build cmd/bench: %v: %s", err, out)
+	}
+	cfg := g.start()
+	cfg.Bench = bin
+	tools := filepath.Join(t.TempDir(), "tools")
+	if err := os.Mkdir(tools, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeShims(tools, *cfg); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command(filepath.Join(tools, "python"), "-c", "echo built")
+	cmd.Dir = cfg.Tree
+	out, err := cmd.Output()
+	if err != nil || string(out) != "built\n" {
+		t.Errorf("a shim run by the built bench printed %q: %v", out, err)
+	}
+}
+
+// aShimKilledMidSyncLeavesNoShellBehind: the shell of a sync records a pid of
+// its own. A signal to the shim kills it; a shim killed outright leaves it, and
+// the next shim reaps it before it syncs.
+func aShimKilledMidSyncLeavesNoShellBehind(t *testing.T) {
+	t.Run("while the sync works", func(t *testing.T) { midSyncKill(t, "slow-sync", "sync") })
+	t.Run("while the sync cleans up after it registered", func(t *testing.T) { midSyncKill(t, "slow-kill", "sync") })
+	t.Run("while the write-back diffs", func(t *testing.T) { midSyncKill(t, "slow-post", "post") })
+}
+
+func midSyncKill(t *testing.T, knob, phase string) {
+	g := newStage6Rig(t)
+	cfg := g.start()
+	put(t, filepath.Join(g.root, "leftover"), "", 0o644)
+	put(t, filepath.Join(g.root, knob), "", 0o644)
+	put(t, filepath.Join(g.root, "leader"), "", 0o644)
+	pidFiles := filepath.Join(g.root, "opt", "bench", "pid."+phase+".*")
+	start := func() (*exec.Cmd, *os.Process) {
+		cmd := exec.Command(cfg.Bench, append([]string{"shim"}, append(cfg.args("python"), "-c", "true")...)...)
+		cmd.Dir = cfg.Tree
+		if err := cmd.Start(); err != nil {
+			t.Fatal(err)
+		}
+		for range 200 {
+			if matches, _ := filepath.Glob(pidFiles); len(matches) == 1 {
+				b, err := os.ReadFile(matches[0])
+				if n, aerr := strconv.Atoi(strings.TrimSpace(string(b))); err == nil && aerr == nil {
+					p, _ := os.FindProcess(n)
+					t.Cleanup(func() { _ = p.Kill() })
+					return cmd, p
+				}
+			}
+			time.Sleep(50 * time.Millisecond)
+		}
+		_ = cmd.Process.Kill()
+		t.Fatal("the sync never recorded its pid")
+		return nil, nil
+	}
+	alive := func(p *os.Process) bool { return p.Signal(syscall.Signal(0)) == nil }
+
+	cmd, sync1 := start()
+	if err := cmd.Process.Signal(syscall.SIGTERM); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
+	select {
+	case <-done:
+	case <-time.After(20 * time.Second):
+		_ = cmd.Process.Kill()
+		t.Error("the shim did not stop after the signal")
+	}
+	if alive(sync1) {
+		t.Error("the shell of the sync outlived a signal to its shim")
+	}
+
+	cmd, sync2 := start()
+	_ = cmd.Process.Kill()
+	_ = cmd.Wait()
+	if !alive(sync2) {
+		t.Fatal("the fixture did not leave a sync running")
+	}
+	if err := os.Remove(filepath.Join(g.root, knob)); err != nil {
+		t.Fatal(err)
+	}
+	if _, stderr, code := g.shim(cfg, cfg.Tree, "python", "-c", "true"); code != 0 {
+		t.Fatalf("the next shim call failed: %d %s", code, stderr)
+	}
+	for range 60 {
+		if !alive(sync2) {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if alive(sync2) {
+		t.Error("the next shim call did not reap the sync a killed shim left")
 	}
 }

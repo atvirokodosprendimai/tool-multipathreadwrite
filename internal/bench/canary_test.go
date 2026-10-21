@@ -194,6 +194,17 @@ func TestTheStage6CanaryProvesTheContainer(t *testing.T) {
 	if p := probeContainer(g.opts, task); len(p) == 0 {
 		t.Error("a container that is not linux passed the probe")
 	}
+	// The right output with a failing exit is a failed question.
+	if err := os.Remove(filepath.Join(g.root, "platform")); err != nil {
+		t.Fatal(err)
+	}
+	put(t, filepath.Join(g.root, "sick"), "", 0o644)
+	if p := probeContainer(g.opts, task); len(p) == 0 || !strings.Contains(strings.Join(p, " "), "failed") {
+		t.Errorf("a shim question that printed linux and exited 3 passed the probe: %v", p)
+	}
+	if err := os.Remove(filepath.Join(g.root, "sick")); err != nil {
+		t.Fatal(err)
+	}
 
 	// A stage6 canary needs the image its container checks run in, and may run
 	// while the profile is unsettled; bench run may not (T1 S1 settles it).

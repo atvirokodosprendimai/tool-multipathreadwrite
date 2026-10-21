@@ -113,6 +113,22 @@ out=$(go test ./internal/bench/ -count=1 -v -run '^(TestStage6ShimsRunInTheInsta
 - 2026-10-21 · 6715a44c* · mutant killed · exit 1 · `internal/bench/container.go` · group kill removed: a grandchild of the exec leader survives (a shim leaves no command running in the container) · acceptance-sha256:b5e9d851509447352957f53af14611f5e2ed14ae8edf72c8201079c76341357d
 - 2026-10-21 · 6715a44c* · mutant killed · exit 1 · `internal/bench/container.go` · fd-redirect digit kept as an arg: 2>&1 call counted unlogged (unlogged python calls are matched to the shim log) · acceptance-sha256:b5e9d851509447352957f53af14611f5e2ed14ae8edf72c8201079c76341357d
 - 2026-10-21 · 6715a44c* · mutant killed · exit 1 · `internal/bench/container.go` · sweep loses its stage value: another stage container is removed (the container start is checked, labelled and swept) · acceptance-sha256:b5e9d851509447352957f53af14611f5e2ed14ae8edf72c8201079c76341357d
+- 2026-10-21 · 73230f4a* · mutant killed · exit 1 · `internal/bench/container.go` · sync shell records no pid: a shim killed mid-sync leaves its shell for the next shim to race · acceptance-sha256:b5e9d851509447352957f53af14611f5e2ed14ae8edf72c8201079c76341357d
+- 2026-10-21 · 73230f4a* · mutant killed · exit 1 · `internal/bench/container.go` · env PATH=… python3 not counted: host python runs unseen · acceptance-sha256:b5e9d851509447352957f53af14611f5e2ed14ae8edf72c8201079c76341357d
+- 2026-10-21 · 73230f4a* · mutant killed · exit 1 · `internal/bench/container.go` · tree path mapped without a boundary: tree-backup is rewritten · acceptance-sha256:b5e9d851509447352957f53af14611f5e2ed14ae8edf72c8201079c76341357d
+- 2026-10-21 · 73230f4a* · mutant killed · exit 1 · `cmd/bench/main.go` · the built bench loses its shim dispatcher · acceptance-sha256:b5e9d851509447352957f53af14611f5e2ed14ae8edf72c8201079c76341357d
+- 2026-10-21 · 73230f4a* · mutant killed · exit 1 · `internal/bench/container.go` · post snapshot drops the sync paths: a file that becomes ignored is deleted on the host · acceptance-sha256:b5e9d851509447352957f53af14611f5e2ed14ae8edf72c8201079c76341357d
+- 2026-10-21 · 73230f4a* · mutant killed · exit 1 · `internal/bench/container.go` · a container shell reaps the pid file naming itself · acceptance-sha256:b5e9d851509447352957f53af14611f5e2ed14ae8edf72c8201079c76341357d · covers:a shim leaves no command running in the container
+- 2026-10-21 · 73230f4a* · mutant killed · exit 1 · `internal/bench/container.go` · a path that merely ends in the tree path is mapped · acceptance-sha256:b5e9d851509447352957f53af14611f5e2ed14ae8edf72c8201079c76341357d · covers:a shim maps the tree and nothing outside it
+- 2026-10-21 · 73230f4a* · mutant killed · exit 1 · `internal/bench/container.go` · sync shell registers after its cleanup: a shim killed during cleanup leaves an unregistered shell · acceptance-sha256:b5e9d851509447352957f53af14611f5e2ed14ae8edf72c8201079c76341357d
+- 2026-10-21 · 73230f4a* · mutant killed · exit 1 · `internal/bench/container.go` · one fixed pid.sync name: a new shell overwrites an orphan record before reaping it · acceptance-sha256:b5e9d851509447352957f53af14611f5e2ed14ae8edf72c8201079c76341357d
+- 2026-10-21 · 73230f4a* · mutant survived · exit 0 · `internal/bench/container.go` · the write-back shell unregisters before its diff · acceptance-sha256:b5e9d851509447352957f53af14611f5e2ed14ae8edf72c8201079c76341357d · covers:a shim leaves no command running in the container
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
+- 2026-10-21 · 73230f4a* · mutant killed · exit 1 · `internal/bench/container.go` · the write-back shell unregisters before its diff · acceptance-sha256:b5e9d851509447352957f53af14611f5e2ed14ae8edf72c8201079c76341357d · covers:a shim leaves no command running in the container
+- 2026-10-21 · 73230f4a* · mutant killed · exit 1 · `internal/bench/container.go` · env is taken as a command wherever it stands in the line · acceptance-sha256:b5e9d851509447352957f53af14611f5e2ed14ae8edf72c8201079c76341357d · covers:a shim maps the tree and nothing outside it
+- 2026-10-21 · 73230f4a* · mutant killed · exit 1 · `internal/bench/container.go` · text in quotes is read as commands · acceptance-sha256:b5e9d851509447352957f53af14611f5e2ed14ae8edf72c8201079c76341357d · covers:a shim maps the tree and nothing outside it
 
 ## Invariants
 
@@ -175,3 +191,16 @@ The fence exits 0 and S1 is recorded; or S1 shows the history cannot be removed,
 - 2026-10-21 · 6715a44c* · exit 0 · `set -o pipefail …` · acceptance-sha256:b5e9d851509447352957f53af14611f5e2ed14ae8edf72c8201079c76341357d · ms:33870
 - 2026-10-21 · 6715a44c* · exit 0 · `set -o pipefail …` · acceptance-sha256:b5e9d851509447352957f53af14611f5e2ed14ae8edf72c8201079c76341357d · ms:32798
 - 2026-10-21 · 6715a44c* · exit 0 · `set -o pipefail …` · acceptance-sha256:b5e9d851509447352957f53af14611f5e2ed14ae8edf72c8201079c76341357d · ms:32858
+- 2026-10-21 · 73230f4a* · exit 0 · `set -o pipefail …` · acceptance-sha256:b5e9d851509447352957f53af14611f5e2ed14ae8edf72c8201079c76341357d · ms:37534
+- 2026-10-21 · 73230f4a* · exit 0 · `set -o pipefail …` · acceptance-sha256:b5e9d851509447352957f53af14611f5e2ed14ae8edf72c8201079c76341357d · ms:41751
+- 2026-10-21 · 73230f4a* · exit 0 · `set -o pipefail …` · acceptance-sha256:b5e9d851509447352957f53af14611f5e2ed14ae8edf72c8201079c76341357d · ms:39454
+- 2026-10-21 · 73230f4a* · exit 0 · `set -o pipefail …` · acceptance-sha256:b5e9d851509447352957f53af14611f5e2ed14ae8edf72c8201079c76341357d · ms:32164
+- 2026-10-21 · 73230f4a* · exit 0 · `set -o pipefail …` · acceptance-sha256:b5e9d851509447352957f53af14611f5e2ed14ae8edf72c8201079c76341357d · ms:45705
+- 2026-10-21 · 73230f4a* · exit 0 · `set -o pipefail …` · acceptance-sha256:b5e9d851509447352957f53af14611f5e2ed14ae8edf72c8201079c76341357d · ms:138552
+- 2026-10-21 · 73230f4a* · exit 0 · `set -o pipefail …` · acceptance-sha256:b5e9d851509447352957f53af14611f5e2ed14ae8edf72c8201079c76341357d · ms:50439
+- 2026-10-21 · 73230f4a* · exit 0 · `set -o pipefail …` · acceptance-sha256:b5e9d851509447352957f53af14611f5e2ed14ae8edf72c8201079c76341357d · ms:114982
+- 2026-10-21 · 73230f4a* · exit 0 · `set -o pipefail …` · acceptance-sha256:b5e9d851509447352957f53af14611f5e2ed14ae8edf72c8201079c76341357d · ms:60299
+- 2026-10-21 · 73230f4a* · exit 0 · `set -o pipefail …` · acceptance-sha256:b5e9d851509447352957f53af14611f5e2ed14ae8edf72c8201079c76341357d · ms:69748
+- 2026-10-21 · 73230f4a* · exit 0 · `set -o pipefail …` · acceptance-sha256:b5e9d851509447352957f53af14611f5e2ed14ae8edf72c8201079c76341357d · ms:37555
+- 2026-10-21 · 73230f4a* · exit 0 · `set -o pipefail …` · acceptance-sha256:b5e9d851509447352957f53af14611f5e2ed14ae8edf72c8201079c76341357d · ms:46813
+- 2026-10-21 · 73230f4a* · exit 0 · `set -o pipefail …` · acceptance-sha256:b5e9d851509447352957f53af14611f5e2ed14ae8edf72c8201079c76341357d · ms:81755

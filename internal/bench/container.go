@@ -50,10 +50,19 @@ const settled = false
 // .gitignore covers (ADR-163 Decision 1), as git pathspecs.
 var syncExcludes = []string{":(exclude,glob)**/__pycache__/**", ":(exclude,glob)**/*.pyc", ":(exclude,glob)**/.pytest_cache/**"}
 
-// snapshotShell prints the tree object of /testbed as it is now, built in a
-// temporary index of its own: the container real index is never the record of
-// what a command changed.
-var snapshotShell = "export GIT_INDEX_FILE=" + containerTmp + "/index; git read-tree HEAD; git add -A -- . " + quotedExcludes() + "; git write-tree"
+// snapshotHead builds the tree of /testbed as it is now in a temporary index
+// of its own: the container real index is never the record of what a command
+// changed.
+var snapshotHead = "export GIT_INDEX_FILE=" + containerTmp + "/index; git read-tree HEAD; git add -A -- . " + quotedExcludes()
+
+// snapshotShell prints that tree object.
+var snapshotShell = snapshotHead + "; git write-tree"
+
+// snapshotAfter prints the tree object once a command has run, given the tree
+// of the sync as its first argument: every path that tree held and that is
+// still there stays in, whatever the ignore rules say now. A file that becomes
+// ignored in mid-command is not a deletion.
+var snapshotAfter = snapshotHead + "; git ls-tree -r --name-only -z " + "\"$1\"" + " | git update-index --add --remove -z --stdin; git write-tree"
 
 func quotedExcludes() string {
 	var q []string
@@ -259,16 +268,8 @@ func Shim(args []string, cwd string, stdin io.Reader, stdout, stderr io.Writer) 
 	}
 	defer unlock()
 	call.WaitMS = time.Since(start).Milliseconds()
-	synced, err := c.syncIn()
-	if err != nil {
-		call.SyncFailed = true
-		fmt.Fprintf(stderr, "bench shim: the change of the tree did not reach the container, so nothing ran: %v\n", err)
-		return 1
-	}
-	pre := append([]string{"exec", "-i"}, c.forwardedEnv(os.Environ())...)
-	run := append(pre, append([]string{"-w", joinBox(testbed, rel), c.Container, "bash", "-c", activateScript, "bash", name}, c.mapArgs(argv)...)...)
-	cmd := exec.Command(c.Docker, run...)
-	cmd.Stdin, cmd.Stdout, cmd.Stderr = stdin, stdout, stderr
+	// A signal from here on kills what the shim has in the container, the sync
+	// and the write-back included: their shells record a pid of their own.
 	sig := make(chan os.Signal, 1)
 	if sigs := subproc.Signals(); len(sigs) > 0 {
 		signal.Notify(sig, sigs...)
@@ -282,10 +283,22 @@ func Shim(args []string, cwd string, stdin io.Reader, stdout, stderr io.Writer) 
 		case <-stop:
 		}
 	}()
+	defer func() {
+		close(stop)
+		<-gone
+		signal.Stop(sig)
+	}()
+	synced, err := c.syncIn()
+	if err != nil {
+		call.SyncFailed = true
+		fmt.Fprintf(stderr, "bench shim: the change of the tree did not reach the container, so nothing ran: %v\n", err)
+		return 1
+	}
+	pre := append([]string{"exec", "-i"}, c.forwardedEnv(os.Environ())...)
+	run := append(pre, append([]string{"-w", joinBox(testbed, rel), c.Container, "bash", "-c", activateScript, "bash", name}, c.mapArgs(argv)...)...)
+	cmd := exec.Command(c.Docker, run...)
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = stdin, stdout, stderr
 	runErr := cmd.Run()
-	close(stop)
-	<-gone
-	signal.Stop(sig)
 	if runErr != nil {
 		var ee *exec.ExitError
 		if errors.As(runErr, &ee) {
@@ -321,12 +334,14 @@ func (c shimConfig) killOrphan() error {
 // killOrphanShell; a failed activation fails the call.
 var activateScript = "echo $$ > " + containerTmp + "/pid; if ! " + activateTestbed + " >/dev/null 2>&1; then echo bench shim: the testbed environment did not activate 1>&2; exit 126; fi; exec \"$@\""
 
-// killOrphanShell kills the command a shim left in the container, if its
-// process is still there, and waits for it to go. The shim records the pid of
-// the command in the container, and a docker exec client that dies does not
-// stop it. The pid goes with its group, which it leads when the image starts
-// an exec process as one (the group first, then the pid: ps may be absent).
-var killOrphanShell = `if [ -s ` + containerTmp + `/pid ]; then p=$(cat ` + containerTmp + `/pid); kill -KILL -$p 2>/dev/null || true; kill -KILL $p 2>/dev/null || true; i=0; while kill -0 $p 2>/dev/null && [ $i -lt 50 ]; do sleep 0.1; i=$((i+1)); done; fi; rm -f ` + containerTmp + `/pid`
+// killOrphanShell kills what a shim left in the container, if it is still
+// there, and waits for it to go. Every container shell of a transaction records
+// its pid in a file of its own under /opt/bench (pid for the command, pid.sync,
+// pid.post and pid.diff for the others), since a docker exec client that dies
+// does not stop its shell. Each pid goes with its group, which it leads when
+// the image starts an exec process as one (the group first, then the pid: ps
+// may be absent).
+var killOrphanShell = `for f in ` + containerTmp + `/pid ` + containerTmp + `/pid.*; do if [ -s "$f" ]; then p=$(cat "$f"); if [ "$p" != "$$" ]; then kill -KILL -$p 2>/dev/null || true; kill -KILL $p 2>/dev/null || true; i=0; while kill -0 $p 2>/dev/null && [ $i -lt 50 ]; do sleep 0.1; i=$((i+1)); done; rm -f "$f"; fi; else rm -f "$f"; fi; done`
 
 // neverForward names the variables a shim does not hand to the container: the
 // PATH, HOME and TMPDIR of the container stay its own, and so do the variables
@@ -409,11 +424,43 @@ func (c shimConfig) mapArgs(argv []string) []string {
 	out := make([]string, len(argv))
 	for i, a := range argv {
 		for _, s := range spellings {
-			a = strings.ReplaceAll(a, s, testbed)
+			a = replaceTree(a, s)
 		}
 		out[i] = a
 	}
 	return out
+}
+
+// replaceTree rewrites the path of the tree to /testbed where it ends: at the
+// end of the argument, before a slash, or before a character that cannot
+// continue a path name. /tmp/a/tree-backup is another directory than
+// /tmp/a/tree and stays as it is.
+func replaceTree(a, tree string) string {
+	var b strings.Builder
+	pos := 0
+	for {
+		i := strings.Index(a[pos:], tree)
+		if i < 0 {
+			b.WriteString(a[pos:])
+			return b.String()
+		}
+		i += pos
+		end := i + len(tree)
+		b.WriteString(a[pos:i])
+		startsHere := i == 0 || !(namePart(a[i-1]) || a[i-1] == 0x2f)
+		endsHere := end == len(a) || !namePart(a[end])
+		if startsHere && endsHere {
+			b.WriteString(testbed)
+		} else {
+			b.WriteString(tree)
+		}
+		pos = end
+	}
+}
+
+// namePart says whether c can continue a file name.
+func namePart(c byte) bool {
+	return c >= 0x30 && c <= 0x39 || c >= 0x41 && c <= 0x5a || c >= 0x61 && c <= 0x7a || c >= 0x80 || strings.IndexByte("._-+~@%", c) >= 0
 }
 
 // hostGit runs git in the tree with the extra environment and standard input.
@@ -464,8 +511,8 @@ func (c shimConfig) syncIn() (synced, error) {
 		return synced{}, err
 	}
 	patchFile := containerTmp + "/in.patch"
-	script := "set -e; " + killOrphanShell + "; mkdir -p " + containerTmp + "; cat > " + patchFile + "; cd " + testbed +
-		"; git reset -q --hard; git clean -fdq; if [ -s " + patchFile + " ]; then git apply --binary --whitespace=nowarn " + patchFile + "; fi; " + snapshotShell
+	script := "set -e; mkdir -p " + containerTmp + "; echo $$ > " + containerTmp + "/pid.sync.$$; " + killOrphanShell + "; cat > " + patchFile + "; cd " + testbed +
+		"; git reset -q --hard; git clean -fdq; if [ -s " + patchFile + " ]; then git apply --binary --whitespace=nowarn " + patchFile + "; fi; t1=$(" + snapshotShell + "); rm -f " + containerTmp + "/pid.sync.$$; printf '%s\n' " + "\"$t1\""
 	out, err := dockerRun(c.Docker, bytes.NewReader(patch), "exec", "-i", c.Container, "sh", "-c", script)
 	if err != nil {
 		return synced{}, err
@@ -488,7 +535,7 @@ func changedPaths(b []byte) []string {
 // path the host changed too since the sync is a conflict: it is not written,
 // and the caller names it.
 func (c shimConfig) writeBack(s synced) (written int, conflicts []string, err error) {
-	post := "set -e; " + killOrphanShell + "; cd " + testbed + "; t2=$(" + snapshotShell + "); printf '%s\n' " + "\"$t2\"; git diff-tree -r --name-only -z --no-renames \"$1\" \"$t2\""
+	post := "set -e; mkdir -p " + containerTmp + "; echo $$ > " + containerTmp + "/pid.post.$$; " + killOrphanShell + "; cd " + testbed + "; t2=$(" + snapshotAfter + "); printf '%s\n' " + "\"$t2\"; git diff-tree -r --name-only -z --no-renames \"$1\" \"$t2\"; rm -f " + containerTmp + "/pid.post.$$"
 	out, err := dockerRun(c.Docker, nil, "exec", c.Container, "sh", "-c", post, "sh", s.box)
 	if err != nil {
 		return 0, nil, err
@@ -521,7 +568,7 @@ func (c shimConfig) writeBack(s synced) (written int, conflicts []string, err er
 	if len(allowed) == 0 {
 		return 0, conflicts, nil
 	}
-	diff := "set -e; cd " + testbed + "; a=$1; b=$2; shift 2; GIT_LITERAL_PATHSPECS=1 git diff --binary --full-index --no-ext-diff \"$a\" \"$b\" -- \"$@\""
+	diff := "set -e; mkdir -p " + containerTmp + "; echo $$ > " + containerTmp + "/pid.diff.$$; cd " + testbed + "; a=$1; b=$2; shift 2; GIT_LITERAL_PATHSPECS=1 git diff --binary --full-index --no-ext-diff \"$a\" \"$b\" -- \"$@\"; rm -f " + containerTmp + "/pid.diff.$$"
 	patch, err := dockerRun(c.Docker, nil, append([]string{"exec", c.Container, "sh", "-c", diff, "sh", s.box, string(t2)}, allowed...)...)
 	if err != nil {
 		return 0, conflicts, err
@@ -635,7 +682,7 @@ var (
 	// An absolute path to one of the host interpreters or runners.
 	hostRunner = regexp.MustCompile(`(?:^|[\s\x27\x22=;&|(])/[\w.+/-]*/(?:python[\d.]*|pip[\d.]*|pytest|py\.test|uvx?)(?:[\s\x27\x22;&|)]|$)`)
 	// A wrapper that skips PATH, or the xcrun of the host, before one.
-	hostWrapped = regexp.MustCompile(`\b(?:env\s+-i|command\s+-p|xcrun)\s+[^;&|]*?\b(?:python[\d.]*|pip[\d.]*|pytest|py\.test|uvx?)(?:[\s\x27\x22;&|)]|$)`)
+	hostWrapped = regexp.MustCompile(`\b(?:command\s+-p|xcrun)\s+[^;&|]*?\b(?:python[\d.]*|pip[\d.]*|pytest|py\.test|uvx?)(?:[\s\x27\x22;&|)]|$)`)
 	// A python or pytest by bare name where a command starts; the name is the
 	// first group, and the character after it is judged in bareCalls.
 	pythonCommand = regexp.MustCompile(`(?:^|[;&|(\x60\n]|\$\(|\b(?:then|do|else|exec|time|nohup)\b)\s*(?:[A-Za-z_]\w*=\S*\s+)*(python[\d.]*|pytest|py\.test)`)
@@ -753,7 +800,7 @@ func countCommands(commands []string, calls []shimCall, image, box, tools string
 				judged = strings.ReplaceAll(judged, s, "TOOLS")
 			}
 		}
-		if hostRunner.MatchString(judged) || hostWrapped.MatchString(judged) {
+		if hostRunner.MatchString(judged) || hostWrapped.MatchString(judged) || envBypass(judged) {
 			host++
 		}
 		for _, b := range bareCalls(c) {
@@ -809,4 +856,88 @@ func resolveContainer(o *RunOptions) error {
 		return errors.New("the stage6 profile needs bench itself, which the shims run")
 	}
 	return sweepContainers(o.Docker, o.Stage)
+}
+
+var interpreter = regexp.MustCompile(`^(?:python[\d.]*|pip[\d.]*|pytest|py\.test|uvx?)$`)
+
+var assignment = regexp.MustCompile(`^[A-Za-z_]\w*=`)
+
+// envBypass says whether a command runs an interpreter or runner through env
+// with a PATH of its own, which no shim stands in: env -i, or env with a PATH=
+// word, before the program. env with other variables only finds the shims on
+// the PATH of the agent, and is no bypass.
+func envBypass(command string) bool {
+	for _, at := range commandWordsAt(command, "env") {
+		if envRunsInterpreter(shellWords(command[at:])) {
+			return true
+		}
+	}
+	return false
+}
+
+// commandWordsAt says where, in a command, a word of this name stands at a
+// command position: the start, or after an unquoted ; & | ( or newline, past
+// any NAME=VALUE words. Each result is the index just after the word. Text in
+// quotes is no command: the env inside python -c 'print("env …")' is not one.
+func commandWordsAt(command, name string) []int {
+	var out []int
+	atStart := true
+	var quote byte
+	for i := 0; i < len(command); {
+		c := command[i]
+		switch {
+		case quote != 0:
+			if c == 0x5c && quote == 0x22 {
+				i++
+			} else if c == quote {
+				quote = 0
+			}
+			i++
+		case c == 0x27 || c == 0x22:
+			quote, atStart = c, false
+			i++
+		case c == 0x5c:
+			atStart = false
+			i += 2
+		case c == 0x20 || c == 0x09:
+			i++
+		case strings.IndexByte(";&|()\n", c) >= 0:
+			atStart = true
+			i++
+		default:
+			j := i
+			for j < len(command) && strings.IndexByte(" \t;&|()\n'\"", command[j]) < 0 {
+				j++
+			}
+			word := command[i:j]
+			if atStart && word == name {
+				out = append(out, j)
+			}
+			atStart = atStart && assignment.MatchString(word)
+			i = j
+		}
+	}
+	return out
+}
+
+// envRunsInterpreter reads the words after env: its options and NAME=VALUE
+// words, then the program.
+func envRunsInterpreter(words []string) bool {
+	reset := false
+	for i := 0; i < len(words); i++ {
+		w := words[i]
+		switch {
+		case w == "-u" || w == "-C" || w == "-S":
+			i++
+		case w == "-i" || w == "-" || w == "--ignore-environment":
+			reset = true
+		case strings.HasPrefix(w, "-"):
+		case strings.HasPrefix(w, "PATH="):
+			reset = true
+		case strings.Contains(w, "="):
+		default:
+			return reset && interpreter.MatchString(filepath.Base(w))
+		}
+	}
+	return false
 }

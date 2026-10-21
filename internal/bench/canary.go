@@ -3,6 +3,7 @@ package bench
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -423,15 +424,28 @@ func probeContainer(o RunOptions, task Task) (problems []string) {
 	if err := writeStartEnv(cfg.State, os.Environ()); err != nil {
 		return []string{err.Error()}
 	}
+	// A question the shim answered with the right output and a failing exit is
+	// a failure all the same.
+	var failures []string
 	ask := func(argv ...string) string {
 		cmd := exec.Command(filepath.Join(tools, "python"), argv...)
 		cmd.Dir = tree
-		out, _ := cmd.Output()
+		out, err := cmd.Output()
+		if err != nil {
+			var ee *exec.ExitError
+			var stderr string
+			if errors.As(err, &ee) {
+				stderr = strings.TrimSpace(string(ee.Stderr))
+			}
+			failures = append(failures, fmt.Sprintf("a question to the container failed: %v: %s", err, stderr))
+		}
 		return string(out)
 	}
 	commits, err := dockerRun(o.Docker, nil, "exec", name, "git", "-C", testbed, "log", "--all", "--oneline")
 	if err != nil {
 		return []string{err.Error()}
 	}
-	return CheckContainerCanary(ask("-c", "import sys; print(sys.platform)"), ask("-c", netProbe), string(commits))
+	platform := ask("-c", "import sys; print(sys.platform)")
+	network := ask("-c", netProbe)
+	return append(CheckContainerCanary(platform, network, string(commits)), failures...)
 }
