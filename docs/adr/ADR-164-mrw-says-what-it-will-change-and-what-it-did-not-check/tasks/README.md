@@ -15,7 +15,7 @@ README must be regenerated.
 | T6 | a refusal names its real cause | done | T1 | `docs/adr/ADR-164-mrw-says-what-it-will-change-and-what-it-did-not-check/tasks/T6-a-refusal-names-its-real-cause.md` fence |
 | T4 | a check that places some files runs those and names the rest | done | none | `docs/adr/ADR-164-mrw-says-what-it-will-change-and-what-it-did-not-check/tasks/T4-partial-map-runs-scoped.md` fence |
 | T2 | a plan maker's dry run shows each change | done | T1, T4 | `docs/adr/ADR-164-mrw-says-what-it-will-change-and-what-it-did-not-check/tasks/T2-dry-run-shows-each-change.md` fence |
-| T3 | the state-directory hint reaches every surface | pending | T2 | `docs/adr/ADR-164-mrw-says-what-it-will-change-and-what-it-did-not-check/tasks/T3-mrw-mcp-names-its-state-directory.md` fence |
+| T3 | the state-directory hint reaches every surface | done | T2 | `docs/adr/ADR-164-mrw-says-what-it-will-change-and-what-it-did-not-check/tasks/T3-mrw-mcp-names-its-state-directory.md` fence |
 | T7 | a --max-cols window holds the match | done | none | `docs/adr/ADR-164-mrw-says-what-it-will-change-and-what-it-did-not-check/tasks/T7-window-holds-the-match.md` fence |
 | T8 | a --sub replacement may not name a missing group | done | none | `docs/adr/ADR-164-mrw-says-what-it-will-change-and-what-it-did-not-check/tasks/T8-sub-refuses-a-missing-group.md` fence |
 

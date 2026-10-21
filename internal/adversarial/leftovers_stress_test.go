@@ -266,7 +266,7 @@ func TestDesktopProbeRecipeNamesServedLineVersusReceipt(t *testing.T) {
 }
 
 func TestOtherHostsEntryDoesNotSayMissRate(t *testing.T) {
-	b, err := os.ReadFile(filepath.Join(repoRoot(t), "docs", "adr", "BACKLOG.md"))
+	b, err := os.ReadFile(filepath.Join(repoRoot(t), "docs", "adr", "BACKLOG-archive.md"))
 	if err != nil {
 		t.Fatal(err)
 	}

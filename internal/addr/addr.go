@@ -11,7 +11,7 @@
 // twice, once per parser, with a contract row as the anti-drift gate. A review
 // of PR #125 found the copies had already drifted before the branch merged:
 // `f.txt:,+3` served lines 1-4 at exit 0 on the read path while the plan path
-// refused the identical string. docs/adr/BACKLOG.md's "One address parser, not
+// refused the identical string. docs/adr/BACKLOG-archive.md's "One address parser, not
 // two" pre-registered the trigger — worth a record if the divergence happens
 // twice — and this was the second time. A contract row can only notice a drift
 // after someone writes the case; one function cannot drift.

@@ -50,6 +50,7 @@ import (
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/speclist"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/state"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/statehint"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/writer"
 )
 
@@ -329,7 +330,7 @@ func main() {
 		}
 	}
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "mrw:", stateHint(err))
+		fmt.Fprintln(os.Stderr, "mrw:", statehint.Hint(err))
 		os.Exit(exitCode(err))
 	}
 }
@@ -745,7 +746,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			},
 			&cli.IntFlag{
 				Name:  "max-cols",
-				Usage: "cut a line longer than `N` characters to a window of N round the first match of a pattern (the start otherwise), marked `[cols A-B of L]`. A line served cut is NOT recorded as read: a plan that replaces it is refused until it is read whole (ADR-137). Zero or omitted serves lines whole",
+				Usage: "cut a line longer than `N` characters to a window of N centred on the first match of a pattern (the start otherwise), holding the whole match when it fits, marked `[cols A-B of L]`. A line served cut is NOT recorded as read: a plan that replaces it is refused until it is read whole (ADR-137). Zero or omitted serves lines whole",
 			},
 			&cli.BoolFlag{
 				Name:  "count",
@@ -757,7 +758,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			},
 			&cli.StringFlag{
 				Name:  "sub",
-				Usage: "with --grep, print a PLAN instead of lines: each matching line rewritten by `REPLACEMENT` (Go regexp: $1 and ${name} expand, $$ is a literal dollar), one replace hunk per line that changes, and license exactly those lines. Pipe it to `mrw write -`, or use `mrw write --grep P --sub R`. Not with -C, --count, --stat, --max-cols, --max-lines, -N, --files-from or --ast-grep (ADR-161)",
+				Usage: "with --grep, print a PLAN instead of lines: each matching line rewritten by `REPLACEMENT` (Go regexp: $1 and ${name} expand, $$ is a literal dollar, and a reference to a group the pattern does not define is refused), one replace hunk per line that changes, and license exactly those lines. Pipe it to `mrw write -`, or use `mrw write --grep P --sub R`. Not with -C, --count, --stat, --max-cols, --max-lines, -N, --files-from or --ast-grep (ADR-161)",
 			},
 			&cli.StringFlag{
 				Name:  "ast-grep",
@@ -1161,9 +1162,10 @@ empty. rename's destination is the one-line body (not a to= key). Other
 addresses are 1-based and inclusive, and every one of them resolves against
 the ORIGINAL file — so several hunks in one file need no offset arithmetic.
 
-The optional guards are what make a batch safe to trust: sha= pins the whole
-file, lines= asserts how many lines the range covers, anchor= requires a
-substring in the range's first line. If any hunk fails validation, every hunk is
+The guards are what make a batch safe to trust: sha= pins the whole file,
+lines= asserts how many lines the range covers, anchor= requires a substring in
+the range's first line and is required on a multi-line replace, where sha= and
+lines= do not stand in for it. If any hunk fails validation, every hunk is
 reported and NOTHING is written. A filesystem failure while committing can leave
 some files written: the receipt says PARTIALLY APPLIED and names them.
 
@@ -1224,7 +1226,7 @@ held or went unchecked.`,
 			&cli.BoolFlag{
 				Name:    "dry-run",
 				Aliases: []string{"n"},
-				Usage:   "validate and report, write nothing",
+				Usage:   "validate and report, write nothing; with --grep --sub or --ast-grep --rewrite, show each change",
 			},
 			&cli.BoolFlag{
 				Name: "force",
@@ -1263,7 +1265,7 @@ held or went unchecked.`,
 			},
 			&cli.StringFlag{
 				Name:  "sub",
-				Usage: "with --grep, rewrite each matching line by `REPLACEMENT` (Go regexp: $1 and ${name} expand, $$ is a literal dollar) and apply that as one plan: a verdict per site, nothing written if any fails or any matching file could not be read; --dry-run, --check and --then work as for any write. Not with a PLAN, - , --format or --create (ADR-161)",
+				Usage: "with --grep, rewrite each matching line by `REPLACEMENT` (Go regexp: $1 and ${name} expand, $$ is a literal dollar, and a reference to a group the pattern does not define is refused) and apply that as one plan: a verdict per site, nothing written if any fails or any matching file could not be read; --dry-run also shows each change, and --check and --then work as for any write. Not with a PLAN, - , --format or --create (ADR-161)",
 			},
 			&cli.StringFlag{
 				Name:  "ast-grep",
@@ -1271,7 +1273,7 @@ held or went unchecked.`,
 			},
 			&cli.StringFlag{
 				Name:  "rewrite",
-				Usage: "with --ast-grep, replace each match by ast-grep's own rewrite to `REPLACEMENT` and apply that as one plan: a verdict per span, nothing written if any fails, if matches overlap, or if any matching file could not be read; --dry-run, --check and --then work as for any write. Not with a PLAN, - , --grep, --sub, --format or --create (ADR-161)",
+				Usage: "with --ast-grep, replace each match by ast-grep's own rewrite to `REPLACEMENT` and apply that as one plan: a verdict per span, nothing written if any fails, if matches overlap, or if any matching file could not be read; --dry-run also shows each change, and --check and --then work as for any write. Not with a PLAN, - , --grep, --sub, --format or --create (ADR-161)",
 			},
 			&cli.StringSliceFlag{
 				Name:  "exclude",
@@ -1475,8 +1477,9 @@ held or went unchecked.`,
 					var ec cli.ExitCoder
 					if cmd.Bool("json") && errors.As(err, &ec) {
 						_ = refuse(ec.Error())
-						return cli.Exit(ec.Error(), ec.ExitCode())
 					}
+					// err itself, not a cli.Exit rebuilt from its text: the chain exitOf
+					// kept is what lets main name a state-directory failure (ADR-164).
 					return err
 				}
 				if err := seen.Record(cmd.Root().String("root"), b.Observed); err != nil {
@@ -2195,7 +2198,7 @@ func checkCmd() *cli.Command {
 		Usage:           "run the project's check, scoped to the working set or to the given paths",
 		ArgsUsage:       "[PATH...]",
 		Description: `The command comes from .quality-harness.json ("check" for the whole project,
-"scoped_check" for a narrow run, with {packages} and {files} expanded). With no
+"scoped_check" for a narrow run, with {packages}, {files} and {dirs} expanded; a {packages}-only one runs what it can place and names the rest). With no
 such file, a Go project falls back to "go test ./..." — and the output says the
 command was INFERRED, because an inferred check can be red on a tree you never
 touched, which is a finding about the machine and not about your change.`,

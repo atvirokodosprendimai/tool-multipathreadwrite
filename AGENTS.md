@@ -34,8 +34,8 @@ pipeline reports the *last* command's status, not the script's.
 
 ## The rules this codebase is built around
 
-These are decided, recorded in `docs/adr/`, and asserted by
-`scripts/contract.sh`. Do not relax one without retiring the ADR.
+These are decided, recorded in `docs/adr/`, and asserted by `scripts/contract.sh`. Change one
+through a new ADR that supersedes the old one and updates its contract rows in the same PR.
 
 1. **A plan applies whole or not at all.** Any hunk that fails validation writes
    nothing. Siblings report `skip`, never `ok`; a filesystem failure while
@@ -202,7 +202,7 @@ the ones you want. Like a grep index, an ast_grep index pages with `after`: send
 the same finder again with `after` set to `next_index`, until it is empty.
 `--files-from FILE` maps onto `files_from`, a file inside the root (`-` is refused: stdin carries the
 protocol); `--max-lines` onto `max_lines` and `--stat` onto `stat`, each licensing only what it served (ADR-117).
-`--max-cols N` (ADR-137) cuts a line longer than N characters to a window round the first match and records
+`--max-cols N` (ADR-137) cuts a line longer than N characters to a window centred on the first match, which holds the whole match when it fits (ADR-164), and records
 that line as NOT read: a plan that replaces it is refused until it is read whole; `mrw_read` takes it as `max_cols`,
 and a line it served cut is in no checkpoint, named on a `-- not licensed:` line (ADR-154). `--stat` lists the files with their
 length and sha and `-N` drops the line numbers. `--grep P --count` prints each matching file's header with how many of
@@ -216,7 +216,7 @@ too large for one answer is refused whole, never paged. `quiet` licenses what th
 for the same reason (`mrw read --quiet`).
 Cap a read with `--max-lines N` instead of `| head`: `| head` loses mrw's exit code, while `--max-lines` names what it
 withheld and the read exits 1 `incomplete:`.
-A flag grep has and `read` lacks (`-i`, `-n`, `-r`, `-l`, `-A`, `-e`, `--include`) is a usage error, exit 2, that ends with mrw's spelling (ADR-140).
+A flag grep has and `read` lacks (`-i`, `-n`, `-r`, `-l`, `-A`, `-e`, `--include`) is a usage error, exit 2, that ends with mrw's spelling (ADR-140); `-v` and `-o`, which `read` has no form of, say so (ADR-164).
 `--grep -i PATTERN` is not an unknown flag: `-i` is taken as the pattern, and a read that matches nothing ends `no file matched /-i/` (exit 1) with the same
 hint; write `--grep '(?i)PATTERN'`.
 A flag `write` lacks that names the plan (`--plan`, `--file`, `--input`, `--stdin`) ends the same way with the argument's spelling, `mrw write PLAN` or `-`;
@@ -357,7 +357,7 @@ addresses more than one line** (ADR-035): a wrong multi-line range writes your
 body over lines nobody looked at, and the receipt cannot show it because the
 damage falls outside the lines the hunk named. Take the anchor from the
 `NNN| content` your read printed — one typed from memory can be wrong exactly as
-the address is wrong.
+the address is wrong. `sha=` and `lines=` do not stand in for it: `sha=` pins the whole file, not which lines the range covers (ADR-164).
 
 Or address by pattern, when you would otherwise read the file only to learn a
 line number:
@@ -509,7 +509,7 @@ whole list arrives as one argument and the regex swallows the rest of the line.
   runs on a `.rs` write when `packages()` cannot map (ADR-061). A `{packages}`-only template that places
   some of the written files runs over those packages and names the rest on an `outside the scoped check:` line
   (`outside_scope` in `--json`, ADR-164); it falls back to the whole check when nothing places, or when a path is
-  an unplaceable `.go`, a directory holding no package, `go.mod`/`go.sum`/`go.work`/`go.work.sum`, or a file the write removed.
+  an unplaceable `.go`, a directory holding no package, `go.mod`/`go.sum`/`go.work`/`go.work.sum`, or a removed `.go` or module file.
   Its pass is for the packages it could place: a Go test that reads a named file is not run for it.
   `{packages}` is Go's alone; `{files}` (the edited paths) and `{dirs}` (their directories,
   `./dir`, each once — ADR-124) are the portable forms, e.g. `"scoped_check": "pytest {dirs}"`. A whole-project
@@ -670,6 +670,9 @@ and #73, one release apart.
 mrw's OWN state lives outside the tree (ADR-004), so none of these commands
 writes to your checkout of its own accord — with the one exception above, where
 `mrw check` runs a command the project chose.
+
+An unusable state directory is named as mrw's, with `XDG_STATE_HOME` and how to set it, on every surface: the CLI,
+the plan makers and `mrw mcp` (ADR-164).
 
 And the tree can hold mrw's state when you point it there — `XDG_STATE_HOME` inside the checkout,
 or `--root "$HOME"` with `~/.local/state`. mrw then serves and edits nothing inside its own state

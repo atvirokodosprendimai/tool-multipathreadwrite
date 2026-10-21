@@ -20,10 +20,12 @@ func exitOf(err error) error {
 	if !errors.As(err, &be) {
 		return err
 	}
+	// The BuildError itself is kept, not its text, so a state-directory failure
+	// under it still reaches statehint.Hint (ADR-164).
 	if be.Usage {
-		return cli.Exit(be.Msg, exitUsage)
+		return &exitError{err: be, code: exitUsage}
 	}
-	return cli.Exit(be.Msg, exitNotApplied)
+	return &exitError{err: be, code: exitNotApplied}
 }
 
 // subRead is `read --grep P --sub R`: the plan on stdout and nothing else,

@@ -610,7 +610,7 @@ func tools() []tool {
 					"max_cols": map[string]any{
 						"type":        "integer",
 						"minimum":     0,
-						"description": "Cut a line longer than this many characters to a window of that width round the first match of the read's pattern (the start otherwise), marked `[cols A-B of L]`, as `mrw read --max-cols`; 0 cuts nothing. A line served cut is in no checkpoint and licenses no write: read it without max_cols to edit it. A page and its continuation are cut only if each call sends it. Refused beside `count`, which serves no line.",
+						"description": "Cut a line longer than this many characters to a window of that width centred on the first match of the read's pattern (the start otherwise), holding the whole match when it fits, marked `[cols A-B of L]`, as `mrw read --max-cols`; 0 cuts nothing. A line served cut is in no checkpoint and licenses no write: read it without max_cols to edit it. A page and its continuation are cut only if each call sends it. Refused beside `count`, which serves no line.",
 						"examples":    []any{200},
 					},
 					"files_from": map[string]any{
@@ -630,7 +630,7 @@ func tools() []tool {
 					},
 					"sub": map[string]any{
 						"type":        "string",
-						"description": "With `grep`: return a PLAN instead of lines, as `mrw read --grep P --sub R`: each matching line rewritten by this replacement (Go regexp: $1 and ${name} expand, $$ is a literal dollar; \"\" deletes the match), one replace hunk per line that changes, as the answer's text and nothing else. The planned lines are licensed without an ack: nothing is shown, so there is nothing to acknowledge, and each hunk carries the file's sha, so the plan applies to that version or to none. Pass the text to mrw_write as `plan`, or skip the read and call mrw_write with `grep` and `sub`. A plan too large for one answer is refused, not paged. Refused without `grep`, beside `ast_grep`, and beside `count`, `stat`, `quiet`, `max_cols`, `max_lines`, `files_from` and `after`.",
+						"description": "With `grep`: return a PLAN instead of lines, as `mrw read --grep P --sub R`: each matching line rewritten by this replacement (Go regexp: $1 and ${name} expand, $$ is a literal dollar, and a reference to a group the pattern does not define is refused; \"\" deletes the match), one replace hunk per line that changes, as the answer's text and nothing else. The planned lines are licensed without an ack: nothing is shown, so there is nothing to acknowledge, and each hunk carries the file's sha, so the plan applies to that version or to none. Pass the text to mrw_write as `plan`, or skip the read and call mrw_write with `grep` and `sub`. A plan too large for one answer is refused, not paged. Refused without `grep`, beside `ast_grep`, and beside `count`, `stat`, `quiet`, `max_cols`, `max_lines`, `files_from` and `after`.",
 						"examples":    []any{"New"},
 					},
 					"rewrite": map[string]any{
@@ -707,7 +707,8 @@ func tools() []tool {
 					"dry_run": map[string]any{
 						"type": "boolean",
 						"description": "Validate and report without writing anything. The receipt is the " +
-							"same shape, with dry_run true and no file written.",
+							"same shape, with dry_run true and no file written; a grep+sub or ast_grep+rewrite dry run " +
+							"adds each change as hunks[].before and after.",
 					},
 					"echo_pad": map[string]any{
 						"type":    "integer",
@@ -768,7 +769,7 @@ func tools() []tool {
 					},
 					"sub": map[string]any{
 						"type":        "string",
-						"description": "With `grep`: the replacement for each matching line (Go regexp: $1 and ${name} expand, $$ is a literal dollar; \"\" deletes the match). It rewrites one line for one line, so it holds no line break. Refused without `grep`, and beside `plan` or `format`.",
+						"description": "With `grep`: the replacement for each matching line (Go regexp: $1 and ${name} expand, $$ is a literal dollar, and a reference to a group the pattern does not define is refused; \"\" deletes the match). It rewrites one line for one line, so it holds no line break. Refused without `grep`, and beside `plan` or `format`.",
 						"examples":    []any{"New"},
 					},
 					"ast_grep": map[string]any{

@@ -81,6 +81,7 @@ out=$(mktemp) \
   ```
 - 2026-10-20 · 497e9ffc* · exit 0 · `set -o pipefail …` · acceptance-sha256:b4bf02be1270c43a2ce39e4fc20a5cd5589dfb59a24c983fb050252a3c6f25e9 · ms:3593
 - 2026-10-20 · human-observed · Claude observed: ./scripts/contract.sh exit 0 at the T7+T8 tree (2026-10-20), §279 all 4 rows PASS: --max-cols 8 serves NEEDLE whole in its window, and a plan to the cut line is still refused exit 1 with the file unchanged · acceptance-sha256:b4bf02be1270c43a2ce39e4fc20a5cd5589dfb59a24c983fb050252a3c6f25e9
+- 2026-10-20 · human-observed · Claude observed, restated 2026-10-20 so the note reads as the verdict it is: ./scripts/contract.sh exit 0 at the T7+T8 tree, §279 all 4 rows PASS: --max-cols 8 serves NEEDLE whole in its window, and a plan to the cut line exits 1 with the file unchanged · acceptance-sha256:b4bf02be1270c43a2ce39e4fc20a5cd5589dfb59a24c983fb050252a3c6f25e9
 
 ## Invariants
 

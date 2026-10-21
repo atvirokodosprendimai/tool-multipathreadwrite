@@ -35,3 +35,5 @@ that account: this repository made 9 MCP calls, all reads, all fixture probes
 for those records, against roughly 2,800 shell invocations; a repository with no
 such rule, reached through the same user-scope registration, made 57 MCP writes
 in a day.
+
+M and Zy in this repository's notes and records are the same owner.

@@ -79,6 +79,7 @@ out=$(mktemp) \
   ```
 - 2026-10-20 · 497e9ffc* · exit 0 · `set -o pipefail …` · acceptance-sha256:2a373104180f587405b77ffbddd416b0d89068897d3c57e1a52e7f2e53f844da · ms:6645
 - 2026-10-20 · human-observed · Claude observed: ./scripts/contract.sh exit 0 at the T7+T8 tree (2026-10-20), §280 all 5 rows PASS: --sub naming a missing group refused exit 2 naming it and $$, nothing written; mrw_write answers isError and the server answers the next request; the pair applies the group's text · acceptance-sha256:2a373104180f587405b77ffbddd416b0d89068897d3c57e1a52e7f2e53f844da
+- 2026-10-20 · human-observed · Claude observed, restated 2026-10-20 so the note reads as the verdict it is: ./scripts/contract.sh exit 0 at the T7+T8 tree, §280 all 5 rows PASS: --sub naming a missing group exits 2 naming it and $$, nothing written; mrw_write answers isError and the server answers the next request; the pair applies the group's text · acceptance-sha256:2a373104180f587405b77ffbddd416b0d89068897d3c57e1a52e7f2e53f844da
 
 ## Invariants
 

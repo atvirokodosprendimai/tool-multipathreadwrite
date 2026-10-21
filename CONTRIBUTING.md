@@ -4,12 +4,12 @@
 
 | for | you need |
 |---|---|
-| building and testing | **Go 1.26.9 or newer** (the version in `go.mod`). One dependency, no cgo. |
+| building and testing | **Go 1.26.10 or newer** (the version in `go.mod`), no cgo. One module dependency today, `urfave/cli/v3`; a new one needs an ADR saying why the standard library and the existing dependency cannot serve, and `govulncheck` (in `scripts/static.sh`) stays clean. |
 | `scripts/measure.sh` | **bash**, **git**, **awk**, and a POSIX userland (`sed`, `tr`, `wc`, `mktemp`, `rm`, …). No `bc`: it was `measure.sh`'s only user and `bc scale=1` truncated the ratios. It builds its own binary from the working tree and stamps the commit — unless `MRW` names one, and then the header says the binary came from elsewhere, because the commit describes only the fixtures and the file list. |
 | `scripts/contract.sh` | the same, plus **python3** (JSON, throughout), **perl**, **jq**, **shasum**, **pgrep** and **seq** (not POSIX). ⚠ This row has been wrong four times: it listed `bc`, which nothing needs; it omitted `python3`, which is mandatory; "a POSIX userland" covered `seq`, which is not in POSIX; and it carried counts — 86 python3 lines, 21 `seq` lines — of which the first was 94 by the time anyone re-counted. The counts are gone rather than corrected: a number in prose beside a script goes stale in the very commit that changes the script, and no reader of this row was ever going to act on it. It names the NON-baseline commands and says "a POSIX userland" for the rest rather than pretending to enumerate every `sed` and `wc` — an incomplete list that reads as complete is what made the earlier versions misleading. |
 | either script on Windows | **WSL** or **Git Bash**. They are POSIX shell, not PowerShell. The binary itself is native. |
 | a **regex address** in Git Bash | `MSYS2_ARG_CONV_EXCL='*'`, or PowerShell/WSL. MSYS rewrites `f.go:/re/` before mrw starts and quoting does not stop it — see the README's "Git Bash on Windows mangles a regex address". |
-| a clone on Windows | nothing extra up to a clone root of 138 characters: every tracked path is 120 characters or fewer, and `TestNoTrackedPathIsLongerThan120` keeps it so. A deeper root needs `git clone -c core.longpaths=true`. |
+| a clone on Windows | nothing extra up to a clone root of 138 characters: every tracked path is 120 characters or fewer, and `TestNoTrackedPathIsLongerThan120` keeps it so. A deeper root needs `git clone -c core.longpaths=true`. A record from 2026-10-20 on keeps its tasks in `docs/adr/ADR-NNN/tasks/`, the slug on the record file only, so the budget no longer trades against a record's name. |
 
 ## The gates
 
@@ -92,7 +92,7 @@ job re-matches with a regex and everything downstream gates on it —
 amd64 and arm64, windows on amd64) and publish as raw binaries, conventional
 archives, and a `SHA256SUMS.txt`.
 
-The README **Status** line names the **tagged** SHA (`v1.68.0` is `975c3ba`),
+The README **Status** line names the **tagged** SHA (`v1.69.0` is `9cae6d8`),
 never a later squash or docs commit. Bump it only when a new tag is cut.
 
 ## Licence
