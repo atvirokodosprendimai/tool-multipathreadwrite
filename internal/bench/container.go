@@ -39,13 +39,14 @@ const activateTestbed = "source /opt/miniconda3/bin/activate testbed"
 // evalArtifacts are the paths, or globs, removed from every image before the
 // first command of the agent: a test patch, an evaluation script, a list of
 // test names (ADR-163 Decision 1). T1 S1 found none in the image it read.
-// Outside the env's lib and conda's package cache, the only files the image's
-// setup wrote are root's dotfiles, environment.yml (the env spec), conda's
-// notices and environments list, the env's bin, pip's cache and, in /testbed,
-// the ignored Django.egg-info and __pycache__; none names a test. A search of
-// the ignored Django.egg-info and __pycache__; none names a test. A search of
-// every file outside /testbed for 16642, FAIL_TO_PASS and test_patch matched only stray bytes in
-// "SWE-bench" commit on top of the base is empty and goes with the history
+// The files it changed between 01:00 and 03:00 on 2026-08-13, the hours of its
+// setup, outside the env's lib, conda's package cache and pip's cache, are
+// root's dotfiles, environment.yml (the env spec), conda's notices and
+// environments list and the env's bin; in /testbed, the ignored files are
+// Django.egg-info and __pycache__. None names a test. A search of
+// every file outside /testbed for 16642, FAIL_TO_PASS and test_patch matched
+// only stray bytes in conda metadata, tcl encodings and setuptools. The image's
+// extra "SWE-bench" commit on top of the base is empty and goes with the history
 // startContainer replaces.
 var evalArtifacts = []string{}
 
