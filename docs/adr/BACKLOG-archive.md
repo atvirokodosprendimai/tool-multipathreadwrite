@@ -242,6 +242,26 @@ that arms work; silence leaves the row where it is.
   re-runs `blind-04-plan.md` on the build that ships it: deferred, on M's go (six or more headless
   `claude -p` runs).
 
+- **The blind-bench scorer misreads several shell and answer shapes.** Two gaps in
+  `scripts/blind-score.py` were found in blind reading 03:
+  - `command_words` splits on an unquoted newline even after `\`;
+  - it parses each heredoc body line as a command.
+
+  The Codex review of PR #206 reproduced more:
+  - `command cat` and a `cat` in `"$(…)"` escape the ban;
+  - `env mrw` is not counted;
+  - a banned word printed in a quoted argument after `;` voids a run;
+  - a final non-object JSON fence is skipped;
+  - a wrongly typed answer crashes the scorer.
+
+  None changed a reading 03 verdict (`docs/blind/blind-03-result.md`, "Known limitations"). The
+  criterion also sets no minimum number of mrw calls: 8 of 9 matching answers with zero calls would
+  score MEETS. Every reading 03 run made at least 7 calls. **Reading 04 ran with the scorer
+  unchanged, on purpose** (`blind-04-plan.md`), and none of these shapes appears in its transcripts.
+  **Closed by ADR-070 T3** (2026-09-25): each shape is fixed and pinned by a synthetic transcript in
+  `scripts/test_blind_score.py`. The quoted-word void was the raw `"--help" in cmd` test, which voided
+  `echo "see --help"`. Readings 03 and 04 re-scored with no verdict moved.
+
 - ~~**Teaching leads from blind reading 03, not yet acted on.**~~ **CLOSED 2026-09-27 — by ADR-084**,
   contract §166: `-M` in a write is refused naming `1-M`; `mrw instructions` teaches a write's exit 1
   and 2; the instructions, `read --help` and AGENTS.md say a bare directory prunes. A write's `-M` refusal is a bare parse
@@ -281,46 +301,6 @@ that arms work; silence leaves the row where it is.
   one-line move plus the fixture that proves it — a fixture whose FIRST version
   must be checked against a mutant, because the obvious one trips the
   whole-file gate instead and passes with the ordering reversed.
-
-- ~~**An ALIAS spelling of a partially-read file bypasses the per-line ledger
-  ENTIRELY, so a write to lines the caller was never served APPLIES.**~~
-  **CLOSED 2026-09-09 by ADR-029 T1+T2** —
-  `internal/adversarial/ledger_test.go::TestAnAliasSpellingIsTheSameFileToThePerLineLedger`,
-  contract §67. Ranked as open until 2026-09-12 because this receipt was never
-  struck (M: *"I NAME THEM ALL"*). The write-back two-key SHA refusal further
-  down this file is a different defect and stays open. Found by
-  the Codex review of PR #128, reproduced 2026-09-07 against that branch at
-  `1efd1a6`. `internal/apply/apply.go:510` recovers an aliased observation with
-  `sameFileEntry` — that is issue #47's fix and it must keep working — but `:553`
-  looks the ledger up again by exact key and `covered()` treats the miss as
-  COVERED (`:555`), so every per-line check passes:
-
-      $ mrw --root . read 'real.txt:1'                             # line 1 only
-      $ printf '@@ link.txt 4 replace\nPWNED\n' | mrw --root . write -
-      ok   link.txt 4 replace  -1 +1
-
-  with `link.txt -> real.txt`; a case-only `REAL.txt` does the same on APFS and
-  on NTFS. The exact spelling is refused, as it should be. **This is larger than
-  the anchor entry above, which is one visible symptom of it**: for an alias,
-  ADR-002's per-line guard is not weakened, it is absent.
-
-  **Pre-registered before the harness exists**, because the obvious fixture
-  passes for the wrong reason in two different ways.
-
-  1. A test asserting only that the alias write is REFUSED is green against a fix
-     that refuses every alias — which undoes #47. It must also assert that a
-     WHOLE read of `real.txt` still licenses a write spelled `link.txt`.
-  2. Neither alias is portable, and each is covered on exactly one of this
-     repository's two CI operating systems. The symlink half runs on Linux and
-     may fail to create on Windows; the case-only half needs a case-INsensitive
-     filesystem, so it runs on Windows and cannot run on Linux. Probe at runtime
-     and skip — never assert the platform — and say in the record that
-     `scripts/contract.sh` can carry the symlink half only, being Linux-only.
-
-  `--root` still refuses first: checked the same day on an in-root symlink
-  pointing outside the root, where read and write were both refused by name. So
-  this is a contract violation against ADR-002 and ADR-005, not a privilege
-  boundary — exactly as for the entry above.
 
 ## Found by probing the built binary (2026-09-01)
 
@@ -515,109 +495,6 @@ re-measuring these. Each was driven at the built binary, not read:
   as long as nobody read the host's documentation. A deferral's REASON deserves
   the same scepticism as a claim in a record, because it is one.
 
-- **Measuring whether served size degrades edit accuracy — DEFERRED, and it is **Closed 2026-10-21: readings 02-08 flat, ADR-020.**
-  the most valuable unanswered question this project has.** Named in ADR-014.
-
-  `MaxResultChars` is 200,000 because that fits under Claude Code's per-tool
-  ceiling. It bounds a RESOURCE and says nothing about quality. What nobody has
-  measured is whether a model's next edit gets WORSE as more context is served:
-  the reported degradation with long context is about retrieval and QA, and edit
-  authoring is a narrower, more mechanical task it has not been measured on.
-
-  ⚠ The obvious instrument is the wrong one. ADR-014 records peak RSS against
-  served bytes (about 12x the served size over MCP, flat on the CLI). That is
-  what the SERVER spends. The question is what the CALLER's accuracy does, and
-  using a memory curve to justify a context budget is the same category error
-  ADR-012 rejected one level up — a measurement pointed at the wrong population.
-
-  Answering it needs the benchmark harness: served bytes as the independent
-  variable, edit outcome as the dependent one, across models. If the curve turns
-  over, the cap becomes a measured number instead of an inherited one; if it is
-  flat, "arbitrary" is a defensible answer and we will be able to say so.
-
-  **PRE-REGISTRATION, written 2026-09-04 BEFORE any harness exists or any datum
-  was collected.** It is here rather than in a record because a criterion
-  authored after the first look is not a criterion.
-
-  ⚠ THE DEPENDENT VARIABLE IS THE WHOLE PROBLEM, and the obvious ones are
-  traps. ADR-009 already counts `applied`, `refused_parse` and `refused_apply`,
-  so they are free — and they will be FLAT, because they measure whether the
-  caller could author the FORMAT, which has nothing to do with how much was
-  served. A flat curve on those would read as "the cap does not matter" when it
-  actually means "the easy thing was measured". They are recorded as secondary
-  and are not the claim.
-
-
-  ⚠ AND "FREE FROM THE TALLY" NEEDED CHECKING, because ADR-012's Context
-  records that tally as per-checkout and unable to ATTRIBUTE. Verified
-  2026-09-04 before the design was allowed to depend on it: with a fresh
-  `XDG_STATE_HOME` per trial, `mrw stats` reports that trial alone —
-  `applied 1 of 1 plan(s)`, one plan recorded. So the secondary DVs are
-  per-cell readable, and the isolation is the state dir rather than the
-  checkout. If that ever stops holding, the fallback is parsing each
-  `mrw_write` result directly, which is a different code path and should be
-  named as such rather than quietly substituted.
-  **PRIMARY DV: did the plan address the line it was supposed to address?**
-  This is the failure mode that matters and the one every other gate is blind
-  to — an edit that parses, applies cleanly, reports `ok`, and changed the
-  wrong line. `refused_parse` and `refused_apply` both stay green through it.
-  It is also the failure mrw exists to prevent, so it is the honest thing to
-  put on the y-axis.
-
-  GROUND TRUTH IS PLANTED, NOT JUDGED. The generator places the target line and
-  therefore knows the correct address by construction; scoring is
-  `plan addressed line N` against a known N, mechanically. Nothing here needs a
-  human to rate an edit, which is what keeps the measurement affordable and
-  repeatable — and it is the reason this DV was chosen over "is the edit
-  semantically right", which cannot be scored without authoring a rubric and a
-  rater.
-
-  ⚠ THE THREAT TO VALIDITY, named up front: a planted target is easy to find if
-  it is a unique string, and then the task measures string matching rather than
-  reading. The distractors must be NEAR-IDENTICAL to the target — same shape,
-  differing in the detail the instruction names — or the curve will be flat for
-  a reason that has nothing to do with context size.
-
-  IV: served bytes, varied by padding around the target on both sides.
-
-  ⚠ "THE TASK IS HELD FIXED" WAS FALSE AS FIRST WRITTEN, and the correction
-  matters because it is the difference between a clean manipulation and two
-  variables moving at once. Padding adds LINES, so the line-number space grows
-  and the address the model must produce changes by construction. It cannot be
-  held fixed while size varies — the honest statement is that the INSTRUCTION
-  and the target CONTENT are identical across cells, the address is not, and
-  target position is a stratum rather than a nuisance.
-
-  ⚠ DISTRACTOR COUNT IS A SECOND IV HIDING INSIDE THE FIRST, and this is the
-  one that would make a real curve uninterpretable rather than merely absent.
-  If the padding IS near-identical distractors, then larger cells have more
-  near-misses and "more context" cannot be separated from "more candidates".
-  So: the number of near-identical distractors is HELD CONSTANT across size
-  cells, and the remaining padding is inert content that is obviously not a
-  candidate. Distractor density is a legitimate second experiment; it is not
-  this one, and one curve answers one question.
-
-  STRATIFY BY TARGET POSITION rather than randomising it away. Position within
-  the served window is the best-documented effect in the long-context
-  literature, and if it is folded into the noise the headline curve will
-  average a real effect into nothing. Early / middle / late are separate cells.
-
-  REPEATS: the model is nondeterministic, so N trials per cell with the count
-  fixed in advance. A cell is a proportion, and proportions need their interval
-  reported, not a point.
-
-  **DIRECTION AND THE FLAT ANSWER, committed now.** The prediction is that
-  correct-address rate DEGRADES as served bytes grow, most sharply for
-  mid-window targets. **If the curve is flat, that is a publishable answer and
-  the cap stays arbitrary with evidence** — it does not become a reason to
-  search for a different metric until something bends. ADR-009 and ADR-012 both
-
-  **RECEIPT, 2026-09-04 — the instrument exists, the reading does not.** ADR-020 (PR #85) built
-  the harness this pre-registration describes: `curve generate` / `score` / `tally`, no model
-  client, scored by applying. **The FIRST READING is deferred to ADR-020's Follow-ups**, with the
-  criterion above unchanged and not to be re-derived. This paragraph is the entry `adr-debt` looks
-  for when the record's Out of Scope names this file.
-  refused criteria that could not go red; this one commits to accepting a null.
 - ~~**`occurrence=N`, or any positional disambiguator for a pattern address —
   DEFERRED.**~~ **CLOSED 2026-10-02 — ADR-118: `occurrence=N`, refused unless every match before the Nth has
   been served, which answers the objection below: the ledger is per sha, so the count is taken in the file as it
@@ -700,12 +577,6 @@ re-measuring these. Each was driven at the built binary, not read:
 
 ## From ADR-020-T2 (a target the instruction does not name)
 
-- ~~**Run a reading against the relational fixture.**~~ **CLOSED 2026-09-05 by reading 3** (#96, `docs/curve/reading-03-result.md`): 45 of 45 under the pre-registered criterion, flat, and the prediction that the relational fixture is harder refuted (ADR-020 Follow-ups). T2 builds the selector; it does not spend the
-  trials. The criterion is the one already pre-registered above and must not be re-derived — correct
-  address rate against served bytes, stratified by position, refusals reported separately, a flat
-  curve accepted as an answer. What the first reading adds is that the NAMED fixture is at ceiling
-  (42/45, `docs/curve/reading-02-result.md`), so a relational reading is the first one whose curve
-  has room to bend. It is a budget decision, which is why ADR-020 keeps readings out of its tasks.
 - **A served window that does not begin at line 1.** All three misses of the first reading named the **Closed 2026-10-21: ADR-020 T4.**
   line exactly two below the target, and the reading cannot say why: every cell serves `@@ 1-N`, so a
   row count in the served rendering and the target's line number plus two are the same integer in all
@@ -1091,8 +962,6 @@ pointer. None of them is an engine change.
   task, not a lock.
 - **Generate AGENTS.md from `guide.Shared()`.** Still the ADR-037 entry above.
   Arm with *"spec generate AGENTS.md"*.
-- **Host-cut under the advertised ceiling.** Still the ADR-039 measurement
-  entry above. Arm with *"measure host-cut under ceiling"*.
 - **Python `str` body character-split.** Caller, not the engine. Decision 1 **Closed 2026-10-21: ADR-047.**
   already teaches that `body=` is a line count. Arm with *"document Python str
   in help"* or leave the caller.
@@ -1244,10 +1113,6 @@ contract §92–§94. Each line keeps its arming quote as its receipt.
 - **`pattern` on the MCP receipt** — ADR-055 T2 deferred it. **Closed by
   ADR-056 T1** (both JSON receipts, every write; contract §95). M, 2026-09-13:
   *"address these tow"*.
-- **The pricing campaign had no data source** — **closed by ADR-056 T2**
-  (`mrw stats` pricing block; contract §96). The criterion above is unchanged;
-  only its source sentence was corrected.
-
 ## From ADR-057 (native unlink / rename)
 
 - **Move to with hunks** — **Closed** by ADR-114 (the engine edits and renames a file in one plan, and apply_patch
@@ -1267,6 +1132,22 @@ contract §92–§94. Each line keeps its arming quote as its receipt.
 
 ## From ADR-066 (a plan that cannot commit whole says what it wrote)
 
+- **Staging the unlink placeholder, or probing directory writability.** The
+  aside placeholder (`pathop.go`, `CreateTemp`/`Remove`) and an unwritable
+  destination or source directory still fail only at commit. ADR-066's unit
+  undo makes that failure non-destructive and its receipt truthful; moving
+  them earlier is the next step if one is ever seen.
+  **Seen, 2026-09-25** (chaos seed 25 on v1.25.0, `9a586aa`): a rename to a destination whose name
+  is not valid UTF-8 (`moved/\xffdash.txt`) passes validation and fails at commit on APFS with
+  `illegal byte sequence`. The content edits of the same plan stay written. The receipt says
+  PARTIALLY APPLIED, names the written files, and exits 2; that is the ADR-066 contract, and v1.24.1
+  behaves identically, so this is not a regression. The trigger for moving the failure earlier is now
+  met: validate the destination name at staging, so such a plan writes nothing. It needs a record.
+  **CLOSED 2026-09-27 — by ADR-086**: each create target and rename destination is created and
+  removed at staging, so such a plan fails before anything is written (exit 2, nothing written). The
+  reproduction also found a create of `bad\xffname.txt` landing as `bad�name.txt` at exit 0:
+  the plan header was walked as runes; it is walked as bytes now. Contract §168, and §119's
+  read-only case is now a staging refusal.
 - **The handshake said "if any hunk fails, nothing is written".** After ADR-066
   a commit failure can leave some files written with a hunk `failed`. Fixed in
   ADR-066 T3 after the Codex review of #207: the Shared sentence now reads "if
@@ -1278,10 +1159,7 @@ contract §92–§94. Each line keeps its arming quote as its receipt.
 Receipt for `docs/specs/2026-09-16-dangling-high-impact.md`. Pins, not engine work. Unrun is not coverage.
 Execution plan: `docs/specs/2026-09-16-dangling-high-impact-plan.md` (campaign first; no engine ADR unless a probe finds a defect).
 
-- Desktop reach measure (UC-1) — trees-per-session on the Desktop population; coder plan count is the wrong population. Pick A stands. Not run 2026-09-16 (no Desktop session).
-- Under-ceiling host-cut (UC-2) — beside reading 18; do not treat ADR-039 as that evidence. Observed 2026-09-16 wire-only; model not run; still Deferred.
 - Concurrent silent apply (UC-3) — last-writer-wins; locking stays out of scope (ADR-002). — superseded by ADR-075: one writer per checkout.
-- Strict-balance default campaign (UC-4) — 5% / 50 / three corpora; default stays off.
 - JSX nest probe (UC-5) — probed 2026-09-16, `tsc` 0, DOM parent `#accidental-wrapper`; still not a finding.
 
 ## From ADR-068 (the read ledger keeps a path exactly)
@@ -1302,19 +1180,6 @@ Execution plan: `docs/specs/2026-09-16-dangling-high-impact-plan.md` (campaign f
 - **`mrw instructions` did not teach the ADR-069 rule.** **Closed by ADR-069 T12.** Found by the
   session that tested the downloaded Windows asset: no line mentioned `--` or the attached-value
   refusal, though ADR-063 promised the read side's traps there.
-- ~~**On Windows a spec with a trailing space reaches the OS as given and the OS folds it.**~~
-  **CLOSED 2026-09-27 — by ADR-071 Decision 4** (v1.26.0): `rooted.Resolve` refuses a component
-  Win32 would read as another name, so `x ` is refused before the ledger records anything and a
-  folded pair can no longer be planned. `TestWin32AliasNamesTheComponentWindowsWouldRemap` runs on
-  every platform, `TestResolveRefusesAWin32Alias` on the Windows CI job. Closed from the code, not
-  from a Windows re-run of the probe. Over
-  MCP, `mrw_read` with `specs: ["x "]` kept the spelling (the ADR-068 promise: the header printed
-  `x ` with its space) and Win32 path normalisation then opened `x`, so the ledger holds `x ` and `x`
-  as two keys over one file, each with its own ack id. Whether a plan naming both spellings is
-  refused as one file (ADR-021 uses the filesystem's identity, and on NTFS the two ARE one) is
-  untested there; `mrw_write` on the folded pair was deliberately not tried by the finder. Arm with a
-  Windows fixture in `internal/apply` before trusting ADR-021 on that platform. Evidence: the
-  desktop-3laqmbq MCP probe, v1.25.1 built from a partial checkout (see the next item).
 - **Nine task paths exceed the Windows path limit without `core.longpaths`.** A plain `git clone`
   on Windows 11 aborts with "Filename too long"; two of the paths are ADR-027 T1 and ADR-041 T1.
   `git clone -c core.longpaths=true` works. A rename shortens them; a CONTRIBUTING note is the
@@ -1361,25 +1226,6 @@ Contract breaks, reproduced on macOS:
   by case where one does not exist yet, are refused on every platform before anything is written.
   Folds only the filesystem knows (ß and ss, NFC and NFD, found by the review of #228) stop the
   commit at the second create, PARTIALLY APPLIED, exit 2, instead of losing the first body.
-- **Unlocked state beside the ledger** (the klientams peer's leads, not measured): `internal/iter`
-  and `internal/authoring` rewrite their files without a lock, and `mrw seen` loads the ledger
-  unlocked. Racing processes could lose a working-set entry or a tally count, never an edit. Deferred
-  from ADR-075.
-  **Fixed by ADR-079**, contract §160: the working set and the tally are read, changed and written
-  under one lock each (`state.Hold`), their readers take it too, and `mrw seen` reads the ledger under
-  its lock. Worse than recorded: a racing process could read a file emptied mid-rewrite and wipe the
-  whole tally or working set, not one count.
-  The reviews of #240 closed two gaps in that fix: a writer that could not take the tally's lock
-  wrote unlocked, and `state.Migrate` copied legacy state with no lock; a writer now skips a lock it
-  cannot take, and `Migrate` holds each destination's. Left open (deferred: found in the review of
-  #240, not measured): the MCP pending-ack store is rewritten under the in-process gate only, so two
-  servers on one checkout could race it, and `seen.IsStale` reads the ledger unlocked — a wrong
-  stderr notice at worst. **CLOSED 2026-09-27 — the pending store by ADR-085** (contract §167: eight
-  servers at once, each ack licenses its write; 0–1 of 64 concurrent holds survived before it);
-  **`seen.IsStale` still deferred, as an accepted diagnostic risk**: `save` writes the header and every
-  line through one `os.WriteFile`, which normally puts the short header in its first write, but a
-  short first write is allowed (Codex review of #253), and a header prefix at EOF would read as stale
-  and print one false notice. The ledger is unaffected. Arm on one observed false stale notice.
 - **A UTF-16LE file is rewritten with exit 0**: served as byte-split lines, and a replace drops the
   BOM and mixes encodings. Nothing refuses a write to such a file.
   **Fixed by ADR-073**, contract §146: a line edit to a file that begins with a UTF-16 or UTF-32
@@ -1440,6 +1286,48 @@ Windows only, each hand-confirmed by at least two sessions:
   **Fixed by ADR-071 T3**: a trailing dot or space and a `:` are refused by name on Windows, in a
   path and in the root. Case and 8.3 aliases stay accepted: they reach one file, and the ledger
   and ADR-021 match them.
+- **MSYS (Git Bash) rewrites more than the docs say.** The documented example `f.go:/^func main/`
+  is NOT rewritten; the trap fires when the file part contains a `/`, and a one-letter pattern
+  becomes a drive (`/x/` → `X:\`). `--grep` patterns such as `/usr` or `NAME=/path` are rewritten
+  into a false "no match" with no hint. `MSYS_NO_PATHCONV=1` works as well as
+  `MSYS2_ARG_CONV_EXCL='*'`, and the hint names only the second. A leading-slash `--exclude` can
+  never match. An attached `-C/path` arrives as `-CC:/…`.
+  **Partly fixed by ADR-074 T4**: the hint names `MSYS_NO_PATHCONV=1` beside
+  `MSYS2_ARG_CONV_EXCL='*'`, and AGENTS.md, README and the served guide say the rewrite fires when
+  the file part holds a `/`. A leading-slash `--exclude` and an attached `-C/path` are unchanged.
+  **The leading-slash `--exclude` is refused by ADR-078 T2** on both surfaces: a glob matches
+  root-relative paths and base names, and none is rooted — so on Windows the drive MSYS makes of
+  `/vendor` is refused the same way, as are `./vendor` and `vendor/`. The attached `-C/path` is
+  permanent (fact: MSYS rewrites argv before mrw starts; both switches that stop it are named).
+Smaller, recorded as found: an in-root symlink is followed on write and the target is absent from
+the receipt; plan-header paths are cleaned rather than refused (`a.txt/`, `"a.txt"`, `./a.txt`, and
+a rename to `d/` makes a FILE `d`); inserts into an empty file produce no trailing newline; a rename
+receipt carries an empty sha and creates missing directories silently; a killed write is missing
+from `stats`; `NUL` reads as an empty file; unlink deletes a read-only file; a Hidden attribute is
+stripped by a write; every header parse error is followed by a bogus "text before the first @@
+header"; a tab-separated header is reported as no header; a nonexistent `-C` root reports "resolves
+to /"; a file literally named `c:1-2` is unreachable even after `--`; `--files-from` dies on a line
+over 8 MiB with no line number; `a.go:$-1` and `a.go:5-3` get different exit classes; `-C N` is
+ignored on a numeric range; over MCP, ids of any JSON type are accepted, invalid UTF-8 becomes
+U+FFFD so the engine looks for a path never sent, a bad flag prints usage on stdout at startup,
+100,000 specs block the server past 120 s, and `exclude: ["["]` is not refused.
+ADR-074 T4 names the `--files-from` line that exceeds 8 MiB.
+**Fixed by ADR-076** (2026-09-26), contract §151–§153: the symlink target is named in the receipt
+(`files[].target`); `a.txt/` and a rename to `d/` are refused, while `"a.txt"` and `./a.txt` are
+cleaned as designed (ADR-005 §1, `TestTwoSpellingsOfOnePathAreOneFile`, `TestQuotedFieldsSurvive`);
+an insert into an empty file ends with a newline; a rename or a create names the directories it
+made (`dirs_created`), and a removed file's line gives its former sha; `NUL` is refused as a device;
+a read-only file is refused for every op that would change it, and a write keeps Hidden and System;
+a missing `-C` root is named as missing. The killed-write window is closed for the check by ADR-072
+T2 (§143); the milliseconds between the commit rename and the tally are permanent: SIGKILL cannot be
+handled.
+**Fixed by ADR-078** (2026-09-26), contract §155–§159: a header that does not parse is one error, not
+one per body line, and a tab after `@@` is named; `-C` with no `/pattern/` is refused rather than
+ignored; over MCP an id that is neither a string nor a number with an integer value is refused `-32600`, invalid UTF-8 in
+an argument is refused by name, a usage error writes nothing to stdout, a named read of many specs
+stops once it has overflowed, and `exclude: ["["]` is refused as the CLI refuses it. `c:1-2`, `$-1`
+against `5-3` and a FIFO list stay as ADR-074 decided (its Out of Scope).
+
 Found by the review of #228 (Windows, from the documentation): Win32 also maps device names —
 `CON`, `NUL`, `AUX`, `PRN`, `COM1`–`COM9`, `LPT1`–`LPT9`, and before Windows 11 the same names
 with an extension (`nul.txt`) — to devices, so a plan naming one writes to a device, not a file.
@@ -1466,6 +1354,26 @@ instead. The rows that still wrap `$MRW` in the alarm need a guard that can actu
 background, polls it, and kills it with SIGKILL at the bound; §111 and §116 use it, and the
 check that nothing of the run survives moved to the end of the file so every row is covered.
 
+From the review of #229 (ADR-072), outside that record: a `--dry-run` is tallied as `applied`
+and so counted among `landed writes` in `mrw stats`, though nothing landed; `main` did the same
+before ADR-072. And a signal that lands between the check's signal handler being installed and
+its process starting reports "could not start: context canceled" (exit 2, with advice to declare a
+check) rather than "interrupted"; the window is microseconds, and nothing reaches it in a test.
+**The signal window is fixed by ADR-080 T2**: a check cancelled before its process starts reports
+`interrupted`, exit 3, like one stopped while it ran — and a context cancelled beforehand reaches it,
+so a test does (`TestACheckCancelledBeforeItStartsSaysInterrupted`).
+Found by the race suite on #241: `TestAnInterruptedCheckSaysSo` (ADR-072 T4) cancels at a fixed
+300 ms and expects the check to have started by then; under the whole `-race` suite `sh` started
+later, the cancel reached a check that never ran, and it failed (once in the full run, once in
+three isolated runs; six of six passed on main and on the branch when idle). ADR-080 first pruned
+old logs before the start, which widened the window; pruning now runs after the check exits.
+**CLOSED 2026-09-27:** the test now cancels once the check has touched a start marker in its root.
+The check has 5 s to start, and a start that never comes fails by name ("never wrote its start
+marker"), not as a false `Ran=false`; the separate 5 s return bound runs from the cancel. The body
+change moved the locks of ADR-072 T4, ADR-074 T1, ADR-080 T1 and ADR-080 T2, re-taken with
+`--relock --replace-hashes` in the same change.
+**The dry run is fixed by ADR-079**, contract §161: a clean `--dry-run` records nothing on either
+surface (MCP counted every dry run as `refused_apply`), and a refused one is one refusal.
 - ~~**Filesystem-error refusals are tallied on one surface**~~ **CLOSED 2026-09-27 — by ADR-083**,
   contract §164: a plan the CLI refuses after it parsed and before anything landed is one
   `refused_apply`, as `mrw_write` counts it, dry run or not. (The review of #240, older than ADR-079):
@@ -1530,16 +1438,6 @@ Scope defers B1–B5 here too, ADR-110's defers B1, B2, B4 and B5, ADR-111's def
   `apply_patch` or `search_replace` plan goes through the same check, so a file changed after the caller's read is
   refused, exit 1, unless `--force` is passed, which bypasses the guard on purpose for every format (MCP has no force).
   Measured 2026-10-01 on v1.37.2 for both formats, and pinned by contract §212.
-- **Combination tests and a host matrix** (B2) — the combination half **Closed**: `docs/break/write-flags/stress.py`
-  drives seeded products of the write flags (`--json`, `--dry-run`, `--check`/`--no-check`, `--then-sh`,
-  `--strict-balance`, `--echo-pad`) across native, `apply_patch` and `search_replace` plans and three check
-  configurations, against seven invariants; 800 runs on two seeds, 0 violations, 2026-10-01. The host-matrix half
-  stays deferred: the MCP arm is measured on Claude Code alone, and no second MCP host is installed here. Arm on a
-  second host, or when a defect is found in a combination the harness does not drive.
-  The matrix to run when armed: each host (Claude Desktop, Cursor, opencode, any other MCP client) against
-  the handshake (its instructions length), an `mrw_read` page with its acks, an `mrw_write` whose check runs
-  (ADR-113), one with `then` (ADR-115), progress notifications during that check (ADR-121), and a receipt cut
-  to the ceiling; record each host's version and the cells it cannot drive.
 - **A timeout on the writer lock** (B3) — **Closed** by ADR-110 (`state.HoldWithin`: a writer waits `MRW_WRITE_LOCK_TIMEOUT` seconds, 120 by default, then is refused naming the holder's pid; contract §209, 2026-10-01). A writer waits for the one before it (ADR-075) without a bound; a stuck
   writer blocks the next indefinitely. Arm when a wait is reported that ended only by killing a process; the
   refusal then says nothing was applied.
@@ -1549,13 +1447,6 @@ Scope defers B1–B5 here too, ADR-110's defers B1, B2, B4 and B5, ADR-111's def
 - **A drift advisory during a check** (B5) — **Closed** by ADR-112 (`writer.Drift`: a CLI write names each file it touched that changed while its check ran, `drift:` and `drift` in `--json`; contract §211, 2026-10-01). A file edited by someone else while mrw's check runs is not reported;
   the check's verdict is about a tree that may no longer exist. Arm when a green check is reported over a tree
   another writer changed during it.
-- **A FIFO swapped in between a loader's check and its open** — **Closed** by ADR-109 (`internal/regular.Open`: every loader opens without blocking and asks the descriptor; it also found `check.Load` hung outright on a FIFO `.quality-harness.json`, contract §207, 2026-10-01) (the Codex re-review of #304, residual). `ingest`'s
-  `targetBytes`, `plan`'s `LoadBodyFiles`, `read`'s `readCapped`, `apply`'s `readLines` and ast-grep's probes judge
-  a path by `Stat` and then open it blocking, so a file replaced by a FIFO in that window hangs the call until
-  something writes to the pipe. ADR-108's A6 and A8 open non-blocking and check the descriptor; these were not
-  changed, since two are engine packages ADR-108 does not own and the window is a swap inside the checkout. Arm
-  when a hang is reported that ends at such a swap, or when a record next owns `read` or `apply`.
-
 ## From ADR-113 (one write path, and an MCP write is checked)
 
 - **Steps over MCP** — **Closed** by ADR-115 (`mrw_write` takes `then`, declared step names only, 2026-10-02). `mrw_write`
@@ -1607,6 +1498,14 @@ plan (ADR-127 to ADR-129).
   covers the apply, not the check), with ADR-112 as its accepted mitigation: arming it means retiring that clause.
   Arm when the lock's scope is next revisited. ADR-121 (v1.45.0) shipped without it; the 2026-10-06 plan's ADR-127
   widens the drift advisory instead, keeping ADR-075 §5.
+- **`--grep` costs 10–14 ms a file on Windows.** 3,000 files of 40 lines took 31–63 s, from the CLI and over MCP,
+  with output to a file and an MCP index serving no lines. `grep -rl` took 0.41 s; the same shape on macOS 0.29 s.
+  The `.gitignore` matcher is ruled out (`.git` or not makes no difference). A peer's timeout stack points at
+  `read.Run` → `rooted.Resolve` → `InState` → `RealAsFarAsItExists` → `filepath.EvalSymlinks` per served path
+  (ADR-077's state-directory check). The same stack timed out `internal/mcp`'s
+  `TestAnIndexTooLargeToServePagesByFile` at 6m31s under a full Git Bash run (127–169 s alone). **Taken by ADR-123**
+  (2026-10-03, Zy redirected the record here): the state base is resolved once while it exists and Resolve's own
+  real path is reused, 2.4× fewer per-file syscalls in the macOS benchmark; the Windows timing is in the record.
 - **A UTF-8 BOM on the first MCP line drops `initialize`** (-32700). CRLF alone is fine. Arm on the next MCP **Closed 2026-10-21: ADR-128.**
   handshake change.
 - **MCP refusals say "pass --force"**, which `mrw_write` does not take. An unknown ack id is ignored silently. A **Closed 2026-10-21: ADR-128.**
@@ -1617,6 +1516,19 @@ plan (ADR-127 to ADR-129).
   which differs from git here. ADR-122 (v1.46.0) kept ADR-116's rule; the 2026-10-06 plan's ADR-130 takes the nested repository.
 - **Fixed with this entry:** `TestMrwReadTakesMaxLinesStatAndFilesFrom` failed on a desktop without symlink
   privilege. Its link row is now dropped, with a log line, when a symlink cannot be created.
+## From ADR-120 (Windows owns its process tree)
+
+- **A deadline that expires before the check's child runs exits 2, not 3.** A check whose deadline has already
+  passed when it starts (`c.Start` returns `ctx.Err()`) is reported "no check could run: timed out", exit 2,
+  where a check that times out while running exits 3 (`cmd/mrw/main.go`, the write path's `Ran == false` branch,
+  and `mrw check` beside it). Pre-existing; ADR-120 widens the window by the milliseconds containment takes on
+  Windows, since a deadline landing then is reported the same way. A cancel there is already reported as
+  interrupted, exit 3. Found by the in-process review of #325. Arm on a report of a timed-out check exiting 2, or
+  with the next change to the write path's exit mapping: test `DeadlineExceeded` beside `Interrupted` there.
+  The Codex review of v1.42.0..v1.47.0 (2026-10-06) found the same exit 2 on Windows when the deadline lands
+  while the child is being contained (`internal/subproc/job.go` clears `ProcessState`), and arms this entry:
+  **Taken by ADR-126** (2026-10-06): both are reported "timed out before it started", exit 3.
+
 ## From ADR-121 (an MCP check does not hold the only thread)
 
 - **`notifications/cancelled` stopping a running check** — the server answers other calls during a check and sends **Closed 2026-10-21: ADR-128.**
@@ -1645,7 +1557,6 @@ Nine mac and five Windows sessions answered (the author's synthesis of 2026-10-0
 - **A throwaway file costs a create plan and a hand-counted body** (6 sessions): `mrw write --create PATH < content`, or `body=@file` from outside the root. Arm: the same record. **Taken by ADR-139** (`mrw write --create PATH`); `body=@file` from outside the root is not.
 - **The default check after a write takes minutes in several repos, so `--no-check` goes on every call** (4 sessions): print a hint when a check runs long with no `scoped_check` declared; split `stats` refused-at-apply by cause (ADR-087 already records a kind per refusal). Arm: a record for diagnostics. **The hint is taken by ADR-152** (2026-10-14): a whole-project check that took 60 s or more for named paths says to declare `scoped_check`, or why the declared one fell back. **The split is not taken, by boundary**: ADR-087 types only the refusals the parser mirrors and keeps the rest untyped by decision, so the split would read "not-read" against "unknown".
 - **Guidance is about 900 words for roughly 8 rules** (8 sessions never acted on the version line, 5 on the MCP-versus-CLI history): a core of about 8 rules with the history behind `mrw instructions --full`, and a staleness line on `mrw version`. All five Windows repos had v1.48.0 on PATH while v1.52.0 was current. Arm: a record for the guidance core. **The core is taken by ADR-141** (`mrw instructions --core`); **the staleness line is taken by ADR-149** (2026-10-14; Zy chose an opt-in network check over an offline line): `mrw version --check-latest` names the latest release and exits 1 when this mrw is older.
-- **Flag friction** (`-C` means root before the verb and context after it, 4 sessions; `--grep -i` shifts the pattern into the path slot, 2; `--plan` guessed for `write -`, 2): accept or hint `--grep -i`, warn on `-C` before and after the verb, print `mrw write [-]` in the unknown-flag error, hint at quoting for an unclosed pattern. Arm: the next change to flag parsing. **Taken by ADR-140**: the flags grep has and `read` lacks (`-i`, `-n`, `-r`, `-l`, `-A`, `-e`, `--include`), and `--grep -i`. **Taken by ADR-151** (2026-10-14): `--plan`, `--file`, `--input` and `--stdin` on `write` end with the argument's spelling, and an all-digit `-C` before the subcommand is named on stderr as `--root`. Still open: hints for `check`, `iter`, `seen` and `stats` (no evidence yet; arm: a caller reports one), and a quoting hint for an unclosed pattern.
 - **Exit 1 means both "no match" and "partial"**: **Taken, additively** (2026-10-11, Zy chose the prefix over a new exit code): ADR-146 — the last stderr line of a `read` that exits 1 begins `mrw: no match: ` or `mrw: incomplete: ` (contract §250), and a grep that matched no file beside a refused path is `incomplete`. **Not taken**: a distinct exit code for incomplete reads (a major version; two of 14 survey sessions asked and accepted the prefix instead); arm: a caller that cannot read stderr and shows it matters.
 - **A ledger written by a NEWER mrw is discarded as "older"** (5 sessions, several mrw versions on one machine): the header cannot name the writer; a format change would. Arm: the next ledger format change (ADR-136 Out of Scope). **Taken by ADR-150** (2026-10-14): the header is `#mrw-seen v5 <writer>`, v4 stays current, and a ledger in a newer format is left untouched and named by every command that consults the ledger; binaries up to v1.65.0 still discard a v5 ledger as older.
 - **Not reported by the respondents**: tokens or calls saved, time per refusal, hook latency.
@@ -1663,8 +1574,6 @@ One session's report, pasted by Zy: 25 changes in 22 files went through one plan
 - **A damaged ledger is ignored line by line without a notice** (wcag-web, the same on v1.52.0): a line of garbage, a 5 MB line and NUL bytes appended to the ledger were skipped silently and the rest trusted; a ledger cut inside its header prints the stale notice. **Taken** (2026-10-10): ADR-144, `seen.DamageNotice` — the CLI counts the lines it ignored, or says a line past the record bound discarded the ledger, once (contract §248). **Not taken, by boundary**: a ledger cut after a complete line loses the lines after the cut with no word (nothing in the file says how many it should hold; the write is refused "has not been read", the safe direction), and a well-formed forged line licenses a write (the ledger is unauthenticated by design; the ADR-136 sentence this entry quoted, "a ledger mrw did not write cannot be trusted", is not in the tree). The MCP server tells no one (it has no stderr).
 - **A plan or `--create` may write inside `.git/`** (wcag-web): `write --create .git/hooks/pre-commit` created a hook, and `read .git/HEAD` is served. Decided 2026-10-10 (Zy): refuse the write, serve the read. Taken: ADR-143 (`rooted.GitDir`, checked in `apply.resolve`, contract §246). **Writes into .git, what ADR-143 left, and where it went (2026-10-10)**: the code points HFS+ ignores are now dropped before the name is compared (taken); a hard link in the tree to a file under `.git` is not a way in, because an edit is a temp file renamed over the name and the other name keeps its content (pinned by `TestAHardLinkToAFileUnderDotGitIsNotAWayIn`); the real 8.3 name of `.git` is refused, leaf there or not (`TestTheShortNameOfARealDotGitIsRefused`, measured `GIT~1` on the CI Windows runner, and by two Windows sessions on real hosts); `mrw_write` is covered by `TestAnMCPWriteIntoDotGitIsRefusedAndTheReadIsNot`; a directory swapped for a link to `.git` after validation is refused where the path is reopened, judged by where the parent lands now, a relative link included, and as a failed hunk (exit 1) when it happens while staging (`tree.rel`, `TestAWriteThroughAParentSwappedForDotGitStaysOut`, `TestARenameThroughAParentSwappedForDotGitAfterStagingStaysOut`; both found by the Codex review of #388, ADR-143 T3); 8.3 names of `.git` other than `git~1` need no rule of their own, because Windows resolution expands any alias of an existing directory (`TestWindowsResolutionExpandsAnyShortNameOfDotGit`, measured with the one alias the CI runner makes, `GIT~1`). **Still open**: nothing; the instant between `tree.rel`'s check and the syscall is a declared boundary in ADR-143.
 - **Facts, so nobody reports them again**: Windows PowerShell 5.1 turns non-ASCII text into `?` before mrw sees it and prefixes a BOM (ADR-142 names the BOM); `Get-Content -Raw f | mrw write --create` of a file that is all CRLF gains a blank line at its end, which a `cmd /c "mrw ... < f"` does not add (AGENTS.md says so); Git Bash rewrites a `/regex/` argument into a path before mrw starts; `x:stream` is a path on drive `x`, so "not relative to the root" is the right words; ADR-134's tests must re-link a hard link before each case, since the ledger is rewritten by rename and a recording read orphans the old name.
-- **The v1.60.0 retest (2026-10-10; wcag-web, wcag, quality-blueprints, quality-harness and the adapter branch's session)**: (a) to (e) passed on all five. **Taken** in the follow-up: the all-CRLF content that ends in an empty line is kept and named (four sessions), the notes stop blaming one shell, a refusal of a name Windows does not keep names the one cause that applies (and drops "name the file as it is on disk"), and a ledger that cannot be opened says what stands after a call and that nothing was written before one. **Not acted on**: `--create -- 'trail '` is answered with a hint that drops `--create` (the right hint is `--create 'trail '`; adapter session); `--force` over an existing path keeps "already exists (1 lines) — use replace or delete" (wcag); `@() | mrw write --create p` from PowerShell makes the one-line file `0a`, with a BOM line in 5.1 (quality-harness; the pipe's own CRLF, indistinguishable from content); the "lines already served … stand" sentence prints before the hunk lines of a write because stderr and stdout interleave (quality-harness; cosmetic); a write that landed but exited 2 under a held ledger invites a blind retry, which is refused as changed or unread (wcag; safe). Windows PowerShell 5.1's ASCII `$OutputEncoding` turning non-ASCII into `?` before mrw sees it is documented in AGENTS.md and cannot be detected. Arm: any of these shown to mislead a caller.
-- **The v1.61.0 retest (2026-10-10; all five Windows sessions)**: the `.git` refusal held on a real NTFS `GIT~1` (`dir /x`), case variants, `.git\x`, `sub/../.git`, a junction, a rename destination and `apply_patch`; the four v1.60.0 changes held. **Taken** in the follow-up: the LF-lines note says the dropped CRLF is *most likely* PowerShell's (cmd and Git Bash pipe the same bytes); a `--create` note is told only once the create landed (it was printed before an "already exists" refusal); a mix of CRLF and LF lines is refused as mixed endings, and "bare CR" is kept for a lone CR; an unreadable ledger on a read no longer says "changes already applied" (it says whatever the call did stands); the rename-destination refusal spells its path with `/`; AGENTS.md says a write that printed `applied` and then exits 2 changed the files. **Not taken, with reasons**: `mrw seen` says "this call wrote and changed nothing" when its own read of the ledger fails (cosmetic; arm: the next change to `Snapshot`'s callers); 5.1 turning non-ASCII text into `?` before mrw sees it (the bytes are already mangled; AGENTS.md says to set `$OutputEncoding`); `--create -- 'trail '` suggesting a form that drops `--create` (arm: a report that acts on it); a `.git` FILE (worktree or submodule gitdir pointer) naming a directory elsewhere (no `.git` component, ADR-143 Out of Scope: a repository whose git directory is not named `.git`); symlinks into `.git` on Windows and the MCP path were untried by the peers (the Linux contract §246 and unit tests cover symlinks).
 - **The v1.61.1 retest and the close-outs (2026-10-10; wcag-web, wcag, blueprints, quality-harness, adapter)**: the notes-after-landing, mixed-endings and slash-path fixes were confirmed on Windows. **Taken**: `mrw seen` no longer says "this call wrote and changed nothing" (`seen.UnreadableError`; the writer adds that clause); `--create -- 'trail '` is told to pass the path as `--create`'s own argument, not to put `--` before it; a ledger that cannot be READ while a call records now says "could not be read to record this call" (`seen.ledgerNotRead`), and "could not be updated" is kept for a failed save. **Answered, not changed**: A `.git` FILE (worktree or submodule pointer) is itself a `.git` component and refused, and the directory it names lives under `.git/worktrees` or `.git/modules`, which is refused too; only a git directory not named `.git` (`--separate-git-dir`) escapes, and ADR-143 declares that. The `?` from Windows PowerShell 5.1 is a fact AGENTS.md states, not something mrw can see.
 
 ## From ADR-147 (every language the tree runs is analysed)
@@ -1675,9 +1584,25 @@ One session's report, pasted by Zy: 25 changes in 22 files went through one plan
 
 - **Run `cac-rename-post-send-2`** (2026-10-15): it replaces `cac-rename-post-send`, whose reference fix also renamed an unrelated test helper of the same name, and no stage has run it yet. Arm: the next stage of ADR-156's bench, which runs every task not superseded. **Closed 2026-10-21: it ran in Stage 2.**
 
-## Architecture audit 2026-10-20
 
-- **The write receipt struct**: `receipt` in `cmd/mrw/main.go` and `writeReceipt` in `internal/mcp/tools.go` both embed `apply.Result` and each repeat `Pattern` and `DriftWriters`. `TestNoShippedReceiptFieldDisappears` holds both to `docs/receipts.txt` but not to each other.
+## Findings filed from memoryd (2026-10-21)
+
+- **Windows v1.66.0 battery leads (2026-10-14, six sessions; every expected behaviour held).** Wording **Closed 2026-10-21: ADR-157 (seen.Header at cmd/mrw/main.go:680, flow.go:224, mcp/newer157.go, rooted.ErrOwnState, create.go:57; all seven leads verified in code).**
+  and teaching leads, none acted on:
+  1. `mrw seen` does not print the ledger header or writer.
+  2. A write refused under a newer ledger leads with 'Run mrw read first / --force' (CLI) or 'Read with
+     mrw_read first' (MCP). The real cause comes after a semicolon, so an agent may loop.
+  3. On the CLI the newer-ledger sentence prints twice for a refused write.
+  4. The refusal of mrw's own state dir advises '--root pointed where you mean' even when --root already
+     points there.
+  5. Under a newer ledger, mrw_read hands out ck ids with no word that an ack licenses nothing.
+  6. `mrw help` consults the ledger and prints 'has been discarded' for a v3 ledger it leaves untouched.
+     Reproduced on mac.
+  7. PS 5.1 under cp 65001 gives every piped --create a BOM, and with a UTF-8-preamble $OutputEncoding a
+     DOUBLE BOM, while the note names one.
+
+  The quoting lead from the same battery is already in AGENTS.md. Trigger: one wording record when Zy
+  asks.
 
 # Dormant leads
 
@@ -1749,26 +1674,6 @@ One session's report, pasted by Zy: 25 changes in 22 files went through one plan
   README is the install path; a registry listing is distribution work with its own review surface.
 
 ## From ADR-009 (mrw counts what happens to the plans it is given)
-
-- **The blind-bench scorer misreads several shell and answer shapes.** Two gaps in
-  `scripts/blind-score.py` were found in blind reading 03:
-  - `command_words` splits on an unquoted newline even after `\`;
-  - it parses each heredoc body line as a command.
-
-  The Codex review of PR #206 reproduced more:
-  - `command cat` and a `cat` in `"$(…)"` escape the ban;
-  - `env mrw` is not counted;
-  - a banned word printed in a quoted argument after `;` voids a run;
-  - a final non-object JSON fence is skipped;
-  - a wrongly typed answer crashes the scorer.
-
-  None changed a reading 03 verdict (`docs/blind/blind-03-result.md`, "Known limitations"). The
-  criterion also sets no minimum number of mrw calls: 8 of 9 matching answers with zero calls would
-  score MEETS. Every reading 03 run made at least 7 calls. **Reading 04 ran with the scorer
-  unchanged, on purpose** (`blind-04-plan.md`), and none of these shapes appears in its transcripts.
-  **Closed by ADR-070 T3** (2026-09-25): each shape is fixed and pinned by a synthetic transcript in
-  `scripts/test_blind_score.py`. The quoted-word void was the raw `"--help" in cmd` test, which voided
-  `echo "see --help"`. Readings 03 and 04 re-scored with no verdict moved.
 
 - **A fixture corpus of recorded model-authored plans, graded hermetically.** Better than a live
   benchmark — repeatable, no key, runs in CI — and blocked on the same thing: somebody has to
@@ -2078,6 +1983,8 @@ Observed 2026-09-16: wire (`mrw mcp` stdio) fitting+paged continuous, `isError` 
   still holds. Do not raise `maxInstructionsChars`.
 - **MCP cargo: `check` / `iter` / `seen` / `stats`.** Still ADR-010 / ADR-019
   Decision 5. Not 040. Arm with *"spec MCP cargo"*.
+- **Host-cut under the advertised ceiling.** Still the ADR-039 measurement
+  entry above. Arm with *"measure host-cut under ceiling"*.
 - **Syntax awareness; streaming apply; Windows `%LOCALAPPDATA%`.** Engine
   dreams. Streaming and the Windows path already have parent entries
   (ADR-001, ADR-004). Syntax awareness has none and must not ride 040.
@@ -2101,22 +2008,6 @@ Observed 2026-09-16: wire (`mrw mcp` stdio) fitting+paged continuous, `isError` 
 
 ## From ADR-066 (a plan that cannot commit whole says what it wrote)
 
-- **Staging the unlink placeholder, or probing directory writability.** The
-  aside placeholder (`pathop.go`, `CreateTemp`/`Remove`) and an unwritable
-  destination or source directory still fail only at commit. ADR-066's unit
-  undo makes that failure non-destructive and its receipt truthful; moving
-  them earlier is the next step if one is ever seen.
-  **Seen, 2026-09-25** (chaos seed 25 on v1.25.0, `9a586aa`): a rename to a destination whose name
-  is not valid UTF-8 (`moved/\xffdash.txt`) passes validation and fails at commit on APFS with
-  `illegal byte sequence`. The content edits of the same plan stay written. The receipt says
-  PARTIALLY APPLIED, names the written files, and exits 2; that is the ADR-066 contract, and v1.24.1
-  behaves identically, so this is not a regression. The trigger for moving the failure earlier is now
-  met: validate the destination name at staging, so such a plan writes nothing. It needs a record.
-  **CLOSED 2026-09-27 — by ADR-086**: each create target and rename destination is created and
-  removed at staging, so such a plan fails before anything is written (exit 2, nothing written). The
-  reproduction also found a create of `bad\xffname.txt` landing as `bad�name.txt` at exit 0:
-  the plan header was walked as runes; it is walked as bytes now. Contract §168, and §119's
-  read-only case is now a staging refusal.
 - **foldKey collapses distinct invalid bytes** (the Codex review of #254, source-traced, not
   observed): `foldKey` (`internal/apply/apply.go`) decodes a name as runes, so `x\xfe` and `x\xff`
   both fold to U+FFFD and two creates of them are refused as one file. A false refusal, never a lost
@@ -2147,8 +2038,26 @@ line — is not an alias.
   "not code". Arm with *"per-extension check"*. Rejected as part of 059:
   treating `.jsonl` as prose.
 
+## From the 2026-09-16 dangling spec
+
+- Desktop reach measure (UC-1) — trees-per-session on the Desktop population; coder plan count is the wrong population. Pick A stands. Not run 2026-09-16 (no Desktop session).
+- Under-ceiling host-cut (UC-2) — beside reading 18; do not treat ADR-039 as that evidence. Observed 2026-09-16 wire-only; model not run; still Deferred.
+- Strict-balance default campaign (UC-4) — 5% / 50 / three corpora; default stays off.
 ## From the v1.25.1 field tests (2026-09-25, twelve peer sessions, macOS and Windows)
 
+- ~~**On Windows a spec with a trailing space reaches the OS as given and the OS folds it.**~~
+  **CLOSED 2026-09-27 — by ADR-071 Decision 4** (v1.26.0): `rooted.Resolve` refuses a component
+  Win32 would read as another name, so `x ` is refused before the ledger records anything and a
+  folded pair can no longer be planned. `TestWin32AliasNamesTheComponentWindowsWouldRemap` runs on
+  every platform, `TestResolveRefusesAWin32Alias` on the Windows CI job. Closed from the code, not
+  from a Windows re-run of the probe. Over
+  MCP, `mrw_read` with `specs: ["x "]` kept the spelling (the ADR-068 promise: the header printed
+  `x ` with its space) and Win32 path normalisation then opened `x`, so the ledger holds `x ` and `x`
+  as two keys over one file, each with its own ack id. Whether a plan naming both spellings is
+  refused as one file (ADR-021 uses the filesystem's identity, and on NTFS the two ARE one) is
+  untested there; `mrw_write` on the folded pair was deliberately not tried by the finder. Arm with a
+  Windows fixture in `internal/apply` before trusting ADR-021 on that platform. Evidence: the
+  desktop-3laqmbq MCP probe, v1.25.1 built from a partial checkout (see the next item).
 - **`scripts/contract.sh` is unmeasured on a Windows bash.** Git Bash there has Go but no `jq`, so
   the script exits 2 at its `jq` check before any assertion; WSL there has `jq`'s absence and no Go.
   Documented as Linux-only; this row records that the documentation was tested, not the script.
@@ -2162,19 +2071,25 @@ line — is not an alias.
   **Disposition (ADR-071 T5):** as designed. ADR-002 and ADR-005 §4 record that a write observes
   the whole file; M kept it on 2026-09-25, and the prose that said "per line" without the
   exception now states it.
-- **MSYS (Git Bash) rewrites more than the docs say.** The documented example `f.go:/^func main/`
-  is NOT rewritten; the trap fires when the file part contains a `/`, and a one-letter pattern
-  becomes a drive (`/x/` → `X:\`). `--grep` patterns such as `/usr` or `NAME=/path` are rewritten
-  into a false "no match" with no hint. `MSYS_NO_PATHCONV=1` works as well as
-  `MSYS2_ARG_CONV_EXCL='*'`, and the hint names only the second. A leading-slash `--exclude` can
-  never match. An attached `-C/path` arrives as `-CC:/…`.
-  **Partly fixed by ADR-074 T4**: the hint names `MSYS_NO_PATHCONV=1` beside
-  `MSYS2_ARG_CONV_EXCL='*'`, and AGENTS.md, README and the served guide say the rewrite fires when
-  the file part holds a `/`. A leading-slash `--exclude` and an attached `-C/path` are unchanged.
-  **The leading-slash `--exclude` is refused by ADR-078 T2** on both surfaces: a glob matches
-  root-relative paths and base names, and none is rooted — so on Windows the drive MSYS makes of
-  `/vendor` is refused the same way, as are `./vendor` and `vendor/`. The attached `-C/path` is
-  permanent (fact: MSYS rewrites argv before mrw starts; both switches that stop it are named).
+- **Unlocked state beside the ledger** (the klientams peer's leads, not measured): `internal/iter`
+  and `internal/authoring` rewrite their files without a lock, and `mrw seen` loads the ledger
+  unlocked. Racing processes could lose a working-set entry or a tally count, never an edit. Deferred
+  from ADR-075.
+  **Fixed by ADR-079**, contract §160: the working set and the tally are read, changed and written
+  under one lock each (`state.Hold`), their readers take it too, and `mrw seen` reads the ledger under
+  its lock. Worse than recorded: a racing process could read a file emptied mid-rewrite and wipe the
+  whole tally or working set, not one count.
+  The reviews of #240 closed two gaps in that fix: a writer that could not take the tally's lock
+  wrote unlocked, and `state.Migrate` copied legacy state with no lock; a writer now skips a lock it
+  cannot take, and `Migrate` holds each destination's. Left open (deferred: found in the review of
+  #240, not measured): the MCP pending-ack store is rewritten under the in-process gate only, so two
+  servers on one checkout could race it, and `seen.IsStale` reads the ledger unlocked — a wrong
+  stderr notice at worst. **CLOSED 2026-09-27 — the pending store by ADR-085** (contract §167: eight
+  servers at once, each ack licenses its write; 0–1 of 64 concurrent holds survived before it);
+  **`seen.IsStale` still deferred, as an accepted diagnostic risk**: `save` writes the header and every
+  line through one `os.WriteFile`, which normally puts the short header in its first write, but a
+  short first write is allowed (Codex review of #253), and a header prefix at EOF would read as stale
+  and print one false notice. The ledger is unaffected. Arm on one observed false stale notice.
 - **The Go suite under PowerShell.** Eleven check tests FAIL instead of skipping when `sh` is not
   on PATH (green from Git Bash on the same tree), and `TestTailAnnouncesWhatItLeftOut` panics.
   All thirteen padded-path tests SKIP on NTFS because their fixture needs a file named `x `. Owed:
@@ -2212,55 +2127,6 @@ line — is not an alias.
   unverified on Windows: the peer had no symlink privilege, and CI does not show whether
   `TestALinkToADeviceNameIsRefused` ran or skipped. Open (deferred: needs a Windows run with symlinks).
 
-Smaller, recorded as found: an in-root symlink is followed on write and the target is absent from
-the receipt; plan-header paths are cleaned rather than refused (`a.txt/`, `"a.txt"`, `./a.txt`, and
-a rename to `d/` makes a FILE `d`); inserts into an empty file produce no trailing newline; a rename
-receipt carries an empty sha and creates missing directories silently; a killed write is missing
-from `stats`; `NUL` reads as an empty file; unlink deletes a read-only file; a Hidden attribute is
-stripped by a write; every header parse error is followed by a bogus "text before the first @@
-header"; a tab-separated header is reported as no header; a nonexistent `-C` root reports "resolves
-to /"; a file literally named `c:1-2` is unreachable even after `--`; `--files-from` dies on a line
-over 8 MiB with no line number; `a.go:$-1` and `a.go:5-3` get different exit classes; `-C N` is
-ignored on a numeric range; over MCP, ids of any JSON type are accepted, invalid UTF-8 becomes
-U+FFFD so the engine looks for a path never sent, a bad flag prints usage on stdout at startup,
-100,000 specs block the server past 120 s, and `exclude: ["["]` is not refused.
-ADR-074 T4 names the `--files-from` line that exceeds 8 MiB.
-**Fixed by ADR-076** (2026-09-26), contract §151–§153: the symlink target is named in the receipt
-(`files[].target`); `a.txt/` and a rename to `d/` are refused, while `"a.txt"` and `./a.txt` are
-cleaned as designed (ADR-005 §1, `TestTwoSpellingsOfOnePathAreOneFile`, `TestQuotedFieldsSurvive`);
-an insert into an empty file ends with a newline; a rename or a create names the directories it
-made (`dirs_created`), and a removed file's line gives its former sha; `NUL` is refused as a device;
-a read-only file is refused for every op that would change it, and a write keeps Hidden and System;
-a missing `-C` root is named as missing. The killed-write window is closed for the check by ADR-072
-T2 (§143); the milliseconds between the commit rename and the tally are permanent: SIGKILL cannot be
-handled.
-**Fixed by ADR-078** (2026-09-26), contract §155–§159: a header that does not parse is one error, not
-one per body line, and a tab after `@@` is named; `-C` with no `/pattern/` is refused rather than
-ignored; over MCP an id that is neither a string nor a number with an integer value is refused `-32600`, invalid UTF-8 in
-an argument is refused by name, a usage error writes nothing to stdout, a named read of many specs
-stops once it has overflowed, and `exclude: ["["]` is refused as the CLI refuses it. `c:1-2`, `$-1`
-against `5-3` and a FIFO list stay as ADR-074 decided (its Out of Scope).
-
-From the review of #229 (ADR-072), outside that record: a `--dry-run` is tallied as `applied`
-and so counted among `landed writes` in `mrw stats`, though nothing landed; `main` did the same
-before ADR-072. And a signal that lands between the check's signal handler being installed and
-its process starting reports "could not start: context canceled" (exit 2, with advice to declare a
-check) rather than "interrupted"; the window is microseconds, and nothing reaches it in a test.
-**The signal window is fixed by ADR-080 T2**: a check cancelled before its process starts reports
-`interrupted`, exit 3, like one stopped while it ran — and a context cancelled beforehand reaches it,
-so a test does (`TestACheckCancelledBeforeItStartsSaysInterrupted`).
-Found by the race suite on #241: `TestAnInterruptedCheckSaysSo` (ADR-072 T4) cancels at a fixed
-300 ms and expects the check to have started by then; under the whole `-race` suite `sh` started
-later, the cancel reached a check that never ran, and it failed (once in the full run, once in
-three isolated runs; six of six passed on main and on the branch when idle). ADR-080 first pruned
-old logs before the start, which widened the window; pruning now runs after the check exits.
-**CLOSED 2026-09-27:** the test now cancels once the check has touched a start marker in its root.
-The check has 5 s to start, and a start that never comes fails by name ("never wrote its start
-marker"), not as a false `Ran=false`; the separate 5 s return bound runs from the cancel. The body
-change moved the locks of ADR-072 T4, ADR-074 T1, ADR-080 T1 and ADR-080 T2, re-taken with
-`--relock --replace-hashes` in the same change.
-**The dry run is fixed by ADR-079**, contract §161: a clean `--dry-run` records nothing on either
-surface (MCP counted every dry run as `refused_apply`), and a refused one is one refusal.
 ## From ADR-092 (each step after a write gets its own verdict)
 
 - **A per-step timeout or tail setting** (ADR-092 Out of Scope). Every step takes the harness's
@@ -2329,6 +2195,25 @@ surface (MCP counted every dry run as `refused_apply`), and a refused one is one
 - **`stats --json` state-read failures** (ADR-100 Out of Scope). `authoring.Reset` and `authoring.Load`
   errors (`statsCmd`) print only a message. `stats` reports the tally rather than a verdict a caller branches
   on. Arm with the first consumer that reads `stats --json` programmatically.
+## From ADR-108 (what an agent sends arrives as sent)
+
+- **Combination tests and a host matrix** (B2) — the combination half **Closed**: `docs/break/write-flags/stress.py`
+  drives seeded products of the write flags (`--json`, `--dry-run`, `--check`/`--no-check`, `--then-sh`,
+  `--strict-balance`, `--echo-pad`) across native, `apply_patch` and `search_replace` plans and three check
+  configurations, against seven invariants; 800 runs on two seeds, 0 violations, 2026-10-01. The host-matrix half
+  stays deferred: the MCP arm is measured on Claude Code alone, and no second MCP host is installed here. Arm on a
+  second host, or when a defect is found in a combination the harness does not drive.
+  The matrix to run when armed: each host (Claude Desktop, Cursor, opencode, any other MCP client) against
+  the handshake (its instructions length), an `mrw_read` page with its acks, an `mrw_write` whose check runs
+  (ADR-113), one with `then` (ADR-115), progress notifications during that check (ADR-121), and a receipt cut
+  to the ceiling; record each host's version and the cells it cannot drive.
+- **A FIFO swapped in between a loader's check and its open** — **Closed** by ADR-109 (`internal/regular.Open`: every loader opens without blocking and asks the descriptor; it also found `check.Load` hung outright on a FIFO `.quality-harness.json`, contract §207, 2026-10-01) (the Codex re-review of #304, residual). `ingest`'s
+  `targetBytes`, `plan`'s `LoadBodyFiles`, `read`'s `readCapped`, `apply`'s `readLines` and ast-grep's probes judge
+  a path by `Stat` and then open it blocking, so a file replaced by a FIFO in that window hangs the call until
+  something writes to the pipe. ADR-108's A6 and A8 open non-blocking and check the descriptor; these were not
+  changed, since two are engine packages ADR-108 does not own and the window is a swap inside the checkout. Arm
+  when a hang is reported that ends at such a swap, or when a record next owns `read` or `apply`.
+
 ## From ADR-117 (mrw_read takes max_lines, stat and files_from)
 
 - **`--context` and `--no-numbers` over MCP** — the CLI's remaining read extras; the routing names them. Arm when
@@ -2355,14 +2240,6 @@ surface (MCP counted every dry run as `refused_apply`), and a refused one is one
 
 ## From the Windows peers (2026-10-02, v1.42.0)
 
-- **`--grep` costs 10–14 ms a file on Windows.** 3,000 files of 40 lines took 31–63 s, from the CLI and over MCP,
-  with output to a file and an MCP index serving no lines. `grep -rl` took 0.41 s; the same shape on macOS 0.29 s.
-  The `.gitignore` matcher is ruled out (`.git` or not makes no difference). A peer's timeout stack points at
-  `read.Run` → `rooted.Resolve` → `InState` → `RealAsFarAsItExists` → `filepath.EvalSymlinks` per served path
-  (ADR-077's state-directory check). The same stack timed out `internal/mcp`'s
-  `TestAnIndexTooLargeToServePagesByFile` at 6m31s under a full Git Bash run (127–169 s alone). **Taken by ADR-123**
-  (2026-10-03, Zy redirected the record here): the state base is resolved once while it exists and Resolve's own
-  real path is reused, 2.4× fewer per-file syscalls in the macOS benchmark; the Windows timing is in the record.
 - **Process trees on Windows** are ADR-120's: a timed-out check kills only its direct `sh.exe`, and a killed mrw
   kills nothing below it. The orphans' parents are dead MSYS fork stubs, so a parent-PID walk would miss them, and
   they hold the check log open. And Git for Windows' sh asks for `CREATE_BREAKAWAY_FROM_JOB` whenever a job
@@ -2373,19 +2250,6 @@ surface (MCP counted every dry run as `refused_apply`), and a refused one is one
   rename onto an existing file, `files_from` with backslashes and CRLF, `max_lines` and `stat` licensing, checks
   with and without `sh`, steps, huge-read pages, every `.gitignore` rule tried under git's defaults, and
   `occurrence=N` on LF, CRLF and a backslash pattern. Not covered: symlinks (no privilege), a console Ctrl+C.
-
-## From ADR-120 (Windows owns its process tree)
-
-- **A deadline that expires before the check's child runs exits 2, not 3.** A check whose deadline has already
-  passed when it starts (`c.Start` returns `ctx.Err()`) is reported "no check could run: timed out", exit 2,
-  where a check that times out while running exits 3 (`cmd/mrw/main.go`, the write path's `Ran == false` branch,
-  and `mrw check` beside it). Pre-existing; ADR-120 widens the window by the milliseconds containment takes on
-  Windows, since a deadline landing then is reported the same way. A cancel there is already reported as
-  interrupted, exit 3. Found by the in-process review of #325. Arm on a report of a timed-out check exiting 2, or
-  with the next change to the write path's exit mapping: test `DeadlineExceeded` beside `Interrupted` there.
-  The Codex review of v1.42.0..v1.47.0 (2026-10-06) found the same exit 2 on Windows when the deadline lands
-  while the child is being contained (`internal/subproc/job.go` clears `ProcessState`), and arms this entry:
-  **Taken by ADR-126** (2026-10-06): both are reported "timed out before it started", exit 3.
 
 ## From ADR-123 (a served path is resolved once)
 
@@ -2407,6 +2271,9 @@ Five Windows sessions (tool-multipathreadwrite, quality-harness, wcag, quality-b
 - **Windows semantics, recorded so nobody reports them again**: `--root Y:` roots at the drive's current directory, not `Y:\` (wcag peer); `f.txt::$DATA` and `f.txt:stream` are usage errors because the colon is the address separator, and `--grep` never sees a stream's content (two peers).
 - **A file that vanishes between the walk and the open is labelled REFUSED in some places and UNREADABLE in others** (wcag-web peer; the race is uncontrolled, so no claim about 151 versus 152): a vanished directory is REFUSED, a vanished file UNREADABLE. Cosmetic.
 
+## From the 14-session survey of what makes mrw hard to use fluently (2026-10-09)
+
+- **Flag friction** (`-C` means root before the verb and context after it, 4 sessions; `--grep -i` shifts the pattern into the path slot, 2; `--plan` guessed for `write -`, 2): accept or hint `--grep -i`, warn on `-C` before and after the verb, print `mrw write [-]` in the unknown-flag error, hint at quoting for an unclosed pattern. Arm: the next change to flag parsing. **Taken by ADR-140**: the flags grep has and `read` lacks (`-i`, `-n`, `-r`, `-l`, `-A`, `-e`, `--include`), and `--grep -i`. **Taken by ADR-151** (2026-10-14): `--plan`, `--file`, `--input` and `--stdin` on `write` end with the argument's spelling, and an all-digit `-C` before the subcommand is named on stderr as `--root`. Still open: hints for `check`, `iter`, `seen` and `stats` (no evidence yet; arm: a caller reports one), and a quoting hint for an unclosed pattern.
 ## From a field report on batch editing (2026-10-20)
 
 - **Balance advisories are noisy on CSS, regex and string bodies.** By design (ADR-055): braces in strings count, and a row never blocks. Arm: `mrw stats` advisory rates from a CSS- or regex-heavy repository, measured against ADR-055's bar. First-hand, 2026-10-20: three advisories in one session (#460) fired only on parentheses inside Go string literals.
@@ -2421,6 +2288,8 @@ Five Windows sessions (wcag-web, wcag, quality-blueprints, quality-harness, tool
 - **The held-ledger exit 2 is not new** (three sessions, v1.52.0 and v1.59.0): the rename is attempted five times over about 100 ms (`state.write`), which covers a scanner holding the file for an instant and not a holder that stays. #377 changed the words, not the exit. Arm: a session shows a holder that outlasts the retry in ordinary use.
 - **"mrw served no lines" is said of a line `--max-cols` cut** (wcag-web), and one `-- note` names only the first of several multi-line ranges that need a served line after (wcag-web asked; ADR-136 prints the first). Wording; arm: the next change to those messages. **First half taken by ADR-164 T6** (#465): every not-read refusal now says a line `--max-cols` served cut is not read; the `-- note` half stays open.
 - **Cosmetic, from the other four sessions' reports** (named in the session's reply, no repro filed here): a `seen` count that includes a junction, `read` of an alias directory ("Incorrect function"), a two-field ledger row and appended garbage in the ledger, v5-header wording, 8.3 and case-only duplicate ledger rows, lock-holder litter, a write by rename dropping the Mark of the Web and a hard link, "2 of f" wording, the BOM counted in a `[cols a-b of n]` window, the order of `--files-from`'s summary. Arm: any one of them shown to mislead a caller.
+- **The v1.60.0 retest (2026-10-10; wcag-web, wcag, quality-blueprints, quality-harness and the adapter branch's session)**: (a) to (e) passed on all five. **Taken** in the follow-up: the all-CRLF content that ends in an empty line is kept and named (four sessions), the notes stop blaming one shell, a refusal of a name Windows does not keep names the one cause that applies (and drops "name the file as it is on disk"), and a ledger that cannot be opened says what stands after a call and that nothing was written before one. **Not acted on**: `--create -- 'trail '` is answered with a hint that drops `--create` (the right hint is `--create 'trail '`; adapter session); `--force` over an existing path keeps "already exists (1 lines) — use replace or delete" (wcag); `@() | mrw write --create p` from PowerShell makes the one-line file `0a`, with a BOM line in 5.1 (quality-harness; the pipe's own CRLF, indistinguishable from content); the "lines already served … stand" sentence prints before the hunk lines of a write because stderr and stdout interleave (quality-harness; cosmetic); a write that landed but exited 2 under a held ledger invites a blind retry, which is refused as changed or unread (wcag; safe). Windows PowerShell 5.1's ASCII `$OutputEncoding` turning non-ASCII into `?` before mrw sees it is documented in AGENTS.md and cannot be detected. Arm: any of these shown to mislead a caller.
+- **The v1.61.0 retest (2026-10-10; all five Windows sessions)**: the `.git` refusal held on a real NTFS `GIT~1` (`dir /x`), case variants, `.git\x`, `sub/../.git`, a junction, a rename destination and `apply_patch`; the four v1.60.0 changes held. **Taken** in the follow-up: the LF-lines note says the dropped CRLF is *most likely* PowerShell's (cmd and Git Bash pipe the same bytes); a `--create` note is told only once the create landed (it was printed before an "already exists" refusal); a mix of CRLF and LF lines is refused as mixed endings, and "bare CR" is kept for a lone CR; an unreadable ledger on a read no longer says "changes already applied" (it says whatever the call did stands); the rename-destination refusal spells its path with `/`; AGENTS.md says a write that printed `applied` and then exits 2 changed the files. **Not taken, with reasons**: `mrw seen` says "this call wrote and changed nothing" when its own read of the ledger fails (cosmetic; arm: the next change to `Snapshot`'s callers); 5.1 turning non-ASCII text into `?` before mrw sees it (the bytes are already mangled; AGENTS.md says to set `$OutputEncoding`); `--create -- 'trail '` suggesting a form that drops `--create` (arm: a report that acts on it); a `.git` FILE (worktree or submodule gitdir pointer) naming a directory elsewhere (no `.git` component, ADR-143 Out of Scope: a repository whose git directory is not named `.git`); symlinks into `.git` on Windows and the MCP path were untried by the peers (the Linux contract §246 and unit tests cover symlinks).
 ## From ADR-147 (every language the tree runs is analysed)
 
 - **Python embedded in shell is not analysed** (2026-10-13): `scripts/contract.sh` and `scripts/break-campaign.sh` hold 108 `<<'PY'` heredocs and 52 `python3 -c` sites (`mrw read --grep "<<.?PY" scripts/`, `--grep 'python3 -c' scripts/`). ruff reads `*.py` files and shellcheck does not parse a heredoc body, so none of it is checked. Arms with a quote naming it: either extract the heredocs into tracked `.py` helpers ruff reads, or a step that pipes each body to `ruff check --stdin-filename`. Neither was measured.
@@ -2436,6 +2305,7 @@ Five Windows sessions (wcag-web, wcag, quality-blueprints, quality-harness, tool
 
 What the scout for `docs/architecture.md` found duplicated across packages (`go list ./...` at b89dafa7). Each is one concept with two copies, and nothing fails when the copies drift. Arm: the next change to either copy moves it into one owner, with a test that fails if a second copy returns.
 
+- **The write receipt struct**: `receipt` in `cmd/mrw/main.go` and `writeReceipt` in `internal/mcp/tools.go` both embed `apply.Result` and each repeat `Pattern` and `DriftWriters`. `TestNoShippedReceiptFieldDisappears` holds both to `docs/receipts.txt` but not to each other.
 - **`gateRefusal`**: `cmd/mrw/main.go` covers the Harness and Steps stages, `internal/mcp/tools.go` covers Depth. Same name, different coverage.
 - **`foldKey`**: the same `unicode.SimpleFold` key in `internal/read/walk.go` and `internal/apply/apply.go`.
 - **`internal/mcp` has two package comments** (`ack.go` and `mcp.go`); `go doc` shows the narrower one. Wording only.

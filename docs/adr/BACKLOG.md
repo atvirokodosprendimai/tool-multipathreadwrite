@@ -42,8 +42,153 @@ Archived: [BACKLOG-archive.md](BACKLOG-archive.md)
   Reading 05 re-runs `blind-04-plan.md` on the build that ships ADR-070's worked `body=` header: deferred, on M's go
   (six or more headless `claude -p` runs).
 
+## From ADR-008 (a delete says what it removed)
+
+- ~~**An ALIAS spelling of a partially-read file bypasses the per-line ledger
+  ENTIRELY, so a write to lines the caller was never served APPLIES.**~~
+  **CLOSED 2026-09-09 by ADR-029 T1+T2** —
+  `internal/adversarial/ledger_test.go::TestAnAliasSpellingIsTheSameFileToThePerLineLedger`,
+  contract §67. Ranked as open until 2026-09-12 because this receipt was never
+  struck (M: *"I NAME THEM ALL"*). The write-back two-key SHA refusal further
+  down this file is a different defect and stays open. Found by
+  the Codex review of PR #128, reproduced 2026-09-07 against that branch at
+  `1efd1a6`. `internal/apply/apply.go:510` recovers an aliased observation with
+  `sameFileEntry` — that is issue #47's fix and it must keep working — but `:553`
+  looks the ledger up again by exact key and `covered()` treats the miss as
+  COVERED (`:555`), so every per-line check passes:
+
+      $ mrw --root . read 'real.txt:1'                             # line 1 only
+      $ printf '@@ link.txt 4 replace\nPWNED\n' | mrw --root . write -
+      ok   link.txt 4 replace  -1 +1
+
+  with `link.txt -> real.txt`; a case-only `REAL.txt` does the same on APFS and
+  on NTFS. The exact spelling is refused, as it should be. **This is larger than
+  the anchor entry above, which is one visible symptom of it**: for an alias,
+  ADR-002's per-line guard is not weakened, it is absent.
+
+  **Pre-registered before the harness exists**, because the obvious fixture
+  passes for the wrong reason in two different ways.
+
+  1. A test asserting only that the alias write is REFUSED is green against a fix
+     that refuses every alias — which undoes #47. It must also assert that a
+     WHOLE read of `real.txt` still licenses a write spelled `link.txt`.
+  2. Neither alias is portable, and each is covered on exactly one of this
+     repository's two CI operating systems. The symlink half runs on Linux and
+     may fail to create on Windows; the case-only half needs a case-INsensitive
+     filesystem, so it runs on Windows and cannot run on Linux. Probe at runtime
+     and skip — never assert the platform — and say in the record that
+     `scripts/contract.sh` can carry the symlink half only, being Linux-only.
+
+  `--root` still refuses first: checked the same day on an in-root symlink
+  pointing outside the root, where read and write were both refused by name. So
+  this is a contract violation against ADR-002 and ADR-005, not a privilege
+  boundary — exactly as for the entry above.
+
 ## From the `$` divergence (2026-09-02, no ADR)
 
+- **Measuring whether served size degrades edit accuracy — DEFERRED, and it is **Closed 2026-10-21: note rewritten from docs/curve/: the curve was run and it bent for one client only. Readings 2 and 3 (Sonnet, read arm) were flat, 42/45 and 45/45, the three misses at target+2. Reading 4 (Haiku, read arm) fell 15/15, 12/15, 8/15 across 2, 20 and 200 KB. Reading 5 traced every miss to the served text's row index (target-117 with the window from line 120), not to size. With the bare tool-result delivery Haiku scored 15/15 at all three sizes (readings 8, 9); an outer row number equal to the index brought the miss back (readings 11, 13); gpt-5.6-sol scored 45/45 (reading 16) and Sonnet 45/45 on a thirteen-service fixture (reading 17); readings 6 and 7 are void and reading 14 is evidence-limited. So no size effect is shown, and the bend is a row-index misreading, not a context-size effect. Not answered: the MCP delivery arm at 200 KB (reading 18 void because the host truncates the page, readings 12 and 19 void, reading 20 covers 2 and 20 KB only, 30/30); that is the open measurement under 'A host-truncation measurement of an under-ceiling result'.**
+  the most valuable unanswered question this project has.** Named in ADR-014.
+
+  `MaxResultChars` is 200,000 because that fits under Claude Code's per-tool
+  ceiling. It bounds a RESOURCE and says nothing about quality. What nobody has
+  measured is whether a model's next edit gets WORSE as more context is served:
+  the reported degradation with long context is about retrieval and QA, and edit
+  authoring is a narrower, more mechanical task it has not been measured on.
+
+  ⚠ The obvious instrument is the wrong one. ADR-014 records peak RSS against
+  served bytes (about 12x the served size over MCP, flat on the CLI). That is
+  what the SERVER spends. The question is what the CALLER's accuracy does, and
+  using a memory curve to justify a context budget is the same category error
+  ADR-012 rejected one level up — a measurement pointed at the wrong population.
+
+  Answering it needs the benchmark harness: served bytes as the independent
+  variable, edit outcome as the dependent one, across models. If the curve turns
+  over, the cap becomes a measured number instead of an inherited one; if it is
+  flat, "arbitrary" is a defensible answer and we will be able to say so.
+
+  **PRE-REGISTRATION, written 2026-09-04 BEFORE any harness exists or any datum
+  was collected.** It is here rather than in a record because a criterion
+  authored after the first look is not a criterion.
+
+  ⚠ THE DEPENDENT VARIABLE IS THE WHOLE PROBLEM, and the obvious ones are
+  traps. ADR-009 already counts `applied`, `refused_parse` and `refused_apply`,
+  so they are free — and they will be FLAT, because they measure whether the
+  caller could author the FORMAT, which has nothing to do with how much was
+  served. A flat curve on those would read as "the cap does not matter" when it
+  actually means "the easy thing was measured". They are recorded as secondary
+  and are not the claim.
+
+
+  ⚠ AND "FREE FROM THE TALLY" NEEDED CHECKING, because ADR-012's Context
+  records that tally as per-checkout and unable to ATTRIBUTE. Verified
+  2026-09-04 before the design was allowed to depend on it: with a fresh
+  `XDG_STATE_HOME` per trial, `mrw stats` reports that trial alone —
+  `applied 1 of 1 plan(s)`, one plan recorded. So the secondary DVs are
+  per-cell readable, and the isolation is the state dir rather than the
+  checkout. If that ever stops holding, the fallback is parsing each
+  `mrw_write` result directly, which is a different code path and should be
+  named as such rather than quietly substituted.
+  **PRIMARY DV: did the plan address the line it was supposed to address?**
+  This is the failure mode that matters and the one every other gate is blind
+  to — an edit that parses, applies cleanly, reports `ok`, and changed the
+  wrong line. `refused_parse` and `refused_apply` both stay green through it.
+  It is also the failure mrw exists to prevent, so it is the honest thing to
+  put on the y-axis.
+
+  GROUND TRUTH IS PLANTED, NOT JUDGED. The generator places the target line and
+  therefore knows the correct address by construction; scoring is
+  `plan addressed line N` against a known N, mechanically. Nothing here needs a
+  human to rate an edit, which is what keeps the measurement affordable and
+  repeatable — and it is the reason this DV was chosen over "is the edit
+  semantically right", which cannot be scored without authoring a rubric and a
+  rater.
+
+  ⚠ THE THREAT TO VALIDITY, named up front: a planted target is easy to find if
+  it is a unique string, and then the task measures string matching rather than
+  reading. The distractors must be NEAR-IDENTICAL to the target — same shape,
+  differing in the detail the instruction names — or the curve will be flat for
+  a reason that has nothing to do with context size.
+
+  IV: served bytes, varied by padding around the target on both sides.
+
+  ⚠ "THE TASK IS HELD FIXED" WAS FALSE AS FIRST WRITTEN, and the correction
+  matters because it is the difference between a clean manipulation and two
+  variables moving at once. Padding adds LINES, so the line-number space grows
+  and the address the model must produce changes by construction. It cannot be
+  held fixed while size varies — the honest statement is that the INSTRUCTION
+  and the target CONTENT are identical across cells, the address is not, and
+  target position is a stratum rather than a nuisance.
+
+  ⚠ DISTRACTOR COUNT IS A SECOND IV HIDING INSIDE THE FIRST, and this is the
+  one that would make a real curve uninterpretable rather than merely absent.
+  If the padding IS near-identical distractors, then larger cells have more
+  near-misses and "more context" cannot be separated from "more candidates".
+  So: the number of near-identical distractors is HELD CONSTANT across size
+  cells, and the remaining padding is inert content that is obviously not a
+  candidate. Distractor density is a legitimate second experiment; it is not
+  this one, and one curve answers one question.
+
+  STRATIFY BY TARGET POSITION rather than randomising it away. Position within
+  the served window is the best-documented effect in the long-context
+  literature, and if it is folded into the noise the headline curve will
+  average a real effect into nothing. Early / middle / late are separate cells.
+
+  REPEATS: the model is nondeterministic, so N trials per cell with the count
+  fixed in advance. A cell is a proportion, and proportions need their interval
+  reported, not a point.
+
+  **DIRECTION AND THE FLAT ANSWER, committed now.** The prediction is that
+  correct-address rate DEGRADES as served bytes grow, most sharply for
+  mid-window targets. **If the curve is flat, that is a publishable answer and
+  the cap stays arbitrary with evidence** — it does not become a reason to
+  search for a different metric until something bends. ADR-009 and ADR-012 both
+
+  **RECEIPT, 2026-09-04 — the instrument exists, the reading does not.** ADR-020 (PR #85) built
+  the harness this pre-registration describes: `curve generate` / `score` / `tally`, no model
+  client, scored by applying. **The FIRST READING is deferred to ADR-020's Follow-ups**, with the
+  criterion above unchanged and not to be re-derived. This paragraph is the entry `adr-debt` looks
+  for when the record's Out of Scope names this file.
+  refused criteria that could not go red; this one commits to accepting a null.
 - **MCP coverage for the Desktop population — the largest open product
   question in this repository.** M, 2026-09-04: *"we need wider MCP coverage,
   which basically calls local mrw under the hood … the potential here IS HUGE,
@@ -164,6 +309,14 @@ Archived: [BACKLOG-archive.md](BACKLOG-archive.md)
     wall time.
   - Write here: trees needed, whether one launch root sufficed, and each argument the analyst never touched.
 
+## From ADR-020-T2 (a target the instruction does not name)
+
+- ~~**Run a reading against the relational fixture.**~~ **CLOSED 2026-09-05 by reading 3** (#96, `docs/curve/reading-03-result.md`): 45 of 45 under the pre-registered criterion, flat, and the prediction that the relational fixture is harder refuted (ADR-020 Follow-ups). T2 builds the selector; it does not spend the
+  trials. The criterion is the one already pre-registered above and must not be re-derived — correct
+  address rate against served bytes, stratified by position, refusals reported separately, a flat
+  curve accepted as an answer. What the first reading adds is that the NAMED fixture is at ceiling
+  (42/45, `docs/curve/reading-02-result.md`), so a relational reading is the first one whose curve
+  has room to bend. It is a budget decision, which is why ADR-020 keeps readings out of its tasks.
 ## From ADR-027 (an empty file is created on purpose, or not at all)
 
 - **A successful alias-spelled write leaves ONE file recorded under TWO ledger
@@ -212,6 +365,12 @@ Archived: [BACKLOG-archive.md](BACKLOG-archive.md)
   in advance for that reason.
 
 ## From ADR-054 (a write that applied can still leave a broken tree)
+
+### From ADR-055 (v1.17.0)
+
+- **The pricing campaign had no data source** — **closed by ADR-056 T2**
+  (`mrw stats` pricing block; contract §96). The criterion above is unchanged;
+  only its source sentence was corrected.
 
 ### Pre-registration: a default `--strict-balance`
 
@@ -431,23 +590,6 @@ Zy, 2026-10-18, approved measuring the plugin where its mechanism can work; 2026
 
   Open question: whether mrw should know any caller's log. Trigger: quality-harness picks up §331, or
   Zy asks.
-
-- **Windows v1.66.0 battery leads (2026-10-14, six sessions; every expected behaviour held).** Wording
-  and teaching leads, none acted on:
-  1. `mrw seen` does not print the ledger header or writer.
-  2. A write refused under a newer ledger leads with 'Run mrw read first / --force' (CLI) or 'Read with
-     mrw_read first' (MCP). The real cause comes after a semicolon, so an agent may loop.
-  3. On the CLI the newer-ledger sentence prints twice for a refused write.
-  4. The refusal of mrw's own state dir advises '--root pointed where you mean' even when --root already
-     points there.
-  5. Under a newer ledger, mrw_read hands out ck ids with no word that an ack licenses nothing.
-  6. `mrw help` consults the ledger and prints 'has been discarded' for a v3 ledger it leaves untouched.
-     Reproduced on mac.
-  7. PS 5.1 under cp 65001 gives every piped --create a BOM, and with a UTF-8-preamble $OutputEncoding a
-     DOUBLE BOM, while the note names one.
-
-  The quoting lead from the same battery is already in AGENTS.md. Trigger: one wording record when Zy
-  asks.
 
 ## Closed, kept here because a done task's Acceptance fence reads this file
 
