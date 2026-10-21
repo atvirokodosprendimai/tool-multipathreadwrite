@@ -876,37 +876,93 @@ func envBypass(command string) bool {
 }
 
 // commandWordsAt says where, in a command, a word of this name stands at a
-// command position: the start, or after an unquoted ; & | ( or newline, past
-// any NAME=VALUE words. Each result is the index just after the word. Text in
-// quotes is no command: the env inside python -c 'print("env …")' is not one.
+// command position: the start, or after an unquoted ; & | ( ) or newline, past
+// any NAME=VALUE words (a quoted value included), or at the start of a command
+// substitution, $( or a backtick, which also counts inside double quotes. Each
+// result is the index just after the word. Text in quotes is no command: the
+// env inside python -c 'print("env …")' is not one.
 func commandWordsAt(command, name string) []int {
+	type frame struct {
+		quote   byte
+		restore bool
+		paren   bool
+		subst   bool
+	}
 	var out []int
-	atStart := true
+	var stack []frame
+	atStart, restore, assignHeld := true, false, false
 	var quote byte
+	push := func(paren, subst bool) {
+		stack = append(stack, frame{quote, restore, paren, subst})
+		quote, restore, atStart = 0, false, true
+	}
+	pop := func() {
+		f := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		quote, restore = f.quote, f.restore
+		atStart = f.paren && !f.subst && quote == 0
+	}
+	top := func() (frame, bool) {
+		if len(stack) == 0 {
+			return frame{}, false
+		}
+		return stack[len(stack)-1], true
+	}
 	for i := 0; i < len(command); {
 		c := command[i]
 		switch {
-		case quote != 0:
-			if c == 0x5c && quote == 0x22 {
+		case quote == 0x27:
+			if c == quote {
+				quote, atStart, restore = 0, restore, false
+			}
+			i++
+		case quote == 0x22:
+			switch {
+			case c == 0x5c:
 				i++
-			} else if c == quote {
-				quote = 0
+			case c == quote:
+				quote, atStart, restore = 0, restore, false
+			case c == 0x60:
+				push(false, false)
+			case c == 0x24 && i+1 < len(command) && command[i+1] == 0x28:
+				push(true, true)
+				i++
 			}
 			i++
 		case c == 0x27 || c == 0x22:
-			quote, atStart = c, false
+			quote, restore, assignHeld = c, assignHeld, false
+			if !restore {
+				atStart = false
+			}
 			i++
 		case c == 0x5c:
 			atStart = false
 			i += 2
 		case c == 0x20 || c == 0x09:
 			i++
-		case strings.IndexByte(";&|()\n", c) >= 0:
+		case c == 0x60:
+			if f, ok := top(); ok && !f.paren {
+				pop()
+			} else {
+				push(false, false)
+			}
+			i++
+		case c == 0x28:
+			push(true, i > 0 && command[i-1] == 0x24)
+			i++
+		case c == 0x29:
+			if f, ok := top(); ok && f.paren {
+				pop()
+			} else {
+				atStart = true
+			}
+			i++
+		case c == 0x3b || c == 0x26 || c == 0x7c || c == 0x0a:
 			atStart = true
 			i++
 		default:
 			j := i
-			for j < len(command) && strings.IndexByte(" \t;&|()\n'\"", command[j]) < 0 {
+			for j < len(command) && strings.IndexByte(" \t;&|()\n'\"`", command[j]) < 0 {
 				j++
 			}
 			word := command[i:j]
@@ -914,6 +970,7 @@ func commandWordsAt(command, name string) []int {
 				out = append(out, j)
 			}
 			atStart = atStart && assignment.MatchString(word)
+			assignHeld = atStart && j < len(command) && (command[j] == 0x27 || command[j] == 0x22)
 			i = j
 		}
 	}

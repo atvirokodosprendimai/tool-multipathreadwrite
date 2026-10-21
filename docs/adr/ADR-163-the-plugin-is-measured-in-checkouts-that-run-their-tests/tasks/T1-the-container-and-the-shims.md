@@ -129,6 +129,9 @@ out=$(go test ./internal/bench/ -count=1 -v -run '^(TestStage6ShimsRunInTheInsta
 - 2026-10-21 · 73230f4a* · mutant killed · exit 1 · `internal/bench/container.go` · the write-back shell unregisters before its diff · acceptance-sha256:b5e9d851509447352957f53af14611f5e2ed14ae8edf72c8201079c76341357d · covers:a shim leaves no command running in the container
 - 2026-10-21 · 73230f4a* · mutant killed · exit 1 · `internal/bench/container.go` · env is taken as a command wherever it stands in the line · acceptance-sha256:b5e9d851509447352957f53af14611f5e2ed14ae8edf72c8201079c76341357d · covers:a shim maps the tree and nothing outside it
 - 2026-10-21 · 73230f4a* · mutant killed · exit 1 · `internal/bench/container.go` · text in quotes is read as commands · acceptance-sha256:b5e9d851509447352957f53af14611f5e2ed14ae8edf72c8201079c76341357d · covers:a shim maps the tree and nothing outside it
+- 2026-10-21 · 52c2f9f3* · mutant killed · exit 1 · `internal/bench/container.go` · a command substitution inside double quotes is not a command position · acceptance-sha256:b5e9d851509447352957f53af14611f5e2ed14ae8edf72c8201079c76341357d · covers:a shim maps the tree and nothing outside it
+- 2026-10-21 · 52c2f9f3* · mutant killed · exit 1 · `internal/bench/container.go` · a substitution or backtick does not open a command position · acceptance-sha256:b5e9d851509447352957f53af14611f5e2ed14ae8edf72c8201079c76341357d · covers:a shim maps the tree and nothing outside it
+- 2026-10-21 · 52c2f9f3* · mutant killed · exit 1 · `internal/bench/container.go` · a quoted assignment value hides the command that follows · acceptance-sha256:b5e9d851509447352957f53af14611f5e2ed14ae8edf72c8201079c76341357d · covers:a shim maps the tree and nothing outside it
 
 ## Invariants
 
@@ -141,6 +144,7 @@ out=$(go test ./internal/bench/ -count=1 -v -run '^(TestStage6ShimsRunInTheInsta
 
 - An image may lack `git`, or activate its environment differently; S1 settles both before the pilots.
 - Emulated container starts may be slow enough to matter against the budget; S1 measures it.
+- `host_interpreter_calls` is a heuristic over the text of the transcript and not a sandbox: the counter reads shell text without a shell, so a command it cannot parse can hide a bypass, and a heredoc body is read as commands.
 
 ## Stop Condition
 
@@ -149,6 +153,7 @@ The fence exits 0 and S1 is recorded; or S1 shows the history cannot be removed,
 ## Out of Scope
 
 - Hiding the host interpreters from the attempt (deferred: docs/adr/BACKLOG.md — "From ADR-163", decided at T4's agent pilot)
+- The counter reads shell text heuristically, and a heredoc body is counted as commands (permanent: boundary: the counter reads shell text heuristically; a heredoc body is overcounted, which fails safe and shows in the receipt)
 
 ## Verification Log
 (empty until execute)
@@ -204,3 +209,6 @@ The fence exits 0 and S1 is recorded; or S1 shows the history cannot be removed,
 - 2026-10-21 · 73230f4a* · exit 0 · `set -o pipefail …` · acceptance-sha256:b5e9d851509447352957f53af14611f5e2ed14ae8edf72c8201079c76341357d · ms:37555
 - 2026-10-21 · 73230f4a* · exit 0 · `set -o pipefail …` · acceptance-sha256:b5e9d851509447352957f53af14611f5e2ed14ae8edf72c8201079c76341357d · ms:46813
 - 2026-10-21 · 73230f4a* · exit 0 · `set -o pipefail …` · acceptance-sha256:b5e9d851509447352957f53af14611f5e2ed14ae8edf72c8201079c76341357d · ms:81755
+- 2026-10-21 · 52c2f9f3* · exit 0 · `set -o pipefail …` · acceptance-sha256:b5e9d851509447352957f53af14611f5e2ed14ae8edf72c8201079c76341357d · ms:41157
+- 2026-10-21 · 52c2f9f3* · exit 0 · `set -o pipefail …` · acceptance-sha256:b5e9d851509447352957f53af14611f5e2ed14ae8edf72c8201079c76341357d · ms:38110
+- 2026-10-21 · 52c2f9f3* · exit 0 · `set -o pipefail …` · acceptance-sha256:b5e9d851509447352957f53af14611f5e2ed14ae8edf72c8201079c76341357d · ms:38105
