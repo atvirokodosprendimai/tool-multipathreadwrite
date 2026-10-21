@@ -207,16 +207,15 @@ func TestTheStage6CanaryProvesTheContainer(t *testing.T) {
 	}
 
 	// A stage6 canary needs the image its container checks run in, and may run
-	// while the profile is unsettled; bench run may not (T1 S1 settles it).
+	// while the profile is unsettled; bench run may not (T1 S1 settles it), and
+	// once settled the refusal is gone.
 	canaryOpts := g.opts
 	canaryOpts.canary = true
 	if _, err := gates(canaryOpts); err != nil {
 		t.Fatal(err)
 	}
-	if !settled {
-		if _, err := gates(g.opts); err == nil {
-			t.Error("bench run accepted the stage6 profile while it is unsettled")
-		}
+	if _, err := gates(g.opts); (err != nil && strings.Contains(err.Error(), "not settled")) == settled {
+		t.Errorf("bench run under stage6 with settled %v: gates said %v", settled, err)
 	}
 	noImage := canaryOpts
 	noImage.CanaryImage = ""
