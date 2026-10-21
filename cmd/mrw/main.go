@@ -794,6 +794,10 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				Name:  "max-lines",
 				Usage: "stop after `N` lines per SPEC, where zero means zero: omit the flag to ask for no cap. Two specs naming one file get two budgets. Whatever is withheld is always reported",
 			},
+			&cli.BoolFlag{
+				Name:  "json",
+				Usage: "print one JSON document: content, the read's standard output exactly as without --json, and receipt, what mrw_read sends as content[1] for the same read (ADR-165)",
+			},
 			&cli.IntFlag{
 				Name:  "max-chars",
 				Usage: "write at most `N` characters to standard output, in whole lines: what does not fit is not served, not licensed, and listed on standard error, and the read exits 1 incomplete. Zero means zero; omit it for no budget (ADR-165)",
@@ -839,7 +843,21 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				Usage: "license what the read serves and print none of it: each file's header and `-- licensed N line(s) in M file(s)`, counting what this read licensed (not what earlier reads did), for lines you already know. A read whose answer goes to the null device licenses nothing; this is the way to license without reading. Not with --count, --stat or --sub (ADR-161)",
 			},
 		},
-		Action: func(_ context.Context, cmd *cli.Command) error {
+		Action: func(_ context.Context, cmd *cli.Command) (retErr error) {
+			// ADR-165: under --json a refusal before the answer is one document,
+			// {"error": …} on standard output, as check --json refuses (ADR-100);
+			// the exit code and the stderr line are the plain read's. printed is
+			// set once the {"content", "receipt"} document is out.
+			printed := false
+			if cmd.Bool("json") {
+				defer func() {
+					if retErr != nil && !printed {
+						enc := json.NewEncoder(os.Stdout)
+						enc.SetIndent("", "  ")
+						_ = enc.Encode(readRefusal{Error: retErr.Error()})
+					}
+				}()
+			}
 			if err := refusePaddedArgs(cmd); err != nil {
 				return err
 			}
@@ -934,7 +952,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				if !astSet {
 					return cli.Exit("--rewrite is ast-grep's rewrite of the matches --ast-grep finds: give --ast-grep PATTERN", exitUsage)
 				}
-				for _, f := range []string{"sub", "count", "stat", "quiet", "max-cols", "max-lines", "max-chars", "no-numbers"} {
+				for _, f := range []string{"sub", "count", "stat", "quiet", "max-cols", "max-lines", "max-chars", "no-numbers", "json"} {
 					if cmd.IsSet(f) {
 						return cli.Exit(fmt.Sprintf("--rewrite prints a plan and serves no line, so --%s has nothing to act on, or makes a plan of its own: drop --%s", f, f), exitUsage)
 					}
@@ -949,7 +967,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				if !grepSet {
 					return cli.Exit("--sub rewrites the lines a --grep matches: give --grep PATTERN", exitUsage)
 				}
-				for _, f := range []string{"context", "count", "stat", "quiet", "max-cols", "max-lines", "max-chars", "no-numbers", "files-from"} {
+				for _, f := range []string{"context", "count", "stat", "quiet", "max-cols", "max-lines", "max-chars", "no-numbers", "files-from", "json"} {
 					if cmd.IsSet(f) {
 						return cli.Exit(fmt.Sprintf("--sub prints a plan and serves no line, so --%s has nothing to act on: drop --%s", f, f), exitUsage)
 					}
@@ -1117,7 +1135,20 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			}
 			// Printed only now, past every refusal, so a usage error leaves stdout
 			// empty (ADR-078; the reviews of #239 met the note before -C's).
+			// Under --json the answer is collected, to become the document's
+			// content once it is whole (ADR-165).
+			var content bytes.Buffer
 			out := bufio.NewWriter(os.Stdout)
+			if cmd.Bool("json") {
+				out = bufio.NewWriter(&content)
+			}
+			// document prints {"content", "receipt"} on standard output.
+			document := func(receipt map[string]any) {
+				enc := json.NewEncoder(os.Stdout)
+				enc.SetIndent("", "  ")
+				_ = enc.Encode(readDocument{Content: content.String(), Receipt: receipt})
+				printed = true
+			}
 			// ADR-165: --max-chars bounds everything this read writes to standard
 			// output — the iteration note, the walk's refusals and skip line, and
 			// read.Run's answer — so one budget wraps the stream they all share.
@@ -1162,6 +1193,9 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				skipNote()
 				_ = out.Flush() // exit 1 follows whether or not the refusals reached stdout
 				_, _ = os.Stderr.Write(withheld.Bytes())
+				if cmd.Bool("json") {
+					document(mcp.NoMatchReceipt(len(refusals), skipped))
+				}
 				hint := ""
 				if h := patternFlagHint(pattern); h != "" {
 					hint = " — " + h + " (mrw took the value after --grep as the pattern)"
@@ -1172,9 +1206,16 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				skipNote()
 				_ = out.Flush() // exit 1 follows whether or not the refusals reached stdout
 				_, _ = os.Stderr.Write(withheld.Bytes())
+				if cmd.Bool("json") {
+					document(mcp.NoMatchReceipt(len(refusals), skipped))
+				}
 				return cli.Exit(read.NoMatchLine(astPattern, len(refusals), "")+reached(), 1)
 			}
 
+			var counts map[string]int
+			if cmd.Bool("count") {
+				counts = map[string]int{}
+			}
 			observed, problems := read.Run(stdout, root, specs, read.Options{
 				Numbers:  !cmd.Bool("no-numbers"),
 				Stat:     cmd.Bool("stat"),
@@ -1182,6 +1223,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				MaxLines: maxLines(cmd),
 				MaxCols:  cmd.Int("max-cols"),
 				Count:    cmd.Bool("count"),
+				Counts:   counts,
 				Quiet:    cmd.Bool("quiet"),
 				NextLine: true,
 				Withheld: &withheld,
@@ -1195,6 +1237,9 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				return cli.Exit(fmt.Sprintf("the answer could not be written, so nothing was recorded: %v", err), exitUsage)
 			}
 			_, _ = os.Stderr.Write(withheld.Bytes())
+			if cmd.Bool("json") {
+				document(mcp.ReadReceipt(observed, problems+len(refusals), skipped, counts))
+			}
 			// Reading a file is how mrw learns what it holds; recording that is
 			// what lets a later write know whether its picture is still current.
 			// ADR-133: an answer sent to the null device reached nobody, so it
@@ -1966,6 +2011,20 @@ type statsReceipt struct {
 
 // checkRefusal is a `mrw check --json` refusal (ADR-100): the error, and the
 // steps it names. Named so ADR-111's test can hold its keys.
+// readDocument is `mrw read --json` (ADR-165): the read's standard output as it
+// would have been, and the receipt mrw_read sends as content[1] for the same
+// read, built by the same function.
+type readDocument struct {
+	Content string         `json:"content"`
+	Receipt map[string]any `json:"receipt"`
+}
+
+// readRefusal is a `mrw read --json` refusal before the answer (ADR-165), as
+// checkRefusal is check's.
+type readRefusal struct {
+	Error string `json:"error"`
+}
+
 type checkRefusal struct {
 	Error string             `json:"error"`
 	Then  *check.StepsResult `json:"then,omitempty"`

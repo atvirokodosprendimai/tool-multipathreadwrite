@@ -9827,6 +9827,20 @@ out=$(cd "$R" && printf '@@ b.txt 1 replace\nDELTA\n' | "$MRW" write --no-check 
 out=$(cd "$R" && "$MRW" read a.txt b.txt 2>&1); want 0 $? "the pair: the read with no budget serves both"
 out=$(cd "$R" && printf '@@ b.txt 1 replace\nDELTA\n' | "$MRW" write --no-check - 2>&1); want 0 $? "the pair: and the plan applies"
 
+# 283. ADR-165 T3: an adapter parsed mrw's report to find what was served and
+# at which sha. `mrw read --json` prints one document: content, the plain read's
+# standard output, and receipt, observed with each file's sha. A refusal before
+# the answer is {"error": …}, exit as the plain read. The pair: the plain read's
+# standard output is the document's content byte for byte.
+R=$(mktemp -d "$WORK/r283-XXXXXX"); printf 'alpha\nbravo\n' > "$R/f.txt"
+doc=$(cd "$R" && "$MRW" read --json f.txt:1 2>&1); want 0 $? "read --json exits as the plain read, 0"
+v283=$(printf '%s' "$doc" | python3 -c 'import json,sys; d=json.load(sys.stdin); o=d["receipt"]["observed"]["f.txt"]; print("ok" if "1| alpha" in d["content"] and len(o["SHA"])==64 else "bad")')
+[ "$v283" = ok ] && ok "and is one document: content holds the line, receipt names f.txt with its sha" || bad "read --json: $doc"
+out=$(cd "$R" && "$MRW" read --json -C 1 f.txt 2>/dev/null); want 2 $? "a refusal before the answer exits 2"
+printf '%s' "$out" | python3 -c 'import json,sys; sys.exit(0 if json.load(sys.stdin).get("error") else 1)' && ok "and is an error document" || bad "read --json refusal: $out"
+plain=$(cd "$R" && "$MRW" read f.txt:1 2>/dev/null)
+[ "$(printf '%s' "$doc" | python3 -c 'import json,sys; sys.stdout.write(json.load(sys.stdin)["content"])')" = "$plain" ] && ok "the pair: content is the plain read's standard output" || bad "content vs plain: $plain"
+
 # 271. ADR-161 Decision 14: the read ledger and the write lock belong to the
 # git checkout that holds the root, not to the directory mrw ran in. A read in
 # `sub` licenses a write from the top, and a read at the top licenses a write

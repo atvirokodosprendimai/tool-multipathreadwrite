@@ -11,6 +11,8 @@
 # check_refusal  a mrw check --json refusal  stats          mrw stats --json
 # mcp_write      mrw_write's structured value
 # mcp_read       the receipt mrw_read carries in content[1] (ADR-023)
+# read           mrw read --json (ADR-165): content, and receipt, whose keys are mcp_read's
+# read_refusal   a mrw read --json refusal before the answer
 
 check command
 check declared
@@ -224,3 +226,6 @@ mcp_read skipped.nested
 mcp_read skipped.unkeepable
 mcp_read skipped.linked_dirs
 mcp_read counts
+read content
+read receipt
+read_refusal error

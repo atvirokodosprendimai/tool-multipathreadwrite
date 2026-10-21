@@ -218,6 +218,8 @@ Cap a read with `--max-lines N` instead of `| head`: `| head` loses mrw's exit c
 withheld and the read exits 1 `incomplete:`. A host with an output limit takes `--max-chars N`: standard output stays within N
 characters in whole lines, every range and file it kept back is listed on standard error, and only what was printed is
 licensed (ADR-165).
+An adapter that parses mrw's report reads `mrw read --json` instead: `{"content", "receipt"}`, the content byte for byte the
+plain read's and the receipt what `mrw_read` sends as `content[1]` for the same read (ADR-165).
 A flag grep has and `read` lacks (`-i`, `-n`, `-r`, `-l`, `-A`, `-e`, `--include`) is a usage error, exit 2, that ends with mrw's spelling (ADR-140); `-v` and `-o`, which `read` has no form of, say so (ADR-164).
 `--grep -i PATTERN` is not an unknown flag: `-i` is taken as the pattern, and a read that matches nothing ends `no file matched /-i/` (exit 1) with the same
 hint; write `--grep '(?i)PATTERN'`.
