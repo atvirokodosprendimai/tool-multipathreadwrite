@@ -87,3 +87,4 @@ go run ./cmd/bench analyze --selection bench/swe-bench/selection-adr-160.json --
   ```
 - 2026-10-21 · 6353ec98* · exit 0 · `set -o pipefail …` · acceptance-sha256:f726713e144ebeaee9268ec8a4301c8bd9760229935c0c54482de05564490a25 · ms:693
 - 2026-10-21 · 6353ec98* · exit 0 · `set -o pipefail …` · acceptance-sha256:f726713e144ebeaee9268ec8a4301c8bd9760229935c0c54482de05564490a25 · ms:2782
+- 2026-10-21 · human-observed · S3 observed and signed off by Zy, 2026-10-21: the README Stage 5 sentences read against RESULTS.md and look-5.txt · acceptance-sha256:f726713e144ebeaee9268ec8a4301c8bd9760229935c0c54482de05564490a25

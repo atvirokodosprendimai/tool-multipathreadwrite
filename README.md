@@ -6,7 +6,7 @@ writes nothing, because a write that changed nothing is invisible.
 
 The numbers — two calls for any N, shapes A–D — live in [docs/measure.md](docs/measure.md). The six-guarantee comparison lives in [docs/comparison.md](docs/comparison.md). Model × score readings live in [docs/model-benches.md](docs/model-benches.md).
 
-Whether mrw pays for itself on agent runs is measured against a bar registered before any run ([ADR-156](docs/adr/ADR-156-whether-mrw-pays-for-itself-is-measured-on-agent-runs.md); every verdict and row in [docs/bench/RESULTS.md](docs/bench/RESULTS.md)). Every verdict so far is **INCONCLUSIVE** but one, Stage 4 on mrw v1.66.0, which **LOSES**:
+Whether mrw pays for itself on agent runs is measured against a bar registered before any run ([ADR-156](docs/adr/ADR-156-whether-mrw-pays-for-itself-is-measured-on-agent-runs.md); every verdict and row in [docs/bench/RESULTS.md](docs/bench/RESULTS.md)). Every verdict on mrw (B against A) so far is **INCONCLUSIVE** but one, Stage 4 on mrw v1.66.0, which **LOSES**; Stage 5 also measured the quality-harness plugin (P against A), which **LOSES**:
 
 - **Stage 1**, Sonnet 5.5, 30 own tasks: INCONCLUSIVE, cost (B−A)/A +2.6% [−3.9%, +9.0%]. Configuration B made more silent mis-edits than A, 4 against 2, all on three tasks later superseded as misgraded (ADR-158, ADR-159).
 - **Stage 1b**, Sonnet 5.5, 40 own tasks: INCONCLUSIVE, cost −0.4% [−5.0%, +4.2%].
