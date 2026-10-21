@@ -1153,12 +1153,15 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				if !utf8.Valid(content.Bytes()) {
 					return cli.Exit("the answer holds bytes that are not valid UTF-8, which a JSON document would change: read it without --json, so nothing was recorded", exitUsage)
 				}
+				// Set before the write, not after: a write that fails partway
+				// has already put part of a document on stdout, and an error
+				// document appended to it would be a second, broken one.
+				printed = true
 				enc := json.NewEncoder(os.Stdout)
 				enc.SetIndent("", "  ")
 				if err := enc.Encode(readDocument{Content: content.String(), Receipt: receipt}); err != nil {
 					return cli.Exit(fmt.Sprintf("the answer could not be written, so nothing was recorded: %v", err), exitUsage)
 				}
-				printed = true
 				return nil
 			}
 			// ADR-165: --max-chars bounds everything this read writes to standard
