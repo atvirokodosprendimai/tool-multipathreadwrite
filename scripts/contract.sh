@@ -9801,6 +9801,46 @@ v280=$(python3 -c 'import json; print(json.dumps({"jsonrpc":"2.0","id":1,"method
 out=$(cd "$R" && "$MRW" write --no-check --grep '(head) -1' --sub '$1 x' . 2>&1); want 0 $? "the pair: a pattern that defines group 1 applies"
 [ "$(cat "$R/s.sh")" = 'x | head x' ] && ok "and writes the group's text" || bad "the pair: $(cat "$R/s.sh") $out"
 
+# 281. ADR-165 T1: `mrw read --root DIR f` was refused as "not defined: -root"
+# with no word that --root is mrw's own flag. read cannot take it after the verb,
+# since read's own -C is context; the refusal now says where it goes, exit 2.
+# The pair: `mrw --root DIR read f` serves the line, and `mrw write --root DIR`,
+# which takes the global flag after the verb, is unchanged.
+R=$(mktemp -d "$WORK/r281-XXXXXX"); printf 'one\n' > "$R/f.txt"
+out=$("$MRW" read --root "$R" f.txt:1 2>&1); want 2 $? "read --root after the verb is refused, exit 2"
+grep -qF -- '--root goes before the subcommand: mrw --root DIR read …' <<<"$out" && ok "and says where --root goes" || bad "read --root: $out"
+out=$("$MRW" --root "$R" read f.txt:1 2>&1); want 0 $? "the pair: --root before the verb serves"
+grep -q '1| one' <<<"$out" && ok "and serves the line" || bad "mrw --root read: $out"
+out=$(printf '@@ g.txt 0 create\nhi\n' | "$MRW" write --root "$R" --no-check - 2>&1); want 0 $? "the pair: write takes --root after the verb, unchanged"
+
+# 282. ADR-165 T2: --max-chars N bounds a read's standard output to N
+# characters in whole lines; a host with an output limit cut the answer where it
+# liked, and lines mrw licensed never arrived. What it kept back is listed on
+# stderr, the read exits 1 naming the budget, and a plan to a withheld line is
+# refused. The pair: the same read with no budget serves both files and the
+# plan applies.
+R=$(mktemp -d "$WORK/r282-XXXXXX"); printf 'alpha\nbravo\ncharlie\n' > "$R/a.txt"; printf 'delta\necho\n' > "$R/b.txt"
+out=$(cd "$R" && "$MRW" read --max-chars 50 a.txt b.txt 2>"$WORK/r282.err"); want 1 $? "a read over its --max-chars budget exits 1"
+{ [ "$(printf '%s\n' "$out" | wc -m)" -le 51 ] && grep -q 'b.txt: WITHHELD: --max-chars reached' "$WORK/r282.err" && tail -1 "$WORK/r282.err" | grep -q -- '--max-chars 50 reached'; } \
+  && ok "and stays within the budget, naming b.txt and the budget on stderr" || bad "--max-chars 50: $out / $(cat "$WORK/r282.err")"
+out=$(cd "$R" && printf '@@ b.txt 1 replace\nDELTA\n' | "$MRW" write --no-check - 2>&1); want 1 $? "a plan to a withheld file is refused, exit 1"
+out=$(cd "$R" && "$MRW" read a.txt b.txt 2>&1); want 0 $? "the pair: the read with no budget serves both"
+out=$(cd "$R" && printf '@@ b.txt 1 replace\nDELTA\n' | "$MRW" write --no-check - 2>&1); want 0 $? "the pair: and the plan applies"
+
+# 283. ADR-165 T3: an adapter parsed mrw's report to find what was served and
+# at which sha. `mrw read --json` prints one document: content, the plain read's
+# standard output, and receipt, observed with each file's sha. A refusal before
+# the answer is {"error": …}, exit as the plain read. The pair: the plain read's
+# standard output is the document's content byte for byte.
+R=$(mktemp -d "$WORK/r283-XXXXXX"); printf 'alpha\nbravo\n' > "$R/f.txt"
+doc=$(cd "$R" && "$MRW" read --json f.txt:1 2>&1); want 0 $? "read --json exits as the plain read, 0"
+v283=$(printf '%s' "$doc" | python3 -c 'import json,sys; d=json.load(sys.stdin); o=d["receipt"]["observed"]["f.txt"]; print("ok" if "1| alpha" in d["content"] and len(o["SHA"])==64 else "bad")')
+[ "$v283" = ok ] && ok "and is one document: content holds the line, receipt names f.txt with its sha" || bad "read --json: $doc"
+out=$(cd "$R" && "$MRW" read --json -C 1 f.txt 2>/dev/null); want 2 $? "a refusal before the answer exits 2"
+printf '%s' "$out" | python3 -c 'import json,sys; sys.exit(0 if json.load(sys.stdin).get("error") else 1)' && ok "and is an error document" || bad "read --json refusal: $out"
+plain=$(cd "$R" && "$MRW" read f.txt:1 2>/dev/null)
+[ "$(printf '%s' "$doc" | python3 -c 'import json,sys; sys.stdout.write(json.load(sys.stdin)["content"])')" = "$plain" ] && ok "the pair: content is the plain read's standard output" || bad "content vs plain: $plain"
+
 # 271. ADR-161 Decision 14: the read ledger and the write lock belong to the
 # git checkout that holds the root, not to the directory mrw ran in. A read in
 # `sub` licenses a write from the top, and a read at the top licenses a write
