@@ -50,7 +50,7 @@ func TestAReadStopsAtItsCharacterBudgetAndNamesWhatItWithheld(t *testing.T) {
 	}
 
 	var out, withheld bytes.Buffer
-	observed, problems := Run(&out, root, specs, Options{Numbers: true, MaxChars: &budget, Withheld: &withheld})
+	observed, problems := Run(NewBudget(&out, budget), root, specs, Options{Numbers: true, Withheld: &withheld})
 	if n := utf8.RuneCountInString(out.String()); n > budget {
 		t.Errorf("the answer is %d characters, over the budget of %d:\n%s", n, budget, out.String())
 	}
@@ -83,8 +83,37 @@ func TestAReadStopsAtItsCharacterBudgetAndNamesWhatItWithheld(t *testing.T) {
 	zero := 0
 	out.Reset()
 	withheld.Reset()
-	observed, _ = Run(&out, root, specs, Options{Numbers: true, MaxChars: &zero, Withheld: &withheld})
+	observed, _ = Run(NewBudget(&out, zero), root, specs, Options{Numbers: true, Withheld: &withheld})
 	if out.Len() != 0 || len(observed) != 0 || strings.Count(withheld.String(), "WITHHELD") != 3 {
 		t.Errorf("a budget of zero: out %q, observed %v, withheld %q", out.String(), observed, withheld.String())
+	}
+
+	// A file past the budget is named WITHHELD, not opened: a missing one is not
+	// reported REFUSED, which only opening it could find. And a refused file the
+	// budget reached first has its REFUSED line on the withheld writer, since
+	// the line itself did not fit (go-reviewer of a043d346).
+	out.Reset()
+	withheld.Reset()
+	Run(NewBudget(&out, zero), root, []Spec{{Path: "missing.txt"}}, Options{Numbers: true, Withheld: &withheld})
+	if w := withheld.String(); w != "missing.txt: WITHHELD: --max-chars reached\n" {
+		t.Errorf("a file past the budget was opened, or not named: %q", w)
+	}
+	var unbounded bytes.Buffer
+	Run(&unbounded, root, []Spec{{Path: "a.txt"}}, Options{Numbers: true})
+	aOnly := utf8.RuneCountInString(unbounded.String())
+	out.Reset()
+	withheld.Reset()
+	_, problems = Run(NewBudget(&out, aOnly+5), root, []Spec{{Path: "a.txt"}, {Path: "missing.txt"}}, Options{Numbers: true, Withheld: &withheld}) // 5 left: missing.txt is opened, its line does not fit
+	if !strings.Contains(withheld.String(), "missing.txt") || !strings.Contains(withheld.String(), "UNREADABLE") || problems != 1 || out.String() != unbounded.String() {
+		t.Errorf("a refusal the budget dropped: out %q, withheld %q, problems %d", out.String(), withheld.String(), problems)
+	}
+	// --max-lines and --max-chars together: a --max-lines notice the budget
+	// drops still names its range.
+	one := 1
+	out.Reset()
+	withheld.Reset()
+	Run(NewBudget(&out, aOnly/2), root, []Spec{{Path: "a.txt"}, {Path: "b.txt"}}, Options{Numbers: true, MaxLines: &one, Withheld: &withheld})
+	if w := withheld.String(); !strings.Contains(w, "b.txt") {
+		t.Errorf("the second file is named nowhere under both caps: %q", w)
 	}
 }

@@ -1127,6 +1127,16 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				budget = read.NewBudget(out, cmd.Int("max-chars"))
 				stdout = budget
 			}
+			// What the budget kept back is said on standard error AFTER the answer
+			// is flushed, so a host that merges the streams never sees the list
+			// land inside a served line (go-reviewer of a043d346).
+			var withheld bytes.Buffer
+			reached := func() string {
+				if budget.Over() {
+					return fmt.Sprintf("; --max-chars %d reached", cmd.Int("max-chars"))
+				}
+				return ""
+			}
 			if note != "" {
 				fmt.Fprintf(stdout, "# iteration: %s\n", note)
 			}
@@ -1135,7 +1145,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			// reason, and counts. Rule 5: one bad path never costs the caller
 			// the answers about the good ones, but it is never silent either.
 			for _, p := range refusals {
-				fmt.Fprintf(stdout, "==> %s  REFUSED  %s\n", p.Path, p.Reason)
+				fmt.Fprintf(read.Reporting(stdout, &withheld), "==> %s  REFUSED  %s\n", p.Path, p.Reason)
 			}
 			// ADR-116: what the walk skipped is said, never silent, as the
 			// read's last line.
@@ -1151,16 +1161,18 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			if grepSet && len(specs) == 0 {
 				skipNote()
 				_ = out.Flush() // exit 1 follows whether or not the refusals reached stdout
+				_, _ = os.Stderr.Write(withheld.Bytes())
 				hint := ""
 				if h := patternFlagHint(pattern); h != "" {
 					hint = " — " + h + " (mrw took the value after --grep as the pattern)"
 				}
-				return cli.Exit(read.NoMatchLine(pattern, len(refusals), hint), 1)
+				return cli.Exit(read.NoMatchLine(pattern, len(refusals), hint)+reached(), 1)
 			}
 			if astSet && len(specs) == 0 {
 				skipNote()
 				_ = out.Flush() // exit 1 follows whether or not the refusals reached stdout
-				return cli.Exit(read.NoMatchLine(astPattern, len(refusals), ""), 1)
+				_, _ = os.Stderr.Write(withheld.Bytes())
+				return cli.Exit(read.NoMatchLine(astPattern, len(refusals), "")+reached(), 1)
 			}
 
 			observed, problems := read.Run(stdout, root, specs, read.Options{
@@ -1172,7 +1184,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				Count:    cmd.Bool("count"),
 				Quiet:    cmd.Bool("quiet"),
 				NextLine: true,
-				Withheld: os.Stderr,
+				Withheld: &withheld,
 			})
 			skipNote()
 			// The answer reaches the caller BEFORE anything is recorded (ADR-088).
@@ -1182,6 +1194,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			if err := out.Flush(); err != nil {
 				return cli.Exit(fmt.Sprintf("the answer could not be written, so nothing was recorded: %v", err), exitUsage)
 			}
+			_, _ = os.Stderr.Write(withheld.Bytes())
 			// Reading a file is how mrw learns what it holds; recording that is
 			// what lets a later write know whether its picture is still current.
 			// ADR-133: an answer sent to the null device reached nobody, so it
@@ -1208,11 +1221,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			// own last line — leaves an answer that is not the whole one, and a
 			// cut answer must never read as complete (ADR-165).
 			if problems > 0 || budget.Over() {
-				reached := ""
-				if budget.Over() {
-					reached = fmt.Sprintf("; --max-chars %d reached", cmd.Int("max-chars"))
-				}
-				return cli.Exit(fmt.Sprintf("incomplete: %d range(s) could not be served%s", problems, reached), 1)
+				return cli.Exit(fmt.Sprintf("incomplete: %d range(s) could not be served%s", problems, reached()), 1)
 			}
 			return nil
 		},

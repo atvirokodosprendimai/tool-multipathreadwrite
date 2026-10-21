@@ -180,23 +180,23 @@ type Options struct {
 	// does not: its continuation serves the line a page ends on, and a page must
 	// not repeat a line.
 	NextLine bool
-	// MaxChars bounds everything Run writes to w, in characters, and nil is no
-	// bound (ADR-165). Every write in Run ends a line, so what reaches w is the
-	// answer cut at a line: the first write that does not fit is dropped, and
-	// every later one with it. A line dropped is not licensed, and each range
-	// and file the budget kept from the caller is named on Withheld, which is
-	// not charged: a budget that silenced its own report would be ADR-032's
-	// elided receipt on the CLI. A file the budget never reached is named
-	// without being opened. A caller that writes its own lines around Run on
-	// the same stream passes w as a *Budget, and Run charges that one.
-	MaxChars *int
-	// Withheld receives one line per range or file MaxChars did not serve.
+	// Withheld receives, when w is a *Budget (ADR-165), one line per range or
+	// file the budget kept from the caller, and every report line — a refusal,
+	// a --max-lines notice, a missed pattern, the quiet count — the budget
+	// dropped, so nothing is unsaid because it did not fit. It is not charged:
+	// a budget that silenced its own report would be ADR-032's elided receipt
+	// on the CLI.
 	Withheld io.Writer
 }
 
 // Budget is a writer with a character budget (ADR-165): a write that fits
 // passes to W and is charged; the first that does not is dropped, and every
 // later one with it, so W receives a prefix of what was meant, cut at a write.
+// Every write Run makes ends a line, so that prefix is cut at a line. A caller
+// passes Run a *Budget as w to bound the answer; Run then licenses only what
+// reached W, and names on Options.Withheld what did not, without opening a
+// file it never reached. A caller that writes its own lines on the same stream
+// writes them through the same Budget, and through Reporting where they report.
 type Budget struct {
 	W    io.Writer
 	Left int
@@ -221,6 +221,44 @@ func (b *Budget) Write(p []byte) (int, error) {
 
 // Over says whether a write has been dropped. A nil Budget never is.
 func (b *Budget) Over() bool { return b != nil && b.over }
+
+// exhausted says whether nothing more can be written: a write was dropped, or
+// none is left. A file met then is named without being opened, and the budget
+// counts as reached, since what it names was kept from the caller.
+func (b *Budget) exhausted() bool {
+	if b == nil {
+		return false
+	}
+	if b.Left <= 0 {
+		b.over = true
+	}
+	return b.over
+}
+
+// Reporting is w for a line that reports — a refusal, a withheld notice, a
+// count: when w is a *Budget that drops the line, the line goes to to as well,
+// so the report survives the budget. Any other w is returned as it is.
+func Reporting(w, to io.Writer) io.Writer {
+	if b, ok := w.(*Budget); ok {
+		return &spill{b: b, to: to}
+	}
+	return w
+}
+
+type spill struct {
+	b  *Budget
+	to io.Writer
+}
+
+func (s *spill) Write(p []byte) (int, error) {
+	if n, err := s.b.Write(p); err != nil {
+		return n, err
+	}
+	if s.b.over {
+		return s.to.Write(p)
+	}
+	return len(p), nil
+}
 
 // msysHint recognises MSYS2 argument conversion, which rewrites a spec BEFORE
 // mrw is started. In Git Bash `f.go:/^func main/` arrives as
@@ -525,19 +563,26 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 	countedLines, countedFiles := 0, 0
 	fileLines := map[string]int{} // each file's length, for a quiet read's count of whole files
 	bud, _ := w.(*Budget)
-	if bud == nil && opt.MaxChars != nil {
-		bud = NewBudget(w, *opt.MaxChars)
-		w = bud
-	}
 	withheld := opt.Withheld
 	if withheld == nil {
 		withheld = io.Discard
+	}
+	report := Reporting(w, withheld)
+	// reportOn writes a report line about path to w, exactly as an unbounded
+	// read writes it; when the budget drops it, the line goes to withheld too,
+	// prefixed with the path it is about, since on its own it names no file.
+	reportOn := func(path, format string, args ...any) {
+		line := fmt.Sprintf(format, args...)
+		fmt.Fprint(w, line)
+		if bud.Over() {
+			fmt.Fprintf(withheld, "%s: %s", path, line)
+		}
 	}
 	for _, sp := range specs {
 		if opt.Stop != nil && opt.Stop() {
 			break
 		}
-		if bud.Over() { // never reached: named, not opened
+		if bud.exhausted() { // never reached: named, not opened
 			fmt.Fprintf(withheld, "%s: WITHHELD: --max-chars reached\n", sp.Path)
 			problems++
 			continue
@@ -547,7 +592,7 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 			b = sp.Data // ADR-161: standard input, one unnamed file
 		} else {
 			var englishUnreadable, ok bool
-			if b, englishUnreadable, ok = load(w, root, &sp); !ok {
+			if b, englishUnreadable, ok = load(report, root, &sp); !ok {
 				if englishUnreadable {
 					englishUnreadables++
 				}
@@ -599,7 +644,7 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 			// hashed this file and shown you none of it.
 			note(sp.Path, sha, [][2]int{})
 			if countMissed != "" {
-				fmt.Fprintf(w, "!! no match for %s\n", countMissed)
+				reportOn(sp.Path, "!! no match for %s\n", countMissed)
 				problems++
 			}
 			continue
@@ -621,7 +666,7 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 		served := [][2]int{}
 		whole := len(sp.Ranges) == 0
 		for _, m := range missed {
-			fmt.Fprintf(w, "!! no match for %s\n", m)
+			reportOn(sp.Path, "!! no match for %s\n", m)
 			problems++
 		}
 		if opt.Sub != nil {
@@ -674,9 +719,9 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 			n := sn.end - sn.start + 1
 			if capped && budget <= 0 {
 				if opt.Quiet { // a quiet read prints no range line, a withheld one included
-					fmt.Fprintf(w, "!! lines %d-%d withheld (%d line(s)): --max-lines reached\n", sn.start, sn.end, n)
+					reportOn(sp.Path, "!! lines %d-%d withheld (%d line(s)): --max-lines reached\n", sn.start, sn.end, n)
 				} else {
-					fmt.Fprintf(w, "@@ %d-%d  WITHHELD %d line(s): --max-lines reached\n", sn.start, sn.end, n)
+					reportOn(sp.Path, "@@ %d-%d  WITHHELD %d line(s): --max-lines reached\n", sn.start, sn.end, n)
 				}
 				problems++
 				whole = false
@@ -737,7 +782,7 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 				served = append(served, [2]int{pieceStart, end})
 			}
 			if cut > 0 {
-				fmt.Fprintf(w, "!! %d more line(s) withheld: --max-lines reached\n", cut)
+				reportOn(sp.Path, "!! %d more line(s) withheld: --max-lines reached\n", cut)
 				problems++
 			}
 			budget -= n
@@ -753,7 +798,7 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 	}
 	if opt.Quiet {
 		n, files := licensedCount(observed, fileLines)
-		fmt.Fprintf(w, "-- licensed %d line(s) in %d file(s)\n", n, files)
+		fmt.Fprintf(report, "-- licensed %d line(s) in %d file(s)\n", n, files)
 	}
 	if englishUnreadables >= 2 {
 		fmt.Fprint(w, hintSplitRegexAddress())

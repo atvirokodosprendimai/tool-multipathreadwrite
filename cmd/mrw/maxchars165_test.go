@@ -115,4 +115,24 @@ func TestMaxCharsBoundsTheWholeAnswer(t *testing.T) {
 	if _, errOut, code := run("@@ a.txt 4 replace\nDELTA\n", "write", "--no-check", "-"); code != 1 {
 		t.Errorf("a plan to a withheld line applied: exit %d, %s", code, errOut)
 	}
+
+	// Standard input takes the budget as a file does (go-reviewer of a043d346).
+	if out, errOut, code := run("one\ntwo\nthree\nfour\n", "read", "--max-chars", "10", "-"); utf8.RuneCountInString(out) > 10 || code != 1 || !strings.Contains(errOut, "--max-chars 10 reached") {
+		t.Errorf("stdin under a budget: exit %d, out %q, err %q", code, out, errOut)
+	}
+	// A refusal the budget dropped is still named, on standard error.
+	if _, errOut, code := run("", "read", "--max-chars", "0", "a.txt", "missing.txt"); code != 1 || !strings.Contains(errOut, "missing.txt") {
+		t.Errorf("a refused file under a zero budget: exit %d, err %q", code, errOut)
+	}
+	// Merged streams: the whole answer first, then the list, then incomplete:.
+	cmd := exec.Command(bin, "read", "--max-chars", "120", "a.txt", "b.txt", "c.txt")
+	cmd.Dir = tree
+	cmd.Env = append(os.Environ(), "XDG_STATE_HOME="+state)
+	var merged bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &merged, &merged
+	_ = cmd.Run()
+	m := merged.String()
+	if i, j := strings.Index(m, "WITHHELD"), strings.LastIndex(m, "|"); i < 0 || j > i {
+		t.Errorf("merged streams: the withheld list is not after the last served line:\n%s", m)
+	}
 }

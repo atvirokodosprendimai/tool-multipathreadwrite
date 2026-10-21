@@ -2,7 +2,9 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"regexp"
 	"strings"
@@ -77,23 +79,39 @@ func stdinRead(cmd *cli.Command, pattern string, grepSet bool, posArgs []string)
 	}
 	sp.Path, sp.Data = "-", b
 	out := bufio.NewWriter(os.Stdout)
-	_, problems := read.Run(out, cmd.Root().String("root"), []read.Spec{sp}, read.Options{
+	// ADR-165: --max-chars bounds standard input's answer as it bounds a file's
+	// (go-reviewer of a043d346: this path once ignored it), the list of what it
+	// kept back written after the answer.
+	var stdout io.Writer = out
+	var budget *read.Budget
+	if cmd.IsSet("max-chars") {
+		budget = read.NewBudget(out, cmd.Int("max-chars"))
+		stdout = budget
+	}
+	var withheld bytes.Buffer
+	_, problems := read.Run(stdout, cmd.Root().String("root"), []read.Spec{sp}, read.Options{
 		Numbers:  !cmd.Bool("no-numbers"),
 		Context:  cmd.Int("context"),
 		MaxLines: maxLines(cmd),
 		MaxCols:  cmd.Int("max-cols"),
 		NextLine: true,
+		Withheld: &withheld,
 	})
 	if err := out.Flush(); err != nil {
 		return cli.Exit(fmt.Sprintf("the answer could not be written: %v", err), exitUsage)
 	}
-	if problems == 0 {
+	_, _ = os.Stderr.Write(withheld.Bytes())
+	if problems == 0 && !budget.Over() {
 		return nil
 	}
 	if re != nil && !anyLineMatches(re, string(b)) {
 		return cli.Exit(fmt.Sprintf("no match: no line of standard input matched /%s/", read.OneLine(pattern)), 1)
 	}
-	return cli.Exit(fmt.Sprintf("incomplete: %d range(s) could not be served", problems), 1)
+	reached := ""
+	if budget.Over() {
+		reached = fmt.Sprintf("; --max-chars %d reached", cmd.Int("max-chars"))
+	}
+	return cli.Exit(fmt.Sprintf("incomplete: %d range(s) could not be served%s", problems, reached), 1)
 }
 
 // anyLineMatches reports whether a line of s matches re, the lines split as
