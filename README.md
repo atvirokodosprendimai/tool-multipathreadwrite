@@ -4,17 +4,17 @@ One call reads many ranges across many files; one call applies many edits across
 
 ## On SWE-bench Verified, Claude Code with mrw costs less and finishes sooner
 
-191 paired bug-fixing tasks per model, graded by the official SWE-bench harness, against a bar registered before the first run ([ADR-162](docs/adr/ADR-162-stage-5-runs-until-the-verdict-is-conclusive.md)). A is Claude Code alone; B is Claude Code with mrw.
+191 bug-fixing tasks per model, each run once as A and once as B and paired by task (190 pairs counted on Opus, where one attempt was excluded by the registered rule), graded by the official SWE-bench harness, against a bar registered before the first run ([ADR-162](docs/adr/ADR-162-stage-5-runs-until-the-verdict-is-conclusive.md)). A is Claude Code alone; B is Claude Code with mrw.
 
 | | Opus 5.5 | Sonnet 5.5 |
 |---|---|---|
 | **cost per task** | **−19.4%** [−25.5%, −12.7%] | **−7.0%** [−12.1%, −1.8%] |
 | turns per task | 14.6 → 11.5 (−21%) | 7.8 → 6.8 (−13%) |
-| wall time per task | 115 s → 68 s (−41%) | 36 s → 25 s (−31%) |
+| wall time per task | 115 s → 68 s (−40%) | 36 s → 25 s (−30%) |
 | output tokens per task | 5,489 → 3,888 (−29%) | 2,274 → 1,721 (−24%) |
 | tasks solved | 167 → 166 of 191 | 134 → 129 of 191 |
 
-The cost intervals are 99% and lie wholly below zero. Solving is unchanged within what 191 tasks can show: the registered bar asks for a lower bound no worse than −5 points, and the intervals reach −6.7 on Opus and −8.7 on Sonnet, so the recorded verdict is INCONCLUSIVE rather than PAYS. Wall time was measured on a shared machine and is descriptive only.
+The cost intervals are 99% and lie wholly below zero. Solving is unchanged within what 191 tasks can show: the registered bar asks for a solved-rate lower bound no worse than −5 points, and the intervals reach −6.7 on Opus and −8.7 on Sonnet, so the recorded verdict is INCONCLUSIVE rather than PAYS; Sonnet's −7.0% is also short of the 10% mean saving PAYS asks for. Wall time was measured on a shared machine and is descriptive only.
 
 ### Every SWE-bench stage, per attempt
 
@@ -46,7 +46,7 @@ In short: on these bug-fixing tasks mrw made Claude Code faster and cheaper, by 
 
 ### How mrw is judged
 
-Every stage is paired, pre-registered and graded against the bar in [ADR-156](docs/adr/ADR-156-whether-mrw-pays-for-itself-is-measured-on-agent-runs.md): PAYS needs lower cost **and** a solved-rate lower bound no worse than −5 points; LOSES is higher cost or fewer solves; anything else is INCONCLUSIVE. Each verdict is recorded in [docs/bench/RESULTS.md](docs/bench/RESULTS.md) exactly as `bench analyze` printed it. Stage 5's two verdicts, both open when the stage ended at look 5 of 5: Sonnet 5.5 INCONCLUSIVE, cost −7.0% [−12.1%, −1.8%]; Opus 5.5 INCONCLUSIVE, cost −19.4% [−25.5%, −12.7%].
+Every stage is paired, pre-registered and graded against the bar in [ADR-156](docs/adr/ADR-156-whether-mrw-pays-for-itself-is-measured-on-agent-runs.md): PAYS needs the mean per-task cost down by 10% or more with its interval wholly below zero, **and** a solved-rate lower bound no worse than −5 points; LOSES is a cost interval wholly above zero or a solved-rate interval wholly below it; anything else is INCONCLUSIVE. Each verdict is recorded in [docs/bench/RESULTS.md](docs/bench/RESULTS.md) exactly as `bench analyze` printed it. Stage 5's two verdicts, both open when the stage ended at look 5 of 5: Sonnet 5.5 INCONCLUSIVE, cost −7.0% [−12.1%, −1.8%]; Opus 5.5 INCONCLUSIVE, cost −19.4% [−25.5%, −12.7%].
 
 Before SWE-bench, four stages ran mrw on this project's own tasks (Stages 1, 1b, 2 and 4b, 24 to 40 tasks each, Sonnet and Opus): all INCONCLUSIVE, cost within ±3%. One stage went against mrw: Stage 4, 24 tasks chosen where mrw's mechanism should matter, on mrw v1.66.0, LOSES at cost +17.1% [+9.6%, +24.7%]. [ADR-161](docs/adr/ADR-161-instructions-lead-with-recipes.md) changed what mrw teaches in reply, and the rerun on v1.68.0 as Stage 4b came out INCONCLUSIVE on both models.
 
@@ -54,7 +54,7 @@ Before SWE-bench, four stages ran mrw on this project's own tasks (Stages 1, 1b,
 
 - **Receipts.** One JSON per attempt under [docs/bench/stage-5/](docs/bench/stage-5/)`block-1` … `block-5`, named `<instance>.<config>.<model>.<repeat>[.rN].receipt.json`; a `.rN` file is a retry of a run that did not finish and supersedes its base. Each carries the model, configuration, `num_turns`, `wall_ms`, `total_cost_usd`, `usage` by token kind, the harness verdict (`oracle.harness_resolved`), the diff the agent produced and every tool call.
 - **Grader.** The official SWE-bench harness (swebench 5.0.2) on `SWE-bench/SWE-bench_Verified`, split `test`, dataset revision `78f471bf`. The 191 instance ids and the rule that picked them are in [bench/swe-bench/selection-adr-162.json](bench/swe-bench/selection-adr-162.json).
-- **Pre-registration.** The bar, the pool rule, the five looks and the stop rule were written in [docs/adr/BACKLOG.md](docs/adr/BACKLOG.md) ("Pre-registered for ADR-162") and in ADR-162 before any attempt ran.
+- **Pre-registration.** The bar, the pool rule, the five looks and the stop rule were written in [docs/adr/BACKLOG.md](docs/adr/BACKLOG.md) ("Pre-registered for ADR-162") and in ADR-162, merged as [1fc00bad](https://github.com/atvirokodosprendimai/tool-multipathreadwrite/commit/1fc00bad) on 2026-10-17 at 08:42 UTC; the instance list was committed as [8b435f8f](https://github.com/atvirokodosprendimai/tool-multipathreadwrite/commit/8b435f8f) at 10:55 UTC; the first counted attempt started at 13:21 UTC the same day (`started` in its receipt).
 - **Run setup.** `run.json` in each block: Claude Code 2.1.302, mrw v1.68.0 (975c3ba), a 1,200 s budget per attempt, one repeat, the same prompt and tool set for A and B. `canary.json` per block proves each configuration's setup before the block; `exclusions.json` names the one excluded attempt.
 - **Verdicts.** [docs/bench/stage-5/looks/look-5.txt](docs/bench/stage-5/looks/look-5.txt), as `bench analyze` printed them, copied unchanged into [RESULTS.md](docs/bench/RESULTS.md); ADR-162's acceptance fence diffs the two.
 - **Independent scoring.** The paired rows were handed to the quality-harness project's own scorer, which reads them against its own pre-registration (its ADR-106).
@@ -71,6 +71,15 @@ jq -s 'map(select(.stage=="stage5" and .config!="P"))
 ```
 
 `go run ./cmd/bench analyze --selection bench/swe-bench/selection-adr-160.json --selection bench/swe-bench/selection-adr-162.json docs/bench` recomputes every verdict and interval in RESULTS.md.
+
+What this does not show:
+
+- One agent, Claude Code 2.1.302, and two models. Nothing here says what mrw does for another agent or another model.
+- One kind of work: a one-shot bug fix from an issue text, with no human in the loop and a 1,200 s budget. Long sessions, refactors and greenfield work were not measured on SWE-bench.
+- The agent could not run the repository's tests in Stage 5: the checkouts carry the code but not the test dependencies, so every solve was graded afterwards by the harness, and neither A nor B could check its own work. [ADR-163](docs/adr/ADR-163-the-plugin-is-measured-in-checkouts-that-run-their-tests.md) is the next stage, in containers where the tests run.
+- Solving is not proven equal. 191 tasks per model put the solved-rate interval at about ±7 points; the registered bar wanted the lower bound at −5 or better, and it was not met.
+- Wall time is descriptive. The attempts ran on one shared Apple Silicon machine, with the SWE-bench images under amd64 emulation, beside other work.
+- Cost is what Claude Code reported per attempt (`total_cost_usd`), at the prices in force in October 2026.
 
 Latency and shape numbers for the engine itself are in [docs/measure.md](docs/measure.md), the six-guarantee comparison in [docs/comparison.md](docs/comparison.md), and model × score readings in [docs/model-benches.md](docs/model-benches.md).
 
