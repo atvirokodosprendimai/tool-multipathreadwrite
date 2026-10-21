@@ -20,7 +20,7 @@ Whether mrw pays for itself on agent runs is measured against a bar registered b
 
 Stage 2's attempts solved 156 of 160 and Stage 3's 70 of 80, so the solved difference had little room to move; [ADR-160](docs/adr/ADR-160-stage-4-measures-mrw-where-its-mechanism-should-matter.md) registered the harder Stage 4 above.
 
-**Status: stable at v1.69.0 (2026-10-21), the tag cut from `9cae6d8`.** Break campaign for it: [docs/break/campaign-v1.69.0.txt](docs/break/campaign-v1.69.0.txt), 59 probes, exit codes identical to v1.68.0 but one: `pat-resolves-to-unserved-line` is refused (exit 1), as on v1.67.0. Nothing changed in mrw for it: the v1.68.0 file records the probe's old form, and the v1.68.0 binary refuses the new one too (re-run 2026-10-21).
+**Status: stable at v1.69.1 (2026-10-21), the tag cut from `42a203b`.** Break campaign for it: [docs/break/campaign-v1.69.1.txt](docs/break/campaign-v1.69.1.txt), 59 probes, exit codes identical to v1.69.0. A rebuild on Go 1.26.10 (GO-2026-6809, crypto/x509); mrw's behaviour is v1.69.0's.
 
 Decisions: [docs/adr/](docs/adr/). How a change reaches `main`: [CONTRIBUTING.md](CONTRIBUTING.md). Driving it from a checkout: [AGENTS.md](AGENTS.md).
 Caller practices: [BESTPRACTICES.md](BESTPRACTICES.md). Updating the binary: [UPDATE.md](UPDATE.md).
