@@ -1447,6 +1447,13 @@ Scope defers B1–B5 here too, ADR-110's defers B1, B2, B4 and B5, ADR-111's def
 - **A drift advisory during a check** (B5) — **Closed** by ADR-112 (`writer.Drift`: a CLI write names each file it touched that changed while its check ran, `drift:` and `drift` in `--json`; contract §211, 2026-10-01). A file edited by someone else while mrw's check runs is not reported;
   the check's verdict is about a tree that may no longer exist. Arm when a green check is reported over a tree
   another writer changed during it.
+- **A FIFO swapped in between a loader's check and its open** — **Closed** by ADR-109 (`internal/regular.Open`: every loader opens without blocking and asks the descriptor; it also found `check.Load` hung outright on a FIFO `.quality-harness.json`, contract §207, 2026-10-01) (the Codex re-review of #304, residual). `ingest`'s
+  `targetBytes`, `plan`'s `LoadBodyFiles`, `read`'s `readCapped`, `apply`'s `readLines` and ast-grep's probes judge
+  a path by `Stat` and then open it blocking, so a file replaced by a FIFO in that window hangs the call until
+  something writes to the pipe. ADR-108's A6 and A8 open non-blocking and check the descriptor; these were not
+  changed, since two are engine packages ADR-108 does not own and the window is a swap inside the checkout. Arm
+  when a hang is reported that ends at such a swap, or when a record next owns `read` or `apply`.
+
 ## From ADR-113 (one write path, and an MCP write is checked)
 
 - **Steps over MCP** — **Closed** by ADR-115 (`mrw_write` takes `then`, declared step names only, 2026-10-02). `mrw_write`
@@ -2207,13 +2214,6 @@ line — is not an alias.
   the handshake (its instructions length), an `mrw_read` page with its acks, an `mrw_write` whose check runs
   (ADR-113), one with `then` (ADR-115), progress notifications during that check (ADR-121), and a receipt cut
   to the ceiling; record each host's version and the cells it cannot drive.
-- **A FIFO swapped in between a loader's check and its open** — **Closed** by ADR-109 (`internal/regular.Open`: every loader opens without blocking and asks the descriptor; it also found `check.Load` hung outright on a FIFO `.quality-harness.json`, contract §207, 2026-10-01) (the Codex re-review of #304, residual). `ingest`'s
-  `targetBytes`, `plan`'s `LoadBodyFiles`, `read`'s `readCapped`, `apply`'s `readLines` and ast-grep's probes judge
-  a path by `Stat` and then open it blocking, so a file replaced by a FIFO in that window hangs the call until
-  something writes to the pipe. ADR-108's A6 and A8 open non-blocking and check the descriptor; these were not
-  changed, since two are engine packages ADR-108 does not own and the window is a swap inside the checkout. Arm
-  when a hang is reported that ends at such a swap, or when a record next owns `read` or `apply`.
-
 ## From ADR-117 (mrw_read takes max_lines, stat and files_from)
 
 - **`--context` and `--no-numbers` over MCP** — the CLI's remaining read extras; the routing names them. Arm when
