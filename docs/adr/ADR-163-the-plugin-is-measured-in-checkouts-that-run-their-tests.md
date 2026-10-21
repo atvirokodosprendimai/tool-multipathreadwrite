@@ -7,7 +7,7 @@
 **Owner:** Zy
 **Spec:** None — no spec stage
 **Cross-references:** ADR-156, ADR-162; quality-harness ADR-106, ADR-111 and ADR-112 (`/Users/zy/CursorProjects/quality-harness/docs/adr/ADR-112-the-lifecycle-is-measured-where-it-can-work.md`, Accepted 2026-10-18)
-**Depends-on:** ADR-162 T5's merge to `main`, which brings `docs/bench/stage-5/` (block 1's receipts and the amended scan) that this record cites; until then they are on the pushed branch `adr-162-t5-stage-5` at 4eec8caa, and this record re-cites the squash commit when it lands
+**Depends-on:** ADR-162 T5's merge to `main`, which brought `docs/bench/stage-5/` (block 1's receipts and the amended scan) that this record cites: squash commit 4b3e5d18 (#480), which replaced the branch commit 4eec8caa
 **Governs:** `internal/bench/**`, `cmd/bench/**`, `bench/**`, `docs/bench/**`
 **Enforced-by:** None — until T1 lands, which adds `internal/bench/container_test.go::TestStage6ShimsRunInTheInstanceContainer`
 **Invalidates:** none — checked: without `--profile stage6` every configuration's arguments, PATH and tools stay as ADR-162 left them, so Stages 1 to 5 stay reproducible; `MaxTurns` stays 60 unless a stage sets another; Stage 5's receipts, looks and stop rule are untouched
@@ -229,6 +229,6 @@ None: this is measurement only. The profile, the shims, W, the flags and the sub
 
 - [ ] quality-harness agrees D1 is read against 1200 s, and pre-registers the work line, the plugin tag, the scorer blob, D3's derivation rule and the surviving pool's digest before T4's agent pilot; then the caps' numbers after it, before block 1.
 - [ ] Zy's word on the price, after T4.
-- [ ] Re-cite ADR-162 T5's squash commit in place of 4eec8caa once it merges.
+- [x] Re-cite ADR-162 T5's squash commit in place of 4eec8caa once it merges: 4b3e5d18 (#480).
 - [ ] G: quality-harness names the plugin tag whose documented setting selects the Go hook runtime, with `qh-darwin-arm64` in its `SHA256SUMS`, before T4's agent pilot. Without it, G is not in this stage.
 - [ ] C: the tag and the exact spelling of the setting that keeps turn-end findings from the agent (`turnEnd: notify` through `c749638e`) from its release notes, written into the registration before T4's agent pilot.
