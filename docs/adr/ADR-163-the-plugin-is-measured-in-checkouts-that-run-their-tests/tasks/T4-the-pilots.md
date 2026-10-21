@@ -5,7 +5,7 @@
 **Estimated scope:** M (two pilots, one baseline over the pool, a sign-off)
 **Owner:** Zy
 **Produces:** `docs/bench/stage-6-pilot/` (`pilot-instances.json`, `baseline.json`, `d1.txt`; if D1 passes, the agent pilot's receipts, `run.json` and one canary per model); `docs/bench/stage-6/baseline.json` and `bench/swe-bench/selection-adr-163.json` (the surviving pool); D3's caps; the price
-**Consumes:** the shims and `--profile stage6` (T1), W, `checks.json` and `--max-turns` (T2), `bench baseline` and the surviving pool (T3), configurations G and Q and the side pairs (T6)
+**Consumes:** the shims and `--profile stage6` (T1), W, `checks.json` and `--max-turns` (T2), `bench baseline` and the surviving pool (T3), configurations G and C, the core export projection and `bench side` (T6)
 **Data dependency:** real SWE-bench images on this Mac, after Stage 5 closes (ADR-162 T5's `bench look` exits 0, or Zy ends it); the agent pilot also uses the subscription and needs quality-harness's pre-registration committed first; each step on Zy's word
 **Proof map:** v1
 **Rests-on:** `the pilot instances follow the rule`, `D1 was read before any usage`, `the surviving pool was frozen before the pre-registration`, `the caps come from W's pilot`, `the container was clean in every pilot attempt`
@@ -42,7 +42,7 @@ jq -e --slurpfile want $B/pilot-instances.json '[.[].instance] == $want[0] and a
        && jq -e '(.selected | length) > 0' bench/swe-bench/selection-adr-163.json > /dev/null \
        && jq -e 'length == 191' docs/bench/stage-6/baseline.json > /dev/null \
        && go run ./cmd/bench verify --stage pilot-6 --tasks 4 --repeats 1 $B \
-       && jq -e '(.configs | sort) == ["A","P","W"] and .profile == "stage6" and (.work_line_sha256 | test("^[0-9a-f]{64}$")) and (.checks_sha256 | test("^[0-9a-f]{64}$")) and .max_turns == 60 and .budget_seconds == 1200' $B/run.json > /dev/null \
+       && jq -e '(.configs | sort) == ["A","P","W"] and ((.side_configs // []) - ["G","C"] | length) == 0 and .profile == "stage6" and (.work_line_sha256 | test("^[0-9a-f]{64}$")) and (.checks_sha256 | test("^[0-9a-f]{64}$")) and .max_turns == 60 and .budget_seconds == 1200' $B/run.json > /dev/null \
        && jq -e -s 'length == 2 and all(.[]; .pass == true)' $B/canary*.json > /dev/null;
      else tail -1 $B/d1.txt | grep -qx 'D1: fails' \
        && jq -e '(map(select(.green)) | length) < 8 or ((map(.wall_ms) | sort | .[4] + .[5]) / 2) > 300000' $B/baseline.json > /dev/null; fi
