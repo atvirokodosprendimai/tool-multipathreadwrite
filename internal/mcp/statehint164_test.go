@@ -77,8 +77,9 @@ func TestTheMCPSurfaceNamesItsStateDirectory(t *testing.T) {
 		args map[string]any
 		rpc  bool // today's shape: a JSON-RPC error, else an isError result
 	}{
-		{"a read holds its checkpoints", "mrw_read", map[string]any{"specs": []any{"a.txt"}}, true},
-		{"a paged read holds its checkpoints", "mrw_read", map[string]any{"specs": []any{"big.txt"}}, false},
+		// ADR-166 superseded the two content-read rows: a whole read and a page
+		// now answer without checkpoints, naming the state directory in their
+		// first line (readonly166_test.go).
 		{"a quiet read records", "mrw_read", map[string]any{"specs": []any{"a.txt"}, "quiet": true}, true},
 		{"a read promotes an ack", "mrw_read", map[string]any{"specs": []any{"a.txt"}, "ack": []any{"x"}}, true},
 		{"a read plan with a path loads the working set", "mrw_read", map[string]any{"grep": "one", "sub": "uno", "specs": []any{"a.txt"}}, false},

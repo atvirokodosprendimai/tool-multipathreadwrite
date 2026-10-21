@@ -1046,7 +1046,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			// immediately above it in the same table.
 			if len(posArgs) > 0 {
 				set, err := iter.Load(root)
-				if err != nil {
+				if err != nil && !readsWithoutTheSet(err, posArgs) {
 					return exitWith(err)
 				}
 				if posArgs, err = set.ResolveAll(posArgs); err != nil {
@@ -1103,7 +1103,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 					args = list
 				}
 				set, err := iter.Load(root)
-				if err != nil {
+				if err != nil && !readsWithoutTheSet(err, args) {
 					return exitWith(err)
 				}
 				if len(args) == 0 {
@@ -1280,7 +1280,14 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 					}
 				}
 			} else if err := seen.Record(root, observed); err != nil {
-				return exitWith(err)
+				// ADR-166: a content read whose ledger cannot be written has
+				// served its answer; it records nothing new and says so, last,
+				// with the read's own exit. A --quiet read exists to record, so
+				// it still refuses (Decision 3).
+				if !statehint.About(err) || cmd.Bool("quiet") {
+					return exitWith(err)
+				}
+				defer fmt.Fprintln(os.Stderr, "mrw: nothing was recorded, so a write to these lines will be refused until a read can record them:", statehint.Hint(err))
 			}
 			problems += len(refusals)
 			// A budget that dropped anything — a served line, or only the walk's
@@ -1292,6 +1299,21 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			return nil
 		},
 	}
+}
+
+// readsWithoutTheSet says whether a read may go on when the working set could
+// not be loaded (ADR-166): only when the failure is mrw's state directory and
+// the read names specs, none a working-set pointer, so the set is not needed.
+func readsWithoutTheSet(err error, args []string) bool {
+	if !statehint.About(err) || len(args) == 0 {
+		return false
+	}
+	for _, a := range args {
+		if iter.IsPointer(a) {
+			return false
+		}
+	}
+	return true
 }
 
 func writeCmd() *cli.Command {
