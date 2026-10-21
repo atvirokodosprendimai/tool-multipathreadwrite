@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"testing"
 )
 
@@ -43,9 +44,16 @@ func TestEveryOracleFailsOnBasePassesOnFixAndRefusesAStrayEdit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ran := 0
+	// The check-coupled tasks compile and run a Go package each, which is
+	// nearly all of the test's time: the subtests run side by side, at most
+	// four at once so a loaded machine is not swamped by compilers.
+	slots := make(chan struct{}, 4)
+	var ran atomic.Int32
 	for _, task := range tasks {
 		t.Run(task.ID, func(t *testing.T) {
+			t.Parallel()
+			slots <- struct{}{}
+			defer func() { <-slots }()
 			tree := t.TempDir()
 			if _, err := Materialize(task, tree, task.GradedFiles()); err != nil {
 				if errors.Is(err, errUnreachable) {
@@ -112,12 +120,16 @@ func TestEveryOracleFailsOnBasePassesOnFixAndRefusesAStrayEdit(t *testing.T) {
 			if v.Solved || len(v.Outside) == 0 {
 				t.Fatalf("the oracle accepts the reference fix plus a change at %s:%d: %+v", file, line, v)
 			}
-			ran++
+			ran.Add(1)
 		})
 	}
-	if ran == 0 {
-		t.Fatal("no task ran: the fixtures alone must run everywhere")
-	}
+	// The parallel subtests are paused until this function returns, so the
+	// count is read in a cleanup that runs after all of them.
+	t.Cleanup(func() {
+		if ran.Load() == 0 {
+			t.Error("no task ran: the fixtures alone must run everywhere")
+		}
+	})
 }
 
 // strayLine picks a line of a touched file that no allowed region of the task
