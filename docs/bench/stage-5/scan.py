@@ -14,7 +14,7 @@ import pathlib
 import subprocess
 import sys
 
-sys.excepthook = lambda kind, value, tb: (print(f"scan.py: {kind.__name__}: {value}", file=sys.stderr), sys.exit(2))
+sys.excepthook = lambda kind, value, _tb: (print(f"scan.py: {kind.__name__}: {value}", file=sys.stderr), sys.exit(2))
 
 if len(sys.argv) != 4:
     print("usage: scan.py DATASET DIR REPOS", file=sys.stderr)
