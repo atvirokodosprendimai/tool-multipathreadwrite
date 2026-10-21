@@ -83,7 +83,7 @@ What this does not show:
 
 Latency and shape numbers for the engine itself are in [docs/measure.md](docs/measure.md), the six-guarantee comparison in [docs/comparison.md](docs/comparison.md), and model × score readings in [docs/model-benches.md](docs/model-benches.md).
 
-**Status: stable at v1.69.1 (2026-10-21), the tag cut from `42a203b`.** Break campaign for it: [docs/break/campaign-v1.69.1.txt](docs/break/campaign-v1.69.1.txt), 59 probes, exit codes identical to v1.69.0. A rebuild on Go 1.26.10 (GO-2026-6809, crypto/x509); mrw's behaviour is v1.69.0's.
+**Status: stable at v1.70.0 (2026-10-21), the tag cut from `d9f109e`.** Break campaign for it: [docs/break/campaign-v1.70.0.txt](docs/break/campaign-v1.70.0.txt), 59 probes, exit codes identical to v1.69.1. New: `mrw read --max-chars N`, `mrw read --json`, and a pointer for `--root` typed after `read` (ADR-165).
 
 Decisions: [docs/adr/](docs/adr/). How a change reaches `main`: [CONTRIBUTING.md](CONTRIBUTING.md). Driving it from a checkout: [AGENTS.md](AGENTS.md).
 Caller practices: [BESTPRACTICES.md](BESTPRACTICES.md). Updating the binary: [UPDATE.md](UPDATE.md).
