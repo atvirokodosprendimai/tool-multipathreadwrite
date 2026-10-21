@@ -2,6 +2,7 @@
 
 **Status:** Accepted
 **Accepted:** 2026-10-20 by Zy — picked "Accept (Recommended)" after two challenger reviews (adr-challenger, 22 findings; Codex xhigh in two scoped parts, 7 findings, then a re-check that closed them and raised 1 more), every finding that held taken into the draft; quality-harness agreed its two pre-registration points (D1 read at 1200 s; the surviving pool frozen before its pre-registration)
+**Amended:** 2026-10-21 by Zy — "amend, accepted", then "Fix #477 in place" after a Codex xhigh challenge (2 P1, 4 P2), then C redefined as `turnEnd: notify` (Zy, 2026-10-21) after the re-check showed `continue` leaves a runnable declared check's continuation unchanged: Decision 9 and T6 add the side arms G (Go hooks) and C (the quiet Stop, `turnEnd: notify`), asked for by quality-harness (its ADR-110 T2 S3; ADR-120, from this repository's 2026-10-21 field report §1)
 **Date:** 2026-10-19
 **Owner:** Zy
 **Spec:** None — no spec stage
@@ -68,7 +69,7 @@ Zy, 2026-10-19: "Draft now, run after": draft this record and build its code whi
 2. **The declared check comes from the repository alone, is frozen before any baseline, and every arm gets the same file.**
    - **The table.** `bench/swe-bench/checks.json` names one command per repository in the pool: the whole runner the repository's own files document, with no path or subset arguments, and the file, line and commit it came from (for example django's `tests/runtests.py`, sympy's `bin/test`, `python -m pytest` where `setup.cfg`, `tox.ini` or `pytest.ini` configures pytest). Nothing in it is read from the dataset: never FAIL_TO_PASS, PASS_TO_PASS, the test patch or the gold patch.
    - **Frozen.** Its SHA-256 is written into the BACKLOG's "Pre-registered for ADR-163" section before T4's baseline pilot. An amendment after that reruns the baseline pilot on instances it has not used.
-   - **The file.** Under the profile, `Materialize` writes `.quality-harness.json` with that `check` into every arm's tree before bench's base commit, so it is in A, P and W alike and never in the diff the harness grades. An agent that edits it changes its own diff, as with any other file.
+   - **The file.** Under the profile, `Materialize` writes `.quality-harness.json` with that `check` into every arm's tree before bench's base commit, so it is in A, P and W alike and never in the diff the harness grades. An agent that edits it changes its own diff, as with any other file. Side arm C's file carries one more key, `turnEnd` (Decision 9); its `check` is the same.
    - **The form.** This is the whole-runner form of ADR-112 D1. Whether the stage may use it is ADR-112's rule, read on T4's baseline pilot against a 1200 s attempt budget, the floor ADR-112 D3 sets, because D3's own value is known only after the agent pilot. Quality-harness agrees that reading in its pre-registration before T4. If the rule fails, the stage waits for quality-harness's scoped form, and this record is amended before anything is counted.
 3. **Configuration W is P plus one prompt line, and the caps are the stage's.**
    - **W.** W has P's tools, profile and plugin, and its instruction carries one more line: the exact text quality-harness's ADR-112 pre-registration names, whose SHA-256 is in `run.json`. The canary proves W engaged as P, and that the line is in W's prompt and in no other configuration's.
@@ -96,6 +97,24 @@ Zy, 2026-10-19: "Draft now, run after": draft this record and build its code whi
    - **A block:** 40 instances × the open arms × 2 models, up to 240 attempts. Stage 5 measured about 2 minutes per attempt with grading on Stage 4b, with no tests run; attempts that run real tests under emulation take longer, and W longer again. A guess of 25 to 40 machine hours, and 15 to 25 points of the 7-day limit, per full block.
    - **The stage** may need every surviving block, since one block cannot show PAYS (ADR-112 D5).
    - **The likely outcome of the baseline pilot.** The pool is 41% django, and Django's whole suite is long, so D1's quarter-budget rule may fail on the first pilot, before any usage is spent. That outcome is a result.
+9. **Two side arms, G and C, run at the stage's one plugin tag, are read against P alone, and never touch ADR-112's rows or stop rule** (amendment of 2026-10-21, revised after a Codex xhigh challenge the same day).
+   - **G** is P with the plugin's hooks run by its Go binary, `qh`, instead of Node. The question is quality-harness's (ADR-110): does the Go runtime change turns, cost or wall time?
+     - The hooks run on the host, so G needs `qh-darwin-arm64` from the stage's frozen plugin release, checked against that release's `SHA256SUMS`.
+     - G runs only if that tag selects the hook runtime by a documented setting, with the same hook set, matchers and timeouts as Node. Possessing the binary is not enough: quality-harness's hook manifest calls Node directly until its ADR-116 wires a launcher.
+     - bench pre-stages the verified asset, turns the plugin's own fetching off, and records the sha in the side metadata.
+     - Every plugin arm (P, W, G, C) gets an equivalent fresh plugin data directory per attempt, so state isolation is not a second difference.
+     - The canary proves that P's hooks ran under Node and G's under the staged binary.
+   - **C** is P with one setting: `"turnEnd": "notify"` in the attempt's `.quality-harness.json`. With it, a turn-end finding goes to the user alone and the turn does not continue (`channelOf` in quality-harness's `plugin/scripts/check-ledger.mjs:537-540`, `turnEndSetting` in `project-config.mjs:63-67`, read at `c749638e`). Without it, a declared check that can start continues the turn when work is unchecked, at every tag through `c749638e` (quality-harness ADR-120 T6 and T11: "a declared `node --test` continues as today"). So at one tag, P is the plugin as shipped and C is the same plugin with the continuation off.
+     - Stage 5's P, at 3.8.40, continued 10 of 40 Sonnet and 25 of 40 Opus attempts in checkouts that could run no test. It cost +49% (Opus) and +70% (Sonnet) over A with no change in solved (ADR-162, look 1).
+     - Under `stage6` the declared check can start, so the pair measures what the continuation costs or saves where a check can run. It does not measure Stage 5's waste again, which is already measured. `"turnEnd": "continue"` (ADR-120 T11, unreleased at `c749638e`) changes only inferred and unstartable checks, so it would leave C equal to P here and is not the setting. If the frozen tag spells the setting differently, its release notes are the authority and the registration names the spelling.
+   - **One tag, no late joiners.** The stage's plugin tag is frozen before T4's agent pilot (Decision 7). A side arm is in the stage only if it works at that tag, and its asset or setting is named in BACKLOG's "Pre-registered for ADR-163" before the agent pilot; otherwise it is not run in this stage. A side arm then runs, for each model, in every block in which that model's P runs, the pilot included, and never joins later.
+   - **ADR-112's rows stay byte-identical.**
+     - `run.json` keeps `configs` and `configs_for` for A, P and W alone, and carries the side arms in their own fields: `side_admitted` (the arms admitted at the tag, the same in every block), `side_configs_for` (for each model, the admitted arms where that model's block runs P, and none where it does not) and `side`.
+     - `export-paired --pair A,P` and `--pair A,W` build `plugin` and `scaffold` from the core arms only, so a block with side arms exports exactly the rows it would without them.
+     - T6 tests this with side arms absent and present.
+   - **How they are read.** A new reader, `bench side`, reads receipts with P as the control and each side arm as the other side, paired by task. It uses the intervals `bench analyze` computes: the percentile bootstrap for cost and Tango's score interval for solved, at 99%. It reports turns and wall time beside them, against the bar registered in BACKLOG's "Pre-registered for ADR-163" before the agent pilot. ADR-112's scorer never reads a G or C row, and a side arm never stops or prolongs the stage.
+   - **Sample.** A side verdict is read only once an arm has at least 60 paired tasks per model. At 40 pairs with all outcomes concordant, the 99% Tango lower bound is -0.142, wider than the 10-point margin; at 60 it is -0.0996. The pilot never counts. If P's pairs stop before 60, the side rows are published as descriptive only.
+   - **Price.** Each side arm adds up to 80 attempts per full block (40 instances × 2 models), so a full block with both is up to 400 attempts. The agent pilot adds 8 attempts per side arm (4 instances × 2 models). The price asked after T4 says it per arm.
 
 What would make it FAIL:
 - an agent command that ran tests on the host while the transcript shows the shim's path;
@@ -144,6 +163,9 @@ The plugin, ADR-112 and quality-harness's scorer stay in that repository and are
 | `bench baseline --stage S --out DIR --selection FILE --checks FILE` | new: per instance, the declared check on the unmodified tree, green or red, exit, wall time | T3 | T4, T5 |
 | `bench/swe-bench/selection-adr-163.json` | new: the surviving pool, written by `bench baseline --surviving` | T3 | T5, quality-harness's pre-registration |
 | `bench export-paired --pair A,W --selection selection-adr-163.json` | W tested; the surviving pool's digest and count; `checks_sha256`, `work_line_sha256` and `max_turns` bound per block and in `scaffold` | T3 | quality-harness's scorer |
+| configurations G and C; `--qh-binary FILE --qh-sums FILE`; C's `turnEnd`; `side_admitted`, `side_configs_for` and `side` (asset sha, setting, tag) in `run.json` and the side receipts | new (Decision 9) | T6 | T4, T5 |
+| `export-paired --pair A,P` / `--pair A,W` | `plugin` and `scaffold` built from the core arms only, byte-identical with or without side arms | T6 | quality-harness's scorer |
+| `bench side --control P --arm G\|C` | new: the side reader, P as control, the registered bar | T6 | T5 |
 
 ## Inter-task Contracts
 
@@ -152,6 +174,7 @@ The plugin, ADR-112 and quality-harness's scorer stay in that repository and are
 | the container, the shims, the lock, `--profile stage6`, the receipt's shim fields | T1 | T2, T3, T4, T5 | No — additive; without the profile nothing changes |
 | configuration W, `checks.json`, the declared check, `--max-turns` | T2 | T3, T4, T5 | No — additive; `MaxTurns` defaults to 60 |
 | `bench baseline`, the surviving pool file, its blocks, `--pair A,W` | T3 | T4, T5 | No — additive |
+| configurations G and C, the staged binary, the setting, the core export projection, `bench side` | T6 | T4, T5 | No — additive; A, P and W rows unchanged |
 | D1's answer, the surviving pool, D3's caps, the price | T4 | T5 | No |
 | `docs/bench/stage-6/block-K/` and `looks/look-K.txt` | T5 | quality-harness ADR-112 T3 | No |
 
@@ -207,3 +230,5 @@ None: this is measurement only. The profile, the shims, W, the flags and the sub
 - [ ] quality-harness agrees D1 is read against 1200 s, and pre-registers the work line, the plugin tag, the scorer blob, D3's derivation rule and the surviving pool's digest before T4's agent pilot; then the caps' numbers after it, before block 1.
 - [ ] Zy's word on the price, after T4.
 - [ ] Re-cite ADR-162 T5's squash commit in place of 4eec8caa once it merges.
+- [ ] G: quality-harness names the plugin tag whose documented setting selects the Go hook runtime, with `qh-darwin-arm64` in its `SHA256SUMS`, before T4's agent pilot. Without it, G is not in this stage.
+- [ ] C: the tag and the exact spelling of the setting that keeps turn-end findings from the agent (`turnEnd: notify` through `c749638e`) from its release notes, written into the registration before T4's agent pilot.
