@@ -26,7 +26,7 @@ Decision 1: `mrw read` with an unwritable or uncreatable state directory serves 
 
 ## Ordered Steps
 
-1. [S1] Write the failing test and see it red: TestAReadWithAnUnwritableLedgerServesAndSaysNothingWasRecorded (the built binary, `XDG_STATE_HOME` (a) a read-only existing state tree and (b) under a read-only parent: `mrw read f.txt:1` serves `1| alpha`, exits 0, the last stderr line begins `mrw: nothing was recorded`; `mrw read f.txt:9` exits 1 with the line; `--files-from` naming `f.txt:1` serves; `mrw read @1`, a bare `mrw read`, `--files-from` naming `@1`, `--quiet` and `--grep a --sub b` still exit 2; with the state writable again, a write to line 1 is refused as unread, since the setup read licensed another file). [proof: acceptance]
+1. [S1] Write the failing test and see it red: TestAReadWithAnUnwritableLedgerServesAndSaysNothingWasRecorded (the built binary, `XDG_STATE_HOME` (a) a read-only existing state tree and (b) under a read-only parent: `mrw read f.txt:1` serves `1| alpha`, exits 0, the last stderr line begins `mrw: nothing was recorded`; `mrw read f.txt:9` exits 1, the line just above the last, `mrw: incomplete:`; `--files-from` naming `f.txt:1` serves; `mrw read @1`, a bare `mrw read`, `--files-from` naming `@1`, `--quiet` and `--grep a --sub b` still exit 2; with the state writable again, a write to line 1 is refused as unread, since the setup read licensed another file). [proof: acceptance]
 2. [S2] The two call sites. [proof: mutation]
 3. [S3] The README and AGENTS.md sentences; contract §284 (the pair: the same read with a writable state directory records, and the write to line 1 applies). [proof: human: the executor runs ./scripts/contract.sh once and reads the §284 rows PASS]
 
@@ -84,3 +84,4 @@ Stop if a state failure can reach the read action from a call this record does n
 (empty until execute)
 - 2026-10-21 · 13132ca1* · exit 0 · `set -o pipefail …` · acceptance-sha256:f6b0a940471f3e9eba02bcf2f4948bbcda9c38aaca82b06faa8e519c8c86ab40 · ms:5156
 - 2026-10-21 · 13132ca1* · exit 0 · `set -o pipefail …` · acceptance-sha256:f6b0a940471f3e9eba02bcf2f4948bbcda9c38aaca82b06faa8e519c8c86ab40 · ms:5317
+- 2026-10-21 · f2e6f008* · exit 0 · `set -o pipefail …` · acceptance-sha256:f6b0a940471f3e9eba02bcf2f4948bbcda9c38aaca82b06faa8e519c8c86ab40 · ms:1433

@@ -524,7 +524,7 @@ matched no file beside a refused path included.
 
 
 A read whose state directory cannot be written or made — a read-only sandbox, an unwritable `XDG_STATE_HOME` — still
-serves its answer and exits as the read itself would; its last stderr line begins `mrw: nothing was recorded`, and a write
+serves its answer and exits as the read itself would; its last stderr line begins `mrw: nothing was recorded` (on exit 1, the line above ADR-146's kind line), and a write
 to those lines is refused until a read can record them. `mrw_read` answers it without checkpoints, with a line saying so.
 A read whose purpose is the licence (`--quiet`, `--sub`, `--rewrite`, an `ack`) and every write still exit 2 (ADR-166).
 ## opencode

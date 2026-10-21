@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -36,12 +37,40 @@ func TestMrwReadWithAnUnwritableStateServesWithoutCheckpoints(t *testing.T) {
 		t.Errorf("the line does not name the state directory: %q", got.text)
 	}
 
-	page := ask(t, root, "mrw_read", map[string]any{"specs": []any{"big.txt"}})
-	if page.rpc || page.isError || !strings.HasPrefix(page.text, line) || strings.Contains(page.text, "-- ck ") || !strings.Contains(page.text, "-- PARTIAL: lines 1-") || !strings.Contains(page.text, `big.txt:`) {
-		t.Errorf("a paged content read: rpc %v isError %v, text %.300q", page.rpc, page.isError, page.text)
+	// Every page answers without checkpoints and within the ceiling, and
+	// following next_read gives back the whole file (Codex review of f2e6f008).
+	spec, lines := "big.txt", 0
+	for page := 0; ; page++ {
+		if page > 40 {
+			t.Fatalf("still paging after %d pages", page)
+		}
+		res := call(t, root, "mrw_read", map[string]any{"specs": []any{spec}})
+		body := served0(t, res)
+		if isErr, _ := res["isError"].(bool); isErr || !strings.HasPrefix(body, line) || strings.Contains(body, "-- ck ") || strings.Contains(body, "acknowledge it") {
+			t.Fatalf("page %d (%s): isError %v, text %.300q", page, spec, isErr, body)
+		}
+		raw, err := json.Marshal(res)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(raw) > MaxResultChars {
+			t.Fatalf("page %d encodes to %d, over the %d ceiling", page, len(raw), MaxResultChars)
+		}
+		lines += len(numberedLines(t, body))
+		next := nextOf(t, res)
+		if page == 0 && (next == "" || !strings.Contains(body, "-- PARTIAL: lines 1-")) {
+			t.Fatalf("the first answer is not a page:\n%.400s", body)
+		}
+		if next == "" {
+			break
+		}
+		if next == spec {
+			t.Fatalf("page %d hands back its own spec %q", page, next)
+		}
+		spec = next
 	}
-	if strings.Contains(page.text, "acknowledge it") {
-		t.Errorf("a page with no checkpoint still asks to be acknowledged: %.300q", page.text)
+	if lines != 150000 {
+		t.Errorf("reassembled %d lines, want 150000", lines)
 	}
 
 	for name, args := range map[string]map[string]any{

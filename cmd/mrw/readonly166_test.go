@@ -91,7 +91,11 @@ func TestAReadWithAnUnwritableLedgerServesAndSaysNothingWasRecorded(t *testing.T
 		if code != 0 || !strings.Contains(out, "1| alpha") || !strings.HasPrefix(lastLine(errOut), "mrw: nothing was recorded") {
 			t.Errorf("%s state, a served read: exit %d, out %q, err %q", name, code, out, errOut)
 		}
-		if _, errOut, code := run(state, "", "read", "f.txt:9"); code != 1 || !strings.Contains(errOut, "nothing was recorded") {
+		// On exit 1 ADR-146's kind line stays last, and the note sits just
+		// above it (Codex review of f2e6f008).
+		_, errOut, code = run(state, "", "read", "f.txt:9")
+		lines := strings.Split(strings.TrimRight(errOut, "\n"), "\n")
+		if code != 1 || len(lines) < 2 || !strings.HasPrefix(lines[len(lines)-1], "mrw: incomplete:") || !strings.HasPrefix(lines[len(lines)-2], "mrw: nothing was recorded") {
 			t.Errorf("%s state, a read that missed: exit %d, err %q", name, code, errOut)
 		}
 		// --files-from: the effective specs decide, after the list is read.

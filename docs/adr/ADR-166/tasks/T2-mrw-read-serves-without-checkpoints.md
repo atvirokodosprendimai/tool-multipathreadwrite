@@ -75,8 +75,10 @@ Stop if `mrw_read` touches the state directory before `hold` on some path (a ref
 (empty until execute)
 - 2026-10-21 · 13132ca1* · mutant killed · exit 1 · `internal/mcp/tools.go` · a whole content read answers the hold error again · acceptance-sha256:9f1fd9d571a13d0286d7113a7390ab16c4dc3eeaa39bedb61c8309065395d886
 - 2026-10-21 · 13132ca1* · mutant killed · exit 1 · `internal/mcp/tools.go` · a paged content read answers the hold error again · acceptance-sha256:9f1fd9d571a13d0286d7113a7390ab16c4dc3eeaa39bedb61c8309065395d886
+- 2026-10-21 · f2e6f008* · mutant killed · exit 1 · `internal/mcp/tools.go` · a page answered without checkpoints drops its next_read · acceptance-sha256:9f1fd9d571a13d0286d7113a7390ab16c4dc3eeaa39bedb61c8309065395d886
 
 ## Verification Log
 (empty until execute)
 - 2026-10-21 · 13132ca1* · exit 0 · `set -o pipefail …` · acceptance-sha256:9f1fd9d571a13d0286d7113a7390ab16c4dc3eeaa39bedb61c8309065395d886 · ms:3427
 - 2026-10-21 · 13132ca1* · exit 0 · `set -o pipefail …` · acceptance-sha256:9f1fd9d571a13d0286d7113a7390ab16c4dc3eeaa39bedb61c8309065395d886 · ms:3039
+- 2026-10-21 · f2e6f008* · exit 0 · `set -o pipefail …` · acceptance-sha256:9f1fd9d571a13d0286d7113a7390ab16c4dc3eeaa39bedb61c8309065395d886 · ms:1717
