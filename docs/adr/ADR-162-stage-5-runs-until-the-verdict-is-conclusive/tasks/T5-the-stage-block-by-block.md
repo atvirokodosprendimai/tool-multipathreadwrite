@@ -67,6 +67,7 @@ go run ./cmd/bench look $R > /tmp/adr162-look.txt \
 
 ## Mutation Log
 (empty until execute)
+- 2026-10-21 · 6353ec98* · mutant killed · exit 1 · `docs/bench/stage-5/looks/look-5.txt` · the published look no longer matches what bench look prints · acceptance-sha256:bf4eca9a150bf62a6f1d93f4aa387c5c6abf27f52567bc3c8f0fe680cc4329ea
 
 ## Invariants
 
@@ -108,3 +109,5 @@ go run ./cmd/bench look $R > /tmp/adr162-look.txt \
   ```
 - 2026-10-17 · human-observed · S2 approved: quality-harness ADR-106 is amended to take Stage 5's rows (k = 1, the 191-instance pool, this stop rule) through its own PRs and Codex reviews, merged as d157f072 (#24, the scorer and the amendment) and ac0b291e (#26, the aggregate verdict file and both pre-registrations, prereg-main-claude-sonnet-5-5.json and prereg-main-claude-opus-5-5.json, pinning scorer blob 558548fa). Merged at 2026-10-17T13:19Z, before Stage 5's first counted attempt. Zy's word: 'Go all, redo the benchmark', 'Amend it before Stage 5'.
 - 2026-10-17 · human-observed · S3 approved: Zy said 'Go all, redo the benchmark' on 2026-10-17, given with Stage 5's price (up to 5 blocks, 1,146 attempts at most, about 38 hours quoted; the pilot measured 68 s per attempt with grading), and after the pilot 'Proceed as designed'. mrw v1.68.0, the plugin at v3.8.40 (the pilot's tag), Claude Code 2.1.302 (the pilot's CLI).
+- 2026-10-21 · 6353ec98* · exit 0 · `set -o pipefail …` · acceptance-sha256:bf4eca9a150bf62a6f1d93f4aa387c5c6abf27f52567bc3c8f0fe680cc4329ea · ms:688
+- 2026-10-21 · 6353ec98* · exit 0 · `set -o pipefail …` · acceptance-sha256:bf4eca9a150bf62a6f1d93f4aa387c5c6abf27f52567bc3c8f0fe680cc4329ea · ms:2384

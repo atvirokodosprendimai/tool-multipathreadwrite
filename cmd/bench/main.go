@@ -383,10 +383,7 @@ func analyze(args []string, w io.Writer) error {
 		fmt.Fprintln(w, "| stage | model | source | verdict | look | tasks | attempts | excluded | cost (X−A)/A [99%] | solved X−A [99%, Tango] | B shell reads |")
 		fmt.Fprintln(w, "|---|---|---|---|---|---|---|---|---|---|---|")
 		for _, row := range rep.Rows {
-			look := fmt.Sprintf("open after look %d", rep.Blocks)
-			if row.ClosedAt != 0 {
-				look = fmt.Sprintf("closed at look %d", row.ClosedAt)
-			}
+			look := lookLabel(rep, row)
 			r := row.Result
 			fmt.Fprintf(w, "| %s | %s | swe-bench, %s against A | %s | %s | %d | %d | %d | %+.3f [%+.3f, %+.3f] | %+.3f [%+.3f, %+.3f] | %d |\n",
 				r.Stage, r.Model, row.Comparison, row.Verdict, look, r.Tasks, r.Attempts, r.Excluded, r.RelCost, r.RelLo, r.RelHi, r.SolvedDiff, r.SolvedLo, r.SolvedHi, r.ReadsB)
@@ -397,6 +394,19 @@ func analyze(args []string, w io.Writer) error {
 		}
 	}
 	return nil
+}
+
+// lookLabel says where a pair stands: closed at the look that closed it, or
+// still open, either awaiting the next look or left open when the stage ended.
+func lookLabel(rep bench.LookReport, row bench.LookRow) string {
+	switch {
+	case row.ClosedAt != 0:
+		return fmt.Sprintf("closed at look %d", row.ClosedAt)
+	case rep.Complete:
+		return fmt.Sprintf("open when the stage ended at look %d", rep.Blocks)
+	default:
+		return fmt.Sprintf("open after look %d", rep.Blocks)
+	}
 }
 
 func swebenchSelect(args []string, r io.Reader, w io.Writer) error {

@@ -31,3 +31,14 @@
 | stage4b | claude-sonnet-5-5 | own (only the single-line tasks; descriptive, not the verdict) | (PAYS) | 6 | 24 | 0 | -0.103 [-0.170, -0.033] | +0.000 [+0.000, +0.000] | 0 / 0 | 0 | 0 |
 | stage4b | claude-sonnet-5-5 | own (only the wide-rename tasks; descriptive, not the verdict) | (INCONCLUSIVE) | 10 | 40 | 0 | +0.025 [-0.001, +0.057] | -0.100 [-0.300, +0.000] | 0 / 2 | 17 | 0 |
 | stage4b | claude-sonnet-5-5 | own (without the tasks whose own check is red at base; descriptive, not the verdict) | (INCONCLUSIVE) | 23 | 92 | 0 | -0.012 [-0.052, +0.025] | -0.087 [-0.217, +0.022] | 2 / 3 | 33 | 0 |
+
+| stage | model | source | verdict | look | tasks | attempts | excluded | cost (X−A)/A [99%] | solved X−A [99%, Tango] | B shell reads |
+|---|---|---|---|---|---|---|---|---|---|---|
+| stage5 | claude-sonnet-5-5 | swe-bench, B against A | INCONCLUSIVE | open when the stage ended at look 5 | 191 | 383 | 1 | -0.070 [-0.121, -0.018] | -0.026 [-0.087, +0.028] | 392 |
+| stage5 | claude-sonnet-5-5 | swe-bench, P against A | LOSES | closed at look 1 | 40 | 82 | 2 | +0.701 [+0.477, +0.926] | -0.025 [-0.182, +0.121] | 0 |
+| stage5 | claude-opus-5-5 | swe-bench, B against A | INCONCLUSIVE | open when the stage ended at look 5 | 190 | 382 | 1 | -0.194 [-0.255, -0.127] | -0.005 [-0.067, +0.055] | 394 |
+| stage5 | claude-opus-5-5 | swe-bench, P against A | LOSES | closed at look 1 | 39 | 83 | 4 | +0.486 [+0.312, +0.674] | +0.000 [-0.166, +0.166] | 0 |
+| stage5 | claude-sonnet-5-5 | swe-bench, B against A (only the instances with 5 or more hunks; descriptive, not the verdict) | (INCONCLUSIVE) | look 5 | 31 | 63 | 1 | -0.090 [-0.225, +0.044] | +0.000 [-0.201, +0.201] | 103 |
+| stage5 | claude-sonnet-5-5 | swe-bench, P against A (only the instances with 5 or more hunks; descriptive, not the verdict) | (LOSES) | look 1 | 7 | 14 | 0 | +0.553 [+0.079, +1.118] | +0.000 [-0.487, +0.487] | 0 |
+| stage5 | claude-opus-5-5 | swe-bench, B against A (only the instances with 5 or more hunks; descriptive, not the verdict) | (INCONCLUSIVE) | look 5 | 31 | 62 | 0 | -0.226 [-0.339, -0.112] | -0.032 [-0.247, +0.177] | 85 |
+| stage5 | claude-opus-5-5 | swe-bench, P against A (only the instances with 5 or more hunks; descriptive, not the verdict) | (LOSES) | look 1 | 7 | 15 | 1 | +0.377 [+0.226, +0.640] | +0.000 [-0.487, +0.487] | 0 |
