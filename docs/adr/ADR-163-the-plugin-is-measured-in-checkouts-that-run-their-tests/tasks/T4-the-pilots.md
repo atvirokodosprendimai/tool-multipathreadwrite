@@ -42,7 +42,7 @@ jq -e --slurpfile want $B/pilot-instances.json '[.[].instance] == $want[0] and a
        && jq -e '(.selected | length) > 0' bench/swe-bench/selection-adr-163.json > /dev/null \
        && jq -e 'length == 191' docs/bench/stage-6/baseline.json > /dev/null \
        && go run ./cmd/bench verify --stage pilot-6 --tasks 4 --repeats 1 $B \
-       && jq -e '(.configs | sort) == ["A","P","W"] and ((.side_configs // []) - ["G","C"] | length) == 0 and .profile == "stage6" and (.work_line_sha256 | test("^[0-9a-f]{64}$")) and (.checks_sha256 | test("^[0-9a-f]{64}$")) and .max_turns == 60 and .budget_seconds == 1200' $B/run.json > /dev/null \
+       && jq -e '(.configs | sort) == ["A","P","W"] and ((.side_admitted // []) - ["G","C"] | length) == 0 and .profile == "stage6" and (.work_line_sha256 | test("^[0-9a-f]{64}$")) and (.checks_sha256 | test("^[0-9a-f]{64}$")) and .max_turns == 60 and .budget_seconds == 1200' $B/run.json > /dev/null \
        && jq -e -s 'length == 2 and all(.[]; .pass == true)' $B/canary*.json > /dev/null;
      else tail -1 $B/d1.txt | grep -qx 'D1: fails' \
        && jq -e '(map(select(.green)) | length) < 8 or ((map(.wall_ms) | sort | .[4] + .[5]) / 2) > 300000' $B/baseline.json > /dev/null; fi

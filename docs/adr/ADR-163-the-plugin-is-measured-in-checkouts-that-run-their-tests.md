@@ -2,7 +2,7 @@
 
 **Status:** Accepted
 **Accepted:** 2026-10-20 by Zy — picked "Accept (Recommended)" after two challenger reviews (adr-challenger, 22 findings; Codex xhigh in two scoped parts, 7 findings, then a re-check that closed them and raised 1 more), every finding that held taken into the draft; quality-harness agreed its two pre-registration points (D1 read at 1200 s; the surviving pool frozen before its pre-registration)
-**Amended:** 2026-10-21 by Zy — "amend, accepted", then "Fix #477 in place" after a Codex xhigh challenge (2 P1, 4 P2): Decision 9 and T6 add the side arms G (Go hooks) and C (`turnEnd: continue`), asked for by quality-harness (its ADR-110 T2 S3; ADR-120, from this repository's 2026-10-21 field report §1)
+**Amended:** 2026-10-21 by Zy — "amend, accepted", then "Fix #477 in place" after a Codex xhigh challenge (2 P1, 4 P2), then C redefined as `turnEnd: notify` (Zy, 2026-10-21) after the re-check showed `continue` leaves a runnable declared check's continuation unchanged: Decision 9 and T6 add the side arms G (Go hooks) and C (the quiet Stop, `turnEnd: notify`), asked for by quality-harness (its ADR-110 T2 S3; ADR-120, from this repository's 2026-10-21 field report §1)
 **Date:** 2026-10-19
 **Owner:** Zy
 **Spec:** None — no spec stage
@@ -104,12 +104,12 @@ Zy, 2026-10-19: "Draft now, run after": draft this record and build its code whi
      - bench pre-stages the verified asset, turns the plugin's own fetching off, and records the sha in the side metadata.
      - Every plugin arm (P, W, G, C) gets an equivalent fresh plugin data directory per attempt, so state isolation is not a second difference.
      - The canary proves that P's hooks ran under Node and G's under the staged binary.
-   - **C** is P with one setting: `"turnEnd": "continue"` in the attempt's `.quality-harness.json`. From quality-harness 3.8.51 (its ADR-120), the shipped default is a quiet Stop: the turn does not continue on an inferred check, or on one that cannot start. `continue` restores the earlier behaviour. So at one tag, P is the plugin as shipped, and C is the old continuation.
+   - **C** is P with one setting: `"turnEnd": "notify"` in the attempt's `.quality-harness.json`. With it, a turn-end finding goes to the user alone and the turn does not continue (`channelOf` in quality-harness's `plugin/scripts/check-ledger.mjs:537-540`, `turnEndSetting` in `project-config.mjs:63-67`, read at `c749638e`). Without it, a declared check that can start continues the turn when work is unchecked, at every tag through `c749638e` (quality-harness ADR-120 T6 and T11: "a declared `node --test` continues as today"). So at one tag, P is the plugin as shipped and C is the same plugin with the continuation off.
      - Stage 5's P, at 3.8.40, continued 10 of 40 Sonnet and 25 of 40 Opus attempts in checkouts that could run no test. It cost +49% (Opus) and +70% (Sonnet) over A with no change in solved (ADR-162, look 1).
-     - Under `stage6` the declared check can start. So C differs from P only where an agent ends a turn with no passing check, and the pair measures the continuation's net effect where a check can run. It does not measure Stage 5's waste again, which is already measured. If the tag spells the setting differently, its release notes are the authority and the registration names the spelling.
-   - **One tag, no late joiners.** The stage's plugin tag is frozen before T4's agent pilot (Decision 7). A side arm is in the stage only if it works at that tag, and its asset or setting is named in BACKLOG's "Pre-registered for ADR-163" before the agent pilot; otherwise it is not run in this stage. A side arm then runs in every block in which P runs, the pilot included, and never joins later.
+     - Under `stage6` the declared check can start, so the pair measures what the continuation costs or saves where a check can run. It does not measure Stage 5's waste again, which is already measured. `"turnEnd": "continue"` (ADR-120 T11, unreleased at `c749638e`) changes only inferred and unstartable checks, so it would leave C equal to P here and is not the setting. If the frozen tag spells the setting differently, its release notes are the authority and the registration names the spelling.
+   - **One tag, no late joiners.** The stage's plugin tag is frozen before T4's agent pilot (Decision 7). A side arm is in the stage only if it works at that tag, and its asset or setting is named in BACKLOG's "Pre-registered for ADR-163" before the agent pilot; otherwise it is not run in this stage. A side arm then runs, for each model, in every block in which that model's P runs, the pilot included, and never joins later.
    - **ADR-112's rows stay byte-identical.**
-     - `run.json` keeps `configs` and `configs_for` for A, P and W alone, and carries the side arms in their own fields (`side_configs`, `side`).
+     - `run.json` keeps `configs` and `configs_for` for A, P and W alone, and carries the side arms in their own fields: `side_admitted` (the arms admitted at the tag, the same in every block), `side_configs_for` (for each model, the admitted arms where that model's block runs P, and none where it does not) and `side`.
      - `export-paired --pair A,P` and `--pair A,W` build `plugin` and `scaffold` from the core arms only, so a block with side arms exports exactly the rows it would without them.
      - T6 tests this with side arms absent and present.
    - **How they are read.** A new reader, `bench side`, reads receipts with P as the control and each side arm as the other side, paired by task. It uses the intervals `bench analyze` computes: the percentile bootstrap for cost and Tango's score interval for solved, at 99%. It reports turns and wall time beside them, against the bar registered in BACKLOG's "Pre-registered for ADR-163" before the agent pilot. ADR-112's scorer never reads a G or C row, and a side arm never stops or prolongs the stage.
@@ -163,7 +163,7 @@ The plugin, ADR-112 and quality-harness's scorer stay in that repository and are
 | `bench baseline --stage S --out DIR --selection FILE --checks FILE` | new: per instance, the declared check on the unmodified tree, green or red, exit, wall time | T3 | T4, T5 |
 | `bench/swe-bench/selection-adr-163.json` | new: the surviving pool, written by `bench baseline --surviving` | T3 | T5, quality-harness's pre-registration |
 | `bench export-paired --pair A,W --selection selection-adr-163.json` | W tested; the surviving pool's digest and count; `checks_sha256`, `work_line_sha256` and `max_turns` bound per block and in `scaffold` | T3 | quality-harness's scorer |
-| configurations G and C; `--qh-binary FILE --qh-sums FILE`; C's `turnEnd`; `side_configs` and `side` (asset sha, setting, tag) in `run.json` and the side receipts | new (Decision 9) | T6 | T4, T5 |
+| configurations G and C; `--qh-binary FILE --qh-sums FILE`; C's `turnEnd`; `side_admitted`, `side_configs_for` and `side` (asset sha, setting, tag) in `run.json` and the side receipts | new (Decision 9) | T6 | T4, T5 |
 | `export-paired --pair A,P` / `--pair A,W` | `plugin` and `scaffold` built from the core arms only, byte-identical with or without side arms | T6 | quality-harness's scorer |
 | `bench side --control P --arm G\|C` | new: the side reader, P as control, the registered bar | T6 | T5 |
 
@@ -231,4 +231,4 @@ None: this is measurement only. The profile, the shims, W, the flags and the sub
 - [ ] Zy's word on the price, after T4.
 - [ ] Re-cite ADR-162 T5's squash commit in place of 4eec8caa once it merges.
 - [ ] G: quality-harness names the plugin tag whose documented setting selects the Go hook runtime, with `qh-darwin-arm64` in its `SHA256SUMS`, before T4's agent pilot. Without it, G is not in this stage.
-- [ ] C: the tag (3.8.51 or later) and the exact spelling of `turnEnd` from its release notes, written into the registration before T4's agent pilot.
+- [ ] C: the tag and the exact spelling of the setting that keeps turn-end findings from the agent (`turnEnd: notify` through `c749638e`) from its release notes, written into the registration before T4's agent pilot.

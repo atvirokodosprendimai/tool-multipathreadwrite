@@ -54,8 +54,8 @@ blocks=$(ls -d $R/block-*/ | wc -l | tr -d ' ')
   && test "$(jq -r -s '[.[].plugin | select(. != null) | .commit] | unique | length' $R/block-*/*.receipt.json)" = 1 \
   && test "$(jq -r -s '[.[].checks_sha256] | unique | length' $R/block-*/run.json)" = 1 \
   && test "$(jq -r -s '[.[].work_line_sha256] | unique | length' $R/block-*/run.json)" = 1 \
-  && test "$(jq -c -s '[.[] | (.side_configs // [])] | unique | length' $R/block-*/run.json)" = 1 \
-  && jq -e -s 'all(.[]; ((.side_configs // []) | length) == 0 or ([.configs_for[] | index("P")] | any))' $R/block-*/run.json > /dev/null \
+  && test "$(jq -c -s '[.[] | (.side_admitted // [])] | unique | length' $R/block-*/run.json)" = 1 \
+  && jq -e -s 'all(.[]; . as $r | ($r.configs_for | keys) as $ms | (($r.side_configs_for // {}) | keys - $ms | length) == 0 and all($ms[]; (($r.side_configs_for // {})[.] // []) == (if ($r.configs_for[.] | index("P")) then ($r.side_admitted // []) else [] end)))' $R/block-*/run.json > /dev/null \
   && grep '^## Stage 6' docs/bench/RESULTS.md > /tmp/adr163-s6.txt
 ```
 
@@ -82,7 +82,7 @@ The fence goes green only when every look has a valid verdict file for each mode
 ## Invariants
 
 - No block starts before the previous look is committed.
-- One plugin tag, one CLI, one checks table and one work line for the whole stage; the same side arms in every block, and only beside P.
+- One plugin tag, one CLI, one checks table and one work line for the whole stage; the same admitted side arms in every block, run for a model exactly when that model's block runs P, so P stopping before W leaves W's blocks unobstructed.
 
 ## Risks
 

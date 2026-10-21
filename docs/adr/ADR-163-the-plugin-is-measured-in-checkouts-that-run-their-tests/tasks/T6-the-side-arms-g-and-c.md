@@ -7,13 +7,13 @@
 **Produces:**
 - configurations G and C;
 - `bench run --qh-binary FILE --qh-sums FILE`, and C's `turnEnd` written into its `.quality-harness.json`;
-- `run.json`'s `side_configs` and `side` (tag, asset sha, setting), and the same in the side receipts;
+- `run.json`'s `side_admitted`, `side_configs_for` and `side` (tag, asset sha, setting), and the same in the side receipts;
 - the core export projection (`plugin` and `scaffold` from A, P and W only);
 - `bench side --control P --arm G|C`.
 
 **Consumes:** `--profile stage6`, the shims (T1); P's profile and plugin, W's configuration shape, the declared check file, `--max-turns` (T2)
 **Data dependency:** hermetic tests with a stub plugin, a stub binary and fixture receipts. The arms themselves need, at the stage's one frozen plugin tag:
-- C: the `turnEnd` setting (quality-harness 3.8.51 or later);
+- C: the `turnEnd: notify` setting, or the frozen tag's spelling of it;
 - G: a documented setting that selects the Go hook runtime, with `qh-darwin-arm64` in `SHA256SUMS`.
 An arm not available at that tag is not run in this stage, and nothing here blocks A, P, W or T4.
 **Proof map:** v1
@@ -27,7 +27,7 @@ Under `stage6`, two side arms run beside P at the stage's one plugin tag, paired
 
 | File | Change | Why |
 |------|--------|-----|
-| `internal/bench/runner.go` | edit | `Configs["G"]` and `Configs["C"]` built from P's. G pre-stages the verified binary and sets the tag's runtime setting, with the plugin's fetching off. Every plugin arm gets a fresh plugin data directory per attempt. C's `.quality-harness.json` gains `turnEnd`. `side_configs` and `side` go into `run.json` and the side receipts. |
+| `internal/bench/runner.go` | edit | `Configs["G"]` and `Configs["C"]` built from P's. G pre-stages the verified binary and sets the tag's runtime setting, with the plugin's fetching off. Every plugin arm gets a fresh plugin data directory per attempt. C's `.quality-harness.json` gains `turnEnd`. `side_admitted`, `side_configs_for` and `side` go into `run.json` and the side receipts. |
 | `internal/bench/materialize.go` | edit | C's check file is the declared one plus `turnEnd`; the other arms' files are unchanged |
 | `internal/bench/profile.go` | edit | G and C only under `stage6`, only beside P, and only when the registration names their setting or asset |
 | `internal/bench/canary.go` | edit | P's hooks ran under Node and G's under the staged binary; C's file carries `turnEnd` and no other arm's does |
