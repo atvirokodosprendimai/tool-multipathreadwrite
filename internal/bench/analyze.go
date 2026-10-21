@@ -41,6 +41,12 @@ type Result struct {
 	Comparison string  `json:"comparison"`
 	Level      float64 `json:"level"`
 	Look       int     `json:"look,omitempty"`
+
+	// CostUnpaired names the paired instances left out of the cost comparison
+	// only: an attempt killed at the budget before the CLI wrote its result
+	// line has no cost (Zy's ruling of 2026-10-20). They stay in the success
+	// comparison, unsolved.
+	CostUnpaired []string `json:"cost_unpaired,omitempty"`
 }
 
 // The bootstrap the registration fixes, and the tolerance a boundary of the
@@ -101,7 +107,7 @@ func AnalyzeSubsets(rs []Receipt, superseded []string, subsets []Subset) ([]Resu
 			continue
 		}
 		switch r.Exclusion {
-		case "", ExclusionStart, ExclusionSetup:
+		case "", ExclusionStart, ExclusionSetup, ExclusionInfra:
 		default:
 			return nil, fmt.Errorf("attempt %s: exclusion %q is not one the registration admits", r.Attempt, r.Exclusion)
 		}
@@ -252,6 +258,7 @@ func judgeWith(stage, model, source string, g []Receipt, second string, level fl
 	type side struct {
 		cost         float64
 		solved, runs int
+		costless     bool // an attempt killed at the budget with no cost
 	}
 	perTask := map[string]map[string]*side{}
 	for _, r := range g {
@@ -263,7 +270,7 @@ func judgeWith(stage, model, source string, g []Receipt, second string, level fl
 			res.Excluded++
 			continue
 		}
-		if r.CostUSD == nil {
+		if r.CostUSD == nil && !r.TimedOut {
 			return res, fmt.Errorf("attempt %s: no cost", r.Attempt)
 		}
 		if r.Config == "B" {
@@ -285,7 +292,13 @@ func judgeWith(stage, model, source string, g []Receipt, second string, level fl
 			s = &side{}
 			perTask[r.Task][r.Config] = s
 		}
-		s.cost += *r.CostUSD
+		if r.CostUSD == nil {
+			// Killed at the budget before the CLI wrote its result line (Zy's
+			// ruling of 2026-10-20): unsolved, and out of the cost comparison.
+			s.costless = true
+		} else {
+			s.cost += *r.CostUSD
+		}
 		s.runs++
 		if r.Oracle.Solved && !r.OverBudget && !r.IsError {
 			s.solved++
@@ -306,20 +319,37 @@ func judgeWith(stage, model, source string, g []Receipt, second string, level fl
 		if tango && (a.runs != 1 || b.runs != 1) {
 			return res, fmt.Errorf("task %s: Tango's interval needs one attempt per instance and configuration, found %d and %d", t, a.runs, b.runs)
 		}
+		diff = append(diff, float64(b.solved)/float64(b.runs)-float64(a.solved)/float64(a.runs))
+		if a.costless || b.costless {
+			res.CostUnpaired = append(res.CostUnpaired, t)
+			continue
+		}
 		meanA, meanB := a.cost/float64(a.runs), b.cost/float64(b.runs)
 		if meanA <= 0 {
 			return res, fmt.Errorf("task %s: configuration A's mean cost is %v", t, meanA)
 		}
 		rel = append(rel, (meanB-meanA)/meanA)
-		diff = append(diff, float64(b.solved)/float64(b.runs)-float64(a.solved)/float64(a.runs))
 	}
-	res.Tasks = len(rel)
-	if res.Tasks == 0 {
+	res.Tasks = len(diff)
+	if len(diff) == 0 {
 		res.Verdict = "INCONCLUSIVE"
 		return res, nil
 	}
-	res.RelCost, res.SolvedDiff = mean(rel), mean(diff)
-	res.RelLo, res.RelHi, res.SolvedLo, res.SolvedHi = bootstrapAt(rel, diff, level)
+	res.SolvedDiff = mean(diff)
+	switch {
+	case len(rel) == len(diff):
+		res.RelCost = mean(rel)
+		res.RelLo, res.RelHi, res.SolvedLo, res.SolvedHi = bootstrapAt(rel, diff, level)
+	case len(rel) > 0:
+		// The two comparisons cover different instances, so each is resampled
+		// on its own. With none left out, the joint draw above is unchanged.
+		res.RelCost = mean(rel)
+		res.RelLo, res.RelHi, _, _ = bootstrapAt(rel, rel, level)
+		_, _, res.SolvedLo, res.SolvedHi = bootstrapAt(diff, diff, level)
+	default:
+		// No pair kept its cost: success alone can decide, and only LOSES.
+		_, _, res.SolvedLo, res.SolvedHi = bootstrapAt(diff, diff, level)
+	}
 	if tango {
 		var x12, x21 int
 		for _, d := range diff {
@@ -335,9 +365,9 @@ func judgeWith(stage, model, source string, g []Receipt, second string, level fl
 		res.SolvedLo, res.SolvedHi = tangoInterval(x12, x21, len(diff), level)
 	}
 	switch {
-	case res.RelLo > eps || res.SolvedHi < -eps:
+	case len(rel) > 0 && res.RelLo > eps || res.SolvedHi < -eps:
 		res.Verdict = "LOSES"
-	case res.RelCost <= -0.10+eps && res.RelHi < -eps && res.SolvedLo >= -0.05-eps:
+	case len(rel) > 0 && res.RelCost <= -0.10+eps && res.RelHi < -eps && res.SolvedLo >= -0.05-eps:
 		res.Verdict = "PAYS"
 	default:
 		res.Verdict = "INCONCLUSIVE"

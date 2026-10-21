@@ -1,0 +1,51 @@
+{
+  "attempt": "django__django-11087.P.claude-opus-5-5.1",
+  "stage": "stage5",
+  "task": "django__django-11087",
+  "shape": "swe-bench",
+  "source": "swe-bench",
+  "model": "claude-opus-5-5",
+  "config": "P",
+  "repeat": 1,
+  "order": 116,
+  "started": "2026-10-17T16:27:39Z",
+  "wall_ms": 171893,
+  "cli_version": "2.1.302 (Claude Code)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 19,
+  "tool_calls": 18,
+  "total_cost_usd": 0.5214584,
+  "usage": {
+    "input_tokens": 42,
+    "output_tokens": 9762,
+    "cache_read_input_tokens": 486252,
+    "cache_creation_input_tokens": 28600
+  },
+  "init_tools": [
+    "Bash",
+    "Edit",
+    "Glob",
+    "Grep",
+    "Read",
+    "Skill",
+    "Write"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": false
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 0,
+    "insertions": 0,
+    "deletions": 0
+  },
+  "status": "not done",
+  "plugin": {
+    "tag": "v3.8.40",
+    "commit": "ae3bdb850749b4b92f4493eebed3ba943f3764eb"
+  },
+  "exclusion": "setup",
+  "note": "oracle: git add -A: exit status 128: fatal: Unable to create '/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/bench-103343962/tree/.git/index.lock': File exists.\n\nAnother git process seems to be running in this repository, or the lock file may be stale\n"
+}

@@ -286,6 +286,11 @@ func analyze(args []string, w io.Writer) error {
 	if fs.NArg() != 1 {
 		return fmt.Errorf("analyze takes one directory")
 	}
+	// A Stage 5 block is read by its stage's look, which applies the stage's
+	// rulings; its raw receipts are not a slice of the 95% table.
+	if abs, err := filepath.Abs(fs.Arg(0)); err == nil && bench.LookStage(filepath.Dir(abs)) {
+		return fmt.Errorf("%s is a block of a Stage 5 stage: read it with bench look %s", fs.Arg(0), filepath.Dir(abs))
+	}
 	tasks, err := bench.LoadTasks(*tasksDir)
 	if err != nil {
 		return err
@@ -384,10 +389,7 @@ func analyze(args []string, w io.Writer) error {
 		fmt.Fprintln(w, "| stage | model | source | verdict | look | tasks | attempts | excluded | cost (X−A)/A [99%] | solved X−A [99%, Tango] | B shell reads |")
 		fmt.Fprintln(w, "|---|---|---|---|---|---|---|---|---|---|---|")
 		for _, row := range rep.Rows {
-			look := fmt.Sprintf("open after look %d", rep.Blocks)
-			if row.ClosedAt != 0 {
-				look = fmt.Sprintf("closed at look %d", row.ClosedAt)
-			}
+			look := lookLabel(rep, row)
 			r := row.Result
 			fmt.Fprintf(w, "| %s | %s | swe-bench, %s against A | %s | %s | %d | %d | %d | %+.3f [%+.3f, %+.3f] | %+.3f [%+.3f, %+.3f] | %d |\n",
 				r.Stage, r.Model, row.Comparison, row.Verdict, look, r.Tasks, r.Attempts, r.Excluded, r.RelCost, r.RelLo, r.RelHi, r.SolvedDiff, r.SolvedLo, r.SolvedHi, r.ReadsB)
@@ -398,6 +400,19 @@ func analyze(args []string, w io.Writer) error {
 		}
 	}
 	return nil
+}
+
+// lookLabel says where a pair stands: closed at the look that closed it, or
+// still open, either awaiting the next look or left open when the stage ended.
+func lookLabel(rep bench.LookReport, row bench.LookRow) string {
+	switch {
+	case row.ClosedAt != 0:
+		return fmt.Sprintf("closed at look %d", row.ClosedAt)
+	case rep.Complete:
+		return fmt.Sprintf("open when the stage ended at look %d", rep.Blocks)
+	default:
+		return fmt.Sprintf("open after look %d", rep.Blocks)
+	}
 }
 
 func swebenchSelect(args []string, r io.Reader, w io.Writer) error {

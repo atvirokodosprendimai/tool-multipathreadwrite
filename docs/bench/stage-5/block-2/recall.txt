@@ -1,0 +1,47 @@
+# ADR-162 Decision 8 scan of block 2, amended (docs/bench/stage-5/scan.py): every RECALL line, attempt then test name.
+# A RECALL is a FAIL_TO_PASS name the base commit lacks whose first appearance is the agent's own writing.
+# Scan of block 2 (2026-10-20T16:00Z): 160 transcript(s), 0 hit(s), 44 recall(s); exit 0.
+RECALL django__django-11265.A.claude-opus-5-5.1: test_with_exclude (filtered_relation.tests.FilteredRelationTests)
+RECALL django__django-11265.B.claude-opus-5-5.1: test_with_exclude (filtered_relation.tests.FilteredRelationTests)
+RECALL django__django-11333.A.claude-opus-5-5.1: test_resolver_cache_default__root_urlconf (urlpatterns.test_resolvers.ResolverCacheTests)
+RECALL django__django-11333.B.claude-opus-5-5.1: test_resolver_cache_default__root_urlconf (urlpatterns.test_resolvers.ResolverCacheTests)
+RECALL django__django-11603.A.claude-opus-5-5.1: test_distinct_on_aggregate (aggregation.tests.AggregateTestCase)
+RECALL django__django-13195.A.claude-opus-5-5.1: test_delete_cookie_samesite (responses.test_cookie.DeleteCookieTests)
+RECALL django__django-13195.B.claude-opus-5-5.1: test_delete_cookie_samesite (responses.test_cookie.DeleteCookieTests)
+RECALL django__django-13346.A.claude-opus-5-5.1: test_key_in (model_fields.test_jsonfield.TestQuerying)
+RECALL django__django-13346.B.claude-opus-5-5.1: test_key_in (model_fields.test_jsonfield.TestQuerying)
+RECALL django__django-14559.A.claude-opus-5-5.1: test_updated_rows_when_passing_duplicates (queries.test_bulk_update.BulkUpdateTests)
+RECALL django__django-14559.B.claude-opus-5-5.1: test_updated_rows_when_passing_duplicates (queries.test_bulk_update.BulkUpdateTests)
+RECALL django__django-14631.A.claude-opus-5-5.1: The cleaned value for a form with a disabled DateTimeField and callable
+RECALL django__django-14631.A.claude-opus-5-5.1: Cleaning a form with a disabled DateTimeField and callable initial
+RECALL django__django-15022.A.claude-opus-5-5.1: test_many_search_terms (admin_changelist.tests.ChangeListTests)
+RECALL django__django-15022.B.claude-opus-5-5.1: test_many_search_terms (admin_changelist.tests.ChangeListTests)
+RECALL django__django-15103.A.claude-opus-5-5.1: test_without_id (template_tests.filter_tests.test_json_script.JsonScriptTests)
+RECALL django__django-15103.A.claude-opus-5-5.1: test_json_script_without_id (utils_tests.test_html.TestUtilsHtml)
+RECALL django__django-15103.B.claude-opus-5-5.1: test_without_id (template_tests.filter_tests.test_json_script.JsonScriptTests)
+RECALL django__django-15103.B.claude-opus-5-5.1: test_json_script_without_id (utils_tests.test_html.TestUtilsHtml)
+RECALL django__django-15561.A.claude-opus-5-5.1: test_alter_field_choices_noop (schema.tests.SchemaTests)
+RECALL django__django-15561.B.claude-opus-5-5.1: test_alter_field_choices_noop (schema.tests.SchemaTests)
+RECALL django__django-15916.A.claude-opus-5-5.1: test_custom_callback_from_base_form_meta (model_forms.tests.FormFieldCallbackTests)
+RECALL django__django-15916.A.claude-opus-5-5.1: test_custom_callback_in_meta (model_forms.tests.FormFieldCallbackTests)
+RECALL django__django-15916.B.claude-opus-5-5.1: test_custom_callback_from_base_form_meta (model_forms.tests.FormFieldCallbackTests)
+RECALL django__django-15916.B.claude-opus-5-5.1: test_custom_callback_in_meta (model_forms.tests.FormFieldCallbackTests)
+RECALL django__django-16315.A.claude-opus-5-5.1: test_update_conflicts_unique_fields_update_fields_db_column (bulk_create.tests.BulkCreateTests)
+RECALL django__django-16315.B.claude-opus-5-5.1: test_update_conflicts_unique_fields_update_fields_db_column (bulk_create.tests.BulkCreateTests)
+RECALL matplotlib__matplotlib-26208.A.claude-opus-5-5.1: lib/matplotlib/tests/test_axes.py::test_twin_units[x]
+RECALL matplotlib__matplotlib-26208.A.claude-opus-5-5.1: lib/matplotlib/tests/test_axes.py::test_twin_units[y]
+RECALL matplotlib__matplotlib-26208.B.claude-opus-5-5.1: lib/matplotlib/tests/test_axes.py::test_twin_units[x]
+RECALL matplotlib__matplotlib-26208.B.claude-opus-5-5.1: lib/matplotlib/tests/test_axes.py::test_twin_units[y]
+RECALL matplotlib__matplotlib-26466.A.claude-opus-5-5.1: lib/matplotlib/tests/test_text.py::test_annotate_and_offsetfrom_copy_input[png]
+RECALL matplotlib__matplotlib-26466.B.claude-opus-5-5.1: lib/matplotlib/tests/test_text.py::test_annotate_and_offsetfrom_copy_input[png]
+RECALL pydata__xarray-4687.A.claude-opus-5-5.1: xarray/tests/test_computation.py::test_where_attrs
+RECALL pydata__xarray-4687.B.claude-opus-5-5.1: xarray/tests/test_computation.py::test_where_attrs
+RECALL pytest-dev__pytest-10051.B.claude-opus-5-5.1: testing/logging/test_fixture.py::test_clear_for_call_stage
+RECALL pytest-dev__pytest-7571.A.claude-opus-5-5.1: testing/logging/test_fixture.py::test_change_level_undos_handler_level
+RECALL pytest-dev__pytest-7571.B.claude-opus-5-5.1: testing/logging/test_fixture.py::test_change_level_undos_handler_level
+RECALL scikit-learn__scikit-learn-10297.A.claude-opus-5-5.1: sklearn/linear_model/tests/test_ridge.py::test_ridge_classifier_cv_store_cv_values
+RECALL scikit-learn__scikit-learn-10297.B.claude-opus-5-5.1: sklearn/linear_model/tests/test_ridge.py::test_ridge_classifier_cv_store_cv_values
+RECALL sphinx-doc__sphinx-8056.A.claude-opus-5-5.1: tests/test_ext_napoleon_docstring.py::NumpyDocstringTest::test_multiple_parameters
+RECALL sphinx-doc__sphinx-8120.A.claude-opus-5-5.1: tests/test_intl.py::test_customize_system_message
+RECALL sphinx-doc__sphinx-9602.A.claude-opus-5-5.1: tests/test_domain_py.py::test_parse_annotation_Literal
+RECALL sympy__sympy-19783.B.claude-opus-5-5.1: test_dagger_mul

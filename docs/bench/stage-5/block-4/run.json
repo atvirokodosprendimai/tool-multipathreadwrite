@@ -1,0 +1,79 @@
+{
+  "stage": "stage5",
+  "tasks": [
+    "django__django-13810",
+    "sympy__sympy-20916",
+    "django__django-11740",
+    "astropy__astropy-14182",
+    "sympy__sympy-17318",
+    "sphinx-doc__sphinx-9281",
+    "django__django-15732",
+    "sympy__sympy-20438",
+    "django__django-16938",
+    "matplotlib__matplotlib-25479",
+    "django__django-15268",
+    "astropy__astropy-14598",
+    "django__django-13513",
+    "sphinx-doc__sphinx-11510",
+    "django__django-13279",
+    "django__django-13344",
+    "sympy__sympy-21847",
+    "psf__requests-2931",
+    "psf__requests-2317",
+    "django__django-13449",
+    "django__django-14034",
+    "django__django-11099",
+    "matplotlib__matplotlib-25960",
+    "matplotlib__matplotlib-25122",
+    "scikit-learn__scikit-learn-11310",
+    "django__django-13363",
+    "scikit-learn__scikit-learn-13496",
+    "scikit-learn__scikit-learn-14629",
+    "pytest-dev__pytest-7236",
+    "matplotlib__matplotlib-20859",
+    "django__django-11292",
+    "sympy__sympy-12489",
+    "django__django-10973",
+    "django__django-13128",
+    "django__django-16032",
+    "scikit-learn__scikit-learn-25102",
+    "sympy__sympy-16792",
+    "mwaskom__seaborn-3069",
+    "sympy__sympy-21379",
+    "matplotlib__matplotlib-24026"
+  ],
+  "models": [
+    "claude-sonnet-5-5",
+    "claude-opus-5-5"
+  ],
+  "configs": [
+    "A",
+    "B",
+    "P"
+  ],
+  "repeats": 1,
+  "seed": 156,
+  "cli_version": "2.1.302 (Claude Code)",
+  "mrw_version": "v1.68.0 (975c3ba)",
+  "containment": "bypass",
+  "profile": "stage5",
+  "plugin": {
+    "tag": "v3.8.40",
+    "commit": "ae3bdb850749b4b92f4493eebed3ba943f3764eb"
+  },
+  "status_line_sha256": "171a9b5ce5b38cea2dc5d8eaab69fd5efa977d020394cc0a2b0645b32189bf47",
+  "budget_seconds": 1200,
+  "prompt_sha256": "4ab9117eb27510a1d2e6151a579aa66a1c5ae175f4e2797c087084db527cb333",
+  "block": 4,
+  "looks": 5,
+  "configs_for": {
+    "claude-opus-5-5": [
+      "A",
+      "B"
+    ],
+    "claude-sonnet-5-5": [
+      "A",
+      "B"
+    ]
+  }
+}

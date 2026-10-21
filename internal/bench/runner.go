@@ -53,8 +53,9 @@ const (
 
 // Exclusions the registration admits; no other reason leaves an attempt out.
 const (
-	ExclusionStart = "start-error" // ended before its first tool call: auth, rate limit, CLI start
-	ExclusionSetup = "setup"       // bench could not build the tree or grade it
+	ExclusionStart = "start-error"    // ended before its first tool call: auth, rate limit, CLI start
+	ExclusionSetup = "setup"          // bench could not build the tree or grade it
+	ExclusionInfra = "infrastructure" // the machine ended it, by a ruling in the stage's exclusions.json
 )
 
 // Receipt is one attempt's record, written once and never replaced.

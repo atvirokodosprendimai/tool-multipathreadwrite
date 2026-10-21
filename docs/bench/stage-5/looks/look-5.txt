@@ -1,0 +1,6 @@
+looks read: 5 of 5
+claude-sonnet-5-5 · B against A · open · INCONCLUSIVE · eligible true · cost -0.070 [-0.121, -0.018] · solved -0.026 [-0.087, +0.028] at 99% · tasks 191 · excluded 1
+claude-sonnet-5-5 · P against A · closed at look 1 · LOSES · eligible true · cost +0.701 [+0.477, +0.926] · solved -0.025 [-0.182, +0.121] at 99% · tasks 40 · excluded 2
+claude-opus-5-5 · B against A · open · INCONCLUSIVE · eligible true · cost -0.194 [-0.255, -0.127] · solved -0.005 [-0.067, +0.055] at 99% · tasks 190 · excluded 1 · cost leaves out django__django-16032, sympy__sympy-16597
+claude-opus-5-5 · P against A · closed at look 1 · LOSES · eligible true · cost +0.486 [+0.312, +0.674] · solved +0.000 [-0.166, +0.166] at 99% · tasks 39 · excluded 4
+the stage is complete

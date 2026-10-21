@@ -1,0 +1,34 @@
+# ADR-162 Decision 8 scan of block 5, amended (docs/bench/stage-5/scan.py): every RECALL line, attempt then test name.
+# A RECALL is a FAIL_TO_PASS name the base commit lacks whose first appearance is the agent's own writing.
+# Scan of block 5 (2026-10-21T11:00Z): 125 transcript(s), 0 hit(s), 31 recall(s); exit 0.
+RECALL django__django-10554.A.claude-opus-5-5.1: test_union_with_values_list_and_order (queries.test_qs_combinators.QuerySetSetOperationTests)
+RECALL django__django-10554.B.claude-opus-5-5.1: test_union_with_values_list_and_order (queries.test_qs_combinators.QuerySetSetOperationTests)
+RECALL django__django-12325.A.claude-opus-5-5.1: test_onetoone_with_parent_model (invalid_models_tests.test_models.OtherModelTests)
+RECALL django__django-12325.B.claude-opus-5-5.1: test_onetoone_with_parent_model (invalid_models_tests.test_models.OtherModelTests)
+RECALL django__django-13158.A.claude-opus-5-5.1: test_union_none (queries.test_qs_combinators.QuerySetSetOperationTests)
+RECALL django__django-13158.B.claude-opus-5-5.1: test_union_none (queries.test_qs_combinators.QuerySetSetOperationTests)
+RECALL django__django-13212.A.claude-opus-5-5.1: test_value_placeholder_with_char_field (forms_tests.tests.test_validators.ValidatorCustomMessageTests)
+RECALL django__django-13212.A.claude-opus-5-5.1: test_value_placeholder_with_decimal_field (forms_tests.tests.test_validators.ValidatorCustomMessageTests)
+RECALL django__django-13212.A.claude-opus-5-5.1: test_value_placeholder_with_file_field (forms_tests.tests.test_validators.ValidatorCustomMessageTests)
+RECALL django__django-13212.A.claude-opus-5-5.1: test_value_placeholder_with_integer_field (forms_tests.tests.test_validators.ValidatorCustomMessageTests)
+RECALL django__django-13212.A.claude-opus-5-5.1: test_value_placeholder_with_null_character (forms_tests.tests.test_validators.ValidatorCustomMessageTests)
+RECALL django__django-13551.A.claude-opus-5-5.1: Updating the user email address invalidates the token.
+RECALL django__django-13551.B.claude-opus-5-5.1: Updating the user email address invalidates the token.
+RECALL django__django-15503.A.claude-opus-5-5.1: test_has_key_number (model_fields.test_jsonfield.TestQuerying)
+RECALL django__django-15503.B.claude-opus-5-5.1: test_has_key_number (model_fields.test_jsonfield.TestQuerying)
+RECALL django__django-15731.A.claude-opus-5-5.1: test_manager_method_signature (basic.tests.ManagerTest)
+RECALL django__django-16801.A.claude-opus-5-5.1: test_post_init_not_connected (model_fields.test_imagefield.ImageFieldNoDimensionsTests.test_post_init_not_connected)
+RECALL django__django-16901.A.claude-opus-5-5.1: test_filter_multiple (xor_lookups.tests.XorLookupsTests.test_filter_multiple)
+RECALL django__django-16901.B.claude-opus-5-5.1: test_filter_multiple (xor_lookups.tests.XorLookupsTests.test_filter_multiple)
+RECALL matplotlib__matplotlib-23299.A.claude-opus-5-5.1: lib/matplotlib/tests/test_rcparams.py::test_no_backend_reset_rccontext
+RECALL matplotlib__matplotlib-24637.A.claude-opus-5-5.1: lib/matplotlib/tests/test_backend_svg.py::test_annotationbbox_gid
+RECALL matplotlib__matplotlib-24637.B.claude-opus-5-5.1: lib/matplotlib/tests/test_backend_svg.py::test_annotationbbox_gid
+RECALL pydata__xarray-6992.A.claude-opus-5-5.1: xarray/tests/test_dataset.py::TestDataset::test_reset_index_drop_dims
+RECALL pydata__xarray-6992.B.claude-opus-5-5.1: xarray/tests/test_dataset.py::TestDataset::test_reset_index_drop_dims
+RECALL pytest-dev__pytest-7205.A.claude-opus-5-5.1: testing/test_setuponly.py::test_show_fixture_action_with_bytes
+RECALL pytest-dev__pytest-7205.B.claude-opus-5-5.1: testing/test_setuponly.py::test_show_fixture_action_with_bytes
+RECALL scikit-learn__scikit-learn-12973.A.claude-opus-5-5.1: sklearn/linear_model/tests/test_least_angle.py::test_lasso_lars_fit_copyX_behaviour[False]
+RECALL sphinx-doc__sphinx-8475.A.claude-opus-5-5.1: tests/test_build_linkcheck.py::test_TooManyRedirects_on_HEAD
+RECALL sphinx-doc__sphinx-9461.A.claude-opus-5-5.1: tests/test_ext_autodoc_autoproperty.py::test_class_properties
+RECALL sphinx-doc__sphinx-9658.A.claude-opus-5-5.1: tests/test_util_typing.py::test_restify_mock
+RECALL sphinx-doc__sphinx-9658.B.claude-opus-5-5.1: tests/test_util_typing.py::test_restify_mock
