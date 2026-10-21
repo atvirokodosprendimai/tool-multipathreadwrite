@@ -1098,7 +1098,11 @@ func midSyncKill(t *testing.T, knob, phase string) {
 		if err := cmd.Start(); err != nil {
 			t.Fatal(err)
 		}
-		for range 200 {
+		// A hang guard, not a performance bar: under -race on a loaded CI runner
+		// the shim's sync before the post phase has taken over the 10 s this
+		// once allowed (run 39620090459), so it waits up to a minute.
+		deadline := time.Now().Add(time.Minute)
+		for time.Now().Before(deadline) {
 			if matches, _ := filepath.Glob(pidFiles); len(matches) == 1 {
 				b, err := os.ReadFile(matches[0])
 				if n, aerr := strconv.Atoi(strings.TrimSpace(string(b))); err == nil && aerr == nil {
