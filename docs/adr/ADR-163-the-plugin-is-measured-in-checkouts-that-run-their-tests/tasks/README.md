@@ -13,8 +13,9 @@ README must be regenerated.
 | 1 | T1 | none |
 | 2 | T2 | T1 |
 | 3 | T3 | T2 |
-| 4 | T4 | T3 |
-| 5 | T5 | T4 |
+| 4 | T6 | T2 |
+| 5 | T4 | T3, T6 |
+| 6 | T5 | T4 |
 
 ## Task Index
 
@@ -25,6 +26,7 @@ README must be regenerated.
 | T3 | the baseline, the surviving pool and the block plan | pending | — | `go test ./internal/bench/ -run '^(TestTheBaselineRecordsGreenRedAndTime…)$'` |
 | T4 | the baseline pilot, the whole-pool baseline, then the agent pilot | pending | — | `jq … docs/bench/stage-6-pilot/baseline.json …` |
 | T5 | the stage, block by block, and its results | pending | — | `go run ./cmd/bench verify --stage stage6 --tasks "$t" …` |
+| T6 | the side arms G and Q, read against P | pending | — | `go test ./internal/bench/ -run '^(TestConfigurationGIsPWithTheGoHooksBinary…)$'` |
 
 ## Contract Coupling
 
@@ -33,6 +35,7 @@ README must be regenerated.
 | T1 | the container, the shims, `--profile stage6`, `host_interpreter_calls` | T2, T3, T4, T5 | T1 before T2 |
 | T2 | W, `checks.json`, the declared check, `--max-turns` | T3, T4, T5 | T2 before T3 |
 | T3 | `bench baseline`, the surviving pool file, its blocks, `--pair A,W` against it | T4, T5 | T3 before T4 |
+| T6 | configurations G and Q, the staged binary, the switch, `--pair P,G`/`--pair P,Q` | T4, T5 | T6 before T4 |
 | T4 | D1's answer, the surviving pool, D3's caps, the price | T5 | T4 before T5 |
 
 ## Notes

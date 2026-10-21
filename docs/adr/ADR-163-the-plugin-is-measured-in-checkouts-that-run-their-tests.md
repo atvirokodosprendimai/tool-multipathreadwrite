@@ -2,6 +2,7 @@
 
 **Status:** Accepted
 **Accepted:** 2026-10-20 by Zy — picked "Accept (Recommended)" after two challenger reviews (adr-challenger, 22 findings; Codex xhigh in two scoped parts, 7 findings, then a re-check that closed them and raised 1 more), every finding that held taken into the draft; quality-harness agreed its two pre-registration points (D1 read at 1200 s; the surviving pool frozen before its pre-registration)
+**Amended:** 2026-10-21 by Zy — "amend, accepted": Decision 9 and T6 add the side arms G and Q, asked for by quality-harness (its ADR-110 T2 S3, and this repository's 2026-10-21 field report §1, which its ADR-120 took up)
 **Date:** 2026-10-19
 **Owner:** Zy
 **Spec:** None — no spec stage
@@ -96,6 +97,12 @@ Zy, 2026-10-19: "Draft now, run after": draft this record and build its code whi
    - **A block:** 40 instances × the open arms × 2 models, up to 240 attempts. Stage 5 measured about 2 minutes per attempt with grading on Stage 4b, with no tests run; attempts that run real tests under emulation take longer, and W longer again. A guess of 25 to 40 machine hours, and 15 to 25 points of the 7-day limit, per full block.
    - **The stage** may need every surviving block, since one block cannot show PAYS (ADR-112 D5).
    - **The likely outcome of the baseline pilot.** The pool is 41% django, and Django's whole suite is long, so D1's quarter-budget rule may fail on the first pilot, before any usage is spent. That outcome is a result.
+9. **Two side arms, G and Q, are read against P and never enter ADR-112's stop rule** (amendment of 2026-10-21).
+   - **G** is P with the plugin's hooks run by its Go binary, `qh`, instead of Node. The hooks run on the host, so G needs the release's `qh-darwin-arm64`. bench refuses a binary whose sha256 is not the release's `SHA256SUMS` line, stages it where the plugin reads it for that attempt alone, and records its sha in `run.json` and G's receipts. The question it answers is quality-harness's (ADR-110): does the Go runtime change turns, cost or wall time?
+   - **Q** is P with one switch set: the Stop hook does not continue a turn when no check can start in the checkout. P and Q run at the same plugin tag, which documents the switch (quality-harness ADR-120). The question is the one Stage 5's P arm raised: its Stop hook continued 10 of 40 Sonnet and 25 of 40 Opus attempts in checkouts that could run no test, and P cost +49% (Opus) and +70% (Sonnet) more than A with no change in solved (ADR-162, look 1). The hypothesis is that Q closes most of that gap.
+   - **How they are read:** each differs from P in one thing, so P is its control. `export-paired --pair P,G` and `--pair P,Q` give paired rows per model, read with bench's paired 99% intervals for cost, turns, wall time and solved, against the bar registered in BACKLOG's "Pre-registered for ADR-163" before T4's agent pilot. ADR-112's scorer never reads a G or Q row, and a side arm never stops or prolongs the stage.
+   - **When they run:** a side arm runs in every block in which P runs, from the first block for which its plugin release exists; it never joins a block retroactively. The agent pilot adds G and Q on its 4 instances × both models (16 attempts) if their releases exist by then.
+   - **Price:** each side arm adds up to 80 attempts per full block (40 instances × 2 models), so a full block with both is up to 400 attempts; the price asked after T4 says it per arm.
 
 What would make it FAIL:
 - an agent command that ran tests on the host while the transcript shows the shim's path;
@@ -144,6 +151,8 @@ The plugin, ADR-112 and quality-harness's scorer stay in that repository and are
 | `bench baseline --stage S --out DIR --selection FILE --checks FILE` | new: per instance, the declared check on the unmodified tree, green or red, exit, wall time | T3 | T4, T5 |
 | `bench/swe-bench/selection-adr-163.json` | new: the surviving pool, written by `bench baseline --surviving` | T3 | T5, quality-harness's pre-registration |
 | `bench export-paired --pair A,W --selection selection-adr-163.json` | W tested; the surviving pool's digest and count; `checks_sha256`, `work_line_sha256` and `max_turns` bound per block and in `scaffold` | T3 | quality-harness's scorer |
+| configurations G and Q; `--qh-binary FILE --qh-sums FILE`, `--stop-switch NAME=VALUE`; `plugin.qh_sha256`, `plugin.stop_switch` in `run.json` and receipts | new (Decision 9) | T6 | T4, T5 |
+| `bench export-paired --pair P,G` and `--pair P,Q` | new: side pairs, read against P, never by ADR-112's scorer | T6 | T4, T5 |
 
 ## Inter-task Contracts
 
@@ -152,6 +161,7 @@ The plugin, ADR-112 and quality-harness's scorer stay in that repository and are
 | the container, the shims, the lock, `--profile stage6`, the receipt's shim fields | T1 | T2, T3, T4, T5 | No — additive; without the profile nothing changes |
 | configuration W, `checks.json`, the declared check, `--max-turns` | T2 | T3, T4, T5 | No — additive; `MaxTurns` defaults to 60 |
 | `bench baseline`, the surviving pool file, its blocks, `--pair A,W` | T3 | T4, T5 | No — additive |
+| configurations G and Q, the staged binary, the switch, `--pair P,G` and `--pair P,Q` | T6 | T4, T5 | No — additive; A, P and W unchanged |
 | D1's answer, the surviving pool, D3's caps, the price | T4 | T5 | No |
 | `docs/bench/stage-6/block-K/` and `looks/look-K.txt` | T5 | quality-harness ADR-112 T3 | No |
 
@@ -207,3 +217,5 @@ None: this is measurement only. The profile, the shims, W, the flags and the sub
 - [ ] quality-harness agrees D1 is read against 1200 s, and pre-registers the work line, the plugin tag, the scorer blob, D3's derivation rule and the surviving pool's digest before T4's agent pilot; then the caps' numbers after it, before block 1.
 - [ ] Zy's word on the price, after T4.
 - [ ] Re-cite ADR-162 T5's squash commit in place of 4eec8caa once it merges.
+- [ ] G: quality-harness messages when a release carries `qh-darwin-arm64` with `SHA256SUMS` (announced as 3.8.52); G joins from the next block after it.
+- [ ] Q: the plugin tag that documents the Stop switch (quality-harness ADR-120), named in the side arms' registration before T4's agent pilot.

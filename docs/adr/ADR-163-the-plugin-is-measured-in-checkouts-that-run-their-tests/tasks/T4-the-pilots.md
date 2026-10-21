@@ -1,11 +1,11 @@
 # Task ADR-163-T4: the baseline pilot, the whole-pool baseline, then the agent pilot
 
-**Depends-on:** T3
+**Depends-on:** T3, T6
 **Covers:** none — no spec
 **Estimated scope:** M (two pilots, one baseline over the pool, a sign-off)
 **Owner:** Zy
 **Produces:** `docs/bench/stage-6-pilot/` (`pilot-instances.json`, `baseline.json`, `d1.txt`; if D1 passes, the agent pilot's receipts, `run.json` and one canary per model); `docs/bench/stage-6/baseline.json` and `bench/swe-bench/selection-adr-163.json` (the surviving pool); D3's caps; the price
-**Consumes:** the shims and `--profile stage6` (T1), W, `checks.json` and `--max-turns` (T2), `bench baseline` and the surviving pool (T3)
+**Consumes:** the shims and `--profile stage6` (T1), W, `checks.json` and `--max-turns` (T2), `bench baseline` and the surviving pool (T3), configurations G and Q and the side pairs (T6)
 **Data dependency:** real SWE-bench images on this Mac, after Stage 5 closes (ADR-162 T5's `bench look` exits 0, or Zy ends it); the agent pilot also uses the subscription and needs quality-harness's pre-registration committed first; each step on Zy's word
 **Proof map:** v1
 **Rests-on:** `the pilot instances follow the rule`, `D1 was read before any usage`, `the surviving pool was frozen before the pre-registration`, `the caps come from W's pilot`, `the container was clean in every pilot attempt`
