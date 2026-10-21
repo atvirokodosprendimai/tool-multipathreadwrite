@@ -1143,11 +1143,23 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				out = bufio.NewWriter(&content)
 			}
 			// document prints {"content", "receipt"} on standard output.
-			document := func(receipt map[string]any) {
+			// document prints {"content", "receipt"} on standard output. JSON
+			// carries text, so content that is not valid UTF-8 would reach the
+			// caller changed while its lines were licensed as read: refused, the
+			// way mrw_read refuses to checkpoint such lines (ADR-108). A document
+			// that could not be written is an answer nobody got, so the caller
+			// records nothing after either (Codex review of 0f92edf0).
+			document := func(receipt map[string]any) error {
+				if !utf8.Valid(content.Bytes()) {
+					return cli.Exit("the answer holds bytes that are not valid UTF-8, which a JSON document would change: read it without --json, so nothing was recorded", exitUsage)
+				}
 				enc := json.NewEncoder(os.Stdout)
 				enc.SetIndent("", "  ")
-				_ = enc.Encode(readDocument{Content: content.String(), Receipt: receipt})
+				if err := enc.Encode(readDocument{Content: content.String(), Receipt: receipt}); err != nil {
+					return cli.Exit(fmt.Sprintf("the answer could not be written, so nothing was recorded: %v", err), exitUsage)
+				}
 				printed = true
+				return nil
 			}
 			// ADR-165: --max-chars bounds everything this read writes to standard
 			// output — the iteration note, the walk's refusals and skip line, and
@@ -1194,7 +1206,9 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				_ = out.Flush() // exit 1 follows whether or not the refusals reached stdout
 				_, _ = os.Stderr.Write(withheld.Bytes())
 				if cmd.Bool("json") {
-					document(mcp.NoMatchReceipt(len(refusals), skipped))
+					if err := document(mcp.NoMatchReceipt(len(refusals), skipped)); err != nil {
+						return err
+					}
 				}
 				hint := ""
 				if h := patternFlagHint(pattern); h != "" {
@@ -1207,7 +1221,9 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				_ = out.Flush() // exit 1 follows whether or not the refusals reached stdout
 				_, _ = os.Stderr.Write(withheld.Bytes())
 				if cmd.Bool("json") {
-					document(mcp.NoMatchReceipt(len(refusals), skipped))
+					if err := document(mcp.NoMatchReceipt(len(refusals), skipped)); err != nil {
+						return err
+					}
 				}
 				return cli.Exit(read.NoMatchLine(astPattern, len(refusals), "")+reached(), 1)
 			}
@@ -1238,7 +1254,9 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			}
 			_, _ = os.Stderr.Write(withheld.Bytes())
 			if cmd.Bool("json") {
-				document(mcp.ReadReceipt(observed, problems+len(refusals), skipped, counts))
+				if err := document(mcp.ReadReceipt(observed, problems+len(refusals), skipped, counts)); err != nil {
+					return err
+				}
 			}
 			// Reading a file is how mrw learns what it holds; recording that is
 			// what lets a later write know whether its picture is still current.

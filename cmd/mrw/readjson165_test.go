@@ -132,4 +132,57 @@ func TestReadJSONCarriesTheServedTextAndTheReceiptMrwReadSends(t *testing.T) {
 	if out, _, _ := run("", "read", "--json", "--quiet", "a.txt"); decode(out).Content != quiet || !strings.Contains(quiet, "-- licensed") {
 		t.Errorf("--json --quiet: content %q, want %q", decode(out).Content, quiet)
 	}
+
+	// Licensing is the plain read's: one state shared by the read and the
+	// writes after it (Codex review of 0f92edf0).
+	state := t.TempDir()
+	shared := func(stdin string, argv ...string) (string, int) {
+		t.Helper()
+		cmd := exec.Command(bin, argv...)
+		cmd.Dir = tree
+		cmd.Env = append(os.Environ(), "XDG_STATE_HOME="+state)
+		cmd.Stdin = strings.NewReader(stdin)
+		out, err := cmd.CombinedOutput()
+		code := 0
+		var exit *exec.ExitError
+		if errors.As(err, &exit) {
+			code = exit.ExitCode()
+		}
+		return string(out), code
+	}
+	if out, code := shared("", "read", "--json", "a.txt:1"); code != 0 || !strings.Contains(out, "1| alpha") {
+		t.Fatalf("read --json a.txt:1: exit %d\n%s", code, out)
+	}
+	// The unserved line first: once mrw writes a file, all of it is licensed
+	// (ADR-005 §4), so the order of these two matters.
+	if out, code := shared("@@ a.txt 3 replace\nCHARLIE\n", "write", "--no-check", "-"); code != 1 {
+		t.Errorf("a write to a line --json never served applied: exit %d\n%s", code, out)
+	}
+	if out, code := shared("@@ a.txt 1 replace\nALPHA\n", "write", "--no-check", "-"); code != 0 {
+		t.Errorf("a write to a line --json served was refused: exit %d\n%s", code, out)
+	}
+	// Bytes JSON cannot carry are refused and licence nothing.
+	if err := os.WriteFile(filepath.Join(tree, "bad.txt"), []byte("ok\n\xff\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out, _, code = run("", "read", "--json", "bad.txt")
+	if d := decode(out); code != 2 || !strings.Contains(d.Error, "not valid UTF-8") {
+		t.Errorf("read --json of invalid UTF-8: exit %d, %+v", code, d)
+	}
+	if _, code := shared("", "read", "--json", "bad.txt"); code != 2 {
+		t.Errorf("read --json of invalid UTF-8 (shared state): exit %d", code)
+	}
+	if out, code := shared("@@ bad.txt 1 replace\nOK\n", "write", "--no-check", "-"); code != 1 {
+		t.Errorf("a refused --json read licensed bad.txt: exit %d\n%s", code, out)
+	}
+	// A read that served one file and refused another is a document, not an
+	// error: the refusal is in content and counted in problems.
+	out, _, code = run("", "read", "--json", "a.txt", "missing.txt")
+	if d := decode(out); code != 1 || d.Error != "" || !strings.Contains(d.Content, "missing.txt") || d.Receipt["problems"] != float64(1) {
+		t.Errorf("a mixed read: exit %d, %+v", code, d)
+	}
+	// Standard input has no receipt: --json is refused there.
+	if _, errOut, code := run("x\n", "read", "--json", "-"); code != 2 || !strings.Contains(errOut, "--json") {
+		t.Errorf("read --json -: exit %d, %q", code, errOut)
+	}
 }
