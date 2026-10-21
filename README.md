@@ -83,7 +83,7 @@ What this does not show:
 
 Latency and shape numbers for the engine itself are in [docs/measure.md](docs/measure.md), the six-guarantee comparison in [docs/comparison.md](docs/comparison.md), and model × score readings in [docs/model-benches.md](docs/model-benches.md).
 
-**Status: stable at v1.70.0 (2026-10-21), the tag cut from `d9f109e`.** Break campaign for it: [docs/break/campaign-v1.70.0.txt](docs/break/campaign-v1.70.0.txt), 59 probes, exit codes identical to v1.69.1. New: `mrw read --max-chars N`, `mrw read --json`, and a pointer for `--root` typed after `read` (ADR-165).
+**Status: stable at v1.71.0 (2026-10-21), the tag cut from `827491f`.** Break campaign for it: [docs/break/campaign-v1.71.0.txt](docs/break/campaign-v1.71.0.txt), 59 probes, exit codes identical to v1.70.0 but one, by design: `[unwritable-state-home]` 2 → 0. New: a read whose state directory cannot be written serves and says nothing was recorded, on the CLI and `mrw_read` (ADR-166).
 
 Decisions: [docs/adr/](docs/adr/). How a change reaches `main`: [CONTRIBUTING.md](CONTRIBUTING.md). Driving it from a checkout: [AGENTS.md](AGENTS.md).
 Caller practices: [BESTPRACTICES.md](BESTPRACTICES.md). Updating the binary: [UPDATE.md](UPDATE.md).
