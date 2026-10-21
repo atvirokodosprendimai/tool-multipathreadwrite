@@ -29,22 +29,28 @@ const testbed = "/testbed"
 // repository, so a sync never sees them.
 const containerTmp = "/opt/bench"
 
-// activateTestbed puts the image testbed environment on PATH. It is the
-// SWE-bench images documented activation, not yet read from an image: T1 S1
-// settles it on one real image after Stage 5 closes.
+// activateTestbed puts the image testbed environment on PATH. T1 S1 read it from
+// swebench/sweb.eval.x86_64.django_1776_django-16642 (2026-10-21): bash takes it
+// and puts /opt/miniconda3/envs/testbed/bin first. It needs bash: the image's
+// sh is dash, which has no source, and dash's . drops the argument, so a sh
+// run would activate the base environment, not testbed. The shims run bash.
 const activateTestbed = "source /opt/miniconda3/bin/activate testbed"
 
 // evalArtifacts are the paths, or globs, removed from every image before the
 // first command of the agent: a test patch, an evaluation script, a list of
-// test names (ADR-163 Decision 1). The table is empty until T1 S1 has looked
-// in a real image and recorded what it holds and the rule that finds it.
+// test names (ADR-163 Decision 1). T1 S1 found none in the image it read. A
+// search outside /testbed, /opt/miniconda3, /usr, /etc and /var/lib for patch,
+// diff, eval*, sh, json and txt files found the miniconda installer, a pip cache
+// record and conda's environments list, none of them about a test. The image's
+// extra "SWE-bench" commit on top of the base is empty and goes with the history
+// replaceTree drops.
 var evalArtifacts = []string{}
 
 // settled says whether T1 S1 has looked in a real image and filled evalArtifacts
 // and activateTestbed from what it found. While it is false, gates refuses
-// bench run under stage6; bench canary still runs, for S1 to use. The commit
-// that records S1 flips it.
-const settled = false
+// bench run under stage6; bench canary still runs. T1 S1 recorded the
+// inspection on 2026-10-21 and flipped it.
+const settled = true
 
 // syncExcludes are what a sync and a write-back leave out beside what
 // .gitignore covers (ADR-163 Decision 1), as git pathspecs.
