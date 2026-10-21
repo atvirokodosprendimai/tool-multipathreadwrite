@@ -221,6 +221,9 @@ A flag grep has and `read` lacks (`-i`, `-n`, `-r`, `-l`, `-A`, `-e`, `--include
 hint; write `--grep '(?i)PATTERN'`.
 A flag `write` lacks that names the plan (`--plan`, `--file`, `--input`, `--stdin`) ends the same way with the argument's spelling, `mrw write PLAN` or `-`;
 and an all-digit `-C` before the subcommand (`mrw -C 3 read f`) is `--root`, which stderr says while the call is unchanged (ADR-151).
+`--root` typed after `read` (whose own `-C` is context, so `read` cannot take the global flag) is refused with
+`--root goes before the subcommand: mrw --root DIR read …`, exit 2; every flag `mrw` itself defines gets the same
+pointer wherever a subcommand refuses it (ADR-165).
 
 ### 1. Read many ranges in one call, and let the read do the finding
 

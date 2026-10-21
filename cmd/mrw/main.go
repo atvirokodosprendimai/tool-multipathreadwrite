@@ -28,6 +28,7 @@ import (
 	"regexp"
 	"runtime"
 	"runtime/debug"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -227,10 +228,59 @@ func usageError(_ context.Context, cmd *cli.Command, err error, _ bool) error {
 			flag, cmd.FullName(), sub, cmd.FullName()), exitUsage)
 	}
 	msg := fmt.Sprintf("%v (see: %s --help)", err, cmd.FullName())
-	if h := foreignFlagHint(cmd.FullName(), refusedFlag(err)); h != "" {
+	if h := rootFlagHint(cmd, refusedFlag(err)); h != "" {
+		msg += "; " + h
+	} else if h := foreignFlagHint(cmd.FullName(), refusedFlag(err)); h != "" {
 		msg += "; " + h
 	}
 	return cli.Exit(msg, exitUsage)
+}
+
+// rootFlagHint is the sentence for a flag the application defines on the root
+// command, typed after a subcommand that refused it, or "" (ADR-165 T1). urfave
+// makes a root flag persistent, so a subcommand refuses one only when its own
+// flags clash with one of the root flag's names — read's -C (context) and
+// --root's alias -C — and then urfave skips the root flag whole (flagKinds).
+// The flag's own definition supplies its value placeholder, so a root flag
+// added later is pointed home with no table to keep.
+// applicationFlag says whether f is one mrw defines, not one urfave adds to
+// every root command: its help and version flags, whose -h and -v would
+// otherwise be pointed home over ADR-164's -v sentence. urfave copies them
+// onto the command, so they are known by name, not by identity.
+func applicationFlag(f cli.Flag) bool {
+	for _, n := range f.Names() {
+		if n == "help" || n == "version" {
+			return false
+		}
+	}
+	return true
+}
+
+func rootFlagHint(cmd *cli.Command, name string) string {
+	root := cmd.Root()
+	if name == "" || root == cmd {
+		return ""
+	}
+	for _, f := range root.Flags {
+		if !applicationFlag(f) || !slices.Contains(f.Names(), name) {
+			continue
+		}
+		long := f.Names()[0]
+		value := ""
+		if df, ok := f.(cli.DocGenerationFlag); ok && df.TakesValue() {
+			value = " VALUE"
+			// The placeholder is what the usage text backticks, as urfave
+			// renders it in --help: "resolve every path relative to `DIR`".
+			if _, rest, ok := strings.Cut(df.GetUsage(), "`"); ok {
+				if ph, _, ok := strings.Cut(rest, "`"); ok && ph != "" {
+					value = " " + ph
+				}
+			}
+		}
+		where := strings.TrimPrefix(cmd.FullName(), root.Name+" ")
+		return fmt.Sprintf("--%s goes before the subcommand: %s --%s%s %s …", long, root.Name, long, value, where)
+	}
+	return ""
 }
 
 // subcommandForFlag returns the flag name the parser refused, as the caller

@@ -150,6 +150,10 @@ the address a write plan takes.
 Quote a JSON path for the shell: pwsh 7 takes `'t.json:$["k"]'`, Windows PowerShell 5.1 needs `'t.json:$[\"k\"]'`,
 cmd needs `"t.json:$[\"k\"]"`, and Git Bash and other POSIX shells take single quotes; an unquoted `[0]` is a glob (ADR-157).
 
+`--root DIR` (or `-C DIR`) is `mrw`'s own flag and goes before the subcommand: `mrw --root DIR read …`. Most
+subcommands also take it after the verb; `read` does not, because its own `-C` is context, and a `read --root`
+is refused with that spelling (ADR-165).
+
 `--grep` walks and serves in one call. A named directory is walked; with no
 paths the walk starts at `--root`. `--exclude GLOB` is repeatable and matches
 both the root-relative path and the basename — that is what makes `'*_test.go'`

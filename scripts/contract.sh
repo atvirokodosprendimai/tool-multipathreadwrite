@@ -9801,6 +9801,18 @@ v280=$(python3 -c 'import json; print(json.dumps({"jsonrpc":"2.0","id":1,"method
 out=$(cd "$R" && "$MRW" write --no-check --grep '(head) -1' --sub '$1 x' . 2>&1); want 0 $? "the pair: a pattern that defines group 1 applies"
 [ "$(cat "$R/s.sh")" = 'x | head x' ] && ok "and writes the group's text" || bad "the pair: $(cat "$R/s.sh") $out"
 
+# 281. ADR-165 T1: `mrw read --root DIR f` was refused as "not defined: -root"
+# with no word that --root is mrw's own flag. read cannot take it after the verb,
+# since read's own -C is context; the refusal now says where it goes, exit 2.
+# The pair: `mrw --root DIR read f` serves the line, and `mrw write --root DIR`,
+# which takes the global flag after the verb, is unchanged.
+R=$(mktemp -d "$WORK/r281-XXXXXX"); printf 'one\n' > "$R/f.txt"
+out=$("$MRW" read --root "$R" f.txt:1 2>&1); want 2 $? "read --root after the verb is refused, exit 2"
+grep -qF -- '--root goes before the subcommand: mrw --root DIR read …' <<<"$out" && ok "and says where --root goes" || bad "read --root: $out"
+out=$("$MRW" --root "$R" read f.txt:1 2>&1); want 0 $? "the pair: --root before the verb serves"
+grep -q '1| one' <<<"$out" && ok "and serves the line" || bad "mrw --root read: $out"
+out=$(printf '@@ g.txt 0 create\nhi\n' | "$MRW" write --root "$R" --no-check - 2>&1); want 0 $? "the pair: write takes --root after the verb, unchanged"
+
 # 271. ADR-161 Decision 14: the read ledger and the write lock belong to the
 # git checkout that holds the root, not to the directory mrw ran in. A read in
 # `sub` licenses a write from the top, and a read at the top licenses a write
