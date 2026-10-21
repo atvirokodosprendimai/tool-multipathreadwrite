@@ -795,6 +795,10 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				Usage: "stop after `N` lines per SPEC, where zero means zero: omit the flag to ask for no cap. Two specs naming one file get two budgets. Whatever is withheld is always reported",
 			},
 			&cli.IntFlag{
+				Name:  "max-chars",
+				Usage: "write at most `N` characters to standard output, in whole lines: what does not fit is not served, not licensed, and listed on standard error, and the read exits 1 incomplete. Zero means zero; omit it for no budget (ADR-165)",
+			},
+			&cli.IntFlag{
 				Name:  "max-cols",
 				Usage: "cut a line longer than `N` characters to a window of N centred on the first match of a pattern (the start otherwise), holding the whole match when it fits, marked `[cols A-B of L]`. A line served cut is NOT recorded as read: a plan that replaces it is refused until it is read whole (ADR-137). Zero or omitted serves lines whole",
 			},
@@ -855,6 +859,12 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			// takes. A negative --max-lines was ignored outright.
 			if n := cmd.Int("context"); n < 0 {
 				return cli.Exit(fmt.Sprintf("-C %d: context cannot be negative", n), exitUsage)
+			}
+			if cmd.IsSet("max-chars") && cmd.Int("max-chars") < 0 {
+				return cli.Exit(fmt.Sprintf("--max-chars %d: a budget cannot be negative", cmd.Int("max-chars")), exitUsage)
+			}
+			if cmd.IsSet("max-chars") && cmd.Bool("stat") {
+				return cli.Exit("--stat serves no line, so --max-chars has nothing to bound: drop --max-chars", exitUsage)
 			}
 			if n := cmd.Int("max-lines"); n < 0 {
 				return cli.Exit(fmt.Sprintf("--max-lines %d: a cap cannot be negative", n), exitUsage)
@@ -924,7 +934,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				if !astSet {
 					return cli.Exit("--rewrite is ast-grep's rewrite of the matches --ast-grep finds: give --ast-grep PATTERN", exitUsage)
 				}
-				for _, f := range []string{"sub", "count", "stat", "quiet", "max-cols", "max-lines", "no-numbers"} {
+				for _, f := range []string{"sub", "count", "stat", "quiet", "max-cols", "max-lines", "max-chars", "no-numbers"} {
 					if cmd.IsSet(f) {
 						return cli.Exit(fmt.Sprintf("--rewrite prints a plan and serves no line, so --%s has nothing to act on, or makes a plan of its own: drop --%s", f, f), exitUsage)
 					}
@@ -939,7 +949,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				if !grepSet {
 					return cli.Exit("--sub rewrites the lines a --grep matches: give --grep PATTERN", exitUsage)
 				}
-				for _, f := range []string{"context", "count", "stat", "quiet", "max-cols", "max-lines", "no-numbers", "files-from"} {
+				for _, f := range []string{"context", "count", "stat", "quiet", "max-cols", "max-lines", "max-chars", "no-numbers", "files-from"} {
 					if cmd.IsSet(f) {
 						return cli.Exit(fmt.Sprintf("--sub prints a plan and serves no line, so --%s has nothing to act on: drop --%s", f, f), exitUsage)
 					}
@@ -959,6 +969,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 					{"stat", "--count's header already carries what --stat prints: drop --stat"},
 					{"context", "--count serves no line, so -C has nothing to widen: drop -C"},
 					{"max-lines", "--count serves no line, so --max-lines has nothing to cap: drop --max-lines"},
+					{"max-chars", "--count serves no line, so --max-chars has nothing to bound: drop --max-chars"},
 					{"max-cols", "--count serves no line, so --max-cols has nothing to cut: drop --max-cols"},
 					{"no-numbers", "--count serves no line, so -N has no line numbers to drop: drop -N"},
 				} {
@@ -1106,23 +1117,31 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			}
 			// Printed only now, past every refusal, so a usage error leaves stdout
 			// empty (ADR-078; the reviews of #239 met the note before -C's).
-			if note != "" {
-				fmt.Printf("# iteration: %s\n", note)
-			}
-
 			out := bufio.NewWriter(os.Stdout)
+			// ADR-165: --max-chars bounds everything this read writes to standard
+			// output — the iteration note, the walk's refusals and skip line, and
+			// read.Run's answer — so one budget wraps the stream they all share.
+			var stdout io.Writer = out
+			var budget *read.Budget
+			if cmd.IsSet("max-chars") {
+				budget = read.NewBudget(out, cmd.Int("max-chars"))
+				stdout = budget
+			}
+			if note != "" {
+				fmt.Fprintf(stdout, "# iteration: %s\n", note)
+			}
 
 			// Every path the walk could not serve reaches the caller with its
 			// reason, and counts. Rule 5: one bad path never costs the caller
 			// the answers about the good ones, but it is never silent either.
 			for _, p := range refusals {
-				fmt.Fprintf(out, "==> %s  REFUSED  %s\n", p.Path, p.Reason)
+				fmt.Fprintf(stdout, "==> %s  REFUSED  %s\n", p.Path, p.Reason)
 			}
 			// ADR-116: what the walk skipped is said, never silent, as the
 			// read's last line.
 			skipNote := func() {
 				if note := read.SkipNote(skipped, "--no-ignore"); note != "" {
-					fmt.Fprintln(out, note)
+					fmt.Fprintln(stdout, note)
 				}
 			}
 			// A pattern that matched no file is said out loud, naming the
@@ -1144,7 +1163,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				return cli.Exit(read.NoMatchLine(astPattern, len(refusals), ""), 1)
 			}
 
-			observed, problems := read.Run(out, root, specs, read.Options{
+			observed, problems := read.Run(stdout, root, specs, read.Options{
 				Numbers:  !cmd.Bool("no-numbers"),
 				Stat:     cmd.Bool("stat"),
 				Context:  cmd.Int("context"),
@@ -1153,6 +1172,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				Count:    cmd.Bool("count"),
 				Quiet:    cmd.Bool("quiet"),
 				NextLine: true,
+				Withheld: os.Stderr,
 			})
 			skipNote()
 			// The answer reaches the caller BEFORE anything is recorded (ADR-088).
@@ -1184,8 +1204,15 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				return exitWith(err)
 			}
 			problems += len(refusals)
-			if problems > 0 {
-				return cli.Exit(fmt.Sprintf("incomplete: %d range(s) could not be served", problems), 1)
+			// A budget that dropped anything — a served line, or only the walk's
+			// own last line — leaves an answer that is not the whole one, and a
+			// cut answer must never read as complete (ADR-165).
+			if problems > 0 || budget.Over() {
+				reached := ""
+				if budget.Over() {
+					reached = fmt.Sprintf("; --max-chars %d reached", cmd.Int("max-chars"))
+				}
+				return cli.Exit(fmt.Sprintf("incomplete: %d range(s) could not be served%s", problems, reached), 1)
 			}
 			return nil
 		},

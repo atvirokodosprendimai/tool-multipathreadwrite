@@ -9813,6 +9813,20 @@ out=$("$MRW" --root "$R" read f.txt:1 2>&1); want 0 $? "the pair: --root before 
 grep -q '1| one' <<<"$out" && ok "and serves the line" || bad "mrw --root read: $out"
 out=$(printf '@@ g.txt 0 create\nhi\n' | "$MRW" write --root "$R" --no-check - 2>&1); want 0 $? "the pair: write takes --root after the verb, unchanged"
 
+# 282. ADR-165 T2: --max-chars N bounds a read's standard output to N
+# characters in whole lines; a host with an output limit cut the answer where it
+# liked, and lines mrw licensed never arrived. What it kept back is listed on
+# stderr, the read exits 1 naming the budget, and a plan to a withheld line is
+# refused. The pair: the same read with no budget serves both files and the
+# plan applies.
+R=$(mktemp -d "$WORK/r282-XXXXXX"); printf 'alpha\nbravo\ncharlie\n' > "$R/a.txt"; printf 'delta\necho\n' > "$R/b.txt"
+out=$(cd "$R" && "$MRW" read --max-chars 50 a.txt b.txt 2>"$WORK/r282.err"); want 1 $? "a read over its --max-chars budget exits 1"
+{ [ "$(printf '%s\n' "$out" | wc -m)" -le 51 ] && grep -q 'b.txt: WITHHELD: --max-chars reached' "$WORK/r282.err" && tail -1 "$WORK/r282.err" | grep -q -- '--max-chars 50 reached'; } \
+  && ok "and stays within the budget, naming b.txt and the budget on stderr" || bad "--max-chars 50: $out / $(cat "$WORK/r282.err")"
+out=$(cd "$R" && printf '@@ b.txt 1 replace\nDELTA\n' | "$MRW" write --no-check - 2>&1); want 1 $? "a plan to a withheld file is refused, exit 1"
+out=$(cd "$R" && "$MRW" read a.txt b.txt 2>&1); want 0 $? "the pair: the read with no budget serves both"
+out=$(cd "$R" && printf '@@ b.txt 1 replace\nDELTA\n' | "$MRW" write --no-check - 2>&1); want 0 $? "the pair: and the plan applies"
+
 # 271. ADR-161 Decision 14: the read ledger and the write lock belong to the
 # git checkout that holds the root, not to the directory mrw ran in. A read in
 # `sub` licenses a write from the top, and a read at the top licenses a write

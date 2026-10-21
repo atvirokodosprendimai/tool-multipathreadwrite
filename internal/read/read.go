@@ -180,7 +180,47 @@ type Options struct {
 	// does not: its continuation serves the line a page ends on, and a page must
 	// not repeat a line.
 	NextLine bool
+	// MaxChars bounds everything Run writes to w, in characters, and nil is no
+	// bound (ADR-165). Every write in Run ends a line, so what reaches w is the
+	// answer cut at a line: the first write that does not fit is dropped, and
+	// every later one with it. A line dropped is not licensed, and each range
+	// and file the budget kept from the caller is named on Withheld, which is
+	// not charged: a budget that silenced its own report would be ADR-032's
+	// elided receipt on the CLI. A file the budget never reached is named
+	// without being opened. A caller that writes its own lines around Run on
+	// the same stream passes w as a *Budget, and Run charges that one.
+	MaxChars *int
+	// Withheld receives one line per range or file MaxChars did not serve.
+	Withheld io.Writer
 }
+
+// Budget is a writer with a character budget (ADR-165): a write that fits
+// passes to W and is charged; the first that does not is dropped, and every
+// later one with it, so W receives a prefix of what was meant, cut at a write.
+type Budget struct {
+	W    io.Writer
+	Left int
+	over bool
+}
+
+// NewBudget is w with a budget of n characters.
+func NewBudget(w io.Writer, n int) *Budget { return &Budget{W: w, Left: n} }
+
+// Write charges p in runes, or drops it once the budget cannot hold it.
+func (b *Budget) Write(p []byte) (int, error) {
+	if b.over {
+		return len(p), nil
+	}
+	if n := utf8.RuneCount(p); n <= b.Left {
+		b.Left -= n
+		return b.W.Write(p)
+	}
+	b.over = true
+	return len(p), nil
+}
+
+// Over says whether a write has been dropped. A nil Budget never is.
+func (b *Budget) Over() bool { return b != nil && b.over }
 
 // msysHint recognises MSYS2 argument conversion, which rewrites a spec BEFORE
 // mrw is started. In Git Bash `f.go:/^func main/` arrives as
@@ -484,9 +524,23 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 	neighbourNoted := false
 	countedLines, countedFiles := 0, 0
 	fileLines := map[string]int{} // each file's length, for a quiet read's count of whole files
+	bud, _ := w.(*Budget)
+	if bud == nil && opt.MaxChars != nil {
+		bud = NewBudget(w, *opt.MaxChars)
+		w = bud
+	}
+	withheld := opt.Withheld
+	if withheld == nil {
+		withheld = io.Discard
+	}
 	for _, sp := range specs {
 		if opt.Stop != nil && opt.Stop() {
 			break
+		}
+		if bud.Over() { // never reached: named, not opened
+			fmt.Fprintf(withheld, "%s: WITHHELD: --max-chars reached\n", sp.Path)
+			problems++
+			continue
 		}
 		var b []byte
 		if sp.Data != nil {
@@ -530,6 +584,11 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 		}
 		if opt.Sub == nil {
 			fmt.Fprintln(w, header)
+		}
+		if bud.Over() { // the header did not fit: nothing of this file was shown
+			fmt.Fprintf(withheld, "%s: WITHHELD: --max-chars reached\n", sp.Path)
+			problems++
+			continue
 		}
 		if foreign != "" {
 			fmt.Fprintf(w, "-- note: %s %s: served as bytes; a write to it is refused\n", sp.Path, foreign)
@@ -597,7 +656,21 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 				res = append(res, r.ReEnd)
 			}
 		}
-		for _, sn := range spans {
+		// withholdFrom names, on the withheld writer, what the character budget
+		// kept from the caller: span si from line from to its end, and every
+		// span after it (ADR-165).
+		withholdFrom := func(si, from int) {
+			for j, s := range spans[si:] {
+				if j > 0 {
+					from = s.start
+				}
+				fmt.Fprintf(withheld, "%s: lines %d-%d WITHHELD (%d line(s)): --max-chars reached\n", sp.Path, from, s.end, s.end-from+1)
+				problems++
+			}
+			whole = false
+		}
+		stopped := false
+		for si, sn := range spans {
 			n := sn.end - sn.start + 1
 			if capped && budget <= 0 {
 				if opt.Quiet { // a quiet read prints no range line, a withheld one included
@@ -616,6 +689,10 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 			}
 			if !opt.Quiet {
 				fmt.Fprintf(w, "@@ %d-%d\n", sn.start, sn.start+n-1)
+			}
+			if bud.Over() { // the range line did not fit
+				withholdFrom(si, sn.start)
+				break
 			}
 			if servedEnd := sn.start + n - 1; n >= 2 && servedEnd < len(lines) && !neighbourNoted && !opt.Quiet && !opt.NextLine {
 				neighbourNoted = true
@@ -644,6 +721,17 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 				default:
 					fmt.Fprintln(w, text)
 				}
+				if bud.Over() { // line ln did not fit: it and the rest are withheld
+					if ln-1 >= pieceStart {
+						served = append(served, [2]int{pieceStart, ln - 1})
+					}
+					withholdFrom(si, ln)
+					stopped = true
+					break
+				}
+			}
+			if stopped {
+				break
 			}
 			if end := sn.start + n - 1; end >= pieceStart {
 				served = append(served, [2]int{pieceStart, end})
