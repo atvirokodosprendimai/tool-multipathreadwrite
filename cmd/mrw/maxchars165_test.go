@@ -120,6 +120,10 @@ func TestMaxCharsBoundsTheWholeAnswer(t *testing.T) {
 	if out, errOut, code := run("one\ntwo\nthree\nfour\n", "read", "--max-chars", "10", "-"); utf8.RuneCountInString(out) > 10 || code != 1 || !strings.Contains(errOut, "--max-chars 10 reached") {
 		t.Errorf("stdin under a budget: exit %d, out %q, err %q", code, out, errOut)
 	}
+	// A stdin --grep that matched nothing under a spent budget names the budget (Codex re-check of f31b6ef4).
+	if _, errOut, code := run("x\n", "read", "--max-chars", "0", "--grep", "z", "-"); code != 1 || !strings.Contains(errOut, "; --max-chars 0 reached") {
+		t.Errorf("stdin no-match under a zero budget: exit %d, err %q", code, errOut)
+	}
 	// A refusal the budget dropped is still named, on standard error.
 	if _, errOut, code := run("", "read", "--max-chars", "0", "a.txt", "missing.txt"); code != 1 || !strings.Contains(errOut, "missing.txt") {
 		t.Errorf("a refused file under a zero budget: exit %d, err %q", code, errOut)

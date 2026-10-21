@@ -104,12 +104,12 @@ func stdinRead(cmd *cli.Command, pattern string, grepSet bool, posArgs []string)
 	if problems == 0 && !budget.Over() {
 		return nil
 	}
-	if re != nil && !anyLineMatches(re, string(b)) {
-		return cli.Exit(fmt.Sprintf("no match: no line of standard input matched /%s/", read.OneLine(pattern)), 1)
-	}
 	reached := ""
 	if budget.Over() {
 		reached = fmt.Sprintf("; --max-chars %d reached", cmd.Int("max-chars"))
+	}
+	if re != nil && !anyLineMatches(re, string(b)) {
+		return cli.Exit(fmt.Sprintf("no match: no line of standard input matched /%s/%s", read.OneLine(pattern), reached), 1)
 	}
 	return cli.Exit(fmt.Sprintf("incomplete: %d range(s) could not be served%s", problems, reached), 1)
 }
