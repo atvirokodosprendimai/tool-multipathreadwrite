@@ -156,7 +156,6 @@ func TestAWriteThatCannotUseTheStateDirectoryNamesIt(t *testing.T) {
 		{"write", "--grep", "one", "--sub", "uno", "--dry-run", "--no-check", "a.txt"},
 		{"write", "--json", "--dry-run", "--no-check", "--grep", "one", "--sub", "uno", "a.txt"}, // --json re-spelled the exit and dropped the chain
 		{"read", "--grep", "one", "--sub", "uno", "a.txt"},
-		{"read", "a.txt"},
 	} {
 		err := runErr(t, root, argv...)
 		if err == nil {
@@ -168,6 +167,12 @@ func TestAWriteThatCannotUseTheStateDirectoryNamesIt(t *testing.T) {
 		if code := exitCode(err); code != 2 {
 			t.Errorf("%v: exit %d, want 2", argv, code)
 		}
+	}
+	// ADR-166 superseded the content read's row: a read of a.txt now serves
+	// with exit 0, and says nothing was recorded (readonly166_test.go holds
+	// the stderr line through the built binary).
+	if err := runErr(t, root, "read", "a.txt"); err != nil {
+		t.Errorf("a content read with XDG_STATE_HOME a file: %v, want served", err)
 	}
 }
 

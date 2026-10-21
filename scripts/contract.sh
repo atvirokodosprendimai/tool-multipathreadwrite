@@ -8768,7 +8768,7 @@ if [ -r "$led" ] || [ ! -e "$led" ]; then
   skip "an unopenable ledger is refused (permission bits not enforced here — running as root?)"
 else
   out=$(m read l245.txt 2>&1); rc=$?
-  want 2 "$rc" "a read whose ledger cannot be opened exits 2"
+  want 0 "$rc" "a read whose ledger cannot be opened serves at its own exit, 0 (ADR-166)"
   grep -q 'stands, but is not recorded there' <<<"$out" && ok "saying what stands" || bad "open refusal: $out"
   out=$(m write --no-check "$WORK/p245.plan" 2>&1); rc=$?
   chmod 600 "$led"
@@ -8780,8 +8780,8 @@ rm -f "$R/l245.txt" "$WORK/p245.plan" "$WORK/o245"
 
 # 244. A read whose ledger cannot be updated says what stands. Four Windows
 # sessions read "rename <tmp> <ledger>: Access is denied", exit 2, after a full
-# serve, as a failed read. The lines are served, exit 2 stays (a filesystem
-# failure), and the message now says what was served stands but is not recorded
+# serve, as a failed read. The lines are served and, since ADR-166, the read
+# exits as it would have (0 here), and the message says what was served stands but is not recorded
 # and the files need reading again before an edit. The pairs: an edit of that
 # file is refused as unread while the ledger is unwritable, and licensed once a
 # read has recorded it.
@@ -8798,7 +8798,7 @@ if [ -w "$led" ] || [ ! -e "$led" ]; then
 else
   out=$(m read l244.txt 2>&1); rc=$?
   chmod 600 "$led"
-  want 2 "$rc" "a read whose ledger cannot be replaced exits 2"
+  want 0 "$rc" "a read whose ledger cannot be replaced serves at its own exit, 0 (ADR-166)"
   { grep -q 'one244' <<<"$out" && grep -q 'stands, but is not recorded there' <<<"$out"; } \
     && ok "serving the line and saying what stands and what is not recorded" || bad "ledger refusal: $out"
   out=$(m write --no-check --dry-run "$WORK/p244.plan" 2>&1); want 1 $? "the pair: an edit of the file the failed read served is refused"
@@ -9669,11 +9669,12 @@ out=$(printf '@@ p270.txt 2 replace\r\nB\r\n' | m write --no-check - 2>&1); want
 # 272. A state directory mrw cannot make is named as mrw's, with the variable
 # that moves it: a sandbox's "mrw: mkdir /nonexistent: read-only file system"
 # named neither (field report, 2026-10-20). A file where `<XDG_STATE_HOME>/mrw`
-# must go fails the mkdir for any user, root included. The pair: the same read
-# with a writable XDG_STATE_HOME is served.
+# must go fails the mkdir for any user, root included. A write is the probe:
+# since ADR-166 a content read in that state serves and exits 0 (§284). The
+# pair: the same read with a writable XDG_STATE_HOME is served.
 R=$(mktemp -d "$WORK/r272-XXXXXX"); printf 'one\n' > "$R/a.txt"
 mkdir -p "$WORK/s272" "$WORK/s272ok"; : > "$WORK/s272/mrw"
-out=$(cd "$R" && XDG_STATE_HOME="$WORK/s272" "$MRW" read a.txt 2>&1); want 2 $? "a read whose state directory cannot be made exits 2"
+out=$(cd "$R" && printf '@@ a.txt 1 replace\nuno\n' | XDG_STATE_HOME="$WORK/s272" "$MRW" write --no-check - 2>&1); want 2 $? "a write whose state directory cannot be made exits 2"
 { grep -q "mrw's state directory" <<<"$out" && grep -q 'set XDG_STATE_HOME to a writable absolute directory' <<<"$out"; } \
   && ok "and names mrw's state directory and the variable that moves it" || bad "an unmakeable state directory: $out"
 out=$(cd "$R" && XDG_STATE_HOME="$WORK/s272ok" "$MRW" read a.txt 2>&1); want 0 $? "the pair: the same read with a writable XDG_STATE_HOME exits 0"
@@ -9840,6 +9841,38 @@ out=$(cd "$R" && "$MRW" read --json -C 1 f.txt 2>/dev/null); want 2 $? "a refusa
 printf '%s' "$out" | python3 -c 'import json,sys; sys.exit(0 if json.load(sys.stdin).get("error") else 1)' && ok "and is an error document" || bad "read --json refusal: $out"
 plain=$(cd "$R" && "$MRW" read f.txt:1 2>/dev/null)
 [ "$(printf '%s' "$doc" | python3 -c 'import json,sys; sys.stdout.write(json.load(sys.stdin)["content"])')" = "$plain" ] && ok "the pair: content is the plain read's standard output" || bad "content vs plain: $plain"
+# 284. ADR-166 T1: a Codex agent in a read-only sandbox got exit 2 from a read
+# that had served its content: the ledger could not be written. A content read
+# whose state directory cannot be made now serves, exits 0, and says last on
+# stderr that nothing was recorded (that no licence was recorded is held by
+# cmd/mrw's readonly166_test.go, which can reuse one ledger). The pair: --quiet,
+# which exists to record, still exits 2.
+R=$(mktemp -d "$WORK/r284-XXXXXX"); printf 'alpha\n' > "$R/f.txt"
+mkdir -p "$WORK/s284"; : > "$WORK/s284/mrw"
+out=$(cd "$R" && XDG_STATE_HOME="$WORK/s284" "$MRW" read f.txt 2>"$WORK/r284.err"); want 0 $? "a content read whose state directory cannot be made exits 0"
+{ grep -q '1| alpha' <<<"$out" && tail -1 "$WORK/r284.err" | grep -q '^mrw: nothing was recorded'; } \
+  && ok "and serves the line, saying last that nothing was recorded" || bad "read-only read: $out / $(cat "$WORK/r284.err")"
+out=$(cd "$R" && XDG_STATE_HOME="$WORK/s284" "$MRW" read --quiet f.txt 2>&1); want 2 $? "the pair: --quiet, which exists to record, still exits 2"
+
+# 285. ADR-166 T2: mrw_read with an unusable state directory failed a content
+# read outright, JSON-RPC -32603 "holding checkpoints", so a sandboxed MCP host
+# got nothing. It now answers the served text without checkpoints, a line at
+# the top saying so. The pair: a quiet read, which exists to record, still
+# answers the error.
+R=$(mktemp -d "$WORK/r285-XXXXXX"); printf 'alpha\n' > "$R/f.txt"
+mkdir -p "$WORK/s285"; : > "$WORK/s285/mrw"
+v285=$(python3 -c 'import json; print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["f.txt"]}}})); print(json.dumps({"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["f.txt"],"quiet":True}}}))' \
+  | (cd "$R" && XDG_STATE_HOME="$WORK/s285" "$MRW" mcp 2>/dev/null) \
+  | python3 -c '
+import json,sys
+ls=[json.loads(l) for l in sys.stdin if l.strip()]
+r=ls[0].get("result") or {}; t=(r.get("content") or [{}])[0].get("text","")
+a="served" if (not r.get("isError") and t.startswith("-- no checkpoint was held") and "1| alpha" in t and "-- ck " not in t) else "bad:"+json.dumps(ls[0])[:200]
+q=ls[1]; b="refused" if ("error" in q or (q.get("result") or {}).get("isError")) else "bad"
+print(a, b)')
+[ "$(echo "$v285" | cut -d' ' -f1)" = served ] && ok "mrw_read answers a content read without checkpoints, saying so" || bad "mrw_read read-only: $v285"
+[ "$(echo "$v285" | cut -d' ' -f2)" = refused ] && ok "the pair: a quiet mrw_read still answers the error" || bad "quiet mrw_read read-only: $v285"
+
 
 # 271. ADR-161 Decision 14: the read ledger and the write lock belong to the
 # git checkout that holds the root, not to the directory mrw ran in. A read in

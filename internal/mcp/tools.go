@@ -149,6 +149,23 @@ func result(structured any, report string, isErr bool) (callToolResult, *rpcErro
 // was the receipt without the lines, while the ledger had already recorded
 // those lines as seen — ADR-002 inverted by an envelope. So the receipt
 // travels in content[1] alone (ADR-023), from the same single marshal.
+// noCheckpointLine opens a content read's answer when mrw's state directory
+// could not hold its checkpoints (ADR-166): what follows was served, and none of
+// it can be acknowledged, so none of it licenses a write.
+const noCheckpointLine = "-- no checkpoint was held, so nothing here can be acknowledged and a write to it is refused: "
+
+// withoutCheckpoints is res, a read's answer built before checkpoint markers
+// were added, with noCheckpointLine and the state directory's hint at the top of
+// its text (ADR-166).
+func withoutCheckpoints(res callToolResult, err error) callToolResult {
+	c := append([]contentBlock(nil), res.Content...)
+	if len(c) > 0 {
+		c[0].Text = noCheckpointLine + statehint.Hint(err).Error() + "\n" + c[0].Text
+	}
+	res.Content = c
+	return res
+}
+
 func readResult(structured any, report string, isErr bool) (callToolResult, *rpcError) {
 	res, err := result(structured, report, isErr)
 	res.StructuredContent = nil
@@ -691,6 +708,11 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 					continue // every slice of it came from a version since replaced
 				}
 				if err := hold(root, path, o.SHA, spans); err != nil {
+					// ADR-166: a content read whose checkpoints cannot be held
+					// is answered without them, as built before the markers.
+					if res := withoutCheckpoints(served, err); statehint.About(err) && encodedSize(res) <= cw.limit {
+						return res, nil
+					}
 					return callToolResult{}, &rpcError{Code: codeInternal, Message: "holding checkpoints: " + statehint.Hint(err).Error()}
 				}
 			}
@@ -1878,6 +1900,18 @@ func firstPage(root string, specs []string, cw *capped, maxCols int) (callToolRe
 			return callToolResult{}, false
 		}
 		if err := hold(root, filepath.Clean(path), o.SHA, spans); err != nil {
+			// ADR-166: a page whose checkpoint cannot be held is answered from
+			// its own unmarked text, its range and next_read kept, and asks for
+			// no acknowledgement it could not honour.
+			if statehint.About(err) {
+				plain := fmt.Sprintf("%s\n-- PARTIAL: lines %d-%d of %d. %d line(s) remain.\n"+
+					"-- Send specs [%q] to continue, or a narrower range of your own.\n"+
+					"-- Stopping here means you have part of this file, not the file.",
+					strings.TrimSuffix(b.String(), "\n"), start, end, total, total-end, next)
+				if res := withoutCheckpoints(pagedResult(plain, observed, problems, next), err); encodedSize(res) <= ceiling() {
+					return res, true
+				}
+			}
 			// A state-directory failure is answered as one (an isError result either
 			// way, so the caller's fall-through to the flat refusal is skipped);
 			// any other hold failure stays unpaged, as it was.

@@ -99,6 +99,9 @@ so the tree is changed and unverified. Tests assert these; changing one is a bre
 A `2` after a write that printed `applied` means the files changed and something after the landing failed: the check could not
 start, or the read ledger could not be updated (a holder on Windows). The message says which; for the ledger, the next edit needs a
 read first. Check the tree before retrying the plan.
+A content `mrw read` whose state directory cannot be written or made (a read-only sandbox) serves its answer and exits as the
+read would, its last stderr line beginning `mrw: nothing was recorded`; `mrw_read` answers it without checkpoints. Reads that exist
+to license (`--quiet`, `--sub`, `--rewrite`, `ack`) and writes still exit 2 (ADR-166).
 A `mrw read` that exits `1` ends its stderr with the kind (ADR-146): `mrw: no match: …` when a search found no file and nothing it was
 asked for was refused, `mrw: incomplete: …` when a requested range or path was not served, a search that matched no file beside a refused
 path included. Read the first word after `mrw: `; every earlier phrase survives inside the line.
