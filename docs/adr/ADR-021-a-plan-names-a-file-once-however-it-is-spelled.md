@@ -167,5 +167,5 @@ exactly, which is what the record exists to stop.
 
 ## Follow-ups
 
-- [ ] If a plan with two colliding `create` ops is seen in the wild, promote the BACKLOG entry to a
-      record: the check would need to fold case or write-then-stat, and either needs deciding.
+- [x] If a plan with two colliding `create` ops is seen in the wild, promote the BACKLOG entry to a
+      record: the check would need to fold case or write-then-stat, and either needs deciding. — closed by ADR-071 T2

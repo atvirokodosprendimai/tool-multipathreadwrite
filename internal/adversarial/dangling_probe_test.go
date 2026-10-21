@@ -12,13 +12,23 @@ import (
 // unrun≠coverage rule already filed in BACKLOG / ADR-002. Deleting the sentence
 // is the mutant.
 
-func backlog(t *testing.T) string {
+// backlogNamed reads one of the two backlog files, whitespace-collapsed. The live entries stay in
+// BACKLOG.md; the closed ones and the dormant leads moved to BACKLOG-archive.md on 2026-10-21.
+func backlogNamed(t *testing.T, name string) string {
 	t.Helper()
-	b, err := os.ReadFile(filepath.Join(repoRoot(t), "docs", "adr", "BACKLOG.md"))
+	b, err := os.ReadFile(filepath.Join(repoRoot(t), "docs", "adr", name))
 	if err != nil {
 		t.Fatal(err)
 	}
 	return strings.Join(strings.Fields(string(b)), " ")
+}
+
+func backlog(t *testing.T) string {
+	return backlogNamed(t, "BACKLOG.md")
+}
+
+func archive(t *testing.T) string {
+	return backlogNamed(t, "BACKLOG-archive.md")
 }
 
 func windowAfter(t *testing.T, got, needle string, n int) string {
@@ -73,7 +83,7 @@ func TestADesktopReachRecipeNamesTreesPerSessionAndRootsList(t *testing.T) {
 // TestACoderPlanCountIsNotDesktopReachEvidence: the ~40-plan coder count is
 // the wrong population and must not be quoted as Desktop evidence.
 func TestACoderPlanCountIsNotDesktopReachEvidence(t *testing.T) {
-	got := backlog(t)
+	got := archive(t)
 	w := windowAfter(t, got, "THE MULTI-ROOT MEASUREMENT ABOVE WAS TAKEN ON THE WRONG POPULATION", 1200)
 	if !strings.Contains(w, "not evidence about Desktop") {
 		t.Error("the wrong-population correction no longer says it is not evidence about Desktop")
@@ -82,7 +92,7 @@ func TestACoderPlanCountIsNotDesktopReachEvidence(t *testing.T) {
 
 // TestAnUnderCeilingHostCutRecipeIsFiledAndNotClosedByAdr039 is UC-2 happy.
 func TestAnUnderCeilingHostCutRecipeIsFiledAndNotClosedByAdr039(t *testing.T) {
-	got := backlog(t)
+	got := archive(t)
 	w := windowAfter(t, got, "A host-truncation measurement of an under-ceiling result", 800)
 	if !strings.Contains(w, "reading-18") && !strings.Contains(w, "Reading-18") {
 		t.Error("under-ceiling recipe does not name reading 18")
@@ -97,7 +107,7 @@ func TestAnUnderCeilingHostCutRecipeIsFiledAndNotClosedByAdr039(t *testing.T) {
 
 // TestAnUnrunUnderCeilingProbeIsNotTheClassClosed: deferred stays deferred.
 func TestAnUnrunUnderCeilingProbeIsNotTheClassClosed(t *testing.T) {
-	got := backlog(t)
+	got := archive(t)
 	w := windowAfter(t, got, "A host-truncation measurement of an under-ceiling result", 800)
 	if !strings.Contains(w, "Deferred") {
 		t.Error("unrun under-ceiling probe is no longer marked Deferred")
@@ -106,7 +116,7 @@ func TestAnUnrunUnderCeilingProbeIsNotTheClassClosed(t *testing.T) {
 
 // TestConcurrentLastWriterWinsIsFiledAsAnAcceptedSilentAppliedRisk is UC-3 happy.
 func TestConcurrentLastWriterWinsIsFiledAsAnAcceptedSilentAppliedRisk(t *testing.T) {
-	got := backlog(t)
+	got := archive(t)
 	w := windowAfter(t, got, "Two concurrent writes to one file", 2500)
 	if !strings.Contains(w, "last-writer-wins") {
 		t.Error("concurrent-writes entry does not name last-writer-wins")
@@ -123,7 +133,7 @@ func TestConcurrentLastWriterWinsIsFiledAsAnAcceptedSilentAppliedRisk(t *testing
 // stayed green after ADR-075 only because the old sentence was annotated
 // rather than withdrawn — a test asserting a claim the code had stopped making.
 func TestTheConcurrentWriteRiskIsClosedByADR075(t *testing.T) {
-	got := backlog(t)
+	got := archive(t)
 	w := windowAfter(t, got, "Two concurrent writes to one file", 2500)
 	if !strings.Contains(w, "Invalidated by ADR-075") {
 		t.Error("concurrent-writes entry does not record that ADR-075 closed it")
@@ -171,7 +181,7 @@ func TestAnUnrunStrictBalanceCampaignDoesNotQualifyADefault(t *testing.T) {
 
 // TestAJsxNestProbeRecipeIsFiledAsUnmeasured is UC-5 happy.
 func TestAJsxNestProbeRecipeIsFiledAsUnmeasured(t *testing.T) {
-	got := backlog(t)
+	got := archive(t)
 	w := windowAfter(t, got, "balanced-but-wrongly-nested JSX", 800)
 	if !strings.Contains(w, "tsc") {
 		t.Error("JSX probe does not name tsc")
@@ -183,7 +193,7 @@ func TestAJsxNestProbeRecipeIsFiledAsUnmeasured(t *testing.T) {
 
 // TestAnUnrunJsxNestProbeIsNotAFinding: unrun is a probe, not a finding.
 func TestAnUnrunJsxNestProbeIsNotAFinding(t *testing.T) {
-	got := backlog(t)
+	got := archive(t)
 	w := windowAfter(t, got, "balanced-but-wrongly-nested JSX", 800)
 	if !strings.Contains(w, "not as a finding") {
 		t.Error("JSX probe no longer says it is not a finding")
