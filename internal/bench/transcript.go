@@ -34,6 +34,7 @@ type transcript struct {
 	HookEvents  []string
 	HookNames   []string
 	ToolCalls   int
+	Commands    []string // the Bash commands the agent ran
 	Result      bool
 	IsError     bool
 	Subtype     string
@@ -62,7 +63,9 @@ func parseTranscript(b []byte) transcript {
 			HookName  string       `json:"hook_name"`
 			Message   struct {
 				Content []struct {
-					Type string `json:"type"`
+					Type  string          `json:"type"`
+					Name  string          `json:"name"`
+					Input json.RawMessage `json:"input"`
 				} `json:"content"`
 			} `json:"message"`
 			IsError  bool     `json:"is_error"`
@@ -90,6 +93,14 @@ func parseTranscript(b []byte) transcript {
 			for _, c := range m.Message.Content {
 				if c.Type == "tool_use" {
 					t.ToolCalls++
+					if c.Name == "Bash" {
+						var in struct {
+							Command string `json:"command"`
+						}
+						if json.Unmarshal(c.Input, &in) == nil && in.Command != "" {
+							t.Commands = append(t.Commands, in.Command)
+						}
+					}
 				}
 			}
 		case "result":

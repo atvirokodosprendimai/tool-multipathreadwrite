@@ -97,6 +97,10 @@ type Receipt struct {
 	// receipt alone says the attempt ran against a check that was red at base.
 	CheckRedAtBase bool `json:"check_red_at_base,omitempty"`
 
+	// ShimCounts are the container's, under ADR-163 stage6 profile alone: a
+	// stage without it has none of these keys.
+	*ShimCounts
+
 	interrupted bool // stopped by a signal to bench: no receipt is written for it
 }
 
@@ -123,6 +127,7 @@ type RunOptions struct {
 	ConfigDir    string // the dedicated CLAUDE_CONFIG_DIR
 	Containment  string // "bypass"; "user:<name>" is Zy's other choice, not built yet
 	Canary       string // a passing canary receipt for this CLI version
+	canary       bool   // set by RunCanary alone: a canary may run a profile that bench run still refuses
 	Budget       time.Duration
 	Scratch      string              // where attempt trees are built; os.TempDir() when empty
 	SWE          *SWEGrader          // grades the SWE-bench slice's attempts; nil for the corpus's own tasks
@@ -135,6 +140,8 @@ type RunOptions struct {
 	ConfigsFor   map[string][]string // a model's own configurations, in place of Configs (a closed comparison's configuration is not run)
 	DiskPath     string              // the volume the disk floor is checked on: the one holding Docker's disk image
 	DiskFloorGiB float64             // the free space, in GiB, below which no attempt starts; 0 for no floor
+	Docker       string              // the docker CLI; the stage6 profile starts a container with it (ADR-163)
+	CanaryImage  string              // the image a task with none of its own (the canary fixture) runs its container in under stage6
 }
 
 // plan is what run.json records; a second Run into the same directory must
@@ -166,6 +173,7 @@ type attempt struct {
 	Model  string
 	Config Config
 	Repeat int
+	shim   *shimConfig // ADR-163: the shims of the attempt container; nil without the stage6 profile
 }
 
 // Run carries out a stage: every attempt of the plan in a seeded random order,
@@ -415,8 +423,12 @@ func gates(o RunOptions) (string, error) {
 		}
 	}
 	switch {
-	case o.Profile != "" && o.Profile != ProfileStage5:
-		return "", fmt.Errorf("--profile %q: the one profile is %s (ADR-162)", o.Profile, ProfileStage5)
+	case o.Profile != "" && o.Profile != ProfileStage5 && o.Profile != ProfileStage6:
+		return "", fmt.Errorf("--profile %q: want %s or %s (ADR-162, ADR-163)", o.Profile, ProfileStage5, ProfileStage6)
+	case o.Profile == ProfileStage6 && !settled && !o.canary:
+		return "", errors.New("the stage6 profile is not settled: ADR-163 T1 S1 has not recorded the inspection of a real image, so bench run refuses it; bench canary may run")
+	case o.Profile == ProfileStage6 && o.CanaryImage == "" && slices.ContainsFunc(o.Tasks, func(t Task) bool { return t.swe == nil }):
+		return "", errors.New("the stage6 profile starts a container of the image of each task, and a task with none needs --canary-image")
 	case hasConfig(o, "P") && o.Profile == "":
 		return "", fmt.Errorf("configuration P runs only under --profile %s, which every configuration shares (ADR-162 Decision 1)", ProfileStage5)
 	case hasConfig(o, "P") && o.PluginDir == "":
@@ -630,12 +642,12 @@ func safe(s string) string {
 
 // runAttempt builds the tree, starts the CLI, grades the result. A failure of
 // bench's own (tree, oracle) is recorded as the registered setup exclusion.
-func runAttempt(o RunOptions, a attempt, order int, cli, mrwVersion string) Receipt {
+func runAttempt(o RunOptions, a attempt, order int, cli, mrwVersion string) (r Receipt) {
 	source := "own"
 	if a.Task.swe != nil {
 		source = "swe-bench"
 	}
-	r := Receipt{Attempt: a.ID, Stage: o.Stage, Task: a.Task.ID, Shape: a.Task.Shape, Source: source, Model: a.Model,
+	r = Receipt{Attempt: a.ID, Stage: o.Stage, Task: a.Task.ID, Shape: a.Task.Shape, Source: source, Model: a.Model,
 		Config: a.Config.Name, Repeat: a.Repeat, Order: order, CLIVersion: cli, Started: time.Now().UTC().Format(time.RFC3339),
 		CheckRedAtBase: a.Task.CheckRedAtBase != ""}
 	if a.Config.Mrw {
@@ -658,9 +670,29 @@ func runAttempt(o RunOptions, a attempt, order int, cli, mrwVersion string) Rece
 		r.Exclusion, r.Note = ExclusionSetup, err.Error()
 		return r
 	}
-	if _, err := Materialize(a.Task, tree, nil); err != nil {
+	baseSHA, err := Materialize(a.Task, tree, nil)
+	if err != nil {
 		r.Exclusion, r.Note = ExclusionSetup, err.Error()
 		return r
+	}
+	// Under stage6 the attempt container is started from the tree just built,
+	// and removed on every way out: a clean end, an error, the budget and an
+	// interrupt all return through this function (ADR-163 Decision 1).
+	if o.Profile == ProfileStage6 {
+		name := containerName(a.ID)
+		box, err := startContainer(o.Docker, imageFor(o, a.Task), name, o.Stage, o.Budget+300*time.Second, tree, baseSHA)
+		if box != nil {
+			defer func() {
+				if err := box.remove(); err != nil {
+					r.Note += " (" + err.Error() + ")"
+				}
+			}()
+		}
+		if err != nil {
+			r.Exclusion, r.Note = ExclusionSetup, err.Error()
+			return r
+		}
+		a.shim = &shimConfig{Bench: o.Bench, Docker: o.Docker, Container: name, Tree: tree, State: filepath.Join(scratch, "shim"), Base: baseSHA}
 	}
 	args, env, err := invocation(o, a, scratch)
 	if err != nil {
@@ -718,6 +750,13 @@ func runAttempt(o RunOptions, a attempt, order int, cli, mrwVersion string) Rece
 	r.IsError, r.NumTurns, r.ToolCalls, r.CostUSD, r.Usage = t.IsError || !t.Result || r.ExitCode != 0, t.NumTurns, t.ToolCalls, t.CostUSD, t.Usage
 	r.InitTools, r.InitMCP = t.Tools, t.MCPServers
 	r.OverBudget = r.TimedOut || t.NumTurns > MaxTurns
+	if a.shim != nil {
+		var note string
+		r.ShimCounts, note = shimCounts(a.shim.logPath(), t.Commands, imageFor(o, a.Task), a.shim.Container, filepath.Join(scratch, "tools"))
+		if note != "" {
+			r.Note += " (shim log: " + note + ")"
+		}
+	}
 	if o.StatusLine {
 		r.Status = claimStatus(t.ResultText)
 	}
@@ -827,6 +866,17 @@ func invocation(o RunOptions, a attempt, scratch string) ([]string, []string, er
 	if err != nil {
 		return nil, nil, err
 	}
+	// Under the stage6 profile the shims of ADR-163 stand where the host python3
+	// was linked, beside python, pytest and py.test. The link goes first: writing
+	// a shim through it would write the host interpreter.
+	if a.shim != nil {
+		if err := os.Remove(filepath.Join(tools, "python3")); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return nil, nil, err
+		}
+		if err := writeShims(tools, *a.shim); err != nil {
+			return nil, nil, err
+		}
+	}
 	path := tools + ":" + systemPath
 	// Under ADR-162's profile every configuration is offered Skill, keeps its
 	// skills, and reports its hooks; --include-hook-events takes the place
@@ -922,6 +972,11 @@ func invocation(o RunOptions, a attempt, scratch string) ([]string, []string, er
 	if !a.Config.Mrw {
 		if p := onPath("mrw", path); p != "" {
 			return nil, nil, fmt.Errorf("configuration A's PATH holds %s", p)
+		}
+	}
+	if a.shim != nil {
+		if err := writeStartEnv(a.shim.State, env); err != nil {
+			return nil, nil, err
 		}
 	}
 	env = append(env, "PATH="+path)
