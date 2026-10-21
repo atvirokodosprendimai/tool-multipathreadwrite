@@ -1,0 +1,73 @@
+# ADR-162 Decision 8 scan of block 4, amended (docs/bench/stage-5/scan.py): every RECALL line, attempt then test name.
+# A RECALL is a FAIL_TO_PASS name the base commit lacks whose first appearance is the agent's own writing.
+# Scan of block 4 (2026-10-21T04:36Z): 160 transcript(s), 0 hit(s), 70 recall(s); exit 0.
+RECALL astropy__astropy-14182.A.claude-opus-5-5.1: astropy/io/ascii/tests/test_rst.py::test_rst_with_header_rows
+RECALL astropy__astropy-14182.B.claude-opus-5-5.1: astropy/io/ascii/tests/test_rst.py::test_rst_with_header_rows
+RECALL astropy__astropy-14598.A.claude-opus-5-5.1: astropy/io/fits/tests/test_header.py::TestHeaderFunctions::test_long_string_value_with_quotes
+RECALL django__django-11292.A.claude-opus-5-5.1: test_skip_checks (user_commands.tests.CommandRunTests)
+RECALL django__django-11292.B.claude-opus-5-5.1: test_skip_checks (user_commands.tests.CommandRunTests)
+RECALL django__django-11740.A.claude-opus-5-5.1: test_alter_field_to_fk_dependency_other_app (migrations.test_autodetector.AutodetectorTests)
+RECALL django__django-11740.B.claude-opus-5-5.1: test_alter_field_to_fk_dependency_other_app (migrations.test_autodetector.AutodetectorTests)
+RECALL django__django-13279.A.claude-opus-5-5.1: test_default_hashing_algorith_legacy_decode (sessions_tests.tests.CookieSessionTests)
+RECALL django__django-13279.A.claude-opus-5-5.1: test_default_hashing_algorith_legacy_decode (sessions_tests.tests.CacheSessionTests)
+RECALL django__django-13279.A.claude-opus-5-5.1: test_default_hashing_algorith_legacy_decode (sessions_tests.tests.FileSessionTests)
+RECALL django__django-13279.A.claude-opus-5-5.1: test_default_hashing_algorith_legacy_decode (sessions_tests.tests.FileSessionPathLibTests)
+RECALL django__django-13279.A.claude-opus-5-5.1: test_default_hashing_algorith_legacy_decode (sessions_tests.tests.CacheDBSessionTests)
+RECALL django__django-13279.A.claude-opus-5-5.1: test_default_hashing_algorith_legacy_decode (sessions_tests.tests.CacheDBSessionWithTimeZoneTests)
+RECALL django__django-13279.A.claude-opus-5-5.1: test_default_hashing_algorith_legacy_decode (sessions_tests.tests.DatabaseSessionTests)
+RECALL django__django-13279.A.claude-opus-5-5.1: test_default_hashing_algorith_legacy_decode (sessions_tests.tests.DatabaseSessionWithTimeZoneTests)
+RECALL django__django-13279.A.claude-opus-5-5.1: test_default_hashing_algorith_legacy_decode (sessions_tests.tests.CustomDatabaseSessionTests)
+RECALL django__django-13344.A.claude-opus-5-5.1: test_coroutine (deprecation.test_middleware_mixin.MiddlewareMixinTests)
+RECALL django__django-13344.B.claude-opus-5-5.1: test_coroutine (deprecation.test_middleware_mixin.MiddlewareMixinTests)
+RECALL django__django-13449.A.claude-opus-5-5.1: test_lag_decimalfield (expressions_window.tests.WindowFunctionTests)
+RECALL django__django-13449.B.claude-opus-5-5.1: test_lag_decimalfield (expressions_window.tests.WindowFunctionTests)
+RECALL django__django-13513.A.claude-opus-5-5.1: test_innermost_exception_without_traceback (view_tests.tests.test_debug.ExceptionReporterTests)
+RECALL django__django-13513.B.claude-opus-5-5.1: test_innermost_exception_without_traceback (view_tests.tests.test_debug.ExceptionReporterTests)
+RECALL django__django-13810.A.claude-opus-5-5.1: test_async_and_sync_middleware_chain_async_call (middleware_exceptions.tests.MiddlewareNotUsedTests)
+RECALL django__django-13810.B.claude-opus-5-5.1: test_async_and_sync_middleware_chain_async_call (middleware_exceptions.tests.MiddlewareNotUsedTests)
+RECALL django__django-14034.A.claude-opus-5-5.1: test_render_required_attributes (forms_tests.field_tests.test_multivaluefield.MultiValueFieldTest)
+RECALL django__django-15732.A.claude-opus-5-5.1: test_remove_unique_together_on_unique_field (migrations.test_operations.OperationTests)
+RECALL django__django-16032.A.claude-opus-5-5.1: test_annotation_and_alias_filter_in_subquery (annotations.tests.NonAggregateAnnotationTestCase)
+RECALL django__django-16032.A.claude-opus-5-5.1: test_annotation_and_alias_filter_related_in_subquery (annotations.tests.NonAggregateAnnotationTestCase)
+RECALL django__django-16032.A.claude-sonnet-5-5.1: test_annotation_and_alias_filter_in_subquery (annotations.tests.NonAggregateAnnotationTestCase)
+RECALL django__django-16032.B.claude-opus-5-5.1: test_annotation_and_alias_filter_in_subquery (annotations.tests.NonAggregateAnnotationTestCase)
+RECALL django__django-16032.B.claude-opus-5-5.1: test_annotation_and_alias_filter_related_in_subquery (annotations.tests.NonAggregateAnnotationTestCase)
+RECALL matplotlib__matplotlib-20859.A.claude-opus-5-5.1: lib/matplotlib/tests/test_legend.py::test_subfigure_legend
+RECALL matplotlib__matplotlib-20859.B.claude-opus-5-5.1: lib/matplotlib/tests/test_legend.py::test_subfigure_legend
+RECALL matplotlib__matplotlib-25122.A.claude-opus-5-5.1: lib/matplotlib/tests/test_mlab.py::TestSpectral::test_psd_window_flattop[Fs4-twosided-complex]
+RECALL matplotlib__matplotlib-25122.A.claude-opus-5-5.1: lib/matplotlib/tests/test_mlab.py::TestSpectral::test_psd_window_flattop[Fs4-twosided-real]
+RECALL matplotlib__matplotlib-25122.A.claude-opus-5-5.1: lib/matplotlib/tests/test_mlab.py::TestSpectral::test_psd_window_flattop[Fs4-onesided-complex]
+RECALL matplotlib__matplotlib-25122.A.claude-opus-5-5.1: lib/matplotlib/tests/test_mlab.py::TestSpectral::test_psd_window_flattop[Fs4-default-complex]
+RECALL matplotlib__matplotlib-25122.A.claude-opus-5-5.1: lib/matplotlib/tests/test_mlab.py::TestSpectral::test_psd_window_flattop[Fs4-default-real]
+RECALL matplotlib__matplotlib-25122.A.claude-opus-5-5.1: lib/matplotlib/tests/test_mlab.py::TestSpectral::test_psd_window_flattop[FsAll-default-complex]
+RECALL matplotlib__matplotlib-25122.A.claude-opus-5-5.1: lib/matplotlib/tests/test_mlab.py::TestSpectral::test_psd_window_flattop[FsAll-default-real]
+RECALL matplotlib__matplotlib-25122.A.claude-opus-5-5.1: lib/matplotlib/tests/test_mlab.py::TestSpectral::test_psd_window_flattop[FsAll-twosided-complex]
+RECALL matplotlib__matplotlib-25122.A.claude-opus-5-5.1: lib/matplotlib/tests/test_mlab.py::TestSpectral::test_psd_window_flattop[FsAll-twosided-real]
+RECALL matplotlib__matplotlib-25122.A.claude-opus-5-5.1: lib/matplotlib/tests/test_mlab.py::TestSpectral::test_psd_window_flattop[FsAll-onesided-complex]
+RECALL matplotlib__matplotlib-25122.A.claude-opus-5-5.1: lib/matplotlib/tests/test_mlab.py::TestSpectral::test_psd_window_flattop[FsAll-onesided-real]
+RECALL matplotlib__matplotlib-25122.A.claude-opus-5-5.1: lib/matplotlib/tests/test_mlab.py::TestSpectral::test_psd_window_flattop[Fs4-onesided-real]
+RECALL matplotlib__matplotlib-25960.A.claude-opus-5-5.1: lib/matplotlib/tests/test_figure.py::test_subfigures_wspace_hspace
+RECALL matplotlib__matplotlib-25960.B.claude-opus-5-5.1: lib/matplotlib/tests/test_figure.py::test_subfigures_wspace_hspace
+RECALL mwaskom__seaborn-3069.A.claude-opus-5-5.1: tests/_core/test_plot.py::TestScaling::test_nominal_x_axis_tweaks
+RECALL mwaskom__seaborn-3069.A.claude-opus-5-5.1: tests/_core/test_plot.py::TestScaling::test_nominal_y_axis_tweaks
+RECALL mwaskom__seaborn-3069.B.claude-opus-5-5.1: tests/_core/test_plot.py::TestScaling::test_nominal_x_axis_tweaks
+RECALL mwaskom__seaborn-3069.B.claude-opus-5-5.1: tests/_core/test_plot.py::TestScaling::test_nominal_y_axis_tweaks
+RECALL psf__requests-2931.A.claude-opus-5-5.1: test_requests.py::TestRequests::test_binary_put
+RECALL pytest-dev__pytest-7236.A.claude-opus-5-5.1: testing/test_unittest.py::test_pdb_teardown_skipped[@unittest.skip]
+RECALL pytest-dev__pytest-7236.B.claude-opus-5-5.1: testing/test_unittest.py::test_pdb_teardown_skipped[@unittest.skip]
+RECALL scikit-learn__scikit-learn-13496.A.claude-opus-5-5.1: sklearn/ensemble/tests/test_iforest.py::test_iforest_warm_start
+RECALL scikit-learn__scikit-learn-13496.A.claude-sonnet-5-5.1: sklearn/ensemble/tests/test_iforest.py::test_iforest_warm_start
+RECALL scikit-learn__scikit-learn-13496.B.claude-opus-5-5.1: sklearn/ensemble/tests/test_iforest.py::test_iforest_warm_start
+RECALL scikit-learn__scikit-learn-13496.B.claude-sonnet-5-5.1: sklearn/ensemble/tests/test_iforest.py::test_iforest_warm_start
+RECALL scikit-learn__scikit-learn-14629.A.claude-opus-5-5.1: sklearn/tests/test_multioutput.py::test_multi_output_classes_[estimator1]
+RECALL scikit-learn__scikit-learn-14629.B.claude-opus-5-5.1: sklearn/tests/test_multioutput.py::test_multi_output_classes_[estimator1]
+RECALL scikit-learn__scikit-learn-25102.A.claude-opus-5-5.1: sklearn/feature_selection/tests/test_feature_select.py::test_dataframe_output_dtypes
+RECALL sphinx-doc__sphinx-11510.A.claude-opus-5-5.1: tests/test_directive_other.py::test_include_source_read_event
+RECALL sphinx-doc__sphinx-11510.A.claude-opus-5-5.1: tests/test_directive_other.py::test_include_source_read_event_nested_includes
+RECALL sphinx-doc__sphinx-11510.B.claude-opus-5-5.1: tests/test_directive_other.py::test_include_source_read_event
+RECALL sphinx-doc__sphinx-9281.B.claude-opus-5-5.1: tests/test_util_inspect.py::test_object_description_enum
+RECALL sympy__sympy-16792.A.claude-opus-5-5.1: test_ccode_unused_array_arg
+RECALL sympy__sympy-16792.B.claude-opus-5-5.1: test_ccode_unused_array_arg
+RECALL sympy__sympy-17318.A.claude-opus-5-5.1: test_issue_12420
+RECALL sympy__sympy-17318.A.claude-sonnet-5-5.1: test_issue_12420
+RECALL sympy__sympy-17318.B.claude-opus-5-5.1: test_issue_12420
