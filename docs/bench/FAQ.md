@@ -60,4 +60,4 @@ P is Claude Code with our quality-harness plugin, measured in the same stage: co
 From a checkout, the jq command in the README's Evidence section regenerates the Stage 5 rows from the receipts; `go run ./cmd/bench analyze --selection bench/swe-bench/selection-adr-160.json --selection bench/swe-bench/selection-adr-162.json docs/bench` recomputes every verdict and interval. A full rerun needs Claude Code, Docker, the SWE-bench images (about 10 GB each), four days on one machine and about $110 of computed cost for A and B; `bench run` and ADR-162 describe it.
 
 **Who are you?**
-Atviro kodo sprendimai (Lithuanian for "open-source solutions"), the company behind this repository. mrw is new and has few users; that is why the evidence is laid out rather than asserted.
+Atviro kodo sprendimai (Lithuanian for "open-source solutions"), the company behind this repository. mrw is new: its first tag is from 2026-08-31 and today's release is v1.69.1. That is why the evidence is laid out rather than asserted.
