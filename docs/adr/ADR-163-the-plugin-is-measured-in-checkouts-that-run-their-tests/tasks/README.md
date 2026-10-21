@@ -20,7 +20,7 @@ README must be regenerated.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | the instance's container and the shims | pending | — | `go test ./internal/bench/ -run '^(TestStage6ShimsRunInTheInstanceContainer…)$'` |
+| T1 | the instance's container and the shims | partial | — | `go test ./internal/bench/ -run '^(TestStage6ShimsRunInTheInstanceContainer…)$'` |
 | T2 | configuration W, the declared check and the stage's caps | pending | — | `go test ./internal/bench/ -run '^(TestConfigurationWIsPPlusTheWorkLine…)$'` |
 | T3 | the baseline, the surviving pool and the block plan | pending | — | `go test ./internal/bench/ -run '^(TestTheBaselineRecordsGreenRedAndTime…)$'` |
 | T4 | the baseline pilot, the whole-pool baseline, then the agent pilot | pending | — | `jq … docs/bench/stage-6-pilot/baseline.json …` |

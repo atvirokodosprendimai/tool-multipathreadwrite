@@ -5,16 +5,17 @@
 //	bench run     --stage S --out DIR --model M [--model M2] --claude PATH --mrw PATH
 //	              --config-dir DIR --containment bypass --canary FILE [--task ID ...]
 //	              [--configs A,B[,P]] [--repeats N] [--seed N] [--budget 20m]
-//	              [--profile stage5 [--plugin-dir DIR] [--node PATH]] [--status-line]
+//	              [--profile stage5|stage6 [--plugin-dir DIR] [--node PATH]] [--status-line]
 //	              [--source swe-bench --dataset FILE --swebench-python PATH [--selection FILE] [--docker PATH]]
 //	              [--block K [--configs-for MODEL=A,B,P ...]] [--disk-path PATH --disk-floor GiB]
 //	bench canary  --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass
-//	              [--profile stage5 [--plugin-dir DIR] [--node PATH]]
+//	              [--profile stage5|stage6 [--plugin-dir DIR] [--node PATH]]
 //	bench export-paired --pair X,Y --model M --scorer-sha SHA --selection FILE --canary FILE DIR...
 //	bench verify  --stage S --tasks N --repeats R DIR
 //	bench look    DIR                                     (a Stage 5 directory: exit 0 complete, 1 a block due)
 //	bench analyze [--tasks-dir DIR] [--selection FILE ...] DIR
 //	bench hook    --log FILE --tree DIR (configuration B's PreToolUse hook)
+//	bench shim    --docker PATH --container NAME --tree DIR --state DIR --base SHA --name CMD -- ARGS...   (the shims of stage6; not run by hand)
 //	bench swebench-select [--n 20]                         (instance ids on stdin; Stage 3's rule)
 //	bench swebench-select --dataset FILE --min-hunks N [--exclude FILE ...] [--salt S] [--n 20] [--subset-min-hunks N] [--no-unnamed]
 //	bench mine    --kind wide-rename|check-coupled --repo DIR --commit SHA [--n N] [--min-occurrences 15 --min-files 8] [--min-test-files 1]
@@ -38,14 +39,15 @@ import (
 )
 
 const usageText = `usage:
-  bench run     --stage S --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass --canary FILE [--task ID ...] [--configs A,B[,P]] [--repeats N] [--seed N] [--budget 20m] [--profile stage5 [--plugin-dir DIR] [--node PATH]] [--status-line] [--source swe-bench --dataset FILE --swebench-python PATH [--selection FILE] [--docker PATH]]
-  bench canary  --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass [--profile stage5 [--plugin-dir DIR] [--node PATH]]
+  bench run     --stage S --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass --canary FILE [--task ID ...] [--configs A,B[,P]] [--repeats N] [--seed N] [--budget 20m] [--profile stage5|stage6 [--plugin-dir DIR] [--node PATH]] [--status-line] [--source swe-bench --dataset FILE --swebench-python PATH [--selection FILE] [--docker PATH]]
+  bench canary  --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass [--profile stage5|stage6 [--plugin-dir DIR] [--node PATH]]
   bench verify  --stage S --tasks N --repeats R DIR
   bench run     … [--block K [--configs-for MODEL=A,B,P ...]] [--disk-path PATH --disk-floor GiB]
   bench look    DIR
   bench export-paired --pair X,Y --model M --scorer-sha SHA --selection FILE --canary FILE DIR...
   bench analyze [--tasks-dir DIR] [--selection FILE ...] DIR
   bench hook    --log FILE --tree DIR
+  bench shim    --docker PATH --container NAME --tree DIR --state DIR --base SHA --name CMD -- ARGS...   (the shims of stage6; not run by hand)
   bench swebench-select [--n 20] < ids
   bench swebench-select --dataset FILE --min-hunks N [--exclude FILE ...] [--salt S] [--n 20] [--subset-min-hunks N] [--no-unnamed]
   bench mine    --kind wide-rename|check-coupled --repo DIR --commit SHA [--n N] [--min-occurrences 15 --min-files 8] [--min-test-files 1]
@@ -76,6 +78,9 @@ func main() {
 		tree := fs.String("tree", "", "the attempt's task tree: a write whose target lands outside it passes")
 		_ = fs.Parse(os.Args[2:])
 		os.Exit(bench.Hook(os.Stdin, os.Stderr, *log, *tree))
+	case "shim":
+		cwd, _ := os.Getwd()
+		os.Exit(bench.Shim(os.Args[2:], cwd, os.Stdin, os.Stdout, os.Stderr))
 	case "swebench-select":
 		err = swebenchSelect(os.Args[2:], os.Stdin, os.Stdout)
 	case "mine":
@@ -116,9 +121,11 @@ func stageFlags(name string) (*flag.FlagSet, *bench.RunOptions, *multi, *string)
 	fs.StringVar(&o.Containment, "containment", "", "bypass, or user:<name> once Zy chooses it")
 	fs.DurationVar(&o.Budget, "budget", bench.DefaultBudget, "an attempt's wall-clock budget")
 	fs.StringVar(&o.Scratch, "scratch", os.TempDir(), "where attempt trees are built")
-	fs.StringVar(&o.Profile, "profile", "", "stage5: ADR-162's profile, for every configuration (skills on, Skill offered, node on PATH, no external model)")
+	fs.StringVar(&o.Profile, "profile", "", "stage5: the profile of ADR-162, for every configuration (skills on, Skill offered, node on PATH, no external model); stage6: the profile of ADR-163, stage5 plus a container of the instance image for python, python3, pytest and py.test")
 	fs.StringVar(&o.PluginDir, "plugin-dir", "", "the plugin configuration P loads: its directory in a tagged checkout (ADR-162)")
 	fs.StringVar(&o.Node, "node", "", "the node the profile links on every attempt's PATH; found on PATH when empty")
+	fs.StringVar(&o.Docker, "docker", "docker", "the docker CLI: stage6 starts the container of each attempt with it, and a SWE-bench run pulls and removes images with it")
+	fs.StringVar(&o.CanaryImage, "canary-image", "", "stage6: the image a task with none of its own (the canary fixture) runs its container in")
 	return fs, o, models, tasks
 }
 
@@ -141,7 +148,6 @@ func run(args []string) error {
 	selection := fs.String("selection", filepath.Join("bench", "swe-bench", "selection.json"), "the SWE-bench slice")
 	dataset := fs.String("dataset", "", "the SWE-bench dataset file the harness reads, at the revision T5 recorded")
 	python := fs.String("swebench-python", "", "an interpreter with the SWE-bench harness installed")
-	docker := fs.String("docker", "docker", "the docker CLI the harness's images are pulled and removed with")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -168,7 +174,7 @@ func run(args []string) error {
 		if *dataset == "" || *python == "" {
 			return fmt.Errorf("--source swe-bench needs --dataset and --swebench-python")
 		}
-		g := &bench.SWEGrader{Docker: *docker}
+		g := &bench.SWEGrader{Docker: o.Docker}
 		if g.Dataset, err = filepath.Abs(*dataset); err != nil {
 			return err
 		}

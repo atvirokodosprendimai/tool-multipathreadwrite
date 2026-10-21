@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -84,7 +85,7 @@ type CanaryReceipt struct {
 // into o.Out. It needs the same gates as a stage, except a canary.
 func RunCanary(o RunOptions, task Task, claudeMD string) (CanaryReceipt, error) {
 	var c CanaryReceipt
-	o.Canary = "-"
+	o.Canary, o.canary = "-", true
 	cd, err := gates(o)
 	if err != nil {
 		return c, err
@@ -143,6 +144,14 @@ func RunCanary(o RunOptions, task Task, claudeMD string) (CanaryReceipt, error) 
 		if len(problems) > 0 {
 			c.Pass = false
 			c.Problems[name] = problems
+		}
+	}
+	// Under stage6 the container itself is asked what an attempt in it would
+	// see, apart from the attempts above (ADR-163 Decision 6).
+	if o.Profile == ProfileStage6 {
+		if p := probeContainer(o, task); len(p) > 0 {
+			c.Pass = false
+			c.Problems["container"] = p
 		}
 	}
 	if got, err := os.ReadFile(sentinel); err != nil || !bytes.Equal(got, want) {
@@ -332,4 +341,97 @@ func sorted(s []string) []string {
 	c := slices.Clone(s)
 	slices.Sort(c)
 	return c
+}
+
+// netProbe is the Python the canary asks the container: it prints blocked when
+// no connection can be made, and open when one is.
+const netProbe = `import socket
+try:
+    socket.create_connection(("1.1.1.1", 53), timeout=5)
+    print("open")
+except OSError:
+    print("blocked")
+`
+
+// CheckContainerCanary is the canary of the container under stage6 (ADR-163
+// Decision 6): python printed linux for sys.platform, so the shim reaches the
+// image; the network call failed, so there is no network; and the log of every
+// ref in /testbed shows one commit, so there is no history. Each answer is
+// judged alone.
+func CheckContainerCanary(platform, network, commits string) []string {
+	var problems []string
+	if p := strings.TrimSpace(platform); p != "linux" {
+		problems = append(problems, fmt.Sprintf("python printed %q for sys.platform, want linux: the shim does not reach the image", p))
+	}
+	if n := strings.TrimSpace(network); n != "blocked" {
+		problems = append(problems, fmt.Sprintf("the network check printed %q, want blocked: the container has a network, or the check did not run", n))
+	}
+	count := 0
+	for _, l := range strings.Split(commits, "\n") {
+		if strings.TrimSpace(l) != "" {
+			count++
+		}
+	}
+	if count != 1 {
+		problems = append(problems, fmt.Sprintf("the log of every ref in /testbed shows %d commits, want 1: the history was not removed", count))
+	}
+	return problems
+}
+
+// probeContainer starts a container of the image for the task, asks it the
+// three questions of CheckContainerCanary through the shim, and removes it. A
+// failure to ask is a problem, never a pass.
+func probeContainer(o RunOptions, task Task) (problems []string) {
+	_ = os.MkdirAll(o.Scratch, 0o755)
+	scratch, err := os.MkdirTemp(o.Scratch, "bench-probe-")
+	if err != nil {
+		return []string{err.Error()}
+	}
+	defer func() { _ = os.RemoveAll(scratch) }()
+	tree := attemptTree(scratch)
+	if err := os.Mkdir(tree, 0o755); err != nil {
+		return []string{err.Error()}
+	}
+	base, err := Materialize(task, tree, nil)
+	if err != nil {
+		return []string{err.Error()}
+	}
+	name := containerName("canary")
+	box, err := startContainer(o.Docker, imageFor(o, task), name, o.Stage, o.Budget+300*time.Second, tree, base)
+	if box != nil {
+		defer func() {
+			if err := box.remove(); err != nil {
+				problems = append(problems, err.Error())
+			}
+		}()
+	}
+	if err != nil {
+		return []string{"the container did not start: " + err.Error()}
+	}
+	cfg := shimConfig{Bench: o.Bench, Docker: o.Docker, Container: name, Tree: tree, State: filepath.Join(scratch, "shim"), Base: base}
+	// The questions go through the shims of an attempt, written into a tools
+	// directory of their own and run as the agent would run them, so bench
+	// itself and the script are proven as well as the container.
+	tools := filepath.Join(scratch, "tools")
+	if err := os.Mkdir(tools, 0o755); err != nil {
+		return []string{err.Error()}
+	}
+	if err := writeShims(tools, cfg); err != nil {
+		return []string{err.Error()}
+	}
+	// The probe is the start of the environment: no variable of it is forwarded.
+	if err := writeStartEnv(cfg.State, os.Environ()); err != nil {
+		return []string{err.Error()}
+	}
+	ask := func(argv ...string) string {
+		cmd := exec.Command(filepath.Join(tools, "python"), argv...)
+		cmd.Dir = tree
+		out, _ := cmd.Output()
+		return string(out)
+	}
+	commits, err := dockerRun(o.Docker, nil, "exec", name, "git", "-C", testbed, "log", "--all", "--oneline")
+	if err != nil {
+		return []string{err.Error()}
+	}
+	return CheckContainerCanary(ask("-c", "import sys; print(sys.platform)"), ask("-c", netProbe), string(commits))
 }

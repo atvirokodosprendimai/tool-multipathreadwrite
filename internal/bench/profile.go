@@ -17,6 +17,11 @@ import (
 // the other one's arms (ADR-162 Decision 1).
 const ProfileStage5 = "stage5"
 
+// ProfileStage6 is ADR-163 profile: everything stage5 does, and every
+// configuration runs its python, python3, pytest and py.test inside a
+// container of the instance own image, through shims, one command at a time.
+const ProfileStage6 = "stage6"
+
 // pluginName is the plugin configuration P loads (quality-harness ADR-106).
 const pluginName = "quality-harness"
 
@@ -129,6 +134,9 @@ func resolveProfile(o *RunOptions) error {
 	}
 	if info, err := os.Stat(o.Node); err != nil || info.IsDir() || info.Mode()&0o111 == 0 {
 		return fmt.Errorf("--node %s is not an executable file", o.Node)
+	}
+	if o.Profile == ProfileStage6 {
+		return resolveContainer(o)
 	}
 	return nil
 }

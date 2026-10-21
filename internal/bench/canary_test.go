@@ -1,6 +1,8 @@
 package bench
 
 import (
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -145,5 +147,69 @@ func TestTheCanaryRefusesAPluginThatIsNotEngaged(t *testing.T) {
 		if p := CheckProfileCanary([]byte(transcript), Configs["P"], "", "", dir); len(p) == 0 {
 			t.Errorf("%s: the canary passed", name)
 		}
+	}
+}
+
+// TestTheStage6CanaryProvesTheContainer: a stage6 canary passes only when
+// python prints linux, the network call fails and /testbed shows one commit;
+// each failing alone fails the canary. The probe starts a container, asks it
+// the three questions through the shim and removes it.
+func TestTheStage6CanaryProvesTheContainer(t *testing.T) {
+	if p := CheckContainerCanary("linux\n", "blocked\n", "abc1234 base\n"); len(p) != 0 {
+		t.Fatalf("a clean container failed: %v", p)
+	}
+	failing := map[string][3]string{
+		"another platform":                 {"darwin\n", "blocked\n", "abc1234 base\n"},
+		"no platform answer":               {"", "blocked\n", "abc1234 base\n"},
+		"a network that answers":           {"linux\n", "open\n", "abc1234 base\n"},
+		"a network check that did not run": {"linux\n", "", "abc1234 base\n"},
+		"two commits":                      {"linux\n", "blocked\n", "abc1234 fix\ndef5678 base\n"},
+		"no commit":                        {"linux\n", "blocked\n", ""},
+	}
+	for name, c := range failing {
+		if p := CheckContainerCanary(c[0], c[1], c[2]); len(p) != 1 {
+			t.Errorf("%s: the canary reported %v, want exactly its own problem", name, p)
+		}
+	}
+
+	g := newStage6Rig(t)
+	task := g.opts.Tasks[0]
+	if p := probeContainer(g.opts, task); len(p) != 0 {
+		t.Fatalf("a clean container failed the probe: %v", p)
+	}
+	if got := g.callsMatching("exec -i -e "); len(got) != 0 {
+		t.Errorf("the probe forwarded variables to the container: %q", got)
+	}
+	if rm := g.callsMatching("rm -f bench-canary-"); len(rm) != 1 {
+		t.Errorf("the probe container was removed %d times, want once", len(rm))
+	}
+	put(t, filepath.Join(g.root, "net-open"), "", 0o644)
+	if p := probeContainer(g.opts, task); len(p) == 0 {
+		t.Error("a container whose network answered passed the probe")
+	}
+	if err := os.Remove(filepath.Join(g.root, "net-open")); err != nil {
+		t.Fatal(err)
+	}
+	put(t, filepath.Join(g.root, "platform"), "darwin\n", 0o644)
+	if p := probeContainer(g.opts, task); len(p) == 0 {
+		t.Error("a container that is not linux passed the probe")
+	}
+
+	// A stage6 canary needs the image its container checks run in, and may run
+	// while the profile is unsettled; bench run may not (T1 S1 settles it).
+	canaryOpts := g.opts
+	canaryOpts.canary = true
+	if _, err := gates(canaryOpts); err != nil {
+		t.Fatal(err)
+	}
+	if !settled {
+		if _, err := gates(g.opts); err == nil {
+			t.Error("bench run accepted the stage6 profile while it is unsettled")
+		}
+	}
+	noImage := canaryOpts
+	noImage.CanaryImage = ""
+	if _, err := gates(noImage); err == nil {
+		t.Error("a stage6 run of a task with no image was accepted")
 	}
 }
