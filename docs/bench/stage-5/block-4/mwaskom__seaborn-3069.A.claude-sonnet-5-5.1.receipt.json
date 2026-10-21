@@ -1,0 +1,47 @@
+{
+  "attempt": "mwaskom__seaborn-3069.A.claude-sonnet-5-5.1",
+  "stage": "stage5",
+  "task": "mwaskom__seaborn-3069",
+  "shape": "swe-bench",
+  "source": "swe-bench",
+  "model": "claude-sonnet-5-5",
+  "config": "A",
+  "repeat": 1,
+  "order": 149,
+  "started": "2026-10-21T04:11:39Z",
+  "wall_ms": 23542,
+  "cli_version": "2.1.302 (Claude Code)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 8,
+  "tool_calls": 7,
+  "total_cost_usd": 0.0718256,
+  "usage": {
+    "input_tokens": 14,
+    "output_tokens": 2661,
+    "cache_read_input_tokens": 79876,
+    "cache_creation_input_tokens": 9300
+  },
+  "init_tools": [
+    "Bash",
+    "Edit",
+    "Glob",
+    "Grep",
+    "Read",
+    "Skill",
+    "Write"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": true,
+    "harness_resolved": true,
+    "broke_tests": false
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 1,
+    "insertions": 13,
+    "deletions": 1
+  },
+  "status": "not done"
+}

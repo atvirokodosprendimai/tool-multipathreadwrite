@@ -1,0 +1,48 @@
+{
+  "attempt": "django__django-11141.B.claude-opus-5-5.1",
+  "stage": "stage5",
+  "task": "django__django-11141",
+  "shape": "swe-bench",
+  "source": "swe-bench",
+  "model": "claude-opus-5-5",
+  "config": "B",
+  "repeat": 1,
+  "order": 130,
+  "started": "2026-10-17T17:07:12Z",
+  "wall_ms": 35508,
+  "cli_version": "2.1.302 (Claude Code)",
+  "mrw_version": "v1.68.0 (975c3ba)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 11,
+  "tool_calls": 10,
+  "total_cost_usd": 0.1334734,
+  "usage": {
+    "input_tokens": 22,
+    "output_tokens": 2439,
+    "cache_read_input_tokens": 127587,
+    "cache_creation_input_tokens": 7386
+  },
+  "init_tools": [
+    "Bash",
+    "Glob",
+    "Skill"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": false,
+    "harness_resolved": false,
+    "broke_tests": true
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 4,
+    "insertions": 26,
+    "deletions": 12
+  },
+  "hook_reads": 2,
+  "slipped_writes": [
+    "tests/migrations/faulty_migrations/namespace/foo/__init__.py"
+  ],
+  "status": "not done"
+}

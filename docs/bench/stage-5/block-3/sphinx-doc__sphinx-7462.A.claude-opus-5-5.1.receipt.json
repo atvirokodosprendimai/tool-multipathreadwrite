@@ -1,0 +1,47 @@
+{
+  "attempt": "sphinx-doc__sphinx-7462.A.claude-opus-5-5.1",
+  "stage": "stage5",
+  "task": "sphinx-doc__sphinx-7462",
+  "shape": "swe-bench",
+  "source": "swe-bench",
+  "model": "claude-opus-5-5",
+  "config": "A",
+  "repeat": 1,
+  "order": 134,
+  "started": "2026-10-20T21:35:07Z",
+  "wall_ms": 47977,
+  "cli_version": "2.1.302 (Claude Code)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 10,
+  "tool_calls": 9,
+  "total_cost_usd": 0.17135340000000002,
+  "usage": {
+    "input_tokens": 20,
+    "output_tokens": 4242,
+    "cache_read_input_tokens": 110167,
+    "cache_creation_input_tokens": 8050
+  },
+  "init_tools": [
+    "Bash",
+    "Edit",
+    "Glob",
+    "Grep",
+    "Read",
+    "Skill",
+    "Write"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": true,
+    "harness_resolved": true,
+    "broke_tests": false
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 4,
+    "insertions": 33,
+    "deletions": 7
+  },
+  "status": "done"
+}

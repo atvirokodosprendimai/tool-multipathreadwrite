@@ -1,0 +1,47 @@
+{
+  "attempt": "sphinx-doc__sphinx-7590.A.claude-sonnet-5-5.1",
+  "stage": "stage5",
+  "task": "sphinx-doc__sphinx-7590",
+  "shape": "swe-bench",
+  "source": "swe-bench",
+  "model": "claude-sonnet-5-5",
+  "config": "A",
+  "repeat": 1,
+  "order": 83,
+  "started": "2026-10-21T08:37:27Z",
+  "wall_ms": 41601,
+  "cli_version": "2.1.302 (Claude Code)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 13,
+  "tool_calls": 12,
+  "total_cost_usd": 0.11124580000000002,
+  "usage": {
+    "input_tokens": 18,
+    "output_tokens": 4820,
+    "cache_read_input_tokens": 115698,
+    "cache_creation_input_tokens": 12860
+  },
+  "init_tools": [
+    "Bash",
+    "Edit",
+    "Glob",
+    "Grep",
+    "Read",
+    "Skill",
+    "Write"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": false
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 0,
+    "insertions": 0,
+    "deletions": 0
+  },
+  "status": "not done",
+  "exclusion": "setup",
+  "note": "oracle: the harness wrote no report for sphinx-doc__sphinx-7590: open /var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/bench-1080473674/logs/run_evaluation/sphinx-doc__sphinx-7590.A.claude-sonnet-5-5.1/sphinx-doc__sphinx-7590.A.claude-sonnet-5-5.1/sphinx-doc__sphinx-7590/report.json: no such file or directory"
+}

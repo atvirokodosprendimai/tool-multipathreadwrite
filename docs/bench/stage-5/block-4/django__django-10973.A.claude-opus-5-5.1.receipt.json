@@ -1,0 +1,47 @@
+{
+  "attempt": "django__django-10973.A.claude-opus-5-5.1",
+  "stage": "stage5",
+  "task": "django__django-10973",
+  "shape": "swe-bench",
+  "source": "swe-bench",
+  "model": "claude-opus-5-5",
+  "config": "A",
+  "repeat": 1,
+  "order": 130,
+  "started": "2026-10-21T03:00:34Z",
+  "wall_ms": 46605,
+  "cli_version": "2.1.302 (Claude Code)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 12,
+  "tool_calls": 11,
+  "total_cost_usd": 0.242439,
+  "usage": {
+    "input_tokens": 24,
+    "output_tokens": 4663,
+    "cache_read_input_tokens": 174415,
+    "cache_creation_input_tokens": 14275
+  },
+  "init_tools": [
+    "Bash",
+    "Edit",
+    "Glob",
+    "Grep",
+    "Read",
+    "Skill",
+    "Write"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": true,
+    "harness_resolved": true,
+    "broke_tests": false
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 2,
+    "insertions": 18,
+    "deletions": 53
+  },
+  "status": "done"
+}

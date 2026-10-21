@@ -1,0 +1,44 @@
+{
+  "attempt": "pydata__xarray-3095.B.claude-opus-5-5.1",
+  "stage": "stage5",
+  "task": "pydata__xarray-3095",
+  "shape": "swe-bench",
+  "source": "swe-bench",
+  "model": "claude-opus-5-5",
+  "config": "B",
+  "repeat": 1,
+  "order": 63,
+  "started": "2026-10-20T10:18:23Z",
+  "wall_ms": 28140,
+  "cli_version": "2.1.302 (Claude Code)",
+  "mrw_version": "v1.68.0 (975c3ba)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 8,
+  "tool_calls": 7,
+  "total_cost_usd": 0.125202,
+  "usage": {
+    "input_tokens": 16,
+    "output_tokens": 2166,
+    "cache_read_input_tokens": 89370,
+    "cache_creation_input_tokens": 7993
+  },
+  "init_tools": [
+    "Bash",
+    "Glob",
+    "Skill"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": true,
+    "harness_resolved": true,
+    "broke_tests": false
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 2,
+    "insertions": 9,
+    "deletions": 1
+  },
+  "status": "not done"
+}

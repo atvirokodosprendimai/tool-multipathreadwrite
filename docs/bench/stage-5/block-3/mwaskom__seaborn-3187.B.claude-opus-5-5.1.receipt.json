@@ -1,0 +1,44 @@
+{
+  "attempt": "mwaskom__seaborn-3187.B.claude-opus-5-5.1",
+  "stage": "stage5",
+  "task": "mwaskom__seaborn-3187",
+  "shape": "swe-bench",
+  "source": "swe-bench",
+  "model": "claude-opus-5-5",
+  "config": "B",
+  "repeat": 1,
+  "order": 131,
+  "started": "2026-10-20T21:32:06Z",
+  "wall_ms": 26331,
+  "cli_version": "2.1.302 (Claude Code)",
+  "mrw_version": "v1.68.0 (975c3ba)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 5,
+  "tool_calls": 4,
+  "total_cost_usd": 0.11384280000000002,
+  "usage": {
+    "input_tokens": 10,
+    "output_tokens": 2641,
+    "cache_read_input_tokens": 54034,
+    "cache_creation_input_tokens": 6272
+  },
+  "init_tools": [
+    "Bash",
+    "Glob",
+    "Skill"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": true,
+    "harness_resolved": true,
+    "broke_tests": false
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 2,
+    "insertions": 13,
+    "deletions": 0
+  },
+  "status": "not done"
+}

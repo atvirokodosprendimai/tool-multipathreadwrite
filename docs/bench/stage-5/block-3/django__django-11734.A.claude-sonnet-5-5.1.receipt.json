@@ -1,0 +1,47 @@
+{
+  "attempt": "django__django-11734.A.claude-sonnet-5-5.1",
+  "stage": "stage5",
+  "task": "django__django-11734",
+  "shape": "swe-bench",
+  "source": "swe-bench",
+  "model": "claude-sonnet-5-5",
+  "config": "A",
+  "repeat": 1,
+  "order": 64,
+  "started": "2026-10-20T19:33:54Z",
+  "wall_ms": 51974,
+  "cli_version": "2.1.302 (Claude Code)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 18,
+  "tool_calls": 17,
+  "total_cost_usd": 0.1309955,
+  "usage": {
+    "input_tokens": 32,
+    "output_tokens": 6047,
+    "cache_read_input_tokens": 206575,
+    "cache_creation_input_tokens": 12451
+  },
+  "init_tools": [
+    "Bash",
+    "Edit",
+    "Glob",
+    "Grep",
+    "Read",
+    "Skill",
+    "Write"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": false,
+    "harness_resolved": false,
+    "broke_tests": false
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 2,
+    "insertions": 16,
+    "deletions": 1
+  },
+  "status": "done"
+}

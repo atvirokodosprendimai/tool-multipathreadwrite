@@ -1,0 +1,47 @@
+{
+  "attempt": "matplotlib__matplotlib-23299.A.claude-opus-5-5.1",
+  "stage": "stage5",
+  "task": "matplotlib__matplotlib-23299",
+  "shape": "swe-bench",
+  "source": "swe-bench",
+  "model": "claude-opus-5-5",
+  "config": "A",
+  "repeat": 1,
+  "order": 114,
+  "started": "2026-10-21T10:33:06Z",
+  "wall_ms": 66109,
+  "cli_version": "2.1.302 (Claude Code)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 12,
+  "tool_calls": 11,
+  "total_cost_usd": 0.20066180000000003,
+  "usage": {
+    "input_tokens": 24,
+    "output_tokens": 4488,
+    "cache_read_input_tokens": 139949,
+    "cache_creation_input_tokens": 10352
+  },
+  "init_tools": [
+    "Bash",
+    "Edit",
+    "Glob",
+    "Grep",
+    "Read",
+    "Skill",
+    "Write"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": true,
+    "harness_resolved": true,
+    "broke_tests": false
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 2,
+    "insertions": 17,
+    "deletions": 1
+  },
+  "status": "not done"
+}

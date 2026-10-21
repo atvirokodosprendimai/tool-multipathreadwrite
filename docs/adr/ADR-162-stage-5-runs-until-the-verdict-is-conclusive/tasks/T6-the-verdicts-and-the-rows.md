@@ -37,9 +37,9 @@ go run ./cmd/bench analyze --selection bench/swe-bench/selection-adr-160.json --
   && grep '^| stage5 ' /tmp/adr162-analyze.txt > /tmp/adr162-s5-generated.txt \
   && grep '^| stage5 ' docs/bench/RESULTS.md > /tmp/adr162-s5-published.txt \
   && diff /tmp/adr162-s5-generated.txt /tmp/adr162-s5-published.txt \
-  && git show 690ecb30:docs/bench/RESULTS.md | grep '^| stage' > /tmp/adr162-earlier.txt \
+  && git show 690ecb30:docs/bench/RESULTS.md | grep '^| stage[^ ]' > /tmp/adr162-earlier.txt \
   && test -s /tmp/adr162-earlier.txt \
-  && grep '^| stage' docs/bench/RESULTS.md | grep -v '^| stage5 ' | diff /tmp/adr162-earlier.txt -
+  && grep '^| stage[^ ]' docs/bench/RESULTS.md | grep -v '^| stage5 ' | diff /tmp/adr162-earlier.txt -
 ```
 
 ## Tests
@@ -59,6 +59,7 @@ go run ./cmd/bench analyze --selection bench/swe-bench/selection-adr-160.json --
 
 ## Mutation Log
 (empty until execute)
+- 2026-10-21 · 6353ec98* · mutant killed · exit 1 · `docs/bench/RESULTS.md` · a Stage 5 verdict in RESULTS.md edited by hand, no longer bench analyze output · acceptance-sha256:f726713e144ebeaee9268ec8a4301c8bd9760229935c0c54482de05564490a25
 
 ## Invariants
 
@@ -78,3 +79,12 @@ go run ./cmd/bench analyze --selection bench/swe-bench/selection-adr-160.json --
 
 ## Verification Log
 (empty until execute)
+- 2026-10-21 · 6353ec98* · exit 1 · `set -o pipefail …` · acceptance-sha256:11bf4dd0e01497ff6515ff2c20a84ebe51e460521167f796039d01198e39928e · ms:1033 · test-lock-sha256:5b7e3e35af59b75d0c4acb1de039f80318e4e0acc43b159add84d81866f8ea2c · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJaW50ZXJuYWwvYmVuY2gvYW5hbHl6ZV90ZXN0LmdvCVRlc3RBUGlsb3RJc05ldmVyQ291bnRlZAkxNzExNDE3YjczMzQ5NzMxMzgwMzNjODE4ZWM1NGFjM2Y2M2Q2NWUyYWUyYjFhNzhkOThiYTU1NjFlYjIwYTVhCmJvZHkJaW50ZXJuYWwvYmVuY2gvYW5hbHl6ZV90ZXN0LmdvCVRlc3RBUm93V2l0aG91dFRoZVRhc2tzU3VwZXJzZWRlZFNpbmNlSXNEZXNjcmlwdGl2ZQkwYTc3OGYzZDBjZjE3NWRiMTkyNzEwOWI4YWMwNDRjM2JjOGJhMGJkNDM0OTE4YWY0YjA1ZWUyMTU1MjhlNzY0CmJvZHkJaW50ZXJuYWwvYmVuY2gvYW5hbHl6ZV90ZXN0LmdvCVRlc3RBbmFseXplUHJpbnRzQVN0YWdlNENhdGVnb3J5Um93CWU0MzJiODc4Njg0YjcyZjA3YjVjMzBkOGUzZDI0MWFmM2JhMjZhY2IwNjliZmE3MmJmY2FjZDBkZTEyMjY4ZjIKYm9keQlpbnRlcm5hbC9iZW5jaC9hbmFseXplX3Rlc3QuZ28JVGVzdEFuYWx5emVQcmludHNQQWdhaW5zdEEJZjVlY2I1Mzk0NGZmZjE1YzUyOGZmM2ZmNGRjMjhhNjdlMjJiZmIzZjg4Zjg2ODUxNzRiNjE5MWY3MDYzNzQxZApib2R5CWludGVybmFsL2JlbmNoL2FuYWx5emVfdGVzdC5nbwlUZXN0T25seVRoZVJlZ2lzdGVyZWRFeGNsdXNpb25zQXJlQWRtaXR0ZWQJZGI4NDc0MjRjNzY3NGU3MGFlNTQ3NzdlOTkzNDQ2MWFlOGQ1OTAyYmZkNmUyZGM5MGI0YjQxNmJhYzhiYmY1Zgpib2R5CWludGVybmFsL2JlbmNoL2FuYWx5emVfdGVzdC5nbwlUZXN0U3RhZ2VPbmVzUHVibGlzaGVkVmVyZGljdElzVW5jaGFuZ2VkCTk2MDliYmVlMzY5MGJhMWQxYjFjZTIyNWNiZmY5NDM1MWY2ZjBjZDQ3M2Q5OWM5N2E1NWI2MWQyZTY1MmNhNDUKYm9keQlpbnRlcm5hbC9iZW5jaC9hbmFseXplX3Rlc3QuZ28JVGVzdFRoZUFuYWx5c2lzUGFpcnNCeVRhc2tBbmRLZWVwc0V2ZXJ5QXR0ZW1wdAliMDkwM2ZkZGZmNWYzMmY5ZGM4YTRhZTU2MjkzZmUxZTA0MjQwMjBmNTE1NThlZjkwMjZmYzQ3NzEwYzI3MDFiCmJvZHkJaW50ZXJuYWwvYmVuY2gvYW5hbHl6ZV90ZXN0LmdvCVRlc3RUaGVQdWJsaXNoZWRTdGFnZXNXaXRob3V0VGhlVGFza3NTdXBlcnNlZGVkU2luY2UJODBhYTllOTZmMjIwY2IwMmMzNTAxMWI4ZTNkYzJhOWYzYTIwM2RhYTdiOTk5NzZmZmQ0ZmI2ZjU3ZTgwOTZmYgpib2R5CWludGVybmFsL2JlbmNoL2FuYWx5emVfdGVzdC5nbwlUZXN0VGhlVmFyaWVkTXVsdGlTaXRlUm93SXNEZXNjcmlwdGl2ZQk2ZWVmNDMxYWE2ZTdjOWJkYmZiOThmYmU3OGM3YTMxNmI3YmMwZTRmY2NhYWIxY2U2MDVlYTFlNmI3ZTI5NTQxCmJvZHkJaW50ZXJuYWwvYmVuY2gvYW5hbHl6ZV90ZXN0LmdvCVRlc3RUaGVWZXJkaWN0Rm9sbG93c1RoZVJlZ2lzdGVyZWRCYXIJNTE2NTE2MzQyZTA2YTdiNjM5NWRmMDg0MmE3NDk3ZmMxN2I0ZDUwNzBkMDFkMjMzZjU1ZmQzMjBiODUzMzllMwpib2R5CWludGVybmFsL2JlbmNoL2FuYWx5emVfdGVzdC5nbwlUZXN0VHdvU3RhZ2VzQXJlTmV2ZXJQb29sZWQJNTgxMGY5NmZhNjI2Y2YzOGI4ODY1OWYyOWNkNWM1MDlkODk2ZDYxY2Q2ZGY4NmViZTBjOGZmZDNlZmJmMWYwNg
+  ```
+  --- last 2 line(s) of stdout
+  32a33
+  > | stage | model | source | verdict | look | tasks | attempts | excluded | cost (X−A)/A [99%] | solved X−A [99%, Tango] | B shell reads |
+  ```
+- 2026-10-21 · 6353ec98* · exit 0 · `set -o pipefail …` · acceptance-sha256:f726713e144ebeaee9268ec8a4301c8bd9760229935c0c54482de05564490a25 · ms:693
+- 2026-10-21 · 6353ec98* · exit 0 · `set -o pipefail …` · acceptance-sha256:f726713e144ebeaee9268ec8a4301c8bd9760229935c0c54482de05564490a25 · ms:2782
+- 2026-10-21 · human-observed · S3 observed and signed off by Zy, 2026-10-21: the README Stage 5 sentences read against RESULTS.md and look-5.txt · acceptance-sha256:f726713e144ebeaee9268ec8a4301c8bd9760229935c0c54482de05564490a25

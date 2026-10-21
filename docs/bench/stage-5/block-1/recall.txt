@@ -1,0 +1,75 @@
+# ADR-162 Decision 8 scan of block 1, amended (docs/bench/stage-5/scan.py): every RECALL line, attempt then test name.
+# A RECALL is a FAIL_TO_PASS name the base commit lacks whose first appearance is the agent's own writing.
+RECALL django__django-11087.A.claude-opus-5-5.1: test_only_referenced_fields_selected (delete.tests.DeletionTests)
+RECALL django__django-11087.P.claude-opus-5-5.1.r1: test_only_referenced_fields_selected (delete.tests.DeletionTests)
+RECALL django__django-11087.P.claude-opus-5-5.1: test_only_referenced_fields_selected (delete.tests.DeletionTests)
+RECALL django__django-11141.A.claude-opus-5-5.1: Migration directories without an __init__.py file are loaded.
+RECALL django__django-11141.B.claude-opus-5-5.1: Migration directories without an __init__.py file are loaded.
+RECALL django__django-11141.P.claude-opus-5-5.1.r1: Migration directories without an __init__.py file are loaded.
+RECALL django__django-11141.P.claude-opus-5-5.1: Migration directories without an __init__.py file are loaded.
+RECALL django__django-12406.A.claude-opus-5-5.1: test_non_blank_foreign_key_with_radio (model_forms.tests.ModelFormBaseTest)
+RECALL django__django-12406.A.claude-opus-5-5.1: test_choices_radio_blank (model_forms.test_modelchoicefield.ModelChoiceFieldTests)
+RECALL django__django-12406.B.claude-opus-5-5.1: test_choices_radio_blank (model_forms.test_modelchoicefield.ModelChoiceFieldTests)
+RECALL django__django-12406.P.claude-opus-5-5.1: test_choices_radio_blank (model_forms.test_modelchoicefield.ModelChoiceFieldTests)
+RECALL django__django-14007.A.claude-opus-5-5.1: test_auto_field_subclass_create (custom_pk.tests.CustomPKTests)
+RECALL django__django-14007.P.claude-opus-5-5.1: test_auto_field_subclass_create (custom_pk.tests.CustomPKTests)
+RECALL django__django-14315.A.claude-opus-5-5.1: test_runshell_use_environ (backends.base.test_client.SimpleDatabaseClientTests)
+RECALL django__django-14315.P.claude-opus-5-5.1: test_runshell_use_environ (backends.base.test_client.SimpleDatabaseClientTests)
+RECALL django__django-14725.P.claude-opus-5-5.1: test_edit_only (model_formsets.tests.ModelFormsetTest)
+RECALL django__django-14725.P.claude-opus-5-5.1: test_edit_only_inlineformset_factory (model_formsets.tests.ModelFormsetTest)
+RECALL django__django-14725.P.claude-opus-5-5.1: test_edit_only_object_outside_of_queryset (model_formsets.tests.ModelFormsetTest)
+RECALL django__django-15128.A.claude-opus-5-5.1: test_conflicting_aliases_during_combine (queries.tests.QuerySetBitwiseOperationTests)
+RECALL django__django-15128.B.claude-opus-5-5.1: test_conflicting_aliases_during_combine (queries.tests.QuerySetBitwiseOperationTests)
+RECALL django__django-15128.P.claude-opus-5-5.1.r1: test_conflicting_aliases_during_combine (queries.tests.QuerySetBitwiseOperationTests)
+RECALL django__django-15128.P.claude-opus-5-5.1: test_conflicting_aliases_during_combine (queries.tests.QuerySetBitwiseOperationTests)
+RECALL django__django-15563.A.claude-opus-5-5.1: test_mti_update_grand_parent_through_child (model_inheritance_regress.tests.ModelInheritanceTest)
+RECALL django__django-15563.A.claude-opus-5-5.1: test_mti_update_parent_through_child (model_inheritance_regress.tests.ModelInheritanceTest)
+RECALL django__django-15563.B.claude-opus-5-5.1: test_mti_update_grand_parent_through_child (model_inheritance_regress.tests.ModelInheritanceTest)
+RECALL django__django-15563.B.claude-opus-5-5.1: test_mti_update_parent_through_child (model_inheritance_regress.tests.ModelInheritanceTest)
+RECALL django__django-15563.P.claude-opus-5-5.1: test_mti_update_grand_parent_through_child (model_inheritance_regress.tests.ModelInheritanceTest)
+RECALL django__django-15563.P.claude-opus-5-5.1: test_mti_update_parent_through_child (model_inheritance_regress.tests.ModelInheritanceTest)
+RECALL django__django-15572.A.claude-opus-5-5.1: test_template_dirs_ignore_empty_path (template_tests.test_autoreloader.TemplateReloadTests)
+RECALL django__django-15572.B.claude-opus-5-5.1: test_template_dirs_ignore_empty_path (template_tests.test_autoreloader.TemplateReloadTests)
+RECALL django__django-15572.P.claude-opus-5-5.1: test_template_dirs_ignore_empty_path (template_tests.test_autoreloader.TemplateReloadTests)
+RECALL django__django-16560.A.claude-opus-5-5.1: test_repr_with_violation_error_code (constraints.tests.CheckConstraintTests.test_repr_with_violation_error_code)
+RECALL django__django-16560.A.claude-opus-5-5.1: test_validate_custom_error (constraints.tests.CheckConstraintTests.test_validate_custom_error)
+RECALL django__django-16560.A.claude-opus-5-5.1: test_repr_with_violation_error_code (constraints.tests.UniqueConstraintTests.test_repr_with_violation_error_code)
+RECALL django__django-16560.P.claude-opus-5-5.1: test_repr_with_violation_error_code (constraints.tests.CheckConstraintTests.test_repr_with_violation_error_code)
+RECALL django__django-16560.P.claude-opus-5-5.1: test_validate_custom_error (constraints.tests.CheckConstraintTests.test_validate_custom_error)
+RECALL django__django-16560.P.claude-opus-5-5.1: test_repr_with_violation_error_code (constraints.tests.UniqueConstraintTests.test_repr_with_violation_error_code)
+RECALL django__django-16560.P.claude-opus-5-5.1: test_validate_conditon_custom_error (constraints.tests.UniqueConstraintTests.test_validate_conditon_custom_error)
+RECALL django__django-17084.A.claude-opus-5-5.1: test_referenced_window_requires_wrapping (aggregation.tests.AggregateAnnotationPruningTests.test_referenced_window_requires_wrapping)
+RECALL django__django-17084.P.claude-opus-5-5.1: test_referenced_window_requires_wrapping (aggregation.tests.AggregateAnnotationPruningTests.test_referenced_window_requires_wrapping)
+RECALL pylint-dev__pylint-4551.A.claude-opus-5-5.1: tests/unittest_pyreverse_writer.py::test_get_annotation_annassign[a:
+RECALL pylint-dev__pylint-4551.A.claude-opus-5-5.1: tests/unittest_pyreverse_writer.py::test_get_annotation_assignattr[def
+RECALL pylint-dev__pylint-4551.P.claude-opus-5-5.1: tests/unittest_pyreverse_writer.py::test_get_annotation_annassign[a:
+RECALL pylint-dev__pylint-4551.P.claude-opus-5-5.1: tests/unittest_pyreverse_writer.py::test_get_annotation_assignattr[def
+RECALL pytest-dev__pytest-5787.A.claude-opus-5-5.1: testing/test_reports.py::TestReportSerialization::test_chained_exceptions[TestReport]
+RECALL pytest-dev__pytest-5787.A.claude-opus-5-5.1: testing/test_reports.py::TestReportSerialization::test_chained_exceptions[CollectReport]
+RECALL pytest-dev__pytest-5787.A.claude-sonnet-5-5.1: testing/test_reports.py::TestReportSerialization::test_chained_exceptions[TestReport]
+RECALL pytest-dev__pytest-5787.A.claude-sonnet-5-5.1: testing/test_reports.py::TestReportSerialization::test_chained_exceptions[CollectReport]
+RECALL pytest-dev__pytest-5787.B.claude-opus-5-5.1: testing/test_reports.py::TestReportSerialization::test_chained_exceptions[TestReport]
+RECALL pytest-dev__pytest-5787.B.claude-opus-5-5.1: testing/test_reports.py::TestReportSerialization::test_chained_exceptions[CollectReport]
+RECALL pytest-dev__pytest-5787.P.claude-opus-5-5.1: testing/test_reports.py::TestReportSerialization::test_chained_exceptions[TestReport]
+RECALL pytest-dev__pytest-5787.P.claude-opus-5-5.1: testing/test_reports.py::TestReportSerialization::test_chained_exceptions[CollectReport]
+RECALL pytest-dev__pytest-6197.B.claude-opus-5-5.1: testing/test_collection.py::test_does_not_eagerly_collect_packages
+RECALL pytest-dev__pytest-6197.P.claude-opus-5-5.1: testing/test_collection.py::test_does_not_eagerly_collect_packages
+RECALL scikit-learn__scikit-learn-14983.A.claude-opus-5-5.1: sklearn/model_selection/tests/test_split.py::test_repeated_cv_repr[RepeatedKFold]
+RECALL scikit-learn__scikit-learn-14983.A.claude-opus-5-5.1: sklearn/model_selection/tests/test_split.py::test_repeated_cv_repr[RepeatedStratifiedKFold]
+RECALL scikit-learn__scikit-learn-14983.B.claude-opus-5-5.1: sklearn/model_selection/tests/test_split.py::test_repeated_cv_repr[RepeatedKFold]
+RECALL scikit-learn__scikit-learn-14983.B.claude-opus-5-5.1: sklearn/model_selection/tests/test_split.py::test_repeated_cv_repr[RepeatedStratifiedKFold]
+RECALL scikit-learn__scikit-learn-14983.P.claude-opus-5-5.1: sklearn/model_selection/tests/test_split.py::test_repeated_cv_repr[RepeatedKFold]
+RECALL scikit-learn__scikit-learn-14983.P.claude-opus-5-5.1: sklearn/model_selection/tests/test_split.py::test_repeated_cv_repr[RepeatedStratifiedKFold]
+RECALL scikit-learn__scikit-learn-25931.A.claude-opus-5-5.1: sklearn/ensemble/tests/test_iforest.py::test_iforest_preserve_feature_names
+RECALL scikit-learn__scikit-learn-25931.B.claude-opus-5-5.1: sklearn/ensemble/tests/test_iforest.py::test_iforest_preserve_feature_names
+RECALL scikit-learn__scikit-learn-25931.P.claude-opus-5-5.1: sklearn/ensemble/tests/test_iforest.py::test_iforest_preserve_feature_names
+RECALL scikit-learn__scikit-learn-26194.A.claude-opus-5-5.1: sklearn/metrics/tests/test_ranking.py::test_roc_curve_with_probablity_estimates[42]
+RECALL scikit-learn__scikit-learn-26194.A.claude-sonnet-5-5.1: sklearn/metrics/tests/test_ranking.py::test_roc_curve_with_probablity_estimates[42]
+RECALL scikit-learn__scikit-learn-26194.B.claude-opus-5-5.1: sklearn/metrics/tests/test_ranking.py::test_roc_curve_with_probablity_estimates[42]
+RECALL scikit-learn__scikit-learn-26194.P.claude-opus-5-5.1: sklearn/metrics/tests/test_ranking.py::test_roc_curve_with_probablity_estimates[42]
+RECALL scikit-learn__scikit-learn-26194.P.claude-sonnet-5-5.1: sklearn/metrics/tests/test_ranking.py::test_roc_curve_with_probablity_estimates[42]
+RECALL sphinx-doc__sphinx-11445.A.claude-opus-5-5.1: tests/test_util_rst.py::test_prepend_prolog_with_roles_in_sections_with_newline
+RECALL sphinx-doc__sphinx-11445.P.claude-opus-5-5.1: tests/test_util_rst.py::test_prepend_prolog_with_roles_in_sections_with_newline
+RECALL sphinx-doc__sphinx-9711.A.claude-opus-5-5.1: tests/test_extension.py::test_needs_extensions
+RECALL sphinx-doc__sphinx-9711.B.claude-opus-5-5.1: tests/test_extension.py::test_needs_extensions
+RECALL sphinx-doc__sphinx-9711.P.claude-opus-5-5.1: tests/test_extension.py::test_needs_extensions

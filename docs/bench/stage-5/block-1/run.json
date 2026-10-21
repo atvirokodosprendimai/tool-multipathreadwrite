@@ -1,0 +1,81 @@
+{
+  "stage": "stage5",
+  "tasks": [
+    "scikit-learn__scikit-learn-25931",
+    "scikit-learn__scikit-learn-26194",
+    "scikit-learn__scikit-learn-12682",
+    "django__django-14007",
+    "django__django-16560",
+    "scikit-learn__scikit-learn-14087",
+    "django__django-14725",
+    "django__django-15572",
+    "sympy__sympy-22080",
+    "sphinx-doc__sphinx-11445",
+    "pydata__xarray-6599",
+    "django__django-13741",
+    "pylint-dev__pylint-4604",
+    "django__django-15368",
+    "matplotlib__matplotlib-25311",
+    "django__django-14376",
+    "django__django-14315",
+    "pytest-dev__pytest-6197",
+    "django__django-17084",
+    "django__django-11087",
+    "pylint-dev__pylint-4551",
+    "django__django-11141",
+    "sympy__sympy-13974",
+    "pylint-dev__pylint-6386",
+    "sympy__sympy-18698",
+    "django__django-15128",
+    "sympy__sympy-21930",
+    "pytest-dev__pytest-5787",
+    "sympy__sympy-13852",
+    "astropy__astropy-8872",
+    "django__django-15563",
+    "django__django-15554",
+    "pytest-dev__pytest-7324",
+    "scikit-learn__scikit-learn-14983",
+    "django__django-15957",
+    "sphinx-doc__sphinx-9711",
+    "django__django-12741",
+    "django__django-12406",
+    "django__django-11239",
+    "sympy__sympy-22456"
+  ],
+  "models": [
+    "claude-sonnet-5-5",
+    "claude-opus-5-5"
+  ],
+  "configs": [
+    "A",
+    "B",
+    "P"
+  ],
+  "repeats": 1,
+  "seed": 156,
+  "cli_version": "2.1.302 (Claude Code)",
+  "mrw_version": "v1.68.0 (975c3ba)",
+  "containment": "bypass",
+  "profile": "stage5",
+  "plugin": {
+    "tag": "v3.8.40",
+    "commit": "ae3bdb850749b4b92f4493eebed3ba943f3764eb"
+  },
+  "status_line_sha256": "171a9b5ce5b38cea2dc5d8eaab69fd5efa977d020394cc0a2b0645b32189bf47",
+  "budget_seconds": 1200,
+  "prompt_sha256": "4ab9117eb27510a1d2e6151a579aa66a1c5ae175f4e2797c087084db527cb333",
+  "block": 1,
+  "looks": 5,
+  "configs_for": {
+    "claude-opus-5-5": [
+      "A",
+      "B",
+      "P"
+    ],
+    "claude-sonnet-5-5": [
+      "A",
+      "B",
+      "P"
+    ]
+  }
+}

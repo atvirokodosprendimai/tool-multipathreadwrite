@@ -1,0 +1,47 @@
+{
+  "attempt": "psf__requests-1766.A.claude-opus-5-5.1",
+  "stage": "stage5",
+  "task": "psf__requests-1766",
+  "shape": "swe-bench",
+  "source": "swe-bench",
+  "model": "claude-opus-5-5",
+  "config": "A",
+  "repeat": 1,
+  "order": 143,
+  "started": "2026-10-20T13:31:47Z",
+  "wall_ms": 25847,
+  "cli_version": "2.1.302 (Claude Code)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 6,
+  "tool_calls": 5,
+  "total_cost_usd": 0.0640472,
+  "usage": {
+    "input_tokens": 12,
+    "output_tokens": 1014,
+    "cache_read_input_tokens": 52356,
+    "cache_creation_input_tokens": 4156
+  },
+  "init_tools": [
+    "Bash",
+    "Edit",
+    "Glob",
+    "Grep",
+    "Read",
+    "Skill",
+    "Write"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": true,
+    "harness_resolved": true,
+    "broke_tests": false
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 1,
+    "insertions": 1,
+    "deletions": 1
+  },
+  "status": "done"
+}
