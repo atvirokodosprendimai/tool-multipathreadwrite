@@ -121,4 +121,4 @@ From that agent's own review of a day of use (2026-10-22). Its writes were sound
 | finding a JSON value by grepping its key and counting lines | wrong lines when the layout differs | a JSON path spec: `f.json:$["id"].markdown` serves that value |
 | reading before knowing how much matches | context spent on lines it did not need | `mrw read --grep P --count` first |
 | a grep-and-cut pipeline to learn a line number, then a hunk on that number | two calls, and a number that goes stale | a pattern address, `@@ f.go /^func A/ replace …`, with `occurrence=N` when the start matches more than once |
-| `sed -i` on a plan whose `body=` count was wrong | an edit outside the ledger | regenerate the plan, or leave `body=` out where it is optional: it is required for an empty create (`body=0`), when the first body line itself begins `body=`, and, with `raw=true`, when a body line looks like a hunk header |
+| `sed -i` on a plan whose `body=` count was wrong | an edit outside the ledger | regenerate the plan from what you read; `body=` is a line count, and when it is required is the parser's rule, stated by `mrw instructions` and by the refusal itself, not repeated here |
