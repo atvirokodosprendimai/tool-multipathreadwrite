@@ -130,6 +130,20 @@ rather than a threshold, and point at `mrw instructions --core` instead of copyi
 subagent with the commands, not the word. In a sandbox, export `XDG_STATE_HOME` to a writable directory
 first. [docs/agents.md](docs/agents.md) has the trigger, the brief and the evidence behind each.
 
+A host that loads skills can be handed the same rules as a skill: `mrw --skill` prints mrw's Agent Skills
+`SKILL.md`, and `mrw --skill --dir DIR` installs it as `DIR/mrw/SKILL.md` in the folder the host reads skills
+from (on one Mac on 2026-10-22: `~/.claude/skills`, `~/.codex/skills`, `~/.cursor/skills`,
+`~/.agents/skills`; your host's documentation says which). It replaces only a skill it wrote, so run it again
+after upgrading mrw. Add it beside the trigger, not in its place: a host loads a skill when it judges it
+relevant, and nothing measured says it does for a routine edit (ADR-168). `mrw --help` opens with this line.
+
+**What allowing mrw allows.** mrw runs as you. A harness rule that allows it (`Bash(mrw:*)` or its equivalent)
+allows writes to any file you can write, under any `--root` it is given, and shell through `--then-sh`,
+`mrw check` and `--then`; a host's per-path rules for its Edit and Write tools do not reach it. mrw's own
+refusals — `.git`, its state, a link that leaves the root — keep a plan honest, not an agent contained.
+Contain an agent with the host's sandbox or the operating system's permissions, or allow mrw only where you
+would allow every write ([docs/agents.md](docs/agents.md) §7, ADR-168).
+
 ### From source
 
 Go 1.26.10 or newer (`go.mod`). One dependency, no cgo:

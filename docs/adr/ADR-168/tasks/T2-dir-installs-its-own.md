@@ -1,0 +1,124 @@
+# Task ADR-168-T2: `mrw skill --dir DIR` installs through the write engine, and replaces only its own
+
+**Depends-on:** T1
+**Covers:** none — no spec
+**Estimated scope:** M
+**Owner:** unassigned
+**Produces:** `mrw skill --dir`, contract §293 (install rows)
+**Consumes:** `guide.Skill(version)` (T1), `mrw skill` (T1)
+**Data dependency:** hermetic
+**Proof map:** v1
+**Rests-on:** `the install test run`, `the install test passed`, `the shape test passed`, `the fuzz test passed`, `the contract run`, `the install rows pass`, `the refusal row passes`, `gofmt`, `the engine packages it does not own`
+
+## Goal
+
+Decision 2: `--dir DIR` applies one hunk to `DIR/mrw/SKILL.md` through `writer.Prepare` and its landing — `create` when absent, a whole-file replace after the read engine served the file when present — and says `created`, `replaced` (old and new `mrw-version`) or `unchanged`. It refuses, exit 1 and nothing written, a file whose frontmatter `metadata` lacks `generated-by: "mrw skill"`; exit 2 a `DIR` that is not an existing directory; and every other refusal is the engine's.
+
+## Affected Files
+
+| File | Change | Why |
+|------|--------|-----|
+| `cmd/mrw/main.go` | edit | the `--dir` flag on `skillCmd()` — the line that selects the install |
+| `cmd/mrw/skill168.go` | add | builds the hunk, reads and judges the existing file, maps the engine's result to the one-line report |
+| `cmd/mrw/skill168_test.go` | edit | the install test |
+| `cmd/mrw/paddedstress_test.go` | edit | `skill` joins the subcommands the random-argv loop skips (`:83`), with its reason in the comment (`:30-31`), so the loop cannot write `d /mrw/SKILL.md` into its fixture |
+| `scripts/contract.sh` | edit | §293 install rows |
+
+## Ordered Steps
+
+1. [S1] Write `TestSkillDirInstallsAndReplacesOnlyItsOwn` in a temp directory, and confirm RED. Cases:
+   - The first run says `created`; the file equals `mrw skill`'s output, mode 0644. A second run says `unchanged` and writes nothing: same mtime, no write in the tally. A file stamped with another `mrw-version` is `replaced`, naming both versions, and its mode is kept. `mrw --skill --dir` does the same.
+   - Refused, exit 1, bytes unchanged: a hand-written `SKILL.md`; one whose `generated-by: "mrw skill"` is only in the body or a comment; one with malformed frontmatter.
+   - Refused, nothing written, the target unchanged: `SKILL.md` as a link to an older stamped skill inside `DIR`, and `DIR/mrw` as a link to a folder inside `DIR` (both refused by `--dir` itself, since the engine follows a link that stays in its root); `DIR/mrw` as a link to a directory outside `DIR` (the engine). Unix only: Windows junctions are judged by the same `Lstat` check, read from the Go source.
+   - `--dir .` with a legacy `./.mrw/` migrates it first; `--dir` into a root whose ledger a newer mrw wrote names it.
+   - Refused: `DIR` inside a `.git` directory. A missing `DIR`, and `DIR` that is a file, are exit 2 and are not created.
+   - A sibling file in `DIR/mrw` survives.
+   - Plain `mrw skill` still writes nothing.
+   - `TestSkillDirReadsOnlyTheShapeItPrints` (the Codex review of 2026-10-22): a `generated-by` line inside a quoted description is a person's file; a CRLF copy of the current skill is `unchanged`; a CRLF or no-final-newline older skill is `replaced` once and then `unchanged`; a stamped file over 1 MiB is not mrw's. `TestSkillDirRefusesAFIFOWithoutWaiting` (`cmd/mrw/skill168_fifo_unix_test.go`, unix only): a FIFO `SKILL.md` is refused, exit 1, within 10 s; it runs in `go test ./...` on Linux and macOS and is not in this fence, which must also run where no FIFO exists.
+2. [S2] The flag and `skill168.go`. Mutants: the marker check is dropped; the marker is accepted from anywhere in the file; `DIR` is created when missing; `unchanged` rewrites the file; a `SKILL.md` link inside `DIR` is written through. The fuzz loop's exclusion of `skill` is hygiene, not a verdict: the loop asserts that the guards agree with the parser and never reads its fixture, so dropping `skill` from it changes no result — measured 2026-10-22, that mutant survived and is logged as such. [proof: mutation]
+3. [S3] Contract §293 install rows, each paired with its refusal: `mrw skill --dir creates, keeps and replaces only its own skill` and `mrw skill --dir refuses a hand-written skill and writes nothing`. [proof: acceptance]
+
+## Acceptance
+
+```bash
+set -o pipefail
+out=$(go test ./cmd/mrw/ -count=1 -timeout 600s -v -run 'TestSkillDirInstallsAndReplacesOnlyItsOwn$|TestSkillDirReadsOnlyTheShapeItPrints$|TestTheGuardsAgreeWithTheParserOnRandomArgv$' 2>&1) \
+  && grep -qE '^--- PASS: TestSkillDirInstallsAndReplacesOnlyItsOwn \(' <<<"$out" \
+  && grep -qE '^--- PASS: TestSkillDirReadsOnlyTheShapeItPrints \(' <<<"$out" \
+  && grep -qE '^--- PASS: TestTheGuardsAgreeWithTheParserOnRandomArgv \(' <<<"$out" \
+  && c=$(./scripts/contract.sh 2>&1) \
+  && grep -qF 'PASS  mrw skill --dir creates, keeps and replaces only its own skill' <<<"$c" \
+  && grep -qF 'PASS  mrw skill --dir refuses a hand-written skill and writes nothing' <<<"$c" \
+  && [ -z "$(gofmt -l internal cmd)" ] \
+  && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read internal/apply internal/plan internal/seen internal/check internal/state
+```
+
+## Tests
+
+| Test name | File | Verifies | Covers | Steps |
+|-----------|------|----------|--------|-------|
+| `TestSkillDirInstallsAndReplacesOnlyItsOwn` | `cmd/mrw/skill168_test.go` | created, unchanged, replaced; the marker refusals; the engine's link and `.git` refusals; a missing `DIR` is not made | none | S1, S2 |
+| `TestTheGuardsAgreeWithTheParserOnRandomArgv` | `cmd/mrw/paddedstress_test.go` | the random-argv loop skips `skill` and still passes | none | S2 |
+| `TestSkillDirReadsOnlyTheShapeItPrints` | `cmd/mrw/skill168_test.go` | the exact printed shape is mrw's and nothing else; line endings do not make a replace repeat; the size bound | none | S1, S2 |
+
+## Reachability
+
+| Rung | How this task shows it |
+|------|------------------------|
+| 1 — exists | `cmd/mrw/skill168.go` |
+| 2 — something selects it | the `--dir` flag of `skill` |
+| 3 — the caller can discover it | `mrw skill --help`; the skill's own closing paragraph; T3's help line and docs |
+| 4 — it is used | none yet; no telemetry (ADR-009) |
+
+## Invariants
+
+- Without `--dir`, `mrw skill` writes nothing anywhere.
+- No engine package changes: `--dir` is a caller of `writer`, `apply` and `read`, as `mrw --root DIR write` is.
+- The `windows` CI job runs the test; held files, reserved names and junctions are the engine's, tested where the engine is (ADR-071, ADR-081, ADR-125).
+
+## Risks
+
+- Two paths are not driven by this task's test, and say so: the `sha=` guard that binds a replace to the judged bytes is the engine's, covered by `internal/apply/apply_test.go` `TestPreconditions` ("stale sha"); a landed write whose ledger then fails (a holder on Windows) prints its line and exits 2, read from the code, with no fixture that holds the ledger.
+
+## Stop Condition
+
+Stop and ask if `writer.Prepare` with `CheckOff` followed by `Land` (`internal/writer/flow.go:93`, `:150`, the pair `mrw write` calls at `cmd/mrw/main.go:1862`) cannot apply the hunk to `DIR` as the root: the record would then need a choice it did not make.
+
+## Out of Scope
+
+- Choosing `DIR` for the caller (permanent: boundary: the record's Out of Scope — the host owns its directory)
+
+## Mutation Log
+- 2026-10-22 · 3a2e963e* · mutant killed · exit 1 · `cmd/mrw/skill168.go` · S2: the marker check is dropped · acceptance-sha256:eec42f9481b41e00e7a2125b8b2967861f3004c8da053d2803b190aa593fa548
+- 2026-10-22 · 3a2e963e* · mutant killed · exit 1 · `cmd/mrw/skill168.go` · S2: the marker is accepted from anywhere in the file · acceptance-sha256:eec42f9481b41e00e7a2125b8b2967861f3004c8da053d2803b190aa593fa548
+- 2026-10-22 · 3a2e963e* · mutant killed · exit 1 · `cmd/mrw/skill168.go` · S2: DIR is created when missing · acceptance-sha256:eec42f9481b41e00e7a2125b8b2967861f3004c8da053d2803b190aa593fa548
+- 2026-10-22 · 3a2e963e* · mutant killed · exit 1 · `cmd/mrw/skill168.go` · S2: unchanged rewrites the file · acceptance-sha256:eec42f9481b41e00e7a2125b8b2967861f3004c8da053d2803b190aa593fa548
+- 2026-10-22 · 3a2e963e* · mutant killed · exit 1 · `cmd/mrw/skill168.go` · S2: a SKILL.md link inside DIR is written through · acceptance-sha256:eec42f9481b41e00e7a2125b8b2967861f3004c8da053d2803b190aa593fa548
+- 2026-10-22 · 3a2e963e* · mutant survived · exit 0 · `cmd/mrw/paddedstress_test.go` · S2: skill is dropped from the fuzz loop exclusions · acceptance-sha256:eec42f9481b41e00e7a2125b8b2967861f3004c8da053d2803b190aa593fa548
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
+- 2026-10-22 · 3a2e963e* · mutant killed · exit 1 · `cmd/mrw/skill168.go` · S2: a description that is not the folded block Skill prints is accepted as mrw's · acceptance-sha256:1afb770edf0d332eb1bac92101974ec82b00dcb757e02f8a31d737cacd73aca9
+- 2026-10-22 · 3a2e963e* · mutant killed · exit 1 · `cmd/mrw/skill168.go` · S2: line endings make every run a replace · acceptance-sha256:1afb770edf0d332eb1bac92101974ec82b00dcb757e02f8a31d737cacd73aca9
+- 2026-10-22 · 3a2e963e* · mutant killed · exit 1 · `cmd/mrw/skill168.go` · S2: the marker check is dropped · acceptance-sha256:1afb770edf0d332eb1bac92101974ec82b00dcb757e02f8a31d737cacd73aca9
+
+## Verification Log
+- 2026-10-22 · 3a2e963e* · exit 1 · `set -o pipefail …` · acceptance-sha256:eec42f9481b41e00e7a2125b8b2967861f3004c8da053d2803b190aa593fa548 · ms:1065 · test-lock-sha256:0febef2069711abb6f4b528da586983d559111f0aef594eaa01fd0c11a643f37 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJY21kL21ydy9wYWRkZWRzdHJlc3NfdGVzdC5nbwlUZXN0VGhlR3VhcmRzQWdyZWVXaXRoVGhlUGFyc2VyT25SYW5kb21Bcmd2CWQ3OWE2MWJhMTkxN2ZjOWViNTFmMWJlM2UxODA4NGI0NGQ1ZjU3ZjY1YTVkYzkwZTQ2ZTQ1ZjUyMTFiZmEzODEKYm9keQljbWQvbXJ3L3NraWxsMTY4X3Rlc3QuZ28JVGVzdFNraWxsQ29tbWFuZFByaW50c1RoZVNraWxsCTk0NjY4ZTY2YTYyY2RhM2MyZjc1M2Y1YWQzZjg3MDUyNWExMWFmZDkyODNiNWU4NWNiMTk5YWU1Y2NjNThmZmUKYm9keQljbWQvbXJ3L3NraWxsMTY4X3Rlc3QuZ28JVGVzdFNraWxsRGlySW5zdGFsbHNBbmRSZXBsYWNlc09ubHlJdHNPd24JNzA1NTkxNmU2MTA4ZmU0M2Q5Mzk2Yjk2ZWE1ZGExNDhjNGJmZGE2NGU1ZTE4YTNlMGQ5OTUyNTQ1OTQ3YmZhMg
+  ```
+  ```
+- 2026-10-22 · 3a2e963e* · exit 0 · `set -o pipefail …` · acceptance-sha256:eec42f9481b41e00e7a2125b8b2967861f3004c8da053d2803b190aa593fa548 · ms:86197
+- 2026-10-22 · 3a2e963e* · exit 0 · `set -o pipefail …` · acceptance-sha256:eec42f9481b41e00e7a2125b8b2967861f3004c8da053d2803b190aa593fa548 · ms:139725
+- 2026-10-22 · 3a2e963e* · exit 0 · `set -o pipefail …` · acceptance-sha256:eec42f9481b41e00e7a2125b8b2967861f3004c8da053d2803b190aa593fa548 · ms:82057
+- 2026-10-22 · 3a2e963e* · exit 0 · `set -o pipefail …` · acceptance-sha256:eec42f9481b41e00e7a2125b8b2967861f3004c8da053d2803b190aa593fa548 · ms:78448
+- 2026-10-22 · 3a2e963e* · exit 0 · `set -o pipefail …` · acceptance-sha256:eec42f9481b41e00e7a2125b8b2967861f3004c8da053d2803b190aa593fa548 · ms:78300
+- 2026-10-22 · 3a2e963e* · exit 0 · `set -o pipefail …` · acceptance-sha256:eec42f9481b41e00e7a2125b8b2967861f3004c8da053d2803b190aa593fa548 · ms:136347
+- 2026-10-22 · 3a2e963e* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:eec42f9481b41e00e7a2125b8b2967861f3004c8da053d2803b190aa593fa548 · ms:0 · test-lock-sha256:a02199e42185e2a34940d8e2fea80c904c89012ee7b7403284506999477713b0 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJY21kL21ydy9wYWRkZWRzdHJlc3NfdGVzdC5nbwlUZXN0VGhlR3VhcmRzQWdyZWVXaXRoVGhlUGFyc2VyT25SYW5kb21Bcmd2CWMzNDIyZTYyMGY3MWI5NzRmY2NiNjA2YjUyYmQ5YWU1NWI1NWU0YzQ3YWJiODFkZmNiYzZhMjAzZjU4MmU0NjIKYm9keQljbWQvbXJ3L3NraWxsMTY4X3Rlc3QuZ28JVGVzdFJvb3RIZWxwUG9pbnRzQWdlbnRzQXRUaGVTa2lsbAkzY2NmZDA5ZjViZTIzMGQ3ZjExNTdjNTRhZjA3MzUzMTI4YTg4NTk5OGVjZGJjMzJlY2MxMzQ1Y2NiYjhiOGUxCmJvZHkJY21kL21ydy9za2lsbDE2OF90ZXN0LmdvCVRlc3RTa2lsbENvbW1hbmRQcmludHNUaGVTa2lsbAk5NDY2OGU2NmE2MmNkYTNjMmY3NTNmNWFkM2Y4NzA1MjVhMTFhZmQ5MjgzYjVlODVjYjE5OWFlNWNjYzU4ZmZlCmJvZHkJY21kL21ydy9za2lsbDE2OF90ZXN0LmdvCVRlc3RTa2lsbERpckluc3RhbGxzQW5kUmVwbGFjZXNPbmx5SXRzT3duCTVjYzdiYzA3MDU2ZDNkZDE5ZjhkZTRlN2ZiNTIyMzdmMjJiZDIwYTQ0MDEyMTYzZjUwNjllMmZhZmMxZTczNzQKYm9keQljbWQvbXJ3L3NraWxsMTY4X3Rlc3QuZ28JVGVzdFRoZVJlcG9zaXRvcnlTa2lsbElzVGhlQmluYXJ5c1NraWxsCTA4YWIzZjg3YjBmMDc2ZDRjNmRjYjRhNDY1YTEyMWE1YzE4ZjU1OWU2NWFiMDExYWE2MDhlZWQ0MTQ4ZTBiYzU · test-lock-kind:replace
+- 2026-10-22 · 3a2e963e* · exit 1 · `set -o pipefail …` · acceptance-sha256:eec42f9481b41e00e7a2125b8b2967861f3004c8da053d2803b190aa593fa548 · ms:81201
+  ```
+  ```
+- 2026-10-22 · 3a2e963e* · exit 0 · `set -o pipefail …` · acceptance-sha256:1afb770edf0d332eb1bac92101974ec82b00dcb757e02f8a31d737cacd73aca9 · ms:87592
+- 2026-10-22 · 3a2e963e* · exit 0 · `set -o pipefail …` · acceptance-sha256:1afb770edf0d332eb1bac92101974ec82b00dcb757e02f8a31d737cacd73aca9 · ms:86781
+- 2026-10-22 · 3a2e963e* · exit 0 · `set -o pipefail …` · acceptance-sha256:1afb770edf0d332eb1bac92101974ec82b00dcb757e02f8a31d737cacd73aca9 · ms:86691
+- 2026-10-22 · 3a2e963e* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:1afb770edf0d332eb1bac92101974ec82b00dcb757e02f8a31d737cacd73aca9 · ms:0 · test-lock-sha256:a497346904f874949bc98b56517bd57ad7a97271ea76cc7cb2bbde4ca761befc · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJY21kL21ydy9wYWRkZWRzdHJlc3NfdGVzdC5nbwlUZXN0VGhlR3VhcmRzQWdyZWVXaXRoVGhlUGFyc2VyT25SYW5kb21Bcmd2CWMzNDIyZTYyMGY3MWI5NzRmY2NiNjA2YjUyYmQ5YWU1NWI1NWU0YzQ3YWJiODFkZmNiYzZhMjAzZjU4MmU0NjIKYm9keQljbWQvbXJ3L3NraWxsMTY4X2ZpZm9fdW5peF90ZXN0LmdvCVRlc3RTa2lsbERpclJlZnVzZXNBRklGT1dpdGhvdXRXYWl0aW5nCTNmYmRiN2U5M2NiODUyNmNkNTA1ZTk4NGUyMjI3ZTNiMzMxNDEzNTM2NDEwZmRhYjU4ZDI0Mjk2OGE3ZTVlZDQKYm9keQljbWQvbXJ3L3NraWxsMTY4X3Rlc3QuZ28JVGVzdFJvb3RIZWxwUG9pbnRzQWdlbnRzQXRUaGVTa2lsbAkzY2NmZDA5ZjViZTIzMGQ3ZjExNTdjNTRhZjA3MzUzMTI4YTg4NTk5OGVjZGJjMzJlY2MxMzQ1Y2NiYjhiOGUxCmJvZHkJY21kL21ydy9za2lsbDE2OF90ZXN0LmdvCVRlc3RTa2lsbENvbW1hbmRQcmludHNUaGVTa2lsbAk5NDY2OGU2NmE2MmNkYTNjMmY3NTNmNWFkM2Y4NzA1MjVhMTFhZmQ5MjgzYjVlODVjYjE5OWFlNWNjYzU4ZmZlCmJvZHkJY21kL21ydy9za2lsbDE2OF90ZXN0LmdvCVRlc3RTa2lsbERpckluc3RhbGxzQW5kUmVwbGFjZXNPbmx5SXRzT3duCWE2MTIwMTkwZjI1YzVmYTBlZTk4NDQxZTgzNjRjYWE2OTMxZGU5NTdmNjMxYTBjM2I0MTZmMGY1MTQ5OTkxOTMKYm9keQljbWQvbXJ3L3NraWxsMTY4X3Rlc3QuZ28JVGVzdFNraWxsRGlyUmVhZHNPbmx5VGhlU2hhcGVJdFByaW50cwlmYzJiZGQ2YmFjY2Y2Nzk0YjEwN2I3NThiNWMzZTk5MjJiNTNjNDQ0OTI0NjJmYzU1ZjQ0YmFiNjYwZjQ5MTk2CmJvZHkJY21kL21ydy9za2lsbDE2OF90ZXN0LmdvCVRlc3RUaGVSZXBvc2l0b3J5U2tpbGxJc1RoZUJpbmFyeXNTa2lsbAkwOGFiM2Y4N2IwZjA3NmQ0YzZkY2I0YTQ2NWExMjFhNWMxOGY1NTllNjVhYjAxMWFhNjA4ZWVkNDE0OGUwYmM1 · test-lock-kind:replace
+- 2026-10-22 · 3a2e963e* · exit 0 · `set -o pipefail …` · acceptance-sha256:1afb770edf0d332eb1bac92101974ec82b00dcb757e02f8a31d737cacd73aca9 · ms:78701
+- 2026-10-22 · 3a2e963e* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:1afb770edf0d332eb1bac92101974ec82b00dcb757e02f8a31d737cacd73aca9 · ms:0 · test-lock-sha256:c210ac125719ec47d041a54502b77a95246903130efb33ad7b03a0c0c50283a4 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJY21kL21ydy9wYWRkZWRzdHJlc3NfdGVzdC5nbwlUZXN0VGhlR3VhcmRzQWdyZWVXaXRoVGhlUGFyc2VyT25SYW5kb21Bcmd2CWMzNDIyZTYyMGY3MWI5NzRmY2NiNjA2YjUyYmQ5YWU1NWI1NWU0YzQ3YWJiODFkZmNiYzZhMjAzZjU4MmU0NjIKYm9keQljbWQvbXJ3L3NraWxsMTY4X3Rlc3QuZ28JVGVzdFJvb3RIZWxwUG9pbnRzQWdlbnRzQXRUaGVTa2lsbAkzY2NmZDA5ZjViZTIzMGQ3ZjExNTdjNTRhZjA3MzUzMTI4YTg4NTk5OGVjZGJjMzJlY2MxMzQ1Y2NiYjhiOGUxCmJvZHkJY21kL21ydy9za2lsbDE2OF90ZXN0LmdvCVRlc3RTa2lsbENvbW1hbmRQcmludHNUaGVTa2lsbAk5NDY2OGU2NmE2MmNkYTNjMmY3NTNmNWFkM2Y4NzA1MjVhMTFhZmQ5MjgzYjVlODVjYjE5OWFlNWNjYzU4ZmZlCmJvZHkJY21kL21ydy9za2lsbDE2OF90ZXN0LmdvCVRlc3RTa2lsbERpckluc3RhbGxzQW5kUmVwbGFjZXNPbmx5SXRzT3duCWE2MTIwMTkwZjI1YzVmYTBlZTk4NDQxZTgzNjRjYWE2OTMxZGU5NTdmNjMxYTBjM2I0MTZmMGY1MTQ5OTkxOTMKYm9keQljbWQvbXJ3L3NraWxsMTY4X3Rlc3QuZ28JVGVzdFNraWxsRGlyUmVhZHNPbmx5VGhlU2hhcGVJdFByaW50cwlmYzJiZGQ2YmFjY2Y2Nzk0YjEwN2I3NThiNWMzZTk5MjJiNTNjNDQ0OTI0NjJmYzU1ZjQ0YmFiNjYwZjQ5MTk2CmJvZHkJY21kL21ydy9za2lsbDE2OF90ZXN0LmdvCVRlc3RUaGVSZXBvc2l0b3J5U2tpbGxJc1RoZUJpbmFyeXNTa2lsbAkwOGFiM2Y4N2IwZjA3NmQ0YzZkY2I0YTQ2NWExMjFhNWMxOGY1NTllNjVhYjAxMWFhNjA4ZWVkNDE0OGUwYmM1 · test-lock-kind:replace

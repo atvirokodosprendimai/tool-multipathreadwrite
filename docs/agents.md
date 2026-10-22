@@ -16,6 +16,7 @@ Put the trigger where the host loads it on every session, not in a document the 
 | Cursor | `.cursor/rules/mrw.mdc` with `alwaysApply: true` (repository or `~/.cursor/rules/`) |
 | opencode | the plugin in `cmd/opencode/mrw-plugin` (README, "opencode") |
 | any other | whatever file that host injects at session start |
+| a host that loads skills | the trigger above, and the skill beside it: `mrw --skill --dir <its skills folder>` |
 
 **Say "always", never a threshold.** An instruction that said to use mrw for "3+ edits, 2+ files, several
 ranges; below that, don't" told agents never to use it, because an agent works one edit per turn and no
@@ -59,6 +60,13 @@ Change them together.
 sound plans all day and read badly all day; it found the read recipes only when it read `mrw instructions`
 at the end of the day, and listed the habits in §6. Telling the agent to run `mrw instructions --core` at
 session start costs a few hundred input tokens once.
+
+**Add the skill beside the trigger, not in its place.** `mrw --skill` prints mrw's Agent Skills `SKILL.md` — a
+description the host loads every session, then `mrw instructions --core` and the recipes — and
+`mrw --skill --dir DIR` installs it as `DIR/mrw/SKILL.md`, replacing only one `mrw skill` wrote. A host loads
+a skill's body when the model judges it relevant, and nothing measured says it does for a routine edit, so
+the trigger stays (ADR-168). After upgrading mrw, run the same `--dir` again: the skill names the version that
+printed it.
 
 ## 2. A brief to a subagent carries the commands, not the word
 
@@ -122,3 +130,21 @@ From that agent's own review of a day of use (2026-10-22). Its writes were sound
 | reading before knowing how much matches | context spent on lines it did not need | `mrw read --grep P --count` first |
 | a grep-and-cut pipeline to learn a line number, then a hunk on that number | two calls, and a number that goes stale | a pattern address, `@@ f.go /^func A/ replace …`, with `occurrence=N` when the start matches more than once |
 | `sed -i` on a plan whose `body=` count was wrong | an edit outside the ledger | regenerate the plan from what you read. `body=` is an optional line count: leave it out unless the body needs one. Where it is needed and missing, the plan is refused with a hint, except for a body line that is itself a valid hunk header (`@@ b.txt 0 create`), which silently starts a new hunk; a body holding one needs `body=N raw=true` |
+
+## 7. What allowing mrw allows
+
+mrw runs as its user, so a harness rule that allows it — `Bash(mrw:*)` in Claude Code, or its equivalent
+elsewhere — allows:
+
+- **writes to any file the user can write.** `--root DIR` names any directory, and mrw confines a path to
+  the root it was given, not to a root anyone chose.
+  A host's per-path rules for its Edit and Write tools do not reach a shell command, so `deny Write(.env)`
+  or `allow Edit(src/**)` does not stop `mrw write`.
+- **shell.** `--then-sh 'CMD'` runs any command; `mrw check` and `--then` run what the project declares.
+
+mrw's own refusals — a write into `.git`, into its state directory, through a link that leaves the root, to
+a reserved Windows name — keep a plan honest, not an agent contained. The trigger and the skill move an
+agent off the host's Edit and Write tools and onto mrw, so the agent is told the same in the skill: those
+rules' absence is not permission. Contain an agent that uses mrw with the host's sandbox or the operating
+system's permissions, or allow mrw only where you would allow every write (ADR-168 Decision 6). This says
+what mrw does when it runs; how each host evaluates a rule for a shell command is the host's to document.

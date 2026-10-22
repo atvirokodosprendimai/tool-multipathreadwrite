@@ -28,7 +28,8 @@ import (
 // stress-testing skill's v2 rule): subcommands from root.Commands, flags
 // from each command's own and inherited sets, iter verbs from the refusal
 // at main.go:1355. Excluded on purpose: mcp (blocks on stdin), seen
-// (--prune walks the state base), instructions and version (no paths).
+// (--prune walks the state base), instructions and version (no paths), and
+// skill, whose --dir writes outside the fixture's root by design (ADR-168).
 //
 // MRW_STRESS_N cases (default 300), MRW_STRESS_SEED (default 1). A failure
 // prints the seed, the iteration, the argv, what the parser delivered and
@@ -80,7 +81,7 @@ func TestTheGuardsAgreeWithTheParserOnRandomArgv(t *testing.T) {
 	var subs []*cli.Command
 	for _, c := range root.Commands {
 		switch c.Name {
-		case "mcp", "seen", "instructions", "version":
+		case "mcp", "seen", "instructions", "version", "skill":
 			continue
 		}
 		subs = append(subs, c)
