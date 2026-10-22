@@ -530,6 +530,22 @@ func TestUnkeptComponentFindsATrailingDotOrSpace(t *testing.T) {
 	}
 }
 
+// The Codex review of 50c7c60: a DIR whose own spelling ends in mrw/SKILL.md
+// puts " mrw/SKILL.md" inside the engine's absolute path; that path is left
+// whole, and so is a temporary name beside it.
+func TestCallersReasonLeavesAnAbsolutePathUnderDIRWhole(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "host mrw", "SKILL.md")
+	for _, abs := range []string{filepath.Join(dir, "mrw", "SKILL.md"), filepath.Join(dir, "mrw", ".mrw-deadbeef")} {
+		reason := "held open (open " + abs + ": busy)"
+		if got := callersReason(reason, dir); got != reason {
+			t.Errorf("callersReason(%q) = %q, want it unchanged", reason, got)
+		}
+	}
+	if got, want := callersReason("mrw/SKILL.md is refused", dir), filepath.ToSlash(filepath.Join(dir, "mrw"))+"/SKILL.md is refused"; got != want {
+		t.Errorf("the relative name beside it: %q, want %q", got, want)
+	}
+}
+
 // The Codex review of 6860a48: a file of mixed line endings keeps them only
 // while it is left alone — a replace writes LF — so the note claims CRLF kept
 // only for a file all in CRLF.

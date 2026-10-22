@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -277,10 +278,25 @@ var callerPath = regexp.MustCompile(`(^|[\s("'])mrw([/\\])(SKILL\.md|\(a tempora
 
 // callersReason is an engine refusal in the caller's spelling: DIR/mrw/… for
 // the engine's mrw/…, with the separator the engine wrote there, and the name
-// of a temporary file the engine could not make replaced by what it was.
+// of a temporary file the engine could not make replaced by what it was. An
+// absolute path the engine names under DIR is set aside first and put back
+// last, so no spelling of DIR — "/tmp/host mrw/SKILL.md" included — can make a
+// relative name appear inside it (the Codex review of 50c7c60).
 func callersReason(reason, dir string) string {
+	var spans []string
+	if abs, err := filepath.Abs(dir); err == nil {
+		spans = append(spans, abs)
+		if real, err := filepath.EvalSymlinks(abs); err == nil && real != abs {
+			spans = append(spans, real)
+		}
+	}
+	// The longest first, so a resolved path that holds the other is taken whole.
+	sort.Slice(spans, func(i, j int) bool { return len(spans[i]) > len(spans[j]) })
+	for i, s := range spans {
+		reason = strings.ReplaceAll(reason, s, fmt.Sprintf("\x00%d\x00", i))
+	}
 	reason = tempName.ReplaceAllString(reason, "${1}mrw${2}(a temporary file)")
-	return callerPath.ReplaceAllStringFunc(reason, func(m string) string {
+	reason = callerPath.ReplaceAllStringFunc(reason, func(m string) string {
 		sm := callerPath.FindStringSubmatch(m)
 		folder := filepath.Join(dir, "mrw")
 		if sm[2] == "/" {
@@ -288,6 +304,10 @@ func callersReason(reason, dir string) string {
 		}
 		return sm[1] + shownPath(folder) + sm[2] + sm[3]
 	})
+	for i, s := range spans {
+		reason = strings.ReplaceAll(reason, fmt.Sprintf("\x00%d\x00", i), s)
+	}
+	return reason
 }
 
 // tempName is a temporary file the engine names in a failed open or create.
