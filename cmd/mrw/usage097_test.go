@@ -52,13 +52,16 @@ func TestAnUnknownFlagNamingNoSubcommandIsRefusedAsBefore(t *testing.T) {
 		argv []string
 		want string
 	}{
-		{[]string{"--bogus"}, "flag provided but not defined: -bogus (see: mrw --help)"},
-		{[]string{"--instruction"}, "flag provided but not defined: -instruction (see: mrw --help)"},
-		{[]string{"--instructionsx"}, "flag provided but not defined: -instructionsx (see: mrw --help)"},
-		{[]string{"--Instructions"}, "flag provided but not defined: -Instructions (see: mrw --help)"},
-		{[]string{"check", "--stats"}, "flag provided but not defined: -stats (see: mrw check --help)"},
-		{[]string{"read", "--instructions"}, "flag provided but not defined: -instructions (see: mrw read --help)"},
-		{[]string{"iter", "--add"}, "flag provided but not defined: -add (see: mrw iter --help)"},
+		{[]string{"--bogus"}, "flag provided but not defined: --bogus (see: mrw --help)"},
+		{[]string{"--instruction"}, "flag provided but not defined: --instruction (see: mrw --help)"},
+		{[]string{"--instructionsx"}, "flag provided but not defined: --instructionsx (see: mrw --help)"},
+		{[]string{"--Instructions"}, "flag provided but not defined: --Instructions (see: mrw --help)"},
+		{[]string{"check", "--stats"}, "flag provided but not defined: --stats (see: mrw check --help)"},
+		{[]string{"read", "--instructions"}, "flag provided but not defined: --instructions (see: mrw read --help)"},
+		{[]string{"iter", "--add"}, "flag provided but not defined: --add (see: mrw iter --help)"},
+		// A one-letter flag keeps its one dash: `-z` is spelled that way.
+		{[]string{"-z"}, "flag provided but not defined: -z (see: mrw --help)"},
+		{[]string{"read", "-z"}, "flag provided but not defined: -z (see: mrw read --help)"},
 	} {
 		stdout, err := runSplit(t, c.argv...)
 		if err == nil || exitCode(err) != exitUsage || err.Error() != c.want || stdout != "" {

@@ -33,7 +33,7 @@ func TestAGlobalFlagTypedAfterTheSubcommandIsPointedHome(t *testing.T) {
 		for _, sub := range root.Commands {
 			want := "; --" + name + " goes before the subcommand: mrw --" + name + " DIR " + sub.Name + " …"
 			stdout, err := runSplit(t, sub.Name, "--"+name, ".", "--help")
-			if err == nil || !strings.Contains(err.Error(), "not defined: -"+name+" ") {
+			if err == nil || !strings.Contains(err.Error(), "not defined: --"+name+" ") {
 				continue // taken after the verb: nothing to point at
 			}
 			pointed++

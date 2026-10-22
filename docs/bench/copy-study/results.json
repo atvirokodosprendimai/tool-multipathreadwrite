@@ -1,0 +1,772 @@
+{
+  "all": {
+    "body_chars": 38268239,
+    "body_lines": 624979,
+    "body_tokens_est": 9567060,
+    "exact_k1": {
+      "copyable_chars": 1553667,
+      "copyable_runs": 13334,
+      "copyable_share": 0.0406,
+      "split_hunk_saving_chars": 572317,
+      "split_hunk_saving_tokens_est": 143079,
+      "whole_body_saving_chars": 101714,
+      "whole_body_saving_tokens_est": 25428,
+      "whole_body_units": 271
+    },
+    "exact_k10": {
+      "copyable_chars": 226305,
+      "copyable_runs": 232,
+      "copyable_share": 0.0059,
+      "split_hunk_saving_chars": 207810,
+      "split_hunk_saving_tokens_est": 51952,
+      "whole_body_saving_chars": 83773,
+      "whole_body_saving_tokens_est": 20943,
+      "whole_body_units": 9
+    },
+    "exact_k3": {
+      "copyable_chars": 1098803,
+      "copyable_runs": 7546,
+      "copyable_share": 0.0287,
+      "split_hunk_saving_chars": 502885,
+      "split_hunk_saving_tokens_est": 125721,
+      "whole_body_saving_chars": 86762,
+      "whole_body_saving_tokens_est": 21690,
+      "whole_body_units": 30
+    },
+    "exact_k5": {
+      "copyable_chars": 518803,
+      "copyable_runs": 1699,
+      "copyable_share": 0.0136,
+      "split_hunk_saving_chars": 382387,
+      "split_hunk_saving_tokens_est": 95597,
+      "whole_body_saving_chars": 85407,
+      "whole_body_saving_tokens_est": 21352,
+      "whole_body_units": 18
+    },
+    "kept_chars": 1469186,
+    "kept_share": 0.0384,
+    "norm_k1": {
+      "copyable_chars": 1667844,
+      "copyable_runs": 14343,
+      "copyable_share": 0.0436,
+      "split_hunk_saving_chars": 609319,
+      "split_hunk_saving_tokens_est": 152330,
+      "whole_body_saving_chars": 101840,
+      "whole_body_saving_tokens_est": 25460,
+      "whole_body_units": 275
+    },
+    "norm_k10": {
+      "copyable_chars": 232600,
+      "copyable_runs": 241,
+      "copyable_share": 0.0061,
+      "split_hunk_saving_chars": 213340,
+      "split_hunk_saving_tokens_est": 53335,
+      "whole_body_saving_chars": 83773,
+      "whole_body_saving_tokens_est": 20943,
+      "whole_body_units": 9
+    },
+    "norm_k3": {
+      "copyable_chars": 1163468,
+      "copyable_runs": 7964,
+      "copyable_share": 0.0304,
+      "split_hunk_saving_chars": 532364,
+      "split_hunk_saving_tokens_est": 133091,
+      "whole_body_saving_chars": 86776,
+      "whole_body_saving_tokens_est": 21694,
+      "whole_body_units": 31
+    },
+    "norm_k5": {
+      "copyable_chars": 547837,
+      "copyable_runs": 1834,
+      "copyable_share": 0.0143,
+      "split_hunk_saving_chars": 399721,
+      "split_hunk_saving_tokens_est": 99930,
+      "whole_body_saving_chars": 85407,
+      "whole_body_saving_tokens_est": 21352,
+      "whole_body_units": 18
+    },
+    "pattern_replace_hunks": 708,
+    "write_units": 42136
+  },
+  "assumptions": {
+    "chars_per_token": 4,
+    "header_cost_chars": 45,
+    "k_headline": 3,
+    "max_candidates_per_seed": 200,
+    "min_nonws_chars_per_run": 40,
+    "seed_line_min_nonws": 8
+  },
+  "by_family": {
+    "Edit": {
+      "body_chars": 413700,
+      "body_lines": 4671,
+      "body_tokens_est": 103425,
+      "exact_k1": {
+        "copyable_chars": 1363,
+        "copyable_runs": 12,
+        "copyable_share": 0.0033,
+        "split_hunk_saving_chars": 592,
+        "split_hunk_saving_tokens_est": 148,
+        "whole_body_saving_chars": 39,
+        "whole_body_saving_tokens_est": 10,
+        "whole_body_units": 1
+      },
+      "exact_k10": {
+        "copyable_chars": 0,
+        "copyable_runs": 0,
+        "copyable_share": 0.0,
+        "split_hunk_saving_chars": 0,
+        "split_hunk_saving_tokens_est": 0,
+        "whole_body_saving_chars": 0,
+        "whole_body_saving_tokens_est": 0,
+        "whole_body_units": 0
+      },
+      "exact_k3": {
+        "copyable_chars": 513,
+        "copyable_runs": 1,
+        "copyable_share": 0.0012,
+        "split_hunk_saving_chars": 423,
+        "split_hunk_saving_tokens_est": 106,
+        "whole_body_saving_chars": 0,
+        "whole_body_saving_tokens_est": 0,
+        "whole_body_units": 0
+      },
+      "exact_k5": {
+        "copyable_chars": 513,
+        "copyable_runs": 1,
+        "copyable_share": 0.0012,
+        "split_hunk_saving_chars": 423,
+        "split_hunk_saving_tokens_est": 106,
+        "whole_body_saving_chars": 0,
+        "whole_body_saving_tokens_est": 0,
+        "whole_body_units": 0
+      },
+      "kept_chars": 26002,
+      "kept_share": 0.0629,
+      "norm_k1": {
+        "copyable_chars": 1771,
+        "copyable_runs": 17,
+        "copyable_share": 0.0043,
+        "split_hunk_saving_chars": 674,
+        "split_hunk_saving_tokens_est": 168,
+        "whole_body_saving_chars": 103,
+        "whole_body_saving_tokens_est": 26,
+        "whole_body_units": 2
+      },
+      "norm_k10": {
+        "copyable_chars": 0,
+        "copyable_runs": 0,
+        "copyable_share": 0.0,
+        "split_hunk_saving_chars": 0,
+        "split_hunk_saving_tokens_est": 0,
+        "whole_body_saving_chars": 0,
+        "whole_body_saving_tokens_est": 0,
+        "whole_body_units": 0
+      },
+      "norm_k3": {
+        "copyable_chars": 513,
+        "copyable_runs": 1,
+        "copyable_share": 0.0012,
+        "split_hunk_saving_chars": 423,
+        "split_hunk_saving_tokens_est": 106,
+        "whole_body_saving_chars": 0,
+        "whole_body_saving_tokens_est": 0,
+        "whole_body_units": 0
+      },
+      "norm_k5": {
+        "copyable_chars": 513,
+        "copyable_runs": 1,
+        "copyable_share": 0.0012,
+        "split_hunk_saving_chars": 423,
+        "split_hunk_saving_tokens_est": 106,
+        "whole_body_saving_chars": 0,
+        "whole_body_saving_tokens_est": 0,
+        "whole_body_units": 0
+      },
+      "pattern_replace_hunks": 0,
+      "write_units": 806
+    },
+    "Write": {
+      "body_chars": 6368854,
+      "body_lines": 102277,
+      "body_tokens_est": 1592214,
+      "exact_k1": {
+        "copyable_chars": 128493,
+        "copyable_runs": 968,
+        "copyable_share": 0.0202,
+        "split_hunk_saving_chars": 55684,
+        "split_hunk_saving_tokens_est": 13921,
+        "whole_body_saving_chars": 0,
+        "whole_body_saving_tokens_est": 0,
+        "whole_body_units": 0
+      },
+      "exact_k10": {
+        "copyable_chars": 26386,
+        "copyable_runs": 29,
+        "copyable_share": 0.0041,
+        "split_hunk_saving_chars": 23821,
+        "split_hunk_saving_tokens_est": 5955,
+        "whole_body_saving_chars": 0,
+        "whole_body_saving_tokens_est": 0,
+        "whole_body_units": 0
+      },
+      "exact_k3": {
+        "copyable_chars": 91640,
+        "copyable_runs": 506,
+        "copyable_share": 0.0144,
+        "split_hunk_saving_chars": 50284,
+        "split_hunk_saving_tokens_est": 12571,
+        "whole_body_saving_chars": 0,
+        "whole_body_saving_tokens_est": 0,
+        "whole_body_units": 0
+      },
+      "exact_k5": {
+        "copyable_chars": 46945,
+        "copyable_runs": 114,
+        "copyable_share": 0.0074,
+        "split_hunk_saving_chars": 37620,
+        "split_hunk_saving_tokens_est": 9405,
+        "whole_body_saving_chars": 0,
+        "whole_body_saving_tokens_est": 0,
+        "whole_body_units": 0
+      },
+      "kept_chars": 22018,
+      "kept_share": 0.0035,
+      "norm_k1": {
+        "copyable_chars": 144471,
+        "copyable_runs": 1096,
+        "copyable_share": 0.0227,
+        "split_hunk_saving_chars": 61580,
+        "split_hunk_saving_tokens_est": 15395,
+        "whole_body_saving_chars": 0,
+        "whole_body_saving_tokens_est": 0,
+        "whole_body_units": 0
+      },
+      "norm_k10": {
+        "copyable_chars": 26829,
+        "copyable_runs": 30,
+        "copyable_share": 0.0042,
+        "split_hunk_saving_chars": 24174,
+        "split_hunk_saving_tokens_est": 6044,
+        "whole_body_saving_chars": 0,
+        "whole_body_saving_tokens_est": 0,
+        "whole_body_units": 0
+      },
+      "norm_k3": {
+        "copyable_chars": 100541,
+        "copyable_runs": 562,
+        "copyable_share": 0.0158,
+        "split_hunk_saving_chars": 54313,
+        "split_hunk_saving_tokens_est": 13578,
+        "whole_body_saving_chars": 0,
+        "whole_body_saving_tokens_est": 0,
+        "whole_body_units": 0
+      },
+      "norm_k5": {
+        "copyable_chars": 48592,
+        "copyable_runs": 122,
+        "copyable_share": 0.0076,
+        "split_hunk_saving_chars": 38572,
+        "split_hunk_saving_tokens_est": 9643,
+        "whole_body_saving_chars": 0,
+        "whole_body_saving_tokens_est": 0,
+        "whole_body_units": 0
+      },
+      "pattern_replace_hunks": 0,
+      "write_units": 1519
+    },
+    "mrw_create": {
+      "body_chars": 1346695,
+      "body_lines": 21373,
+      "body_tokens_est": 336674,
+      "exact_k1": {
+        "copyable_chars": 54798,
+        "copyable_runs": 520,
+        "copyable_share": 0.0407,
+        "split_hunk_saving_chars": 16009,
+        "split_hunk_saving_tokens_est": 4002,
+        "whole_body_saving_chars": 0,
+        "whole_body_saving_tokens_est": 0,
+        "whole_body_units": 0
+      },
+      "exact_k10": {
+        "copyable_chars": 3238,
+        "copyable_runs": 9,
+        "copyable_share": 0.0024,
+        "split_hunk_saving_chars": 2608,
+        "split_hunk_saving_tokens_est": 652,
+        "whole_body_saving_chars": 0,
+        "whole_body_saving_tokens_est": 0,
+        "whole_body_units": 0
+      },
+      "exact_k3": {
+        "copyable_chars": 42150,
+        "copyable_runs": 351,
+        "copyable_share": 0.0313,
+        "split_hunk_saving_chars": 14912,
+        "split_hunk_saving_tokens_est": 3728,
+        "whole_body_saving_chars": 0,
+        "whole_body_saving_tokens_est": 0,
+        "whole_body_units": 0
+      },
+      "exact_k5": {
+        "copyable_chars": 16831,
+        "copyable_runs": 91,
+        "copyable_share": 0.0125,
+        "split_hunk_saving_chars": 9843,
+        "split_hunk_saving_tokens_est": 2461,
+        "whole_body_saving_chars": 0,
+        "whole_body_saving_tokens_est": 0,
+        "whole_body_units": 0
+      },
+      "kept_chars": 2260,
+      "kept_share": 0.0017,
+      "norm_k1": {
+        "copyable_chars": 58959,
+        "copyable_runs": 564,
+        "copyable_share": 0.0438,
+        "split_hunk_saving_chars": 16914,
+        "split_hunk_saving_tokens_est": 4228,
+        "whole_body_saving_chars": 0,
+        "whole_body_saving_tokens_est": 0,
+        "whole_body_units": 0
+      },
+      "norm_k10": {
+        "copyable_chars": 3238,
+        "copyable_runs": 9,
+        "copyable_share": 0.0024,
+        "split_hunk_saving_chars": 2608,
+        "split_hunk_saving_tokens_est": 652,
+        "whole_body_saving_chars": 0,
+        "whole_body_saving_tokens_est": 0,
+        "whole_body_units": 0
+      },
+      "norm_k3": {
+        "copyable_chars": 44610,
+        "copyable_runs": 373,
+        "copyable_share": 0.0331,
+        "split_hunk_saving_chars": 15605,
+        "split_hunk_saving_tokens_est": 3901,
+        "whole_body_saving_chars": 0,
+        "whole_body_saving_tokens_est": 0,
+        "whole_body_units": 0
+      },
+      "norm_k5": {
+        "copyable_chars": 17693,
+        "copyable_runs": 98,
+        "copyable_share": 0.0131,
+        "split_hunk_saving_chars": 10129,
+        "split_hunk_saving_tokens_est": 2532,
+        "whole_body_saving_chars": 0,
+        "whole_body_saving_tokens_est": 0,
+        "whole_body_units": 0
+      },
+      "pattern_replace_hunks": 0,
+      "write_units": 410
+    },
+    "mrw_plan": {
+      "body_chars": 30138990,
+      "body_lines": 496658,
+      "body_tokens_est": 7534748,
+      "exact_k1": {
+        "copyable_chars": 1369013,
+        "copyable_runs": 11834,
+        "copyable_share": 0.0454,
+        "split_hunk_saving_chars": 500032,
+        "split_hunk_saving_tokens_est": 125008,
+        "whole_body_saving_chars": 101675,
+        "whole_body_saving_tokens_est": 25419,
+        "whole_body_units": 270
+      },
+      "exact_k10": {
+        "copyable_chars": 196681,
+        "copyable_runs": 194,
+        "copyable_share": 0.0065,
+        "split_hunk_saving_chars": 181381,
+        "split_hunk_saving_tokens_est": 45345,
+        "whole_body_saving_chars": 83773,
+        "whole_body_saving_tokens_est": 20943,
+        "whole_body_units": 9
+      },
+      "exact_k3": {
+        "copyable_chars": 964500,
+        "copyable_runs": 6688,
+        "copyable_share": 0.032,
+        "split_hunk_saving_chars": 437266,
+        "split_hunk_saving_tokens_est": 109316,
+        "whole_body_saving_chars": 86762,
+        "whole_body_saving_tokens_est": 21690,
+        "whole_body_units": 30
+      },
+      "exact_k5": {
+        "copyable_chars": 454514,
+        "copyable_runs": 1493,
+        "copyable_share": 0.0151,
+        "split_hunk_saving_chars": 334501,
+        "split_hunk_saving_tokens_est": 83625,
+        "whole_body_saving_chars": 85407,
+        "whole_body_saving_tokens_est": 21352,
+        "whole_body_units": 18
+      },
+      "kept_chars": 1418906,
+      "kept_share": 0.0471,
+      "norm_k1": {
+        "copyable_chars": 1462643,
+        "copyable_runs": 12666,
+        "copyable_share": 0.0485,
+        "split_hunk_saving_chars": 530151,
+        "split_hunk_saving_tokens_est": 132538,
+        "whole_body_saving_chars": 101737,
+        "whole_body_saving_tokens_est": 25434,
+        "whole_body_units": 273
+      },
+      "norm_k10": {
+        "copyable_chars": 202533,
+        "copyable_runs": 202,
+        "copyable_share": 0.0067,
+        "split_hunk_saving_chars": 186558,
+        "split_hunk_saving_tokens_est": 46640,
+        "whole_body_saving_chars": 83773,
+        "whole_body_saving_tokens_est": 20943,
+        "whole_body_units": 9
+      },
+      "norm_k3": {
+        "copyable_chars": 1017804,
+        "copyable_runs": 7028,
+        "copyable_share": 0.0338,
+        "split_hunk_saving_chars": 462023,
+        "split_hunk_saving_tokens_est": 115506,
+        "whole_body_saving_chars": 86776,
+        "whole_body_saving_tokens_est": 21694,
+        "whole_body_units": 31
+      },
+      "norm_k5": {
+        "copyable_chars": 481039,
+        "copyable_runs": 1613,
+        "copyable_share": 0.016,
+        "split_hunk_saving_chars": 350597,
+        "split_hunk_saving_tokens_est": 87649,
+        "whole_body_saving_chars": 85407,
+        "whole_body_saving_tokens_est": 21352,
+        "whole_body_units": 18
+      },
+      "pattern_replace_hunks": 708,
+      "write_units": 39401
+    }
+  },
+  "by_kind": {
+    "main": {
+      "body_chars": 28507829,
+      "body_lines": 461565,
+      "body_tokens_est": 7126957,
+      "exact_k1": {
+        "copyable_chars": 1223301,
+        "copyable_runs": 10365,
+        "copyable_share": 0.0429,
+        "split_hunk_saving_chars": 457084,
+        "split_hunk_saving_tokens_est": 114271,
+        "whole_body_saving_chars": 91711,
+        "whole_body_saving_tokens_est": 22928,
+        "whole_body_units": 161
+      },
+      "exact_k10": {
+        "copyable_chars": 194924,
+        "copyable_runs": 176,
+        "copyable_share": 0.0068,
+        "split_hunk_saving_chars": 181289,
+        "split_hunk_saving_tokens_est": 45322,
+        "whole_body_saving_chars": 83384,
+        "whole_body_saving_tokens_est": 20846,
+        "whole_body_units": 8
+      },
+      "exact_k3": {
+        "copyable_chars": 898279,
+        "copyable_runs": 6157,
+        "copyable_share": 0.0315,
+        "split_hunk_saving_chars": 411739,
+        "split_hunk_saving_tokens_est": 102935,
+        "whole_body_saving_chars": 86311,
+        "whole_body_saving_tokens_est": 21578,
+        "whole_body_units": 28
+      },
+      "exact_k5": {
+        "copyable_chars": 425697,
+        "copyable_runs": 1356,
+        "copyable_share": 0.0149,
+        "split_hunk_saving_chars": 317623,
+        "split_hunk_saving_tokens_est": 79406,
+        "whole_body_saving_chars": 85018,
+        "whole_body_saving_tokens_est": 21254,
+        "whole_body_units": 17
+      },
+      "kept_chars": 967916,
+      "kept_share": 0.034,
+      "norm_k1": {
+        "copyable_chars": 1304231,
+        "copyable_runs": 11103,
+        "copyable_share": 0.0457,
+        "split_hunk_saving_chars": 482129,
+        "split_hunk_saving_tokens_est": 120532,
+        "whole_body_saving_chars": 91801,
+        "whole_body_saving_tokens_est": 22950,
+        "whole_body_units": 164
+      },
+      "norm_k10": {
+        "copyable_chars": 200198,
+        "copyable_runs": 184,
+        "copyable_share": 0.007,
+        "split_hunk_saving_chars": 185843,
+        "split_hunk_saving_tokens_est": 46461,
+        "whole_body_saving_chars": 83384,
+        "whole_body_saving_tokens_est": 20846,
+        "whole_body_units": 8
+      },
+      "norm_k3": {
+        "copyable_chars": 940180,
+        "copyable_runs": 6431,
+        "copyable_share": 0.033,
+        "split_hunk_saving_chars": 430569,
+        "split_hunk_saving_tokens_est": 107642,
+        "whole_body_saving_chars": 86325,
+        "whole_body_saving_tokens_est": 21581,
+        "whole_body_units": 29
+      },
+      "norm_k5": {
+        "copyable_chars": 444672,
+        "copyable_runs": 1444,
+        "copyable_share": 0.0156,
+        "split_hunk_saving_chars": 329038,
+        "split_hunk_saving_tokens_est": 82260,
+        "whole_body_saving_chars": 85018,
+        "whole_body_saving_tokens_est": 21254,
+        "whole_body_units": 17
+      },
+      "pattern_replace_hunks": 686,
+      "write_units": 31936
+    },
+    "subagent": {
+      "body_chars": 9760410,
+      "body_lines": 163414,
+      "body_tokens_est": 2440102,
+      "exact_k1": {
+        "copyable_chars": 330366,
+        "copyable_runs": 2969,
+        "copyable_share": 0.0338,
+        "split_hunk_saving_chars": 115233,
+        "split_hunk_saving_tokens_est": 28808,
+        "whole_body_saving_chars": 10003,
+        "whole_body_saving_tokens_est": 2501,
+        "whole_body_units": 110
+      },
+      "exact_k10": {
+        "copyable_chars": 31381,
+        "copyable_runs": 56,
+        "copyable_share": 0.0032,
+        "split_hunk_saving_chars": 26521,
+        "split_hunk_saving_tokens_est": 6630,
+        "whole_body_saving_chars": 389,
+        "whole_body_saving_tokens_est": 97,
+        "whole_body_units": 1
+      },
+      "exact_k3": {
+        "copyable_chars": 200524,
+        "copyable_runs": 1389,
+        "copyable_share": 0.0205,
+        "split_hunk_saving_chars": 91146,
+        "split_hunk_saving_tokens_est": 22786,
+        "whole_body_saving_chars": 451,
+        "whole_body_saving_tokens_est": 113,
+        "whole_body_units": 2
+      },
+      "exact_k5": {
+        "copyable_chars": 93106,
+        "copyable_runs": 343,
+        "copyable_share": 0.0095,
+        "split_hunk_saving_chars": 64764,
+        "split_hunk_saving_tokens_est": 16191,
+        "whole_body_saving_chars": 389,
+        "whole_body_saving_tokens_est": 97,
+        "whole_body_units": 1
+      },
+      "kept_chars": 501270,
+      "kept_share": 0.0514,
+      "norm_k1": {
+        "copyable_chars": 363613,
+        "copyable_runs": 3240,
+        "copyable_share": 0.0373,
+        "split_hunk_saving_chars": 127190,
+        "split_hunk_saving_tokens_est": 31798,
+        "whole_body_saving_chars": 10039,
+        "whole_body_saving_tokens_est": 2510,
+        "whole_body_units": 111
+      },
+      "norm_k10": {
+        "copyable_chars": 32402,
+        "copyable_runs": 57,
+        "copyable_share": 0.0033,
+        "split_hunk_saving_chars": 27497,
+        "split_hunk_saving_tokens_est": 6874,
+        "whole_body_saving_chars": 389,
+        "whole_body_saving_tokens_est": 97,
+        "whole_body_units": 1
+      },
+      "norm_k3": {
+        "copyable_chars": 223288,
+        "copyable_runs": 1533,
+        "copyable_share": 0.0229,
+        "split_hunk_saving_chars": 101795,
+        "split_hunk_saving_tokens_est": 25449,
+        "whole_body_saving_chars": 451,
+        "whole_body_saving_tokens_est": 113,
+        "whole_body_units": 2
+      },
+      "norm_k5": {
+        "copyable_chars": 103165,
+        "copyable_runs": 390,
+        "copyable_share": 0.0106,
+        "split_hunk_saving_chars": 70683,
+        "split_hunk_saving_tokens_est": 17671,
+        "whole_body_saving_chars": 389,
+        "whole_body_saving_tokens_est": 97,
+        "whole_body_units": 1
+      },
+      "pattern_replace_hunks": 22,
+      "write_units": 10200
+    }
+  },
+  "by_project_top10": [
+    {
+      "body_chars": 14678500,
+      "copyable_exact_k3_share": 0.0273,
+      "label": "P1",
+      "transcripts": 298,
+      "whole_body_saving_exact_k3_tokens_est": 537
+    },
+    {
+      "body_chars": 9446509,
+      "copyable_exact_k3_share": 0.0338,
+      "label": "P2",
+      "transcripts": 294,
+      "whole_body_saving_exact_k3_tokens_est": 20653
+    },
+    {
+      "body_chars": 8150084,
+      "copyable_exact_k3_share": 0.0305,
+      "label": "P3",
+      "transcripts": 238,
+      "whole_body_saving_exact_k3_tokens_est": 485
+    },
+    {
+      "body_chars": 2093492,
+      "copyable_exact_k3_share": 0.0138,
+      "label": "P4",
+      "transcripts": 62,
+      "whole_body_saving_exact_k3_tokens_est": 0
+    },
+    {
+      "body_chars": 1504445,
+      "copyable_exact_k3_share": 0.0275,
+      "label": "P5",
+      "transcripts": 27,
+      "whole_body_saving_exact_k3_tokens_est": 0
+    },
+    {
+      "body_chars": 1376220,
+      "copyable_exact_k3_share": 0.0369,
+      "label": "P6",
+      "transcripts": 38,
+      "whole_body_saving_exact_k3_tokens_est": 16
+    },
+    {
+      "body_chars": 439839,
+      "copyable_exact_k3_share": 0.0126,
+      "label": "P7",
+      "transcripts": 27,
+      "whole_body_saving_exact_k3_tokens_est": 0
+    },
+    {
+      "body_chars": 303888,
+      "copyable_exact_k3_share": 0.0059,
+      "label": "P8",
+      "transcripts": 3,
+      "whole_body_saving_exact_k3_tokens_est": 0
+    },
+    {
+      "body_chars": 59926,
+      "copyable_exact_k3_share": 0.0091,
+      "label": "P9",
+      "transcripts": 1,
+      "whole_body_saving_exact_k3_tokens_est": 0
+    },
+    {
+      "body_chars": 47805,
+      "copyable_exact_k3_share": 0.0086,
+      "label": "P10",
+      "transcripts": 22,
+      "whole_body_saving_exact_k3_tokens_est": 0
+    }
+  ],
+  "corpus": {
+    "bytes": 3615543022,
+    "output_tokens_reported": 83788516,
+    "project_dirs": 1156,
+    "runtime_seconds": 20.3,
+    "transcripts_main": 1308,
+    "transcripts_subagent": 880,
+    "transcripts_with_writes": 374,
+    "zero_body_writes": 193
+  },
+  "distribution_exact_k3": {
+    "top_decile_share_of_split_hunk_saving": 0.8342,
+    "top_decile_share_of_whole_body_saving": 1.0,
+    "top_decile_share_of_write_body_chars": 0.7196,
+    "transcripts_with_any_copyable_run": 198,
+    "transcripts_with_whole_body_saving": 14
+  },
+  "headline_share_of_reported_output_tokens": {
+    "exact": 0.00026,
+    "norm": 0.00026
+  },
+  "moves_exact_k3": {
+    "chars": 1098803,
+    "moved_chars": 69806,
+    "moved_runs": 186,
+    "runs": 7546
+  },
+  "read_redundancy": {
+    "main": {
+      "redundant_chars": 3761258,
+      "redundant_share": 0.0767,
+      "redundant_tokens_est": 940314,
+      "served_chars": 49038886,
+      "served_tokens_est": 12259722,
+      "transcripts": 147
+    },
+    "redundant_chars": 6579729,
+    "redundant_share": 0.0528,
+    "redundant_tokens_est": 1644932,
+    "served_chars": 124614135,
+    "served_tokens_est": 31153534,
+    "subagent": {
+      "redundant_chars": 2818471,
+      "redundant_share": 0.0373,
+      "redundant_tokens_est": 704618,
+      "served_chars": 75575249,
+      "served_tokens_est": 18893812,
+      "transcripts": 745
+    },
+    "top_decile_share_of_redundant": 0.7461,
+    "transcripts": 892
+  },
+  "run_length_histogram_exact_k3": {
+    "10-19": 204,
+    "20-49": 23,
+    "3-4": 5847,
+    "5-9": 1467,
+    "50+": 5
+  },
+  "split_hunk_share_of_reported_output_tokens": {
+    "exact": 0.0015,
+    "norm": 0.00159
+  }
+}

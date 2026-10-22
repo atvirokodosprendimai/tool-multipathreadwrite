@@ -22,7 +22,7 @@ func TestAForeignReadFlagIsAnsweredWithMrwsSpelling(t *testing.T) {
 			dash = "--"
 		}
 		out, code := runIn(t, root, "read", dash+flag, "--grep", "x")
-		if code != 2 || !strings.Contains(out, "flag provided but not defined: -"+flag) || !strings.HasSuffix(strings.TrimSpace(out), "; "+sentence) {
+		if code != 2 || !strings.Contains(out, "flag provided but not defined: "+dash+flag) || !strings.HasSuffix(strings.TrimSpace(out), "; "+sentence) {
 			t.Errorf("mrw read %s%s: exit %d, want 2 with the old prefix and %q last:\n%s", dash, flag, code, sentence, out)
 		}
 	}

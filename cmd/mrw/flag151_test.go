@@ -19,7 +19,7 @@ func TestAPlanFlagOnWriteIsAnsweredWithTheArgument(t *testing.T) {
 	root := t.TempDir()
 	for _, flag := range []string{"plan", "file", "input", "stdin"} {
 		out, code := runIn(t, root, "write", "--"+flag, "x.plan")
-		if code != 2 || !strings.Contains(out, "flag provided but not defined: -"+flag) || !strings.HasSuffix(strings.TrimSpace(out), "; "+planFlagSentence) {
+		if code != 2 || !strings.Contains(out, "flag provided but not defined: --"+flag) || !strings.HasSuffix(strings.TrimSpace(out), "; "+planFlagSentence) {
 			t.Errorf("mrw write --%s: exit %d, want 2 with the old prefix and the plan sentence last:\n%s", flag, code, out)
 		}
 	}
