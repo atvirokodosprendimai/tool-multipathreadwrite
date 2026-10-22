@@ -2,6 +2,7 @@ package guide
 
 import (
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -166,8 +167,9 @@ func TestInstructionsSayAWrittenFileIsWhollyKnown(t *testing.T) {
 }
 
 // ADR-161 Decision 4. The full contract opens with ADR-037's five sentences and
-// then the recipes: nine numbered label lines ending in ":", each followed by
-// its command indented two spaces, no prose between; recipe 1 is the sub write,
+// then the recipes: ten numbered label lines ending in ":" (nine from ADR-161,
+// the tenth ADR-167's), each followed by its command indented two spaces, no
+// prose between; recipe 1 is the sub write,
 // recipe 6 carries ADR-092's caveat on its label, no recipe reaches for perl,
 // awk or sed, and the reference below keeps the whole over 900 words.
 func TestInstructionsLeadWithTheRecipes(t *testing.T) {
@@ -178,13 +180,13 @@ func TestInstructionsLeadWithTheRecipes(t *testing.T) {
 	}
 	block, _, _ := strings.Cut(cli[len(head):], "\n\n")
 	lines := strings.Split(block, "\n")
-	if len(lines) != 18 {
-		t.Fatalf("the recipes are %d lines, want 9 label lines and 9 command lines:\n%s", len(lines), block)
+	if len(lines) != 20 {
+		t.Fatalf("the recipes are %d lines, want 10 label lines and 10 command lines:\n%s", len(lines), block)
 	}
-	for i := 0; i < 18; i += 2 {
+	for i := 0; i < 20; i += 2 {
 		n := i/2 + 1
 		label, command := lines[i], lines[i+1]
-		if !strings.HasPrefix(label, string(rune('0'+n))+". ") || !strings.HasSuffix(label, ":") {
+		if !strings.HasPrefix(label, strconv.Itoa(n)+". ") || !strings.HasSuffix(label, ":") {
 			t.Errorf("recipe %d's label is not `%d. …:`: %q", n, n, label)
 		}
 		if !strings.HasPrefix(command, "  ") || strings.HasPrefix(command, "   ") || !strings.Contains(command, "mrw ") {

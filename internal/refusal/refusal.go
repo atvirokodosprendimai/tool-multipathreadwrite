@@ -24,6 +24,10 @@ const (
 	InsertEmptyBody  Kind = "insert-empty-body"
 	ReplaceEmptyBody Kind = "replace-empty-body"
 	NotRead          Kind = "not-read"
+	// SourceNotRead is a from= copy (ADR-167) of lines the caller was not
+	// served. It is not NotRead: the two consumers that act on NotRead name the
+	// hunk's own path, and would name the target for a source that was not read.
+	SourceNotRead Kind = "source-not-read"
 	// OccurrenceAddress is occurrence= on an address that is not a pattern
 	// (ADR-118): it picks among a pattern's matches, so off one it means nothing.
 	OccurrenceAddress Kind = "occurrence-address"

@@ -52,7 +52,9 @@ func Recipes() string {
 8. a file of long lines (logs, JSONL), each line cut to a window round the match:
   mrw read --grep P --max-cols 200 f.jsonl
 9. narrow any command's output without leaving mrw:
-  cmd | mrw read --grep P --max-lines 20 -`
+  cmd | mrw read --grep P --max-lines 20 -
+10. copy lines you have read without typing them again, or move them with a delete of the same range (a copy of lines you were not served is refused, --force or not):
+  mrw read a.go:40-52 b.go:9 && printf '%s\n' '@@ b.go 9 insert-after from=a.go:40-52' '@@ a.go 40-52 delete' | mrw write -`
 }
 
 // CLI is Shared plus the why, the operator traps that only the shell
@@ -82,6 +84,7 @@ A value with spaces can be double-quoted (anchor="func openTestStore"), single-q
 body= is a line count, not a character count. Python str splits characters; do not use len(body) as body=.
 body= goes ON the header, never on a line of its own: @@ a.go 12-14 replace anchor="func A" body=3, then exactly 3 body lines.
 body=@path loads the body from a root-relative file.
+from=PATH:ADDR is a body copied from lines of a file as it was before the plan (ADDR is N, N-M, A,+N, $ or N-$): it is refused unless you were served them, --force or not, and the receipt names what it copied. With a delete of the same range it moves a block; both address the original.
 lines= is a guard on how many lines the ADDRESS covers, and is not body=.
 The checkout is named by global -C DIR or --root DIR before the subcommand (mrw -C repo write plan). After read, -C is context lines, not a checkout. An all-digit -C before the subcommand is still a checkout, and mrw says so on stderr.
 A path with a leading or trailing space goes after --: the argument parser trims a positional before -- (mrw read 'x ' would reach x), so mrw refuses it, exit 2, and names the fix: mrw read -- 'x '. In cmd.exe, which keeps single quotes as characters, the refusal also names the double-quoted form. An attached flag value that ends in whitespace (--files-from='list ') is refused too: pass it as its own argument, --files-from 'list ', which the parser keeps as given.

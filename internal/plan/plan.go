@@ -151,6 +151,12 @@ type Hunk struct {
 	// BodyFile, if set, is a root-relative path whose contents are the hunk
 	// body (ADR-060). Parse stores the path; LoadBodyFiles fills Body.
 	BodyFile string
+	// BodyFrom, if set, is a root-relative path whose lines BodyFromAddr names
+	// (ADR-167): apply copies them as the hunk body, from the file as it was
+	// before the plan, once the ledger shows the caller was served them. A
+	// from= hunk carries no Body, no BodyFile and never CountedBody.
+	BodyFrom     string
+	BodyFromAddr Addr
 	// Occurrence, if positive, picks the Nth line the start pattern matches,
 	// counted from 1 over the original file (ADR-118). 0 means absent: the start
 	// must then match exactly once.
@@ -526,9 +532,24 @@ func parseHeader(line string, srcLine int) (Hunk, int, error) {
 			} else if explicit, err = strconv.Atoi(v); err != nil || explicit < 0 {
 				return Hunk{}, 0, fmt.Errorf("body= wants a non-negative integer, got %q", v)
 			}
+		case "from":
+			if h.BodyFrom, h.BodyFromAddr, err = parseFrom(v); err != nil {
+				return Hunk{}, 0, err
+			}
 		default:
-			return Hunk{}, 0, fmt.Errorf("unknown option %q (want sha, lines, anchor, body, raw or occurrence)", k)
+			return Hunk{}, 0, fmt.Errorf("unknown option %q (want sha, lines, anchor, body, from, raw or occurrence)", k)
 		}
+	}
+	if h.BodyFrom != "" {
+		switch {
+		case h.Op == OpDelete || h.Op == OpUnlink || h.Op == OpRename:
+			return Hunk{}, 0, fmt.Errorf("from= copies a body, and %s takes none: its body is an expected removal or a destination", h.Op)
+		case explicit >= 0 || h.BodyFile != "":
+			return Hunk{}, 0, fmt.Errorf("from= is the hunk's body: it cannot be combined with body= or body=@")
+		}
+		// The count only exists to stop a body at a header, and a from= hunk has
+		// none; validate refuses a line under the header.
+		explicit = -1
 	}
 	// raw= switches off the valid-header check INSIDE a counted body, so
 	// without body= there is no body for it to act on and the caller has
@@ -539,6 +560,43 @@ func parseHeader(line string, srcLine int) (Hunk, int, error) {
 			"check inside a counted body, so on its own it guards nothing")
 	}
 	return h, explicit, nil
+}
+
+// workingSetPointer is `@N`, the working set's pointer to a file (ADR-167
+// refuses it as a from= source: pointers resolve for the hunk's own path only).
+var workingSetPointer = regexp.MustCompile(`^@\d+$`)
+
+// parseFrom reads a from= value, PATH:ADDR (ADR-167). The split is at the LAST
+// colon so a source whose name holds one still resolves; a value holding ":/"
+// is a pattern address and is refused by name rather than split inside it.
+// ADDR is held to the numeric forms N, N-M, A,+N, $ and N-$: the read that
+// licensed the copy printed line numbers.
+func parseFrom(v string) (string, Addr, error) {
+	if rooted.IsRooted(v) {
+		return "", Addr{}, fmt.Errorf("from=%s is a rooted path; from= takes PATH:ADDR with PATH relative to the root", v)
+	}
+	if strings.Contains(v, ":/") {
+		return "", Addr{}, fmt.Errorf("from=%s: a pattern is not a source address: read the lines, then name the numbers the read printed (from=PATH:N-M)", v)
+	}
+	i := strings.LastIndex(v, ":")
+	if i < 0 {
+		return "", Addr{}, fmt.Errorf("from=%s: want PATH:ADDR, such as from=%s:3-5", v, v)
+	}
+	path, tail := v[:i], v[i+1:]
+	if path == "" || workingSetPointer.MatchString(path) {
+		return "", Addr{}, fmt.Errorf("from=%s: the source is a root-relative path, not a working-set pointer: name the file", v)
+	}
+	a, err := ParseAddr(tail)
+	if err != nil {
+		return "", Addr{}, fmt.Errorf("from=%s: %q is not a line address (want N, N-M, A,+N, $ or N-$): %w", v, tail, err)
+	}
+	// ParseAddr reads "N-" as "N-$" and "-" as no address; a source names its lines.
+	if strings.HasSuffix(tail, "-") || a.Start < 1 && a.Start != EOF ||
+		a.Start == EOF && (a.End != EOF || a.RelEnd > 0) ||
+		a.RelEnd > 0 && a.Start != a.End {
+		return "", Addr{}, fmt.Errorf("from=%s: %q is not a source address (want N, N-M, A,+N, $ or N-$, counting from line 1)", v, tail)
+	}
+	return path, a, nil
 }
 
 // joinUnquotedAnchorOptions folds following non-key tokens into an unquoted
@@ -813,12 +871,13 @@ func ParseAddr(s string) (Addr, error) {
 }
 
 // emptyBodyAtParse is the empty-body refuse at Parse. body=@ arrives as an
-// empty Body plus BodyFile; LoadBodyFiles fills Body after parse. Refusing
-// here means replace/insert body=@ never load (ADR-060 T7). replace body=0
-// has no BodyFile, so it still refuses (ADR-006). After load, Apply still
-// refuses a still-empty replace or insert.
+// empty Body plus BodyFile, and from= (ADR-167) as an empty Body plus
+// BodyFrom; LoadBodyFiles fills the first after parse and apply the second.
+// Refusing here means replace/insert body=@ never load (ADR-060 T7). replace
+// body=0 has no BodyFile, so it still refuses (ADR-006). After load, Apply
+// still refuses a still-empty replace or insert.
 func emptyBodyAtParse(h *Hunk) bool {
-	return len(h.Body) == 0 && h.BodyFile == ""
+	return len(h.Body) == 0 && h.BodyFile == "" && h.BodyFrom == ""
 }
 
 // validate checks the parts of a hunk that need no file on disk: op/address
@@ -837,6 +896,9 @@ func validate(h *Hunk) error {
 		return refusal.New(refusal.OccurrenceAddress, "occurrence= picks among a start pattern's matches, so it needs a /pattern/ address")
 	}
 	patterned := h.Addr.StartPat != nil
+	if h.BodyFrom != "" && len(h.Body) > 0 {
+		return fmt.Errorf("from=%s:%s is the hunk's body, and %d line(s) sit under the header: remove them, or drop from= to write them", h.BodyFrom, h.BodyFromAddr, len(h.Body))
+	}
 	switch h.Op {
 	case OpDelete:
 		// A body on a delete used to be a hard parse error. It now means "these
@@ -857,7 +919,7 @@ func validate(h *Hunk) error {
 		// The message is its own, not shared with the replace refusal below:
 		// each names the remedy for ITS op, and a common string would have to
 		// name neither.
-		if len(h.Body) == 0 && !h.CountedBody {
+		if len(h.Body) == 0 && !h.CountedBody && h.BodyFrom == "" {
 			return refusal.New(refusal.CreateEmptyBody, "create with an empty body: say body=0 if you mean an empty file, "+
 				"and check the body did not go missing if you do not")
 		}

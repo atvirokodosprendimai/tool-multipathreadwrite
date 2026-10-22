@@ -950,6 +950,7 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 			StartPat: h.Addr.StartPat, EndPat: h.Addr.EndPat, RelEnd: h.Addr.RelEnd, Occurrence: h.Occurrence, CountedBody: h.CountedBody,
 			Body: h.Body, SHA: h.SHA, Lines: h.Lines, Anchor: h.Anchor,
 			SrcLine: h.SrcLine, Index: h.Index,
+			From: h.BodyFrom, FromStart: h.BodyFromAddr.Start, FromEnd: h.BodyFromAddr.End, FromRelEnd: h.BodyFromAddr.RelEnd,
 		})
 	}
 
@@ -2475,7 +2476,21 @@ func nameTheAck(root string, res *apply.Result) {
 	// caller who most needs it. Found by the review of PR #132.
 	for i := range res.Hunks {
 		h := &res.Hunks[i]
-		if h.Kind != refusal.NotRead {
+		// A refusal for an unserved SOURCE is about the source's page, not the
+		// target's (ADR-167): its path and span, never the hunk's own.
+		path := h.Path
+		var start, end int
+		var known bool
+		switch h.Kind {
+		case refusal.NotRead:
+			start, end, known = addrRange(h.Addr)
+		case refusal.SourceNotRead:
+			var ok bool
+			if path, start, end, ok = h.Source(); !ok {
+				continue
+			}
+			known = true
+		default:
 			continue
 		}
 		// ⚠ THE REFUSED ADDRESS MUST INTERSECT A PENDING SPAN. Appending the
@@ -2484,14 +2499,13 @@ func nameTheAck(root string, res *apply.Result) {
 		// lines 1-1000 pending, line 2000 refused, "send ack" (seventh review
 		// of PR #132). A refusal naming a fix that cannot work is the failure
 		// ADR-015 exists to prevent, wearing the shape of help.
-		start, end, known := addrRange(h.Addr)
 		// promote() drops a pending span whose version is gone, so recommending
 		// ack for one is recommending a step that cannot work (eighth review of
 		// PR #132).
-		live, _ := currentSHA(root, h.Path)
+		live, _ := currentSHA(root, path)
 		covers := false
 		for _, p := range store {
-			if p.Path != h.Path && !anySameFile(root, h.Path, []string{p.Path}) {
+			if p.Path != path && !anySameFile(root, path, []string{p.Path}) {
 				continue
 			}
 			if live != "" && p.SHA != live {
