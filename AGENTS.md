@@ -32,6 +32,11 @@ pipeline reports the *last* command's status, not the script's.
 `mrw write --then static` does the same after a code edit; after a prose-only write, or with
 `--no-check`, no check runs and the step runs alone.
 
+`./scripts/measure.sh` measures what mrw saves, shape by shape, including the shapes where it loses
+(`docs/measure.md` says which): quote the script, never a remembered number. A `bin/mrw` built from a
+working tree reports `dev`, which is newer than any tag, not older; the read-before-modify guard has been
+in every release since v0.0.2.
+
 ## The rules this codebase is built around
 
 These are decided, recorded in `docs/adr/`, and asserted by `scripts/contract.sh`. Change one
@@ -634,6 +639,14 @@ and #73, one release apart.
   prints the eight rules that matter most, in under 300 words (ADR-141): the form
   to put in standing instructions; a test holds it to the full text and to the
   flags the binary has.
+- **`mrw skill`** prints mrw's Agent Skills `SKILL.md`: frontmatter a skill host reads every session (a
+  description naming when to use mrw, and the `mrw-version` that printed it), then `mrw instructions --core`
+  and the recipes, then a pointer to `mrw instructions` (ADR-168). `mrw --skill` is the same command — the
+  one flag spelling ADR-097 does not refuse, because `mrw --help` tells agents to type it.
+  `mrw skill --dir DIR` (or `mrw --skill --dir DIR`) writes it to `DIR/mrw/SKILL.md` through the write engine:
+  created, left alone when it is the same, replaced when `mrw skill` wrote an older one; a `SKILL.md` a person
+  wrote is refused, exit 1, and a `DIR` that does not exist is exit 2 and is not made. The skill goes beside
+  the standing trigger, never in its place: a host loads a skill when it judges it relevant.
 - **`mrw check`** runs the project's check on its own, scoped to the working
   set or to paths you name. A CLI `write` to a non-prose file runs the same
   runner by default (ADR-054); this is it without the write, for when you want the verdict again
@@ -685,8 +698,8 @@ and #73, one release apart.
   2026-09-07, 98.9% of them dead.
 
 mrw's OWN state lives outside the tree (ADR-004), so none of these commands
-writes to your checkout of its own accord — with the one exception above, where
-`mrw check` runs a command the project chose.
+writes to your checkout of its own accord — with two exceptions: `mrw check`
+runs a command the project chose (above), and `mrw skill --dir` writes where it is told.
 
 An unusable state directory is named as mrw's, with `XDG_STATE_HOME` and how to set it, on every surface: the CLI,
 the plan makers and `mrw mcp` (ADR-164).

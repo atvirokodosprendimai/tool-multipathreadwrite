@@ -108,10 +108,10 @@ This is the one place that says how the local CLI is installed; `~/.claude/CLAUD
 ## 7. Write it down
 
 memoryd `fact`, space `tool-multipathreadwrite`: subject `tool-multipathreadwrite.releases`, predicate
-`released`, object `vX.Y.Z@<sha>`; and an `open-thread` naming what is left. If the release changed
-what AGENTS.md teaches, update the `mrw` skill in memoryd's `craft` space (`update_skill`, its one
-store) with the provenance pin moved to this tag — a skill one release behind teaches a plan the
-binary now rejects (v8 was two behind) — then mirror it to `.claude/skills/mrw/SKILL.md`.
+`released`, object `vX.Y.Z@<sha>`; and an `open-thread` naming what is left. The `mrw` skill is the
+binary's own output (ADR-168): from the tagged binary, `mrw skill --dir .claude/skills` regenerates
+`.claude/skills/mrw/SKILL.md` (commit it in the Status PR), and `mrw skill` is the text to send to memoryd's
+`craft` skill `mrw` with `update_skill`, its one store outside this repository. Nothing is written by hand.
 
 ## What went wrong before, so it does not again
 

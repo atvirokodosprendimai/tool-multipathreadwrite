@@ -18,9 +18,9 @@ import (
 //
 // AGENTS.md specifically, and not "the docs": README already documents every
 // command, so a gate spanning both passes vacuously. The claim being defended
-// is that the AGENT-FACING file is complete, because that file is what the
-// centralised `mrw` skill mirrors — an agent that loads the skill is taught
-// whatever this file omits, and cannot ask for what it cannot see.
+// is that the AGENT-FACING file is complete, because that file is what every
+// agent working here reads; the skill is printed by the binary (ADR-168), so an
+// agent taught from AGENTS.md is taught whatever this file omits, and cannot ask for what it cannot see.
 //
 // Mention is a deliberately weak assertion. Requiring a GOOD explanation is
 // not gateable, and a prose-quality gate was measured and rejected in a
@@ -50,7 +50,7 @@ func TestEverySubcommandReachesTheAgentFacingGuide(t *testing.T) {
 		// catch, so the gate must not be the thing that hides it. Found by an
 		// independent review of #79.
 		if !documented(guide, c.Name) {
-			t.Errorf("AGENTS.md never mentions %q — an agent loading the centralised skill is taught mrw without it (issue #73)", "mrw "+c.Name)
+			t.Errorf("AGENTS.md never mentions %q — an agent taught from it learns mrw without it (issue #73)", "mrw "+c.Name)
 		}
 	}
 }

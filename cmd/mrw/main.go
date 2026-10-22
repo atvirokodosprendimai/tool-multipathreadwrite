@@ -130,6 +130,10 @@ func rootCommand() *cli.Command {
 		Name:    "mrw",
 		Usage:   "find, read and write many file ranges in one call",
 		Version: versionString(),
+
+		// ADR-168 Decision 4: the first line an agent reads tells it to load the skill.
+		CustomRootCommandHelpTemplate: agentsHelp + cli.RootCommandHelpTemplate,
+
 		// The framework's default handler PRINTS the error and calls os.Exit
 		// itself, which made main's own reporting dead code — the "mrw:" prefix
 		// never appeared, and no test could drive a failing command without
@@ -163,16 +167,16 @@ func rootCommand() *cli.Command {
 		Before: func(ctx context.Context, cmd *cli.Command) (context.Context, error) {
 			// The ledger names the mrw that writes it (ADR-150).
 			seen.SetWriter(versionString())
-			// version and instructions touch no state at all (ADR-145); the legacy
-			// migration runs for every other command, stats included.
+			// version, instructions and skill touch no state at all (ADR-145,
+			// ADR-168); the legacy migration runs for every other command, stats included.
 			verb := cmd.Args().First()
-			if verb != "version" && verb != "instructions" {
+			if verb != "version" && verb != "instructions" && verb != "skill" {
 				migrateLegacyState()
 			}
-			// version, instructions and stats never read the ledger (ADR-136), and
-			// help — asked for by name, or a bare mrw — uses none (ADR-157).
+			// version, instructions, skill and stats never read the ledger (ADR-136,
+			// ADR-168), and help — asked for by name, or a bare mrw — uses none (ADR-157).
 			switch verb {
-			case "version", "instructions", "stats", "help", "h", "":
+			case "version", "instructions", "skill", "stats", "help", "h", "":
 				return ctx, nil
 			}
 			// A newer mrw's ledger is not stale: it is left alone, and the caller
@@ -199,7 +203,7 @@ func rootCommand() *cli.Command {
 			cmd.Metadata = map[string]any{"notFound": cli.Exit(
 				fmt.Sprintf("unknown command %q (want %s)", name, strings.Join(names, ", ")), exitUsage)}
 		},
-		Commands: []*cli.Command{readCmd(), writeCmd(), checkCmd(), iterCmd(), seenCmd(), statsCmd(), mcpCmd(), instructionsCmd(), versionCmd()},
+		Commands: []*cli.Command{readCmd(), writeCmd(), checkCmd(), iterCmd(), seenCmd(), statsCmd(), mcpCmd(), instructionsCmd(), skillCmd(), versionCmd()},
 	}
 	installUsageErrors(cmd)
 	return cmd
@@ -224,6 +228,11 @@ func installUsageErrors(cmd *cli.Command) {
 // guessed the shape (ADR-097); every other usage error is worded as before.
 func usageError(_ context.Context, cmd *cli.Command, err error, _ bool) error {
 	if flag, sub := subcommandForFlag(cmd, err); sub != "" {
+		// ADR-168: a bare --skill IS the skill's spelling, so what went wrong
+		// here is the form — one dash, a value, padding — and the refusal says so.
+		if sub == "skill" && cmd.Root() == cmd {
+			return cli.Exit("only a bare --skill prints the skill — no value, no single dash: write `mrw --skill` or `mrw skill` (see: mrw --help)", exitUsage)
+		}
 		return cli.Exit(fmt.Sprintf("--%s is not a flag; the subcommand is `%s %s` (see: %s --help)",
 			flag, cmd.FullName(), sub, cmd.FullName()), exitUsage)
 	}
@@ -363,10 +372,13 @@ func posixQuote(s string) string {
 
 func main() {
 	root := rootCommand()
+	// ADR-168: a bare --skill is the subcommand's spelling, read as `skill`
+	// before any other argv check, so every guard below judges `mrw skill …`.
+	argv := skillSpelling(root, os.Args)
 	// ADR-161: a lone - moves last, or the parser drops every flag after it.
-	args, err := liftLoneDash(root, os.Args)
+	args, err := liftLoneDash(root, argv)
 	if err != nil {
-		args = os.Args // the refusal is reported below; nothing is run
+		args = argv // the refusal is reported below; nothing is run
 	}
 	// A padded ATTACHED flag value (--root='dir ') is trimmed by the parser
 	// before any Action runs, and a root flag never reaches a subcommand's raw

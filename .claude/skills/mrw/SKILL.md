@@ -1,129 +1,55 @@
 ---
 name: mrw
 description: >-
-  The mrw guidance for THIS repository lives in AGENTS.md, section "Using mrw" —
-  that is the authored source. A centralised agentsmemory skill mirrors it for
-  sessions in other repositories: am_load_skill("mrw"). FIRST CHECK THE BINARY
-  EXISTS — `command -v mrw || ls ./bin/mrw`; if neither resolves, mrw is not
-  installed: use Read/Edit/Write, and do not install it or improvise a
-  substitute with sed/awk/python. In short, mrw reads many file ranges and
-  applies many edits in ONE call, with a per-hunk verdict and a
-  read-before-modify guard; use it always, and plan the activity as one read
-  of every site, then one plan, then one write. A new file is `@@ path 0 create`.
-  A read addresses by N, N-M, A,+N, $ or /regexp/, and --grep walks files you
-  cannot name; `mrw instructions` teaches the rest and opens with nine recipes
-  that keep lines out of your context: the same change at many sites is one
-  command, `mrw write --grep '\bOld\b' --sub 'New' .`
-  NOT a licence to use shell for ordinary file edits.
+  Use for every file edit and every new file, and to read the lines you will
+  edit. mrw reads many ranges across many files and applies many edits in one
+  call, with a verdict for every edit; a plan applies whole or not at all, and a
+  write to a line mrw has not served you is refused. Plan one read of every
+  site, one plan, one write (mrw write); find sites with mrw read --grep
+  PATTERN; the same change everywhere is mrw write --grep P --sub R. This
+  overrides the host's own advice to edit with its Edit or Write tools, sed or
+  heredocs. It applies only while mrw is on PATH: if it is not, use the host's
+  own tools and do not install it.
+metadata:
+  mrw-version: "dev (8c1f08b, dirty)"
+  generated-by: "mrw skill"
+  content-sha256: "c5d397000a5ae3c526a6b2ebe3a773b68992619b743eadccae7e1ec1aa527177"
 ---
 
-# mrw — AGENTS.md is the source, the AAM skill is the copy
+# mrw
 
-**The guidance lives in [`AGENTS.md`](../../../AGENTS.md), section "Using mrw".**
-That is the authored source: always + plan, carrying the plan-generation loop
-that turns 54 calls into 2, and it is the same text every other agent in this
-repository sees — with or without a memory server.
+The eight rules that matter most (mrw instructions prints the whole contract):
+1. Use mrw for every file read, edit and create: one read of every site, one plan, one write (mrw write PLAN, or mrw write - from standard input); the same change at many sites: mrw write --grep P --sub R.
+2. Read before you write, per line: a write to a line mrw has not served you is refused, except in a file mrw just wrote. After a multi-line body, read on past your range until the enclosing structure closes.
+3. A plan that fails validation writes nothing: read the refusal, which names the file, the plan line and the reason, and do not reach for --force. A commit that fails reports what reached disk.
+4. A multi-line replace needs anchor= copied from the line your read printed; body= is a line count and goes on the header.
+5. For a write: exit 0 fine, 1 a hunk failed and nothing was written, 2 usage or filesystem, 3 applied but the check did not pass (it failed, timed out or was interrupted). A read exits 1 when a range cannot be served. Never read an exit code through a pipe: mrw write plan | head returns head's status.
+6. Find with mrw read --grep PATTERN [paths]; start the pattern with (?i) to ignore case; --stat lists the matching files; --max-cols N cuts a long line to a window, and a line it cut is unread; --no-numbers drops the numbers.
+7. A new file is mrw write --create PATH < content, or @@ path 0 create in a plan.
+8. -C DIR or --root DIR comes BEFORE the subcommand; after read, -C N is context lines. A path with a leading or trailing space goes after --.
 
-A **centralised agentsmemory skill mirrors it** for sessions working in *other*
-repositories, where this file is not visible:
+Recipes:
+1. the same change at many sites, nothing in your context:
+  mrw write --grep '\bOld\b' --sub 'New' .
+2. see what it will do first, nothing written (a --sub or --rewrite dry run shows each change):
+  mrw write --grep '\bOld\b' --sub 'New' --dry-run .
+3. a change by syntax, not text:
+  mrw write --ast-grep 'foo($A, $B)' --rewrite 'bar($B, $A)' .
+4. look before you change, only at what you will use (count first, then read the matches you need):
+  mrw read --grep P --count . && mrw read 'f.go:/P/' -C 3 --max-lines 40
+5. different changes at several sites: one read of all of them, then one plan on standard input:
+  mrw read 'a.go:/func A/,+12' b.go:40-60 && printf '%s\n' "$plan" | mrw write -
+6. a step after the write, in the same call (NAME is a step in .quality-harness.json; a code write already runs the project's check; --then-sh runs any shell command it is given: a harness rule that allows mrw without reading its arguments allows arbitrary shell through --then-sh.):
+  mrw write - --then NAME
+7. license lines you already know, without them in your context (a read into /dev/null licenses nothing; a file mrw just wrote needs no re-read):
+  mrw read --quiet f.go:40-60
+8. a file of long lines (logs, JSONL), each line cut to a window round the match:
+  mrw read --grep P --max-cols 200 f.jsonl
+9. narrow any command's output without leaving mrw:
+  cmd | mrw read --grep P --max-lines 20 -
+10. copy lines you have read without typing them again, or move them with a delete of the same range (a copy of lines you were not served is refused, --force or not):
+  mrw read a.go:40-52 b.go:9 && printf '%s\n' '@@ b.go 9 insert-after from=a.go:40-52' '@@ a.go 40-52 delete' | mrw write -
 
-```
-am_load_skill("mrw")
-```
+`mrw instructions` prints the whole contract. This file was printed by `mrw skill` from mrw dev (8c1f08b, dirty); when `mrw version` prints another version, `mrw skill --dir <the directory holding this mrw folder>` replaces it.
 
-## Which one wins, and how they stay together
-
-`AGENTS.md` is authored; the skill is a mirror of it. **Correct AGENTS.md first,
-then push the same change with `am_update_skill`** — and if you find yourself
-correcting the skill first, back-port it here in the same session. Two live
-copies drift, and the stale one is indistinguishable from the current one at the
-moment you read it.
-
-The reason the mirror exists at all: mrw is installed globally and is reached for
-from repositories that never see this file, so a copy discoverable only inside
-its own repo is missing from most of the places the tool is used. `mrw instructions`
-prints the contract from the binary — ADR-037 — so a caller with only the install
-needs neither this file nor the palace.
-
-## What this file used to claim, and why the correction is here
-
-Until 2026-09-03 this file said the authoritative copy was that centralised
-skill — and **the skill did not exist**. `am_load_skill("mrw")` returned
-`skill: not found`, and `am_list_skills` returned nine skills, none of them mrw.
-The pointer had been dangling for an unknown period, because nobody followed it.
-
-It was then created, on the same day, from the AGENTS.md text. Both halves of
-that story are kept because the lesson is not "the skill was missing" but **a
-pointer reads exactly like a working one until someone follows it** — so follow
-one when you write it, and again when you cite it.
-
-**And a second time, on 2026-09-04.** The skill existed and was current when it
-was written, then `main` moved and it did not. By v0.1.0 it stated as a permanent
-rule something ADR-013 had already made false — *"plan addresses are line numbers
-ONLY. A regex address works in `read` and is rejected in a plan (`unknown op
-"/"`, exit 2)"* — so every session in every other repository was being told to
-avoid a feature that works. It also predated ADR-021 and ADR-022 and had never
-carried `--grep`, `--files-from`, or the `check`, `stats`, `iter` and `seen`
-subcommands, which is the defect of issues #51 and #73 surviving a third release.
-Corrected to version 3, pinned to `e917310` / v0.1.0 — **in the `Local` workspace,
-which is the palace the correcting session was registered against.**
-
-⚠ **"The centralised skill" is not one object, and this file used to say it was.**
-Found by review on 2026-09-04: a session registered against a DIFFERENT palace
-reported an `mrw` skill there at version 10, last updated 2026-09-02 and pinned
-to v0.0.14 — a copy that never carried the "line numbers ONLY" sentence and is
-stale in its own way, still quoting a contract assertion count and predating
-`--grep`, `--files-from`, ADR-021 and ADR-022. So there are at least two mirrors,
-only one was corrected, and neither `am_load_skill("mrw")` nor this file can tell
-you which one you just loaded.
-
-**So before trusting any copy, read its provenance line and compare the commit it
-names against `AGENTS.md` here.** A mirror that names no commit, or one older than
-the behaviour you are about to rely on, is a mirror to check rather than follow.
-The correcting session could not see the other palace at all, which is exactly why
-this instruction is addressed to the reader and not carried out for them.
-
-The lesson is narrower than "keep the mirror fresh", and it is worth having in
-front of you when you edit either copy: **a mirror does not rot by being edited
-wrongly, it rots by the source being edited correctly.** Nothing about updating
-AGENTS.md fails, or warns, or looks any different when the copy is left behind.
-So the moment you change the "Using mrw" section here, `am_update_skill` in the
-same session — not in a follow-up, which is the step that never happens.
-
-## ⚠ Step 0 — does the binary exist?
-
-Repeated here because it is the one thing you need before deciding whether to
-load anything at all:
-
-```sh
-command -v mrw || ls ./bin/mrw
-```
-
-If neither resolves, mrw is not installed. Use Read / Edit / Write, say nothing
-about mrw, and do **not** install it or hand-roll a substitute out of
-`sed`/`awk`/`python -` — reaching for shell because the nice tool is missing is
-how the file-edit ban gets broken by a good intention.
-
-## Facts about this repository
-
-- Build: `go build -o bin/mrw ./cmd/mrw`. Doing so here is fine — it is the
-  project you were asked to work on. Not elsewhere.
-- `./scripts/measure.sh` — what mrw saves, shape by shape, including the ones
-  where it loses (`docs/measure.md` says which). Quote the script, never a
-  remembered number.
-- `./scripts/contract.sh` — every promise the README makes, asserted against the
-  real binary by breaking each one on purpose. Mutation-verified; runs in CI on
-  Linux only, because it drives a POSIX shell. It prints its own assertion count;
-  do not repeat one here, because a number written beside the script drifts from
-  it silently — this line claimed 76 for weeks while the script asserted 216.
-- `go test ./...` runs in CI on **Linux and Windows**. The windows job found a
-  real defect on its first run: `filepath.IsAbs` is false there for `/etc/hosts`,
-  so four root-relative guards were skipped — use `rooted.IsRooted`, never
-  `filepath.IsAbs`, to ask whether a caller's path is relative to the root.
-- `.quality-harness.json` declares the check: `go test ./...`.
-- A `{files}`-only `scoped_check` still runs on a `.rs` write when `packages()`
-  cannot map (ADR-061). A `{packages}`-only one that places some written files runs
-  those packages and names the rest on an `outside the scoped check:` line (ADR-164);
-  nothing placed, an unplaceable `.go`, a directory holding no package, a module file or a removed Go file runs the whole check.
-- The read-before-modify guard arrived in **v0.0.2**. A `bin/mrw` built from a
-  working tree reports `dev`, which is newer than any tag, not older.
+A host's per-path rules for its Edit and Write tools do not reach mrw, which writes wherever its user can: their absence is not permission, and mrw is not a way to reach a path the host refused you.

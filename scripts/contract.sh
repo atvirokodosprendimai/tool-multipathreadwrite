@@ -6103,8 +6103,9 @@ assert not untaught, "instructions omit read flags: %r" % untaught
 # --create is the write flag for a new file without a plan (ADR-139), and
 # --core is the instructions flag that prints the short form (ADR-141), and
 # --dry-run is the write flag ADR-161's recipe 2 shows before a wide edit, and
-# --force is the write flag ADR-167's recipe 10 says a copy's source never honours.
-unknown = set(re.findall(r"--([a-z][a-z-]*)", out)) - set(flags) - {"root", "help", "then", "then-sh", "no-check", "create", "core", "dry-run", "force"}
+# --force is the write flag ADR-167's recipe 10 says a copy's source never honours, and
+# --dir is the skill flag ADR-168's closing sentence names for installing the skill.
+unknown = set(re.findall(r"--([a-z][a-z-]*)", out)) - set(flags) - {"root", "help", "then", "then-sh", "no-check", "create", "core", "dry-run", "force", "dir"}
 assert not unknown, "instructions teach flags read does not have: %r" % sorted(unknown)
 assert re.search(r"^\s+--ast-grep PATTERN\b", opts, re.M), "read --help does not show --ast-grep PATTERN"
 PY
@@ -10080,6 +10081,55 @@ doc=$(cd "$R" && printf '@@ f.txt 1 replace anchor="q<z>&"\nx\n' | "$MRW" write 
 doc=$(cd "$R" && "$MRW" read --json f.txt:1 2>/dev/null)
 plain=$(cd "$R" && "$MRW" read f.txt:1 2>/dev/null)
 [ "$(printf '%s' "$doc" | jq -j .content)" = "$plain" ] && ok "the pair: decoded, content is the plain read's standard output" || bad "decoded content vs plain: $doc"
+
+# 293. ADR-168: `mrw skill` prints mrw's Agent Skills SKILL.md, and `mrw --skill`
+# is the same command, because `mrw --help` tells agents to type it. The pairs:
+# an argument is a usage error, and --skill=x keeps ADR-097's pointer at the
+# subcommand, since only the bare token is the subcommand's spelling.
+R=$(mktemp -d "$WORK/r293-XXXXXX")
+s293=$(cd "$R" && "$MRW" skill 2>&1); want 0 $? "mrw skill exits 0"
+f293=$(cd "$R" && "$MRW" --skill 2>&1); want 0 $? "mrw --skill exits 0"
+{ [ "$s293" = "$f293" ] && [ "$(printf '%s\n' "$s293" | head -1)" = "---" ] && grep -qx 'name: mrw' <<<"$s293"; } \
+  && ok "mrw skill and mrw --skill print the same skill" || bad "skill vs --skill: $s293"
+(cd "$R" && "$MRW" skill x >/dev/null 2>&1); want 2 $? "the pair: mrw skill x is a usage error"
+e293=$(cd "$R" && "$MRW" --skill=x 2>&1); want 2 $? "the pair: mrw --skill=x exits 2"
+{ grep -qF 'only a bare --skill prints the skill' <<<"$e293" && ! grep -qF 'is not a flag' <<<"$e293"; } && ok "and names the bare spelling without denying --skill" || bad "--skill=x: $e293"
+
+# 293, --dir: the skill is written to DIR/mrw/SKILL.md through the write engine —
+# created, left unchanged when it is the same, replaced when mrw skill wrote an
+# older one. The pairs: a SKILL.md a person wrote is refused, exit 1, its bytes
+# kept; a DIR that does not exist is exit 2 and is not created.
+D=$(mktemp -d "$WORK/r293d-XXXXXX")
+o293=$("$MRW" skill --dir "$D" 2>&1); want 0 $? "mrw skill --dir into an empty folder exits 0"
+u293=$("$MRW" --skill --dir "$D" 2>&1); want 0 $? "mrw --skill --dir again exits 0"
+# An older skill as an older mrw wrote it: the stamp changed and content-sha256
+# recomputed over the file without that line, so it is mrw's own and only older.
+"$MRW" skill | sed 's/^  mrw-version: .*/  mrw-version: "v0.0.1"/' > "$WORK/r293.old"
+grep -v '^  content-sha256: ' "$WORK/r293.old" > "$WORK/r293.unsigned"
+sha293=$(shasum -a 256 "$WORK/r293.unsigned" | cut -d' ' -f1)
+sed "s/^  content-sha256: .*/  content-sha256: \"$sha293\"/" "$WORK/r293.old" > "$D/mrw/SKILL.md"
+r293=$("$MRW" skill --dir "$D" 2>&1); want 0 $? "mrw skill --dir over an older stamp exits 0"
+{ grep -q '^created ' <<<"$o293" && grep -q '^unchanged ' <<<"$u293" && grep -q '^replaced .*v0\.0\.1 → ' <<<"$r293" \
+  && [ "$(cat "$D/mrw/SKILL.md")" = "$("$MRW" skill)" ]; } \
+  && ok "mrw skill --dir creates, keeps and replaces only its own skill" || bad "skill --dir: $o293 / $u293 / $r293"
+H=$(mktemp -d "$WORK/r293h-XXXXXX"); mkdir "$H/mrw"; printf 'mine\n' > "$H/mrw/SKILL.md"
+"$MRW" skill --dir "$H" >/dev/null 2>&1; want 1 $? "the pair: mrw skill --dir over a hand-written SKILL.md exits 1"
+[ "$(cat "$H/mrw/SKILL.md")" = mine ] && ok "mrw skill --dir refuses a hand-written skill and writes nothing" || bad "hand-written skill changed: $(cat "$H/mrw/SKILL.md")"
+"$MRW" skill --dir "$WORK/r293-missing" >/dev/null 2>&1; want 2 $? "the pair: mrw skill --dir into a folder that does not exist exits 2"
+[ ! -e "$WORK/r293-missing" ] && ok "and does not create it" || bad "skill --dir created $WORK/r293-missing"
+
+# 293, the chaos tests of 2026-10-22: --dir runs that race each other agree
+# rather than fail — six at once into one empty folder all exit 0 and leave one
+# skill — and a skill edited after mrw skill wrote it is kept. The pair: the
+# edited one is refused, exit 1, with the edit still in it.
+P=$(mktemp -d "$WORK/r293p-XXXXXX"); pids293=""
+for i in 1 2 3 4 5 6; do "$MRW" skill --dir "$P" > "$WORK/r293p.$i" 2>&1 & pids293="$pids293 $!"; done
+lost293=0; for p in $pids293; do wait "$p" || lost293=$((lost293 + 1)); done
+{ [ "$lost293" = 0 ] && [ "$(cat "$P/mrw/SKILL.md")" = "$("$MRW" skill)" ]; } \
+  && ok "six concurrent mrw skill --dir runs all exit 0 and leave one skill" || bad "concurrent --dir: $lost293 failed: $(cat "$WORK"/r293p.*)"
+E=$(mktemp -d "$WORK/r293e-XXXXXX"); "$MRW" skill --dir "$E" >/dev/null 2>&1; printf -- '- mine\n' >> "$E/mrw/SKILL.md"
+"$MRW" skill --dir "$E" >/dev/null 2>&1; want 1 $? "the pair: mrw skill --dir over a skill edited after it was written exits 1"
+grep -qx -- '- mine' "$E/mrw/SKILL.md" && ok "mrw skill --dir keeps a skill a person edited" || bad "the edited skill lost its edit"
 
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
