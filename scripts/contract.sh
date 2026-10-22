@@ -9951,12 +9951,13 @@ grep -qx 'f.txt: WITHHELD: --max-chars reached' "$WORK/r288b.err" && ok "and kee
 # file inside the root is served with no such command; mrw's own state, a missing
 # file and a directory are refused with none (no root serves them).
 D=$(cd "$WORK" && pwd -P); R=$(mktemp -d "$D/r289-XXXXXX"); mkdir "$R/root" "$R/other" "$R/st"; printf 'one\ntwo\n' > "$R/other/hosts"; printf 'in\n' > "$R/root/in.txt"
-printf 'spaced\n' > "$R/other/my file.txt"; printf 'quoted\n' > "$R/other/it's.txt"; printf 'flag\n' > "$R/other/--help"
+printf 'spaced\n' > "$R/other/my file.txt"; printf 'quoted\n' > "$R/other/it's.txt"; printf 'flag\n' > "$R/other/--help"; printf 'ptr\n' > "$R/other/@1"
+printf 'colon\n' > "$R/other/a:1"; ln -s "$R/other/a:1" "$R/other/lnk" # a name the printed spec could not name back
 out=$(cd "$R/root" && "$MRW" read "$R/other/hosts:1" 2>&1); want 1 $? "an absolute path outside the root exits 1"
-grep -qF "pointed where you mean: mrw --root $R/other read -- hosts:1" <<<"$out" && ok "and ends with the command that reads it" || bad "absolute: $out"
+grep -qF "pointed where you mean: mrw --root $R/other read -- ./hosts:1" <<<"$out" && ok "and ends with the command that reads it" || bad "absolute: $out"
 out=$(cd "$R/root" && "$MRW" read ../other/hosts:2 2>&1); want 1 $? "a ../ path outside the root exits 1"
-grep -qF "pointed where you mean: mrw --root $R/other read -- hosts:2" <<<"$out" && ok "and ends with the command, ranges kept" || bad "../: $out"
-for name289 in 'my file.txt' "it's.txt" '--help'; do
+grep -qF "pointed where you mean: mrw --root $R/other read -- ./hosts:2" <<<"$out" && ok "and ends with the command, ranges kept" || bad "../: $out"
+for name289 in 'my file.txt' "it's.txt" '--help' '@1'; do
   out=$(cd "$R/root" && "$MRW" read "$R/other/$name289:1" 2>&1); cmd289=${out#*pointed where you mean: }; cmd289=${cmd289%%$'\n'*}
   served=$(cd "$R/root" && eval "\"\$MRW\" ${cmd289#mrw }" 2>&1)
   grep -q "^ *1| " <<<"$served" && ok "the printed command for '$name289' serves it: $cmd289" || bad "'$name289': printed [$cmd289], served: $served"
@@ -9965,7 +9966,7 @@ out=$(cd "$R/root" && XDG_STATE_HOME="$R/st" "$MRW" read in.txt 2>&1); want 0 $?
 grep -q 'mrw --root' <<<"$out" && bad "an inside read named a --root command: $out" || ok "and names no --root command"
 led289=$(find "$R/st" -name seen -type f | head -1)
 [ -n "$led289" ] || bad "no ledger under $R/st"
-for spec289 in "$led289:1" "$R/other/nope/x.txt:3" ../other/missing:1 ../other:1; do
+for spec289 in "$led289:1" "$R/other/nope/x.txt:3" ../other/missing:1 ../other:1 "$R/other/lnk"; do
   out=$(cd "$R/root" && XDG_STATE_HOME="$R/st" "$MRW" read "$spec289" 2>&1); rc=$?
   { [ "$rc" = 1 ] && ! grep -q 'mrw --root' <<<"$out"; } && ok "and a read of ${spec289#"$R"/} is refused with no command" || bad "$spec289: exit $rc: $out"
 done

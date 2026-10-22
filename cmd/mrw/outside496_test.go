@@ -48,16 +48,19 @@ func TestAnOutOfRootReadNamesTheCommandThatReadsIt(t *testing.T) {
 	}
 	type target struct{ name, body, word string }
 	targets := []target{
-		{"hosts", "one hosts\n", "hosts:1"},
-		{"my file.txt", "one spaced\n", "'my file.txt:1'"},
-		{"--help", "one flag\n", "./--help:1"}, // a name starting with - is printed ./-…: never a flag, never stdin
-		{"-", "one dash\n", "./-:1"},           // a bare - is standard input even after -- (Codex review of ff827462)
+		// Every name is printed ./NAME (Codex re-check of 3da5a009): never a flag (-), standard
+		// input (- or -:), a working-set pointer (@) or a Windows drive (a:).
+		{"hosts", "one hosts\n", "./hosts:1"},
+		{"my file.txt", "one spaced\n", "'./my file.txt:1'"},
+		{"--help", "one flag\n", "./--help:1"},
+		{"-", "one dash\n", "./-:1"},
+		{"@1", "one pointer\n", "./@1:1"},
 	}
 	if runtime.GOOS != "windows" { // Windows keeps neither a leading space nor, here, a bare quote
 		targets = append(targets,
-			target{"it's.txt", "one quoted\n", `'it'\''s.txt:1'`},
-			target{" lead", "one padded\n", "' lead:1'"},
-			target{"-:1", "one stdin-shaped\n", "./-:1:1"}) // every - and -: spelling is standard input (Codex re-check of 59d1cc14)
+			target{"it's.txt", "one quoted\n", `'./it'\''s.txt:1'`},
+			target{" lead", "one padded\n", "'./ lead:1'"},
+			target{"-:1", "one stdin-shaped\n", "./-:1:1"})
 	}
 	var bin string
 	if runtime.GOOS != "windows" {

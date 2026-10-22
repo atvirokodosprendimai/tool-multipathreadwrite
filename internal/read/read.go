@@ -302,9 +302,12 @@ func readElsewhere(file, raw, path string) string {
 		ranges = raw[len(path):]
 	}
 	win := runtime.GOOS == "windows"
-	name := filepath.Base(file)
-	if strings.HasPrefix(name, "-") { // - and -:… are standard input even after --, so name the file
-		name = "./" + name
+	// ./ keeps the name a file: never a flag (-), standard input (- or -:), a working-set pointer
+	// (@) or a Windows drive (a:). A spec that does not parse back to this file (a colon in a name
+	// given no range) cannot name it, so no command is printed (Codex re-checks of 59d1cc14, 3da5a009).
+	name := "./" + filepath.Base(file)
+	if sp, err := ParseSpec(name + ranges); err != nil || sp.Path != name {
+		return ""
 	}
 	return ": mrw --root " + quoteWord(filepath.Dir(file), win) + " read -- " + quoteWord(name+ranges, win)
 }
