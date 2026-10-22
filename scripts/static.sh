@@ -49,6 +49,22 @@ empty() {
   [ -z "$out" ] || { printf '%s\n' "$out"; return 1; }
 }
 
+# gofmt -l over the Go files git sees (tracked, and untracked but not ignored), not
+# a walk of `.`: an agent's worktree under .claude/worktrees (ignored) holds files
+# mid-edit, and `gofmt -l .` failed every commit made while one was open. A deleted
+# tracked file is skipped.
+gofmt_seen() {
+  local files=() f list
+  # Listed into a file first: a process substitution would hide git's exit status, and
+  # a listing that failed would pass the step with nothing checked (Codex review of #501).
+  list=$(mktemp) || return 1
+  git ls-files -z --cached --others --exclude-standard -- '*.go' > "$list" \
+    || { echo "gofmt: git ls-files failed, so no Go file was checked"; rm -f "$list"; return 1; }
+  while IFS= read -r -d '' f; do [ -e "$f" ] && files+=("$f"); done < "$list"
+  rm -f "$list"
+  [ "${#files[@]}" -eq 0 ] || gofmt -l "${files[@]}"
+}
+
 golangci() {
   if ! command -v golangci-lint >/dev/null 2>&1; then
     echo "golangci-lint is not installed. Install v$GOLANGCI_VERSION: brew install golangci-lint, or https://golangci-lint.run/docs/welcome/install/"
@@ -163,7 +179,7 @@ self_test() (
   echo "self-test: ruff, shellcheck, actionlint and knip each reported its planted defect"
 )
 
-step gofmt empty gofmt -l .
+step gofmt empty gofmt_seen
 step vet go vet ./...
 step golangci-lint golangci
 step "deadcode (production code nothing reaches, or only tests reach)" empty go run "$DEADCODE" ./...
