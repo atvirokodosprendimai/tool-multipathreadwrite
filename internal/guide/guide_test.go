@@ -95,6 +95,8 @@ func TestCLITeachesTheReadSide(t *testing.T) {
 		"rg -l X . |",
 		"A read exits 1 when a range cannot be served",
 		"an end past the last line is clamped, not an error",
+		"mrw: nothing was recorded", // ADR-166: a read in a read-only sandbox
+		"XDG_STATE_HOME",
 		"a .git directory the walk meets is skipped, but one you name is walked",
 		".gitignore",
 	} {
