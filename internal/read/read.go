@@ -302,7 +302,11 @@ func readElsewhere(file, raw, path string) string {
 		ranges = raw[len(path):]
 	}
 	win := runtime.GOOS == "windows"
-	return ": mrw --root " + quoteWord(filepath.Dir(file), win) + " read -- " + quoteWord(filepath.Base(file)+ranges, win)
+	name := filepath.Base(file)
+	if name == "-" { // a bare - is standard input even after --, so name the file
+		name = "./-"
+	}
+	return ": mrw --root " + quoteWord(filepath.Dir(file), win) + " read -- " + quoteWord(name+ranges, win)
 }
 
 // quoteWord quotes s for the shell a caller pastes it into, only when s holds a

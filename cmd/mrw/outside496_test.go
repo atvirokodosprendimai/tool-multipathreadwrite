@@ -51,6 +51,7 @@ func TestAnOutOfRootReadNamesTheCommandThatReadsIt(t *testing.T) {
 		{"hosts", "one hosts\n", "hosts:1"},
 		{"my file.txt", "one spaced\n", "'my file.txt:1'"},
 		{"--help", "one flag\n", "--help:1"},
+		{"-", "one dash\n", "./-:1"}, // a bare - is standard input even after -- (Codex review of ff827462)
 	}
 	if runtime.GOOS != "windows" { // Windows keeps neither a leading space nor, here, a bare quote
 		targets = append(targets,
