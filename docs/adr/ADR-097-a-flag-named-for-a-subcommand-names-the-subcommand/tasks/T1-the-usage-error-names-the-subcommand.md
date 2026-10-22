@@ -53,6 +53,8 @@ today's message, which the named test and §188 both catch.
    exits 2 with ADR-069's `ends in whitespace` refusal (ordering); and `mrw instructions` exits 0
    with a non-empty stdout, so the named command is the one that works. [proof: acceptance]
 
+   *Corrected 2026-10-22 (issue #496): the unknown-flag lines above now print `--bogus188`, `--stats`, `--add` and the like with two dashes; urfave's own `flag provided but not defined: -name` is rewritten for a name of more than one letter, and a one-letter flag (`-z`) keeps one. The test and §188 pins were updated; the sentence for a subcommand name is unchanged.*
+
 ## Acceptance
 
 ```bash
@@ -152,3 +154,4 @@ then the named test's expected sentence and §188's grep change together.
 - 2026-09-29 · 3582232* · exit 0 · `set -o pipefail …` · acceptance-sha256:59b27e8c92e8e3a5d6a518c93eb57a65367af4aa525ca833926591d99ef54cb5 · ms:369
 - 2026-09-29 · 3582232* · exit 0 · `set -o pipefail …` · acceptance-sha256:59b27e8c92e8e3a5d6a518c93eb57a65367af4aa525ca833926591d99ef54cb5 · ms:373
 - 2026-09-29 · 3582232* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:59b27e8c92e8e3a5d6a518c93eb57a65367af4aa525ca833926591d99ef54cb5 · ms:0 · test-lock-sha256:da4b5d1f00fab13666829c3c340f45faa6eb8addf116142d2d619516eee37972 · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwpib2R5CWNtZC9tcncvdXNhZ2UwOTdfdGVzdC5nbwlUZXN0QUZsYWdOYW1lZEZvckFTdWJjb21tYW5kTmFtZXNUaGVTdWJjb21tYW5kCThkODdjOGViM2I1MTJmMjk1ZmRiYzNlYWI5MjMwOTIxMzg2YmRiMDg2YzdlM2IyZDJlN2NmZWMyMGI1MjM2NjgKYm9keQljbWQvbXJ3L3VzYWdlMDk3X3Rlc3QuZ28JVGVzdEFuVW5rbm93bkZsYWdOYW1pbmdOb1N1YmNvbW1hbmRJc1JlZnVzZWRBc0JlZm9yZQljNmJjMDk1MjQ3MTk3ZjFkOWIyZTI3OTI5ZDc3NzExNDE2NmUyODdlNTI3ZDhhZjNkNTcyNmViNzgzNmVkNjhk · test-lock-kind:replace
+- 2026-10-22 · f862d8a3* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:59b27e8c92e8e3a5d6a518c93eb57a65367af4aa525ca833926591d99ef54cb5 · ms:0 · test-lock-sha256:de5555ab9dfa8565ff5f58db5d332d0550ec1a2ff2524996bd21a86fa6d16501 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJY21kL21ydy91c2FnZTA5N190ZXN0LmdvCVRlc3RBRmxhZ05hbWVkRm9yQVN1YmNvbW1hbmROYW1lc1RoZVN1YmNvbW1hbmQJOGQ4N2M4ZWIzYjUxMmYyOTVmZGJjM2VhYjkyMzA5MjEzODZiZGIwODZjN2UzYjJkMmU3Y2ZlYzIwYjUyMzY2OApib2R5CWNtZC9tcncvdXNhZ2UwOTdfdGVzdC5nbwlUZXN0QW5Vbmtub3duRmxhZ05hbWluZ05vU3ViY29tbWFuZElzUmVmdXNlZEFzQmVmb3JlCWNkOGFjZDljOWFkNGE5ODM4YzE4ZGUyNjExNWEzZjA0NTJkNjZkNjRjYzcxMjFlYzBhMTE1Mzc1ZWY2NWEyYzM · test-lock-kind:replace

@@ -74,7 +74,7 @@ No module is added or moved. `internal/read` (an engine package, lifecycle §6) 
 
 | Contract | Producing task | Consuming task(s) | Breaking? |
 |----------|----------------|-------------------|-----------|
-| `read.Budget` and the `--max-chars` WITHHELD lines | T2 | T3 (the `--json` document carries them in `content` and in `problems`) | No — T3's test includes one budgeted read |
+| `read.Budget` and the `--max-chars` WITHHELD lines | T2 | T3 (the `--json` document counts them in `receipt.problems`; the lines go to standard error — corrected 2026-10-22, issue #496: this cell said `content` and `problems`, and the code never put them in `content`) | No — T3's test includes one budgeted read |
 | the receipt composer shared by `readTool` and `read --json` | T3 | none | No |
 
 ## Implementation

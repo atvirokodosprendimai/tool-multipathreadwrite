@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/state"
 )
@@ -29,6 +30,11 @@ func Hint(err error) error {
 	where := "XDG_STATE_HOME is not set, so it is under ~/.local/state"
 	if xdg := os.Getenv("XDG_STATE_HOME"); xdg != "" {
 		where = "it is under XDG_STATE_HOME=" + xdg
+	}
+	if file := fileInTheWay(err); file != "" {
+		// Windows words this "The system cannot find the path specified", which
+		// names no file; the hint does, on every OS.
+		where += "; " + file + " is a file, not a directory"
 	}
 	return fmt.Errorf("%w — mrw's state directory, where it keeps the read ledger outside the checkout; %s: set XDG_STATE_HOME to a writable absolute directory", err, where)
 }
@@ -51,6 +57,52 @@ func about(err error, base string) bool {
 	}
 	var le *os.LinkError
 	return errors.As(err, &le) && (within(le.Old, base) || within(le.New, base))
+}
+
+// fileInTheWay is the existing regular file that a directory of the state
+// directory's path was meant to be, or "". It looks where the error points: it
+// walks from the failing path up to the first entry that exists, and that path
+// itself counts only when its operation was making a directory or it failed with
+// ENOTDIR (a file that could not be opened is a file, and that is no news). It
+// then looks at the state directory's own ancestors, for the failure whose shape
+// says nothing: os.OpenRoot of a file is "open p: not a directory", no ENOTDIR.
+func fileInTheWay(err error) string {
+	var p string
+	var self bool
+	var pe *fs.PathError
+	var le *os.LinkError
+	switch {
+	case errors.As(err, &pe):
+		p, self = pe.Path, pe.Op == "mkdir" || errors.Is(err, syscall.ENOTDIR)
+	case errors.As(err, &le):
+		p = le.New
+	}
+	if f := regularAbove(p, self); f != "" {
+		return f
+	}
+	if base, berr := state.Base(); berr == nil {
+		return regularAbove(base, true)
+	}
+	return ""
+}
+
+// regularAbove walks from p up to the first entry that exists and returns it if
+// it is a regular file; p itself is judged only when self.
+func regularAbove(p string, self bool) string {
+	for p != "" {
+		if fi, serr := os.Stat(p); serr == nil {
+			if fi.Mode().IsRegular() && self {
+				return p
+			}
+			return ""
+		}
+		parent := filepath.Dir(p)
+		if parent == p {
+			return ""
+		}
+		p, self = parent, true
+	}
+	return ""
 }
 
 // within reports whether p is dir or a path below it.

@@ -1455,7 +1455,7 @@ pricing strict_candidates=1 strict_would_refuse=0 strict_would_refuse_broke=0 st
   "check": {
     "ran": true
     "declared": true
-    "command": "printf x \u003e\u003e a.go"
+    "command": "printf x >> a.go"
     "exit_code": 0
   }
   "pattern": {

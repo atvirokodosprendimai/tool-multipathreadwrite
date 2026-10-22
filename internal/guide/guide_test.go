@@ -88,6 +88,7 @@ func TestCLITeachesTheReadSide(t *testing.T) {
 		"/from/,/to/",
 		"but not -M or a comma list",
 		"must match exactly once",
+		"also serves, and licenses, the line after each range that ends before the file does (ADR-161)",
 		"--grep PATTERN",
 		"--exclude GLOB",
 		"--ast-grep PATTERN",

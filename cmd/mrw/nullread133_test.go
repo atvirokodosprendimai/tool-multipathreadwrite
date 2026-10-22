@@ -67,6 +67,9 @@ func TestAReadSentToTheNullDeviceLicensesNothing(t *testing.T) {
 	if !strings.Contains(said, "null device") || !strings.Contains(said, "nothing was recorded") {
 		t.Errorf("stderr does not say the answer went to the null device and nothing was recorded: %q", said)
 	}
+	if !strings.Contains(said, "read again without redirecting, or license lines you already know with `mrw read --quiet SPEC`") {
+		t.Errorf("stderr does not name the way out (#496): %q", said)
+	}
 
 	sink, err := os.Create(filepath.Join(t.TempDir(), "answer"))
 	if err != nil {
