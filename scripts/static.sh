@@ -54,9 +54,14 @@ empty() {
 # mid-edit, and `gofmt -l .` failed every commit made while one was open. A deleted
 # tracked file is skipped.
 gofmt_seen() {
-  local files=() f
-  while IFS= read -r -d '' f; do [ -e "$f" ] && files+=("$f"); done \
-    < <(git ls-files -z --cached --others --exclude-standard -- '*.go')
+  local files=() f list
+  # Listed into a file first: a process substitution would hide git's exit status, and
+  # a listing that failed would pass the step with nothing checked (Codex review of #501).
+  list=$(mktemp) || return 1
+  git ls-files -z --cached --others --exclude-standard -- '*.go' > "$list" \
+    || { echo "gofmt: git ls-files failed, so no Go file was checked"; rm -f "$list"; return 1; }
+  while IFS= read -r -d '' f; do [ -e "$f" ] && files+=("$f"); done < "$list"
+  rm -f "$list"
   [ "${#files[@]}" -eq 0 ] || gofmt -l "${files[@]}"
 }
 
