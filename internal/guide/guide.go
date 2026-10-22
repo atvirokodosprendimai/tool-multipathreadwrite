@@ -84,6 +84,7 @@ A value with spaces can be double-quoted (anchor="func openTestStore"), single-q
 body= is a line count, not a character count. Python str splits characters; do not use len(body) as body=.
 body= goes ON the header, never on a line of its own: @@ a.go 12-14 replace anchor="func A" body=3, then exactly 3 body lines.
 body=@path loads the body from a root-relative file.
+A body line that is itself a valid hunk header (@@ b.txt 0 create) is not content: it starts a new hunk, silently. A body that holds one needs body=N and raw=true on its header: @@ a.md 0 create body=2 raw=true.
 from=PATH:ADDR is a body copied from lines of a file as it was before the plan (ADDR is N, N-M, A,+N, $ or N-$): it is refused unless you were served them, --force or not, and the receipt names what it copied. With a delete of the same range it moves a block; both address the original.
 lines= is a guard on how many lines the ADDRESS covers, and is not body=.
 The checkout is named by global -C DIR or --root DIR before the subcommand (mrw -C repo write plan). After read, -C is context lines, not a checkout. An all-digit -C before the subcommand is still a checkout, and mrw says so on stderr.
