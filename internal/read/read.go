@@ -303,8 +303,8 @@ func readElsewhere(file, raw, path string) string {
 	}
 	win := runtime.GOOS == "windows"
 	name := filepath.Base(file)
-	if name == "-" { // a bare - is standard input even after --, so name the file
-		name = "./-"
+	if strings.HasPrefix(name, "-") { // - and -:… are standard input even after --, so name the file
+		name = "./" + name
 	}
 	return ": mrw --root " + quoteWord(filepath.Dir(file), win) + " read -- " + quoteWord(name+ranges, win)
 }

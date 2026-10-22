@@ -50,13 +50,14 @@ func TestAnOutOfRootReadNamesTheCommandThatReadsIt(t *testing.T) {
 	targets := []target{
 		{"hosts", "one hosts\n", "hosts:1"},
 		{"my file.txt", "one spaced\n", "'my file.txt:1'"},
-		{"--help", "one flag\n", "--help:1"},
-		{"-", "one dash\n", "./-:1"}, // a bare - is standard input even after -- (Codex review of ff827462)
+		{"--help", "one flag\n", "./--help:1"}, // a name starting with - is printed ./-…: never a flag, never stdin
+		{"-", "one dash\n", "./-:1"},           // a bare - is standard input even after -- (Codex review of ff827462)
 	}
 	if runtime.GOOS != "windows" { // Windows keeps neither a leading space nor, here, a bare quote
 		targets = append(targets,
 			target{"it's.txt", "one quoted\n", `'it'\''s.txt:1'`},
-			target{" lead", "one padded\n", "' lead:1'"})
+			target{" lead", "one padded\n", "' lead:1'"},
+			target{"-:1", "one stdin-shaped\n", "./-:1:1"}) // every - and -: spelling is standard input (Codex re-check of 59d1cc14)
 	}
 	var bin string
 	if runtime.GOOS != "windows" {
