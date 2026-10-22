@@ -70,9 +70,12 @@ Then read the subagent's transcript for slips: the last line is a request, and a
 
 mrw keeps its read ledger outside the checkout, under `XDG_STATE_HOME` (default `~/.local/state`). A
 sandbox that lets the agent write only its workspace — Codex's default, many CI runners — cannot write
-there. Since v1.71.0 a read still serves and exits as it would, ending standard error with
-`mrw: nothing was recorded` (ADR-166); but no line is licensed, so a write to those lines exits 2 naming the
-state directory while it stays unwritable. Tell the agent, or its launcher, to export `XDG_STATE_HOME` to a
+there. Since v1.71.0 a content read that names its specs still serves and exits as it would, with
+`mrw: nothing was recorded` on standard error, just above the kind line when it exits 1 (ADR-166); `--quiet`,
+`--sub`, `--rewrite` and a read that needs the working set still exit 2. No new licence is recorded, so a write
+to those lines exits 2 naming the state directory while it stays unwritable, and once it can be written is
+refused as unread unless an earlier read licensed them.
+Tell the agent, or its launcher, to export `XDG_STATE_HOME` to a
 writable absolute directory outside the checkout for the whole session, so every read and write uses one
 ledger.
 
@@ -87,8 +90,9 @@ two tools into every project on the machine, including those whose instructions 
 
 An instruction is a claim about behaviour; `mrw stats` is the measurement. It counts the plans this checkout
 has been given and what became of them. One repository in the 2026-10-09 survey made mrw a hard rule in its
-`CLAUDE.md` and had zero recorded plans: the rule was never loaded. If `mrw stats` stays at zero while the
-agent edits files, the trigger is not reaching it.
+`CLAUDE.md` and had zero recorded plans. Zero is a reason to look, not proof by itself: a failed tally
+write is not reported and `mrw stats --reset` clears the counts, so check the agent's transcript too. If
+`mrw stats` stays at zero while the agent edits files, the trigger is likely not reaching it.
 
 And check the binary is current: `mrw version --check-latest` exits 1 when a newer release exists (ADR-149).
 Five of five Windows repositories in the same survey ran a release four versions old with no sign of it.
