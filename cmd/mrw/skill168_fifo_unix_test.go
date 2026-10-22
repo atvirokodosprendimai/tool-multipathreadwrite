@@ -54,3 +54,23 @@ func TestReadSkillFileRefusesAFIFOWithoutWaiting(t *testing.T) {
 		t.Fatal("readSkillFile waited on a FIFO")
 	}
 }
+
+// The Codex review of 8c1f08b: after a refused write, --dir re-reads the file to
+// tell a race from a refusal. A FIFO there is no race, and the re-read must not
+// wait on it.
+func TestChangedSinceDoesNotWaitOnAFIFO(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "SKILL.md")
+	if err := syscall.Mkfifo(p, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan bool, 1)
+	go func() { done <- changedSince(p, nil) }()
+	select {
+	case raced := <-done:
+		if raced {
+			t.Error("a FIFO was taken for a racing --dir")
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("changedSince waited on a FIFO")
+	}
+}

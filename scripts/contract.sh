@@ -10102,7 +10102,12 @@ e293=$(cd "$R" && "$MRW" --skill=x 2>&1); want 2 $? "the pair: mrw --skill=x exi
 D=$(mktemp -d "$WORK/r293d-XXXXXX")
 o293=$("$MRW" skill --dir "$D" 2>&1); want 0 $? "mrw skill --dir into an empty folder exits 0"
 u293=$("$MRW" --skill --dir "$D" 2>&1); want 0 $? "mrw --skill --dir again exits 0"
-"$MRW" skill | sed 's/^  mrw-version: .*/  mrw-version: "v0.0.1"/' > "$D/mrw/SKILL.md"
+# An older skill as an older mrw wrote it: the stamp changed and content-sha256
+# recomputed over the file without that line, so it is mrw's own and only older.
+"$MRW" skill | sed 's/^  mrw-version: .*/  mrw-version: "v0.0.1"/' > "$WORK/r293.old"
+grep -v '^  content-sha256: ' "$WORK/r293.old" > "$WORK/r293.unsigned"
+sha293=$(shasum -a 256 "$WORK/r293.unsigned" | cut -d' ' -f1)
+sed "s/^  content-sha256: .*/  content-sha256: \"$sha293\"/" "$WORK/r293.old" > "$D/mrw/SKILL.md"
 r293=$("$MRW" skill --dir "$D" 2>&1); want 0 $? "mrw skill --dir over an older stamp exits 0"
 { grep -q '^created ' <<<"$o293" && grep -q '^unchanged ' <<<"$u293" && grep -q '^replaced .*v0\.0\.1 → ' <<<"$r293" \
   && [ "$(cat "$D/mrw/SKILL.md")" = "$("$MRW" skill)" ]; } \

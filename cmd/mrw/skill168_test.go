@@ -401,8 +401,8 @@ func TestSkillDirKeepsWhatAPersonChanged(t *testing.T) {
 	bom := "\ufeff"
 	if d, _ := put(t, bom+cur); true {
 		out, err := skillRun(t, "skill", "--dir", d)
-		if err != nil || !strings.Contains(out, "unchanged ") || !strings.Contains(out, "differ from mrw skill's output and are kept") {
-			t.Errorf("a BOM copy of the current skill: err %v, out %q, want unchanged with the difference named", err, out)
+		if err != nil || !strings.Contains(out, "unchanged ") || !strings.Contains(out, "it has a byte order mark, which mrw skill's output does not, and they are kept") {
+			t.Errorf("a BOM copy of the current skill: err %v, out %q, want unchanged with the byte order mark named", err, out)
 		}
 	}
 	if d, _ := put(t, bom+guide.Skill("v0.0.1")); true {
@@ -439,6 +439,91 @@ func TestSkillDirKeepsWhatAPersonChanged(t *testing.T) {
 		out, err := skillRun(t, "skill", "--dir", nl)
 		if err != nil || strings.Count(strings.TrimRight(out, "\n"), "\n") != 0 || !strings.Contains(out, `a\nb`) {
 			t.Errorf("a DIR holding a newline: err %v, out %q, want one line naming it quoted", err, out)
+		}
+	}
+}
+
+// ADR-168 Decision 2, the chaos re-runs of 2026-10-22. The content-sha256
+// covers the description as well as the body, so an edit to the trigger is a
+// person's too; a byte order mark stays through a replace, as CRLF does; an
+// empty SKILL.md is the engine's probe of a racing run (ADR-105) until it stays
+// empty; and an engine refusal names the folder as the caller did without
+// touching an absolute path that holds mrw/, nor showing a temporary name.
+func TestSkillDirKeepsTheTriggerAndTheBOM(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	put := func(t *testing.T, content string) (string, string) {
+		t.Helper()
+		d := t.TempDir()
+		if err := os.MkdirAll(filepath.Join(d, "mrw"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		p := filepath.Join(d, "mrw", "SKILL.md")
+		if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return d, p
+	}
+	cur := guide.Skill(versionString())
+	edited := strings.Replace(cur, "Plan one read", "PLAN ONE READ", 1)
+	if edited == cur {
+		t.Fatal("the fixture did not edit the description")
+	}
+	d, p := put(t, edited)
+	if _, err := skillRun(t, "skill", "--dir", d); err == nil || exitCode(err) != exitNotApplied || !strings.Contains(err.Error(), "was edited after `mrw skill` wrote it") {
+		t.Errorf("an edited description: %v, want exit %d naming the edit", err, exitNotApplied)
+	}
+	if b, _ := os.ReadFile(p); string(b) != edited {
+		t.Error("the edited description was replaced")
+	}
+	const bom = "\xef\xbb\xbf"
+	d, p = put(t, bom+strings.ReplaceAll(guide.Skill("v0.0.1"), "\n", "\r\n"))
+	if out, err := skillRun(t, "skill", "--dir", d); err != nil || !strings.Contains(out, "replaced ") || !strings.Contains(out, "v0.0.1 → ") {
+		t.Errorf("a BOM and CRLF older skill: err %v, out %q, want replaced naming the old version", err, out)
+	}
+	if out, err := skillRun(t, "skill", "--dir", d); err != nil || !strings.Contains(out, "unchanged ") || !strings.Contains(out, "it has a byte order mark and CRLF line endings") {
+		t.Errorf("the replaced BOM and CRLF skill, run again: err %v, out %q, want unchanged naming both", err, out)
+	}
+	if b, _ := os.ReadFile(p); !strings.HasPrefix(string(b), bom+"---") || normalised(string(b)) != cur {
+		t.Errorf("a replace dropped the byte order mark or wrote other text: %q", string(b[:min(len(b), 12)]))
+	}
+	d, p = put(t, "")
+	if _, err := skillRun(t, "skill", "--dir", d); err == nil || exitCode(err) != exitNotApplied || !strings.Contains(err.Error(), "is empty") {
+		t.Errorf("an empty SKILL.md that stays empty: %v, want exit %d", err, exitNotApplied)
+	}
+	if b, _ := os.ReadFile(p); len(b) != 0 {
+		t.Error("an empty SKILL.md was written")
+	}
+	// Windows PowerShell 5.1's redirect of mrw --skill writes UTF-16 with a
+	// byte order mark (the chaos test of 2026-10-22): the refusal says so.
+	if _, err := func() (string, error) {
+		d, _ := put(t, "\xff\xfe-\x00-\x00-\x00")
+		return skillRun(t, "skill", "--dir", d)
+	}(); err == nil || exitCode(err) != exitNotApplied || !strings.Contains(err.Error(), "is UTF-16") {
+		t.Errorf("a UTF-16 SKILL.md: %v, want exit %d naming UTF-16", err, exitNotApplied)
+	}
+	for _, c := range []struct{ reason, want string }{
+		{"mrw/SKILL.md is read-only; chmod u+w mrw/SKILL.md", "D/mrw/SKILL.md is read-only; chmod u+w D/mrw/SKILL.md"},
+		{"held open (open /x/lk/mrw/SKILL.md: busy)", "held open (open /x/lk/mrw/SKILL.md: busy)"},
+		{"openat mrw/.mrw-c65058739c09edc2: permission denied", "openat D/mrw/(a temporary file): permission denied"},
+		{"mrw/SKILL.md is refused", "D/mrw/SKILL.md is refused"},
+	} {
+		if got := callersReason(c.reason, "D"); got != filepath.FromSlash(c.want) && got != c.want {
+			t.Errorf("callersReason(%q) = %q, want %q", c.reason, got, c.want)
+		}
+	}
+}
+
+// The Windows chaos tests of 2026-10-22: Win32 reads "d1." and "d1 " as d1, so a
+// DIR spelled with a trailing dot or space in any component names another
+// folder than the one it reads as, and --dir refuses it on Windows (ADR-071's
+// rule for a name, applied to the folder --dir is given).
+func TestUnkeptComponentFindsATrailingDotOrSpace(t *testing.T) {
+	for dir, want := range map[string]string{
+		"d1.": "d1.", "d1 ": "d1 ", `a\b.\c`: "b.", "a/b /c": "b ",
+		"d1": "", ".": "", "..": "", "./d1/": "", `..\d1`: "", `C:\x\y`: "", "": "",
+	} {
+		if got := unkeptComponent(dir); got != want {
+			t.Errorf("unkeptComponent(%q) = %q, want %q", dir, got, want)
 		}
 	}
 }

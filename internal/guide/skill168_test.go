@@ -70,8 +70,9 @@ func TestTheSkillIsAValidAgentSkill(t *testing.T) {
 			}
 			got[k] = u
 		}
-		if got["mrw-version"] != stamp || got["generated-by"] != "mrw skill" || got["body-sha256"] != BodySHA(body) {
-			t.Errorf("metadata %q, want mrw-version %q, generated-by \"mrw skill\" and the body's sha-256", got, stamp)
+		unsigned := strings.Replace(Skill(stamp), `  content-sha256: "`+got["content-sha256"]+"\"\n", "", 1)
+		if got["mrw-version"] != stamp || got["generated-by"] != "mrw skill" || got["content-sha256"] != ContentSHA(unsigned) {
+			t.Errorf("metadata %q, want mrw-version %q, generated-by \"mrw skill\" and the sha-256 of the file without that line", got, stamp)
 		}
 		if n := strings.Count(body, "\n"); n >= 500 {
 			t.Errorf("the body is %d lines, want under 500", n)

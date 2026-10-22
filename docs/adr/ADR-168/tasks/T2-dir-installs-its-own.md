@@ -8,7 +8,7 @@
 **Consumes:** `guide.Skill(version)` (T1), `mrw skill` (T1)
 **Data dependency:** hermetic
 **Proof map:** v1
-**Rests-on:** `the install test run`, `the install test passed`, `the shape test passed`, `the kept-edit test passed`, `the fuzz test passed`, `the contract run`, `the install rows pass`, `the refusal row passes`, `the race row passes`, `the kept-edit row passes`, `gofmt`, `the engine packages it does not own`
+**Rests-on:** `the install test run`, `the install test passed`, `the shape test passed`, `the kept-edit test passed`, `the trigger-and-BOM test passed`, `the trailing-dot test passed`, `the fuzz test passed`, `the contract run`, `the install rows pass`, `the refusal row passes`, `the race row passes`, `the kept-edit row passes`, `gofmt`, `the engine packages it does not own`
 
 ## Goal
 
@@ -36,7 +36,10 @@ Decision 2: `--dir DIR` applies one hunk to `DIR/mrw/SKILL.md` through `writer.P
    - Plain `mrw skill` still writes nothing.
    - `TestSkillDirReadsOnlyTheShapeItPrints` (the Codex review of 2026-10-22): a `generated-by` line inside a quoted description is a person's file; a CRLF copy of the current skill is `unchanged`; a CRLF or no-final-newline older skill is `replaced` once and then `unchanged`; a stamped file over 1 MiB is not mrw's. `TestSkillDirRefusesAFIFOWithoutWaiting` (`cmd/mrw/skill168_fifo_unix_test.go`, unix only): a FIFO `SKILL.md` is refused, exit 1, within 10 s; it runs in `go test ./...` on Linux and macOS and is not in this fence, which must also run where no FIFO exists.
    - Platform-only, run by `go test ./...` on their platform and not in this fence, which must run on both: `TestReadSkillFileRefusesAFIFOWithoutWaiting` (unix) drives `readSkillFile` on a FIFO directly — the swap after the `Lstat` that the command test cannot reach (the Codex review of f323c1c); `TestSkillDirRefusesAHeldSkillAsTheTargets` (`cmd/mrw/skill168_held_windows_test.go`, Windows) holds `SKILL.md` without sharing and wants exit 1 (ADR-125).
+   - Also platform-only (unix): `TestChangedSinceDoesNotWaitOnAFIFO` — after a refused write, the re-read that tells a race from a refusal goes through `regular.Open` and does not wait on a FIFO (the Codex review of 8c1f08b).
+   - Also platform-only (Windows): `TestSkillDirRefusesATrailingDotOnWindows` (`cmd/mrw/skill168_dotdir_windows_test.go`) — `--dir 'd1.'` and `'d1 '` are refused, exit 2, nothing written into d1 (the Windows chaos tests of 2026-10-22).
    - `TestSkillDirKeepsWhatAPersonChanged` (the chaos tests of 2026-10-22): a body edited under the stamped frontmatter — a line appended, the body replaced, an older skill edited — is refused, exit 1, the edit kept; a file over 1 MiB names the size; a BOM copy of the current skill is `unchanged` with the difference named, and a BOM older skill is replaced, then unchanged; a skill stamped by a newer release is not rolled back; `--dir` twice is exit 2; a DIR holding a newline is printed quoted on one line.
+   - `TestSkillDirKeepsTheTriggerAndTheBOM` (the chaos re-runs of 2026-10-22): an edit to the `description` is refused as an edit, since `content-sha256` covers the whole file; a byte order mark and CRLF survive a replace; an empty `SKILL.md` that stays empty is refused, exit 1, after the race retries; `callersReason` names the folder as the caller did, leaves an absolute path holding `mrw/` alone, and hides a temporary file's name.
 2. [S2] The flag and `skill168.go`. Mutants: the marker check is dropped; the marker is accepted from anywhere in the file; `DIR` is created when missing; `unchanged` rewrites the file; a `SKILL.md` link inside `DIR` is written through. The fuzz loop's exclusion of `skill` is hygiene, not a verdict: the loop asserts that the guards agree with the parser and never reads its fixture, so dropping `skill` from it changes no result — measured 2026-10-22, that mutant survived and is logged as such. [proof: mutation]
 3. [S3] Contract §293 install rows, each paired with its refusal: `mrw skill --dir creates, keeps and replaces only its own skill` and `mrw skill --dir refuses a hand-written skill and writes nothing`. [proof: acceptance]
 
@@ -44,10 +47,12 @@ Decision 2: `--dir DIR` applies one hunk to `DIR/mrw/SKILL.md` through `writer.P
 
 ```bash
 set -o pipefail
-out=$(go test ./cmd/mrw/ -count=1 -timeout 600s -v -run 'TestSkillDirInstallsAndReplacesOnlyItsOwn$|TestSkillDirReadsOnlyTheShapeItPrints$|TestSkillDirKeepsWhatAPersonChanged$|TestTheGuardsAgreeWithTheParserOnRandomArgv$' 2>&1) \
+out=$(go test ./cmd/mrw/ -count=1 -timeout 600s -v -run 'TestSkillDirInstallsAndReplacesOnlyItsOwn$|TestSkillDirReadsOnlyTheShapeItPrints$|TestSkillDirKeepsWhatAPersonChanged$|TestSkillDirKeepsTheTriggerAndTheBOM$|TestUnkeptComponentFindsATrailingDotOrSpace$|TestTheGuardsAgreeWithTheParserOnRandomArgv$' 2>&1) \
   && grep -qE '^--- PASS: TestSkillDirInstallsAndReplacesOnlyItsOwn \(' <<<"$out" \
   && grep -qE '^--- PASS: TestSkillDirReadsOnlyTheShapeItPrints \(' <<<"$out" \
   && grep -qE '^--- PASS: TestSkillDirKeepsWhatAPersonChanged \(' <<<"$out" \
+  && grep -qE '^--- PASS: TestSkillDirKeepsTheTriggerAndTheBOM \(' <<<"$out" \
+  && grep -qE '^--- PASS: TestUnkeptComponentFindsATrailingDotOrSpace \(' <<<"$out" \
   && grep -qE '^--- PASS: TestTheGuardsAgreeWithTheParserOnRandomArgv \(' <<<"$out" \
   && c=$(./scripts/contract.sh 2>&1) \
   && grep -qF 'PASS  mrw skill --dir creates, keeps and replaces only its own skill' <<<"$c" \
@@ -66,6 +71,8 @@ out=$(go test ./cmd/mrw/ -count=1 -timeout 600s -v -run 'TestSkillDirInstallsAnd
 | `TestTheGuardsAgreeWithTheParserOnRandomArgv` | `cmd/mrw/paddedstress_test.go` | the random-argv loop skips `skill` and still passes | none | S2 |
 | `TestSkillDirReadsOnlyTheShapeItPrints` | `cmd/mrw/skill168_test.go` | the exact printed shape is mrw's and nothing else; line endings do not make a replace repeat; the size bound | none | S1, S2 |
 | `TestSkillDirKeepsWhatAPersonChanged` | `cmd/mrw/skill168_test.go` | an edited body is kept; the size, BOM, rollback, second --dir and control-character cases | none | S1, S2 |
+| `TestSkillDirKeepsTheTriggerAndTheBOM` | `cmd/mrw/skill168_test.go` | the trigger is covered by the digest; the BOM survives a replace; the empty probe; the caller's path in a refusal | none | S1, S2 |
+| `TestUnkeptComponentFindsATrailingDotOrSpace` | `cmd/mrw/skill168_test.go` | a DIR component ending in a dot or a space is found, `.` and `..` and drive paths are not | none | S1, S2 |
 
 ## Reachability
 
@@ -85,6 +92,7 @@ out=$(go test ./cmd/mrw/ -count=1 -timeout 600s -v -run 'TestSkillDirInstallsAnd
 ## Risks
 
 - Two paths are not driven by this task's test, and say so: the `sha=` guard that binds a replace to the judged bytes is the engine's, covered by `internal/apply/apply_test.go` `TestPreconditions` ("stale sha"); a landed write whose ledger then fails (a holder on Windows) prints its line and exits 2, read from the code, with no fixture that holds the ledger.
+- Not driven by a test: the `left behind:` lines a failed engine cleanup prints (they need a cleanup to fail); read from the code, as the write receipt's own `left behind` line is (ADR-105).
 
 ## Stop Condition
 
@@ -111,6 +119,11 @@ Stop and ask if `writer.Prepare` with `CheckOff` followed by `Land` (`internal/w
 - 2026-10-22 · f323c1c8* · mutant killed · exit 1 · `cmd/mrw/skill168.go` · S2: a run that loses a race reports failure instead of judging again · acceptance-sha256:ee2c841fee09c877aa9d3f7e9dd68598f5750610952f8bbae6248fb898d9acf9
 - 2026-10-22 · f323c1c8* · mutant killed · exit 1 · `cmd/mrw/skill168.go` · S2: an older mrw rolls back a newer skill · acceptance-sha256:ee2c841fee09c877aa9d3f7e9dd68598f5750610952f8bbae6248fb898d9acf9
 - 2026-10-22 · f323c1c8* · mutant killed · exit 1 · `cmd/mrw/skill168.go` · S2: a byte order mark makes mrw's own skill read as a person's · acceptance-sha256:ee2c841fee09c877aa9d3f7e9dd68598f5750610952f8bbae6248fb898d9acf9
+- 2026-10-22 · 8c1f08be* · mutant killed · exit 1 · `cmd/mrw/skill168.go` · S2: the engine's empty probe of a racing run is judged a person's file · acceptance-sha256:958d0c5997d985c4a633f01daff2d19ff92bd77c5db8412bf06ccfadb052ef5e
+- 2026-10-22 · 8c1f08be* · mutant killed · exit 1 · `cmd/mrw/skill168.go` · S2: a replace drops the byte order mark · acceptance-sha256:958d0c5997d985c4a633f01daff2d19ff92bd77c5db8412bf06ccfadb052ef5e
+- 2026-10-22 · 8c1f08be* · mutant killed · exit 1 · `cmd/mrw/skill168.go` · S2: a refusal doubles DIR inside an absolute path that holds mrw/ · acceptance-sha256:958d0c5997d985c4a633f01daff2d19ff92bd77c5db8412bf06ccfadb052ef5e
+- 2026-10-22 · 8c1f08be* · mutant killed · exit 1 · `cmd/mrw/skill168.go` · S2: an edited description or body is replaced · acceptance-sha256:958d0c5997d985c4a633f01daff2d19ff92bd77c5db8412bf06ccfadb052ef5e
+- 2026-10-22 · 8c1f08be* · mutant killed · exit 1 · `cmd/mrw/skill168.go` · S2: a DIR ending in a dot reaches another folder on Windows · acceptance-sha256:958d0c5997d985c4a633f01daff2d19ff92bd77c5db8412bf06ccfadb052ef5e
 
 ## Verification Log
 - 2026-10-22 · 3a2e963e* · exit 1 · `set -o pipefail …` · acceptance-sha256:eec42f9481b41e00e7a2125b8b2967861f3004c8da053d2803b190aa593fa548 · ms:1065 · test-lock-sha256:0febef2069711abb6f4b528da586983d559111f0aef594eaa01fd0c11a643f37 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJY21kL21ydy9wYWRkZWRzdHJlc3NfdGVzdC5nbwlUZXN0VGhlR3VhcmRzQWdyZWVXaXRoVGhlUGFyc2VyT25SYW5kb21Bcmd2CWQ3OWE2MWJhMTkxN2ZjOWViNTFmMWJlM2UxODA4NGI0NGQ1ZjU3ZjY1YTVkYzkwZTQ2ZTQ1ZjUyMTFiZmEzODEKYm9keQljbWQvbXJ3L3NraWxsMTY4X3Rlc3QuZ28JVGVzdFNraWxsQ29tbWFuZFByaW50c1RoZVNraWxsCTk0NjY4ZTY2YTYyY2RhM2MyZjc1M2Y1YWQzZjg3MDUyNWExMWFmZDkyODNiNWU4NWNiMTk5YWU1Y2NjNThmZmUKYm9keQljbWQvbXJ3L3NraWxsMTY4X3Rlc3QuZ28JVGVzdFNraWxsRGlySW5zdGFsbHNBbmRSZXBsYWNlc09ubHlJdHNPd24JNzA1NTkxNmU2MTA4ZmU0M2Q5Mzk2Yjk2ZWE1ZGExNDhjNGJmZGE2NGU1ZTE4YTNlMGQ5OTUyNTQ1OTQ3YmZhMg
@@ -145,3 +158,31 @@ Stop and ask if `writer.Prepare` with `CheckOff` followed by `Land` (`internal/w
 - 2026-10-22 · f323c1c8* · exit 0 · `set -o pipefail …` · acceptance-sha256:ee2c841fee09c877aa9d3f7e9dd68598f5750610952f8bbae6248fb898d9acf9 · ms:90819
 - 2026-10-22 · f323c1c8* · exit 0 · `set -o pipefail …` · acceptance-sha256:ee2c841fee09c877aa9d3f7e9dd68598f5750610952f8bbae6248fb898d9acf9 · ms:84995
 - 2026-10-22 · f323c1c8* · exit 0 · `set -o pipefail …` · acceptance-sha256:ee2c841fee09c877aa9d3f7e9dd68598f5750610952f8bbae6248fb898d9acf9 · ms:77008
+- 2026-10-22 · 8c1f08be* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:ab089905542458576330a689e4041f0debda4dbf6a0014f0cb4f1cf3939190b1 · ms:0 · test-lock-sha256:3e33bf0eaeb1b4a2855e3a0f38fdb0d7c17105825edc06a68519f90c9571828f · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJY21kL21ydy9wYWRkZWRzdHJlc3NfdGVzdC5nbwlUZXN0VGhlR3VhcmRzQWdyZWVXaXRoVGhlUGFyc2VyT25SYW5kb21Bcmd2CWMzNDIyZTYyMGY3MWI5NzRmY2NiNjA2YjUyYmQ5YWU1NWI1NWU0YzQ3YWJiODFkZmNiYzZhMjAzZjU4MmU0NjIKYm9keQljbWQvbXJ3L3NraWxsMTY4X3Rlc3QuZ28JVGVzdFJvb3RIZWxwUG9pbnRzQWdlbnRzQXRUaGVTa2lsbAkzY2NmZDA5ZjViZTIzMGQ3ZjExNTdjNTRhZjA3MzUzMTI4YTg4NTk5OGVjZGJjMzJlY2MxMzQ1Y2NiYjhiOGUxCmJvZHkJY21kL21ydy9za2lsbDE2OF90ZXN0LmdvCVRlc3RTa2lsbENvbW1hbmRQcmludHNUaGVTa2lsbAk5OWVlNDhmNzcyNWJhY2NhYTMwYzViODc1MTczODAwYzUwYzc3ODZlY2Y5M2VlZTdmMzM3ODkzM2RlZjY1NmRjCmJvZHkJY21kL21ydy9za2lsbDE2OF90ZXN0LmdvCVRlc3RTa2lsbERpckluc3RhbGxzQW5kUmVwbGFjZXNPbmx5SXRzT3duCWE2MTIwMTkwZjI1YzVmYTBlZTk4NDQxZTgzNjRjYWE2OTMxZGU5NTdmNjMxYTBjM2I0MTZmMGY1MTQ5OTkxOTMKYm9keQljbWQvbXJ3L3NraWxsMTY4X3Rlc3QuZ28JVGVzdFNraWxsRGlyS2VlcHNUaGVUcmlnZ2VyQW5kVGhlQk9NCWVlYzdlY2NkMTc3YjVmZTgzZjVkNTk2MTYzNTRmMTI2YmE0ZTY4NTMzOTAxMTdjNGNjMDU3ZDExYzI1OTUwOGQKYm9keQljbWQvbXJ3L3NraWxsMTY4X3Rlc3QuZ28JVGVzdFNraWxsRGlyS2VlcHNXaGF0QVBlcnNvbkNoYW5nZWQJNGQ2Y2NiNTVhMWRjNWM2YzI4OTE0NjI1NDQyM2QzOTEzY2I3MjA5MDcyNmUzY2NmZDJkZTlhYjYxYjkzYzdmOQpib2R5CWNtZC9tcncvc2tpbGwxNjhfdGVzdC5nbwlUZXN0U2tpbGxEaXJSZWFkc09ubHlUaGVTaGFwZUl0UHJpbnRzCWZjMmJkZDZiYWNjZjY3OTRiMTA3Yjc1OGI1YzNlOTkyMmI1M2M0NDQ5MjQ2MmZjNTVmNDRiYWI2NjBmNDkxOTYKYm9keQljbWQvbXJ3L3NraWxsMTY4X3Rlc3QuZ28JVGVzdFRoZVJlcG9zaXRvcnlTa2lsbElzVGhlQmluYXJ5c1NraWxsCWFjNzIxOWM5ZjI0NjJkMGU0NWZmZTllMzIxZjU0OWNkZTBjMjNhYzJjZjJjMWU1NmE0YzI2ZGFhOTA4Mjg5ZTc · test-lock-kind:replace
+- 2026-10-22 · 8c1f08be* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:958d0c5997d985c4a633f01daff2d19ff92bd77c5db8412bf06ccfadb052ef5e · ms:0 · test-lock-sha256:f7b41c630b9ee7bf4f82360f8c2521825702c950dd37c53e1ca820c879b356e7 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJY21kL21ydy9wYWRkZWRzdHJlc3NfdGVzdC5nbwlUZXN0VGhlR3VhcmRzQWdyZWVXaXRoVGhlUGFyc2VyT25SYW5kb21Bcmd2CWMzNDIyZTYyMGY3MWI5NzRmY2NiNjA2YjUyYmQ5YWU1NWI1NWU0YzQ3YWJiODFkZmNiYzZhMjAzZjU4MmU0NjIKYm9keQljbWQvbXJ3L3NraWxsMTY4X3Rlc3QuZ28JVGVzdFJvb3RIZWxwUG9pbnRzQWdlbnRzQXRUaGVTa2lsbAkzY2NmZDA5ZjViZTIzMGQ3ZjExNTdjNTRhZjA3MzUzMTI4YTg4NTk5OGVjZGJjMzJlY2MxMzQ1Y2NiYjhiOGUxCmJvZHkJY21kL21ydy9za2lsbDE2OF90ZXN0LmdvCVRlc3RTa2lsbENvbW1hbmRQcmludHNUaGVTa2lsbAk5OWVlNDhmNzcyNWJhY2NhYTMwYzViODc1MTczODAwYzUwYzc3ODZlY2Y5M2VlZTdmMzM3ODkzM2RlZjY1NmRjCmJvZHkJY21kL21ydy9za2lsbDE2OF90ZXN0LmdvCVRlc3RTa2lsbERpckluc3RhbGxzQW5kUmVwbGFjZXNPbmx5SXRzT3duCWE2MTIwMTkwZjI1YzVmYTBlZTk4NDQxZTgzNjRjYWE2OTMxZGU5NTdmNjMxYTBjM2I0MTZmMGY1MTQ5OTkxOTMKYm9keQljbWQvbXJ3L3NraWxsMTY4X3Rlc3QuZ28JVGVzdFNraWxsRGlyS2VlcHNUaGVUcmlnZ2VyQW5kVGhlQk9NCTlkOTAzMWY5OWI0ODUzZWVmMzljY2JlMjE1OWFhODA5NDJkM2E4MzNhYTU2MmE0MmZiOTQwYjdmZjMxNjU2MDgKYm9keQljbWQvbXJ3L3NraWxsMTY4X3Rlc3QuZ28JVGVzdFNraWxsRGlyS2VlcHNXaGF0QVBlcnNvbkNoYW5nZWQJNGQ2Y2NiNTVhMWRjNWM2YzI4OTE0NjI1NDQyM2QzOTEzY2I3MjA5MDcyNmUzY2NmZDJkZTlhYjYxYjkzYzdmOQpib2R5CWNtZC9tcncvc2tpbGwxNjhfdGVzdC5nbwlUZXN0U2tpbGxEaXJSZWFkc09ubHlUaGVTaGFwZUl0UHJpbnRzCWZjMmJkZDZiYWNjZjY3OTRiMTA3Yjc1OGI1YzNlOTkyMmI1M2M0NDQ5MjQ2MmZjNTVmNDRiYWI2NjBmNDkxOTYKYm9keQljbWQvbXJ3L3NraWxsMTY4X3Rlc3QuZ28JVGVzdFRoZVJlcG9zaXRvcnlTa2lsbElzVGhlQmluYXJ5c1NraWxsCWFjNzIxOWM5ZjI0NjJkMGU0NWZmZTllMzIxZjU0OWNkZTBjMjNhYzJjZjJjMWU1NmE0YzI2ZGFhOTA4Mjg5ZTcKYm9keQljbWQvbXJ3L3NraWxsMTY4X3Rlc3QuZ28JVGVzdFVua2VwdENvbXBvbmVudEZpbmRzQVRyYWlsaW5nRG90T3JTcGFjZQk2NTA0MTJiNGVhZGJjZjJlYzI5NmU5NjUwMDM4ODQwZThlNGEzMDFlNDI2ZDg3OWJmMTY1OTBkOTViYjMwNWU4 · test-lock-kind:replace
+- 2026-10-22 · 8c1f08be* · exit 1 · `set -o pipefail …` · acceptance-sha256:958d0c5997d985c4a633f01daff2d19ff92bd77c5db8412bf06ccfadb052ef5e · ms:85764
+  ```
+  ```
+- 2026-10-22 · 8c1f08be* · exit 1 · `set -o pipefail …` · acceptance-sha256:958d0c5997d985c4a633f01daff2d19ff92bd77c5db8412bf06ccfadb052ef5e · ms:81502
+  ```
+  ```
+- 2026-10-22 · 8c1f08be* · exit 1 · `set -o pipefail …` · acceptance-sha256:958d0c5997d985c4a633f01daff2d19ff92bd77c5db8412bf06ccfadb052ef5e · ms:79157
+  ```
+  ```
+- 2026-10-22 · 8c1f08be* · exit 1 · `set -o pipefail …` · acceptance-sha256:958d0c5997d985c4a633f01daff2d19ff92bd77c5db8412bf06ccfadb052ef5e · ms:81532
+  ```
+  ```
+- 2026-10-22 · 8c1f08be* · exit 1 · `set -o pipefail …` · acceptance-sha256:958d0c5997d985c4a633f01daff2d19ff92bd77c5db8412bf06ccfadb052ef5e · ms:83365
+  ```
+  ```
+- 2026-10-22 · 8c1f08be* · exit 1 · `set -o pipefail …` · acceptance-sha256:958d0c5997d985c4a633f01daff2d19ff92bd77c5db8412bf06ccfadb052ef5e · ms:81704
+  ```
+  ```
+- 2026-10-22 · 8c1f08be* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:958d0c5997d985c4a633f01daff2d19ff92bd77c5db8412bf06ccfadb052ef5e · ms:0 · test-lock-sha256:f7b41c630b9ee7bf4f82360f8c2521825702c950dd37c53e1ca820c879b356e7 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJY21kL21ydy9wYWRkZWRzdHJlc3NfdGVzdC5nbwlUZXN0VGhlR3VhcmRzQWdyZWVXaXRoVGhlUGFyc2VyT25SYW5kb21Bcmd2CWMzNDIyZTYyMGY3MWI5NzRmY2NiNjA2YjUyYmQ5YWU1NWI1NWU0YzQ3YWJiODFkZmNiYzZhMjAzZjU4MmU0NjIKYm9keQljbWQvbXJ3L3NraWxsMTY4X3Rlc3QuZ28JVGVzdFJvb3RIZWxwUG9pbnRzQWdlbnRzQXRUaGVTa2lsbAkzY2NmZDA5ZjViZTIzMGQ3ZjExNTdjNTRhZjA3MzUzMTI4YTg4NTk5OGVjZGJjMzJlY2MxMzQ1Y2NiYjhiOGUxCmJvZHkJY21kL21ydy9za2lsbDE2OF90ZXN0LmdvCVRlc3RTa2lsbENvbW1hbmRQcmludHNUaGVTa2lsbAk5OWVlNDhmNzcyNWJhY2NhYTMwYzViODc1MTczODAwYzUwYzc3ODZlY2Y5M2VlZTdmMzM3ODkzM2RlZjY1NmRjCmJvZHkJY21kL21ydy9za2lsbDE2OF90ZXN0LmdvCVRlc3RTa2lsbERpckluc3RhbGxzQW5kUmVwbGFjZXNPbmx5SXRzT3duCWE2MTIwMTkwZjI1YzVmYTBlZTk4NDQxZTgzNjRjYWE2OTMxZGU5NTdmNjMxYTBjM2I0MTZmMGY1MTQ5OTkxOTMKYm9keQljbWQvbXJ3L3NraWxsMTY4X3Rlc3QuZ28JVGVzdFNraWxsRGlyS2VlcHNUaGVUcmlnZ2VyQW5kVGhlQk9NCTlkOTAzMWY5OWI0ODUzZWVmMzljY2JlMjE1OWFhODA5NDJkM2E4MzNhYTU2MmE0MmZiOTQwYjdmZjMxNjU2MDgKYm9keQljbWQvbXJ3L3NraWxsMTY4X3Rlc3QuZ28JVGVzdFNraWxsRGlyS2VlcHNXaGF0QVBlcnNvbkNoYW5nZWQJNGQ2Y2NiNTVhMWRjNWM2YzI4OTE0NjI1NDQyM2QzOTEzY2I3MjA5MDcyNmUzY2NmZDJkZTlhYjYxYjkzYzdmOQpib2R5CWNtZC9tcncvc2tpbGwxNjhfdGVzdC5nbwlUZXN0U2tpbGxEaXJSZWFkc09ubHlUaGVTaGFwZUl0UHJpbnRzCWZjMmJkZDZiYWNjZjY3OTRiMTA3Yjc1OGI1YzNlOTkyMmI1M2M0NDQ5MjQ2MmZjNTVmNDRiYWI2NjBmNDkxOTYKYm9keQljbWQvbXJ3L3NraWxsMTY4X3Rlc3QuZ28JVGVzdFRoZVJlcG9zaXRvcnlTa2lsbElzVGhlQmluYXJ5c1NraWxsCWFjNzIxOWM5ZjI0NjJkMGU0NWZmZTllMzIxZjU0OWNkZTBjMjNhYzJjZjJjMWU1NmE0YzI2ZGFhOTA4Mjg5ZTcKYm9keQljbWQvbXJ3L3NraWxsMTY4X3Rlc3QuZ28JVGVzdFVua2VwdENvbXBvbmVudEZpbmRzQVRyYWlsaW5nRG90T3JTcGFjZQk2NTA0MTJiNGVhZGJjZjJlYzI5NmU5NjUwMDM4ODQwZThlNGEzMDFlNDI2ZDg3OWJmMTY1OTBkOTViYjMwNWU4 · test-lock-kind:replace
+- 2026-10-22 · 8c1f08be* · exit 0 · `set -o pipefail …` · acceptance-sha256:958d0c5997d985c4a633f01daff2d19ff92bd77c5db8412bf06ccfadb052ef5e · ms:88511
+- 2026-10-22 · 8c1f08be* · exit 0 · `set -o pipefail …` · acceptance-sha256:958d0c5997d985c4a633f01daff2d19ff92bd77c5db8412bf06ccfadb052ef5e · ms:96315
+- 2026-10-22 · 8c1f08be* · exit 0 · `set -o pipefail …` · acceptance-sha256:958d0c5997d985c4a633f01daff2d19ff92bd77c5db8412bf06ccfadb052ef5e · ms:94158
+- 2026-10-22 · 8c1f08be* · exit 0 · `set -o pipefail …` · acceptance-sha256:958d0c5997d985c4a633f01daff2d19ff92bd77c5db8412bf06ccfadb052ef5e · ms:86126
+- 2026-10-22 · 8c1f08be* · exit 0 · `set -o pipefail …` · acceptance-sha256:958d0c5997d985c4a633f01daff2d19ff92bd77c5db8412bf06ccfadb052ef5e · ms:86254
+- 2026-10-22 · 8c1f08be* · exit 0 · `set -o pipefail …` · acceptance-sha256:958d0c5997d985c4a633f01daff2d19ff92bd77c5db8412bf06ccfadb052ef5e · ms:91905
+- 2026-10-22 · 8c1f08be* · exit 0 · `set -o pipefail …` · acceptance-sha256:958d0c5997d985c4a633f01daff2d19ff92bd77c5db8412bf06ccfadb052ef5e · ms:83354

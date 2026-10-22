@@ -11,9 +11,9 @@ description: >-
   heredocs. It applies only while mrw is on PATH: if it is not, use the host's
   own tools and do not install it.
 metadata:
-  mrw-version: "dev (f323c1c, dirty)"
+  mrw-version: "dev (8c1f08b, dirty)"
   generated-by: "mrw skill"
-  body-sha256: "103fbc02b227f1da00d36c811cbe7346effd2597d7ab46b6f7010ff2245c787b"
+  content-sha256: "c5d397000a5ae3c526a6b2ebe3a773b68992619b743eadccae7e1ec1aa527177"
 ---
 
 # mrw
@@ -50,6 +50,6 @@ Recipes:
 10. copy lines you have read without typing them again, or move them with a delete of the same range (a copy of lines you were not served is refused, --force or not):
   mrw read a.go:40-52 b.go:9 && printf '%s\n' '@@ b.go 9 insert-after from=a.go:40-52' '@@ a.go 40-52 delete' | mrw write -
 
-`mrw instructions` prints the whole contract. This file was printed by `mrw skill` from mrw dev (f323c1c, dirty); when `mrw version` prints another version, `mrw skill --dir <the directory holding this mrw folder>` replaces it.
+`mrw instructions` prints the whole contract. This file was printed by `mrw skill` from mrw dev (8c1f08b, dirty); when `mrw version` prints another version, `mrw skill --dir <the directory holding this mrw folder>` replaces it.
 
 A host's per-path rules for its Edit and Write tools do not reach mrw, which writes wherever its user can: their absence is not permission, and mrw is not a way to reach a path the host refused you.
