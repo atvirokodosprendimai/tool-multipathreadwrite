@@ -117,3 +117,42 @@ func TestAReadStopsAtItsCharacterBudgetAndNamesWhatItWithheld(t *testing.T) {
 		t.Errorf("the second file is named nowhere under both caps: %q", w)
 	}
 }
+
+// Two withheld ranges of ONE file are two different lines on the withheld
+// writer, each naming its range (the v1.71.0 field test: eight of twelve
+// peers could not tell which range was cut). A whole file keeps its bare path.
+func TestTwoWithheldRangesOfOneFileAreNamedApart(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "a.txt"), []byte("alpha\nbravo\ncharlie\ndelta\necho\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	spec := func(s string) Spec {
+		sp, err := ParseSpec(s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return sp
+	}
+	withheldBy := func(budget int, specs ...Spec) string {
+		var out, withheld bytes.Buffer
+		Run(NewBudget(&out, budget), root, specs, Options{Numbers: true, Withheld: &withheld})
+		return withheld.String()
+	}
+
+	// Budget 0: both are named without being opened.
+	w := withheldBy(0, spec("a.txt:1-2"), spec("a.txt:4-5"))
+	if w != "a.txt:1-2: WITHHELD: --max-chars reached\na.txt:4-5: WITHHELD: --max-chars reached\n" {
+		t.Errorf("two ranges past the budget are not named apart: %q", w)
+	}
+	if w := withheldBy(0, spec("a.txt")); w != "a.txt: WITHHELD: --max-chars reached\n" {
+		t.Errorf("a whole file lost its bare-path form: %q", w)
+	}
+
+	// The first range fits; the second one's header does not.
+	var first bytes.Buffer
+	Run(&first, root, []Spec{spec("a.txt:1-2")}, Options{Numbers: true})
+	w = withheldBy(utf8.RuneCountInString(first.String())+3, spec("a.txt:1-2"), spec("a.txt:4-5"))
+	if w != "a.txt:4-5: WITHHELD: --max-chars reached\n" {
+		t.Errorf("a range whose header did not fit is not named by its range: %q", w)
+	}
+}

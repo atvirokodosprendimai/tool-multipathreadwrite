@@ -158,7 +158,7 @@ func resolveIn(absRoot, path string) (string, error) {
 		}
 	}
 	if !Contains(absRoot, check) {
-		return "", fmt.Errorf("%s resolves to %s, which is outside the root %s", path, check, absRoot)
+		return "", &OutsideError{Path: path, Resolved: check, Root: absRoot, Exists: leafReal}
 	}
 	// ADR-076: a trailing separator names a directory — the OS refuses
 	// open("a.txt/"), and "a.txt/." — and the Join above cleaned it away, so
@@ -218,6 +218,19 @@ func Contains(absRoot, p string) bool {
 // ErrNotADirectory is what Resolve wraps, and plan validation reports, when a
 // path is spelled as a directory but does not name one (ADR-076).
 var ErrNotADirectory = errors.New("names a directory, ending in a separator, `.` or `..`")
+
+// OutsideError is Resolve's refusal of a path that leaves the root, by ../ or by
+// a link. It carries where the path really leads, so a caller can say how to
+// read it; Error() is the sentence Resolve always returned. Resolved is the
+// file itself when Exists, else only the deepest existing directory above it.
+type OutsideError struct {
+	Path, Resolved, Root string
+	Exists               bool
+}
+
+func (e *OutsideError) Error() string {
+	return fmt.Sprintf("%s resolves to %s, which is outside the root %s", e.Path, e.Resolved, e.Root)
+}
 
 // ErrDeviceName is Resolve's refusal of a Windows device name (ADR-081). It is
 // its own error so a caller does not append advice that fits an escape from the

@@ -51,7 +51,7 @@ func servePlan(root string, b *read.Built) error {
 	}
 	fmt.Fprintf(os.Stderr, "-- planned: %d site(s) in %d file(s)\n", b.Sites, b.Files)
 	if toNullDevice(os.Stdout) {
-		fmt.Fprintln(os.Stderr, "mrw: the answer went to the null device, so nothing was recorded: a write to these lines needs a read whose answer you see (ADR-133)")
+		fmt.Fprintln(os.Stderr, "mrw: the answer went to the null device, so nothing was recorded: a write to these lines needs a read whose answer you see (ADR-133); read again without redirecting, or license lines you already know with `mrw read --quiet SPEC`")
 	} else if err := seen.Record(root, b.Observed); err != nil {
 		return exitWith(err)
 	}
