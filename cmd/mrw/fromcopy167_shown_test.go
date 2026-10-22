@@ -34,6 +34,11 @@ func TestAFromCopyRefusesLinesLicensedButNeverShown(t *testing.T) {
 		if strings.Contains(out, "// three") {
 			t.Errorf("%s: the refusal discloses a source line:\n%s", route, out)
 		}
+		// The refusal names no provenance it cannot know (Codex re-check of 8c00f465):
+		// after a --quiet read mrw wrote nothing and no --sub plan ran.
+		if strings.Contains(out, "since mrw wrote it") || strings.Contains(out, "plan licensed") {
+			t.Errorf("%s: the refusal claims a provenance it does not have:\n%s", route, out)
+		}
 	}
 
 	t.Run("a --quiet read licenses the source and shows nothing", func(t *testing.T) {

@@ -229,8 +229,10 @@ func sourceGate(opt Options, p string, f *sourceFile, start, end int) string {
 	case unshown(obs, start, end) > 0:
 		// Zy, 2026-10-22: only lines SHOWN count (ADR-118's rule). A file mrw
 		// wrote, a --sub plan and a --quiet read license an edit and show nothing.
-		return fmt.Sprintf("lines %s of %s have not been shown to you: mrw served %s. Read them first (a file mrw wrote, a --sub plan and a --quiet read show nothing, and a line --max-cols served cut is not read: read it whole)",
-			addrString(start, end), p, obs.Served())
+		// No provenance in the text: after a --quiet read mrw wrote nothing and no
+		// --sub plan ran, and obs.Served() would say one did (Codex re-check of 8c00f465).
+		return fmt.Sprintf("lines %s of %s have not been shown to you. Read them first: a file mrw wrote, a --sub plan and a --quiet read license an edit and show nothing, and a line --max-cols served cut is not read: read it whole",
+			addrString(start, end), p)
 	}
 	return ""
 }
