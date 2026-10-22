@@ -1279,7 +1279,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 						fmt.Fprintln(os.Stderr, line)
 					}
 				}
-			} else if err := seen.Record(root, observed); err != nil {
+			} else if err := seen.Record(root, recordedAs(cmd.Bool("quiet"), observed)); err != nil {
 				// ADR-166: a content read whose ledger cannot be written has
 				// served its answer; it records nothing new and says so, last,
 				// with the read's own exit. A --quiet read exists to record, so

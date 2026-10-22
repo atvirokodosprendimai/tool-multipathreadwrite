@@ -141,15 +141,17 @@ func TestAFromCopyCopiesOnlyLinesTheCallerWasServed(t *testing.T) {
 		}
 	})
 
-	t.Run("a file mrw just wrote counts whole", func(t *testing.T) {
+	t.Run("a file mrw just wrote, and read since, copies what it showed", func(t *testing.T) {
+		// Zy, 2026-10-22: only lines SHOWN count. A written file is licensed
+		// whole but shown nothing until a read serves lines of it (ADR-118).
 		root := newTree(t)
 		l := ledgerOf167(t, root, map[string][][2]int{"a.txt": nil, "b.txt": nil})
 		a := l["a.txt"]
-		a.Written = true
+		a.Written, a.Shown = true, [][2]int{{3, 5}}
 		l["a.txt"] = a
 		res, err := Apply(root, copyIn(), Options{Seen: l})
 		if err != nil || res.Failed != 0 || read(t, root, "b.txt") != want {
-			t.Errorf("a written source: %v failed=%d %+v", err, res.Failed, res.Hunks)
+			t.Errorf("a written source, shown 3-5: %v failed=%d %+v", err, res.Failed, res.Hunks)
 		}
 	})
 

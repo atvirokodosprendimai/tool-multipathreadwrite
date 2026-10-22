@@ -9983,6 +9983,27 @@ mk287 b
 [ "$(wc -l < "$R/a.go" | tr -d ' ')" = 60 ] && [ "$(wc -l < "$R/b.go" | tr -d ' ')" = 20 ] || { good287=0; bad "a refused recipe changed a file"; }
 [ "$good287" = 1 ] && ok "the copy-and-move recipe from mrw instructions moves a block and refuses without its read"
 
+# 288. ADR-167, Zy 2026-10-22: a from= source line must have been SHOWN, not
+# merely licensed. A --quiet read licenses lines and shows none, and a --force
+# write to an unread file leaves it wholly licensed and shown nothing; a copy of
+# either's lines is refused, exit 1, nothing written. The pair: a plain read of
+# the same lines copies.
+shown288() { # shown288 NAME: a fixture with src.txt and dst.txt, dst.txt read
+  R=$(mktemp -d "$WORK/r288$1-XXXXXX")
+  printf 'l1\nl2\nl3\nl4\nl5\nl6\n' > "$R/src.txt"; printf 'x\ny\n' > "$R/dst.txt"
+}
+copy288='@@ dst.txt 1 insert-after from=src.txt:3-5\n'
+good288=1
+shown288 q; (cd "$R" && "$MRW" read --quiet src.txt:3-5 && "$MRW" read dst.txt) >"$WORK/served.out" 2>&1
+out=$(cd "$R" && printf "$copy288" | "$MRW" write --no-check - 2>&1); want 1 $? "a from= copy of lines a --quiet read licensed exits 1"
+[ "$(cat "$R/dst.txt")" = "$(printf 'x\ny')" ] || { good288=0; bad "a quiet-licensed copy changed dst.txt"; }
+shown288 f; (cd "$R" && printf '@@ src.txt 1 replace\nL1\n' | "$MRW" write --force --no-check - && "$MRW" read dst.txt) >"$WORK/served.out" 2>&1
+out=$(cd "$R" && printf "$copy288" | "$MRW" write --no-check - 2>&1); want 1 $? "a from= copy of a file a --force write left unshown exits 1"
+[ "$(cat "$R/dst.txt")" = "$(printf 'x\ny')" ] || { good288=0; bad "a force-written copy changed dst.txt"; }
+shown288 p; (cd "$R" && "$MRW" read src.txt:3-5 dst.txt) >"$WORK/served.out" 2>&1
+out=$(cd "$R" && printf "$copy288" | "$MRW" write --no-check - 2>&1); want 0 $? "the pair: a plain read of the same lines copies"
+[ "$good288" = 1 ] && ok "a from= copy needs the lines shown, not merely licensed"
+
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
 # killed process is a zombie until its adopter reaps it, and pgrep lists

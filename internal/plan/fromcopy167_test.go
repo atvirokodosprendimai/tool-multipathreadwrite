@@ -41,8 +41,24 @@ func TestAFromCopyParsesIntoASourceAndRefusesWhatItCannotCopy(t *testing.T) {
 		}
 	}
 
+	t.Run("a one-letter source is a file, not a drive", func(t *testing.T) {
+		// The whole value `a:3` reads as a drive on Windows; only the path part
+		// `a` is asked whether it is rooted.
+		hunks, err := Parse(strings.NewReader("@@ d.txt 0 create from=a:3\n"))
+		if err != nil || hunks[0].BodyFrom != "a" || hunks[0].BodyFromAddr.Start != 3 {
+			t.Errorf("from=a:3: %v %+v", err, hunks)
+		}
+	})
+
 	t.Run("a colon in the source's own name", func(t *testing.T) {
 		hunks, err := Parse(strings.NewReader("@@ d.txt 0 create from=a:b.txt:3\n"))
+		if runtime.GOOS == "windows" {
+			// `a:b.txt` is the drive-relative path `a:` + `b.txt` there (rooted.IsRooted).
+			if err == nil {
+				t.Errorf("from=a:b.txt:3 parsed on Windows, where it names a drive")
+			}
+			return
+		}
 		if err != nil {
 			t.Fatal(err)
 		}

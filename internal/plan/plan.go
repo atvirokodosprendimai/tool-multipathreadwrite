@@ -572,9 +572,6 @@ var workingSetPointer = regexp.MustCompile(`^@\d+$`)
 // ADDR is held to the numeric forms N, N-M, A,+N, $ and N-$: the read that
 // licensed the copy printed line numbers.
 func parseFrom(v string) (string, Addr, error) {
-	if rooted.IsRooted(v) {
-		return "", Addr{}, fmt.Errorf("from=%s is a rooted path; from= takes PATH:ADDR with PATH relative to the root", v)
-	}
 	if strings.Contains(v, ":/") {
 		return "", Addr{}, fmt.Errorf("from=%s: a pattern is not a source address: read the lines, then name the numbers the read printed (from=PATH:N-M)", v)
 	}
@@ -583,6 +580,11 @@ func parseFrom(v string) (string, Addr, error) {
 		return "", Addr{}, fmt.Errorf("from=%s: want PATH:ADDR, such as from=%s:3-5", v, v)
 	}
 	path, tail := v[:i], v[i+1:]
+	// Only the path part is asked: the whole value `a:3` reads on Windows as the
+	// drive `a:`, which would refuse a one-letter source file.
+	if rooted.IsRooted(path) {
+		return "", Addr{}, fmt.Errorf("from=%s is a rooted path; from= takes PATH:ADDR with PATH relative to the root", v)
+	}
 	if path == "" || workingSetPointer.MatchString(path) {
 		return "", Addr{}, fmt.Errorf("from=%s: the source is a root-relative path, not a working-set pointer: name the file", v)
 	}

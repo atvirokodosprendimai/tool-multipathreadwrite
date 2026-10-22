@@ -762,7 +762,12 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			r.Addr = addrString(i.Start, i.End)
 		}
 		if c, has := copies[n]; has {
-			r.fromForm, r.BodyFrom, r.CopiedFirst, r.CopiedLast = true, c.span, c.first, c.last
+			r.fromForm, r.BodyFrom = true, c.span
+			// A refused hunk discloses no copied line, whatever refused it
+			// (ADR-167 Decision 4); a skipped one is cleared by clearWriteRows.
+			if r.Status == StatusOK {
+				r.CopiedFirst, r.CopiedLast = c.first, c.last
+			}
 		}
 		if r.Status == StatusFailed {
 			res.Failed++

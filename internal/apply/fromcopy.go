@@ -9,7 +9,6 @@ import (
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/lines"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/refusal"
-	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/regular"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 )
 
@@ -51,10 +50,16 @@ func resolveSources(root string, in []Input, opt Options) (map[int]copied, map[i
 		}
 		fail := func(kind refusal.Kind, start, end int, format string, a ...any) {
 			p := filepath.Clean(i.From)
+			// The resolved span when the address resolved, so `$` and `A,+N` read
+			// as the lines they are; the address as written when it did not.
+			span := fromAddrString(i)
+			if end > 0 {
+				span = addrString(start, end)
+			}
 			fails[n] = HunkResult{
 				Path: filepath.Clean(i.Path), Addr: srcAddrOf(i), Op: i.Op, SrcLine: i.SrcLine,
 				Status: StatusFailed, Reason: fmt.Sprintf(format, a...), Kind: kind,
-				BodyFrom: p + ":" + fromAddrString(i), fromForm: true, srcPath: p, srcStart: start, srcEnd: end,
+				BodyFrom: p + ":" + span, fromForm: true, srcPath: p, srcStart: start, srcEnd: end,
 			}
 		}
 		// ADR-030: the engine refuses what the parser refuses, for a caller that
@@ -68,6 +73,12 @@ func resolveSources(root string, in []Input, opt Options) (map[int]copied, map[i
 			continue
 		case !numericSpan(i):
 			fail("", 0, 0, "from=%s: the span %s is not a source address (want N, N-M, A,+N, $ or N-$, counting from line 1)", i.From, fromAddrString(i))
+			continue
+		}
+		// ADR-076: a source spelled as a directory is refused as written; the
+		// clean below would fold `a.txt/` and `a.txt/.` into the file.
+		if rooted.SpelledAsDirectory(i.From) {
+			fail("", 0, 0, "%s %v; a copy takes lines of a file — name the file itself", i.From, rooted.ErrNotADirectory)
 			continue
 		}
 		p := filepath.Clean(i.From)
@@ -182,8 +193,6 @@ func loadSource(root, p string) *sourceFile {
 	switch {
 	case errors.As(err, &over):
 		f.why = fmt.Sprintf("from=%s: %v", p, err)
-	case errors.Is(err, regular.ErrNotRegular):
-		f.why = fmt.Sprintf("from=%s is %s", p, lines.NotRegular)
 	case err != nil:
 		f.why = fmt.Sprintf("from=%s: %v", p, err)
 	case !existed:
@@ -217,9 +226,21 @@ func sourceGate(opt Options, p string, f *sourceFile, start, end int) string {
 	case obs.SHA != f.sha:
 		return fmt.Sprintf("%s changed since mrw last saw it (recorded %s, now %s): re-read lines %s before copying them",
 			p, short(obs.SHA), short(f.sha), addrString(start, end))
-	case !obs.Covers(start, end):
-		return fmt.Sprintf("lines %s of %s have not been read: mrw served %s. Read them first (a line --max-cols served cut is not read: read it whole, or --quiet)",
+	case unshown(obs, start, end) > 0:
+		// Zy, 2026-10-22: only lines SHOWN count (ADR-118's rule). A file mrw
+		// wrote, a --sub plan and a --quiet read license an edit and show nothing.
+		return fmt.Sprintf("lines %s of %s have not been shown to you: mrw served %s. Read them first (a file mrw wrote, a --sub plan and a --quiet read show nothing, and a line --max-cols served cut is not read: read it whole)",
 			addrString(start, end), p, obs.Served())
 	}
 	return ""
+}
+
+// unshown is the first line of start-end the caller was not shown in obs, or 0.
+func unshown(obs Seen, start, end int) int {
+	for l := start; l <= end; l++ {
+		if !obs.ServedLine(l) {
+			return l
+		}
+	}
+	return 0
 }

@@ -24,6 +24,18 @@ func ledgerLines(t *testing.T, run func(string, ...string) (string, string, int)
 	return strings.Join(keep, "\n")
 }
 
+// ledgerFiles is the ledger reduced to each file's sha and path, one per line.
+func ledgerFiles(t *testing.T, run func(string, ...string) (string, string, int)) string {
+	t.Helper()
+	var keep []string
+	for _, l := range strings.Split(ledgerLines(t, run), "\n") {
+		if f := strings.Fields(l); len(f) >= 2 && !strings.Contains(l, "file(s) seen") {
+			keep = append(keep, f[0]+" "+f[len(f)-1])
+		}
+	}
+	return strings.Join(keep, "\n")
+}
+
 // ADR-161 Decision 9. `read --quiet` licenses what the same read without it
 // licenses and prints no line of it: each file's header, then
 // `-- licensed N line(s) in M file(s)`; and it is refused beside --count,
@@ -60,8 +72,14 @@ func TestAQuietReadLicensesAndPrintsNoLine(t *testing.T) {
 		if !strings.Contains(qOut, "==> ") || !regexp.MustCompile(`(?m)^-- licensed \d+ line\(s\) in \d+ file\(s\)$`).MatchString(qOut) {
 			t.Errorf("%s: --quiet lacks a header or the licensed line:\n%s%s", name, qOut, qErr)
 		}
-		if q, p := ledgerLines(t, quiet), ledgerLines(t, plain); q != p {
-			t.Errorf("%s: the ledger after --quiet\n%s\nis not the plain read's\n%s\n(plain stdout:\n%s)", name, q, p, pOut)
+		// The same files at the same versions. How much of each the ledger says
+		// was SHOWN differs since ADR-167 (Zy, 2026-10-22): a quiet read licenses
+		// lines and shows none, which a from= copy needs to know.
+		if q, p := ledgerFiles(t, quiet), ledgerFiles(t, plain); q != p {
+			t.Errorf("%s: the files the ledger holds after --quiet\n%s\nare not the plain read's\n%s\n(plain stdout:\n%s)", name, q, p, pOut)
+		}
+		if q := ledgerLines(t, quiet); !strings.Contains(q, "no lines") {
+			t.Errorf("%s: the ledger after --quiet does not say the lines were licensed and not shown:\n%s", name, q)
 		}
 	}
 

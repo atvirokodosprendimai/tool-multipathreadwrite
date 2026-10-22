@@ -664,7 +664,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// cut and no ack to wait for: it records what it served, as the CLI's --quiet
 	// does, for lines the caller says it already knows.
 	if a.Quiet && len(observed) > 0 {
-		if err := seen.Record(root, observed); err != nil {
+		if err := seen.Record(root, LicensedNotShown(observed)); err != nil {
 			return callToolResult{}, &rpcError{Code: codeInternal, Message: "recording the licensed lines: " + statehint.Hint(err).Error()}
 		}
 		return served, nil
