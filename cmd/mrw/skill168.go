@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -144,7 +145,9 @@ func installOnce(dir string, out io.Writer) (raced bool, err error) {
 		}
 		version, sha, unsigned, ours := skillStamp(string(b))
 		if !ours {
-			if strings.HasPrefix(string(b), "\xff\xfe") || strings.HasPrefix(string(b), "\xfe\xff") {
+			// The two UTF-16 byte order marks, little- and big-endian, as bytes:
+			// as strings both are invalid UTF-8, which a reader can take for one.
+			if bytes.HasPrefix(b, []byte{0xff, 0xfe}) || bytes.HasPrefix(b, []byte{0xfe, 0xff}) {
 				return false, cli.Exit(fmt.Sprintf("%s is UTF-16, which mrw skill never writes — a Windows PowerShell 5.1 redirect (mrw --skill > file) writes it so — so it is left as it is; move it aside, and install with mrw --skill --dir, which writes UTF-8", shownPath(target)), exitNotApplied)
 			}
 			return false, cli.Exit(fmt.Sprintf("%s was not written by `mrw skill` (its frontmatter is not the shape mrw skill prints), so it is left as it is; move it aside to install here", shownPath(target)), exitNotApplied)
@@ -159,7 +162,7 @@ func installOnce(dir string, out io.Writer) (raced bool, err error) {
 		// own — a replace keeps them — so text equal up to them is unchanged,
 		// and the line says which of them differ from what mrw skill prints.
 		if normalised(string(b)) == text {
-			_, err := fmt.Fprintf(out, "unchanged %s (mrw-version %s%s)\n", shownPath(target), version, keptDifference(string(b)))
+			_, err := fmt.Fprintf(out, "unchanged %s (mrw-version %s%s)\n", shownPath(target), version, keptDifference(string(b), false))
 			return false, err
 		}
 		// The bytes judged above are the bytes replaced: sha= refuses the write
@@ -172,7 +175,7 @@ func installOnce(dir string, out io.Writer) (raced bool, err error) {
 		} else {
 			old = version + " → "
 		}
-		was += keptDifference(string(b))
+		was += keptDifference(string(b), true)
 		body := append([]string{}, lines...)
 		if strings.HasPrefix(string(b), bom) {
 			body[0] = bom + body[0]
@@ -190,7 +193,9 @@ func installOnce(dir string, out io.Writer) (raced bool, err error) {
 	if err != nil {
 		return false, exitWith(gateRefusal(err))
 	}
-	if (land.Err != nil || land.Res.Failed > 0) && changedSince(target, judged) {
+	// A landing that left something behind is a failure to report, never a race
+	// to retry: its leftovers and its own exit stand (the Codex review of 6860a48).
+	if (land.Err != nil || land.Res.Failed > 0) && len(land.Res.LeftBehind) == 0 && changedSince(target, judged) {
 		return true, cli.Exit(fmt.Sprintf("%s kept changing while --dir wrote it; nothing was written", shownPath(target)), exitNotApplied)
 	}
 	if land.Err != nil || land.Res.Failed > 0 {
@@ -242,13 +247,18 @@ func unkeptComponent(dir string) string {
 
 // keptDifference names how a file text-equal to the skill differs in its bytes,
 // or is empty when it does not.
-func keptDifference(file string) string {
+func keptDifference(file string, replaced bool) string {
 	var kept []string
 	if strings.HasPrefix(file, bom) {
 		kept = append(kept, "a byte order mark")
 	}
-	if strings.Contains(file, "\r\n") {
+	// A file all in CRLF keeps it through a replace; a file of mixed endings
+	// keeps them only while it is left alone, since a replace writes LF.
+	switch crlf := strings.Count(file, "\r\n"); {
+	case crlf > 0 && crlf == strings.Count(file, "\n"):
 		kept = append(kept, "CRLF line endings")
+	case crlf > 0 && !replaced:
+		kept = append(kept, "mixed line endings")
 	}
 	if !strings.HasSuffix(file, "\n") {
 		kept = append(kept, "no final newline")
@@ -259,18 +269,25 @@ func keptDifference(file string) string {
 	return "; it has " + strings.Join(kept, " and ") + ", which mrw skill's output does not, and they are kept"
 }
 
-// callerPath matches the engine's root-relative spelling of the skill's folder
-// where a path begins — at the start, or after a space, a quote or a bracket —
-// so a reason names it as the caller did, and an absolute path that happens to
-// hold mrw/ is left as it is.
-var callerPath = regexp.MustCompile(`(^|[\s("'])mrw([/\\])`)
+// callerPath matches the engine's root-relative name of the skill or of a
+// temporary file beside it where a path begins — at the start, or after a
+// space, a quote or a bracket — and nothing else, so an absolute path that
+// holds mrw/ (DIR "/tmp/host mrw" included) is left as it is.
+var callerPath = regexp.MustCompile(`(^|[\s("'])mrw([/\\])(SKILL\.md|\(a temporary file\))`)
 
 // callersReason is an engine refusal in the caller's spelling: DIR/mrw/… for
-// the engine's mrw/…, and the name of a temporary file the engine could not
-// make replaced by the folder it was making it in.
+// the engine's mrw/…, with the separator the engine wrote there, and the name
+// of a temporary file the engine could not make replaced by what it was.
 func callersReason(reason, dir string) string {
 	reason = tempName.ReplaceAllString(reason, "${1}mrw${2}(a temporary file)")
-	return callerPath.ReplaceAllString(reason, "${1}"+strings.ReplaceAll(shownPath(filepath.Join(dir, "mrw")), "$", "$$")+"${2}")
+	return callerPath.ReplaceAllStringFunc(reason, func(m string) string {
+		sm := callerPath.FindStringSubmatch(m)
+		folder := filepath.Join(dir, "mrw")
+		if sm[2] == "/" {
+			folder = filepath.ToSlash(folder)
+		}
+		return sm[1] + shownPath(folder) + sm[2] + sm[3]
+	})
 }
 
 // tempName is a temporary file the engine names in a failed open or create.

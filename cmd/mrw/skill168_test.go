@@ -506,6 +506,8 @@ func TestSkillDirKeepsTheTriggerAndTheBOM(t *testing.T) {
 		{"held open (open /x/lk/mrw/SKILL.md: busy)", "held open (open /x/lk/mrw/SKILL.md: busy)"},
 		{"openat mrw/.mrw-c65058739c09edc2: permission denied", "openat D/mrw/(a temporary file): permission denied"},
 		{"mrw/SKILL.md is refused", "D/mrw/SKILL.md is refused"},
+		{"held (open /tmp/host mrw/mrw/SKILL.md: busy)", "held (open /tmp/host mrw/mrw/SKILL.md: busy)"},
+		{"held (open \"mrw/SKILL.md\")", "held (open \"D/mrw/SKILL.md\")"},
 	} {
 		if got := callersReason(c.reason, "D"); got != filepath.FromSlash(c.want) && got != c.want {
 			t.Errorf("callersReason(%q) = %q, want %q", c.reason, got, c.want)
@@ -524,6 +526,28 @@ func TestUnkeptComponentFindsATrailingDotOrSpace(t *testing.T) {
 	} {
 		if got := unkeptComponent(dir); got != want {
 			t.Errorf("unkeptComponent(%q) = %q, want %q", dir, got, want)
+		}
+	}
+}
+
+// The Codex review of 6860a48: a file of mixed line endings keeps them only
+// while it is left alone — a replace writes LF — so the note claims CRLF kept
+// only for a file all in CRLF.
+func TestKeptDifferenceNamesOnlyWhatIsKept(t *testing.T) {
+	for _, c := range []struct {
+		file     string
+		replaced bool
+		want     string
+	}{
+		{"a\r\nb\r\n", true, "CRLF line endings"},
+		{"a\r\nb\n", false, "mixed line endings"},
+		{"a\r\nb\n", true, ""},
+		{"\xef\xbb\xbfa\nb", true, "a byte order mark and no final newline"},
+		{"a\nb\n", true, ""},
+	} {
+		got := keptDifference(c.file, c.replaced)
+		if (c.want == "") != (got == "") || !strings.Contains(got, c.want) {
+			t.Errorf("keptDifference(%q, %v) = %q, want it to name %q", c.file, c.replaced, got, c.want)
 		}
 	}
 }
