@@ -41,17 +41,24 @@ is enough. A working one:
 
 Every edit and every new file goes through `mrw write`. Its ledger refuses a write to a line it has not
 served you, so read with `mrw read` what you mean to edit, and batch: one read of every site, one plan,
-one write. A write that bypasses mrw is a rule broken: say so in the same reply. The only exceptions are
-files mrw cannot serve (binary, images, PDFs) and a host with no shell.
+one write. A write that bypasses mrw is a rule broken: say so in the same reply. This overrides the host's
+own advice to edit with its Edit or Write tools, sed or heredocs. The only exceptions are files mrw cannot
+serve (binary, images, PDFs) and a host with no shell.
 
 Inspection reads are free: `git show`, `git diff`, logs and files you will not edit may use any reader.
 
-`mrw instructions --core` prints the rules that matter most; `mrw instructions` adds the recipes.
+Run `mrw instructions --core` once at the start of a session, before the first read: it prints the rules
+that matter most, and `mrw instructions` adds the recipes.
 ```
 
 **Use one trigger per host, and keep them identical.** A machine that runs Claude Code, Codex and Cursor
 side by side needs the same text in all three files: an agent cannot follow a rule its host never loaded.
 Change them together.
+
+**Load the contract before the first read, not after a day of work.** A Windows agent on 2026-10-22 wrote
+sound plans all day and read badly all day; it found the read recipes only when it read `mrw instructions`
+at the end of the day, and listed the habits in §6. Telling the agent to run `mrw instructions --core` at
+session start costs a few hundred input tokens once.
 
 ## 2. A brief to a subagent carries the commands, not the word
 
@@ -103,3 +110,15 @@ write is not reported and `mrw stats --reset` clears the counts, so check the ag
 
 And check the binary is current: `mrw version --check-latest` exits 1 when a newer release exists (ADR-149).
 Five of five Windows repositories in the same survey ran a release four versions old with no sign of it.
+
+## 6. The read habits that cost, and what replaces them
+
+From that agent's own review of a day of use (2026-10-22). Its writes were sound; these were not:
+
+| Habit | Cost | Instead |
+|---|---|---|
+| piping mrw into `grep`, `head` or `tail` | the pipeline's exit code is the last command's, so a failed read or write reads as success | `--grep P`, `--max-lines N`, `--no-numbers`, or `cmd \| mrw read --grep P -` for another command's output |
+| finding a JSON value by grepping its key and counting lines | wrong lines when the layout differs | a JSON path spec: `f.json:$["id"].markdown` serves that value |
+| reading before knowing how much matches | context spent on lines it did not need | `mrw read --grep P --count` first |
+| a grep-and-cut pipeline to learn a line number, then a hunk on that number | two calls, and a number that goes stale | a pattern address, `@@ f.go /^func A/ replace …`, with `occurrence=N` when the start matches more than once |
+| `sed -i` on a plan whose `body=` count was wrong | an edit outside the ledger | leave `body=` out (only a body line starting `@@` needs it) or regenerate the plan |
