@@ -312,9 +312,12 @@ func TestAFromCopyCopiesOnlyLinesTheCallerWasServed(t *testing.T) {
 		if err != nil || res.Failed != 0 {
 			t.Fatalf("%v %+v", err, res.Hunks)
 		}
+		// Compare the decoded value: Go 1.26 writes U+FFFD as the � escape and
+		// newer Go writes it literally, so the raw JSON text differs by toolchain.
 		b, _ := json.Marshal(res.Hunks[0])
-		if !strings.Contains(string(b), `"copied_first":"�byte"`) {
-			t.Errorf("copied_first = %s", b)
+		var got map[string]any
+		if err := json.Unmarshal(b, &got); err != nil || got["copied_first"] != "�byte" {
+			t.Errorf("copied_first = %s (%v)", b, err)
 		}
 		if read(t, root, "b.txt") != "x\n\xffbyte\ny\n" {
 			t.Errorf("the bytes did not land as read: %q", read(t, root, "b.txt"))

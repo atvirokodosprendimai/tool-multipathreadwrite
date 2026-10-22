@@ -121,6 +121,9 @@ func TestAFromCopyParsesIntoASourceAndRefusesWhatItCannotCopy(t *testing.T) {
 
 // body=@ keeps ADR-060's meaning exactly: a colon in its value is part of the path.
 func TestABodyFileWhoseNameHoldsAColonStillLoads(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("a:3 names drive A: on Windows, and a file name there cannot hold a colon")
+	}
 	root := t.TempDir()
 	if err := os.WriteFile(filepath.Join(root, "a:3"), []byte("one\ntwo\n"), 0o644); err != nil {
 		t.Skipf("this filesystem keeps no colon in a name: %v", err)
