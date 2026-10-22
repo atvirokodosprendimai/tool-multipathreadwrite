@@ -143,13 +143,28 @@ func (h HunkResult) MarshalJSON() ([]byte, error) {
 	// make legible. Presence now means "this delete removed these lines" on
 	// both surfaces (PR #11 review, N3).
 	if h.Op == "delete" && h.Status == StatusOK {
-		return json.Marshal(wire(h))
+		return marshalLiteral(wire(h))
 	}
-	return json.Marshal(struct {
+	return marshalLiteral(struct {
 		wire
 		RemovedFirst string `json:"removed_first,omitempty"`
 		RemovedLast  string `json:"removed_last,omitempty"`
 	}{wire: wire(h)})
+}
+
+// marshalLiteral is json.Marshal that writes <, > and & as themselves. A
+// Marshaler's output reaches the encoder already escaped, so the CLI's
+// SetEscapeHTML(false) cannot undo it: a failed hunk's reason still showed
+// the escape sequence for > (issue #496). The MCP encoder still escapes whatever it is
+// handed, so that surface's bytes do not change.
+func marshalLiteral(v any) ([]byte, error) {
+	var sb strings.Builder
+	enc := json.NewEncoder(&sb)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(v); err != nil {
+		return nil, err
+	}
+	return []byte(strings.TrimSuffix(sb.String(), "\n")), nil
 }
 
 // FileResult reports one file's outcome, including the SHA-256 it had before

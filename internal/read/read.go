@@ -286,6 +286,38 @@ func msysHint(s string) string {
 		"Set MSYS_NO_PATHCONV=1 or MSYS2_ARG_CONV_EXCL='*', or use PowerShell or WSL"
 }
 
+// readElsewhere is the command that reads a file the root does not hold: the
+// directory it is in as the root, and its name with the ranges the caller wrote
+// after path in raw. The refusal that names the flag alone sent a caller to sed.
+func readElsewhere(file, raw, path string) string {
+	ranges := ""
+	if strings.HasPrefix(raw, path) {
+		ranges = raw[len(path):]
+	}
+	return "mrw --root " + shellWord(filepath.Dir(file)) + " read " + shellWord(filepath.Base(file)+ranges)
+}
+
+// shellWord quotes s for a POSIX shell, and for PowerShell, only when it holds
+// a character they would take for syntax: a space, a quote, a pattern's bars.
+func shellWord(s string) string {
+	for _, r := range s {
+		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || strings.ContainsRune("_-./:,+=@%\\", r)) {
+			return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+		}
+	}
+	return s
+}
+
+// withheldName is how the withheld report names a spec: the spec as the caller
+// wrote it when it carries ranges, so two withheld ranges of one file are two
+// different lines, else the path.
+func withheldName(sp Spec) string {
+	if len(sp.Ranges) > 0 && sp.Raw != "" {
+		return sp.Raw
+	}
+	return sp.Path
+}
+
 // ParseSpec reads "path", "path:3-6", "path:1-8,100-130" or
 // "path:/func Foo/,/^}/". Everything after the LAST colon is the range, and it
 // must parse as one: a path that itself contains a colon is NOT supported, and
@@ -583,7 +615,7 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 			break
 		}
 		if bud.exhausted() { // never reached: named, not opened
-			fmt.Fprintf(withheld, "%s: WITHHELD: --max-chars reached\n", sp.Path)
+			fmt.Fprintf(withheld, "%s: WITHHELD: --max-chars reached\n", withheldName(sp))
 			problems++
 			continue
 		}
@@ -631,7 +663,7 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 			fmt.Fprintln(w, header)
 		}
 		if bud.Over() { // the header did not fit: nothing of this file was shown
-			fmt.Fprintf(withheld, "%s: WITHHELD: --max-chars reached\n", sp.Path)
+			fmt.Fprintf(withheld, "%s: WITHHELD: --max-chars reached\n", withheldName(sp))
 			problems++
 			continue
 		}
@@ -843,7 +875,7 @@ func load(w io.Writer, root string, sp *Spec) (b []byte, englishUnreadable, ok b
 		cleaned := rooted.Real(argPath)
 		if !rooted.Contains(absRoot, cleaned) {
 			fmt.Fprintf(w, "==> %s  REFUSED  %s is outside the root %s: "+
-				"read it with --root pointed where you mean\n", sp.Path, sp.Path, absRoot)
+				"read it with --root pointed where you mean: %s\n", sp.Path, sp.Path, absRoot, readElsewhere(cleaned, sp.Raw, argPath))
 			return nil, false, false
 		}
 		if rel, relErr := filepath.Rel(absRoot, cleaned); relErr == nil {
@@ -877,7 +909,12 @@ func load(w io.Writer, root string, sp *Spec) (b []byte, englishUnreadable, ok b
 		// caller did not scope is a smaller harm than writing one, and it
 		// is the same mistake: mrw is pointed at a tree, and ../ and a
 		// symlink are the two ways out of it.
-		fmt.Fprintf(w, "==> %s  REFUSED  %v: read it with --root pointed where you mean\n", sp.Path, err)
+		advice := ""
+		var oe *rooted.OutsideError
+		if errors.As(err, &oe) && oe.Exists {
+			advice = ": " + readElsewhere(oe.Resolved, sp.Raw, sp.Path)
+		}
+		fmt.Fprintf(w, "==> %s  REFUSED  %v: read it with --root pointed where you mean%s\n", sp.Path, err, advice)
 		return nil, false, false
 	}
 	// ADR-074: opening a FIFO for reading blocks until something writes to

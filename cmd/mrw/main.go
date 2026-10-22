@@ -227,7 +227,16 @@ func usageError(_ context.Context, cmd *cli.Command, err error, _ bool) error {
 		return cli.Exit(fmt.Sprintf("--%s is not a flag; the subcommand is `%s %s` (see: %s --help)",
 			flag, cmd.FullName(), sub, cmd.FullName()), exitUsage)
 	}
-	msg := fmt.Sprintf("%v (see: %s --help)", err, cmd.FullName())
+	// urfave words every refused flag with one dash, `-root`, which is how Go's
+	// flag package spells a long flag it parsed and is not what the caller typed
+	// or what mrw's help prints; a name of more than one letter is given its
+	// second dash back (the v1.71.0 field test: three peers read -root as a
+	// different flag). A one-letter flag, -z, is spelled with one.
+	text := err.Error()
+	if name := refusedFlag(err); len([]rune(name)) > 1 {
+		text = "flag provided but not defined: --" + name
+	}
+	msg := fmt.Sprintf("%s (see: %s --help)", text, cmd.FullName())
 	if h := rootFlagHint(cmd, refusedFlag(err)); h != "" {
 		msg += "; " + h
 	} else if h := foreignFlagHint(cmd.FullName(), refusedFlag(err)); h != "" {
@@ -603,6 +612,7 @@ size is the form that gets quoted out of the population it was measured on.`,
 				}
 				enc := json.NewEncoder(os.Stdout)
 				enc.SetIndent("", "  ")
+				enc.SetEscapeHTML(false) // <, > and & stay themselves: ==> is not a different header to a raw reader (#496)
 				return enc.Encode(statsReceipt{Plans: t.Plans(), Counts: counts, Landed: t.Landed(), Failed: t["failed_check"], Pricing: authoring.LoadPricing(root)})
 			}
 			total := t.Plans()
@@ -773,6 +783,8 @@ A,+N (the line A plus the N lines after it, so 12,+2 is lines 12 through 14),
 A relative end takes a single start: 5-7,+3 and a bare ,+3 are refused.
 A read clamps a relative end at the last line; a write refuses one past it.
 Overlapping ranges are merged, so no line is printed — or paid for — twice.
+A ranged read also serves, and licenses, the line after each range that ends before
+the file does (ADR-161): f.txt:2 prints lines 2 and 3.
 
 Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 		Flags: []cli.Flag{
@@ -854,6 +866,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 					if retErr != nil && !printed {
 						enc := json.NewEncoder(os.Stdout)
 						enc.SetIndent("", "  ")
+						enc.SetEscapeHTML(false)
 						_ = enc.Encode(readRefusal{Error: retErr.Error()})
 					}
 				}()
@@ -1159,6 +1172,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				printed = true
 				enc := json.NewEncoder(os.Stdout)
 				enc.SetIndent("", "  ")
+				enc.SetEscapeHTML(false)
 				if err := enc.Encode(readDocument{Content: content.String(), Receipt: receipt}); err != nil {
 					return cli.Exit(fmt.Sprintf("the answer could not be written, so nothing was recorded: %v", err), exitUsage)
 				}
@@ -1610,6 +1624,7 @@ held or went unchecked.`,
 					}
 					enc := json.NewEncoder(os.Stdout)
 					enc.SetIndent("", "  ")
+					enc.SetEscapeHTML(false)
 					_ = enc.Encode(receipt{Result: res, Pattern: authoring.PatternOf(root), Error: msg, Then: stepsNotRun})
 				}
 				return exitWith(err)
@@ -1946,6 +1961,7 @@ held or went unchecked.`,
 			if cmd.Bool("json") {
 				enc := json.NewEncoder(os.Stdout)
 				enc.SetIndent("", "  ")
+				enc.SetEscapeHTML(false)
 				if err := enc.Encode(receipt); err != nil {
 					return exitWith(err)
 				}
@@ -2406,6 +2422,7 @@ touched, which is a finding about the machine and not about your change.`,
 				if cmd.Bool("json") {
 					enc := json.NewEncoder(os.Stdout)
 					enc.SetIndent("", "  ")
+					enc.SetEscapeHTML(false)
 					_ = enc.Encode(checkRefusal{Error: err.Error(), Then: then})
 				} else {
 					reportSteps(os.Stdout, then)
@@ -2468,6 +2485,7 @@ touched, which is a finding about the machine and not about your change.`,
 			if cmd.Bool("json") {
 				enc := json.NewEncoder(os.Stdout)
 				enc.SetIndent("", "  ")
+				enc.SetEscapeHTML(false)
 				if err := enc.Encode(checkReceipt{Result: res, Then: then}); err != nil {
 					return exitWith(err)
 				}

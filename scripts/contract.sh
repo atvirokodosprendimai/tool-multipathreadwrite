@@ -7825,11 +7825,14 @@ fixture
 { [ ! -s "$WORK/o188" ] && grep -qxF 'mrw: --instructions is not a flag; the subcommand is `mrw instructions` (see: mrw --help)' "$WORK/e188"; } \
   && ok "and names the subcommand on stderr, with nothing on stdout" || bad "--instructions: stdout $(head -c 200 "$WORK/o188") stderr $(head -c 300 "$WORK/e188")"
 "$MRW" --bogus188 > /dev/null 2> "$WORK/e188b"; want 2 $? "an unknown flag naming no subcommand exits 2"
-{ grep -qxF 'mrw: flag provided but not defined: -bogus188 (see: mrw --help)' "$WORK/e188b" && ! grep -q 'is not a flag' "$WORK/e188b"; } \
+{ grep -qxF 'mrw: flag provided but not defined: --bogus188 (see: mrw --help)' "$WORK/e188b" && ! grep -q 'is not a flag' "$WORK/e188b"; } \
   && ok "and keeps its v1.31.0 wording" || bad "--bogus188: $(head -c 300 "$WORK/e188b")"
 "$MRW" -C "$R" check --stats > /dev/null 2> "$WORK/e188c"; want 2 $? "a sibling's name given to check exits 2"
-grep -qxF 'mrw: flag provided but not defined: -stats (see: mrw check --help)' "$WORK/e188c" \
+grep -qxF 'mrw: flag provided but not defined: --stats (see: mrw check --help)' "$WORK/e188c" \
   && ok "and is worded as before: a sibling is not named" || bad "check --stats: $(head -c 300 "$WORK/e188c")"
+"$MRW" -z > /dev/null 2> "$WORK/e188e"; want 2 $? "a one-letter unknown flag exits 2"
+grep -qxF 'mrw: flag provided but not defined: -z (see: mrw --help)' "$WORK/e188e" \
+  && ok "and keeps its one dash: -z is spelled that way" || bad "-z: $(head -c 300 "$WORK/e188e")"
 "$MRW" '--instructions= ' > /dev/null 2> "$WORK/e188d"; want 2 $? "a padded attached value exits 2"
 grep -q 'ends in whitespace' "$WORK/e188d" && ok "and is refused by ADR-069's guard before the parser" || bad "padded: $(head -c 300 "$WORK/e188d")"
 "$MRW" instructions > "$WORK/o188e" 2> /dev/null; want 0 $? "mrw instructions exits 0"
@@ -9112,7 +9115,7 @@ out=$(m write --no-check "$WORK/p254" 2>&1); want 0 $? "the pair: the same entry
 # sentence, and --root 255 spelled long and -C 1 after read print no note.
 fixture
 out=$(m write --plan x255.plan 2>&1); want 2 $? "write --plan exits 2"
-{ grep -q 'flag provided but not defined: -plan' <<<"$out" && grep -q 'the plan is an argument, not a flag: mrw write PLAN' <<<"$out"; } \
+{ grep -q 'flag provided but not defined: --plan' <<<"$out" && grep -q 'the plan is an argument, not a flag: mrw write PLAN' <<<"$out"; } \
   && ok "keeping the old message and naming the argument" || bad "write --plan: $out"
 out=$(m write -f x255.plan 2>&1); want 2 $? "the pair: write -f exits 2"
 grep -q 'the plan is an argument' <<<"$out" && bad "-f got the plan sentence: $out" || ok "and gets no plan sentence"
@@ -9927,6 +9930,58 @@ fake264 "$WORK/stream264.jsonl"
 (cd "$R" && PATH="$d264:$PATH" eval "\"\$MRW\" ${r3#mrw }") >/dev/null 2>&1; want 0 $? "recipe 3 as printed exits 0"
 cmp -s "$R/a.go" "$WORK/a264.want" || { good265=0; bad "recipe 3 left a.go as $(head -c 300 "$R/a.go")"; }
 [ "$good265" = 1 ] && ok "the recipes mrw instructions prints run as written"
+
+# 288. v1.71.1 (issue #496): two ranges of one file past --max-chars were two
+# identical stderr lines, `f.txt: WITHHELD`, so a host could not tell which range
+# to re-read; the v1.71.0 field test, eight of twelve peers. Each line now names
+# its range. The pair: a whole file past the budget keeps the bare-path line.
+R=$(mktemp -d "$WORK/r288-XXXXXX"); printf 'alpha\nbravo\ncharlie\ndelta\necho\n' > "$R/f.txt"
+(cd "$R" && "$MRW" read --max-chars 1 f.txt:1-2 f.txt:4-5 >/dev/null 2>"$WORK/r288.err"); want 1 $? "two ranges over the --max-chars budget exit 1"
+{ grep -qx 'f.txt:1-2: WITHHELD: --max-chars reached' "$WORK/r288.err" && grep -qx 'f.txt:4-5: WITHHELD: --max-chars reached' "$WORK/r288.err"; } \
+  && ok "and each withheld line names its range" || bad "withheld ranges: $(cat "$WORK/r288.err")"
+(cd "$R" && "$MRW" read --max-chars 1 f.txt >/dev/null 2>"$WORK/r288b.err"); want 1 $? "the pair: a whole file over the budget exits 1"
+grep -qx 'f.txt: WITHHELD: --max-chars reached' "$WORK/r288b.err" && ok "and keeps the bare-path line" || bad "bare withheld line: $(cat "$WORK/r288b.err")"
+
+# 289. v1.71.1 (issue #496): reading a file outside the root was refused with
+# "read it with --root pointed where you mean", the flag and not the command, and
+# a subagent fell back to sed. The refusal now ends with the command, for an
+# absolute path and for ../ alike. The pair: a file inside the root is served,
+# with no such command anywhere (§262 holds that an own-state refusal advises no
+# root).
+D=$(cd "$WORK" && pwd -P); R=$(mktemp -d "$D/r289-XXXXXX"); mkdir "$R/root" "$R/other"; printf 'one\ntwo\n' > "$R/other/hosts"; printf 'in\n' > "$R/root/in.txt"
+out=$(cd "$R/root" && "$MRW" read "$R/other/hosts:1" 2>&1); want 1 $? "an absolute path outside the root exits 1"
+grep -qF "pointed where you mean: mrw --root $R/other read hosts:1" <<<"$out" && ok "and ends with the command that reads it" || bad "absolute: $out"
+out=$(cd "$R/root" && "$MRW" read ../other/hosts:2 2>&1); want 1 $? "a ../ path outside the root exits 1"
+grep -qF "pointed where you mean: mrw --root $R/other read hosts:2" <<<"$out" && ok "and ends with the command, ranges kept" || bad "../: $out"
+out=$(cd "$R/root" && "$MRW" read in.txt 2>&1); want 0 $? "the pair: a file inside the root is served"
+grep -q 'mrw --root' <<<"$out" && bad "an inside read named a --root command: $out" || ok "and names no --root command"
+
+# 290. v1.71.1 (issue #496): a regular file where mrw's state directory must go
+# made Windows say only "The system cannot find the path specified", naming no
+# file (two Windows peers in the v1.71.0 field test). The hint now names the
+# file: XDG_STATE_HOME=<file>/x ends `<file> is a file, not a directory`. The
+# pair: the same refusal with a device in the way says nothing about a file.
+R=$(mktemp -d "$WORK/r290-XXXXXX"); printf 'alpha\n' > "$R/f.txt"; : > "$WORK/s290"
+(cd "$R" && XDG_STATE_HOME="$WORK/s290/x" "$MRW" read --quiet f.txt >"$WORK/r290.out" 2>"$WORK/r290.err"); want 2 $? "a read that cannot record, with a file where the state directory goes, exits 2"
+grep -qF "$WORK/s290 is a file, not a directory" "$WORK/r290.err" && ok "and names the file in the way" || bad "file in the way: $(cat "$WORK/r290.err")"
+(cd "$R" && XDG_STATE_HOME=/dev/null/x "$MRW" read --quiet f.txt >"$WORK/r290.out" 2>"$WORK/r290b.err"); want 2 $? "the pair: a device in the way exits 2"
+{ grep -qF "mrw's state directory" "$WORK/r290b.err" && ! grep -qF 'is a file' "$WORK/r290b.err"; } && ok "and says nothing about a file" || bad "device in the way: $(cat "$WORK/r290b.err")"
+
+# 291. v1.71.1 (issue #496): Go's encoder wrote > as backslash-u-0-0-3-e, so `mrw read
+# --json` showed the header's arrow as ==backslash-u-0-0-3-e to a raw reader (five peers in
+# the v1.71.0 field test). The CLI's documents carry <, > and & as themselves, in
+# a failed hunk's reason too. The pair: decoded, the content is the plain read's
+# standard output byte for byte (§283), so nothing a parser sees changed.
+R=$(mktemp -d "$WORK/r291-XXXXXX"); printf 'x<a>&\n' > "$R/f.txt"
+doc=$(cd "$R" && "$MRW" read --json f.txt:1 2>&1); want 0 $? "read --json of a line holding <a>& exits 0"
+{ grep -qF '==> f.txt' <<<"$doc" && grep -qF 'x<a>&' <<<"$doc" && ! grep -q 'u003\|u0026' <<<"$doc"; } \
+  && ok "and prints ==>, < > and & literally" || bad "read --json escapes: $doc"
+doc=$(cd "$R" && printf '@@ f.txt 1 replace anchor="q<z>&"\nx\n' | "$MRW" write --json --no-check - 2>&1)
+{ grep -qF 'anchor \"q<z>&\" not in line 1: x<a>&' <<<"$doc" && ! grep -q 'u003\|u0026' <<<"$doc"; } \
+  && ok "and so does a failed hunk's reason" || bad "write --json reason escapes: $doc"
+doc=$(cd "$R" && "$MRW" read --json f.txt:1 2>/dev/null)
+plain=$(cd "$R" && "$MRW" read f.txt:1 2>/dev/null)
+[ "$(printf '%s' "$doc" | jq -j .content)" = "$plain" ] && ok "the pair: decoded, content is the plain read's standard output" || bad "decoded content vs plain: $doc"
 
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A

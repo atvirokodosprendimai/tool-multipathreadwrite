@@ -93,3 +93,41 @@ func TestAStateFailureIsNamedByItsType(t *testing.T) {
 		}
 	}
 }
+
+// A regular file where a directory must go made Windows say only "The system
+// cannot find the path specified" (the v1.71.0 field test, two Windows peers):
+// the hint now names the file, on every OS, so the caller knows what to move.
+// A regular file as a path component fails mkdir on every OS, so the test needs
+// no platform. The pairs: an error with no file in the way, and an existing
+// file that merely could not be opened, say nothing about a file.
+func TestAFileInTheWayOfTheStateDirectoryIsNamed(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "home")
+	if err := os.WriteFile(file, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("XDG_STATE_HOME", filepath.Join(file, "x"))
+	_, err := state.Dir(t.TempDir())
+	hinted(t, "a file as the state home's parent", err, file+" is a file, not a directory")
+
+	// The ledger's own file could not be opened: it IS a file, and that is no news.
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	base, err := state.Base()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ledger := filepath.Join(base, "mrw", "0123456789abcdef", "seen")
+	if err := os.MkdirAll(filepath.Dir(ledger), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(ledger, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for name, e := range map[string]error{
+		"no file in the way":              &os.PathError{Op: "mkdir", Path: filepath.Join(base, "mrw", "nothing"), Err: os.ErrPermission},
+		"a file that could not be opened": &os.PathError{Op: "open", Path: ledger, Err: os.ErrPermission},
+	} {
+		if got := Hint(e); !errors.Is(got, e) || strings.Contains(got.Error(), "is a file") {
+			t.Errorf("%s: %q", name, got)
+		}
+	}
+}

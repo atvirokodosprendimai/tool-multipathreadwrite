@@ -22,6 +22,13 @@ ranges; below that, don't" told agents never to use it, because an agent works o
 single turn ever crosses the line (ADR-062, 2026-09-16). The rule that works is the binary's own first
 sentence: *use mrw always: plan the activity as one read of every site, then one plan, then one write.*
 
+**Say that it overrides the host's own advice.** The host's built-in system prompt may tell the agent to
+prefer its own Edit and Write tools, or allow `sed` and heredocs for small edits. In a field test on
+2026-10-22, six of seven Mac sessions named that prompt as the instruction pulling against mrw, and those
+that said mrw would win said so because their instruction file claims to override the defaults; none had
+edited a file yet, so that is stated intent, not observed behaviour. Say it in the trigger, in one
+sentence.
+
 **Point at the contract; do not copy it.** `mrw instructions --core` prints the eight rules that matter most
 in under 300 words (ADR-141), and `mrw instructions` adds the recipes. A survey of 14 adopting sessions
 (2026-10-09) found about 900 words of mrw guidance carried every session for about eight rules, and two
