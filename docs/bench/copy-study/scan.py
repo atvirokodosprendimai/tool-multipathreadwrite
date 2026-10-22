@@ -55,6 +55,10 @@ class Session:
         self.idx = collections.defaultdict(list)        # exact text -> [(fid, n)]
         self.idxn = collections.defaultdict(list)       # stripped text -> [(fid, n)]
         self.by_file = collections.defaultdict(dict)    # fid -> {n: text}
+        self.served = {}                                # (fid, n) -> text served since the file's last write
+        self.served_by_file = collections.defaultdict(set)
+        self.served_chars = 0
+        self.redundant_chars = 0
 
     def fid(self, path):
         """Same file iff equal, or one path is a '/'-suffix of the other."""
@@ -71,13 +75,29 @@ class Session:
 
     def see(self, path, n, text):
         key = (self.fid(path), n)
-        if self.pos.get(key) == text:
+        size = len(text) + 1
+        self.served_chars += size
+        if self.served.get(key) == text:                # same line, same number, no write to the file since
+            self.redundant_chars += size
+        self.served[key] = text
+        self.served_by_file[key[0]].add(n)
+        old = self.pos.get(key)
+        if old == text:
             return
+        if old is not None:                             # the line changed: its old text seeds no copy
+            self.idx[old].remove(key)
+            self.idxn[old.strip()].remove(key)
         self.pos[key] = text
         self.posn[key] = text.strip()
         self.idx[text].append(key)
         self.idxn[text.strip()].append(key)
         self.by_file[key[0]][n] = text
+
+    def invalidate(self, path):
+        """A write to a file: nothing served from it before counts as redundant after."""
+        f = self.fid(path)
+        for n in self.served_by_file.pop(f, ()):
+            self.served.pop((f, n), None)
 
 
 # ------------------------------------------------------------------ SEEN
@@ -119,6 +139,12 @@ def result_text(content):
 
 
 # ----------------------------------------------------------------- WRITES
+
+def text_lines(s):
+    """The lines of a file's text: a terminal newline ends the last line, it does not add an empty one."""
+    lines = s.split("\n")
+    return lines[:-1] if s.endswith("\n") else lines
+
 
 def is_plan(text):
     return any(PLAN_HEADER.match(line) for line in text.split("\n"))
@@ -187,7 +213,7 @@ def bash_writes(cmd, files_written):
             elif src:
                 body = files_written.get(os.path.basename(src.group(1).strip("'\"")))
             if body is not None:
-                units.append(("mrw_create", path, "create", "0", body.split("\n")))
+                units.append(("mrw_create", path, "create", "0", text_lines(body)))
     if "mrw write" in cmd and not docs:
         if "--sub" in cmd or "--rewrite" in cmd:
             zero += 1
@@ -211,8 +237,8 @@ def write_units(name, inp, files_written):
             if not isinstance(e, dict):
                 continue
             old_s = e.get("old_string") or ""
-            avail = collections.Counter(old_s.split("\n"))
-            new = (e.get("new_string") or "").split("\n")
+            avail = collections.Counter(text_lines(old_s))
+            new = text_lines(e.get("new_string") or "")
             kept = []
             for line in new:
                 kept.append(avail[line] > 0)
@@ -225,7 +251,7 @@ def write_units(name, inp, files_written):
         if is_plan(content):
             raw = [("mrw_plan", p, op, a, b) for p, a, op, b in parse_plan(content)]
         else:
-            raw = [("Write", inp.get("file_path") or "", "write", "", content.split("\n"))]
+            raw = [("Write", inp.get("file_path") or "", "write", "", text_lines(content))]
     else:
         return [], 0
     return [(f, p, op, a, b, None) for f, p, op, a, b in raw], zero
@@ -252,7 +278,7 @@ def find_runs(sess, body, kept, region, normalised):
             continue
         best = None
         for (f, n) in idx.get(lines[i], ())[-MAX_CANDIDATES:]:
-            if (f, n) in region:
+            if (f, n) in region or pos.get((f, n)) != lines[i]:
                 continue
             a = i
             while a - 1 >= floor and not kept[a - 1]:
@@ -447,10 +473,16 @@ class Scan:
                         elif (name == "Bash" and "mrw" in (inp.get("command") or "")) or name.endswith("mrw_read"):
                             parse_mrw_output(sess, text)
         s["output_tokens"] = sum(out_tokens.values())
+        s["served_chars"] = sess.served_chars
+        s["redundant_chars"] = sess.redundant_chars
+        s["is_subagent"] = int(kind == "subagent")
         return s
 
     def write(self, sess, units, kind, s, pending):
         rem = removals(sess, units)
+        for u in units:
+            if u[1]:
+                sess.invalidate(u[1])
         for r in pending:                     # runs of the previous write whose source this one removes
             if is_moved(r[:4], rem):
                 self.moves["moved_runs"] += 1
@@ -532,6 +564,20 @@ def summarise(scan, per_session, per_project, corpus, secs):
         rows.append({"label": f"P{i + 1}", "transcripts": c["transcripts"], "body_chars": c["body_chars"],
                      "copyable_exact_k3_share": round(c["copy_exact_k3"] / bc, 4),
                      "whole_body_saving_exact_k3_tokens_est": tokens(c["whole_save_exact_k3"])})
+
+    def redundancy(rows):
+        served = sum(s["served_chars"] for s in rows)
+        red = sum(s["redundant_chars"] for s in rows)
+        return {"transcripts": len(rows), "served_chars": served, "served_tokens_est": tokens(served),
+                "redundant_chars": red, "redundant_tokens_est": tokens(red),
+                "redundant_share": round(red / served, 4) if served else None}
+    rr = [s for s in per_session if s["served_chars"]]
+    reds = sorted((s["redundant_chars"] for s in rr), reverse=True)
+    read_redundancy = dict(
+        redundancy(rr),
+        top_decile_share_of_redundant=round(sum(reds[:max(1, len(rr) // 10)]) / sum(reds), 4) if sum(reds) else None,
+        main=redundancy([s for s in rr if not s["is_subagent"]]),
+        subagent=redundancy([s for s in rr if s["is_subagent"]]))
     return {
         "corpus": dict(corpus, transcripts_with_writes=len(ws), runtime_seconds=round(secs, 1),
                        zero_body_writes=sum(s["zero_body_writes"] for s in per_session),
@@ -558,6 +604,7 @@ def summarise(scan, per_session, per_project, corpus, secs):
         "run_length_histogram_exact_k3": dict(sorted(scan.hist.items())),
         "moves_exact_k3": dict(scan.moves),
         "by_project_top10": rows,
+        "read_redundancy": read_redundancy,
     }
 
 

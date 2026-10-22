@@ -15,6 +15,13 @@ A = ["    value_alpha_%02d = compute_something(%d)" % (i, i) for i in range(1, 2
 A[14:17] = ["  }", "  )", "  }"]                 # lines 15-17: trivial
 A[17:19] = ["short_a()", "short_b()"]            # lines 18-19: a run under 40 non-ws chars
 B = ["func line_%02d() { return %d }" % (i, i) for i in range(1, 11)]
+A2 = A[:5] + ["    changed_line_six = 0"] + A[6:]  # a.py after line 6 changed
+E = ["epsilon line number %d of five" % i for i in range(1, 6)]
+
+
+def read_result(i, path, lines):
+    return tool_result(i, "\n".join("%6d\u2192%s" % (n, t) for n, t in enumerate(lines, 1)),
+                       {"file": {"filePath": path}})
 
 
 def tool_use(i, name, inp):
@@ -60,6 +67,18 @@ def transcript():
         # an mrw create of a file already read: KEPT, not a copy
         tool_use(7, "Bash", {"command": "mrw write - <<'EOF'\n@@ /x/proj/a.py 0 create\n" +
                              "\n".join(A[0:4]) + "\nEOF"}),
+        # a whole-file copy whose content ends in a newline: still ONE whole-body copy
+        tool_use(8, "Write", {"file_path": "/x/proj/d.py", "content": "\n".join(A[0:4]) + "\n"}),
+        # a.py re-read after line 6 changed (and after t7 wrote it, so nothing is redundant)
+        tool_use(9, "Read", {"file_path": "/x/proj/a.py"}),
+        read_result(9, "/x/proj/a.py", A2),
+        # old lines 6-8: line 6 is stale, so no run of 3 may start on it
+        tool_use(10, "Edit", {"file_path": "/x/proj/f.py", "old_string": "q", "new_string": "\n".join(A[5:8])}),
+        # e.txt read twice with no write between: the second read is wholly redundant
+        tool_use(11, "Read", {"file_path": "/x/proj/e.txt"}),
+        read_result(11, "/x/proj/e.txt", E),
+        tool_use(12, "Read", {"file_path": "/x/proj/e.txt"}),
+        read_result(12, "/x/proj/e.txt", E),
     ], dict(kept=kept, new1=new1, plan=plan)
 
 
@@ -75,19 +94,21 @@ def main():
     c = scan.chars
     al = res["all"]
     want = {
-        "write units": (al["write_units"], 5),
+        "write units": (al["write_units"], 7),
         "kept chars": (al["kept_chars"], c(k["kept"]) + c([B[2], B[3]]) + c(A[0:4])),
-        "exact k3 runs": (al["exact_k3"]["copyable_runs"], 2),
-        "exact k3 chars": (al["exact_k3"]["copyable_chars"], c(A[4:10]) + c(A[0:4])),
+        "exact k3 runs": (al["exact_k3"]["copyable_runs"], 3),
+        "exact k3 chars": (al["exact_k3"]["copyable_chars"], c(A[4:10]) + 2 * c(A[0:4])),
         "exact k10 runs": (al["exact_k10"]["copyable_runs"], 0),
-        "norm k3 runs": (al["norm_k3"]["copyable_runs"], 3),
-        "whole-body units": (al["exact_k3"]["whole_body_units"], 1),
-        "whole-body saving": (al["exact_k3"]["whole_body_saving_chars"], c(A[0:4]) - scan.HEADER_COST),
+        "norm k3 runs": (al["norm_k3"]["copyable_runs"], 4),
+        "whole-body units": (al["exact_k3"]["whole_body_units"], 2),
+        "whole-body saving": (al["exact_k3"]["whole_body_saving_chars"], 2 * (c(A[0:4]) - scan.HEADER_COST)),
         "split saving": (al["exact_k3"]["split_hunk_saving_chars"],
-                         c(A[4:10]) - 2 * scan.HEADER_COST + c(A[0:4]) - scan.HEADER_COST),
+                         c(A[4:10]) - 2 * scan.HEADER_COST + 2 * (c(A[0:4]) - scan.HEADER_COST)),
         "mrw_plan units": (res["by_family"]["mrw_plan"]["write_units"], 2),
-        "output tokens": (res["corpus"]["output_tokens_reported"], 7000),
-        "histogram": (res["run_length_histogram_exact_k3"], {"3-4": 1, "5-9": 1}),
+        "output tokens": (res["corpus"]["output_tokens_reported"], 12000),
+        "histogram": (res["run_length_histogram_exact_k3"], {"3-4": 2, "5-9": 1}),
+        "served chars": (res.get("read_redundancy", {}).get("served_chars"), c(A) + c(B) + c(A2) + 2 * c(E)),
+        "redundant chars": (res.get("read_redundancy", {}).get("redundant_chars"), c(E)),
     }
     bad = [f"{name}: got {got!r}, want {exp!r}" for name, (got, exp) in want.items() if got != exp]
     for b in bad:
