@@ -501,17 +501,8 @@ func TestSkillDirKeepsTheTriggerAndTheBOM(t *testing.T) {
 	}(); err == nil || exitCode(err) != exitNotApplied || !strings.Contains(err.Error(), "is UTF-16") {
 		t.Errorf("a UTF-16 SKILL.md: %v, want exit %d naming UTF-16", err, exitNotApplied)
 	}
-	for _, c := range []struct{ reason, want string }{
-		{"mrw/SKILL.md is read-only; chmod u+w mrw/SKILL.md", "D/mrw/SKILL.md is read-only; chmod u+w D/mrw/SKILL.md"},
-		{"held open (open /x/lk/mrw/SKILL.md: busy)", "held open (open /x/lk/mrw/SKILL.md: busy)"},
-		{"openat mrw/.mrw-c65058739c09edc2: permission denied", "openat D/mrw/(a temporary file): permission denied"},
-		{"mrw/SKILL.md is refused", "D/mrw/SKILL.md is refused"},
-		{"held (open /tmp/host mrw/mrw/SKILL.md: busy)", "held (open /tmp/host mrw/mrw/SKILL.md: busy)"},
-		{"held (open \"mrw/SKILL.md\")", "held (open \"D/mrw/SKILL.md\")"},
-	} {
-		if got := callersReason(c.reason, "D"); got != filepath.FromSlash(c.want) && got != c.want {
-			t.Errorf("callersReason(%q) = %q, want %q", c.reason, got, c.want)
-		}
+	if got, want := dirReason("mrw/SKILL.md is read-only; chmod u+w mrw/SKILL.md", "lk"), `under --dir "lk", mrw/SKILL.md is read-only; chmod u+w mrw/SKILL.md`; got != want {
+		t.Errorf("dirReason = %q, want %q", got, want)
 	}
 }
 
@@ -530,19 +521,23 @@ func TestUnkeptComponentFindsATrailingDotOrSpace(t *testing.T) {
 	}
 }
 
-// The Codex review of 50c7c60: a DIR whose own spelling ends in mrw/SKILL.md
-// puts " mrw/SKILL.md" inside the engine's absolute path; that path is left
-// whole, and so is a temporary name beside it.
-func TestCallersReasonLeavesAnAbsolutePathUnderDIRWhole(t *testing.T) {
-	dir := filepath.Join(t.TempDir(), "host mrw", "SKILL.md")
-	for _, abs := range []string{filepath.Join(dir, "mrw", "SKILL.md"), filepath.Join(dir, "mrw", ".mrw-deadbeef")} {
-		reason := "held open (open " + abs + ": busy)"
-		if got := callersReason(reason, dir); got != reason {
-			t.Errorf("callersReason(%q) = %q, want it unchanged", reason, got)
+// The Codex reviews of 6860a48, 50c7c60 and 821e9e7: every rewrite of an engine
+// reason met a DIR it got wrong, so the reason is now given whole after the
+// folder it is relative to. Whatever DIR is — one that ends in mrw/SKILL.md,
+// "/", a name with a space — the engine's text survives byte for byte.
+func TestDirReasonKeepsTheEngineReasonWhole(t *testing.T) {
+	base := t.TempDir()
+	for _, dir := range []string{filepath.Join(base, "host mrw", "SKILL.md"), "/", filepath.Join(base, "host mrw"), "lk"} {
+		for _, reason := range []string{
+			"held open (open " + filepath.Join(dir, "mrw", "SKILL.md") + ": busy)",
+			"openat mrw/.mrw-deadbeef: permission denied",
+			"mrw/SKILL.md is read-only; chmod u+w mrw/SKILL.md",
+		} {
+			got := dirReason(reason, dir)
+			if !strings.HasSuffix(got, ", "+reason) || !strings.HasPrefix(got, "under --dir "+quoted(dir)) {
+				t.Errorf("dirReason(%q, %q) = %q, want the reason whole after the folder", reason, dir, got)
+			}
 		}
-	}
-	if got, want := callersReason("mrw/SKILL.md is refused", dir), filepath.ToSlash(filepath.Join(dir, "mrw"))+"/SKILL.md is refused"; got != want {
-		t.Errorf("the relative name beside it: %q, want %q", got, want)
 	}
 }
 

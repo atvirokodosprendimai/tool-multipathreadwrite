@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -208,7 +207,7 @@ func installOnce(dir string, out io.Writer) (raced bool, err error) {
 			// The landing's own error is the exit's message: a reason that only
 			// repeats it is not printed twice (the Windows chaos test of 2026-10-22).
 			if h.Reason != "" && (landed == "" || !strings.Contains(h.Reason, landed)) {
-				fmt.Fprintf(os.Stderr, "mrw: %s\n", callersReason(h.Reason, dir))
+				fmt.Fprintf(os.Stderr, "mrw: %s\n", dirReason(h.Reason, dir))
 			}
 		}
 		// What the engine made and could not take away is named, as a write's
@@ -270,48 +269,15 @@ func keptDifference(file string, replaced bool) string {
 	return "; it has " + strings.Join(kept, " and ") + ", which mrw skill's output does not, and they are kept"
 }
 
-// callerPath matches the engine's root-relative name of the skill or of a
-// temporary file beside it where a path begins — at the start, or after a
-// space, a quote or a bracket — and nothing else, so an absolute path that
-// holds mrw/ (DIR "/tmp/host mrw" included) is left as it is.
-var callerPath = regexp.MustCompile(`(^|[\s("'])mrw([/\\])(SKILL\.md|\(a temporary file\))`)
-
-// callersReason is an engine refusal in the caller's spelling: DIR/mrw/… for
-// the engine's mrw/…, with the separator the engine wrote there, and the name
-// of a temporary file the engine could not make replaced by what it was. An
-// absolute path the engine names under DIR is set aside first and put back
-// last, so no spelling of DIR — "/tmp/host mrw/SKILL.md" included — can make a
-// relative name appear inside it (the Codex review of 50c7c60).
-func callersReason(reason, dir string) string {
-	var spans []string
-	if abs, err := filepath.Abs(dir); err == nil {
-		spans = append(spans, abs)
-		if real, err := filepath.EvalSymlinks(abs); err == nil && real != abs {
-			spans = append(spans, real)
-		}
-	}
-	// The longest first, so a resolved path that holds the other is taken whole.
-	sort.Slice(spans, func(i, j int) bool { return len(spans[i]) > len(spans[j]) })
-	for i, s := range spans {
-		reason = strings.ReplaceAll(reason, s, fmt.Sprintf("\x00%d\x00", i))
-	}
-	reason = tempName.ReplaceAllString(reason, "${1}mrw${2}(a temporary file)")
-	reason = callerPath.ReplaceAllStringFunc(reason, func(m string) string {
-		sm := callerPath.FindStringSubmatch(m)
-		folder := filepath.Join(dir, "mrw")
-		if sm[2] == "/" {
-			folder = filepath.ToSlash(folder)
-		}
-		return sm[1] + shownPath(folder) + sm[2] + sm[3]
-	})
-	for i, s := range spans {
-		reason = strings.ReplaceAll(reason, fmt.Sprintf("\x00%d\x00", i), s)
-	}
-	return reason
+// dirReason is an engine refusal as the caller reads it. The engine names a path
+// relative to DIR, as a plan would, so the reason is given whole after the
+// folder it is relative to, and is never rewritten: each rewrite tried — by
+// pattern, then by masking DIR's absolute spellings — met a DIR it got wrong
+// (the Codex reviews of 6860a48, 50c7c60 and 821e9e7: "/tmp/host mrw",
+// ".../host mrw/SKILL.md", a Windows junction, and "/").
+func dirReason(reason, dir string) string {
+	return "under --dir " + quoted(dir) + ", " + reason
 }
-
-// tempName is a temporary file the engine names in a failed open or create.
-var tempName = regexp.MustCompile(`(^|[\s("'])mrw([/\\])\.mrw-[0-9a-f]+`)
 
 // changedSince reports whether target no longer holds judged — a create that
 // found a file, or a replace whose sha= no longer matched — which is a race
