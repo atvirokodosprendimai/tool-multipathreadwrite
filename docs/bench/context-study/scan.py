@@ -172,9 +172,11 @@ def split_command(cmd, files_written):
     new = old = 0
     paths = []
     units, _ = cs.bash_writes(cmd, files_written)
+    counted = []                                   # bodies already in a write unit: count each once
     for _, p, _, _, body in units:
         new += cs.chars(body)
         paths.append(p)
+        counted.append(body)
     patched = False
     for _, _, body in cs.HEREDOC.findall(cmd):
         if "*** Begin Patch" in body:
@@ -183,6 +185,8 @@ def split_command(cmd, files_written):
             patched = True
         elif cs.is_plan(body):
             continue                              # already in units
+        elif cs.text_lines(body) in counted:
+            counted.remove(cs.text_lines(body))   # an mrw --create body: already in units
         elif is_write_heredoc(cmd, body):
             new += len(body)
     for m in cs.CAT_HEREDOC.finditer(cmd):
@@ -260,27 +264,35 @@ def infer_chain(cmd):
 
 
 def serve_chain(sess, ts, segs, lines):
-    """Attribute a chain's output to its segments: numbered output by the numbers each range admits,
-    plain output only when the line count is exactly what the ranges ask for (else nothing)."""
+    """Attribute a chain's output to its segments, or serve nothing when that is ambiguous.
+
+    Numbered output: a segment's lines run A, A+1, ... and may stop early (the file ended); the next
+    segment starts at its own A. A line that both continues the current segment and starts a later
+    one could belong to either file, so the whole chain is refused. Plain output carries no numbers:
+    it is served only when it has exactly the lines the ranges ask for. Truncated output: nothing."""
     served = 0
+    if any(TRUNC.search(line) for line in lines):
+        return 0
     if segs[0][1]:
-        i, prev = 0, None
+        out, i, prev = [], -1, None
         for line in lines:
-            if TRUNC.search(line):
-                break
             m = NUMBERED.match(line)
             if not m:
                 continue
             n = int(m.group(1))
-            if prev is not None and n <= prev:      # numbering restarted: the next segment's output
-                i += 1
-            while i < len(segs) and not segs[i][2] <= n <= segs[i][3]:
-                i += 1
-            if i == len(segs):
-                break
-            sess.serve(ts, segs[i][0], n, m.group(2), False)
-            served += 1
+            cont = i >= 0 and n == prev + 1 and n <= segs[i][3]
+            starts = [j for j in range(i + 1, len(segs)) if segs[j][2] == n]
+            if cont and starts:
+                return 0                           # this file or the next one: cannot tell
+            if not cont:
+                if not starts:
+                    return 0                       # matches no segment: the command did not run as parsed
+                i = starts[0]
+            out.append((segs[i][0], n, m.group(2)))
             prev = n
+        for path, n, text in out:
+            sess.serve(ts, path, n, text, False)
+            served += 1
         return served
     if len(lines) != sum(b - a + 1 for _, _, a, b in segs):
         return 0
@@ -903,8 +915,15 @@ class Host:
         for parent_id, subs in by_parent.items():
             subs.sort(key=lambda x: x.start or 0)
             p = sessions.get(parent_id)
-            sib_seen = {}                              # ((fid, n), text) -> earliest serve ts by a sibling
-            for sub in subs:
+            firsts = collections.defaultdict(dict)    # ((fid, n), text) -> {sibling index: its earliest serve ts}
+            for j, sub in enumerate(subs):
+                for ev in sub.events:
+                    if ev[0] == "serve" and ev[1] is not None:
+                        kk = ((table.fid(ev[2]), ev[3]), ev[4])
+                        t = firsts[kk].get(j)
+                        if t is None or ev[1] < t:
+                            firsts[kk][j] = ev[1]
+            for j, sub in enumerate(subs):
                 k["m3_subagents"] += 1
                 k["m3_parent_missing"] += p is None
                 forked = any(f.endswith("_fork") for f in sub.flags)   # Codex fork: parent history in context
@@ -924,14 +943,9 @@ class Host:
                     first += size
                     if p is not None and sub.start is not None and parent_had(hist[p.sid], kk[0], kk[1], sub.start):
                         parent_hit += size
-                    t0 = sib_seen.get(kk)
-                    if t0 is not None and ev[1] is not None and t0 < ev[1]:
+                    # chronological, whatever order the siblings started in
+                    if ev[1] is not None and any(t < ev[1] for i, t in firsts[kk].items() if i != j):
                         sib_hit += size
-                for ev in sub.events:
-                    if ev[0] == "serve" and ev[1] is not None:
-                        kk = ((table.fid(ev[2]), ev[3]), ev[4])
-                        if kk not in sib_seen or ev[1] < sib_seen[kk]:
-                            sib_seen[kk] = ev[1]
                 k["m3_served"] += served
                 k["m3_first_serves"] += first
                 k["m3_parent_savable"] += parent_hit

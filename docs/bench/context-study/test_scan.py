@@ -51,6 +51,7 @@ def cl_read(t, i, path, lines):
 
 
 AGENT_INPUT = {"description": "explore", "prompt": "go explore b.py"}
+CREATE = "mrw write --no-check --create h.txt <<'EOF'\nhello\nEOF"
 
 
 def claude_tree(root):
@@ -64,6 +65,7 @@ def claude_tree(root):
     main += cl_read(6, 4, "/p/b.py", B)
     main += [cl_use(7, 5, "Bash", {"command": "sed -n '1,5p' b.py"}), cl_res(7.5, 5, "\n".join(B) + "\n")]
     main += [cl_use(8, 6, "Edit", {"file_path": "/p/a.py", "old_string": "OLD!", "new_string": "NEW"})]
+    main += [cl_use(8.5, 9, "Bash", {"command": CREATE})]   # a create body counts once: 6 chars
     main += [cl_use(9, 7, "Agent", AGENT_INPUT)]
     main += cl_read(12, 8, "/p/a.py", A)                    # after the write: not redundant
     sub1 = [{"type": "user", "timestamp": iso(10), "isSidechain": True,
@@ -72,12 +74,15 @@ def claude_tree(root):
     sub1 += cl_read(10.4, 2, "/p/a.py", A)                   # parent wrote a.py at 8: not savable
     sub2 = [{"type": "user", "timestamp": iso(11), "message": {"role": "user", "content": "x"}}]
     sub2 += cl_read(11.2, 1, "b.py", B)                      # savable, and a sibling read it at 10.2
+    sub3 = [{"type": "user", "timestamp": iso(9.8), "message": {"role": "user", "content": "y"}}]
+    sub3 += cl_read(12, 1, "/p/b.py", B)                     # starts first, reads last: sibling overlap
     d = root / "proj1"
     (d / "S1" / "subagents").mkdir(parents=True)
     dump(d / "S1.jsonl", main)
     dump(d / "S1" / "subagents" / "agent-a1.jsonl", sub1)
     (d / "S1" / "subagents" / "agent-a1.meta.json").write_text(json.dumps({"toolUseId": "tu7"}), encoding="utf-8")
     dump(d / "S1" / "subagents" / "agent-a2.jsonl", sub2)
+    dump(d / "S1" / "subagents" / "agent-a3.jsonl", sub3)
 
 
 def dump(path, records, pad=True):
@@ -130,6 +135,11 @@ def codex_tree(root):
                                     "source": {"subagent": {"thread_spawn": {"parent_thread_id": "M"}}}})]
     sub += cx_sed(4, "s1", "sed -n '1,10p' a.py", A)            # parent had it at 2: savable
     sub += cx_sed(4.2, "s2", "sed -n '1,5p' a.py && sed -n '6,10p' a.py", A)   # a chain: within-epoch
+    # b.py ends before its range: 6-8 of a.py's output would fit b.py's range, so nothing is served
+    sub += cx_sed(4.3, "s4", "nl -ba b.py | sed -n '1,8p' && nl -ba a.py | sed -n '6,8p'", NUMBERED_BA[:8])
+    sub += cx_sed(4.35, "s5", "nl -ba b.py | sed -n '1,5p' && nl -ba a.py | sed -n '6,10p'", NUMBERED_BA)  # complete
+    # b.py ends early but a.py restarts at 1, its own start: unambiguous, served
+    sub += cx_sed(4.36, "s6", "nl -ba b.py | sed -n '1,8p' && nl -ba a.py | sed -n '1,3p'", NUMBERED_BA3)
     two = ("const a = await tools.exec_command({cmd:\"nl -ba b.py | sed -n '1,5p'\"}); text(a.output);"
            " const b = await tools.exec_command({cmd:\"sed -n '1,5p' b.py\"}); text(b.output);")
     sub += [cx(4.4, "response_item", {"type": "custom_tool_call", "name": "exec", "call_id": "s3", "input": two}),
@@ -165,6 +175,10 @@ def read_tool(path, lines, offset=None):
     return {"name": "read_file_v2", "params": json.dumps(p), "result": json.dumps({"contents": "\n".join(lines)})}
 
 
+NUMBERED_BA = ["%6d\t%s" % (i, x) for i, x in enumerate(B, 1)] + ["%6d\t%s" % (i, A[i - 1]) for i in range(6, 11)]
+NUMBERED_BA3 = ["%6d\t%s" % (i, x) for i, x in enumerate(B, 1)] + ["%6d\t%s" % (i, A[i - 1]) for i in range(1, 4)]
+
+
 def cursor_db(path):
     db = sqlite3.connect(str(path))
     db.execute("create table cursorDiskKV (key text unique on conflict replace, value blob)")
@@ -173,11 +187,11 @@ def cursor_db(path):
                " checkpointAt integer, value text, subagentTypeName text)")
     t0 = scan.ts_of(iso(0)) * 1000
 
-    def composer(cid, created, bubbles, parent=None):
+    def composer(cid, created, bubbles, parent=None, stale=()):
         heads = [{"bubbleId": "%s-%d" % (cid, i), "type": b["type"]} for i, b in enumerate(bubbles)]
         db.execute("insert into cursorDiskKV values (?, ?)", ("composerData:" + cid, json.dumps(
             {"composerId": cid, "fullConversationHeadersOnly": heads})))
-        for i, b in enumerate(bubbles):
+        for i, b in enumerate(list(bubbles) + list(stale)):  # a stale bubble has no header
             b["bubbleId"] = "%s-%d" % (cid, i)
             db.execute("insert into cursorDiskKV values (?, ?)", ("bubbleId:%s:%s" % (cid, b["bubbleId"]),
                                                                   json.dumps(b)))
@@ -192,7 +206,9 @@ def cursor_db(path):
         bubble(6, 2, toolFormerData=read_tool("a.py", A)),                    # cross-epoch redundant
         bubble(7, 2, toolFormerData={"name": "search_replace", "rawArgs": json.dumps(
             {"file_path": "a.py", "old_string": "xx", "new_string": "yyy"})}),
-    ])
+        # after the write in header order, though its timestamp says 2.5: not redundant
+        bubble(2.5, 2, toolFormerData=read_tool("a.py", A)),
+    ], stale=[bubble(4, 2, toolFormerData=read_tool("b.py", B))])           # outside the conversation
     composer("C", 4, [bubble(4.5, 2, toolFormerData=read_tool("a.py", A[2:4], offset=3))], parent="P")
     db.commit()
     db.close()
@@ -222,12 +238,12 @@ def main():
         "claude compactions": (cl["main"]["M2"]["mid_session_compactions"], 1),
         "claude reread after": (cl["main"]["M2"]["sessions_rereading_after_compaction"], 1),
         "claude prose": (m1["prose"], len("Hello world")),
-        "claude write new/old": ((m1["write_new"], m1["write_old"]), (3, 4)),
+        "claude write new/old": ((m1["write_new"], m1["write_old"]), (3 + 6, 4)),
         "claude subagent prompt": (m1["subagent_prompt"], len(json.dumps(AGENT_INPUT))),
-        "claude reported": (cl["main"]["M1"]["reported_output_tokens"], 1000 + 8 * 100),
-        "claude M3 parent": (cl["subagent"]["M3"]["parent_savable_chars"], 2 * c(B)),
-        "claude M3 sibling": (cl["subagent"]["M3"]["sibling_overlap_chars"], c(B)),
-        "claude M3 served": (cl["subagent"]["M3"]["served_chars"], 2 * c(B) + c(A)),
+        "claude reported": (cl["main"]["M1"]["reported_output_tokens"], 1000 + 9 * 100),
+        "claude M3 parent": (cl["subagent"]["M3"]["parent_savable_chars"], 3 * c(B)),
+        "claude M3 sibling": (cl["subagent"]["M3"]["sibling_overlap_chars"], 2 * c(B)),
+        "claude M3 served": (cl["subagent"]["M3"]["served_chars"], 3 * c(B) + c(A)),
         # Codex
         "codex served": (cx_["main"]["M2"]["ext"]["served_chars"], 4 * c(A)),
         "codex within": (cx_["main"]["M2"]["ext"]["within_epoch_chars"], c(A)),
@@ -238,14 +254,16 @@ def main():
                                   cx_["main"]["M1"]["visible_chars"]["thinking_visible"]), (8, 5)),
         "codex reasoning": (cx_["main"]["M1"]["reasoning_tokens_reported"], 200),
         "codex M3 parent": (cx_["subagent"]["M3"]["parent_savable_chars"], c(A)),
-        "codex sub chain+cells within": (cx_["subagent"]["M2"]["ext"]["within_epoch_chars"], c(A) + c(B)),
-        "codex sub served": (cx_["subagent"]["M2"]["ext"]["served_chars"], 2 * c(A) + 2 * c(B)),
+        "codex sub chain+cells within": (cx_["subagent"]["M2"]["ext"]["within_epoch_chars"],
+                                         c(A) + c(A[5:10]) + 3 * c(B) + c(A[:3])),
+        "codex sub served": (cx_["subagent"]["M2"]["ext"]["served_chars"],
+                             2 * c(A) + c(A[5:10]) + 4 * c(B) + c(A[:3])),
         "codex fork usage baseline": ((cx_["subagent"]["M1"]["reported_output_tokens"],
                                        cx_["subagent"]["M1"]["reasoning_tokens_reported"]), (400, 150)),
         "codex main usage": (cx_["main"]["M1"]["reported_output_tokens"], 500),
         "codex zst read": (cx_["corpus"].get("zst", 0), 1 if zst else 0),
         # Cursor IDE
-        "cursor served": (cu["main"]["M2"]["ext"]["served_chars"], 2 * c(A) + c(A[2:4])),
+        "cursor served": (cu["main"]["M2"]["ext"]["served_chars"], 3 * c(A) + c(A[2:4])),
         "cursor within": (cu["main"]["M2"]["ext"]["within_epoch_chars"], c(A[2:4])),
         "cursor cross": (cu["main"]["M2"]["ext"]["cross_epoch_chars"], c(A)),
         "cursor write new/old": ((cu["main"]["M1"]["visible_chars"]["write_new"],

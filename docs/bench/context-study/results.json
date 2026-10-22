@@ -9,253 +9,253 @@
       "all": {
         "M1": {
           "reasoning_source": "residual: reported output minus visible chars/4, an estimate",
-          "reasoning_tokens_residual": 44858660,
-          "reported_output_coverage": 0.9871,
-          "reported_output_tokens": 80762195,
-          "sessions": 2177,
+          "reasoning_tokens_residual": 42130356,
+          "reported_output_coverage": 0.987,
+          "reported_output_tokens": 76255968,
+          "sessions": 2157,
           "sessions_negative_residual": 563,
-          "sessions_with_usage": 2149,
+          "sessions_with_usage": 2129,
           "share_of_reported_output": {
-            "commands": 0.1615,
-            "no_retype_ceiling": 0.1497,
-            "other_tool_input": 0.0562,
-            "prose": 0.0625,
-            "reasoning": 0.5554,
-            "subagent_prompts": 0.0072,
-            "thinking_visible": 0.0074,
-            "write_bodies_new": 0.149,
+            "commands": 0.1633,
+            "no_retype_ceiling": 0.1484,
+            "other_tool_input": 0.057,
+            "prose": 0.0638,
+            "reasoning": 0.5525,
+            "subagent_prompts": 0.0073,
+            "thinking_visible": 0.0078,
+            "write_bodies_new": 0.1477,
             "write_old_text": 0.0007
           },
           "share_of_visible": {
-            "commands": 0.3633,
-            "other_tool": 0.1264,
-            "prose": 0.1406,
-            "subagent_prompt": 0.0161,
-            "thinking_visible": 0.0167,
-            "write_new": 0.3352,
-            "write_old": 0.0016
+            "commands": 0.3648,
+            "other_tool": 0.1274,
+            "prose": 0.1425,
+            "subagent_prompt": 0.0164,
+            "thinking_visible": 0.0174,
+            "write_new": 0.33,
+            "write_old": 0.0015
           },
           "visible_chars": {
-            "commands": 52172220,
-            "other_tool": 18157766,
-            "prose": 20198897,
-            "subagent_prompt": 2312454,
-            "thinking_visible": 2405278,
-            "write_new": 48134751,
-            "write_old": 232773
+            "commands": 49796021,
+            "other_tool": 17391915,
+            "prose": 19447839,
+            "subagent_prompt": 2232425,
+            "thinking_visible": 2376601,
+            "write_new": 45048727,
+            "write_old": 208922
           },
           "visible_tokens_est": {
-            "commands": 13043055,
-            "other_tool": 4539442,
-            "prose": 5049724,
-            "subagent_prompt": 578114,
-            "thinking_visible": 601320,
-            "write_new": 12033688,
-            "write_old": 58193
+            "commands": 12449005,
+            "other_tool": 4347979,
+            "prose": 4861960,
+            "subagent_prompt": 558106,
+            "thinking_visible": 594150,
+            "write_new": 11262182,
+            "write_old": 52230
           },
-          "visible_tokens_est_total": 35903535
+          "visible_tokens_est_total": 34125612
         },
         "M2": {
-          "compaction_records": 195,
+          "compaction_records": 190,
           "ext": {
-            "cross_epoch_chars": 1938292,
-            "cross_epoch_share": 0.0153,
-            "cross_epoch_share_of_post_compaction_serves": 0.0547,
-            "redundant_chars": 6734648,
-            "redundant_share": 0.053,
-            "served_after_a_compaction_chars": 35408824,
-            "served_chars": 127026954,
-            "served_tokens_est": 31756738,
-            "within_epoch_chars": 4796356,
-            "within_epoch_share": 0.0378,
-            "within_epoch_tokens_est": 1199089
+            "cross_epoch_chars": 1938719,
+            "cross_epoch_share": 0.0154,
+            "cross_epoch_share_of_post_compaction_serves": 0.0555,
+            "redundant_chars": 6733538,
+            "redundant_share": 0.0536,
+            "served_after_a_compaction_chars": 34942217,
+            "served_chars": 125733730,
+            "served_tokens_est": 31433432,
+            "within_epoch_chars": 4794819,
+            "within_epoch_share": 0.0381,
+            "within_epoch_tokens_est": 1198705
           },
-          "mid_session_compactions": 195,
-          "sessions_rereading_after_compaction": 32,
-          "sessions_with_mid_session_compaction": 40,
+          "mid_session_compactions": 190,
+          "sessions_rereading_after_compaction": 31,
+          "sessions_with_mid_session_compaction": 39,
           "strict": {
-            "cross_epoch_chars": 1913293,
-            "cross_epoch_share": 0.0155,
-            "cross_epoch_share_of_post_compaction_serves": 0.0559,
-            "redundant_chars": 6584137,
-            "redundant_share": 0.0535,
-            "served_after_a_compaction_chars": 34211055,
-            "served_chars": 123110873,
-            "served_tokens_est": 30777718,
-            "within_epoch_chars": 4670844,
-            "within_epoch_share": 0.0379,
-            "within_epoch_tokens_est": 1167711
+            "cross_epoch_chars": 1916902,
+            "cross_epoch_share": 0.0157,
+            "cross_epoch_share_of_post_compaction_serves": 0.0564,
+            "redundant_chars": 6586131,
+            "redundant_share": 0.0539,
+            "served_after_a_compaction_chars": 34005825,
+            "served_chars": 122258197,
+            "served_tokens_est": 30564549,
+            "within_epoch_chars": 4669229,
+            "within_epoch_share": 0.0382,
+            "within_epoch_tokens_est": 1167307
           }
         },
         "M3": {
-          "first_serve_chars": 74095787,
+          "first_serve_chars": 73551474,
           "forked_subagents": 0,
           "nested_subagents": 19,
           "parent_missing": 0,
-          "parent_savable_chars": 4133873,
+          "parent_savable_chars": 4080033,
           "parent_savable_chars_in_forked": 0,
-          "parent_savable_share_of_served": 0.0535,
-          "parent_savable_tokens_est": 1033468,
-          "served_chars": 77236488,
+          "parent_savable_share_of_served": 0.0532,
+          "parent_savable_tokens_est": 1020008,
+          "served_chars": 76693405,
           "served_chars_in_forked": 0,
-          "sibling_overlap_chars": 16157808,
-          "sibling_overlap_share_of_served": 0.2092,
-          "subagents": 870,
-          "subagents_with_parent_overlap": 545,
-          "subagents_with_sibling_overlap": 577
+          "sibling_overlap_chars": 17368777,
+          "sibling_overlap_share_of_served": 0.2265,
+          "subagents": 853,
+          "subagents_with_parent_overlap": 539,
+          "subagents_with_sibling_overlap": 587
         },
         "flags": {
-          "read_like_commands": 7767,
-          "read_like_commands_inferred": 1029
+          "read_like_commands": 7230,
+          "read_like_commands_inferred": 865
         },
-        "tool_calls": 125419
+        "tool_calls": 119898
       },
       "copy_study_scanner_today": {
-        "redundant_chars": 6584456,
-        "redundant_share": 0.0535,
-        "served_chars": 123110873
+        "redundant_chars": 6586450,
+        "redundant_share": 0.0539,
+        "served_chars": 122258197
       },
       "corpus": {
-        "bytes": 3568935623,
-        "runtime_seconds": 65.4,
-        "subagents_linked_by_tool_id": 672,
-        "transcripts_main": 1307,
-        "transcripts_subagent": 870,
-        "trees": 1307
+        "bytes": 3486393731,
+        "runtime_seconds": 81.7,
+        "subagents_linked_by_tool_id": 673,
+        "transcripts_main": 1304,
+        "transcripts_subagent": 853,
+        "trees": 1304
       },
       "distribution": {
-        "sessions_with_serves": 927,
-        "subagents_with_serves": 778,
+        "sessions_with_serves": 910,
+        "subagents_with_serves": 763,
         "top_decile_share_of_cross_epoch": 1.0,
-        "top_decile_share_of_parent_savable": 0.5671,
-        "top_decile_share_of_sibling_overlap": 0.475,
-        "top_decile_share_of_within_epoch": 0.6597
+        "top_decile_share_of_parent_savable": 0.5683,
+        "top_decile_share_of_sibling_overlap": 0.4608,
+        "top_decile_share_of_within_epoch": 0.6591
       },
       "main": {
         "M1": {
           "reasoning_source": "residual: reported output minus visible chars/4, an estimate",
-          "reasoning_tokens_residual": 46662762,
+          "reasoning_tokens_residual": 45005509,
           "reported_output_coverage": 0.9954,
-          "reported_output_tokens": 72822862,
-          "sessions": 1307,
+          "reported_output_tokens": 70111472,
+          "sessions": 1304,
           "sessions_negative_residual": 0,
-          "sessions_with_usage": 1301,
+          "sessions_with_usage": 1298,
           "share_of_reported_output": {
             "commands": 0.1304,
-            "no_retype_ceiling": 0.1216,
-            "other_tool_input": 0.0366,
-            "prose": 0.0548,
-            "reasoning": 0.6408,
+            "no_retype_ceiling": 0.1193,
+            "other_tool_input": 0.0369,
+            "prose": 0.0554,
+            "reasoning": 0.6419,
             "subagent_prompts": 0.0077,
-            "thinking_visible": 0.0082,
-            "write_bodies_new": 0.1213,
+            "thinking_visible": 0.0084,
+            "write_bodies_new": 0.119,
             "write_old_text": 0.0003
           },
           "share_of_visible": {
-            "commands": 0.363,
-            "other_tool": 0.1019,
-            "prose": 0.1524,
-            "subagent_prompt": 0.0215,
-            "thinking_visible": 0.0227,
-            "write_new": 0.3376,
+            "commands": 0.3641,
+            "other_tool": 0.1031,
+            "prose": 0.1547,
+            "subagent_prompt": 0.0216,
+            "thinking_visible": 0.0234,
+            "write_new": 0.3323,
             "write_old": 0.0009
           },
           "visible_chars": {
-            "commands": 37982656,
-            "other_tool": 10664409,
-            "prose": 15948624,
-            "subagent_prompt": 2245983,
-            "thinking_visible": 2378724,
-            "write_new": 35325143,
-            "write_old": 94862
+            "commands": 36561041,
+            "other_tool": 10350677,
+            "prose": 15531257,
+            "subagent_prompt": 2165954,
+            "thinking_visible": 2350047,
+            "write_new": 33373873,
+            "write_old": 91002
           },
           "visible_tokens_est": {
-            "commands": 9495664,
-            "other_tool": 2666102,
-            "prose": 3987156,
-            "subagent_prompt": 561496,
-            "thinking_visible": 594681,
-            "write_new": 8831286,
-            "write_old": 23716
+            "commands": 9140260,
+            "other_tool": 2587669,
+            "prose": 3882814,
+            "subagent_prompt": 541488,
+            "thinking_visible": 587512,
+            "write_new": 8343468,
+            "write_old": 22750
           },
-          "visible_tokens_est_total": 26160100
+          "visible_tokens_est_total": 25105963
         },
         "M2": {
-          "compaction_records": 194,
+          "compaction_records": 189,
           "ext": {
-            "cross_epoch_chars": 1934073,
-            "cross_epoch_share": 0.0388,
-            "cross_epoch_share_of_post_compaction_serves": 0.0548,
-            "redundant_chars": 3857880,
-            "redundant_share": 0.0775,
-            "served_after_a_compaction_chars": 35272390,
-            "served_chars": 49790466,
-            "served_tokens_est": 12447616,
-            "within_epoch_chars": 1923807,
-            "within_epoch_share": 0.0386,
-            "within_epoch_tokens_est": 480952
+            "cross_epoch_chars": 1934500,
+            "cross_epoch_share": 0.0394,
+            "cross_epoch_share_of_post_compaction_serves": 0.0556,
+            "redundant_chars": 3854214,
+            "redundant_share": 0.0786,
+            "served_after_a_compaction_chars": 34805783,
+            "served_chars": 49040325,
+            "served_tokens_est": 12260081,
+            "within_epoch_chars": 1919714,
+            "within_epoch_share": 0.0391,
+            "within_epoch_tokens_est": 479928
           },
-          "mid_session_compactions": 194,
-          "sessions_rereading_after_compaction": 31,
-          "sessions_with_mid_session_compaction": 39,
+          "mid_session_compactions": 189,
+          "sessions_rereading_after_compaction": 30,
+          "sessions_with_mid_session_compaction": 38,
           "strict": {
-            "cross_epoch_chars": 1909074,
-            "cross_epoch_share": 0.0397,
-            "cross_epoch_share_of_post_compaction_serves": 0.056,
-            "redundant_chars": 3762957,
-            "redundant_share": 0.0782,
-            "served_after_a_compaction_chars": 34074621,
-            "served_chars": 48092721,
-            "served_tokens_est": 12023180,
-            "within_epoch_chars": 1853883,
-            "within_epoch_share": 0.0385,
-            "within_epoch_tokens_est": 463471
+            "cross_epoch_chars": 1912683,
+            "cross_epoch_share": 0.0402,
+            "cross_epoch_share_of_post_compaction_serves": 0.0565,
+            "redundant_chars": 3762395,
+            "redundant_share": 0.079,
+            "served_after_a_compaction_chars": 33869391,
+            "served_chars": 47627414,
+            "served_tokens_est": 11906854,
+            "within_epoch_chars": 1849712,
+            "within_epoch_share": 0.0388,
+            "within_epoch_tokens_est": 462428
           }
         },
         "flags": {
-          "read_like_commands": 3294,
-          "read_like_commands_inferred": 669
+          "read_like_commands": 2907,
+          "read_like_commands_inferred": 533
         },
-        "tool_calls": 82051
+        "tool_calls": 78599
       },
       "subagent": {
         "M1": {
           "reasoning_source": "residual: reported output minus visible chars/4, an estimate",
-          "reasoning_tokens_residual": -1804101,
-          "reported_output_coverage": 0.9747,
-          "reported_output_tokens": 7939333,
+          "reasoning_tokens_residual": -2875154,
+          "reported_output_coverage": 0.9742,
+          "reported_output_tokens": 6144496,
           "reported_output_unusable": true,
-          "sessions": 870,
+          "sessions": 853,
           "sessions_negative_residual": 563,
-          "sessions_with_usage": 848,
+          "sessions_with_usage": 831,
           "share_of_visible": {
-            "commands": 0.3641,
-            "other_tool": 0.1923,
-            "prose": 0.1091,
-            "subagent_prompt": 0.0017,
+            "commands": 0.3668,
+            "other_tool": 0.1952,
+            "prose": 0.1086,
+            "subagent_prompt": 0.0018,
             "thinking_visible": 0.0007,
-            "write_new": 0.3287,
-            "write_old": 0.0035
+            "write_new": 0.3236,
+            "write_old": 0.0033
           },
           "visible_chars": {
-            "commands": 14189564,
-            "other_tool": 7493357,
-            "prose": 4250273,
+            "commands": 13234980,
+            "other_tool": 7041238,
+            "prose": 3916582,
             "subagent_prompt": 66471,
             "thinking_visible": 26554,
-            "write_new": 12809608,
-            "write_old": 137911
+            "write_new": 11674854,
+            "write_old": 117920
           },
           "visible_tokens_est": {
-            "commands": 3547391,
-            "other_tool": 1873339,
-            "prose": 1062568,
+            "commands": 3308745,
+            "other_tool": 1760310,
+            "prose": 979146,
             "subagent_prompt": 16618,
             "thinking_visible": 6638,
-            "write_new": 3202402,
-            "write_old": 34478
+            "write_new": 2918714,
+            "write_old": 29480
           },
-          "visible_tokens_est_total": 9743434
+          "visible_tokens_est_total": 9019650
         },
         "M2": {
           "compaction_records": 1,
@@ -263,14 +263,14 @@
             "cross_epoch_chars": 4219,
             "cross_epoch_share": 0.0001,
             "cross_epoch_share_of_post_compaction_serves": 0.0309,
-            "redundant_chars": 2876768,
-            "redundant_share": 0.0372,
+            "redundant_chars": 2879324,
+            "redundant_share": 0.0375,
             "served_after_a_compaction_chars": 136434,
-            "served_chars": 77236488,
-            "served_tokens_est": 19309122,
-            "within_epoch_chars": 2872549,
-            "within_epoch_share": 0.0372,
-            "within_epoch_tokens_est": 718137
+            "served_chars": 76693405,
+            "served_tokens_est": 19173351,
+            "within_epoch_chars": 2875105,
+            "within_epoch_share": 0.0375,
+            "within_epoch_tokens_est": 718776
           },
           "mid_session_compactions": 1,
           "sessions_rereading_after_compaction": 1,
@@ -279,106 +279,106 @@
             "cross_epoch_chars": 4219,
             "cross_epoch_share": 0.0001,
             "cross_epoch_share_of_post_compaction_serves": 0.0309,
-            "redundant_chars": 2821180,
-            "redundant_share": 0.0376,
+            "redundant_chars": 2823736,
+            "redundant_share": 0.0378,
             "served_after_a_compaction_chars": 136434,
-            "served_chars": 75018152,
-            "served_tokens_est": 18754538,
-            "within_epoch_chars": 2816961,
-            "within_epoch_share": 0.0376,
-            "within_epoch_tokens_est": 704240
+            "served_chars": 74630783,
+            "served_tokens_est": 18657696,
+            "within_epoch_chars": 2819517,
+            "within_epoch_share": 0.0378,
+            "within_epoch_tokens_est": 704879
           }
         },
         "M3": {
-          "first_serve_chars": 74095787,
+          "first_serve_chars": 73551474,
           "forked_subagents": 0,
           "nested_subagents": 19,
           "parent_missing": 0,
-          "parent_savable_chars": 4133873,
+          "parent_savable_chars": 4080033,
           "parent_savable_chars_in_forked": 0,
-          "parent_savable_share_of_served": 0.0535,
-          "parent_savable_tokens_est": 1033468,
-          "served_chars": 77236488,
+          "parent_savable_share_of_served": 0.0532,
+          "parent_savable_tokens_est": 1020008,
+          "served_chars": 76693405,
           "served_chars_in_forked": 0,
-          "sibling_overlap_chars": 16157808,
-          "sibling_overlap_share_of_served": 0.2092,
-          "subagents": 870,
-          "subagents_with_parent_overlap": 545,
-          "subagents_with_sibling_overlap": 577
+          "sibling_overlap_chars": 17368777,
+          "sibling_overlap_share_of_served": 0.2265,
+          "subagents": 853,
+          "subagents_with_parent_overlap": 539,
+          "subagents_with_sibling_overlap": 587
         },
         "flags": {
-          "read_like_commands": 4473,
-          "read_like_commands_inferred": 360
+          "read_like_commands": 4323,
+          "read_like_commands_inferred": 332
         },
-        "tool_calls": 43368
+        "tool_calls": 41299
       }
     },
     "codex": {
       "all": {
         "M1": {
           "reasoning_source": "recorded by the host (reasoning_output_tokens, inside output_tokens)",
-          "reasoning_tokens_reported": 7670117,
+          "reasoning_tokens_reported": 7672022,
           "reported_output_coverage": 0.9131,
-          "reported_output_tokens": 15833874,
+          "reported_output_tokens": 15839117,
           "sessions": 495,
           "sessions_with_usage": 452,
           "share_of_reported_output": {
-            "commands": 0.3168,
-            "no_retype_ceiling": 0.0325,
-            "other_tool_input": 0.0239,
+            "commands": 0.3169,
+            "no_retype_ceiling": 0.0316,
+            "other_tool_input": 0.0238,
             "prose": 0.06,
             "reasoning": 0.4844,
             "subagent_prompts": 0.0041,
             "thinking_visible": 0.0141,
-            "write_bodies_new": 0.0281,
+            "write_bodies_new": 0.0272,
             "write_old_text": 0.0044
           },
           "share_of_visible": {
-            "commands": 0.7017,
-            "other_tool": 0.0528,
-            "prose": 0.133,
+            "commands": 0.7032,
+            "other_tool": 0.0529,
+            "prose": 0.1332,
             "subagent_prompt": 0.0091,
-            "thinking_visible": 0.0313,
-            "write_new": 0.0623,
+            "thinking_visible": 0.0314,
+            "write_new": 0.0604,
             "write_old": 0.0098
           },
           "visible_chars": {
-            "commands": 20064816,
+            "commands": 20077430,
             "other_tool": 1510709,
-            "prose": 3801596,
+            "prose": 3803043,
             "subagent_prompt": 259424,
             "thinking_visible": 896068,
-            "write_new": 1780569,
+            "write_new": 1723796,
             "write_old": 280351
           },
           "visible_tokens_est": {
-            "commands": 5016204,
+            "commands": 5019358,
             "other_tool": 377677,
-            "prose": 950399,
+            "prose": 950761,
             "subagent_prompt": 64856,
             "thinking_visible": 224017,
-            "write_new": 445142,
+            "write_new": 430949,
             "write_old": 70088
           },
-          "visible_tokens_est_total": 7148383
+          "visible_tokens_est_total": 7137705
         },
         "M2": {
           "compaction_records": 450,
           "ext": {
-            "cross_epoch_chars": 1227257,
-            "cross_epoch_share": 0.0514,
-            "cross_epoch_share_of_post_compaction_serves": 0.1263,
-            "redundant_chars": 1823502,
-            "redundant_share": 0.0763,
-            "served_after_a_compaction_chars": 9719681,
-            "served_chars": 23894238,
-            "served_tokens_est": 5973560,
-            "within_epoch_chars": 596245,
-            "within_epoch_share": 0.025,
-            "within_epoch_tokens_est": 149061
+            "cross_epoch_chars": 966941,
+            "cross_epoch_share": 0.0472,
+            "cross_epoch_share_of_post_compaction_serves": 0.1145,
+            "redundant_chars": 1460648,
+            "redundant_share": 0.0713,
+            "served_after_a_compaction_chars": 8442672,
+            "served_chars": 20487532,
+            "served_tokens_est": 5121883,
+            "within_epoch_chars": 493707,
+            "within_epoch_share": 0.0241,
+            "within_epoch_tokens_est": 123427
           },
           "mid_session_compactions": 249,
-          "sessions_rereading_after_compaction": 29,
+          "sessions_rereading_after_compaction": 26,
           "sessions_with_mid_session_compaction": 50,
           "strict": {
             "cross_epoch_chars": 241074,
@@ -395,38 +395,38 @@
           }
         },
         "M3": {
-          "first_serve_chars": 10337241,
+          "first_serve_chars": 8072539,
           "forked_subagents": 164,
           "nested_subagents": 71,
           "parent_missing": 0,
-          "parent_savable_chars": 1448961,
-          "parent_savable_chars_in_forked": 1355315,
-          "parent_savable_share_of_served": 0.1318,
-          "parent_savable_tokens_est": 362240,
-          "served_chars": 10995665,
-          "served_chars_in_forked": 10238842,
-          "sibling_overlap_chars": 1905472,
-          "sibling_overlap_share_of_served": 0.1733,
+          "parent_savable_chars": 1174640,
+          "parent_savable_chars_in_forked": 1081003,
+          "parent_savable_share_of_served": 0.1381,
+          "parent_savable_tokens_est": 293660,
+          "served_chars": 8504100,
+          "served_chars_in_forked": 7786506,
+          "sibling_overlap_chars": 1315377,
+          "sibling_overlap_share_of_served": 0.1547,
           "subagents": 344,
-          "subagents_with_parent_overlap": 113,
-          "subagents_with_sibling_overlap": 100
+          "subagents_with_parent_overlap": 107,
+          "subagents_with_sibling_overlap": 96
         },
         "flags": {
           "label_guardian_review": 82,
           "label_main": 151,
           "label_subagent": 98,
           "label_subagent_fork": 164,
-          "multi_command_cells_not_inferred": 734,
+          "multi_command_cells_not_inferred": 735,
           "read_like_commands": 4901,
-          "read_like_commands_inferred": 2119,
+          "read_like_commands_inferred": 1912,
           "usage_carried_in": 88
         },
-        "tool_calls": 28695
+        "tool_calls": 28700
       },
       "corpus": {
-        "bytes": 666606269,
+        "bytes": 666826291,
         "jsonl": 5,
-        "runtime_seconds": 10.1,
+        "runtime_seconds": 11.8,
         "subagents_parent_absent": 0,
         "transcripts_main": 151,
         "transcripts_subagent": 344,
@@ -434,78 +434,78 @@
         "zst": 490
       },
       "distribution": {
-        "sessions_with_serves": 243,
-        "subagents_with_serves": 150,
-        "top_decile_share_of_cross_epoch": 0.9977,
-        "top_decile_share_of_parent_savable": 0.4288,
-        "top_decile_share_of_sibling_overlap": 0.4835,
-        "top_decile_share_of_within_epoch": 0.7946
+        "sessions_with_serves": 235,
+        "subagents_with_serves": 145,
+        "top_decile_share_of_cross_epoch": 0.9999,
+        "top_decile_share_of_parent_savable": 0.3992,
+        "top_decile_share_of_sibling_overlap": 0.4331,
+        "top_decile_share_of_within_epoch": 0.8464
       },
       "main": {
         "M1": {
           "reasoning_source": "recorded by the host (reasoning_output_tokens, inside output_tokens)",
-          "reasoning_tokens_reported": 5235052,
+          "reasoning_tokens_reported": 5236957,
           "reported_output_coverage": 0.7881,
-          "reported_output_tokens": 10936721,
+          "reported_output_tokens": 10941964,
           "sessions": 151,
           "sessions_with_usage": 119,
           "share_of_reported_output": {
-            "commands": 0.3687,
-            "no_retype_ceiling": 0.0471,
+            "commands": 0.3688,
+            "no_retype_ceiling": 0.0458,
             "other_tool_input": 0.0166,
-            "prose": 0.0481,
-            "reasoning": 0.4787,
+            "prose": 0.0482,
+            "reasoning": 0.4786,
             "subagent_prompts": 0.0058,
             "thinking_visible": 0.0115,
-            "write_bodies_new": 0.0407,
+            "write_bodies_new": 0.0394,
             "write_old_text": 0.0064
           },
           "share_of_visible": {
-            "commands": 0.7405,
-            "other_tool": 0.0334,
-            "prose": 0.0967,
+            "commands": 0.7425,
+            "other_tool": 0.0335,
+            "prose": 0.097,
             "subagent_prompt": 0.0117,
-            "thinking_visible": 0.0231,
-            "write_new": 0.0817,
+            "thinking_visible": 0.0232,
+            "write_new": 0.0793,
             "write_old": 0.0129
           },
           "visible_chars": {
-            "commands": 16129213,
+            "commands": 16141827,
             "other_tool": 727768,
-            "prose": 2106335,
+            "prose": 2107782,
             "subagent_prompt": 254553,
             "thinking_visible": 503718,
-            "write_new": 1780569,
+            "write_new": 1723796,
             "write_old": 280351
           },
           "visible_tokens_est": {
-            "commands": 4032303,
+            "commands": 4035457,
             "other_tool": 181942,
-            "prose": 526584,
+            "prose": 526946,
             "subagent_prompt": 63638,
             "thinking_visible": 125930,
-            "write_new": 445142,
+            "write_new": 430949,
             "write_old": 70088
           },
-          "visible_tokens_est_total": 5445627
+          "visible_tokens_est_total": 5434949
         },
         "M2": {
           "compaction_records": 209,
           "ext": {
-            "cross_epoch_chars": 902553,
-            "cross_epoch_share": 0.07,
-            "cross_epoch_share_of_post_compaction_serves": 0.1209,
-            "redundant_chars": 1176258,
-            "redundant_share": 0.0912,
-            "served_after_a_compaction_chars": 7465972,
-            "served_chars": 12898573,
-            "served_tokens_est": 3224643,
-            "within_epoch_chars": 273705,
-            "within_epoch_share": 0.0212,
-            "within_epoch_tokens_est": 68426
+            "cross_epoch_chars": 796721,
+            "cross_epoch_share": 0.0665,
+            "cross_epoch_share_of_post_compaction_serves": 0.1169,
+            "redundant_chars": 1040264,
+            "redundant_share": 0.0868,
+            "served_after_a_compaction_chars": 6813569,
+            "served_chars": 11983432,
+            "served_tokens_est": 2995858,
+            "within_epoch_chars": 243543,
+            "within_epoch_share": 0.0203,
+            "within_epoch_tokens_est": 60886
           },
           "mid_session_compactions": 209,
-          "sessions_rereading_after_compaction": 15,
+          "sessions_rereading_after_compaction": 14,
           "sessions_with_mid_session_compaction": 23,
           "strict": {
             "cross_epoch_chars": 178280,
@@ -523,12 +523,12 @@
         },
         "flags": {
           "label_main": 151,
-          "multi_command_cells_not_inferred": 674,
+          "multi_command_cells_not_inferred": 675,
           "read_like_commands": 2851,
-          "read_like_commands_inferred": 1196,
+          "read_like_commands_inferred": 1134,
           "usage_carried_in": 1
         },
-        "tool_calls": 21311
+        "tool_calls": 21316
       },
       "subagent": {
         "M1": {
@@ -581,20 +581,20 @@
         "M2": {
           "compaction_records": 241,
           "ext": {
-            "cross_epoch_chars": 324704,
-            "cross_epoch_share": 0.0295,
-            "cross_epoch_share_of_post_compaction_serves": 0.1441,
-            "redundant_chars": 647244,
-            "redundant_share": 0.0589,
-            "served_after_a_compaction_chars": 2253709,
-            "served_chars": 10995665,
-            "served_tokens_est": 2748916,
-            "within_epoch_chars": 322540,
-            "within_epoch_share": 0.0293,
-            "within_epoch_tokens_est": 80635
+            "cross_epoch_chars": 170220,
+            "cross_epoch_share": 0.02,
+            "cross_epoch_share_of_post_compaction_serves": 0.1045,
+            "redundant_chars": 420384,
+            "redundant_share": 0.0494,
+            "served_after_a_compaction_chars": 1629103,
+            "served_chars": 8504100,
+            "served_tokens_est": 2126025,
+            "within_epoch_chars": 250164,
+            "within_epoch_share": 0.0294,
+            "within_epoch_tokens_est": 62541
           },
           "mid_session_compactions": 40,
-          "sessions_rereading_after_compaction": 14,
+          "sessions_rereading_after_compaction": 12,
           "sessions_with_mid_session_compaction": 27,
           "strict": {
             "cross_epoch_chars": 62794,
@@ -611,21 +611,21 @@
           }
         },
         "M3": {
-          "first_serve_chars": 10337241,
+          "first_serve_chars": 8072539,
           "forked_subagents": 164,
           "nested_subagents": 71,
           "parent_missing": 0,
-          "parent_savable_chars": 1448961,
-          "parent_savable_chars_in_forked": 1355315,
-          "parent_savable_share_of_served": 0.1318,
-          "parent_savable_tokens_est": 362240,
-          "served_chars": 10995665,
-          "served_chars_in_forked": 10238842,
-          "sibling_overlap_chars": 1905472,
-          "sibling_overlap_share_of_served": 0.1733,
+          "parent_savable_chars": 1174640,
+          "parent_savable_chars_in_forked": 1081003,
+          "parent_savable_share_of_served": 0.1381,
+          "parent_savable_tokens_est": 293660,
+          "served_chars": 8504100,
+          "served_chars_in_forked": 7786506,
+          "sibling_overlap_chars": 1315377,
+          "sibling_overlap_share_of_served": 0.1547,
           "subagents": 344,
-          "subagents_with_parent_overlap": 113,
-          "subagents_with_sibling_overlap": 100
+          "subagents_with_parent_overlap": 107,
+          "subagents_with_sibling_overlap": 96
         },
         "flags": {
           "label_guardian_review": 82,
@@ -633,7 +633,7 @@
           "label_subagent_fork": 164,
           "multi_command_cells_not_inferred": 60,
           "read_like_commands": 2050,
-          "read_like_commands_inferred": 923,
+          "read_like_commands_inferred": 778,
           "usage_carried_in": 87
         },
         "tool_calls": 7384
@@ -723,11 +723,11 @@
           "parent_savable_tokens_est": 543862,
           "served_chars": 52597994,
           "served_chars_in_forked": 0,
-          "sibling_overlap_chars": 13299502,
-          "sibling_overlap_share_of_served": 0.2529,
+          "sibling_overlap_chars": 13989810,
+          "sibling_overlap_share_of_served": 0.266,
           "subagents": 1148,
           "subagents_with_parent_overlap": 202,
-          "subagents_with_sibling_overlap": 607
+          "subagents_with_sibling_overlap": 636
         },
         "flags": {
           "bubbles_outside_conversation": 834174,
@@ -742,7 +742,7 @@
       "corpus": {
         "composers_listed": 2089,
         "composers_without_bubbles": 331,
-        "runtime_seconds": 124.3,
+        "runtime_seconds": 156.9,
         "sample_fraction": 1.0,
         "transcripts_main": 610,
         "transcripts_subagent": 1148,
@@ -753,7 +753,7 @@
         "subagents_with_serves": 886,
         "top_decile_share_of_cross_epoch": 1.0,
         "top_decile_share_of_parent_savable": 0.8227,
-        "top_decile_share_of_sibling_overlap": 0.4669,
+        "top_decile_share_of_sibling_overlap": 0.4665,
         "top_decile_share_of_within_epoch": 0.8232
       },
       "main": {
@@ -919,11 +919,11 @@
           "parent_savable_tokens_est": 543862,
           "served_chars": 52597994,
           "served_chars_in_forked": 0,
-          "sibling_overlap_chars": 13299502,
-          "sibling_overlap_share_of_served": 0.2529,
+          "sibling_overlap_chars": 13989810,
+          "sibling_overlap_share_of_served": 0.266,
           "subagents": 1148,
           "subagents_with_parent_overlap": 202,
-          "subagents_with_sibling_overlap": 607
+          "subagents_with_sibling_overlap": 636
         },
         "flags": {
           "bubbles_outside_conversation": 133411,
