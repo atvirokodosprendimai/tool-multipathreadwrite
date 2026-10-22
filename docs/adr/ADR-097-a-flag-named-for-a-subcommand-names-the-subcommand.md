@@ -11,6 +11,8 @@
 **Invalidates:** none — checked. ADR-078 Decision 1 ("the error and the help to read … nothing on stdout") is kept: the new sentence carries the same `(see: <command> --help)` pointer, exit 2, stderr only. ADR-069's padded-argument guards run in `main` before the parser and are unchanged, so a padded attached value is still refused first. ADR-063's `mrw instructions` is unchanged; this record only points callers at it.
 **Served-path change:** `mrw --instructions` (and `-instructions`, `--instructions=v`, `'--instructions '`) answers ``mrw: --instructions is not a flag; the subcommand is `mrw instructions` (see: mrw --help)`` on stderr, exit 2, nothing on stdout, where v1.31.0 answered `mrw: flag provided but not defined: -instructions (see: mrw --help)`; the same holds for `--read`, `--write`, `--check`, `--iter`, `--seen`, `--stats` and `--mcp` at the root, and for any subcommand a future command declares below it; every other usage error is worded exactly as before.
 
+**Corrected 2026-10-22 (issue #496):** every `flag provided but not defined: -name` line in this record (the table below, T1's pins, the risk rows) is now printed `--name` for a name of more than one letter, since the single dash Go's flag package writes read as a different flag to 3 of 12 field-test peers; a one-letter flag keeps one dash. The subcommand sentence, the exit code and the `(see: … --help)` suffix are unchanged.
+
 ## Context
 
 **What was observed.** On 2026-09-29, against the installed `mrw v1.31.0 (2ea8bd5)` on macOS, in a

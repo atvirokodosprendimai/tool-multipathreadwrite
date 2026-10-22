@@ -20,6 +20,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -286,26 +287,44 @@ func msysHint(s string) string {
 		"Set MSYS_NO_PATHCONV=1 or MSYS2_ARG_CONV_EXCL='*', or use PowerShell or WSL"
 }
 
-// readElsewhere is the command that reads a file the root does not hold: the
-// directory it is in as the root, and its name with the ranges the caller wrote
-// after path in raw. The refusal that names the flag alone sent a caller to sed.
+// readElsewhere is the advice for a file the root does not hold: ": " and the
+// command that reads it, the directory it is in as the root and its name, with
+// the ranges the caller wrote after path in raw, behind -- so a file called
+// --help or " x" is still a file (ADR-069). The refusal that names the flag
+// alone sent a caller to sed. It is "" when no --root serves the file: it is not
+// a regular file, or it is mrw's own state, which no root lifts (ADR-157).
 func readElsewhere(file, raw, path string) string {
+	if fi, err := os.Stat(file); err != nil || !fi.Mode().IsRegular() || rooted.InState(file) {
+		return ""
+	}
 	ranges := ""
 	if strings.HasPrefix(raw, path) {
 		ranges = raw[len(path):]
 	}
-	return "mrw --root " + shellWord(filepath.Dir(file)) + " read " + shellWord(filepath.Base(file)+ranges)
+	win := runtime.GOOS == "windows"
+	return ": mrw --root " + quoteWord(filepath.Dir(file), win) + " read -- " + quoteWord(filepath.Base(file)+ranges, win)
 }
 
-// shellWord quotes s for a POSIX shell, and for PowerShell, only when it holds
-// a character they would take for syntax: a space, a quote, a pattern's bars.
-func shellWord(s string) string {
+// quoteWord quotes s for the shell a caller pastes it into, only when s holds a
+// character that shell would take for syntax: a space, a quote, a backslash
+// (Git Bash strips it from a bare path), a pattern's bars. POSIX shells spell a
+// single quote inside single quotes by closing, escaping and reopening them;
+// PowerShell, which a Windows caller runs, doubles it.
+func quoteWord(s string, windows bool) string {
+	safe := s != ""
 	for _, r := range s {
-		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || strings.ContainsRune("_-./:,+=@%\\", r)) {
-			return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || strings.ContainsRune("_-./:,+=@%", r)) {
+			safe = false
+			break
 		}
 	}
-	return s
+	if safe {
+		return s
+	}
+	if windows {
+		return "'" + strings.ReplaceAll(s, "'", "''") + "'"
+	}
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
 // withheldName is how the withheld report names a spec: the spec as the caller
@@ -875,7 +894,7 @@ func load(w io.Writer, root string, sp *Spec) (b []byte, englishUnreadable, ok b
 		cleaned := rooted.Real(argPath)
 		if !rooted.Contains(absRoot, cleaned) {
 			fmt.Fprintf(w, "==> %s  REFUSED  %s is outside the root %s: "+
-				"read it with --root pointed where you mean: %s\n", sp.Path, sp.Path, absRoot, readElsewhere(cleaned, sp.Raw, argPath))
+				"read it with --root pointed where you mean%s\n", sp.Path, sp.Path, absRoot, readElsewhere(cleaned, sp.Raw, argPath))
 			return nil, false, false
 		}
 		if rel, relErr := filepath.Rel(absRoot, cleaned); relErr == nil {
@@ -912,7 +931,7 @@ func load(w io.Writer, root string, sp *Spec) (b []byte, englishUnreadable, ok b
 		advice := ""
 		var oe *rooted.OutsideError
 		if errors.As(err, &oe) && oe.Exists {
-			advice = ": " + readElsewhere(oe.Resolved, sp.Raw, sp.Path)
+			advice = readElsewhere(oe.Resolved, sp.Raw, sp.Path)
 		}
 		fmt.Fprintf(w, "==> %s  REFUSED  %v: read it with --root pointed where you mean%s\n", sp.Path, err, advice)
 		return nil, false, false

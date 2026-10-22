@@ -1288,7 +1288,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 					served = served || o.Spans == nil || len(o.Spans) > 0
 				}
 				if served {
-					fmt.Fprintln(os.Stderr, "mrw: the answer went to the null device, so nothing was recorded: a write to these lines needs a read whose answer you see; on unix a stdout closed when mrw starts is the null device too (ADR-133)")
+					fmt.Fprintln(os.Stderr, "mrw: the answer went to the null device, so nothing was recorded: a write to these lines needs a read whose answer you see; on unix a stdout closed when mrw starts is the null device too (ADR-133); read again without redirecting, or license lines you already know with `mrw read --quiet SPEC`")
 					if line := stillLicensed(root, observed); line != "" {
 						fmt.Fprintln(os.Stderr, line)
 					}

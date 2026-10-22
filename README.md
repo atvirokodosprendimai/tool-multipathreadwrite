@@ -158,7 +158,7 @@ there, or a file that is not one JSON document, is a range not served (exit 1), 
 refuses the form, so read it and address the lines (ADR-155). Output ranges print as `@@ 3-6`, which is
 the address a write plan takes. A ranged read also serves, and licenses, the line after each range that
 ends before the file does (ADR-161), so `f.txt:2` prints lines 2 and 3: a multi-line replace is refused
-unless a line after its range was served, and this is that line.
+unless a line after its range was served, when the range ends before the last line, and this is that line.
 Quote a JSON path for the shell: pwsh 7 takes `'t.json:$["k"]'`, Windows PowerShell 5.1 needs `'t.json:$[\"k\"]'`,
 cmd needs `"t.json:$[\"k\"]"`, and Git Bash and other POSIX shells take single quotes; an unquoted `[0]` is a glob (ADR-157).
 

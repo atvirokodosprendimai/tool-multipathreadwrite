@@ -53,6 +53,8 @@ today's message, which the named test and §188 both catch.
    exits 2 with ADR-069's `ends in whitespace` refusal (ordering); and `mrw instructions` exits 0
    with a non-empty stdout, so the named command is the one that works. [proof: acceptance]
 
+   *Corrected 2026-10-22 (issue #496): the unknown-flag lines above now print `--bogus188`, `--stats`, `--add` and the like with two dashes; urfave's own `flag provided but not defined: -name` is rewritten for a name of more than one letter, and a one-letter flag (`-z`) keeps one. The test and §188 pins were updated; the sentence for a subcommand name is unchanged.*
+
 ## Acceptance
 
 ```bash

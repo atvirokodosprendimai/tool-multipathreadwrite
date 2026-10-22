@@ -66,7 +66,7 @@ func TestAStateFailureIsNamedByItsType(t *testing.T) {
 	}
 	t.Setenv("XDG_STATE_HOME", file)
 	_, err = os.OpenRoot(file)
-	hinted(t, "prune opening the state home", err)
+	hinted(t, "prune opening the state home", err, file+" is a file, not a directory")
 
 	home := t.TempDir()
 	if err := os.WriteFile(filepath.Join(home, ".local"), nil, 0o600); err != nil {
