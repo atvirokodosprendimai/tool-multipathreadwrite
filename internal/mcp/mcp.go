@@ -738,7 +738,9 @@ func tools() []tool {
 							"unlink takes address `-` and no body; rename takes address `-` and one body line, the destination path. Among line-range ops, ONLY delete may carry no body: an empty file is `@@ new.txt 0 " +
 							"create body=0`, and a bare create with nothing under it is " +
 							"refused, because a lost body reads exactly like one never " +
-							"written. body=@path loads the body from a root-relative file. An address " +
+							"written. body=@path loads the body from a root-relative file. from=PATH:ADDR copies " +
+							"the lines N, N-M, A,+N, $ or N-$ of a file you have read, as it was before the plan, in place " +
+							"of a body: refused unless you were served those lines; with a delete of the same range it moves a block. An address " +
 							"is a line number, an N-M range, A,+N (the line A plus the N lines " +
 							"after it, refused if it runs past the last line), $ for the last " +
 							"line, or a pattern — " +

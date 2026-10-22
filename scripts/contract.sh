@@ -6102,8 +6102,9 @@ assert not untaught, "instructions omit read flags: %r" % untaught
 # and --no-check is the write flag they name for a depth past the limit (ADR-095);
 # --create is the write flag for a new file without a plan (ADR-139), and
 # --core is the instructions flag that prints the short form (ADR-141), and
-# --dry-run is the write flag ADR-161's recipe 2 shows before a wide edit.
-unknown = set(re.findall(r"--([a-z][a-z-]*)", out)) - set(flags) - {"root", "help", "then", "then-sh", "no-check", "create", "core", "dry-run"}
+# --dry-run is the write flag ADR-161's recipe 2 shows before a wide edit, and
+# --force is the write flag ADR-167's recipe 10 says a copy's source never honours.
+unknown = set(re.findall(r"--([a-z][a-z-]*)", out)) - set(flags) - {"root", "help", "then", "then-sh", "no-check", "create", "core", "dry-run", "force"}
 assert not unknown, "instructions teach flags read does not have: %r" % sorted(unknown)
 assert re.search(r"^\s+--ast-grep PATTERN\b", opts, re.M), "read --help does not show --ast-grep PATTERN"
 PY
@@ -9932,6 +9933,80 @@ fake264 "$WORK/stream264.jsonl"
 cmp -s "$R/a.go" "$WORK/a264.want" || { good265=0; bad "recipe 3 left a.go as $(head -c 300 "$R/a.go")"; }
 [ "$good265" = 1 ] && ok "the recipes mrw instructions prints run as written"
 
+# 286. ADR-167: `from=PATH:ADDR` makes a hunk's body lines of a file the caller
+# has read, so a block moves or repeats without being re-typed. A copy of lines
+# the ledger shows were served applies; a copy of lines it does not writes
+# nothing — with --force too, which is for the hunk's own lines and never reaches
+# a source. A move is that copy and a delete of the same range in one plan, so it
+# is applied whole or not at all: when the copy is refused the delete does not
+# land either. (A ranged read also serves the line after its range, so "line 5
+# unread" is a read of 2-3 and not of 3-4.)
+copy286() { # copy286 NAME SERVED_SPAN: a fixture with src.txt and dst.txt, the source read as SERVED_SPAN
+  R=$(mktemp -d "$WORK/r286$1-XXXXXX")
+  printf 'l1\nl2\nl3\nl4\nl5\nl6\n' > "$R/src.txt"; printf 'x\ny\n' > "$R/dst.txt"
+  (cd "$R" && "$MRW" read "src.txt:$2" dst.txt) >"$WORK/served.out" 2>&1
+}
+copy286 a 3-5
+out=$(cd "$R" && printf '@@ dst.txt 1 insert-after from=src.txt:3-5\n' | "$MRW" write --no-check - 2>&1); want 0 $? "a from= copy of lines the caller read exits 0"
+good286=1
+[ "$(cat "$R/dst.txt")" = "$(printf 'x\nl3\nl4\nl5\ny')" ] || { good286=0; bad "the copy landed as $(cat "$R/dst.txt")"; }
+grep -qF 'copied src.txt:3-5 from "l3" to "l5"' <<<"$out" || { good286=0; bad "the receipt does not name the copy: $out"; }
+copy286 b 2-3
+for flags in "" "--force"; do
+  out=$(cd "$R" && printf '@@ dst.txt 1 insert-after from=src.txt:3-5\n' | "$MRW" write --no-check $flags - 2>&1); want 1 $? "the pair: a from= copy of a line not read exits 1 ($flags)"
+  [ "$(cat "$R/dst.txt")" = "$(printf 'x\ny')" ] || { good286=0; bad "a refused copy changed dst.txt ($flags)"; }
+  grep -q 'l5' <<<"$out" && { good286=0; bad "the refusal discloses a line of the source ($flags): $out"; }
+done
+[ "$good286" = 1 ] && ok "a from= copy of served lines applies and of unserved lines writes nothing"
+
+copy286 c 3-5
+out=$(cd "$R" && printf '@@ dst.txt 1 insert-after from=src.txt:3-5\n@@ src.txt 3-5 delete\n' | "$MRW" write --no-check - 2>&1); want 0 $? "a move, a from= copy and a delete of the range, exits 0"
+move286=1
+[ "$(cat "$R/dst.txt")" = "$(printf 'x\nl3\nl4\nl5\ny')" ] && [ "$(cat "$R/src.txt")" = "$(printf 'l1\nl2\nl6')" ] || { move286=0; bad "the move left dst.txt=$(cat "$R/dst.txt") src.txt=$(cat "$R/src.txt")"; }
+copy286 d 2-3
+out=$(cd "$R" && printf '@@ dst.txt 1 insert-after from=src.txt:3-5\n@@ src.txt 3-5 delete\n' | "$MRW" write --no-check - 2>&1); want 1 $? "the pair: the same move with line 5 unread exits 1"
+[ "$(cat "$R/dst.txt")" = "$(printf 'x\ny')" ] && [ "$(cat "$R/src.txt")" = "$(printf 'l1\nl2\nl3\nl4\nl5\nl6')" ] || { move286=0; bad "a refused move changed a file: dst.txt=$(cat "$R/dst.txt") src.txt=$(cat "$R/src.txt")"; }
+[ "$move286" = 1 ] && ok "a move is a from= copy and a delete, applied whole or not at all"
+
+# 287. ADR-167 T3: the copy-and-move recipe is taught by running it. Recipe 10 is
+# taken from `$MRW instructions` (the line after `10. `, indented two spaces) and
+# run as printed in a scratch tree with `mrw` standing for the binary under test:
+# it moves lines 40-52 of a.go below line 9 of b.go. The pair: its write half
+# alone, with nothing read first, is refused and changes no file.
+inst287=$("$MRW" instructions)
+r10=$(awk 'f { print; exit } /^10\. / { f = 1 }' <<<"$inst287" | sed 's/^  //')
+good287=1
+case "$r10" in "mrw read "*"from="*" delete"*) ;; *) good287=0; bad "recipe 10's command line is missing or misshapen: '$r10'";; esac
+mk287() { R=$(mktemp -d "$WORK/r287$1-XXXXXX"); seq -f 'a%g' 1 60 > "$R/a.go"; seq -f 'b%g' 1 20 > "$R/b.go"; }
+mk287 a
+(cd "$R" && mrw() { "$MRW" "$@"; } && eval "$r10") >"$WORK/o287" 2>&1; want 0 $? "recipe 10 as printed exits 0"
+[ "$(seq -f 'a%g' 40 52 | tr '\n' ' ')" = "$(sed -n '10,22p' "$R/b.go" | tr '\n' ' ')" ] && [ "$(wc -l < "$R/a.go" | tr -d ' ')" = 47 ] && ! grep -qx 'a40' "$R/a.go" \
+  || { good287=0; bad "recipe 10 did not move a40-a52 below b9: $(head -c 300 "$WORK/o287")"; }
+mk287 b
+(cd "$R" && mrw() { "$MRW" "$@"; } && eval "${r10#*&& }") >"$WORK/o287" 2>&1; want 1 $? "the pair: recipe 10's write half with nothing read first exits 1"
+[ "$(wc -l < "$R/a.go" | tr -d ' ')" = 60 ] && [ "$(wc -l < "$R/b.go" | tr -d ' ')" = 20 ] || { good287=0; bad "a refused recipe changed a file"; }
+[ "$good287" = 1 ] && ok "the copy-and-move recipe from mrw instructions moves a block and refuses without its read"
+
+# 292. ADR-167, Zy 2026-10-22: a from= source line must have been SHOWN, not
+# merely licensed. A --quiet read licenses lines and shows none, and a --force
+# write to an unread file leaves it wholly licensed and shown nothing; a copy of
+# either's lines is refused, exit 1, nothing written. The pair: a plain read of
+# the same lines copies.
+shown292() { # shown292 NAME: a fixture with src.txt and dst.txt, dst.txt read
+  R=$(mktemp -d "$WORK/r292$1-XXXXXX")
+  printf 'l1\nl2\nl3\nl4\nl5\nl6\n' > "$R/src.txt"; printf 'x\ny\n' > "$R/dst.txt"
+}
+copy292='@@ dst.txt 1 insert-after from=src.txt:3-5\n'
+good292=1
+shown292 q; (cd "$R" && "$MRW" read --quiet src.txt:3-5 && "$MRW" read dst.txt) >"$WORK/served.out" 2>&1
+out=$(cd "$R" && printf "$copy292" | "$MRW" write --no-check - 2>&1); want 1 $? "a from= copy of lines a --quiet read licensed exits 1"
+[ "$(cat "$R/dst.txt")" = "$(printf 'x\ny')" ] || { good292=0; bad "a quiet-licensed copy changed dst.txt"; }
+shown292 f; (cd "$R" && printf '@@ src.txt 1 replace\nL1\n' | "$MRW" write --force --no-check - && "$MRW" read dst.txt) >"$WORK/served.out" 2>&1
+out=$(cd "$R" && printf "$copy292" | "$MRW" write --no-check - 2>&1); want 1 $? "a from= copy of a file a --force write left unshown exits 1"
+[ "$(cat "$R/dst.txt")" = "$(printf 'x\ny')" ] || { good292=0; bad "a force-written copy changed dst.txt"; }
+shown292 p; (cd "$R" && "$MRW" read src.txt:3-5 dst.txt) >"$WORK/served.out" 2>&1
+out=$(cd "$R" && printf "$copy292" | "$MRW" write --no-check - 2>&1); want 0 $? "the pair: a plain read of the same lines copies"
+[ "$good292" = 1 ] && ok "a from= copy needs the lines shown, not merely licensed"
 # 288. v1.71.1 (issue #496): two ranges of one file past --max-chars were two
 # identical stderr lines, `f.txt: WITHHELD`, so a host could not tell which range
 # to re-read; the v1.71.0 field test, eight of twelve peers. Each line now names

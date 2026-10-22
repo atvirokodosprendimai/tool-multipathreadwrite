@@ -22,7 +22,9 @@ func Slashed(res Result, sep rune) Result {
 		// follows the path, so one hunk does not show both (the Codex review
 		// of #347). An absolute path inside the reason is the system's, kept.
 		h.Reason = SlashIn(h.Reason, h.Path, sep)
+		h.Reason = SlashIn(h.Reason, h.srcPath, sep)
 		h.Path = Slash(h.Path, sep)
+		h.BodyFrom, h.srcPath = Slash(h.BodyFrom, sep), Slash(h.srcPath, sep)
 	}
 	res.Files = slices.Clone(res.Files)
 	for i := range res.Files {

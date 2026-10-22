@@ -272,6 +272,10 @@ in a newline, so a missing final newline is added and CRLF becomes LF, which std
 the same lock, check and receipt. It is refused if PATH exists and takes no PLAN argument and no `--format`
 (ADR-139). CLI only.
 
+`from=PATH:ADDR` on a plan header takes the body from lines of a file you have read, as it was before the plan,
+so a block is copied without being typed again; the lines must have been served to you, `--force` or not.
+A move is that copy plus a `delete` of the same range in one plan (ADR-167).
+
 `anchor=` is required on a `replace` that addresses more than one line. Take it
 from the `NNN| content` a read printed; one typed from memory can be wrong in
 the same way the address is. `sha=` and `lines=` do not stand in for it: `sha=`

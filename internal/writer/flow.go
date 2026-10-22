@@ -220,8 +220,13 @@ func newerLedger(root string, res *apply.Result) {
 		return
 	}
 	for i, h := range res.Hunks {
-		if h.Kind == refusal.NotRead {
+		switch h.Kind {
+		case refusal.NotRead:
 			res.Hunks[i].Reason = h.Path + " cannot be edited by this mrw: " + strings.TrimPrefix(seen.NewerNotice(writer), "mrw: ")
+		case refusal.SourceNotRead:
+			// ADR-167: the source is what could not be read, not the target.
+			src, _, _, _ := h.Source()
+			res.Hunks[i].Reason = src + " cannot be copied by this mrw: " + strings.TrimPrefix(seen.NewerNotice(writer), "mrw: ")
 		}
 	}
 }
@@ -235,7 +240,7 @@ func NewerUntold(root string, res apply.Result) string {
 		return ""
 	}
 	for _, h := range res.Hunks {
-		if h.Kind == refusal.NotRead {
+		if h.Kind == refusal.NotRead || h.Kind == refusal.SourceNotRead {
 			return ""
 		}
 	}

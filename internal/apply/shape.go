@@ -60,12 +60,14 @@ func lastNonBlank(lines []string) string {
 }
 
 // clearWriteRows drops what a hunk says about a write that did not happen:
-// the pad (ADR-052), the balance row (ADR-054), the closer hint (ADR-119) and
-// the preview (ADR-164). Every site that turns an ok hunk into a skipped or
-// failed one calls it, so a row added later is cleared at all of them at once.
+// the pad (ADR-052), the balance row (ADR-054), the closer hint (ADR-119), the
+// preview (ADR-164) and the lines a from= copy took (ADR-167). Every site that
+// turns an ok hunk into a skipped or failed one calls it, so a row added later
+// is cleared at all of them at once.
 func (h *HunkResult) clearWriteRows() {
 	h.Echo = nil
 	h.Balance = ""
 	h.Closer = ""
+	h.CopiedFirst, h.CopiedLast = "", ""
 	h.Before, h.After, h.Start = nil, nil, 0
 }

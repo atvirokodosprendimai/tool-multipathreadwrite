@@ -1293,7 +1293,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 						fmt.Fprintln(os.Stderr, line)
 					}
 				}
-			} else if err := seen.Record(root, observed); err != nil {
+			} else if err := seen.Record(root, recordedAs(cmd.Bool("quiet"), observed)); err != nil {
 				// ADR-166: a content read whose ledger cannot be written has
 				// served its answer; it records nothing new and says so, last,
 				// with the read's own exit. A --quiet read exists to record, so
@@ -1793,6 +1793,9 @@ held or went unchecked.`,
 					if string(h.Op) == "rename" && len(h.Body) == 1 {
 						names = append(names, h.Body[0])
 					}
+					if h.BodyFrom != "" { // ADR-167: the receipt names the source too
+						names = append(names, h.BodyFrom)
+					}
 					for _, n := range names {
 						if !utf8.ValidString(n) {
 							return refuse(fmt.Sprintf("%s line %d: %q is not valid UTF-8, and a --json receipt cannot name it as written; drop --json to write it", name, h.SrcLine, n))
@@ -1802,7 +1805,11 @@ held or went unchecked.`,
 			}
 			if cmd.Bool("dry-run") && !cmd.Bool("json") {
 				for _, h := range hunks {
-					fmt.Fprintf(os.Stdout, "parsed: %s %s %s body=%d\n", h.Path, h.Addr.String(), h.Op, len(h.Body))
+					body := fmt.Sprintf("body=%d", len(h.Body))
+					if h.BodyFrom != "" {
+						body = "from=" + h.BodyFrom + ":" + h.BodyFromAddr.String() // ADR-167
+					}
+					fmt.Fprintf(os.Stdout, "parsed: %s %s %s %s\n", h.Path, h.Addr.String(), h.Op, body)
 				}
 			}
 			set, err := iter.Load(root)
@@ -1837,6 +1844,7 @@ held or went unchecked.`,
 					StartPat: h.Addr.StartPat, EndPat: h.Addr.EndPat, RelEnd: h.Addr.RelEnd, Occurrence: h.Occurrence, CountedBody: h.CountedBody,
 					Body: h.Body, SHA: h.SHA, Lines: h.Lines, Anchor: h.Anchor,
 					SrcLine: h.SrcLine, Index: h.Index,
+					From: h.BodyFrom, FromStart: h.BodyFromAddr.Start, FromEnd: h.BodyFromAddr.End, FromRelEnd: h.BodyFromAddr.RelEnd,
 				})
 			}
 
@@ -2651,6 +2659,11 @@ func report(w *os.File, res apply.Result, quiet bool) {
 			bounds := ""
 			if h.Op == "delete" {
 				bounds = fmt.Sprintf(" from %q to %q", h.RemovedFirst, h.RemovedLast)
+			}
+			// ADR-167: a copy says what it copied, keyed on the form (BodyFrom is
+			// set on every from= hunk), so a wrong source range shows here.
+			if h.BodyFrom != "" {
+				bounds += fmt.Sprintf(" copied %s from %q to %q", h.BodyFrom, h.CopiedFirst, h.CopiedLast)
 			}
 			fmt.Fprintf(out, "ok   %s %s %s  -%d +%d%s\n", h.Path, h.Addr, h.Op, h.Removed, h.Added, bounds)
 			for _, line := range preview.Lines(h.Before, h.After, h.Start) {

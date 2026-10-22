@@ -124,6 +124,28 @@ type HunkResult struct {
 	// refusal, so a caller compares kinds instead of Reason's words (ADR-087).
 	// Not a receipt field.
 	Kind refusal.Kind `json:"-"`
+
+	// BodyFrom, CopiedFirst and CopiedLast describe a from= copy (ADR-167):
+	// the source span as PATH:A-B, and the first and last copied line through
+	// trim, as removed_first does. Present on every from= hunk, whatever their
+	// values, and on no other: see MarshalJSON. A refused copy discloses no
+	// line.
+	BodyFrom    string `json:"body_from,omitempty"`
+	CopiedFirst string `json:"copied_first,omitempty"`
+	CopiedLast  string `json:"copied_last,omitempty"`
+
+	// fromForm marks a from= hunk; srcPath, srcStart and srcEnd are the span a
+	// SourceNotRead refusal is about, for the surfaces that name the source.
+	// Not receipt fields.
+	fromForm         bool
+	srcPath          string
+	srcStart, srcEnd int
+}
+
+// Source is the file and span a from= refusal is about (ADR-167): ok is false
+// for a hunk that is not one, or whose source never resolved to a span.
+func (h HunkResult) Source() (path string, start, end int, ok bool) {
+	return h.srcPath, h.srcStart, h.srcEnd, h.fromForm && h.srcEnd > 0
 }
 
 // MarshalJSON emits removed_first/removed_last on a delete hunk and on no
@@ -145,11 +167,21 @@ func (h HunkResult) MarshalJSON() ([]byte, error) {
 	if h.Op == "delete" && h.Status == StatusOK {
 		return marshalLiteral(wire(h))
 	}
-	return marshalLiteral(struct {
+	// body_from, copied_first and copied_last are keyed on the FORM, as the
+	// delete pair is on the op: a pointer is present when set, empty or not
+	// (ADR-167). marshalLiteral keeps <, > and & literal (issue #496).
+	out := struct {
 		wire
-		RemovedFirst string `json:"removed_first,omitempty"`
-		RemovedLast  string `json:"removed_last,omitempty"`
-	}{wire: wire(h)})
+		RemovedFirst string  `json:"removed_first,omitempty"`
+		RemovedLast  string  `json:"removed_last,omitempty"`
+		BodyFrom     *string `json:"body_from,omitempty"`
+		CopiedFirst  *string `json:"copied_first,omitempty"`
+		CopiedLast   *string `json:"copied_last,omitempty"`
+	}{wire: wire(h)}
+	if h.fromForm {
+		out.BodyFrom, out.CopiedFirst, out.CopiedLast = &h.BodyFrom, &h.CopiedFirst, &h.CopiedLast
+	}
+	return marshalLiteral(out)
 }
 
 // marshalLiteral is json.Marshal that writes <, > and & as themselves. A
@@ -308,6 +340,15 @@ type Input struct {
 	Occurrence  int
 	SrcLine     int
 	Index       int
+	// From, if set, makes the body the lines FromStart..FromEnd of that file as
+	// it is on disk before the plan (ADR-167), in place of Body. The span is
+	// numeric: FromEnd may be EOF, FromStart may be EOF for the last line, and
+	// FromRelEnd is the `A,+N` form. It is licensed by its own gate, which no
+	// Force waives.
+	From       string
+	FromStart  int
+	FromEnd    int
+	FromRelEnd int
 }
 
 // EOF mirrors plan.EOF; resolution happens here because only this package knows
@@ -400,6 +441,11 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 	// The hunk's identity is its POSITION in the plan, not the Index the caller
 	// filled in: two inputs sharing an Index would share a slot in the verdict
 	// map, and one hunk's report would silently become another's.
+	// ADR-167: a from= hunk's body is read from the source NOW, before anything
+	// is validated or written, so it is the original's lines whatever else the
+	// plan does to the source; a source the caller was not served is a failed
+	// hunk, handled below.
+	copies, srcFails := resolveSources(root, in, opt)
 	for n, i := range in {
 		// One file, one key. The path is cleaned so that two spellings of the
 		// same file — "a.go" and "./a.go" — are one entry here and one entry
@@ -412,8 +458,12 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 		if _, seen := byPath[p]; !seen {
 			order = append(order, p)
 		}
+		body := i.Body
+		if c, ok := copies[n]; ok {
+			body = c.body
+		}
 		byPath[p] = append(byPath[p], hunk{
-			Path: p, Start: i.Start, End: i.End, Op: i.Op, Body: i.Body,
+			Path: p, Start: i.Start, End: i.End, Op: i.Op, Body: body,
 			SHA: i.SHA, Lines: i.Lines, Anchor: i.Anchor,
 			StartPat: i.StartPat, EndPat: i.EndPat, RelEnd: i.RelEnd, Occurrence: i.Occurrence, CountedBody: i.CountedBody,
 			SrcOp: i.Op, SrcAddr: srcAddrOf(i), SrcLine: i.SrcLine, Index: n,
@@ -454,6 +504,20 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 		}
 	}
 
+	// A refused source ends the run here, as any failed hunk does: every other
+	// hunk reports skipped and nothing is written (ADR-001). The files are
+	// still reported as addressed (rule 3).
+	loopOrder := order
+	if len(srcFails) > 0 {
+		loopOrder = nil
+		for _, p := range order {
+			failed = append(failed, FileResult{Path: p})
+		}
+		for n, r := range srcFails {
+			results[n] = r
+		}
+	}
+
 	// ONE FILE, ONE SPELLING. byPath keys on the cleaned path STRING, and two
 	// strings can name one inode: Same.txt and same.txt on a case-insensitive
 	// filesystem, or a symlink and its target anywhere. Grouped as two files,
@@ -483,7 +547,7 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 	}
 	clash := foldClashes(in, existsUnder(root))
 	var seenFiles []groupedFile
-	for _, path := range order {
+	for _, path := range loopOrder {
 		hs := byPath[path]
 		// ADR-076: a trailing separator names a directory, and the clean above
 		// dropped it, so `@@ a.txt/` edited a.txt at exit 0. A plan names files,
@@ -711,6 +775,14 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 		if !ok {
 			r = HunkResult{Path: filepath.Clean(i.Path), Op: i.Op, SrcLine: i.SrcLine, Status: StatusOK}
 			r.Addr = addrString(i.Start, i.End)
+		}
+		if c, has := copies[n]; has {
+			r.fromForm, r.BodyFrom = true, c.span
+			// A refused hunk discloses no copied line, whatever refused it
+			// (ADR-167 Decision 4); a skipped one is cleared by clearWriteRows.
+			if r.Status == StatusOK {
+				r.CopiedFirst, r.CopiedLast = c.first, c.last
+			}
 		}
 		if r.Status == StatusFailed {
 			res.Failed++

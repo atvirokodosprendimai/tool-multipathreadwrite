@@ -348,6 +348,12 @@ body reads exactly like one never written, so an empty file is spelled
 `@@ new.txt 0 create body=0`, and a bare `create` with nothing under it is
 refused and leaves no file behind. `body=@path` loads those lines from a
 root-relative file (empty file ≡ `body=0`); that path is not a ledger read.
+`from=PATH:ADDR` takes a body from lines of a file as it was before the plan
+(`ADDR` is `N`, `N-M`, `A,+N`, `$` or `N-$`) instead of re-typing them: it is
+refused unless the caller was served those lines in the version on disk, `--force`
+or not, and the receipt names the span and its first and last line (`body_from`,
+`copied_first`, `copied_last`). A move is a `from=` copy and a `delete` of the same
+range in one plan, applied whole or not at all (ADR-167).
 An unquoted `anchor=` that contains `"` is refused — write `anchor="…"`.
 `--dry-run` prints each parsed hunk's `body=N`. A leftover `body=` names
 declared vs extra. `body=<n>` goes ON the header — `@@ a.go 12-14 replace anchor="func A" body=3` —
