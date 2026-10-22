@@ -55,8 +55,8 @@ func TestTheSkillIsAValidAgentSkill(t *testing.T) {
 			}
 		}
 		meta := front[i:]
-		if len(meta) != 3 || meta[0] != "metadata:" {
-			t.Fatalf("after the description want metadata: and two entries, got %q", meta)
+		if len(meta) != 4 || meta[0] != "metadata:" {
+			t.Fatalf("after the description want metadata: and three entries, got %q", meta)
 		}
 		got := map[string]string{}
 		for _, l := range meta[1:] {
@@ -70,8 +70,8 @@ func TestTheSkillIsAValidAgentSkill(t *testing.T) {
 			}
 			got[k] = u
 		}
-		if got["mrw-version"] != stamp || got["generated-by"] != "mrw skill" {
-			t.Errorf("metadata %q, want mrw-version %q and generated-by \"mrw skill\"", got, stamp)
+		if got["mrw-version"] != stamp || got["generated-by"] != "mrw skill" || got["body-sha256"] != BodySHA(body) {
+			t.Errorf("metadata %q, want mrw-version %q, generated-by \"mrw skill\" and the body's sha-256", got, stamp)
 		}
 		if n := strings.Count(body, "\n"); n >= 500 {
 			t.Errorf("the body is %d lines, want under 500", n)

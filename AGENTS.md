@@ -30,12 +30,12 @@ pipeline reports the *last* command's status, not the script's.
 `.quality-harness.json` also declares `scripts/static.sh` as the step `static` (ADR-092), so
 `mrw check --then static` runs the tests and then the static gate in one call, a verdict for each.
 `mrw write --then static` does the same after a code edit; after a prose-only write, or with
+`--no-check`, no check runs and the step runs alone.
 
 `./scripts/measure.sh` measures what mrw saves, shape by shape, including the shapes where it loses
 (`docs/measure.md` says which): quote the script, never a remembered number. A `bin/mrw` built from a
 working tree reports `dev`, which is newer than any tag, not older; the read-before-modify guard has been
 in every release since v0.0.2.
-`--no-check`, no check runs and the step runs alone.
 
 ## The rules this codebase is built around
 

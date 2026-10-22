@@ -228,6 +228,11 @@ func installUsageErrors(cmd *cli.Command) {
 // guessed the shape (ADR-097); every other usage error is worded as before.
 func usageError(_ context.Context, cmd *cli.Command, err error, _ bool) error {
 	if flag, sub := subcommandForFlag(cmd, err); sub != "" {
+		// ADR-168: a bare --skill IS the skill's spelling, so what went wrong
+		// here is the form — one dash, a value, padding — and the refusal says so.
+		if sub == "skill" && cmd.Root() == cmd {
+			return cli.Exit("only a bare --skill prints the skill — no value, no single dash: write `mrw --skill` or `mrw skill` (see: mrw --help)", exitUsage)
+		}
 		return cli.Exit(fmt.Sprintf("--%s is not a flag; the subcommand is `%s %s` (see: %s --help)",
 			flag, cmd.FullName(), sub, cmd.FullName()), exitUsage)
 	}

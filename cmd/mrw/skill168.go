@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -36,6 +37,9 @@ func skillCmd() *cli.Command {
 			out := cmd.Root().Writer
 			if out == nil {
 				out = os.Stdout
+			}
+			if cmd.Count("dir") > 1 {
+				return cli.Exit("--dir is given more than once; name one folder", exitUsage)
 			}
 			if cmd.IsSet("dir") {
 				return installSkill(cmd.String("dir"), out)
@@ -74,79 +78,136 @@ func skillSpelling(root *cli.Command, args []string) []string {
 
 // installSkill writes the skill to DIR/mrw/SKILL.md through the write engine
 // (ADR-168 Decision 2), as `mrw --root DIR write` would apply one hunk: a create
-// when the file is absent, a whole-file replace when it is mrw's own. The engine
-// keeps every guard a write has — a link that leaves DIR, a reserved name, .git,
-// mrw's state, a held file — and --dir adds the ones a skill needs: DIR must
-// already exist, a SKILL.md a person wrote is never replaced, and a link inside
-// DIR (which the engine would follow) is refused at mrw and at SKILL.md.
+// when the file is absent, a whole-file replace when it is mrw's own and its
+// body is the one mrw stamped. The engine keeps every guard a write has — a
+// link that leaves DIR, a reserved name, .git, mrw's state, a held file — and
+// --dir adds the ones a skill needs: DIR must already exist, a SKILL.md a person
+// wrote or edited is never replaced, and a link inside DIR (which the engine
+// would follow) is refused at mrw and at SKILL.md. A run that loses a race to
+// another --dir judges again, at most three times, so installs that agree do
+// not report a failure.
 func installSkill(dir string, out io.Writer) error {
 	if fi, err := os.Stat(dir); err != nil || !fi.IsDir() {
-		return cli.Exit(fmt.Sprintf("--dir %s: not an existing directory; mrw does not create the folder a host reads skills from", dir), exitUsage)
+		return cli.Exit(fmt.Sprintf("--dir %q: not an existing directory; mrw does not create the folder a host reads skills from", dir), exitUsage)
 	}
 	// A --dir install is a write, so a legacy ./.mrw/ moves first, as it does
 	// before any write (ADR-004); the Before hook skips it for plain skill.
 	migrateLegacyState()
+	for attempt := 1; ; attempt++ {
+		raced, err := installOnce(dir, out)
+		if !raced || attempt == 3 {
+			return err
+		}
+	}
+}
+
+// installOnce judges DIR/mrw/SKILL.md and writes the skill once. It reports
+// raced when the engine refused because the file changed between the judging
+// and the write — another --dir got there first — so the caller judges again.
+func installOnce(dir string, out io.Writer) (raced bool, err error) {
 	text := guide.Skill(versionString())
 	target := filepath.Join(dir, "mrw", "SKILL.md")
 	in := apply.Input{Path: "mrw/SKILL.md", Op: "create", Body: strings.Split(strings.TrimSuffix(text, "\n"), "\n"), CountedBody: true, Lines: -1}
 	verb, old := "created", ""
 	if fi, err := os.Lstat(filepath.Join(dir, "mrw")); err == nil && (fi.Mode()&os.ModeSymlink != 0 || !fi.IsDir()) {
-		return cli.Exit(fmt.Sprintf("%s is not a directory (a file, a link or a junction); --dir writes only into a folder it can name", filepath.Join(dir, "mrw")), exitNotApplied)
+		return false, cli.Exit(fmt.Sprintf("%s is not a directory (a file, a link or a junction); --dir writes only into a folder it can name", shownPath(filepath.Join(dir, "mrw"))), exitNotApplied)
 	}
+	var judged []byte
 	switch fi, err := os.Lstat(target); {
 	case err == nil && !fi.Mode().IsRegular():
-		return cli.Exit(fmt.Sprintf("%s is not a regular file (a link, a junction or a directory); --dir replaces only a SKILL.md it wrote", target), exitNotApplied)
+		return false, cli.Exit(fmt.Sprintf("%s is not a regular file (a link, a junction, a FIFO, a device or a directory); --dir replaces only a SKILL.md it wrote", shownPath(target)), exitNotApplied)
 	case err == nil:
 		b, err := readSkillFile(target)
 		if err != nil {
-			return err
+			return false, err
 		}
-		version, ours := skillStamp(string(b))
-		if !ours || len(b) > maxSkillBytes {
-			return cli.Exit(fmt.Sprintf("%s was not written by `mrw skill` (its frontmatter is not the shape mrw skill prints, with generated-by: \"mrw skill\" in its metadata), so it is left as it is; move it aside to install here", target), exitNotApplied)
+		if len(b) > maxSkillBytes {
+			return false, cli.Exit(fmt.Sprintf("%s is larger than any skill `mrw skill` writes (over %d bytes), so it is left as it is; move it aside to install here", shownPath(target), maxSkillBytes), exitNotApplied)
 		}
-		// Line endings and a final newline are the engine's to keep — a replace
-		// is written in the file's own style — so text equal up to them is
-		// unchanged; otherwise a CRLF copy would be replaced on every run.
+		version, sha, body, ours := skillStamp(string(b))
+		if !ours {
+			return false, cli.Exit(fmt.Sprintf("%s was not written by `mrw skill` (its frontmatter is not the shape mrw skill prints), so it is left as it is; move it aside to install here", shownPath(target)), exitNotApplied)
+		}
+		if guide.BodySHA(body) != sha {
+			return false, cli.Exit(fmt.Sprintf("%s was edited after `mrw skill` wrote it (its body no longer matches the body-sha256 in its frontmatter), so it is left as it is; move it aside to install here", shownPath(target)), exitNotApplied)
+		}
+		if newerRelease(version, versionString()) {
+			return false, cli.Exit(fmt.Sprintf("%s was written by mrw %s, a newer release than this mrw (%s), so it is left as it is; install with the newer mrw, or move it aside", shownPath(target), version, versionString()), exitNotApplied)
+		}
+		// Line endings, a final newline and a byte order mark are the file's
+		// own — a replace keeps them — so text equal up to them is unchanged,
+		// and the line says when the bytes differ from what mrw skill prints.
 		if normalised(string(b)) == text {
-			_, err := fmt.Fprintf(out, "unchanged %s (mrw-version %s)\n", target, version)
-			return err
+			note := ""
+			if string(b) != text {
+				note = "; its line endings or byte order mark differ from mrw skill's output and are kept"
+			}
+			_, err := fmt.Fprintf(out, "unchanged %s (mrw-version %s%s)\n", shownPath(target), version, note)
+			return false, err
 		}
 		// The bytes judged above are the bytes replaced: sha= refuses the write
 		// if the file changed since, and Force stands for the read this was.
+		judged = b
 		verb, old = "replaced", version+" → "
 		in = apply.Input{Path: "mrw/SKILL.md", Start: 1, End: apply.EOF, Op: "replace", Body: in.Body, CountedBody: true,
 			SHA: seen.SHA(b), Anchor: "---", Lines: -1}
 	case !errors.Is(err, fs.ErrNotExist):
-		return targetErr(target, err)
+		return false, targetErr(target, err)
 	}
 	prep, err := writer.Prepare(writer.Request{Root: dir, In: []apply.Input{in}, Check: writer.CheckOff, Opts: apply.Options{Force: in.Op == "replace"}})
 	if err != nil {
-		return exitWith(gateRefusal(err))
+		return false, exitWith(gateRefusal(err))
 	}
 	land, err := prep.Land()
 	if err != nil {
-		return exitWith(gateRefusal(err))
+		return false, exitWith(gateRefusal(err))
 	}
-	res := shown(land.Res)
-	if land.Err != nil {
-		report(os.Stdout, res, false)
-		return exitSaying(exitTwoLine(land.Res, land.Err), land.Err)
+	if land.Err == nil && land.Res.Failed > 0 && changedSince(target, judged) {
+		return true, cli.Exit(fmt.Sprintf("%s changed while --dir was writing it, three times; nothing was written", shownPath(target)), exitNotApplied)
 	}
-	if res.Failed > 0 {
-		report(os.Stdout, res, false)
-		return cli.Exit("the skill was refused — nothing was written", exitNotApplied)
+	if land.Err != nil || land.Res.Failed > 0 {
+		// The engine names the file relative to DIR, as a plan would; the
+		// caller named DIR, so each reason is given back in their spelling.
+		for _, h := range land.Res.Hunks {
+			if h.Reason != "" {
+				fmt.Fprintf(os.Stderr, "mrw: %s\n", strings.ReplaceAll(h.Reason, "mrw"+string(filepath.Separator), filepath.Join(dir, "mrw")+string(filepath.Separator)))
+			}
+		}
+		if land.Err != nil {
+			return false, exitWith(land.Err)
+		}
+		return false, cli.Exit(fmt.Sprintf("%s: the skill was refused — nothing was written", shownPath(target)), exitNotApplied)
 	}
 	if notice := writer.NewerUntold(dir, land.Res); notice != "" {
 		fmt.Fprintln(os.Stderr, notice)
 	}
 	// The file changed whatever the ledger says, so the line that says so comes
 	// first; a ledger that could not record it is then the exit's reason.
-	_, err = fmt.Fprintf(out, "%s %s (mrw-version %s%s)\n", verb, target, old, versionString())
+	_, err = fmt.Fprintf(out, "%s %s (mrw-version %s%s)\n", verb, shownPath(target), old, versionString())
 	if land.LedgerErr != nil {
-		return exitWith(land.LedgerErr)
+		return false, exitWith(land.LedgerErr)
 	}
-	return err
+	return false, err
+}
+
+// changedSince reports whether target no longer holds judged — a create that
+// found a file, or a replace whose sha= no longer matched — which is a race
+// with another --dir, not a refusal of the caller's.
+func changedSince(target string, judged []byte) bool {
+	b, err := os.ReadFile(target)
+	if errors.Is(err, fs.ErrNotExist) {
+		return false
+	}
+	return err == nil && (judged == nil || string(b) != string(judged))
+}
+
+// shownPath is p as the caller can read it back: quoted when it holds a control
+// character, so a newline in a name cannot make one line of output look like two.
+func shownPath(p string) string {
+	if strings.IndexFunc(p, func(r rune) bool { return r < 0x20 || r == 0x7f }) >= 0 {
+		return strconv.Quote(p)
+	}
+	return p
 }
 
 // maxSkillBytes bounds what --dir reads before judging a SKILL.md: the one mrw
@@ -169,57 +230,107 @@ func readSkillFile(path string) ([]byte, error) {
 	return b, nil
 }
 
-// targetErr is a SKILL.md --dir could not read: a permission or a file that is
-// not regular is the target's cause, exit 1; anything else, an I/O error, is
-// the environment's, exit 2 — the split a write's staging makes (ADR-132).
+// targetErr is a SKILL.md --dir could not read: a permission, a file that is
+// not regular, or one another process holds is the target's cause, exit 1;
+// anything else, an I/O error, is the environment's, exit 2 — the split a
+// write's staging makes (ADR-132, ADR-125).
 func targetErr(path string, err error) error {
 	code := exitUsage
-	if errors.Is(err, fs.ErrPermission) || errors.Is(err, regular.ErrNotRegular) {
+	if errors.Is(err, fs.ErrPermission) || errors.Is(err, regular.ErrNotRegular) || heldByAnother(err) {
 		code = exitNotApplied
 	}
-	return cli.Exit(fmt.Sprintf("%s: %v", path, err), code)
+	return cli.Exit(fmt.Sprintf("%s: %v", shownPath(path), err), code)
 }
 
-// skillStamp reports a SKILL.md's mrw-version and whether `mrw skill` wrote it,
-// by the exact frontmatter shape Skill prints: name: mrw, a folded description
-// of indented lines, then metadata holding mrw-version and generated-by and
-// nothing else. Any other shape is a person's file: a generated-by line inside a
-// quoted description, the body or a comment does not make it mrw's. CRLF and a
-// missing final newline are read as the engine keeps them.
-func skillStamp(s string) (version string, ours bool) {
+// skillStamp reports a SKILL.md's mrw-version, the body-sha256 it carries, its
+// body, and whether `mrw skill` wrote it, by the exact frontmatter shape Skill
+// prints: name: mrw, a folded description of indented lines, then metadata
+// holding mrw-version, generated-by and body-sha256 and nothing else. Any other
+// shape is a person's file: a generated-by line inside a quoted description,
+// the body or a comment does not make it mrw's. CRLF, a missing final newline
+// and a leading byte order mark are read as the engine keeps them.
+func skillStamp(s string) (version, sha, body string, ours bool) {
 	rest, ok := strings.CutPrefix(normalised(s), "---\n")
 	if !ok {
-		return "", false
+		return "", "", "", false
 	}
-	front, _, ok := strings.Cut(rest, "\n---\n")
+	front, body, ok := strings.Cut(rest, "\n---\n")
 	if !ok {
-		return "", false
+		return "", "", "", false
 	}
 	ls := strings.Split(front, "\n")
-	if len(ls) < 6 || ls[0] != "name: mrw" || ls[1] != "description: >-" {
-		return "", false
+	if len(ls) < 7 || ls[0] != "name: mrw" || ls[1] != "description: >-" {
+		return "", "", "", false
 	}
 	i := 2
 	for i < len(ls) && strings.HasPrefix(ls[i], "  ") {
 		i++
 	}
-	if i == 2 || len(ls) != i+3 || ls[i] != "metadata:" || ls[i+2] != `  generated-by: "mrw skill"` {
-		return "", false
+	if i == 2 || len(ls) != i+4 || ls[i] != "metadata:" || ls[i+2] != `  generated-by: "mrw skill"` {
+		return "", "", "", false
 	}
-	v, ok := strings.CutPrefix(ls[i+1], "  mrw-version: ")
+	version, ok = quotedValue(ls[i+1], "  mrw-version: ")
+	if !ok {
+		return "", "", "", false
+	}
+	sha, ok = quotedValue(ls[i+3], "  body-sha256: ")
+	if !ok {
+		return "", "", "", false
+	}
+	return version, sha, body, true
+}
+
+// newerRelease reports whether stamp names a release newer than this mrw's, so
+// a stale binary on PATH does not roll an installed skill back. Only two
+// versions that both begin vX.Y.Z are compared; a dev build is never judged.
+func newerRelease(stamp, this string) bool {
+	a, okA := releaseOf(stamp)
+	b, okB := releaseOf(this)
+	if !okA || !okB {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return a[i] > b[i]
+		}
+	}
+	return false
+}
+
+// releaseOf is the X, Y and Z of a version that begins vX.Y.Z.
+func releaseOf(v string) ([3]int, bool) {
+	var r [3]int
+	m := releasePattern.FindStringSubmatch(v)
+	if m == nil {
+		return r, false
+	}
+	for i := range r {
+		n, err := strconv.Atoi(m[i+1])
+		if err != nil {
+			return r, false
+		}
+		r[i] = n
+	}
+	return r, true
+}
+
+var releasePattern = regexp.MustCompile(`^v(\d+)\.(\d+)\.(\d+)`)
+
+// quotedValue is line's double-quoted value after prefix, unquoted.
+func quotedValue(line, prefix string) (string, bool) {
+	v, ok := strings.CutPrefix(line, prefix)
 	if !ok || !strings.HasPrefix(v, `"`) {
 		return "", false
 	}
 	u, err := strconv.Unquote(v)
-	if err != nil {
-		return "", false
-	}
-	return u, true
+	return u, err == nil
 }
 
-// normalised is s with CRLF read as LF and ending in a newline: the text a
-// SKILL.md holds whatever line endings a host's tools gave it.
+// normalised is s with a leading byte order mark dropped, CRLF read as LF, and
+// ending in a newline: the text a SKILL.md holds whatever a host's tools or an
+// editor gave it.
 func normalised(s string) string {
+	s = strings.TrimPrefix(s, "\ufeff")
 	s = strings.ReplaceAll(s, "\r\n", "\n")
 	if s != "" && !strings.HasSuffix(s, "\n") {
 		s += "\n"

@@ -10093,7 +10093,7 @@ f293=$(cd "$R" && "$MRW" --skill 2>&1); want 0 $? "mrw --skill exits 0"
   && ok "mrw skill and mrw --skill print the same skill" || bad "skill vs --skill: $s293"
 (cd "$R" && "$MRW" skill x >/dev/null 2>&1); want 2 $? "the pair: mrw skill x is a usage error"
 e293=$(cd "$R" && "$MRW" --skill=x 2>&1); want 2 $? "the pair: mrw --skill=x exits 2"
-grep -qF 'the subcommand is `mrw skill`' <<<"$e293" && ok "and names the subcommand" || bad "--skill=x: $e293"
+{ grep -qF 'only a bare --skill prints the skill' <<<"$e293" && ! grep -qF 'is not a flag' <<<"$e293"; } && ok "and names the bare spelling without denying --skill" || bad "--skill=x: $e293"
 
 # 293, --dir: the skill is written to DIR/mrw/SKILL.md through the write engine —
 # created, left unchanged when it is the same, replaced when mrw skill wrote an
@@ -10112,6 +10112,19 @@ H=$(mktemp -d "$WORK/r293h-XXXXXX"); mkdir "$H/mrw"; printf 'mine\n' > "$H/mrw/S
 [ "$(cat "$H/mrw/SKILL.md")" = mine ] && ok "mrw skill --dir refuses a hand-written skill and writes nothing" || bad "hand-written skill changed: $(cat "$H/mrw/SKILL.md")"
 "$MRW" skill --dir "$WORK/r293-missing" >/dev/null 2>&1; want 2 $? "the pair: mrw skill --dir into a folder that does not exist exits 2"
 [ ! -e "$WORK/r293-missing" ] && ok "and does not create it" || bad "skill --dir created $WORK/r293-missing"
+
+# 293, the chaos tests of 2026-10-22: --dir runs that race each other agree
+# rather than fail — six at once into one empty folder all exit 0 and leave one
+# skill — and a skill edited after mrw skill wrote it is kept. The pair: the
+# edited one is refused, exit 1, with the edit still in it.
+P=$(mktemp -d "$WORK/r293p-XXXXXX"); pids293=""
+for i in 1 2 3 4 5 6; do "$MRW" skill --dir "$P" > "$WORK/r293p.$i" 2>&1 & pids293="$pids293 $!"; done
+lost293=0; for p in $pids293; do wait "$p" || lost293=$((lost293 + 1)); done
+{ [ "$lost293" = 0 ] && [ "$(cat "$P/mrw/SKILL.md")" = "$("$MRW" skill)" ]; } \
+  && ok "six concurrent mrw skill --dir runs all exit 0 and leave one skill" || bad "concurrent --dir: $lost293 failed: $(cat "$WORK"/r293p.*)"
+E=$(mktemp -d "$WORK/r293e-XXXXXX"); "$MRW" skill --dir "$E" >/dev/null 2>&1; printf -- '- mine\n' >> "$E/mrw/SKILL.md"
+"$MRW" skill --dir "$E" >/dev/null 2>&1; want 1 $? "the pair: mrw skill --dir over a skill edited after it was written exits 1"
+grep -qx -- '- mine' "$E/mrw/SKILL.md" && ok "mrw skill --dir keeps a skill a person edited" || bad "the edited skill lost its edit"
 
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A

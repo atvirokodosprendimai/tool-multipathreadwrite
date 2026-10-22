@@ -6,7 +6,11 @@
 // CLI() is the effective-use document, not a pamphlet.
 package guide
 
-import "strconv"
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"strconv"
+)
 
 // Shared is the five sentences both the CLI document and the MCP handshake
 // must contain verbatim. It is not interpolated: examples stay in the
@@ -134,18 +138,27 @@ func ThenShCaveat() string {
 }
 
 // Skill is mrw's Agent Skills SKILL.md (ADR-168): YAML frontmatter a skill host
-// reads every session — the name, a description that names when to use it, and
-// the version that printed it — then Core and Recipes, then where the rest is.
-// The description is a folded block so it can be read as one paragraph; the
-// stamp is double-quoted, since a version such as "dev (abc1234)" is not a
-// plain YAML scalar.
+// reads every session — the name, a description that names when to use it, the
+// version that printed it, and the sha-256 of the body below it — then Core and
+// Recipes, then where the rest is. The description is a folded block so it can
+// be read as one paragraph; the stamp is double-quoted, since a version such as
+// "dev (abc1234)" is not a plain YAML scalar. The body's digest is what lets
+// `mrw skill --dir` tell its own file from one a person has edited since.
 func Skill(version string) string {
-	return "---\nname: mrw\ndescription: >-\n" + skillDescription +
-		"metadata:\n  mrw-version: " + strconv.Quote(version) + "\n  generated-by: \"mrw skill\"\n---\n\n# mrw\n\n" +
+	body := "\n# mrw\n\n" +
 		Core() + "\n" + Recipes() + "\n\n" +
 		"`mrw instructions` prints the whole contract. This file was printed by `mrw skill` from mrw " + version +
 		"; when `mrw version` prints another version, `mrw skill --dir <the directory holding this mrw folder>` replaces it.\n\n" +
 		"A host's per-path rules for its Edit and Write tools do not reach mrw, which writes wherever its user can: their absence is not permission, and mrw is not a way to reach a path the host refused you.\n"
+	return "---\nname: mrw\ndescription: >-\n" + skillDescription +
+		"metadata:\n  mrw-version: " + strconv.Quote(version) + "\n  generated-by: \"mrw skill\"\n  body-sha256: \"" + BodySHA(body) + "\"\n---\n" + body
+}
+
+// BodySHA is the hex sha-256 of a skill's body, everything after its closing
+// "---" line, as Skill stamps it in the frontmatter.
+func BodySHA(body string) string {
+	sum := sha256.Sum256([]byte(body))
+	return hex.EncodeToString(sum[:])
 }
 
 // skillDescription is the trigger: the one part of a skill a host loads every

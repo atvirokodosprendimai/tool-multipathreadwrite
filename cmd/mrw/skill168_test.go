@@ -48,8 +48,8 @@ func TestSkillCommandPrintsTheSkill(t *testing.T) {
 	}
 	for _, argv := range [][]string{{"-skill"}, {"--skill=x"}, {"--skill "}} {
 		_, err := skillRun(t, argv...)
-		if err == nil || exitCode(err) != exitUsage || !strings.Contains(err.Error(), "the subcommand is `mrw skill`") {
-			t.Errorf("%q: %v, want ADR-097's pointer at mrw skill", argv, err)
+		if err == nil || exitCode(err) != exitUsage || !strings.Contains(err.Error(), "only a bare --skill prints the skill") || strings.Contains(err.Error(), "is not a flag") {
+			t.Errorf("%q: %v, want the refusal that names the bare spelling and does not deny --skill", argv, err)
 		}
 	}
 	if _, err := skillRun(t, "read", "--skill"); err == nil || exitCode(err) != exitUsage {
@@ -303,7 +303,7 @@ func TestTheRepositorySkillIsTheBinarysSkill(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	v, ours := skillStamp(string(b))
+	v, _, _, ours := skillStamp(string(b))
 	if !ours {
 		t.Fatal(".claude/skills/mrw/SKILL.md was not written by mrw skill: regenerate it with mrw skill --dir .claude/skills")
 	}
@@ -355,6 +355,90 @@ func TestSkillDirReadsOnlyTheShapeItPrints(t *testing.T) {
 		}
 		if again, err := skillRun(t, "skill", "--dir", d); err != nil || !strings.Contains(again, "unchanged ") {
 			t.Errorf("%s older skill, second run: err %v, out %q, want unchanged", name, err, again)
+		}
+	}
+}
+
+// ADR-168 Decision 2, the chaos tests of 2026-10-22 (five Mac sessions, two
+// Windows). A body edited under the stamped frontmatter is a person's text and
+// is never replaced; a file over the bound says so, not "not mrw's"; a byte
+// order mark is read as CRLF is, and "unchanged" says when the bytes differ; a
+// skill a newer release stamped is not rolled back; --dir twice is refused; a
+// control character in DIR is quoted.
+func TestSkillDirKeepsWhatAPersonChanged(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	put := func(t *testing.T, content string) (string, string) {
+		t.Helper()
+		d := t.TempDir()
+		if err := os.MkdirAll(filepath.Join(d, "mrw"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		p := filepath.Join(d, "mrw", "SKILL.md")
+		if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return d, p
+	}
+	cur := guide.Skill(versionString())
+	for name, edited := range map[string]string{
+		"a line appended":       cur + "- my local rule\n",
+		"the body replaced":     cur[:strings.Index(cur, "\n---\n")+5] + "MY PRIVATE NOTES\n",
+		"an older skill edited": guide.Skill("v0.0.1") + "- mine\n",
+	} {
+		d, p := put(t, edited)
+		_, err := skillRun(t, "skill", "--dir", d)
+		if err == nil || exitCode(err) != exitNotApplied || !strings.Contains(err.Error(), "was edited after `mrw skill` wrote it") {
+			t.Errorf("%s: %v, want exit %d naming the edit", name, err, exitNotApplied)
+		}
+		if b, _ := os.ReadFile(p); string(b) != edited {
+			t.Errorf("%s: the edited file was changed", name)
+		}
+	}
+	bigDir, _ := put(t, cur+strings.Repeat("x", maxSkillBytes))
+	if _, err := skillRun(t, "skill", "--dir", bigDir); err == nil || !strings.Contains(err.Error(), "larger than any skill") {
+		t.Errorf("a file over the bound: %v, want the size named", err)
+	}
+	bom := "\ufeff"
+	if d, _ := put(t, bom+cur); true {
+		out, err := skillRun(t, "skill", "--dir", d)
+		if err != nil || !strings.Contains(out, "unchanged ") || !strings.Contains(out, "differ from mrw skill's output and are kept") {
+			t.Errorf("a BOM copy of the current skill: err %v, out %q, want unchanged with the difference named", err, out)
+		}
+	}
+	if d, _ := put(t, bom+guide.Skill("v0.0.1")); true {
+		if out, err := skillRun(t, "skill", "--dir", d); err != nil || !strings.Contains(out, "replaced ") {
+			t.Errorf("a BOM older skill: err %v, out %q, want replaced", err, out)
+		}
+		if out, err := skillRun(t, "skill", "--dir", d); err != nil || !strings.Contains(out, "unchanged ") {
+			t.Errorf("a BOM older skill, second run: err %v, out %q, want unchanged", err, out)
+		}
+	}
+	saved := version
+	version = "v1.73.0"
+	t.Cleanup(func() { version = saved })
+	newer := guide.Skill("v99.0.0 (abcdef0)")
+	d, p := put(t, newer)
+	if _, err := skillRun(t, "skill", "--dir", d); err == nil || exitCode(err) != exitNotApplied || !strings.Contains(err.Error(), "a newer release than this mrw") {
+		t.Errorf("a skill a newer release stamped: %v, want exit %d", err, exitNotApplied)
+	}
+	if b, _ := os.ReadFile(p); string(b) != newer {
+		t.Error("a newer skill was rolled back")
+	}
+	if !newerRelease("v1.74.0", "v1.73.9-dev+abc") || newerRelease("v1.73.0", "v1.73.0-dev") || newerRelease("dev", "v1.0.0") || newerRelease("v2.0.0", "dev") {
+		t.Error("newerRelease compares the wrong versions")
+	}
+	version = saved
+	if _, err := skillRun(t, "skill", "--dir", t.TempDir(), "--dir", t.TempDir()); err == nil || exitCode(err) != exitUsage {
+		t.Errorf("--dir twice: %v, want exit %d", err, exitUsage)
+	}
+	if runtime.GOOS != "windows" {
+		nl := filepath.Join(t.TempDir(), "a\nb")
+		if err := os.Mkdir(nl, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		out, err := skillRun(t, "skill", "--dir", nl)
+		if err != nil || strings.Count(strings.TrimRight(out, "\n"), "\n") != 0 || !strings.Contains(out, `a\nb`) {
+			t.Errorf("a DIR holding a newline: err %v, out %q, want one line naming it quoted", err, out)
 		}
 	}
 }

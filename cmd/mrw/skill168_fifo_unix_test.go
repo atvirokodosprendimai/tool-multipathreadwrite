@@ -33,3 +33,24 @@ func TestSkillDirRefusesAFIFOWithoutWaiting(t *testing.T) {
 		t.Fatal("--dir waited on a FIFO SKILL.md")
 	}
 }
+
+// The Codex review of f323c1c: a FIFO there before the run is refused by the
+// Lstat check and never reaches the read, so the read is driven on its own —
+// the case of a FIFO swapped in after the Lstat. readSkillFile must refuse it,
+// exit 1, without waiting for a writer.
+func TestReadSkillFileRefusesAFIFOWithoutWaiting(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "SKILL.md")
+	if err := syscall.Mkfifo(p, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() { _, err := readSkillFile(p); done <- err }()
+	select {
+	case err := <-done:
+		if err == nil || exitCode(err) != exitNotApplied {
+			t.Errorf("readSkillFile on a FIFO: %v, want exit %d", err, exitNotApplied)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("readSkillFile waited on a FIFO")
+	}
+}
