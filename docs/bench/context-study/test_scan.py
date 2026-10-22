@@ -140,6 +140,11 @@ def codex_tree(root):
     sub += cx_sed(4.35, "s5", "nl -ba b.py | sed -n '1,5p' && nl -ba a.py | sed -n '6,10p'", NUMBERED_BA)  # complete
     # b.py ends early but a.py restarts at 1, its own start: unambiguous, served
     sub += cx_sed(4.36, "s6", "nl -ba b.py | sed -n '1,8p' && nl -ba a.py | sed -n '1,3p'", NUMBERED_BA3)
+    # the first file printed nothing, so a.py's line 1 could start either segment: nothing is served
+    sub += cx_sed(4.37, "s7", "nl -ba empty.py | sed -n '1,3p' && nl -ba a.py | sed -n '1,3p'", NUMBERED_A3)
+    # the same range on two files, both printed: one run per segment, served
+    sub += cx_sed(4.38, "s8", "nl -ba b.py | sed -n '1,3p' && nl -ba a.py | sed -n '1,3p'",
+                  NUMBERED_BA3[:3] + NUMBERED_A3)
     two = ("const a = await tools.exec_command({cmd:\"nl -ba b.py | sed -n '1,5p'\"}); text(a.output);"
            " const b = await tools.exec_command({cmd:\"sed -n '1,5p' b.py\"}); text(b.output);")
     sub += [cx(4.4, "response_item", {"type": "custom_tool_call", "name": "exec", "call_id": "s3", "input": two}),
@@ -177,6 +182,7 @@ def read_tool(path, lines, offset=None):
 
 NUMBERED_BA = ["%6d\t%s" % (i, x) for i, x in enumerate(B, 1)] + ["%6d\t%s" % (i, A[i - 1]) for i in range(6, 11)]
 NUMBERED_BA3 = ["%6d\t%s" % (i, x) for i, x in enumerate(B, 1)] + ["%6d\t%s" % (i, A[i - 1]) for i in range(1, 4)]
+NUMBERED_A3 = ["%6d\t%s" % (i, A[i - 1]) for i in range(1, 4)]
 
 
 def cursor_db(path):
@@ -255,9 +261,9 @@ def main():
         "codex reasoning": (cx_["main"]["M1"]["reasoning_tokens_reported"], 200),
         "codex M3 parent": (cx_["subagent"]["M3"]["parent_savable_chars"], c(A)),
         "codex sub chain+cells within": (cx_["subagent"]["M2"]["ext"]["within_epoch_chars"],
-                                         c(A) + c(A[5:10]) + 3 * c(B) + c(A[:3])),
+                                         c(A) + c(A[5:10]) + 3 * c(B) + 2 * c(A[:3]) + c(B[:3])),
         "codex sub served": (cx_["subagent"]["M2"]["ext"]["served_chars"],
-                             2 * c(A) + c(A[5:10]) + 4 * c(B) + c(A[:3])),
+                             2 * c(A) + c(A[5:10]) + 4 * c(B) + 2 * c(A[:3]) + c(B[:3])),
         "codex fork usage baseline": ((cx_["subagent"]["M1"]["reported_output_tokens"],
                                        cx_["subagent"]["M1"]["reasoning_tokens_reported"]), (400, 150)),
         "codex main usage": (cx_["main"]["M1"]["reported_output_tokens"], 500),

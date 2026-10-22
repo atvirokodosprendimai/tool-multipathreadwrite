@@ -9,134 +9,134 @@
       "all": {
         "M1": {
           "reasoning_source": "residual: reported output minus visible chars/4, an estimate",
-          "reasoning_tokens_residual": 42130356,
+          "reasoning_tokens_residual": 42194805,
           "reported_output_coverage": 0.987,
-          "reported_output_tokens": 76255968,
-          "sessions": 2157,
+          "reported_output_tokens": 76359087,
+          "sessions": 2158,
           "sessions_negative_residual": 563,
-          "sessions_with_usage": 2129,
+          "sessions_with_usage": 2130,
           "share_of_reported_output": {
-            "commands": 0.1633,
+            "commands": 0.1632,
             "no_retype_ceiling": 0.1484,
-            "other_tool_input": 0.057,
-            "prose": 0.0638,
-            "reasoning": 0.5525,
+            "other_tool_input": 0.0571,
+            "prose": 0.0637,
+            "reasoning": 0.5526,
             "subagent_prompts": 0.0073,
             "thinking_visible": 0.0078,
             "write_bodies_new": 0.1477,
             "write_old_text": 0.0007
           },
           "share_of_visible": {
-            "commands": 0.3648,
-            "other_tool": 0.1274,
-            "prose": 0.1425,
-            "subagent_prompt": 0.0164,
+            "commands": 0.3647,
+            "other_tool": 0.1275,
+            "prose": 0.1424,
+            "subagent_prompt": 0.0163,
             "thinking_visible": 0.0174,
-            "write_new": 0.33,
+            "write_new": 0.3301,
             "write_old": 0.0015
           },
           "visible_chars": {
-            "commands": 49796021,
-            "other_tool": 17391915,
-            "prose": 19447839,
-            "subagent_prompt": 2232425,
-            "thinking_visible": 2376601,
-            "write_new": 45048727,
+            "commands": 49840097,
+            "other_tool": 17426253,
+            "prose": 19459757,
+            "subagent_prompt": 2234222,
+            "thinking_visible": 2378116,
+            "write_new": 45109760,
             "write_old": 208922
           },
           "visible_tokens_est": {
-            "commands": 12449005,
-            "other_tool": 4347979,
-            "prose": 4861960,
-            "subagent_prompt": 558106,
-            "thinking_visible": 594150,
-            "write_new": 11262182,
+            "commands": 12460024,
+            "other_tool": 4356563,
+            "prose": 4864939,
+            "subagent_prompt": 558556,
+            "thinking_visible": 594529,
+            "write_new": 11277440,
             "write_old": 52230
           },
-          "visible_tokens_est_total": 34125612
+          "visible_tokens_est_total": 34164282
         },
         "M2": {
           "compaction_records": 190,
           "ext": {
-            "cross_epoch_chars": 1938719,
+            "cross_epoch_chars": 1942988,
             "cross_epoch_share": 0.0154,
             "cross_epoch_share_of_post_compaction_serves": 0.0555,
-            "redundant_chars": 6733538,
+            "redundant_chars": 6754305,
             "redundant_share": 0.0536,
-            "served_after_a_compaction_chars": 34942217,
-            "served_chars": 125733730,
-            "served_tokens_est": 31433432,
-            "within_epoch_chars": 4794819,
-            "within_epoch_share": 0.0381,
-            "within_epoch_tokens_est": 1198705
+            "served_after_a_compaction_chars": 34987834,
+            "served_chars": 125964425,
+            "served_tokens_est": 31491106,
+            "within_epoch_chars": 4811317,
+            "within_epoch_share": 0.0382,
+            "within_epoch_tokens_est": 1202829
           },
           "mid_session_compactions": 190,
           "sessions_rereading_after_compaction": 31,
           "sessions_with_mid_session_compaction": 39,
           "strict": {
-            "cross_epoch_chars": 1916902,
+            "cross_epoch_chars": 1921171,
             "cross_epoch_share": 0.0157,
             "cross_epoch_share_of_post_compaction_serves": 0.0564,
-            "redundant_chars": 6586131,
+            "redundant_chars": 6605594,
             "redundant_share": 0.0539,
-            "served_after_a_compaction_chars": 34005825,
-            "served_chars": 122258197,
-            "served_tokens_est": 30564549,
-            "within_epoch_chars": 4669229,
+            "served_after_a_compaction_chars": 34048509,
+            "served_chars": 122476861,
+            "served_tokens_est": 30619215,
+            "within_epoch_chars": 4684423,
             "within_epoch_share": 0.0382,
-            "within_epoch_tokens_est": 1167307
+            "within_epoch_tokens_est": 1171106
           }
         },
         "M3": {
-          "first_serve_chars": 73551474,
+          "first_serve_chars": 73678929,
           "forked_subagents": 0,
           "nested_subagents": 19,
           "parent_missing": 0,
           "parent_savable_chars": 4080033,
           "parent_savable_chars_in_forked": 0,
-          "parent_savable_share_of_served": 0.0532,
+          "parent_savable_share_of_served": 0.0531,
           "parent_savable_tokens_est": 1020008,
-          "served_chars": 76693405,
+          "served_chars": 76829546,
           "served_chars_in_forked": 0,
           "sibling_overlap_chars": 17368777,
-          "sibling_overlap_share_of_served": 0.2265,
-          "subagents": 853,
+          "sibling_overlap_share_of_served": 0.2261,
+          "subagents": 854,
           "subagents_with_parent_overlap": 539,
           "subagents_with_sibling_overlap": 587
         },
         "flags": {
-          "read_like_commands": 7230,
-          "read_like_commands_inferred": 865
+          "read_like_commands": 7234,
+          "read_like_commands_inferred": 869
         },
-        "tool_calls": 119898
+        "tool_calls": 120024
       },
       "copy_study_scanner_today": {
-        "redundant_chars": 6586450,
+        "redundant_chars": 6605913,
         "redundant_share": 0.0539,
-        "served_chars": 122258197
+        "served_chars": 122476861
       },
       "corpus": {
-        "bytes": 3486393731,
-        "runtime_seconds": 81.7,
-        "subagents_linked_by_tool_id": 673,
+        "bytes": 3489554622,
+        "runtime_seconds": 35.9,
+        "subagents_linked_by_tool_id": 674,
         "transcripts_main": 1304,
-        "transcripts_subagent": 853,
+        "transcripts_subagent": 854,
         "trees": 1304
       },
       "distribution": {
-        "sessions_with_serves": 910,
-        "subagents_with_serves": 763,
+        "sessions_with_serves": 911,
+        "subagents_with_serves": 764,
         "top_decile_share_of_cross_epoch": 1.0,
         "top_decile_share_of_parent_savable": 0.5683,
         "top_decile_share_of_sibling_overlap": 0.4608,
-        "top_decile_share_of_within_epoch": 0.6591
+        "top_decile_share_of_within_epoch": 0.6579
       },
       "main": {
         "M1": {
           "reasoning_source": "residual: reported output minus visible chars/4, an estimate",
-          "reasoning_tokens_residual": 45005509,
+          "reasoning_tokens_residual": 45049724,
           "reported_output_coverage": 0.9954,
-          "reported_output_tokens": 70111472,
+          "reported_output_tokens": 70179446,
           "sessions": 1304,
           "sessions_negative_residual": 0,
           "sessions_with_usage": 1298,
@@ -154,108 +154,108 @@
           "share_of_visible": {
             "commands": 0.3641,
             "other_tool": 0.1031,
-            "prose": 0.1547,
+            "prose": 0.1546,
             "subagent_prompt": 0.0216,
             "thinking_visible": 0.0234,
-            "write_new": 0.3323,
+            "write_new": 0.3324,
             "write_old": 0.0009
           },
           "visible_chars": {
-            "commands": 36561041,
-            "other_tool": 10350677,
-            "prose": 15531257,
-            "subagent_prompt": 2165954,
-            "thinking_visible": 2350047,
-            "write_new": 33373873,
+            "commands": 36595327,
+            "other_tool": 10358999,
+            "prose": 15543160,
+            "subagent_prompt": 2167751,
+            "thinking_visible": 2351562,
+            "write_new": 33411086,
             "write_old": 91002
           },
           "visible_tokens_est": {
-            "commands": 9140260,
-            "other_tool": 2587669,
-            "prose": 3882814,
-            "subagent_prompt": 541488,
-            "thinking_visible": 587512,
-            "write_new": 8343468,
+            "commands": 9148832,
+            "other_tool": 2589750,
+            "prose": 3885790,
+            "subagent_prompt": 541938,
+            "thinking_visible": 587890,
+            "write_new": 8352772,
             "write_old": 22750
           },
-          "visible_tokens_est_total": 25105963
+          "visible_tokens_est_total": 25129722
         },
         "M2": {
           "compaction_records": 189,
           "ext": {
-            "cross_epoch_chars": 1934500,
-            "cross_epoch_share": 0.0394,
+            "cross_epoch_chars": 1938769,
+            "cross_epoch_share": 0.0395,
             "cross_epoch_share_of_post_compaction_serves": 0.0556,
-            "redundant_chars": 3854214,
-            "redundant_share": 0.0786,
-            "served_after_a_compaction_chars": 34805783,
-            "served_chars": 49040325,
-            "served_tokens_est": 12260081,
-            "within_epoch_chars": 1919714,
-            "within_epoch_share": 0.0391,
-            "within_epoch_tokens_est": 479928
+            "redundant_chars": 3866535,
+            "redundant_share": 0.0787,
+            "served_after_a_compaction_chars": 34851400,
+            "served_chars": 49134879,
+            "served_tokens_est": 12283720,
+            "within_epoch_chars": 1927766,
+            "within_epoch_share": 0.0392,
+            "within_epoch_tokens_est": 481942
           },
           "mid_session_compactions": 189,
           "sessions_rereading_after_compaction": 30,
           "sessions_with_mid_session_compaction": 38,
           "strict": {
-            "cross_epoch_chars": 1912683,
+            "cross_epoch_chars": 1916952,
             "cross_epoch_share": 0.0402,
             "cross_epoch_share_of_post_compaction_serves": 0.0565,
-            "redundant_chars": 3762395,
-            "redundant_share": 0.079,
-            "served_after_a_compaction_chars": 33869391,
-            "served_chars": 47627414,
-            "served_tokens_est": 11906854,
-            "within_epoch_chars": 1849712,
-            "within_epoch_share": 0.0388,
-            "within_epoch_tokens_est": 462428
+            "redundant_chars": 3773412,
+            "redundant_share": 0.0791,
+            "served_after_a_compaction_chars": 33912075,
+            "served_chars": 47709937,
+            "served_tokens_est": 11927484,
+            "within_epoch_chars": 1856460,
+            "within_epoch_share": 0.0389,
+            "within_epoch_tokens_est": 464115
           }
         },
         "flags": {
-          "read_like_commands": 2907,
-          "read_like_commands_inferred": 533
+          "read_like_commands": 2911,
+          "read_like_commands_inferred": 537
         },
-        "tool_calls": 78599
+        "tool_calls": 78690
       },
       "subagent": {
         "M1": {
           "reasoning_source": "residual: reported output minus visible chars/4, an estimate",
-          "reasoning_tokens_residual": -2875154,
+          "reasoning_tokens_residual": -2854919,
           "reported_output_coverage": 0.9742,
-          "reported_output_tokens": 6144496,
+          "reported_output_tokens": 6179641,
           "reported_output_unusable": true,
-          "sessions": 853,
+          "sessions": 854,
           "sessions_negative_residual": 563,
-          "sessions_with_usage": 831,
+          "sessions_with_usage": 832,
           "share_of_visible": {
-            "commands": 0.3668,
-            "other_tool": 0.1952,
-            "prose": 0.1086,
+            "commands": 0.3665,
+            "other_tool": 0.1956,
+            "prose": 0.1084,
             "subagent_prompt": 0.0018,
             "thinking_visible": 0.0007,
-            "write_new": 0.3236,
+            "write_new": 0.3237,
             "write_old": 0.0033
           },
           "visible_chars": {
-            "commands": 13234980,
-            "other_tool": 7041238,
-            "prose": 3916582,
+            "commands": 13244770,
+            "other_tool": 7067254,
+            "prose": 3916597,
             "subagent_prompt": 66471,
             "thinking_visible": 26554,
-            "write_new": 11674854,
+            "write_new": 11698674,
             "write_old": 117920
           },
           "visible_tokens_est": {
-            "commands": 3308745,
-            "other_tool": 1760310,
-            "prose": 979146,
+            "commands": 3311192,
+            "other_tool": 1766814,
+            "prose": 979149,
             "subagent_prompt": 16618,
             "thinking_visible": 6638,
-            "write_new": 2918714,
+            "write_new": 2924668,
             "write_old": 29480
           },
-          "visible_tokens_est_total": 9019650
+          "visible_tokens_est_total": 9034560
         },
         "M2": {
           "compaction_records": 1,
@@ -263,14 +263,14 @@
             "cross_epoch_chars": 4219,
             "cross_epoch_share": 0.0001,
             "cross_epoch_share_of_post_compaction_serves": 0.0309,
-            "redundant_chars": 2879324,
-            "redundant_share": 0.0375,
+            "redundant_chars": 2887770,
+            "redundant_share": 0.0376,
             "served_after_a_compaction_chars": 136434,
-            "served_chars": 76693405,
-            "served_tokens_est": 19173351,
-            "within_epoch_chars": 2875105,
+            "served_chars": 76829546,
+            "served_tokens_est": 19207386,
+            "within_epoch_chars": 2883551,
             "within_epoch_share": 0.0375,
-            "within_epoch_tokens_est": 718776
+            "within_epoch_tokens_est": 720888
           },
           "mid_session_compactions": 1,
           "sessions_rereading_after_compaction": 1,
@@ -279,30 +279,30 @@
             "cross_epoch_chars": 4219,
             "cross_epoch_share": 0.0001,
             "cross_epoch_share_of_post_compaction_serves": 0.0309,
-            "redundant_chars": 2823736,
-            "redundant_share": 0.0378,
+            "redundant_chars": 2832182,
+            "redundant_share": 0.0379,
             "served_after_a_compaction_chars": 136434,
-            "served_chars": 74630783,
-            "served_tokens_est": 18657696,
-            "within_epoch_chars": 2819517,
+            "served_chars": 74766924,
+            "served_tokens_est": 18691731,
+            "within_epoch_chars": 2827963,
             "within_epoch_share": 0.0378,
-            "within_epoch_tokens_est": 704879
+            "within_epoch_tokens_est": 706991
           }
         },
         "M3": {
-          "first_serve_chars": 73551474,
+          "first_serve_chars": 73678929,
           "forked_subagents": 0,
           "nested_subagents": 19,
           "parent_missing": 0,
           "parent_savable_chars": 4080033,
           "parent_savable_chars_in_forked": 0,
-          "parent_savable_share_of_served": 0.0532,
+          "parent_savable_share_of_served": 0.0531,
           "parent_savable_tokens_est": 1020008,
-          "served_chars": 76693405,
+          "served_chars": 76829546,
           "served_chars_in_forked": 0,
           "sibling_overlap_chars": 17368777,
-          "sibling_overlap_share_of_served": 0.2265,
-          "subagents": 853,
+          "sibling_overlap_share_of_served": 0.2261,
+          "subagents": 854,
           "subagents_with_parent_overlap": 539,
           "subagents_with_sibling_overlap": 587
         },
@@ -310,7 +310,7 @@
           "read_like_commands": 4323,
           "read_like_commands_inferred": 332
         },
-        "tool_calls": 41299
+        "tool_calls": 41334
       }
     },
     "codex": {
@@ -365,20 +365,20 @@
         "M2": {
           "compaction_records": 450,
           "ext": {
-            "cross_epoch_chars": 966941,
-            "cross_epoch_share": 0.0472,
-            "cross_epoch_share_of_post_compaction_serves": 0.1145,
-            "redundant_chars": 1460648,
-            "redundant_share": 0.0713,
-            "served_after_a_compaction_chars": 8442672,
-            "served_chars": 20487532,
-            "served_tokens_est": 5121883,
-            "within_epoch_chars": 493707,
-            "within_epoch_share": 0.0241,
-            "within_epoch_tokens_est": 123427
+            "cross_epoch_chars": 1104921,
+            "cross_epoch_share": 0.0489,
+            "cross_epoch_share_of_post_compaction_serves": 0.1179,
+            "redundant_chars": 1659324,
+            "redundant_share": 0.0734,
+            "served_after_a_compaction_chars": 9370329,
+            "served_chars": 22609486,
+            "served_tokens_est": 5652372,
+            "within_epoch_chars": 554403,
+            "within_epoch_share": 0.0245,
+            "within_epoch_tokens_est": 138601
           },
           "mid_session_compactions": 249,
-          "sessions_rereading_after_compaction": 26,
+          "sessions_rereading_after_compaction": 28,
           "sessions_with_mid_session_compaction": 50,
           "strict": {
             "cross_epoch_chars": 241074,
@@ -395,21 +395,21 @@
           }
         },
         "M3": {
-          "first_serve_chars": 8072539,
+          "first_serve_chars": 9392222,
           "forked_subagents": 164,
           "nested_subagents": 71,
           "parent_missing": 0,
-          "parent_savable_chars": 1174640,
-          "parent_savable_chars_in_forked": 1081003,
-          "parent_savable_share_of_served": 0.1381,
-          "parent_savable_tokens_est": 293660,
-          "served_chars": 8504100,
-          "served_chars_in_forked": 7786506,
-          "sibling_overlap_chars": 1315377,
-          "sibling_overlap_share_of_served": 0.1547,
+          "parent_savable_chars": 1301096,
+          "parent_savable_chars_in_forked": 1207450,
+          "parent_savable_share_of_served": 0.1314,
+          "parent_savable_tokens_est": 325274,
+          "served_chars": 9903000,
+          "served_chars_in_forked": 9146177,
+          "sibling_overlap_chars": 1740238,
+          "sibling_overlap_share_of_served": 0.1757,
           "subagents": 344,
-          "subagents_with_parent_overlap": 107,
-          "subagents_with_sibling_overlap": 96
+          "subagents_with_parent_overlap": 112,
+          "subagents_with_sibling_overlap": 108
         },
         "flags": {
           "label_guardian_review": 82,
@@ -418,7 +418,7 @@
           "label_subagent_fork": 164,
           "multi_command_cells_not_inferred": 735,
           "read_like_commands": 4901,
-          "read_like_commands_inferred": 1912,
+          "read_like_commands_inferred": 2047,
           "usage_carried_in": 88
         },
         "tool_calls": 28700
@@ -426,7 +426,7 @@
       "corpus": {
         "bytes": 666826291,
         "jsonl": 5,
-        "runtime_seconds": 11.8,
+        "runtime_seconds": 7.4,
         "subagents_parent_absent": 0,
         "transcripts_main": 151,
         "transcripts_subagent": 344,
@@ -434,12 +434,12 @@
         "zst": 490
       },
       "distribution": {
-        "sessions_with_serves": 235,
-        "subagents_with_serves": 145,
-        "top_decile_share_of_cross_epoch": 0.9999,
-        "top_decile_share_of_parent_savable": 0.3992,
-        "top_decile_share_of_sibling_overlap": 0.4331,
-        "top_decile_share_of_within_epoch": 0.8464
+        "sessions_with_serves": 241,
+        "subagents_with_serves": 149,
+        "top_decile_share_of_cross_epoch": 0.9994,
+        "top_decile_share_of_parent_savable": 0.4026,
+        "top_decile_share_of_sibling_overlap": 0.4265,
+        "top_decile_share_of_within_epoch": 0.8251
       },
       "main": {
         "M1": {
@@ -492,20 +492,20 @@
         "M2": {
           "compaction_records": 209,
           "ext": {
-            "cross_epoch_chars": 796721,
-            "cross_epoch_share": 0.0665,
-            "cross_epoch_share_of_post_compaction_serves": 0.1169,
-            "redundant_chars": 1040264,
-            "redundant_share": 0.0868,
-            "served_after_a_compaction_chars": 6813569,
-            "served_chars": 11983432,
-            "served_tokens_est": 2995858,
-            "within_epoch_chars": 243543,
-            "within_epoch_share": 0.0203,
-            "within_epoch_tokens_est": 60886
+            "cross_epoch_chars": 886555,
+            "cross_epoch_share": 0.0698,
+            "cross_epoch_share_of_post_compaction_serves": 0.121,
+            "redundant_chars": 1159726,
+            "redundant_share": 0.0913,
+            "served_after_a_compaction_chars": 7327513,
+            "served_chars": 12706486,
+            "served_tokens_est": 3176622,
+            "within_epoch_chars": 273171,
+            "within_epoch_share": 0.0215,
+            "within_epoch_tokens_est": 68293
           },
           "mid_session_compactions": 209,
-          "sessions_rereading_after_compaction": 14,
+          "sessions_rereading_after_compaction": 15,
           "sessions_with_mid_session_compaction": 23,
           "strict": {
             "cross_epoch_chars": 178280,
@@ -525,7 +525,7 @@
           "label_main": 151,
           "multi_command_cells_not_inferred": 675,
           "read_like_commands": 2851,
-          "read_like_commands_inferred": 1134,
+          "read_like_commands_inferred": 1186,
           "usage_carried_in": 1
         },
         "tool_calls": 21316
@@ -581,20 +581,20 @@
         "M2": {
           "compaction_records": 241,
           "ext": {
-            "cross_epoch_chars": 170220,
-            "cross_epoch_share": 0.02,
-            "cross_epoch_share_of_post_compaction_serves": 0.1045,
-            "redundant_chars": 420384,
-            "redundant_share": 0.0494,
-            "served_after_a_compaction_chars": 1629103,
-            "served_chars": 8504100,
-            "served_tokens_est": 2126025,
-            "within_epoch_chars": 250164,
-            "within_epoch_share": 0.0294,
-            "within_epoch_tokens_est": 62541
+            "cross_epoch_chars": 218366,
+            "cross_epoch_share": 0.0221,
+            "cross_epoch_share_of_post_compaction_serves": 0.1069,
+            "redundant_chars": 499598,
+            "redundant_share": 0.0504,
+            "served_after_a_compaction_chars": 2042816,
+            "served_chars": 9903000,
+            "served_tokens_est": 2475750,
+            "within_epoch_chars": 281232,
+            "within_epoch_share": 0.0284,
+            "within_epoch_tokens_est": 70308
           },
           "mid_session_compactions": 40,
-          "sessions_rereading_after_compaction": 12,
+          "sessions_rereading_after_compaction": 13,
           "sessions_with_mid_session_compaction": 27,
           "strict": {
             "cross_epoch_chars": 62794,
@@ -611,21 +611,21 @@
           }
         },
         "M3": {
-          "first_serve_chars": 8072539,
+          "first_serve_chars": 9392222,
           "forked_subagents": 164,
           "nested_subagents": 71,
           "parent_missing": 0,
-          "parent_savable_chars": 1174640,
-          "parent_savable_chars_in_forked": 1081003,
-          "parent_savable_share_of_served": 0.1381,
-          "parent_savable_tokens_est": 293660,
-          "served_chars": 8504100,
-          "served_chars_in_forked": 7786506,
-          "sibling_overlap_chars": 1315377,
-          "sibling_overlap_share_of_served": 0.1547,
+          "parent_savable_chars": 1301096,
+          "parent_savable_chars_in_forked": 1207450,
+          "parent_savable_share_of_served": 0.1314,
+          "parent_savable_tokens_est": 325274,
+          "served_chars": 9903000,
+          "served_chars_in_forked": 9146177,
+          "sibling_overlap_chars": 1740238,
+          "sibling_overlap_share_of_served": 0.1757,
           "subagents": 344,
-          "subagents_with_parent_overlap": 107,
-          "subagents_with_sibling_overlap": 96
+          "subagents_with_parent_overlap": 112,
+          "subagents_with_sibling_overlap": 108
         },
         "flags": {
           "label_guardian_review": 82,
@@ -633,7 +633,7 @@
           "label_subagent_fork": 164,
           "multi_command_cells_not_inferred": 60,
           "read_like_commands": 2050,
-          "read_like_commands_inferred": 778,
+          "read_like_commands_inferred": 861,
           "usage_carried_in": 87
         },
         "tool_calls": 7384
@@ -742,7 +742,7 @@
       "corpus": {
         "composers_listed": 2089,
         "composers_without_bubbles": 331,
-        "runtime_seconds": 156.9,
+        "runtime_seconds": 146.1,
         "sample_fraction": 1.0,
         "transcripts_main": 610,
         "transcripts_subagent": 1148,

@@ -274,21 +274,30 @@ def serve_chain(sess, ts, segs, lines):
     if any(TRUNC.search(line) for line in lines):
         return 0
     if segs[0][1]:
+        nums = [(int(m.group(1)), m.group(2)) for m in map(NUMBERED.match, lines) if m]
+        runs = []                                  # maximal runs of consecutive numbers
+        for n, text in nums:
+            if runs and n == runs[-1][-1][0] + 1:
+                runs[-1].append((n, text))
+            else:
+                runs.append([(n, text)])
+        if len(runs) == len(segs) and all(r[0][0] == s[2] and r[-1][0] <= s[3] for r, s in zip(runs, segs)):
+            for r, s in zip(runs, segs):           # every segment printed: run k is segment k
+                for n, text in r:
+                    sess.serve(ts, s[0], n, text, False)
+                    served += 1
+            return served
         out, i, prev = [], -1, None
-        for line in lines:
-            m = NUMBERED.match(line)
-            if not m:
-                continue
-            n = int(m.group(1))
+        for n, text in nums:
             cont = i >= 0 and n == prev + 1 and n <= segs[i][3]
             starts = [j for j in range(i + 1, len(segs)) if segs[j][2] == n]
             if cont and starts:
                 return 0                           # this file or the next one: cannot tell
             if not cont:
-                if not starts:
-                    return 0                       # matches no segment: the command did not run as parsed
+                if len(starts) != 1:
+                    return 0                       # no segment, or several (one printed nothing): cannot tell
                 i = starts[0]
-            out.append((segs[i][0], n, m.group(2)))
+            out.append((segs[i][0], n, text))
             prev = n
         for path, n, text in out:
             sess.serve(ts, path, n, text, False)

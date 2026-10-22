@@ -14,7 +14,7 @@ decide whether that pays:
 ## Answer
 
 Each number below is a share of all served text for that host, out of the reads each adapter could
-number. On Codex that is 1,912 of 4,901 read-like commands (39%). Codex M2 and M3 therefore measure
+number. On Codex that is 2,047 of 4,901 read-like commands (42%). Codex M2 and M3 therefore measure
 that captured subset. A read that was missed is gone from both the numerator and the denominator, so
 the Codex shares are not bounds in either direction; only the absolute Codex counts are lower bounds.
 
@@ -23,10 +23,10 @@ the Codex shares are not bounds in either direction; only the absolute Codex cou
 | **M1** no-retype ceiling (write bodies + retyped old text), share of reported output | **11.9%** (main) | **3.2%** | n/a: output not recorded (24.2% + 2.6% of *visible* output) |
 | M1 reasoning, share of reported output | 64% (main, residual) | 48% (recorded) | n/a |
 | M1 commands / prose, share of reported output | 13.0% / 5.5% (main) | 31.7% / 6.0% | 26.7% / 14.9% of visible |
-| **M2** within-epoch re-serves (delta-read savable) | **3.8%** ≈ 1.20 M tokens | **2.4%** ≈ 0.12 M | **9.9%** ≈ 3.46 M |
-| M2 cross-epoch re-serves (after a compaction) | 1.5% | 4.7% | 0.5% |
-| **M3** subagent lines the parent already held, share of subagent served text | **5.3%** ≈ 1.02 M tokens | 13.8% (1.1 pp outside forks) | **4.1%** ≈ 0.54 M |
-| M3 sibling overlap, share of subagent served text | **22.7%** | 15.5% | **26.6%** |
+| **M2** within-epoch re-serves (delta-read savable) | **3.8%** ≈ 1.20 M tokens | **2.5%** ≈ 0.14 M | **9.9%** ≈ 3.46 M |
+| M2 cross-epoch re-serves (after a compaction) | 1.5% | 4.9% | 0.5% |
+| **M3** subagent lines the parent already held, share of subagent served text | **5.3%** ≈ 1.02 M tokens | 13.1% (0.9 pp outside forks) | **4.1%** ≈ 0.54 M |
+| M3 sibling overlap, share of subagent served text | **22.6%** | 17.6% | **26.6%** |
 
 In plain words:
 
@@ -36,17 +36,17 @@ In plain words:
   largest part everywhere it is measured: 64% on Claude (a residual, so an upper bound) and 48% on
   Codex (recorded). This is the same ceiling copy-study's `from=` lived under. copy-study measured
   0.026% for exact copies; this ceiling also counts every typed byte of new content.
-- **Delta reads.** Re-reads inside one epoch are a small share of input: 3.8% on Claude, 2.4% on
+- **Delta reads.** Re-reads inside one epoch are a small share of input: 3.8% on Claude, 2.5% on
   Codex, 9.9% on Cursor. On Claude, re-reading splits about evenly around compactions (main
-  within/cross = 1.92 M / 1.93 M chars). Codex re-reads after compactions more than inside an epoch.
-  39 Claude, 50 Codex and 44 Cursor sessions had a mid-session compaction, and 31, 26 and 35 of them
+  within/cross = 1.93 M / 1.94 M chars). Codex re-reads after compactions more than inside an epoch.
+  39 Claude, 50 Codex and 44 Cursor sessions had a mid-session compaction, and 31, 28 and 35 of them
   re-read a line they had read before it. Re-serves are concentrated: the top tenth of sessions holds
-  66% (Claude), 85% (Codex) and 82% (Cursor) of within-epoch re-serves.
+  66% (Claude), 83% (Codex) and 82% (Cursor) of within-epoch re-serves.
 - **Subagents.** 4–5% of what subagents read on Claude and Cursor are lines their parent had already been
-  served; on Codex almost all of the 14% is inside **forked** subagents (1,081,003 of 1,174,640 chars),
+  served; on Codex almost all of the 13% is inside **forked** subagents (1,207,450 of 1,301,096 chars),
   which already carry the parent's history in context: redundancy within one context. Fresh Codex
-  spawns: 93,637 of 717,594 served chars (13.0%), from 180 subagents. The larger number is **sibling
-  overlap**, 15–27% on every host: parallel subagents of one parent read the same lines. Neither is
+  spawns: 93,646 of 756,823 served chars (12.4%), from 180 subagents. The larger number is **sibling
+  overlap**, 18–27% on every host: parallel subagents of one parent read the same lines. Neither is
   reachable by handing out handles: a subagent has its own context and has not seen its parent's or a
   sibling's text, so a pointer gives it nothing to reason over. What these numbers measure is duplicated
   reading across agents, which only the orchestrator can cut (split the work so readers do not overlap,
@@ -59,35 +59,32 @@ All token figures are chars/4 estimates unless the row says "recorded".
 | | Claude Code | Codex | Cursor IDE |
 |---|---|---|---|
 | source | `~/.claude/projects/**/*.jsonl` over 10 KB | `~/.codex/sessions`, `~/.codex/archived_sessions` | `globalStorage/state.vscdb` (25 GB, read-only, immutable) |
-| main sessions / subagents | 1,304 / 853 | 151 / 344 (164 forks, 98 fresh, 82 guardian reviews) | 610 / 1,148 composers |
+| main sessions / subagents | 1,304 / 854 | 151 / 344 (164 forks, 98 fresh, 82 guardian reviews) | 610 / 1,148 composers |
 | session trees | 1,304 | 151 | 984 (331 composers had no bubbles) |
 | bytes read | 3.49 GB | 0.67 GB compressed (490 `.zst`, 5 `.jsonl`) | bubbles of 1,758 composers |
-| subagent → parent linked | 673 by `toolUseId`, the rest to the session's main | 344 of 344 | 1,105 of 1,148 (43 parents absent) |
-| tool calls | 119,898 | 28,700 | 157,006 (after dropping repeats; see below) |
-| output tokens recorded | 76.3 M (main 70.1 M, coverage 99%) | 15.8 M, of which 7.7 M reasoning | 4.7 M on 7% of composers: unusable |
+| subagent → parent linked | 674 by `toolUseId`, the rest to the session's main | 344 of 344 | 1,105 of 1,148 (43 parents absent) |
+| tool calls | 120,024 | 28,700 | 157,006 (after dropping repeats; see below) |
+| output tokens recorded | 76.4 M (main 70.2 M, coverage 99%) | 15.8 M, of which 7.7 M reasoning | 4.7 M on 7% of composers: unusable |
 | mid-session compactions | 190 in 39 sessions (1 in a subagent) | 249 in 50 sessions | 104 in 44 composers |
-| runtime | 82 s | 12 s | 157 s |
+| runtime | 36 s | 7 s | 146 s |
 
-The run was one process under `nice -n 19`, streaming. Load was near 5 at the start and 19 at the
-end on 10 cores, so the runtimes are wall clock under that contention. opencode has no data on this
-Mac (`~/.local/share/opencode` is absent).
-are wall clock under that contention. opencode has no data on this Mac (`~/.local/share/opencode` is
-absent).
+The run was one process under `nice -n 19`, streaming, with load between 7 and 9 on 10 cores.
+opencode has no data on this Mac (`~/.local/share/opencode` is absent).
 
 ## Reconciling with copy-study's 5.28%
 
 | | served chars | redundant chars | share |
 |---|---|---|---|
 | copy-study as published (its corpus, 2,188 transcripts) | 124,614,135 | 6,579,729 | 5.28% |
-| copy-study's own scanner on today's corpus (`copy_study_scanner_today`) | 122,258,197 | 6,586,450 | 5.39% |
-| this scanner, strict (copy-study's sources and rule) | 122,258,197 | 6,586,131 | 5.39% |
-| this scanner, extended (adds inferred plain reads) | 125,733,730 | 6,733,538 | 5.36% |
+| copy-study's own scanner on today's corpus (`copy_study_scanner_today`) | 122,476,861 | 6,605,913 | 5.39% |
+| this scanner, strict (copy-study's sources and rule) | 122,476,861 | 6,605,594 | 5.39% |
+| this scanner, extended (adds inferred plain reads) | 125,964,425 | 6,754,305 | 5.36% |
 
-- Published versus today: the corpus is live. 2,157 transcripts are over 10 KB now, against 2,188 then.
+- Published versus today: the corpus is live. 2,158 transcripts are over 10 KB now, against 2,188 then.
 - Today's copy-study run versus this scanner's strict pool: the served text is identical. This scanner
   finds 319 fewer redundant chars because it also counts `cat > F <<EOF` and apply_patch as writes to
   F, which empty that file's pool. copy-study keeps those heredocs only as `--create` sources.
-- Strict split: 4,669,229 within-epoch plus 1,916,902 cross-epoch makes 6,586,131.
+- Strict split: 4,684,423 within-epoch plus 1,921,171 cross-epoch makes 6,605,594.
 - Extended adds 3.5 M served chars from plain `sed`/`cat`/`nl` reads. Their redundancy is lower,
   so the share falls slightly.
 
@@ -135,11 +132,13 @@ call repeated inside the conversation counts once (9 cases).
   - a single `sed -n 'A,Bp' F`, `cat F`, `head -N F`, or `nl -ba F` / `cat -n F` (optionally piped
     into `| sed -n 'A,Bp'`);
   - chains of `sed -n` or `nl -ba | sed -n` ranges joined by `&&`, `;` or newlines. In a numbered
-    chain, each segment's lines run A, A+1, … and may stop early where the file ends. A line that
-    could either continue the current segment or start the next one would make the chain ambiguous,
-    so the whole chain serves nothing. A segment that printed nothing is assumed only when no earlier
-    segment can take the line. A plain chain counts only when its output has exactly the number of
-    lines the ranges ask for. Truncated output serves nothing;
+    chain, each segment's lines run A, A+1, … and may stop early where the file ends. When the output
+    splits into exactly one run of consecutive numbers per segment, each starting at its segment's A,
+    run k is segment k. Otherwise each line is assigned in order, and the whole chain serves nothing
+    when a line could either continue the current segment or start a later one, or when it could start
+    more than one later segment (a file that printed nothing makes the next file's lines fit both). A
+    plain chain counts only when its output has exactly the number of lines the ranges ask for.
+    Truncated output serves nothing;
   - Codex JS cells whose output has one item per `exec_command` call;
   - Cursor `read_file` / `read_file_v2` results, numbered from `params.offset`. The offset is 1-based:
     on 120 composers, whole-file and offset reads of the same file agreed 12,024 times when the offset
@@ -193,15 +192,15 @@ history in context, so their overlap is reported separately.
 
 ## Limits
 
-- **Claude subagent output tokens are unusable.** Their recorded `output_tokens` (6.1 M) fall below
-  their visible text (9.0 M at chars/4), and 563 of 853 transcripts come out negative. M1 for Claude
+- **Claude subagent output tokens are unusable.** Their recorded `output_tokens` (6.2 M) fall below
+  their visible text (9.0 M at chars/4), and 563 of 854 transcripts come out negative. M1 for Claude
   therefore uses main sessions. Main sessions show no negative residuals.
-- **Codex read coverage is partial.** Of 4,901 read-like Codex commands, 1,912 got line numbers.
+- **Codex read coverage is partial.** Of 4,901 read-like Codex commands, 2,047 got line numbers.
   Another 735 multi-call JS cells had outputs that could not be paired with their calls. Reads that
   are chained with `printf` separators or `|| true`, chains whose attribution is ambiguous, and reads
   of several files in one `sed` are not inferred. Codex M2 and M3 describe the captured reads. Their
   absolute counts are lower bounds; their shares are not bounds either way. On Claude, Bash reads are
-  rare: 7,230 read-like commands, beside the Read tool and mrw.
+  rare: 7,234 read-like commands, beside the Read tool and mrw.
 - **Cursor `read_file_v2` contents are sometimes absent.** 771 of 5,898 reads in a 50-composer sample
   had empty contents, and a read that failed (`Error: …`) serves nothing.
 - **Cursor compaction is inferred.** Treating a `conversationSummary` bubble as the compaction point
@@ -269,6 +268,7 @@ There are 32 checks. Each mutation below was applied, run, and restored:
 | Cursor stale bubbles kept | 1 |
 | Cursor write invalidation dropped | 1 |
 | numbered-chain ambiguity guard removed | 2 |
+| a start that fits more than one later segment accepted (`nl -ba empty.py \| sed -n 1,3p && nl -ba a.py \| sed -n 1,3p`) | 1 |
 
 ## Files
 
