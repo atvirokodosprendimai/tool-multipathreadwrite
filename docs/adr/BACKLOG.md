@@ -597,6 +597,19 @@ assumes the caller held the sha.
 
 **Bar.** An ADR for the guard is written only if that share is **at least 1.0% of served chars on at
 least one host**. Below it on every host, this entry closes with the numbers and the idea is dropped.
+
+**Measured 2026-10-23** (`scan.py` at the commit that added this entry, two runs, identical counts), share
+of all served chars, with this run's within-epoch share beside it:
+
+| | Claude Code | Codex | Cursor IDE |
+|---|---|---|---|
+| whole-file unchanged, within an epoch (the guard's ceiling) | **1.35%** (1,714,820 chars) | 0.95% (218,643) | **6.14%** (8,615,234) |
+| within-epoch re-serves, any | 4.02% | 2.41% | 9.87% |
+
+**The bar is met** on Claude Code and Cursor. Next: ADR-169, the guard, for Zy's acceptance. The ceiling
+counts every host read, not only reads through mrw, and assumes the caller held the sha; both are the
+ADR's to price.
+
 ## Findings filed from memoryd (2026-10-21)
 
 - **quality-harness cannot see writes made through mrw (filed 2026-10-02 by quality-harness, open).**
