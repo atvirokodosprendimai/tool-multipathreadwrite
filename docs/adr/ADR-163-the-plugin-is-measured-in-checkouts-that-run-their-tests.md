@@ -9,7 +9,7 @@
 **Cross-references:** ADR-156, ADR-162; quality-harness ADR-106, ADR-111 and ADR-112 (`/Users/zy/CursorProjects/quality-harness/docs/adr/ADR-112-the-lifecycle-is-measured-where-it-can-work.md`, Accepted 2026-10-18)
 **Depends-on:** ADR-162 T5's merge to `main`, which brought `docs/bench/stage-5/` (block 1's receipts and the amended scan) that this record cites: squash commit 4b3e5d18 (#480), which replaced the branch commit 4eec8caa
 **Governs:** `internal/bench/**`, `cmd/bench/**`, `bench/**`, `docs/bench/**`
-**Enforced-by:** None — until T1 lands, which adds `internal/bench/container_test.go::TestStage6ShimsRunInTheInstanceContainer`
+**Enforced-by:** `internal/bench/container_test.go::TestStage6ShimsRunInTheInstanceContainer` (T1) and `internal/bench/checks_test.go::TestTheDeclaredCheckIsWrittenBeforeTheBaseCommitInEveryArm` (T2)
 **Invalidates:** none — checked: without `--profile stage6` every configuration's arguments, PATH and tools stay as ADR-162 left them, so Stages 1 to 5 stay reproducible; `MaxTurns` stays 60 unless a stage sets another; Stage 5's receipts, looks and stop rule are untouched
 **Served-path change:** None — this ADR changes only measurement: `bench`, its registration and its stage.
 
@@ -25,7 +25,7 @@ Quality-harness ADR-112 (Accepted) pre-registers a stage that measures the plugi
 Zy, 2026-10-19: "Draft now, run after": draft this record and build its code while Stage 5's A/B blocks run; the pilots and the stage start only after Stage 5 closes, so they never compete with it for the weekly usage limit or the machine.
 
 **Measured on this Mac, for the design:**
-- **Images** (`internal/bench/swebench.go:256-264`): each instance's image is linux/amd64 only, so on this arm64 Mac it runs emulated. ADR-162 measured one SWE image at about 10.6 GB (2026-10-17); each is pulled once per instance and removed after grading.
+- **Images** (`internal/bench/swebench.go:256-264`): each instance's image is linux/amd64 only, so on this arm64 Mac it runs emulated. ADR-162 measured one SWE image at about 10.6 GB (2026-10-17); T1 S1 measured another, `django_1776_django-16642`, at 4.48 GB (2026-10-21), so the size varies by image. Each is pulled once per instance and removed after grading.
 - **The tools an attempt finds** (`internal/bench/runner.go:373`, `:794-815`): `toolPath` links `git`, `go`, `gofmt`, `node`, `npm`, `npx` and the host `python3`; PATH is that directory then `/usr/bin:/bin:/usr/sbin:/sbin`.
 - **Host interpreters and runners outside PATH** (listed 2026-10-19 with `ls /opt/homebrew/bin /usr/bin` filtered by `python|pip|py\.|pytest|uv|tox`): `/usr/bin/python3`, `/usr/bin/pip3`; `/opt/homebrew/bin/python3`, `python3.14`, `python3.15`, `pytest`, `py.test`, `pip3`, `pip3.14`, `pip3.15`, `uv`, `uvx` (13 entries, plus `xcrun python3`). An absolute path, `env -i` or `command -p` reaches the system ones whatever PATH holds.
 - **Docker** is not on an attempt's PATH (ADR-158), but `/usr/local/bin/docker` and `~/.docker/bin/docker` both resolve to `/Applications/Docker.app/Contents/Resources/bin/docker`.
@@ -189,6 +189,7 @@ See `tasks/README.md`:
 - T3: the baseline, the surviving pool and the block plan;
 - T4: the baseline pilot, the whole-pool baseline, then the agent pilot;
 - T5: the stage, block by block, and its results.
+- T6: the side arms G and C, read against P.
 
 ## Consequences
 

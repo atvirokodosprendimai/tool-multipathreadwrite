@@ -87,8 +87,9 @@ func ExportPaired(o ExportOptions, w io.Writer) error {
 		if first == nil {
 			first = &p
 		} else if p.Stage != first.Stage || p.CLIVersion != first.CLIVersion || p.Repeats != first.Repeats || p.Profile != first.Profile ||
-			p.BudgetSeconds != first.BudgetSeconds || p.StatusLineSHA256 != first.StatusLineSHA256 || p.PromptSHA256 != first.PromptSHA256 || !samePlugin(p.Plugin, first.Plugin) {
-			return fmt.Errorf("%s ran another stage, CLI, repeat count, profile, budget, prompt or plugin than %s: one config line cannot describe both", dir, o.Dirs[0])
+			p.BudgetSeconds != first.BudgetSeconds || p.StatusLineSHA256 != first.StatusLineSHA256 || p.PromptSHA256 != first.PromptSHA256 || !samePlugin(p.Plugin, first.Plugin) ||
+			p.MaxTurns != first.MaxTurns || p.ChecksSHA256 != first.ChecksSHA256 || p.WorkLineSHA256 != first.WorkLineSHA256 {
+			return fmt.Errorf("%s ran another stage, CLI, repeat count, profile, budget, prompt, plugin, turn cap, check table or work line than %s: one config line cannot describe both", dir, o.Dirs[0])
 		}
 		if !slices.Contains(p.Models, o.Model) {
 			return fmt.Errorf("%s did not run model %s", dir, o.Model)
@@ -151,13 +152,29 @@ func ExportPaired(o ExportOptions, w io.Writer) error {
 	if first.StatusLineSHA256 == "" {
 		return errors.New("the stage ran without --status-line: ADR-106 reads the STATUS claim")
 	}
-	if (o.X == "P" || o.Y == "P") && first.Plugin == nil {
-		return errors.New("the pair holds P and the stage names no plugin")
+	if slices.ContainsFunc([]string{o.X, o.Y}, func(c string) bool { return Configs[c].Plugin }) && first.Plugin == nil {
+		return errors.New("the pair holds a plugin configuration and the stage names no plugin")
 	}
 	list := sha256.Sum256([]byte(strings.Join(sel.Selected, "\n")))
 	instances := map[string]bool{}
 	for _, r := range rows {
 		instances[r.Instance] = true
+	}
+	maxTurns := first.MaxTurns
+	if maxTurns == 0 {
+		maxTurns = DefaultMaxTurns
+	}
+	// The caps and digests a stage names go inside scaffold too, where the
+	// scorer compares them; a Stage 5 run.json names none, so its rows keep their bytes.
+	scaffold := map[string]any{"runner": "bench", "stage": first.Stage, "profile": first.Profile, "configs": first.Configs, "pair": []string{o.X, o.Y}}
+	if first.MaxTurns != 0 {
+		scaffold["max_turns"] = first.MaxTurns
+	}
+	if first.ChecksSHA256 != "" {
+		scaffold["checks_sha256"] = first.ChecksSHA256
+	}
+	if first.WorkLineSHA256 != "" {
+		scaffold["work_line_sha256"] = first.WorkLineSHA256
 	}
 	config := map[string]any{
 		"dataset": sel.Dataset, "split": sel.Split, "revision": sel.Revision,
@@ -165,10 +182,10 @@ func ExportPaired(o ExportOptions, w io.Writer) error {
 		"instance_count": len(sel.Selected), "instance_list_sha256": hex.EncodeToString(list[:]),
 		"k": first.Repeats, "n": len(instances), "model": o.Model,
 		"cli_version": first.CLIVersion, "plugin": first.Plugin,
-		"scaffold":        map[string]any{"runner": "bench", "stage": first.Stage, "profile": first.Profile, "configs": first.Configs, "pair": []string{o.X, o.Y}},
+		"scaffold":        scaffold,
 		"prompt_template": PromptTemplate,
 		"prompt_sha256":   first.PromptSHA256, "status_line_sha256": first.StatusLineSHA256,
-		"max_turns": MaxTurns, "budget_seconds": first.BudgetSeconds,
+		"max_turns": maxTurns, "budget_seconds": first.BudgetSeconds,
 		"scorer_blob_sha": o.ScorerSHA, "exporter": exporterRevision(), "canary": canary,
 	}
 	enc := json.NewEncoder(w)
