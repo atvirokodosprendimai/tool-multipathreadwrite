@@ -96,6 +96,14 @@ def claude_tree(root):
              cl_res(18.5, 16, "==> /p/w.txt  5L  20B  sha abcdef12\n@@ 1-5  WITHHELD 5 line(s): --max-lines reached\n"
                     "ok   w.txt 1 replace  -1 +1\nwrote w.txt  5L -> 5L  sha 12345678\n"
                     "1 hunk(s), 1 file(s), 0 failed, 0 advisories — applied")]
+    # a numbered range --max-chars cut after two lines: its diagnostic and the kind line are not content
+    main += [cl_use(19, 17, "Bash", {"command": "mrw read --max-chars 60 v.txt:1-5"}),
+             cl_res(19.5, 17, "==> /p/v.txt  5L  30B  sha abcdef12\n@@ 1-5\n    1| alpha\n    2| bravo\n"
+                    "v.txt: WITHHELD: --max-chars reached\nmrw: incomplete: 1 range(s) could not be served")]
+    # an mrw_read page whose note sits right after its range line: the note takes no content slot
+    main += [cl_use(20, 18, "mcp__mrw__mrw_read", {"specs": ["u.txt:1-2"]}),
+             cl_res(20.5, 18, "==> /p/u.txt  9L  60B  sha abcdef12\n@@ 1-2\n-- PARTIAL: a page; next_read continues\n"
+                    "    1| aa\n    2| bb\n")]
     sub1 = [{"type": "user", "timestamp": iso(10), "isSidechain": True,
              "message": {"role": "user", "content": "go explore b.py"}}]
     sub1 += cl_read(10.2, 1, "/p/b.py", B)                   # parent had it: savable
@@ -266,7 +274,7 @@ def main():
         # (copy-study's parser, reused unchanged, reads the -N line `123| literal` as numbered line 123)
         "claude strict served": (cl["main"]["M2"]["strict"]["served_chars"],
                                  4 * c(A) + c(B) + c(B[:2]) + c(A[:1]) + c(B[:1]) + c(["zeta"]) + c(["hi"])
-                                 + c(["literal"]) + c(["ok"])),
+                                 + c(["literal"]) + c(["ok"]) + c(["alpha", "bravo"]) + c(["aa", "bb"])),
         "claude strict within": (cl["main"]["M2"]["strict"]["within_epoch_chars"],
                                  c(A) + c(B[:2]) + c(A[:1]) + c(B[:1])),
         "claude strict cross": (cl["main"]["M2"]["strict"]["cross_epoch_chars"], c(A)),
@@ -284,7 +292,7 @@ def main():
         "claude prose": (m1["prose"], len("Hello world")),
         "claude write new/old": ((m1["write_new"], m1["write_old"]), (3 + 6, 4)),
         "claude subagent prompt": (m1["subagent_prompt"], len(json.dumps(AGENT_INPUT))),
-        "claude reported": (cl["main"]["M1"]["reported_output_tokens"], 1000 + 16 * 100),
+        "claude reported": (cl["main"]["M1"]["reported_output_tokens"], 1000 + 18 * 100),
         # ADR-169's adoption counts: four guarded calls, two unchanged answers and what they withheld
         # (a path holding a space included), the chars mrw served — numbered, unnumbered (-N) and inside
         # a --json answer — and the guard arguments typed, a quoted one whole
@@ -294,7 +302,7 @@ def main():
                          (4, 2, 350, 2 * len("--if-changed a.py=deadbeef") + len("--if-changed 'a file.go=deadbeef'")
                           + len("--if-changed y.txt=deadbeef"),
                           c(A[:1]) + c(B[:1]) + c(["zeta"]) + c(["hi", "", "ho", "-- comment", "123| literal"])
-                          + c(["hi"]) + c(["ok"]))),
+                          + c(["hi"]) + c(["ok"]) + c(["alpha", "bravo"]) + c(["aa", "bb"]))),
         "claude M3 parent": (cl["subagent"]["M3"]["parent_savable_chars"], 3 * c(B)),
         "claude M3 sibling": (cl["subagent"]["M3"]["sibling_overlap_chars"], 2 * c(B)),
         "claude M3 served": (cl["subagent"]["M3"]["served_chars"], 3 * c(B) + c(A)),

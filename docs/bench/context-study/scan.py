@@ -155,6 +155,10 @@ GUARD_ARG = re.compile(r"--if-changed(?:=|\s+)(?:'[^']*'|\"[^\"]*\"|\S+)|\"if_ch
 # A served range opens with `@@ A-B`; its B-A+1 lines follow, numbered `N| ` unless the read used -N.
 MRW_RANGE = re.compile(r"^@@ (\d+)(?:-(\d+))?$")    # the whole line: `@@ 1-5  WITHHELD …` served nothing
 MRW_WITHHELD = re.compile(r"^!! \d+ more line")
+# A reader diagnostic naming what a budget held back: `path: WITHHELD: --max-chars reached`.
+WITHHELD_NOTE = re.compile(r"^\S.*: WITHHELD: ")
+# A CLI read that prints no line numbers.
+UNNUMBERED = re.compile(r"(?:^|\s)(?:-N|--no-numbers)(?=\s|$)")
 
 
 def mrw_output(s, ts, call, text):
@@ -166,23 +170,31 @@ def mrw_output(s, ts, call, text):
         if isinstance(doc, dict) and isinstance(doc.get("content"), str):
             text = doc["content"]
     cs.parse_mrw_output(Recorder(s, ts, True), text)
-    # Only the lines a range promised are content: a header, a withheld note or the end of the range
-    # closes it, so a write receipt or a note after a read is never counted. A line is numbered only
-    # when its number is the one expected, so `-N` content that looks numbered is kept whole.
-    left = expect = 0
+    # Only the lines a range promised are content, so a write receipt after a read is never counted.
+    # Numbered output (the default; MCP has no other) counts a line only when it carries a number inside
+    # the range, so any note mrw prints inside one — a page note, a WITHHELD diagnostic — is skipped. A
+    # `-N` read has no numbers to go by: its range counts B-A+1 lines and closes on a reader diagnostic.
+    plain = UNNUMBERED.search(call or "") is not None
+    left = expect = end = 0
     for line in text.split("\n"):
         r = MRW_RANGE.match(line)
         if cs.MRW_HEAD.match(line) or MRW_WITHHELD.match(line) or (line.startswith("@@ ") and not r):
             left = 0
         elif r:
-            expect = int(r.group(1))
-            left = int(r.group(2) or r.group(1)) - expect + 1
-        elif left > 0 and not line.startswith("-- ck "):
+            expect, end = int(r.group(1)), int(r.group(2) or r.group(1))
+            left = end - expect + 1
+        elif left > 0 and not plain:
             m = cs.MRW_LINE.match(line)
-            numbered = m is not None and int(m.group(1)) == expect
-            s.guard["mrw_served_chars"] += (len(m.group(2)) if numbered else len(line)) + 1
+            if m and expect <= int(m.group(1)) <= end:
+                s.guard["mrw_served_chars"] += len(m.group(2)) + 1
+                expect = int(m.group(1)) + 1
+                left = end - expect + 1
+        elif left > 0:
+            if line.startswith("mrw: ") or WITHHELD_NOTE.match(line):
+                left = 0
+                continue
+            s.guard["mrw_served_chars"] += len(line) + 1
             left -= 1
-            expect += 1
     args = GUARD_ARG.findall(call or "")
     if args:
         s.guard["calls"] += 1
