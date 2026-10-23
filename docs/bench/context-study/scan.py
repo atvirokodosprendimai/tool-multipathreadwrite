@@ -868,10 +868,20 @@ class Host:
         strict, ext = Tracker(), Tracker()
         compactions = mid = 0
         reread = False
+        # A whole-file guard (--if-changed sha=X) answers one call's serve of one file only when every
+        # line of it is a within-epoch re-serve. Serves are grouped by call (timestamp), then by file,
+        # wherever in the call the file's lines fall; a write or a compaction ends the call. Two calls
+        # with one timestamp merge, which can only undercount.
+        call, files = None, {}
         for ev in s.events:
             if ev[0] == "serve":
                 _, ts, path, n, text, is_strict = ev
+                if ts != call or not files:
+                    k["ext_whole_within"] += sum(ch for ch, whole in files.values() if whole)
+                    call, files = ts, {}
                 ext.see(path, n, text)
+                ch, whole = files.get(ext.fid(path), (0, True))
+                files[ext.fid(path)] = (ch + len(text) + 1, whole and ext.last == "within")
                 if ext.last:
                     reread = reread or ext.last == "cross"
                     self.ex["M2"].offer(self.rng, {"host": self.name, "kind": s.kind, "class": ext.last,
@@ -879,7 +889,10 @@ class Host:
                                                    "strict_source": is_strict})
                 if is_strict:
                     strict.see(path, n, text)
-            elif ev[0] == "write":
+                continue
+            k["ext_whole_within"] += sum(ch for ch, whole in files.values() if whole)
+            call, files = None, {}
+            if ev[0] == "write":
                 ext.invalidate(ev[2])
                 strict.invalidate(ev[2])
             else:
@@ -888,6 +901,7 @@ class Host:
                     mid += 1
                     ext.compact()
                     strict.compact()
+        k["ext_whole_within"] += sum(ch for ch, whole in files.values() if whole)
         k["compactions"] += compactions
         k["mid_session_compactions"] += mid
         k["sessions_with_compaction"] += bool(mid)
@@ -1054,6 +1068,8 @@ def view(k):
                    "served_after_a_compaction_chars": k[f"{tag}_served_after_compaction"],
                    "cross_epoch_share_of_post_compaction_serves": share(k[f"{tag}_cross"],
                                                                          k[f"{tag}_served_after_compaction"])}
+    m2["ext"].update(whole_file_unchanged_within_chars=k["ext_whole_within"],
+                     whole_file_unchanged_within_share=share(k["ext_whole_within"], k["ext_served"]))
     m2.update(compaction_records=k["compactions"], mid_session_compactions=k["mid_session_compactions"],
               sessions_with_mid_session_compaction=k["sessions_with_compaction"],
               sessions_rereading_after_compaction=k["sessions_rereading_after_compaction"])
