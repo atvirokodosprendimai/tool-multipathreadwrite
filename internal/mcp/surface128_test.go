@@ -3,6 +3,7 @@ package mcp
 import (
 	"bytes"
 	"encoding/json"
+	"math"
 	"math/big"
 	"math/rand"
 	"os"
@@ -215,12 +216,29 @@ func TestAnExponentIsReducedExactlyAndInLinearTime(t *testing.T) {
 			t.Errorf("exponentPlus(%q, %d) = %s, want %s", c[0], adj, got, want)
 		}
 	}
-	id := append([]byte("1e"), bytes.Repeat([]byte("7"), 4<<20)...)
-	start := time.Now()
-	if !validRequestID(id) || callKey(id) == "" {
-		t.Fatal("a 4M-digit exponent id was refused")
+	// Linear, judged by how the time grows rather than by a wall-clock budget:
+	// a 3 s budget failed once at 3.10 s under -race on a loaded machine while
+	// the reduction stayed linear, and no one budget sits safely between
+	// "linear but loaded" and "the big.Int path" on every machine. Measured
+	// 2026-10-23 on an M-series Mac at load 3: this judgment took 0.05 s
+	// without -race and 0.85 s with it; the big.Int reduction #343 replaced took
+	// 8.9 s, and its 4M-digit time was 13.8 times its 1M-digit time, where a
+	// linear one is about 4. Load slows both sizes alike, so the ratio holds;
+	// below 100 ms timer noise outweighs it, and a regression is seconds long.
+	judge := func(n int) time.Duration {
+		id := append([]byte("1e"), bytes.Repeat([]byte("7"), n)...)
+		best := time.Duration(math.MaxInt64)
+		for range 2 {
+			start := time.Now()
+			if !validRequestID(id) || callKey(id) == "" {
+				t.Fatalf("a %d-digit exponent id was refused", n)
+			}
+			best = min(best, time.Since(start))
+		}
+		return best
 	}
-	if took := time.Since(start); took > 3*time.Second {
-		t.Errorf("a 4M-digit exponent took %s to judge and key", took)
+	small, large := judge(1<<20), judge(4<<20)
+	if large > 100*time.Millisecond && large > 8*small {
+		t.Errorf("a 4M-digit exponent took %s, %.1f times a 1M-digit one (%s): the reduction is not linear", large, float64(large)/float64(small), small)
 	}
 }
