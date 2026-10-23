@@ -152,8 +152,9 @@ class Tracker(cs.Session):
 # The path is everything up to the two spaces before `unchanged`, so a path holding spaces is whole.
 UNCHANGED = re.compile(r"^==> (.+?)  unchanged since sha \S+ — (\d+) lines?, (\d+) bytes? not served$", re.M)
 GUARD_ARG = re.compile(r"--if-changed(?:=|\s+)(?:'[^']*'|\"[^\"]*\"|\S+)|\"if_changed\"\s*:\s*\{[^}]*\}")
-# What an mrw answer prints around the lines it serves: headers, checkpoints, notes, refusals.
-MRW_FRAME = ("==> ", "-- ", "@@ ", "!! ", "mrw: ")
+# A served range opens with `@@ A-B`; its B-A+1 lines follow, numbered `N| ` unless the read used -N.
+MRW_RANGE = re.compile(r"^@@ (\d+)(?:-(\d+))?")
+MRW_WITHHELD = re.compile(r"^!! \d+ more line")
 
 
 def mrw_output(s, ts, call, text):
@@ -165,13 +166,23 @@ def mrw_output(s, ts, call, text):
         if isinstance(doc, dict) and isinstance(doc.get("content"), str):
             text = doc["content"]
     cs.parse_mrw_output(Recorder(s, ts, True), text)
-    path = None
+    # Only the lines a range promised are content: a header, a withheld note or the end of the range
+    # closes it, so a write receipt or a note after a read is never counted. A line is numbered only
+    # when its number is the one expected, so `-N` content that looks numbered is kept whole.
+    left = expect = 0
     for line in text.split("\n"):
-        if cs.MRW_HEAD.match(line):
-            path = line
-        elif path is not None and line and not line.startswith(MRW_FRAME):
+        r = MRW_RANGE.match(line)
+        if cs.MRW_HEAD.match(line) or MRW_WITHHELD.match(line):
+            left = 0
+        elif r:
+            expect = int(r.group(1))
+            left = int(r.group(2) or r.group(1)) - expect + 1
+        elif left > 0 and not line.startswith("-- ck "):
             m = cs.MRW_LINE.match(line)
-            s.guard["mrw_served_chars"] += (len(m.group(2)) if m else len(line)) + 1
+            numbered = m is not None and int(m.group(1)) == expect
+            s.guard["mrw_served_chars"] += (len(m.group(2)) if numbered else len(line)) + 1
+            left -= 1
+            expect += 1
     args = GUARD_ARG.findall(call or "")
     if args:
         s.guard["calls"] += 1

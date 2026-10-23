@@ -77,13 +77,20 @@ def claude_tree(root):
     # a guarded call answered unchanged: one line, no served line, 310 bytes withheld
     main += [cl_use(14, 12, "Bash", {"command": "mrw read --if-changed a.py=deadbeef a.py:1-10"}),
              cl_res(14.5, 12, "==> /p/a.py  unchanged since sha deadbeef — 10 lines, 310 bytes not served")]
-    # an unnumbered read (-N) that served two lines, beside a guarded path holding a space, unchanged
+    # an unnumbered read (-N): a blank line, a line that looks like a note and one that looks numbered
+    # are all content, beside a guarded path holding a space, unchanged
     main += [cl_use(15, 13, "Bash", {"command": "mrw read -N --if-changed 'a file.go=deadbeef' x.txt 'a file.go'"}),
-             cl_res(15.5, 13, "==> /p/x.txt  2L  8B  sha abcdef12\nfoo\nbar\n"
+             cl_res(15.5, 13, "==> /p/x.txt  5L  31B  sha abcdef12\n@@ 1-5\nhi\n\nho\n-- comment\n123| literal\n"
                     "==> a file.go  unchanged since sha deadbeef — 3 lines, 40 bytes not served")]
     # a --json answer, read as its content: one numbered line served
     main += [cl_use(16, 14, "Bash", {"command": "mrw read --json --if-changed y.txt=deadbeef y.txt"}),
-             cl_res(16.5, 14, json.dumps({"content": "==> /p/y.txt  1L  3B  sha abcdef12\n    1| hi\n", "receipt": {}}))]
+             cl_res(16.5, 14, json.dumps({"content": "==> /p/y.txt  1L  3B  sha abcdef12\n@@ 1-1\n    1| hi\n",
+                                          "receipt": {}}))]
+    # a read and a write in one call: the write's receipt is not served text
+    main += [cl_use(17, 15, "Bash", {"command": "mrw read z.txt:1 && mrw write --no-check -"}),
+             cl_res(17.5, 15, "==> /p/z.txt  1L  3B  sha abcdef12\n@@ 1-1\n    1| ok\n"
+                    "ok   z.txt 1 replace  -1 +1\nwrote z.txt  1L -> 1L  sha 12345678\n"
+                    "1 hunk(s), 1 file(s), 0 failed, 0 advisories — applied")]
     sub1 = [{"type": "user", "timestamp": iso(10), "isSidechain": True,
              "message": {"role": "user", "content": "go explore b.py"}}]
     sub1 += cl_read(10.2, 1, "/p/b.py", B)                   # parent had it: savable
@@ -251,8 +258,10 @@ def main():
     m1 = cl["main"]["M1"]["visible_chars"]
     want = {
         # Claude: M2 strict is copy-study's rule; the sed read only reaches the extended pool
+        # (copy-study's parser, reused unchanged, reads the -N line `123| literal` as numbered line 123)
         "claude strict served": (cl["main"]["M2"]["strict"]["served_chars"],
-                                 4 * c(A) + c(B) + c(B[:2]) + c(A[:1]) + c(B[:1]) + c(["zeta"]) + c(["hi"])),
+                                 4 * c(A) + c(B) + c(B[:2]) + c(A[:1]) + c(B[:1]) + c(["zeta"]) + c(["hi"])
+                                 + c(["literal"]) + c(["ok"])),
         "claude strict within": (cl["main"]["M2"]["strict"]["within_epoch_chars"],
                                  c(A) + c(B[:2]) + c(A[:1]) + c(B[:1])),
         "claude strict cross": (cl["main"]["M2"]["strict"]["cross_epoch_chars"], c(A)),
@@ -270,7 +279,7 @@ def main():
         "claude prose": (m1["prose"], len("Hello world")),
         "claude write new/old": ((m1["write_new"], m1["write_old"]), (3 + 6, 4)),
         "claude subagent prompt": (m1["subagent_prompt"], len(json.dumps(AGENT_INPUT))),
-        "claude reported": (cl["main"]["M1"]["reported_output_tokens"], 1000 + 14 * 100),
+        "claude reported": (cl["main"]["M1"]["reported_output_tokens"], 1000 + 15 * 100),
         # ADR-169's adoption counts: four guarded calls, two unchanged answers and what they withheld
         # (a path holding a space included), the chars mrw served — numbered, unnumbered (-N) and inside
         # a --json answer — and the guard arguments typed, a quoted one whole
@@ -279,7 +288,8 @@ def main():
                           cl["main"]["M2"]["ext"]["guard_mrw_served_chars"]),
                          (4, 2, 350, 2 * len("--if-changed a.py=deadbeef") + len("--if-changed 'a file.go=deadbeef'")
                           + len("--if-changed y.txt=deadbeef"),
-                          c(A[:1]) + c(B[:1]) + c(["zeta"]) + c(["foo", "bar"]) + c(["hi"]))),
+                          c(A[:1]) + c(B[:1]) + c(["zeta"]) + c(["hi", "", "ho", "-- comment", "123| literal"])
+                          + c(["hi"]) + c(["ok"]))),
         "claude M3 parent": (cl["subagent"]["M3"]["parent_savable_chars"], 3 * c(B)),
         "claude M3 sibling": (cl["subagent"]["M3"]["sibling_overlap_chars"], 2 * c(B)),
         "claude M3 served": (cl["subagent"]["M3"]["served_chars"], 3 * c(B) + c(A)),
