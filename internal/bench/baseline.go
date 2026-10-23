@@ -1,6 +1,7 @@
 package bench
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -10,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strings"
 	"time"
 )
 
@@ -69,28 +71,83 @@ func Baseline(o BaselineOptions) error {
 	if exists(path) {
 		return fmt.Errorf("%s holds a baseline already: one run decides, so it is not run again", path)
 	}
+	// The rows of a run that stopped are kept as they finish, and a rerun
+	// skips those instances: a check, once run, is never run again.
+	partial := filepath.Join(o.Out, "baseline.partial.json")
+	done, err := loadPartial(partial)
+	if err != nil {
+		return err
+	}
 	if err := sweepContainers(o.Docker, o.Stage); err != nil {
 		return err
 	}
 	var rows []BaselineRow
 	for _, t := range o.Tasks {
+		if i := slices.IndexFunc(done, func(r BaselineRow) bool { return r.Instance == t.ID }); i >= 0 {
+			rows = append(rows, done[i])
+			continue
+		}
 		row, err := baselineOne(o, t, checks.byRepo[t.Repo].Command)
-		if err != nil {
+		var dropped dropError
+		if err != nil && !errors.As(err, &dropped) {
 			return err
 		}
 		rows = append(rows, row)
+		if serr := savePartial(partial, rows); serr != nil {
+			return serr
+		}
+		if err != nil {
+			return err
+		}
 	}
-	b, err := json.MarshalIndent(map[string]any{"stage": o.Stage, "checks_sha256": checks.SHA256, "instances": rows}, "", "  ")
+	b, err := json.MarshalIndent(rows, "", "  ")
 	if err != nil {
 		return err
 	}
 	if err := writeOnce(path, append(b, '\n')); err != nil {
 		return err
 	}
+	if err := os.Remove(partial); err != nil && !os.IsNotExist(err) {
+		return err
+	}
 	if o.Surviving == "" {
 		return nil
 	}
 	return writeSurviving(o, rows)
+}
+
+// dropError is an image that would not drop after its instance's row was
+// complete: the row is kept, the stage stops.
+type dropError struct{ error }
+
+// loadPartial reads the rows an earlier run of this directory finished.
+func loadPartial(path string) ([]BaselineRow, error) {
+	b, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var rows []BaselineRow
+	if err := json.Unmarshal(b, &rows); err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
+	}
+	return rows, nil
+}
+
+// savePartial rewrites the finished rows whole, through a rename, so a stop
+// leaves the earlier file or the new one and never half of either.
+func savePartial(path string, rows []BaselineRow) error {
+	b, err := json.MarshalIndent(rows, "", "  ")
+	if err != nil {
+		return err
+	}
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, append(b, '\n'), 0o644); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
 }
 
 // baselineOne runs one instance's check. A failure of the instance itself is a
@@ -105,7 +162,7 @@ func baselineOne(o BaselineOptions, t Task, command string) (row BaselineRow, er
 		}
 		defer func() {
 			if derr := o.SWE.drop(image); derr != nil && err == nil {
-				err = derr
+				err = dropError{derr}
 			}
 		}()
 	}
@@ -137,7 +194,10 @@ func baselineOne(o BaselineOptions, t Task, command string) (row BaselineRow, er
 	}
 	script := "if ! " + activateTestbed + " >/dev/null 2>&1; then echo bench baseline: the testbed environment did not activate 1>&2; exit 126; fi; " + command
 	start := time.Now()
-	runErr := exec.Command(o.Docker, "exec", "-w", testbed, box.name, "bash", "-c", script).Run()
+	var stderr bytes.Buffer
+	cmd := exec.Command(o.Docker, "exec", "-w", testbed, box.name, "bash", "-c", script)
+	cmd.Stderr = &stderr
+	runErr := cmd.Run()
 	row.WallMS = time.Since(start).Milliseconds()
 	var ee *exec.ExitError
 	switch {
@@ -145,10 +205,21 @@ func baselineOne(o BaselineOptions, t Task, command string) (row BaselineRow, er
 		row.Green, row.ExitCode = true, 0
 	case errors.As(runErr, &ee):
 		row.ExitCode = ee.ExitCode()
+		// docker's own 125, a failed activation's 126 and a missing command's
+		// 127 mean the check never ran: the reason is what stderr said last.
+		if slices.Contains([]int{125, 126, 127}, row.ExitCode) {
+			row.Reason = fmt.Sprintf("exit %d: %s", row.ExitCode, lastLine(stderr.String()))
+		}
 	default:
 		row.Reason = runErr.Error()
 	}
 	return row, nil
+}
+
+// lastLine is the last non-empty line of s.
+func lastLine(s string) string {
+	lines := strings.Split(strings.TrimSpace(s), "\n")
+	return strings.TrimSpace(lines[len(lines)-1])
 }
 
 // writeSurviving writes the green instances, in the selection's order, as a

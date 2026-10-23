@@ -56,11 +56,11 @@ func newBaselineRig(t *testing.T, statuses ...[2]string) *baselineRig {
 
 func (r *baselineRig) rows(t *testing.T) []BaselineRow {
 	t.Helper()
-	var f struct{ Instances []BaselineRow }
-	if err := readJSON(filepath.Join(r.opts.Out, "baseline.json"), &f); err != nil {
+	var rows []BaselineRow
+	if err := readJSON(filepath.Join(r.opts.Out, "baseline.json"), &rows); err != nil {
 		t.Fatal(err)
 	}
-	return f.Instances
+	return rows
 }
 
 // TestTheBaselineRecordsGreenRedAndTime: a declared check exiting 0 on the
@@ -120,6 +120,60 @@ func TestTheBaselineRecordsGreenRedAndTime(t *testing.T) {
 	}
 	if g := f.rows(t)[0]; g.Green || g.ExitCode != -1 || !strings.Contains(g.Reason, "boom") {
 		t.Errorf("a container that cannot start: %+v, want red, exit -1 and the reason", g)
+	}
+}
+
+// TestABaselineWhoseCheckNeverStartedKeepsItsReason: a testbed environment
+// that does not activate (exit 126) is red with a reason saying so, not a bare
+// exit code.
+func TestABaselineWhoseCheckNeverStartedKeepsItsReason(t *testing.T) {
+	r := newBaselineRig(t, [2]string{"i-sick", "exit 0"})
+	if err := os.Remove(filepath.Join(r.root, "opt", "miniconda3", "bin", "activate")); err != nil {
+		t.Fatal(err)
+	}
+	if err := Baseline(r.opts); err != nil {
+		t.Fatal(err)
+	}
+	if g := r.rows(t)[0]; g.Green || g.ExitCode != 126 || !strings.Contains(g.Reason, "did not activate") {
+		t.Errorf("an environment that does not activate: %+v, want red, exit 126 and the reason", g)
+	}
+}
+
+// TestABaselineThatStopsKeepsItsRowsAndResumes: an image that will not drop
+// after the first instance's check stops the stage with that row saved in
+// baseline.partial.json; a rerun does not run that check again and completes,
+// and the partial file is gone.
+func TestABaselineThatStopsKeepsItsRowsAndResumes(t *testing.T) {
+	r := newBaselineRig(t, [2]string{"i-one", "exit 0"}, [2]string{"i-two", "exit 2"}, [2]string{"i-three", "exit 0"})
+	put(t, filepath.Join(r.root, "fail-rm"), "", 0o644)
+	if err := Baseline(r.opts); err == nil || !strings.Contains(err.Error(), "rm boom") {
+		t.Fatalf("a stage whose image would not drop: %v", err)
+	}
+	var kept []BaselineRow
+	if err := readJSON(filepath.Join(r.opts.Out, "baseline.partial.json"), &kept); err != nil || len(kept) != 1 || kept[0].Instance != "i-one" || !kept[0].Green {
+		t.Fatalf("the rows kept: %+v, %v, want i-one", kept, err)
+	}
+	if exists(filepath.Join(r.opts.Out, "baseline.json")) {
+		t.Fatal("a stopped stage wrote baseline.json")
+	}
+	if err := os.Remove(filepath.Join(r.root, "fail-rm")); err != nil {
+		t.Fatal(err)
+	}
+	if err := Baseline(r.opts); err != nil {
+		t.Fatal(err)
+	}
+	if n := len(r.callsMatching("run -d", "bench-baseline.i-one-")); n != 1 {
+		t.Errorf("i-one was started %d times, want once: a finished check is not run again", n)
+	}
+	if n := len(r.callsMatching("exec", "sh status")); n != 3 {
+		t.Errorf("%d check runs for 3 instances", n)
+	}
+	rows := r.rows(t)
+	if len(rows) != 3 || rows[0].Instance != "i-one" || rows[1].ExitCode != 2 || !rows[2].Green {
+		t.Errorf("the completed baseline: %+v", rows)
+	}
+	if exists(filepath.Join(r.opts.Out, "baseline.partial.json")) {
+		t.Error("the partial file outlived the baseline")
 	}
 }
 
