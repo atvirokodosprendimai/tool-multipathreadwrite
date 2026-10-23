@@ -300,6 +300,7 @@ func TestTheChecksTableNamesARepositorySourceForEveryPoolRepository(t *testing.T
 		"options set through env":                   {"astropy/astropy", set("command", "env PYTEST_ADDOPTS=-kfoo pytest")},
 		"last-failed":                               {"astropy/astropy", set("command", "pytest --lf")},
 		"a deselection":                             {"astropy/astropy", set("command", "pytest --deselect=x")},
+		"stepwise-skip, which enables --stepwise":   {"astropy/astropy", set("command", "pytest --stepwise-skip")},
 	} {
 		if _, err := LoadChecks(tableWith(t, tc.repo, tc.edit), repos); err == nil || !strings.Contains(err.Error(), tc.repo) {
 			t.Errorf("%s: %v, want a refusal naming %s", name, err, tc.repo)

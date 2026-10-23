@@ -45,7 +45,7 @@ var (
 	// selectors are pytest's options that run a subset of the collected
 	// tests, matched on the option name before any `=`.
 	selectors = map[string]bool{"--keyword": true, "--deselect": true, "--ignore": true, "--ignore-glob": true,
-		"--lf": true, "--last-failed": true, "--sw": true, "--stepwise": true}
+		"--lf": true, "--last-failed": true, "--sw": true, "--stepwise": true, "--sw-skip": true, "--stepwise-skip": true}
 )
 
 // LoadChecks reads the table and refuses it unless every entry has a source
