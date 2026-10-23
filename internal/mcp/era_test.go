@@ -242,7 +242,8 @@ func jsonInner(s string) string {
 // and once by ADR-161 T9, whose read gained `sub`, `rewrite` and `quiet` and whose write gained `grep`, `sub`,
 // `ast_grep`, `rewrite`, `exclude` and `no_ignore` and no longer requires `plan`: those input properties
 // and the `plan` description's lead, and the instructions' recipes with the prose cut to keep the
-// 4096-byte bound. No answer to a call changed: the transcript holds only initialize and tools/list.
+// 4096-byte bound; and once by ADR-169, whose read gained `if_changed`: that input property, nothing
+// else. No answer to a call changed: the transcript holds only initialize and tools/list.
 func TestALegacyResultIsUnchangedByTheModernPath(t *testing.T) {
 	got := legacyTranscript(t)
 	golden := filepath.Join("testdata", "legacy_golden.jsonl")

@@ -1,12 +1,14 @@
 package mcp
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/apply"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
 )
 
@@ -161,6 +163,9 @@ func TestTheReadReceiptMatchesItsSchema(t *testing.T) {
 	observed, _ := props["observed"].(map[string]any)
 	entry, _ := observed["additionalProperties"].(map[string]any)
 	entryProps, _ := entry["properties"].(map[string]any)
+	unchanged, _ := props["unchanged"].(map[string]any)
+	unchangedItems, _ := unchanged["items"].(map[string]any)
+	unchangedProps, _ := unchangedItems["properties"].(map[string]any)
 	if len(props) == 0 || len(entryProps) == 0 {
 		t.Fatalf("readSchema declares no properties to compare: %v", schema)
 	}
@@ -190,6 +195,16 @@ func TestTheReadReceiptMatchesItsSchema(t *testing.T) {
 	t.Cleanup(func() { MaxResultChars = old })
 	answers["index page"] = call(t, pageRoot, "mrw_read", map[string]any{"grep": "NEEDLE"})
 
+	// ADR-169: a guarded read carries `unchanged`, built by the one composer the
+	// CLI's --json receipt shares.
+	js, err := json.Marshal(ReadReceipt(map[string]seen.Observation{}, 0, read.WalkSkipped{}, nil, []read.Unchanged{{Path: "a.txt", SHA: "8dc37337", Lines: 2, Bytes: 8}}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	answers["unchanged"] = map[string]any{"content": []any{
+		map[string]any{"type": "text", "text": "==> a.txt  unchanged since sha 8dc37337 — 2 lines, 8 bytes not served\n"},
+		map[string]any{"type": "text", "text": string(js)},
+	}}
 	carried := map[string]bool{}
 	for name, res := range answers {
 		rc := receipt(t, res)
@@ -219,6 +234,16 @@ func TestTheReadReceiptMatchesItsSchema(t *testing.T) {
 				carried["observed."+k] = true
 			}
 		}
+		items, _ := rc["unchanged"].([]any)
+		for _, raw := range items {
+			o, _ := raw.(map[string]any)
+			for k := range o {
+				if _, ok := unchangedProps[k]; !ok {
+					t.Errorf("%s: unchanged[] carries %q, which readSchema does not declare", name, k)
+				}
+				carried["unchanged."+k] = true
+			}
+		}
 	}
 	for k := range props {
 		if !carried[k] {
@@ -228,6 +253,11 @@ func TestTheReadReceiptMatchesItsSchema(t *testing.T) {
 	for k := range entryProps {
 		if !carried["observed."+k] {
 			t.Errorf("readSchema declares observed.%s, and none of the %d receipts carries it", k, len(answers))
+		}
+	}
+	for k := range unchangedProps {
+		if !carried["unchanged."+k] {
+			t.Errorf("readSchema declares unchanged[].%s, and none of the %d receipts carries it", k, len(answers))
 		}
 	}
 }
@@ -260,6 +290,19 @@ func readSchema() map[string]any {
 			"counts": map[string]any{
 				"type":                 "object",
 				"additionalProperties": map[string]any{"type": "integer"},
+			},
+			// Present only on a read that answered a spec unchanged (ADR-169).
+			"unchanged": map[string]any{
+				"type": "array",
+				"items": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"path":  map[string]any{"type": "string"},
+						"sha":   map[string]any{"type": "string"},
+						"lines": map[string]any{"type": "integer"},
+						"bytes": map[string]any{"type": "integer"},
+					},
+				},
 			},
 			// Present only on a grep walk that skipped something (ADR-116).
 			"skipped": map[string]any{
@@ -297,4 +340,9 @@ var readDescriptions = map[string]string{
 	"skipped.nested":       "Directories below the checkout holding their own .git — another repository, a submodule, a worktree — not entered, as git does not (ADR-130).",
 	"skipped.unkeepable":   "Files whose names Windows will not keep — a reserved device name, or a trailing dot or space — found by the walk and refused by their spelling; counted, never served, and no_ignore does not walk them. Windows builds only (ADR-135).",
 	"skipped.linked_dirs":  "Links (symlinks, and on Windows junctions) to a directory that resolve inside the root and that the walk does not follow, counted rather than dropped in silence (ADR-138); no flag follows a link, name the directory it leads to. A link that leaves the root is not counted.",
+	"unchanged":            "The specs this call answered with one line, `==> PATH  unchanged since sha SHA — N lines, B bytes not served`, because the file still had the sha the call's `if_changed` named (ADR-169). Absent when no spec was. An unchanged spec served no line, so it licenses nothing and has no checkpoint; a spec of a changed file is served and is in `observed` as any read is.",
+	"unchanged.path":       "The file's path as the spec named it.",
+	"unchanged.sha":        "The sha prefix the caller gave, as it gave it (8 to 64 hex digits of the file's sha256).",
+	"unchanged.lines":      "How many lines this spec would have served.",
+	"unchanged.bytes":      "How many bytes those lines hold, line endings included.",
 }

@@ -609,7 +609,25 @@ two runs, identical counts), share of all served chars, with this run's within-e
 
 **The bar is met** on Claude Code and Cursor. Next: ADR-169, the guard, for Zy's acceptance. The ceiling
 counts every host read, not only reads through mrw, and assumes the caller held the sha; both are the
-ADR's to price.
+ADR's to price. ADR-169 was accepted 2026-10-23; its adoption bar is the next entry.
+
+## Pre-registered for ADR-169 (adoption) — written before the release that ships `--if-changed`
+
+Measured once, 14 days after that release's tag, by `docs/bench/context-study/scan.py` at the commit
+that wrote this entry (its `M2.ext.guard_*` counts), over the transcripts on this Mac whose sessions
+start on or after the tag's date and within 14 days of it — Claude Code, Codex and Cursor IDE.
+
+- **Numerator:** the sum of `B` over `unchanged since sha … — N lines, B bytes not served` lines in that
+  cohort: what the guard withheld, read from mrw's own line.
+- **Denominator:** the chars mrw served in the cohort — mrw output and `mrw_read` answers only, not the
+  hosts' own reads — plus the numerator.
+- **Cost, reported beside it and not netted:** the chars of the `--if-changed` / `if_changed` arguments
+  typed.
+- **Keep** the guard if the share is at least 1.0% on Claude Code or Cursor IDE.
+- **Deprecate** it (ADR-169 Rollback: the taught lines go, the flag keeps working, removal waits for a
+  major version) if the share is below 1.0% on both, each with at least 1,000,000 mrw-served chars.
+- **Inconclusive** on a host with fewer: the window is extended once by 14 days; still inconclusive,
+  the numbers go to Zy, who decides.
 
 ## Findings filed from memoryd (2026-10-21)
 

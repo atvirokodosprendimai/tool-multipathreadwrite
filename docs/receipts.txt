@@ -232,6 +232,11 @@ mcp_read skipped.nested
 mcp_read skipped.unkeepable
 mcp_read skipped.linked_dirs
 mcp_read counts
+mcp_read unchanged
+mcp_read unchanged[].bytes
+mcp_read unchanged[].lines
+mcp_read unchanged[].path
+mcp_read unchanged[].sha
 read content
 read receipt
 read_refusal error

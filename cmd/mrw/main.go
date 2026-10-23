@@ -866,6 +866,10 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				Name:  "quiet",
 				Usage: "license what the read serves and print none of it: each file's header and `-- licensed N line(s) in M file(s)`, counting what this read licensed (not what earlier reads did), for lines you already know. A read whose answer goes to the null device licenses nothing; this is the way to license without reading. Not with --count, --stat or --sub (ADR-161)",
 			},
+			&cli.StringSliceFlag{
+				Name:  "if-changed",
+				Usage: "`PATH=SHA`, repeatable, one per file: answer each spec of PATH with one line, `==> PATH  unchanged since sha SHA — N lines, B bytes not served`, instead of its text when the file still has that sha (8 to 64 hex digits of its sha256, the 8 a header prints are enough), and serve it as ever when it changed. An unchanged answer records nothing, so it licenses no write; a range it would not have served is still reported. The flag splits its value on commas, as --exclude does, so a PATH holding one cannot be guarded (ADR-169)",
+			},
 		},
 		Action: func(_ context.Context, cmd *cli.Command) (retErr error) {
 			// ADR-165: under --json a refusal before the answer is one document,
@@ -1031,6 +1035,23 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 					}
 				}
 			}
+			// ADR-169: a guard judges the bytes of a file a read serves, so the
+			// reads that serve no line or exist to license have nothing for it.
+			var guards []read.Guard
+			if cmd.IsSet("if-changed") {
+				for _, f := range []string{"count", "stat", "quiet", "sub", "rewrite"} {
+					if cmd.IsSet(f) {
+						return cli.Exit(fmt.Sprintf("--if-changed answers a spec whose file did not change, and --%s serves no line or exists to license: drop one", f), exitUsage)
+					}
+				}
+				for _, v := range cmd.StringSlice("if-changed") {
+					g, guardErr := read.ParseGuard(v)
+					if guardErr != nil {
+						return cli.Exit("--if-changed "+guardErr.Error(), exitUsage)
+					}
+					guards = append(guards, g)
+				}
+			}
 			// A glob that can never match is refused at parse time rather than
 			// silently matching nothing: one path.Match rejects, or one spelled
 			// so no root-relative path can match it (read.CheckExclude, shared
@@ -1151,6 +1172,16 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 					specs = append(specs, sp)
 				}
 			}
+			var ifChanged map[string]string
+			if len(guards) > 0 {
+				var unused []string
+				if ifChanged, unused, err = read.ResolveGuards(root, guards, specs, grepSet || astSet); err != nil {
+					return cli.Exit("--if-changed: "+err.Error(), exitUsage)
+				}
+				for _, p := range unused {
+					fmt.Fprintf(os.Stderr, "-- guard not used: %s (this read did not serve it)\n", p)
+				}
+			}
 			// ADR-078: -C widens a single /pattern/ match and nothing else, so on
 			// a call with none it changed nothing, silently: `mrw read -C 1 a.go:2`
 			// served line 2 alone. Refused, as --exclude without --grep is: a flag
@@ -1258,20 +1289,23 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			}
 
 			var counts map[string]int
+			var unchanged []read.Unchanged
 			if cmd.Bool("count") {
 				counts = map[string]int{}
 			}
 			observed, problems := read.Run(stdout, root, specs, read.Options{
-				Numbers:  !cmd.Bool("no-numbers"),
-				Stat:     cmd.Bool("stat"),
-				Context:  cmd.Int("context"),
-				MaxLines: maxLines(cmd),
-				MaxCols:  cmd.Int("max-cols"),
-				Count:    cmd.Bool("count"),
-				Counts:   counts,
-				Quiet:    cmd.Bool("quiet"),
-				NextLine: true,
-				Withheld: &withheld,
+				Numbers:   !cmd.Bool("no-numbers"),
+				Stat:      cmd.Bool("stat"),
+				Context:   cmd.Int("context"),
+				MaxLines:  maxLines(cmd),
+				MaxCols:   cmd.Int("max-cols"),
+				Count:     cmd.Bool("count"),
+				Counts:    counts,
+				Quiet:     cmd.Bool("quiet"),
+				NextLine:  true,
+				Withheld:  &withheld,
+				IfChanged: ifChanged,
+				Unchanged: &unchanged,
 			})
 			skipNote()
 			// The answer reaches the caller BEFORE anything is recorded (ADR-088).
@@ -1283,7 +1317,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			}
 			_, _ = os.Stderr.Write(withheld.Bytes())
 			if cmd.Bool("json") {
-				if err := document(mcp.ReadReceipt(observed, problems+len(refusals), skipped, counts)); err != nil {
+				if err := document(mcp.ReadReceipt(observed, problems+len(refusals), skipped, counts, unchanged)); err != nil {
 					return err
 				}
 			}

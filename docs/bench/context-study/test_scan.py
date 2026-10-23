@@ -69,10 +69,14 @@ def claude_tree(root):
     main += [cl_use(8.5, 9, "Bash", {"command": CREATE})]   # a create body counts once: 6 chars
     main += [cl_use(9, 7, "Agent", AGENT_INPUT)]
     main += cl_read(12, 8, "/p/a.py", A)                    # after the write: not redundant
-    # one mrw call: a.py:1 and b.py:1 re-served, then a.py:11 new; only b.py is a whole-file re-serve
-    main += [cl_use(13, 11, "Bash", {"command": "mrw read a.py:1 b.py:1 a.py:11"}),
+    # one mrw call: a.py:1 and b.py:1 re-served, then a.py:11 new; only b.py is a whole-file re-serve.
+    # It carries an --if-changed guard that a.py's change defeated, so its lines are served (ADR-169).
+    main += [cl_use(13, 11, "Bash", {"command": "mrw read --if-changed a.py=deadbeef a.py:1 b.py:1 a.py:11"}),
              cl_res(13.5, 11, "==> /p/a.py\n@@ 1-1\n    1| %s\n==> /p/b.py\n@@ 1-1\n    1| %s\n"
                     "==> /p/a.py\n@@ 11-11\n   11| zeta" % (A[0], B[0]))]
+    # a guarded call answered unchanged: one line, no served line, 310 bytes withheld
+    main += [cl_use(14, 12, "Bash", {"command": "mrw read --if-changed a.py=deadbeef a.py:1-10"}),
+             cl_res(14.5, 12, "==> /p/a.py  unchanged since sha deadbeef — 10 lines, 310 bytes not served")]
     sub1 = [{"type": "user", "timestamp": iso(10), "isSidechain": True,
              "message": {"role": "user", "content": "go explore b.py"}}]
     sub1 += cl_read(10.2, 1, "/p/b.py", B)                   # parent had it: savable
@@ -259,7 +263,13 @@ def main():
         "claude prose": (m1["prose"], len("Hello world")),
         "claude write new/old": ((m1["write_new"], m1["write_old"]), (3 + 6, 4)),
         "claude subagent prompt": (m1["subagent_prompt"], len(json.dumps(AGENT_INPUT))),
-        "claude reported": (cl["main"]["M1"]["reported_output_tokens"], 1000 + 11 * 100),
+        "claude reported": (cl["main"]["M1"]["reported_output_tokens"], 1000 + 12 * 100),
+        # ADR-169's adoption counts: two guarded calls, one unchanged answer and what it withheld, the
+        # chars mrw served (the call at 13 only), and the guard arguments typed
+        "claude guard": ((cl["main"]["M2"]["ext"]["guard_calls"], cl["main"]["M2"]["ext"]["guard_unchanged_answers"],
+                          cl["main"]["M2"]["ext"]["guard_withheld_bytes"], cl["main"]["M2"]["ext"]["guard_arg_chars"],
+                          cl["main"]["M2"]["ext"]["guard_mrw_served_chars"]),
+                         (2, 1, 310, 2 * len("--if-changed a.py=deadbeef"), c(A[:1]) + c(B[:1]) + c(["zeta"]))),
         "claude M3 parent": (cl["subagent"]["M3"]["parent_savable_chars"], 3 * c(B)),
         "claude M3 sibling": (cl["subagent"]["M3"]["sibling_overlap_chars"], 2 * c(B)),
         "claude M3 served": (cl["subagent"]["M3"]["served_chars"], 3 * c(B) + c(A)),

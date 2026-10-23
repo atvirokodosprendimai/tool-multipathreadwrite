@@ -93,6 +93,7 @@ class Sess:
         self.tool_ids = set()
         self.tools = 0
         self.flags = collections.Counter()
+        self.guard = collections.Counter()    # ADR-169's --if-changed: calls, answers, what they withheld
 
     def serve(self, ts, path, n, text, strict):
         if path:
@@ -147,6 +148,30 @@ class Tracker(cs.Session):
 
 
 # ------------------------------------------------------- shared parsing
+
+UNCHANGED = re.compile(r"^==> \S+  unchanged since sha \S+ — (\d+) lines?, (\d+) bytes? not served$", re.M)
+GUARD_ARG = re.compile(r"--if-changed[ =]\S+|\"if_changed\"\s*:\s*\{[^}]*\}")
+
+
+def mrw_output(s, ts, call, text):
+    """An mrw answer: its served lines as serves, and for ADR-169's adoption bar the chars it served, the
+    guard arguments the call typed, and what each `unchanged since sha` line withheld."""
+    cs.parse_mrw_output(Recorder(s, ts, True), text)
+    path = None
+    for line in text.split("\n"):
+        if cs.MRW_HEAD.match(line):
+            path = line
+        elif path is not None and not line.startswith("-- ck ") and not line.startswith("@@ "):
+            m = cs.MRW_LINE.match(line)
+            if m:
+                s.guard["mrw_served_chars"] += len(m.group(2)) + 1
+    args = GUARD_ARG.findall(call or "")
+    if args:
+        s.guard["calls"] += 1
+        s.guard["arg_chars"] += sum(len(a) for a in args)
+    for m in UNCHANGED.finditer(text):
+        s.guard["unchanged_answers"] += 1
+        s.guard["withheld_bytes"] += int(m.group(2))
 
 def is_write_heredoc(cmd, body):
     return cs.is_plan(body) or "mrw write" in cmd or "--create" in cmd or bool(cs.CAT_HEREDOC.search(cmd)) \
@@ -454,7 +479,7 @@ def claude_session(path, kind):
                             isinstance(tur.get("file"), dict) else None
                         cs.parse_read_result(Recorder(s, ts, True), text, fp or inp.get("file_path"))
                     elif (name == "Bash" and "mrw" in (inp.get("command") or "")) or name.endswith("mrw_read"):
-                        cs.parse_mrw_output(Recorder(s, ts, True), text)
+                        mrw_output(s, ts, inp.get("command") or json.dumps(inp), text)
                     elif name == "Bash":
                         serve_inferred(s, ts, inp.get("command") or "", text)
     s.reported_output = sum(out_tokens.values())
@@ -673,7 +698,7 @@ def codex_session(path, meta):
             if items is not None and len(items) == len(cmds):     # one output item per exec_command call
                 for c, t in zip(cmds, items):
                     if "mrw" in c:
-                        cs.parse_mrw_output(Recorder(s, ts, True), t)
+                        mrw_output(s, ts, c, t)
                     else:
                         serve_inferred(s, ts, c, t)
                 continue
@@ -681,7 +706,7 @@ def codex_session(path, meta):
             if not text:
                 continue
             if any("mrw" in c for c in cmds):
-                cs.parse_mrw_output(Recorder(s, ts, True), text)
+                mrw_output(s, ts, " ".join(cmds), text)
             elif len(cmds) == 1:
                 serve_inferred(s, ts, cmds[0], text)
             else:
@@ -827,7 +852,7 @@ def cursor_tool(s, ts, tf, files_written):
         outp = result.get("output")
         if isinstance(outp, str) and outp:
             if "mrw" in cmd:
-                cs.parse_mrw_output(Recorder(s, ts, True), outp)
+                mrw_output(s, ts, cmd, outp)
             else:
                 serve_inferred(s, ts, cmd, outp)
     elif name in ("task_v2", "task"):
@@ -863,6 +888,8 @@ class Host:
             k["sessions_with_reasoning_count"] += 1
         elif s.reported_output and s.reported_output < cs.tokens(sum(s.out.values())):
             k["sessions_negative_residual"] += 1
+        for f, v in s.guard.items():
+            k["guard_" + f] += v
         for f, v in s.flags.items():
             k["flag_" + f] += v
         strict, ext = Tracker(), Tracker()
@@ -1070,6 +1097,11 @@ def view(k):
                                                                          k[f"{tag}_served_after_compaction"])}
     m2["ext"].update(whole_file_unchanged_within_chars=k["ext_whole_within"],
                      whole_file_unchanged_within_share=share(k["ext_whole_within"], k["ext_served"]))
+    m2["ext"].update(guard_calls=k["guard_calls"], guard_unchanged_answers=k["guard_unchanged_answers"],
+                     guard_withheld_bytes=k["guard_withheld_bytes"], guard_arg_chars=k["guard_arg_chars"],
+                     guard_mrw_served_chars=k["guard_mrw_served_chars"],
+                     guard_withheld_share=share(k["guard_withheld_bytes"],
+                                                k["guard_mrw_served_chars"] + k["guard_withheld_bytes"]))
     m2.update(compaction_records=k["compactions"], mid_session_compactions=k["mid_session_compactions"],
               sessions_with_mid_session_compaction=k["sessions_with_compaction"],
               sessions_rereading_after_compaction=k["sessions_rereading_after_compaction"])

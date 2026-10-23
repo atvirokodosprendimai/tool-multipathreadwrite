@@ -317,6 +317,11 @@ type readArgs struct {
 	Sub     *string `json:"sub"`
 	Rewrite *string `json:"rewrite"`
 	Quiet   bool    `json:"quiet"`
+	// IfChanged is `--if-changed` (ADR-169): a path to the sha prefix of its
+	// file the caller holds, so a spec of a file that still has it is answered
+	// in one line. A JSON object repeats no key, so two guards on one file can
+	// only differ in spelling, and read.ResolveGuards judges those.
+	IfChanged map[string]string `json:"if_changed"`
 	// has is which arguments the call sent, apart from their values.
 	has map[string]bool `json:"-"`
 }
@@ -389,6 +394,20 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	if msg := a.quietRefusal(); msg != "" {
 		return errorResult(msg), nil
 	}
+	// ADR-169: a guard judges the bytes of a file a read serves, so the reads
+	// that serve no line or exist to license have nothing for it. Before the
+	// plan makers, which return a plan and never reach the guard.
+	guards, guardErr := a.guards()
+	if guardErr != nil {
+		return errorResult("if_changed: " + guardErr.Error()), nil
+	}
+	if len(guards) > 0 {
+		for name, set := range map[string]bool{"count": a.Count, "stat": a.Stat, "quiet": a.Quiet, "sub": a.Sub != nil, "rewrite": a.Rewrite != nil} {
+			if set {
+				return errorResult(fmt.Sprintf("if_changed answers a spec whose file did not change, and %s serves no line or exists to license: drop one", name)), nil
+			}
+		}
+	}
 	if len(a.Specs) == 0 && !a.hasGrep() && !a.hasAst() {
 		return errorResult("mrw_read needs at least one spec"), nil
 	}
@@ -445,6 +464,10 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 			for _, p := range walkProblems {
 				report += fmt.Sprintf("\n-- %s: %s", p.Path, p.Reason)
 			}
+			if _, _, err := read.ResolveGuards(root, guards, nil, true); err != nil {
+				return errorResult("if_changed: " + err.Error()), nil
+			}
+			report += guardNotes(guardPaths(guards))
 			return readResult(NoMatchReceipt(len(walkProblems), skipped), report, len(walkProblems) > 0)
 		}
 	} else if a.Grep != "" {
@@ -467,6 +490,10 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 			for _, p := range walkProblems {
 				report += fmt.Sprintf("\n-- %s: %s", p.Path, p.Reason)
 			}
+			if _, _, err := read.ResolveGuards(root, guards, nil, true); err != nil {
+				return errorResult("if_changed: " + err.Error()), nil
+			}
+			report += guardNotes(guardPaths(guards))
 			return readResult(NoMatchReceipt(len(walkProblems), skipped), report, len(walkProblems) > 0)
 		}
 	} else {
@@ -480,6 +507,14 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 				return errorResult(fmt.Sprintf("%s: %v", s, err)), nil
 			}
 			specs = append(specs, sp)
+		}
+	}
+	var keyed map[string]string
+	var unusedGuards []string
+	if len(guards) > 0 {
+		var err error
+		if keyed, unusedGuards, err = read.ResolveGuards(root, guards, specs, walked); err != nil {
+			return errorResult("if_changed: " + err.Error()), nil
 		}
 	}
 	// A CAPPED writer, not a size check afterwards. The first version of this
@@ -517,7 +552,8 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	}
 	// NextLine only here: firstPage's pages are ranges whose continuation serves
 	// the line they end on, so a page must not add it (ADR-161 Decision 10).
-	observed, problems := read.Run(w, root, specs, read.Options{Numbers: true, Stat: a.Stat, MaxLines: a.MaxLines, MaxCols: a.MaxCols, Count: a.Count, Counts: counts, Stop: stop, Quiet: a.Quiet, NextLine: true})
+	var unchanged []read.Unchanged
+	observed, problems := read.Run(w, root, specs, read.Options{Numbers: true, Stat: a.Stat, MaxLines: a.MaxLines, MaxCols: a.MaxCols, Count: a.Count, Counts: counts, Stop: stop, Quiet: a.Quiet, NextLine: true, IfChanged: keyed, Unchanged: &unchanged})
 	_ = w.Flush()
 
 	// A result over the declared limit is REFUSED, not truncated.
@@ -590,6 +626,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	if note := read.SkipNote(skipped, "no_ignore"); note != "" {
 		report += "\n" + note
 	}
+	report += guardNotes(unusedGuards)
 	problems += len(walkProblems)
 
 	// ⚠ AND THE SERVED ANSWER IS BUDGETED, for the same reason the index is.
@@ -631,7 +668,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// ADR-024 removed the flag from answers that DELIVERED something; this restores
 	// it for the one case its enumeration missed, so :202 and this return agree
 	// rather than disagreeing on whether `grep` was passed.
-	served, rpcErr := readResult(ReadReceipt(observed, problems, skipped, counts), report, len(observed) == 0)
+	served, rpcErr := readResult(ReadReceipt(observed, problems, skipped, counts, unchanged), report, len(observed) == 0 && len(unchanged) == 0)
 	if rpcErr != nil {
 		return callToolResult{}, rpcErr
 	}
@@ -679,7 +716,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 			marked += newerLine(root)
 		}
 		if marked != report {
-			markedServed, markErr := readResult(ReadReceipt(observed, problems, skipped, counts), marked, false)
+			markedServed, markErr := readResult(ReadReceipt(observed, problems, skipped, counts, unchanged), marked, false)
 			if markErr != nil {
 				return callToolResult{}, markErr
 			}

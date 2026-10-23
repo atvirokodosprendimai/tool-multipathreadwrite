@@ -39,7 +39,7 @@ func TestTheReadReceiptIsComposedOnceForBothSurfaces(t *testing.T) {
 	sum := sha256.Sum256([]byte("alpha\nbravo\n"))
 	sha := hex.EncodeToString(sum[:])
 	observed := map[string]seen.Observation{filepath.FromSlash("d/f.txt"): {SHA: sha, Spans: [][2]int{{1, 2}}}}
-	b, err := json.Marshal(ReadReceipt(observed, 0, read.WalkSkipped{Binary: 1}, nil))
+	b, err := json.Marshal(ReadReceipt(observed, 0, read.WalkSkipped{Binary: 1}, nil, nil))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -66,6 +66,11 @@ this session.
 
 ## Decision
 
+⚠ **The clause below, "An answer that delivered none of what was asked for is an error", is AMENDED by
+ADR-169 (2026-10-23)**: a spec a guard answered `unchanged` is delivered, so the served-read return
+passes `len(observed) == 0 && len(unchanged) == 0`. A read that served nothing and answered nothing
+unchanged is still an error. See the Amendment at the end of this record.
+
 The served-read return at `internal/mcp/tools.go:320` passes `len(observed) == 0` instead of `false`.
 An answer that delivered none of what was asked for is an error; an answer that delivered anything is
 not, exactly as ADR-024 decided. This is ADR-024's own stated principle — *"an answer that delivered
@@ -174,3 +179,23 @@ no ledger format changes, so rollback is the one-line revert plus the row.
 ## Follow-ups
 
 - [ ] If a host is measured that truncates a flagged result at a few hundred characters, revisit the Decision's falsifiability paragraph rather than relaxing the test.
+
+## Amendment, 2026-10-23: a read answered unchanged is not one that served nothing (ADR-169)
+
+The Decision passes `len(observed) == 0` to the served-read return, on the principle that an answer
+which delivered none of what was asked for is an error. ADR-169 adds `if_changed` to `mrw_read`: a
+spec of a file whose sha the caller holds is answered with one line, `unchanged since sha …`, and
+records nothing, so a read whose every spec was answered so has an empty `observed` and delivered
+exactly what the caller asked: that the file is the one it already has.
+
+The condition becomes `len(observed) == 0 && len(unchanged) == 0`, where `unchanged` is the receipt's
+list of specs answered unchanged. The principle is unchanged and applied to the member this record's
+enumeration could not have named: an answer that delivered anything is not an error. ADR-024 found that
+a host may discard the content of an `isError` result, so an unchanged answer, which is a line long and
+is the whole answer, must not be one.
+
+Nothing else here moves. A read that served nothing and answered nothing unchanged, the wholly-unusable
+read this record was written about, is still `isError: true`, and `TestAReadThatServedNothingIsAnError`
+still passes. A call that sends no `if_changed` has an empty `unchanged` and answers as before.
+
+See `docs/adr/ADR-169-a-re-read-names-the-sha-it-saw.md`.
