@@ -153,7 +153,7 @@ class Tracker(cs.Session):
 UNCHANGED = re.compile(r"^==> (.+?)  unchanged since sha \S+ — (\d+) lines?, (\d+) bytes? not served$", re.M)
 GUARD_ARG = re.compile(r"--if-changed(?:=|\s+)(?:'[^']*'|\"[^\"]*\"|\S+)|\"if_changed\"\s*:\s*\{[^}]*\}")
 # A served range opens with `@@ A-B`; its B-A+1 lines follow, numbered `N| ` unless the read used -N.
-MRW_RANGE = re.compile(r"^@@ (\d+)(?:-(\d+))?")
+MRW_RANGE = re.compile(r"^@@ (\d+)(?:-(\d+))?$")    # the whole line: `@@ 1-5  WITHHELD …` served nothing
 MRW_WITHHELD = re.compile(r"^!! \d+ more line")
 
 
@@ -172,7 +172,7 @@ def mrw_output(s, ts, call, text):
     left = expect = 0
     for line in text.split("\n"):
         r = MRW_RANGE.match(line)
-        if cs.MRW_HEAD.match(line) or MRW_WITHHELD.match(line):
+        if cs.MRW_HEAD.match(line) or MRW_WITHHELD.match(line) or (line.startswith("@@ ") and not r):
             left = 0
         elif r:
             expect = int(r.group(1))

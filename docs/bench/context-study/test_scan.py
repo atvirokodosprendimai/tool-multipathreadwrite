@@ -91,6 +91,11 @@ def claude_tree(root):
              cl_res(17.5, 15, "==> /p/z.txt  1L  3B  sha abcdef12\n@@ 1-1\n    1| ok\n"
                     "ok   z.txt 1 replace  -1 +1\nwrote z.txt  1L -> 1L  sha 12345678\n"
                     "1 hunk(s), 1 file(s), 0 failed, 0 advisories — applied")]
+    # a range --max-lines withheld whole serves nothing, and the write receipt after it is not served text
+    main += [cl_use(18, 16, "Bash", {"command": "mrw read --max-lines 0 w.txt:1-5 && mrw write --no-check -"}),
+             cl_res(18.5, 16, "==> /p/w.txt  5L  20B  sha abcdef12\n@@ 1-5  WITHHELD 5 line(s): --max-lines reached\n"
+                    "ok   w.txt 1 replace  -1 +1\nwrote w.txt  5L -> 5L  sha 12345678\n"
+                    "1 hunk(s), 1 file(s), 0 failed, 0 advisories — applied")]
     sub1 = [{"type": "user", "timestamp": iso(10), "isSidechain": True,
              "message": {"role": "user", "content": "go explore b.py"}}]
     sub1 += cl_read(10.2, 1, "/p/b.py", B)                   # parent had it: savable
@@ -279,7 +284,7 @@ def main():
         "claude prose": (m1["prose"], len("Hello world")),
         "claude write new/old": ((m1["write_new"], m1["write_old"]), (3 + 6, 4)),
         "claude subagent prompt": (m1["subagent_prompt"], len(json.dumps(AGENT_INPUT))),
-        "claude reported": (cl["main"]["M1"]["reported_output_tokens"], 1000 + 15 * 100),
+        "claude reported": (cl["main"]["M1"]["reported_output_tokens"], 1000 + 16 * 100),
         # ADR-169's adoption counts: four guarded calls, two unchanged answers and what they withheld
         # (a path holding a space included), the chars mrw served — numbered, unnumbered (-N) and inside
         # a --json answer — and the guard arguments typed, a quoted one whole

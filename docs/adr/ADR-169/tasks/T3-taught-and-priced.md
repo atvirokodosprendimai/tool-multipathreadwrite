@@ -77,6 +77,7 @@ out=$(go test ./internal/guide/ ./cmd/mrw/ -count=1 -v -run '^(TestTheInstructio
 - 2026-10-23 · 99b3349c* · mutant killed · exit 1 · `docs/bench/context-study/scan.py` · a --json answer is not read as its content · acceptance-sha256:aa564d7e8d1bbad410b2415ccf6ffcb399a2a8fd60e813c1ed5c80c0b764ac15
 - 2026-10-23 · f7a4e512* · mutant killed · exit 1 · `docs/bench/context-study/scan.py` · -N content that looks numbered loses its prefix · acceptance-sha256:aa564d7e8d1bbad410b2415ccf6ffcb399a2a8fd60e813c1ed5c80c0b764ac15
 - 2026-10-23 · f7a4e512* · mutant killed · exit 1 · `docs/bench/context-study/scan.py` · a range never closes: a write receipt after a read is counted as served · acceptance-sha256:aa564d7e8d1bbad410b2415ccf6ffcb399a2a8fd60e813c1ed5c80c0b764ac15
+- 2026-10-23 · 370d7fd1* · mutant killed · exit 1 · `docs/bench/context-study/scan.py` · a withheld range (@@ 1-5  WITHHELD …) opens a served range · acceptance-sha256:aa564d7e8d1bbad410b2415ccf6ffcb399a2a8fd60e813c1ed5c80c0b764ac15
 
 ## Invariants
 
@@ -113,3 +114,5 @@ The fence exits 0 and S3's bar is registered.
 - 2026-10-23 · f7a4e512* · exit 0 · `set -o pipefail …` · acceptance-sha256:aa564d7e8d1bbad410b2415ccf6ffcb399a2a8fd60e813c1ed5c80c0b764ac15 · ms:1491
 - 2026-10-23 · f7a4e512* · exit 0 · `set -o pipefail …` · acceptance-sha256:aa564d7e8d1bbad410b2415ccf6ffcb399a2a8fd60e813c1ed5c80c0b764ac15 · ms:1323
 - 2026-10-23 · f7a4e512* · exit 0 · `set -o pipefail …` · acceptance-sha256:aa564d7e8d1bbad410b2415ccf6ffcb399a2a8fd60e813c1ed5c80c0b764ac15 · ms:494
+- 2026-10-23 · 370d7fd1* · exit 0 · `set -o pipefail …` · acceptance-sha256:aa564d7e8d1bbad410b2415ccf6ffcb399a2a8fd60e813c1ed5c80c0b764ac15 · ms:1838
+- 2026-10-23 · 370d7fd1* · exit 0 · `set -o pipefail …` · acceptance-sha256:aa564d7e8d1bbad410b2415ccf6ffcb399a2a8fd60e813c1ed5c80c0b764ac15 · ms:645
