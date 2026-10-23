@@ -61,6 +61,7 @@ def claude_tree(root):
     main += cl_read(2, 1, "/p/a.py", A)                     # served
     main += cl_read(3, 2, "/p/a.py", A)                     # within-epoch redundant
     main += [{"type": "system", "subtype": "compact_boundary", "timestamp": iso(4)}]
+    main += cl_read(5.5, 10, "/p/b.py", B[:2])              # b.py's read at 6 then mixes old and new lines
     main += cl_read(5, 3, "/p/a.py", A)                     # cross-epoch redundant
     main += cl_read(6, 4, "/p/b.py", B)
     main += [cl_use(7, 5, "Bash", {"command": "sed -n '1,5p' b.py"}), cl_res(7.5, 5, "\n".join(B) + "\n")]
@@ -235,10 +236,14 @@ def main():
     m1 = cl["main"]["M1"]["visible_chars"]
     want = {
         # Claude: M2 strict is copy-study's rule; the sed read only reaches the extended pool
-        "claude strict served": (cl["main"]["M2"]["strict"]["served_chars"], 4 * c(A) + c(B)),
-        "claude strict within": (cl["main"]["M2"]["strict"]["within_epoch_chars"], c(A)),
+        "claude strict served": (cl["main"]["M2"]["strict"]["served_chars"], 4 * c(A) + c(B) + c(B[:2])),
+        "claude strict within": (cl["main"]["M2"]["strict"]["within_epoch_chars"], c(A) + c(B[:2])),
         "claude strict cross": (cl["main"]["M2"]["strict"]["cross_epoch_chars"], c(A)),
-        "claude ext within": (cl["main"]["M2"]["ext"]["within_epoch_chars"], c(A) + c(B)),
+        "claude ext within": (cl["main"]["M2"]["ext"]["within_epoch_chars"], c(A) + c(B) + c(B[:2])),
+        # a whole-file guard answers a call only when all it served was a within-epoch re-serve:
+        # the read at 3 and the sed at 7.5, not the read at 6 that also served new lines
+        "claude whole-file unchanged": (cl["main"]["M2"]["ext"]["whole_file_unchanged_within_chars"],
+                                        c(A) + c(B)),
         "claude reconciles": (cl["copy_study_scanner_today"]["redundant_chars"],
                               cl["all"]["M2"]["strict"]["redundant_chars"]),
         "claude compactions": (cl["main"]["M2"]["mid_session_compactions"], 1),
@@ -246,7 +251,7 @@ def main():
         "claude prose": (m1["prose"], len("Hello world")),
         "claude write new/old": ((m1["write_new"], m1["write_old"]), (3 + 6, 4)),
         "claude subagent prompt": (m1["subagent_prompt"], len(json.dumps(AGENT_INPUT))),
-        "claude reported": (cl["main"]["M1"]["reported_output_tokens"], 1000 + 9 * 100),
+        "claude reported": (cl["main"]["M1"]["reported_output_tokens"], 1000 + 10 * 100),
         "claude M3 parent": (cl["subagent"]["M3"]["parent_savable_chars"], 3 * c(B)),
         "claude M3 sibling": (cl["subagent"]["M3"]["sibling_overlap_chars"], 2 * c(B)),
         "claude M3 served": (cl["subagent"]["M3"]["served_chars"], 3 * c(B) + c(A)),
@@ -254,6 +259,7 @@ def main():
         "codex served": (cx_["main"]["M2"]["ext"]["served_chars"], 4 * c(A)),
         "codex within": (cx_["main"]["M2"]["ext"]["within_epoch_chars"], c(A)),
         "codex cross": (cx_["main"]["M2"]["ext"]["cross_epoch_chars"], c(A)),
+        "codex whole-file unchanged": (cx_["main"]["M2"]["ext"]["whole_file_unchanged_within_chars"], c(A)),
         "codex write new/old": ((cx_["main"]["M1"]["visible_chars"]["write_new"],
                                  cx_["main"]["M1"]["visible_chars"]["write_old"]), (9, 17)),
         "codex prose/thinking": ((cx_["main"]["M1"]["visible_chars"]["prose"],
@@ -272,6 +278,7 @@ def main():
         "cursor served": (cu["main"]["M2"]["ext"]["served_chars"], 3 * c(A) + c(A[2:4])),
         "cursor within": (cu["main"]["M2"]["ext"]["within_epoch_chars"], c(A[2:4])),
         "cursor cross": (cu["main"]["M2"]["ext"]["cross_epoch_chars"], c(A)),
+        "cursor whole-file unchanged": (cu["main"]["M2"]["ext"]["whole_file_unchanged_within_chars"], c(A[2:4])),
         "cursor write new/old": ((cu["main"]["M1"]["visible_chars"]["write_new"],
                                   cu["main"]["M1"]["visible_chars"]["write_old"]), (3, 2)),
         "cursor prose/thinking": ((cu["main"]["M1"]["visible_chars"]["prose"],

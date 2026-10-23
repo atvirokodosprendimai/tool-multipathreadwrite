@@ -582,6 +582,21 @@ Zy, 2026-10-18, approved measuring the plugin where its mechanism can work; 2026
 - **Hiding the host interpreters from the attempt** (2026-10-19): ADR-163 counts calls to host interpreters by absolute path, `env -i`, `command -p` or `xcrun`. If T4's agent pilot counts any, how to hide them before block 1 is decided with Zy then, and this entry closes.
 
 
+## Pre-registered for a whole-file re-read guard (`--if-changed sha=X`) — written before the measurement
+
+The idea (memoryd tool-multipathreadwrite/40053273): a read that names the sha it last saw is answered
+"unchanged, nothing served" when the whole file still has that sha. It is the only delta-read design the
+ledger can carry safely: the ledger is shared by every caller of a checkout, has no session and stores no
+text (`internal/seen/seen.go`), so mrw cannot elide a line on its own judgement (rejected: eliding from
+the ledger) nor serve a line delta (rejected: needs the old text stored).
+
+**Measure.** `docs/bench/context-study/scan.py` M2, extended: the share of served chars (`ext`) that fall
+in one tool call's serve of one file whose every line is a within-epoch re-serve with no write to the file
+between — the most such a guard could answer, since it ignores changes made outside the session and
+assumes the caller held the sha.
+
+**Bar.** An ADR for the guard is written only if that share is **at least 1.0% of served chars on at
+least one host**. Below it on every host, this entry closes with the numbers and the idea is dropped.
 ## Findings filed from memoryd (2026-10-21)
 
 - **quality-harness cannot see writes made through mrw (filed 2026-10-02 by quality-harness, open).**
