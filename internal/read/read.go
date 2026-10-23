@@ -698,6 +698,11 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 			}
 			n, size := spanSize(b, spans, opt.MaxLines)
 			fmt.Fprintf(w, "==> %s  unchanged since sha %s — %d lines, %d bytes not served\n", sp.Path, guard, n, size)
+			// Whether the unchanged line itself reached the caller is judged
+			// before anything else is printed, so a diagnostic that overruns
+			// the budget after it cannot withdraw an answer already delivered
+			// (the Codex review of #514).
+			delivered := !bud.Over()
 			// A range that would not have been served is reported as it is
 			// without the guard (Zy, 2026-10-23): a read that returns nothing
 			// stays visible, and the unchanged answer adds no problem of its own.
@@ -705,7 +710,7 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 				reportOn(sp.Path, "!! no match for %s\n", m)
 				problems++
 			}
-			if bud.Over() {
+			if !delivered {
 				fmt.Fprintf(withheld, "%s: WITHHELD: --max-chars reached\n", withheldName(sp))
 				problems++
 			} else if opt.Unchanged != nil {

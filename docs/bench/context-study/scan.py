@@ -149,29 +149,36 @@ class Tracker(cs.Session):
 
 # ------------------------------------------------------- shared parsing
 
-UNCHANGED = re.compile(r"^==> \S+  unchanged since sha \S+ — (\d+) lines?, (\d+) bytes? not served$", re.M)
-GUARD_ARG = re.compile(r"--if-changed[ =]\S+|\"if_changed\"\s*:\s*\{[^}]*\}")
+# The path is everything up to the two spaces before `unchanged`, so a path holding spaces is whole.
+UNCHANGED = re.compile(r"^==> (.+?)  unchanged since sha \S+ — (\d+) lines?, (\d+) bytes? not served$", re.M)
+GUARD_ARG = re.compile(r"--if-changed(?:=|\s+)(?:'[^']*'|\"[^\"]*\"|\S+)|\"if_changed\"\s*:\s*\{[^}]*\}")
+# What an mrw answer prints around the lines it serves: headers, checkpoints, notes, refusals.
+MRW_FRAME = ("==> ", "-- ", "@@ ", "!! ", "mrw: ")
 
 
 def mrw_output(s, ts, call, text):
     """An mrw answer: its served lines as serves, and for ADR-169's adoption bar the chars it served, the
-    guard arguments the call typed, and what each `unchanged since sha` line withheld."""
+    guard arguments the call typed, and what each `unchanged since sha` line withheld. A `--json` answer
+    is read as its `content`; a served line is counted whether or not it is numbered (`-N`)."""
+    if text.lstrip().startswith("{"):
+        doc = jload(text.strip())
+        if isinstance(doc, dict) and isinstance(doc.get("content"), str):
+            text = doc["content"]
     cs.parse_mrw_output(Recorder(s, ts, True), text)
     path = None
     for line in text.split("\n"):
         if cs.MRW_HEAD.match(line):
             path = line
-        elif path is not None and not line.startswith("-- ck ") and not line.startswith("@@ "):
+        elif path is not None and line and not line.startswith(MRW_FRAME):
             m = cs.MRW_LINE.match(line)
-            if m:
-                s.guard["mrw_served_chars"] += len(m.group(2)) + 1
+            s.guard["mrw_served_chars"] += (len(m.group(2)) if m else len(line)) + 1
     args = GUARD_ARG.findall(call or "")
     if args:
         s.guard["calls"] += 1
         s.guard["arg_chars"] += sum(len(a) for a in args)
     for m in UNCHANGED.finditer(text):
         s.guard["unchanged_answers"] += 1
-        s.guard["withheld_bytes"] += int(m.group(2))
+        s.guard["withheld_bytes"] += int(m.group(3))
 
 def is_write_heredoc(cmd, body):
     return cs.is_plan(body) or "mrw write" in cmd or "--create" in cmd or bool(cs.CAT_HEREDOC.search(cmd)) \

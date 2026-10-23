@@ -153,6 +153,18 @@ func TestAGuardTheReadCannotUseIsRefused(t *testing.T) {
 		}
 	}
 
+	// A budget that fits the unchanged line exactly, before a missed range's
+	// note that does not fit: the answer reached the caller, so the receipt
+	// lists it, and the missed range still exits 1 (the Codex review of #514).
+	zero := fmt.Sprintf("==> a.txt  unchanged since sha %s — 0 lines, 0 bytes not served\n", a)
+	zb := fmt.Sprint(utf8.RuneCountInString(zero))
+	if out, errOut, code := run("", "read", "--if-changed", "a.txt="+a, "--max-chars", zb, "a.txt:/zzz/"); code != 1 || out != zero || !strings.Contains(errOut, "mrw: incomplete: ") {
+		t.Errorf("an exact budget before a missed note: exit %d, stdout %q, stderr %q", code, out, errOut)
+	}
+	if zj, _, _ := run("", "read", "--json", "--if-changed", "a.txt="+a, "--max-chars", zb, "a.txt:/zzz/"); !strings.Contains(zj, `"unchanged"`) {
+		t.Errorf("an unchanged line that reached the caller is missing from the receipt: %s", zj)
+	}
+
 	// --json carries unchanged[{path, sha, lines, bytes}], and omits the key when empty.
 	jout, _, code := run("", "read", "--json", "--if-changed", "a.txt="+a, "a.txt")
 	var doc struct {
