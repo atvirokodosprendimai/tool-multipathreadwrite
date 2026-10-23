@@ -1086,15 +1086,14 @@ func aShimKilledMidSyncLeavesNoShellBehind(t *testing.T) {
 	t.Run("while the write-back diffs", func(t *testing.T) { midSyncKill(t, "slow-post", "post") })
 }
 
-// aLockAKilledShimLeftDoesNotStopTheNextCall: a shim killed while git works in
-// the container leaves git's index.lock behind, in the snapshot index or in the
-// testbed's own. The next call clears both under the container lock; before it
-// did, every later sync died on the lock before it recorded its pid.
+// aLockAKilledShimLeftDoesNotStopTheNextCall: a shim killed while a snapshot git
+// writes leaves index.lock on the snapshot index. The next call clears it; before
+// it did, every later sync died on the lock under set -e, so no write-back shell
+// ever started.
 func aLockAKilledShimLeftDoesNotStopTheNextCall(t *testing.T) {
 	g := newStage6Rig(t)
 	cfg := g.start()
 	put(t, filepath.Join(g.root, "opt", "bench", "index.lock"), "", 0o644)
-	put(t, filepath.Join(g.root, "testbed", ".git", "index.lock"), "", 0o644)
 	if _, stderr, code := g.shim(cfg, cfg.Tree, "python", "-c", "echo box > locked.txt"); code != 0 {
 		t.Fatalf("a call after a killed shim's lock failed: %d %s", code, stderr)
 	}

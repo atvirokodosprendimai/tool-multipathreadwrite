@@ -350,10 +350,17 @@ var activateScript = "echo $$ > " + containerTmp + "/pid; if ! " + activateTestb
 // pid.post and pid.diff for the others), since a docker exec client that dies
 // does not stop its shell. Each pid goes with its group, which it leads when
 // the image starts an exec process as one (the group first, then the pid: ps
-// may be absent). Then it removes the index.lock a git killed mid-write leaves,
-// in the snapshot index and in the testbed's own, which would fail every later
-// sync: no git of the container can be live while a shim holds its lock.
-var killOrphanShell = `for f in ` + containerTmp + `/pid ` + containerTmp + `/pid.*; do if [ -s "$f" ]; then p=$(cat "$f"); if [ "$p" != "$$" ]; then kill -KILL -$p 2>/dev/null || true; kill -KILL $p 2>/dev/null || true; i=0; while kill -0 $p 2>/dev/null && [ $i -lt 50 ]; do sleep 0.1; i=$((i+1)); done; rm -f "$f"; fi; else rm -f "$f"; fi; done; rm -f ` + containerTmp + `/index.lock ` + testbed + `/.git/index.lock`
+// may be absent).
+var killOrphanShell = `for f in ` + containerTmp + `/pid ` + containerTmp + `/pid.*; do if [ -s "$f" ]; then p=$(cat "$f"); if [ "$p" != "$$" ]; then kill -KILL -$p 2>/dev/null || true; kill -KILL $p 2>/dev/null || true; i=0; while kill -0 $p 2>/dev/null && [ $i -lt 50 ]; do sleep 0.1; i=$((i+1)); done; rm -f "$f"; fi; else rm -f "$f"; fi; done`
+
+// clearSnapshotLock removes the lock a snapshot git killed mid-write leaves on
+// the snapshot index, which would fail every later sync under set -e. Only the
+// sync and write-back shells use that index, one after another within a shim
+// and under its lock across shims, and each runs it right after
+// killOrphanShell has killed the groups of the shells before it, so no git
+// still holds the lock. The testbed's own index.lock is not touched: a git the
+// agent's command started outside its group may hold it.
+var clearSnapshotLock = "rm -f " + containerTmp + "/index.lock"
 
 // neverForward names the variables a shim does not hand to the container: the
 // PATH, HOME and TMPDIR of the container stay its own, and so do the variables
@@ -523,7 +530,7 @@ func (c shimConfig) syncIn() (synced, error) {
 		return synced{}, err
 	}
 	patchFile := containerTmp + "/in.patch"
-	script := "set -e; mkdir -p " + containerTmp + "; echo $$ > " + containerTmp + "/pid.sync.$$; " + killOrphanShell + "; cat > " + patchFile + "; cd " + testbed +
+	script := "set -e; mkdir -p " + containerTmp + "; echo $$ > " + containerTmp + "/pid.sync.$$; " + killOrphanShell + "; " + clearSnapshotLock + "; cat > " + patchFile + "; cd " + testbed +
 		"; git reset -q --hard; git clean -fdq; if [ -s " + patchFile + " ]; then git apply --binary --whitespace=nowarn " + patchFile + "; fi; t1=$(" + snapshotShell + "); rm -f " + containerTmp + "/pid.sync.$$; printf '%s\n' " + "\"$t1\""
 	out, err := dockerRun(c.Docker, bytes.NewReader(patch), "exec", "-i", c.Container, "sh", "-c", script)
 	if err != nil {
@@ -547,7 +554,7 @@ func changedPaths(b []byte) []string {
 // path the host changed too since the sync is a conflict: it is not written,
 // and the caller names it.
 func (c shimConfig) writeBack(s synced) (written int, conflicts []string, err error) {
-	post := "set -e; mkdir -p " + containerTmp + "; echo $$ > " + containerTmp + "/pid.post.$$; " + killOrphanShell + "; cd " + testbed + "; t2=$(" + snapshotAfter + "); printf '%s\n' " + "\"$t2\"; git diff-tree -r --name-only -z --no-renames \"$1\" \"$t2\"; rm -f " + containerTmp + "/pid.post.$$"
+	post := "set -e; mkdir -p " + containerTmp + "; echo $$ > " + containerTmp + "/pid.post.$$; " + killOrphanShell + "; " + clearSnapshotLock + "; cd " + testbed + "; t2=$(" + snapshotAfter + "); printf '%s\n' " + "\"$t2\"; git diff-tree -r --name-only -z --no-renames \"$1\" \"$t2\"; rm -f " + containerTmp + "/pid.post.$$"
 	out, err := dockerRun(c.Docker, nil, "exec", c.Container, "sh", "-c", post, "sh", s.box)
 	if err != nil {
 		return 0, nil, err
