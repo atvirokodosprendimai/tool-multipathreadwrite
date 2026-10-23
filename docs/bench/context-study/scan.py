@@ -155,8 +155,9 @@ GUARD_ARG = re.compile(r"--if-changed(?:=|\s+)(?:'[^']*'|\"[^\"]*\"|\S+)|\"if_ch
 # A served range opens with `@@ A-B`; its B-A+1 lines follow, numbered `N| ` unless the read used -N.
 MRW_RANGE = re.compile(r"^@@ (\d+)(?:-(\d+))?$")    # the whole line: `@@ 1-5  WITHHELD …` served nothing
 MRW_WITHHELD = re.compile(r"^!! \d+ more line")
-# A reader diagnostic naming what a budget held back: `path: WITHHELD: --max-chars reached`.
-WITHHELD_NOTE = re.compile(r"^\S.*: WITHHELD: ")
+# A reader diagnostic naming what a budget held back: `path: WITHHELD: …` for a spec, and
+# `path: lines A-B WITHHELD (N line(s)): …` for the rest of a range (internal/read/read.go).
+WITHHELD_NOTE = re.compile(r"^\S.*: (?:lines \d+-\d+ )?WITHHELD\b")
 # A CLI read that prints no line numbers.
 UNNUMBERED = re.compile(r"(?:^|\s)(?:-N|--no-numbers)(?=\s|$)")
 
