@@ -137,6 +137,11 @@ func ExportPaired(o ExportOptions, w io.Writer) error {
 			if r.Oracle.BrokeTests != nil {
 				row.BrokeTests = *r.Oracle.BrokeTests
 			}
+			// A run that hit a cap is unresolved with no done claim, whatever it
+			// claimed and the harness said (ADR-112 D3); the receipt keeps both.
+			if row.Limit && p.Profile == ProfileStage6 {
+				row.Status, row.Resolved = "not done", false
+			}
 			local[key] = row
 		}
 		for key, row := range local {

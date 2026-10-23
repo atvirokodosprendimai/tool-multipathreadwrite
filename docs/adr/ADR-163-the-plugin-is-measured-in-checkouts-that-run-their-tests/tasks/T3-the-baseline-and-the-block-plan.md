@@ -45,7 +45,10 @@ out=$(go test ./internal/bench/ -count=1 -v -run '^(TestTheBaselineRecordsGreenR
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `TestTheRunnerRefusesToOverwriteAnEarlierRunsReceipts` | `internal/bench/runner_test.go` | placeholder until this task's tests land: earlier stages' receipts survive (ADR-156 T2); the rows below replace it, with their Steps, in the commit that adds the tests | none | — |
+| `TestTheBaselineRecordsGreenRedAndTime` | `internal/bench/baseline_test.go` | a check exiting 0 is green, non-zero red with its exit code, a container that cannot start red with its reason; the wall time is recorded; each instance runs once; no model is invoked | none | S2 |
+| `TestTheSurvivingPoolIsTheGreenInstancesInPoolOrder` | `internal/bench/baseline_test.go` | with reds interleaved, the surviving file holds exactly the greens in pool order with the red count and no red id; blocks 1 and 2 are its first and second 40, a last block of fewer is accepted | none | S2, S3 |
+| `TestExportPairedTakesAWAgainstTheSurvivingPool` | `internal/bench/baseline_test.go` | `--pair A,W` writes arms A and W; `instance_list_sha256` equals the sha256 of the surviving `.selected` ids joined by a newline with no trailing newline, `instance_count` their number, not ADR-162's 191 | none | S3, S4 |
+| `TestACappedRunExportsUnresolvedWithNoDoneClaim` | `internal/bench/baseline_test.go` | under `stage6`, a receipt over its cap with `STATUS: done` and `harness_resolved` true exports `not done`, unresolved, `limit` true; under `stage5` the row is today's | none | S3 |
 
 Planned tests, which this table names in the commit that adds them:
 
@@ -65,6 +68,17 @@ Planned tests, which this table names in the commit that adds them:
 
 ## Mutation Log
 (empty until execute)
+- 2026-10-23 · 9040f08b* · mutant killed · exit 1 · `internal/bench/baseline.go` · a check that exits 0 is recorded red · acceptance-sha256:caa3c2608e17c7b21ac349eabcdaa58ac1717ae67883ba96349670da3c0f54ae
+- 2026-10-23 · 9040f08b* · mutant killed · exit 1 · `internal/bench/baseline.go` · the surviving pool holds the red instances · acceptance-sha256:caa3c2608e17c7b21ac349eabcdaa58ac1717ae67883ba96349670da3c0f54ae
+- 2026-10-23 · 9040f08b* · mutant survived · exit 0 · `internal/bench/baseline.go` · an existing baseline is overwritten · acceptance-sha256:caa3c2608e17c7b21ac349eabcdaa58ac1717ae67883ba96349670da3c0f54ae
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
+- 2026-10-23 · 9040f08b* · mutant killed · exit 1 · `internal/bench/baseline.go` · a check that could not start is recorded with exit code 0 · acceptance-sha256:caa3c2608e17c7b21ac349eabcdaa58ac1717ae67883ba96349670da3c0f54ae
+- 2026-10-23 · 9040f08b* · mutant killed · exit 1 · `internal/bench/baseline.go` · an existing baseline is run again · acceptance-sha256:caa3c2608e17c7b21ac349eabcdaa58ac1717ae67883ba96349670da3c0f54ae
+- 2026-10-23 · 9040f08b* · mutant killed · exit 1 · `internal/bench/export.go` · a capped stage6 run exports done and resolved · acceptance-sha256:caa3c2608e17c7b21ac349eabcdaa58ac1717ae67883ba96349670da3c0f54ae
+- 2026-10-23 · 9040f08b* · mutant killed · exit 1 · `internal/bench/export.go` · stage5 capped rows change too · acceptance-sha256:caa3c2608e17c7b21ac349eabcdaa58ac1717ae67883ba96349670da3c0f54ae
+- 2026-10-23 · 9040f08b* · mutant killed · exit 1 · `internal/bench/baseline.go` · a block holds 41 instances · acceptance-sha256:caa3c2608e17c7b21ac349eabcdaa58ac1717ae67883ba96349670da3c0f54ae
 
 ## Invariants
 
@@ -85,3 +99,18 @@ The fence exits 0.
 
 ## Verification Log
 (empty until execute)
+- 2026-10-23 · 9040f08b* · exit 1 · `set -o pipefail …` · acceptance-sha256:caa3c2608e17c7b21ac349eabcdaa58ac1717ae67883ba96349670da3c0f54ae · ms:158 · test-lock-sha256:4774ffb28af7a8a7f689fbc25405c3408b76f00c0f6b891c483a0f59c95b2f8a · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJaW50ZXJuYWwvYmVuY2gvYmFzZWxpbmVfdGVzdC5nbwlUZXN0QUNhcHBlZFJ1bkV4cG9ydHNVbnJlc29sdmVkV2l0aE5vRG9uZUNsYWltCTQ0YmQyOGM2MDI4YmNkYWNiZDIxZTA2OTAzNGVjYjM2MzkzZDE2OGMzZDFjZGQ3YTc0MTQ4NzBhOTQwZWFkZTAKYm9keQlpbnRlcm5hbC9iZW5jaC9iYXNlbGluZV90ZXN0LmdvCVRlc3RFeHBvcnRQYWlyZWRUYWtlc0FXQWdhaW5zdFRoZVN1cnZpdmluZ1Bvb2wJN2Y3OGIxYmExNGI1NjkwOWQxY2VhMmUxYThmMjRlOWM3ZWZmOWU1MjUwMzg0YmEzZjYwY2VkZTQ1NjU1OWU5MQpib2R5CWludGVybmFsL2JlbmNoL2Jhc2VsaW5lX3Rlc3QuZ28JVGVzdFRoZUJhc2VsaW5lUmVjb3Jkc0dyZWVuUmVkQW5kVGltZQljNWNjYzFjM2Y1MjhjZGIxMGVhZjE3Y2FmY2Y1ZjA4NTI3MGQ1YzhmMmM0NDc4YmUyOGY2OGVmOTVmOGJmYmViCmJvZHkJaW50ZXJuYWwvYmVuY2gvYmFzZWxpbmVfdGVzdC5nbwlUZXN0VGhlU3Vydml2aW5nUG9vbElzVGhlR3JlZW5JbnN0YW5jZXNJblBvb2xPcmRlcglmNzcwOWMyY2IxNjQ0MGEzZWZlMzU1YmYxZTdlYTA1N2U0YTM3MGZhMmQzOTM4Njg0OWNiOTJiMDdmOTcyYzA5
+  ```
+  ```
+- 2026-10-23 · 9040f08b* · exit 0 · `set -o pipefail …` · acceptance-sha256:caa3c2608e17c7b21ac349eabcdaa58ac1717ae67883ba96349670da3c0f54ae · ms:5974
+- 2026-10-23 · 9040f08b* · exit 0 · `set -o pipefail …` · acceptance-sha256:caa3c2608e17c7b21ac349eabcdaa58ac1717ae67883ba96349670da3c0f54ae · ms:6653
+- 2026-10-23 · 9040f08b* · exit 0 · `set -o pipefail …` · acceptance-sha256:caa3c2608e17c7b21ac349eabcdaa58ac1717ae67883ba96349670da3c0f54ae · ms:6758
+- 2026-10-23 · 9040f08b* · exit 0 · `set -o pipefail …` · acceptance-sha256:caa3c2608e17c7b21ac349eabcdaa58ac1717ae67883ba96349670da3c0f54ae · ms:6743
+- 2026-10-23 · 9040f08b* · exit 0 · `set -o pipefail …` · acceptance-sha256:caa3c2608e17c7b21ac349eabcdaa58ac1717ae67883ba96349670da3c0f54ae · ms:6787
+- 2026-10-23 · 9040f08b* · exit 0 · `set -o pipefail …` · acceptance-sha256:caa3c2608e17c7b21ac349eabcdaa58ac1717ae67883ba96349670da3c0f54ae · ms:7387
+- 2026-10-23 · 9040f08b* · exit 0 · `set -o pipefail …` · acceptance-sha256:caa3c2608e17c7b21ac349eabcdaa58ac1717ae67883ba96349670da3c0f54ae · ms:7271
+- 2026-10-23 · 9040f08b* · exit 0 · `set -o pipefail …` · acceptance-sha256:caa3c2608e17c7b21ac349eabcdaa58ac1717ae67883ba96349670da3c0f54ae · ms:7559
+- 2026-10-23 · 9040f08b* · exit 0 · `set -o pipefail …` · acceptance-sha256:caa3c2608e17c7b21ac349eabcdaa58ac1717ae67883ba96349670da3c0f54ae · ms:7025
+- 2026-10-23 · 9040f08b* · exit 0 · `set -o pipefail …` · acceptance-sha256:caa3c2608e17c7b21ac349eabcdaa58ac1717ae67883ba96349670da3c0f54ae · ms:15653
+- 2026-10-23 · 9040f08b* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:caa3c2608e17c7b21ac349eabcdaa58ac1717ae67883ba96349670da3c0f54ae · ms:0 · test-lock-sha256:2cfab6e9871f618d487672e44106ac8dd2301977247c1ff9a0dd0eb5aa83e31b · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJaW50ZXJuYWwvYmVuY2gvYmFzZWxpbmVfdGVzdC5nbwlUZXN0QUNhcHBlZFJ1bkV4cG9ydHNVbnJlc29sdmVkV2l0aE5vRG9uZUNsYWltCTQ0YmQyOGM2MDI4YmNkYWNiZDIxZTA2OTAzNGVjYjM2MzkzZDE2OGMzZDFjZGQ3YTc0MTQ4NzBhOTQwZWFkZTAKYm9keQlpbnRlcm5hbC9iZW5jaC9iYXNlbGluZV90ZXN0LmdvCVRlc3RFeHBvcnRQYWlyZWRUYWtlc0FXQWdhaW5zdFRoZVN1cnZpdmluZ1Bvb2wJN2Y3OGIxYmExNGI1NjkwOWQxY2VhMmUxYThmMjRlOWM3ZWZmOWU1MjUwMzg0YmEzZjYwY2VkZTQ1NjU1OWU5MQpib2R5CWludGVybmFsL2JlbmNoL2Jhc2VsaW5lX3Rlc3QuZ28JVGVzdFRoZUJhc2VsaW5lUmVjb3Jkc0dyZWVuUmVkQW5kVGltZQk2YzNlY2Q4ZDMzZGM3MWFhMTNlMjcwNWUxNGFiMDhkZTBjOTA1N2NmYzZmYTIzMDBjZWE2ZmE1NDVjY2U3ZWE5CmJvZHkJaW50ZXJuYWwvYmVuY2gvYmFzZWxpbmVfdGVzdC5nbwlUZXN0VGhlU3Vydml2aW5nUG9vbElzVGhlR3JlZW5JbnN0YW5jZXNJblBvb2xPcmRlcglmNzcwOWMyY2IxNjQ0MGEzZWZlMzU1YmYxZTdlYTA1N2U0YTM3MGZhMmQzOTM4Njg0OWNiOTJiMDdmOTcyYzA5 · test-lock-kind:replace
+- 2026-10-23 · human-observed · relock 2026-10-23 reviewed: TestTheBaselineRecordsGreenRedAndTime's second-baseline case now requires the 'holds a baseline already' refusal and no second run of the check, after the mutant that disabled the refusal survived the first version (it accepted any error). No assertion removed or weakened; approved · acceptance-sha256:caa3c2608e17c7b21ac349eabcdaa58ac1717ae67883ba96349670da3c0f54ae
