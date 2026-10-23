@@ -26,7 +26,7 @@ README must be regenerated.
 | T3 | the baseline, the surviving pool and the block plan | done | — | `go test ./internal/bench/ -run '^(TestTheBaselineRecordsGreenRedAndTime…)$'` |
 | T4 | the baseline pilot, the whole-pool baseline, then the agent pilot | pending | — | `jq … docs/bench/stage-6-pilot/baseline.json …` |
 | T5 | the stage, block by block, and its results | pending | — | `go run ./cmd/bench verify --stage stage6 --tasks "$t" …` |
-| T6 | the side arms G and C, read against P | pending | — | `go test ./internal/bench/ -run '^(TestConfigurationGRunsTheHooksThroughTheBinaryAndPThroughNode…)$'` |
+| T6 | the side arms G and C, read against P | done | — | `go test ./internal/bench/ -run '^(TestConfigurationGRunsTheHooksThroughTheBinaryAndPThroughNode…)$'` |
 
 ## Contract Coupling
 

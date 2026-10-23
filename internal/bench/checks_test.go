@@ -103,6 +103,7 @@ func checkRig(t *testing.T) *stage6Rig {
 func TestConfigurationWIsPPlusTheWorkLine(t *testing.T) {
 	g := checkRig(t)
 	o := g.opts
+	o.Out = t.TempDir() // invocation moves the shared plugin data directory aside under Out; the Run below must find g.opts.Out empty
 	for _, status := range []bool{false, true} {
 		o.StatusLine = status
 		argsOf := func(name string) (rest []string, instruction string) {
@@ -162,7 +163,7 @@ func TestConfigurationWIsPPlusTheWorkLine(t *testing.T) {
 
 	// run.json and the receipts.
 	g.claude("")
-	canary := `{"pass":true,"cli_version":"9.9.9","profile":"stage6","configs":["A","P","W"],"plugin":` + mustJSON(t, g.opts.plugin) + `}`
+	canary := `{"pass":true,"cli_version":"9.9.9","profile":"stage6","configs":["A","P","W"],"plugin":` + mustJSON(t, g.opts.plugin) + `,"plugin_data":` + mustJSON(t, pluginDataDir(g.opts)) + `}`
 	put(t, g.opts.Canary, canary, 0o644)
 	if err := Run(g.opts); err != nil {
 		t.Fatal(err)
@@ -361,7 +362,7 @@ func TestMaxTurnsIsTheStagesAndTheRowsCarryIt(t *testing.T) {
 	}
 	g := checkRig(t)
 	g.claude("")
-	put(t, g.opts.Canary, `{"pass":true,"cli_version":"9.9.9","profile":"stage6","configs":["A","P","W"],"plugin":`+mustJSON(t, g.opts.plugin)+`}`, 0o644)
+	put(t, g.opts.Canary, `{"pass":true,"cli_version":"9.9.9","profile":"stage6","configs":["A","P","W"],"plugin":`+mustJSON(t, g.opts.plugin)+`,"plugin_data":`+mustJSON(t, pluginDataDir(g.opts))+`}`, 0o644)
 	if err := Run(g.opts); err != nil {
 		t.Fatal(err)
 	}

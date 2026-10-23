@@ -139,7 +139,10 @@ func resolveProfile(o *RunOptions) error {
 		if err := resolveContainer(o); err != nil {
 			return err
 		}
-		return resolveDeclared(o)
+		if err := resolveDeclared(o); err != nil {
+			return err
+		}
+		return resolveSide(o)
 	}
 	return nil
 }

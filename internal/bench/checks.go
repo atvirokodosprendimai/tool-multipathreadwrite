@@ -168,12 +168,21 @@ func (o RunOptions) maxTurns() int {
 	return o.MaxTurns
 }
 
-// writeCheckFile puts the declared check in dst, before the base commit.
-func writeCheckFile(dst, command string) error {
+// writeCheckFile puts the declared check in dst, before the base commit, and
+// the keys an arm writes beside it: C's turnEnd (ADR-163 Decision 9). Without
+// a declared check only the extra keys are written.
+func writeCheckFile(dst, command string, extra map[string]string) error {
+	fields := map[string]string{}
+	if command != "" {
+		fields["check"] = command
+	}
+	for k, v := range extra {
+		fields[k] = v
+	}
 	var b bytes.Buffer
 	enc := json.NewEncoder(&b)
 	enc.SetEscapeHTML(false) // `&&` stays as typed in the file the plugin reads
-	if err := enc.Encode(map[string]string{"check": command}); err != nil {
+	if err := enc.Encode(fields); err != nil {
 		return err
 	}
 	return os.WriteFile(filepath.Join(dst, checkFile), b.Bytes(), 0o644)

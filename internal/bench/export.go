@@ -59,6 +59,11 @@ func ExportPaired(o ExportOptions, w io.Writer) error {
 	case o.Model == "" || o.X == "" || o.Y == "" || len(o.Dirs) == 0:
 		return errors.New("export-paired needs --model, --pair X,Y and at least one stage directory")
 	}
+	for _, c := range []string{o.X, o.Y} {
+		if isSide(c) {
+			return fmt.Errorf("--pair %s,%s names side arm %s: a side arm is read against P by bench side and never exported to the scorer (ADR-163 Decision 9)", o.X, o.Y, c)
+		}
+	}
 	var sel struct {
 		Rule, Dataset, Revision, Split string
 		Selected                       []string
@@ -77,6 +82,7 @@ func ExportPaired(o ExportOptions, w io.Writer) error {
 	if _, ok := canary["pass"]; !ok {
 		return fmt.Errorf("%s holds no canary verdict", o.Canary)
 	}
+	canary = coreCanary(canary)
 	var first *plan
 	rows := map[string]pairedRow{}
 	for _, dir := range o.Dirs {
@@ -171,7 +177,8 @@ func ExportPaired(o ExportOptions, w io.Writer) error {
 	}
 	// The caps and digests a stage names go inside scaffold too, where the
 	// scorer compares them; a Stage 5 run.json names none, so its rows keep their bytes.
-	scaffold := map[string]any{"runner": "bench", "stage": first.Stage, "profile": first.Profile, "configs": first.Configs, "pair": []string{o.X, o.Y}}
+	coreConfigs, _ := splitSide(first.Configs)
+	scaffold := map[string]any{"runner": "bench", "stage": first.Stage, "profile": first.Profile, "configs": coreConfigs, "pair": []string{o.X, o.Y}}
 	if first.MaxTurns != 0 {
 		scaffold["max_turns"] = first.MaxTurns
 	}
@@ -258,4 +265,27 @@ func exporterRevision() string {
 		rev += "+modified"
 	}
 	return "bench@" + rev
+}
+
+// coreCanary is the canary as the core arms ran it: a side arm's name, its
+// cost and its problems are out, so a stage whose canary also ran G and C
+// exports the config line it would without them (ADR-163 Decision 9). A canary
+// that names no side arm is unchanged.
+func coreCanary(c map[string]any) map[string]any {
+	for _, k := range []string{"side_configs", "side_registration", "side_asset_sha256", "plugin_data"} {
+		delete(c, k)
+	}
+	if configs, ok := c["configs"].([]any); ok {
+		c["configs"] = slices.DeleteFunc(configs, func(v any) bool { name, _ := v.(string); return isSide(name) })
+	}
+	for _, k := range []string{"total_cost_usd", "problems"} {
+		if m, ok := c[k].(map[string]any); ok {
+			for name := range m {
+				if isSide(name) {
+					delete(m, name)
+				}
+			}
+		}
+	}
+	return c
 }

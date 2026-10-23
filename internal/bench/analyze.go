@@ -254,6 +254,12 @@ func judge(stage, model, source string, g []Receipt) (Result, error) {
 // configuration; the cost interval stays the percentile bootstrap (ADR-162
 // Decision 5).
 func judgeWith(stage, model, source string, g []Receipt, second string, level float64, tango bool) (Result, error) {
+	return judgeAgainst("A", stage, model, source, g, second, level, tango)
+}
+
+// judgeAgainst is judgeWith with any configuration as the control: bench side
+// reads a side arm against P (ADR-163 Decision 9).
+func judgeAgainst(control, stage, model, source string, g []Receipt, second string, level float64, tango bool) (Result, error) {
 	res := Result{Stage: stage, Model: model, Source: source, Comparison: second, Level: level}
 	type side struct {
 		cost         float64
@@ -262,7 +268,7 @@ func judgeWith(stage, model, source string, g []Receipt, second string, level fl
 	}
 	perTask := map[string]map[string]*side{}
 	for _, r := range g {
-		if r.Config != "A" && r.Config != second {
+		if r.Config != control && r.Config != second {
 			continue
 		}
 		res.Attempts++
@@ -278,7 +284,7 @@ func judgeWith(stage, model, source string, g []Receipt, second string, level fl
 			res.SlippedB += len(r.SlippedWrites)
 		}
 		if r.SilentMisEdit {
-			if r.Config == "A" {
+			if r.Config == control {
 				res.SilentA++
 			} else {
 				res.SilentB++
@@ -311,7 +317,7 @@ func judgeWith(stage, model, source string, g []Receipt, second string, level fl
 	sort.Strings(tasks)
 	var rel, diff []float64
 	for _, t := range tasks {
-		a, b := perTask[t]["A"], perTask[t][second]
+		a, b := perTask[t][control], perTask[t][second]
 		if a == nil || b == nil {
 			res.Unpaired = append(res.Unpaired, t)
 			continue
@@ -326,7 +332,7 @@ func judgeWith(stage, model, source string, g []Receipt, second string, level fl
 		}
 		meanA, meanB := a.cost/float64(a.runs), b.cost/float64(b.runs)
 		if meanA <= 0 {
-			return res, fmt.Errorf("task %s: configuration A's mean cost is %v", t, meanA)
+			return res, fmt.Errorf("task %s: configuration %s's mean cost is %v", t, control, meanA)
 		}
 		rel = append(rel, (meanB-meanA)/meanA)
 	}

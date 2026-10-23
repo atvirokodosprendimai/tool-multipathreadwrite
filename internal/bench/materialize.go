@@ -176,6 +176,12 @@ func Materialize(t Task, dst string, files []string) (string, error) {
 // every arm's tree and never in the diff the harness grades (ADR-163
 // Decision 2).
 func materialize(t Task, dst string, files []string, check string) (string, error) {
+	return materializeArm(t, dst, files, check, nil)
+}
+
+// materializeArm is materialize with the keys an arm writes into the check
+// file beside the declared check: C's turnEnd (ADR-163 Decision 9).
+func materializeArm(t Task, dst string, files []string, check string, extra map[string]string) (string, error) {
 	if t.Repo == "fixture" {
 		if err := copyTree(filepath.Join(t.Dir, "base"), dst); err != nil {
 			return "", err
@@ -208,8 +214,8 @@ func materialize(t Task, dst string, files []string, check string) (string, erro
 			return "", err
 		}
 	}
-	if check != "" {
-		if err := writeCheckFile(dst, check); err != nil {
+	if check != "" || len(extra) > 0 {
+		if err := writeCheckFile(dst, check, extra); err != nil {
 			return "", err
 		}
 	}

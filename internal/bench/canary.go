@@ -76,10 +76,14 @@ type CanaryReceipt struct {
 	Problems   map[string][]string `json:"problems"`
 	// Under ADR-162's profile: the profile, the configurations it tested and the
 	// plugin it loaded, which a profiled stage must match.
-	Profile string              `json:"profile,omitempty"`
-	Configs []string            `json:"configs,omitempty"`
-	Plugin  *PluginRef          `json:"plugin,omitempty"`
-	Costs   map[string]*float64 `json:"total_cost_usd"`
+	Profile          string              `json:"profile,omitempty"`
+	Configs          []string            `json:"configs,omitempty"`
+	SideConfigs      []string            `json:"side_configs,omitempty"`
+	Plugin           *PluginRef          `json:"plugin,omitempty"`
+	PluginData       string              `json:"plugin_data,omitempty"`       // where a hook's CLAUDE_PLUGIN_DATA is, under stage6
+	SideRegistration *SideRegistration   `json:"side_registration,omitempty"` // the side arms' registration it ran
+	SideAsset        string              `json:"side_asset_sha256,omitempty"`
+	Costs            map[string]*float64 `json:"total_cost_usd"`
 }
 
 // RunCanary runs the task once in each configuration and writes canary.json
@@ -120,7 +124,13 @@ func RunCanary(o RunOptions, task Task, claudeMD string) (CanaryReceipt, error) 
 	c = CanaryReceipt{Pass: true, CLIVersion: cli, Model: o.Models[0], Started: time.Now().UTC().Format(time.RFC3339),
 		Problems: map[string][]string{}, Costs: map[string]*float64{}, Profile: o.Profile, Plugin: o.plugin}
 	if o.Profile != "" {
-		c.Configs = o.Configs
+		c.Configs, c.SideConfigs = splitSide(o.Configs)
+	}
+	if o.Profile == ProfileStage6 && o.plugin != nil {
+		c.PluginData = pluginDataDir(o)
+	}
+	if o.side != nil {
+		c.SideRegistration, c.SideAsset = o.side, o.qhSHA
 	}
 	for i, name := range o.Configs {
 		a := attempt{ID: "canary." + name, Task: task, Model: o.Models[0], Config: Configs[name], Repeat: 1}
@@ -133,7 +143,7 @@ func RunCanary(o RunOptions, task Task, claudeMD string) (CanaryReceipt, error) 
 		if r.Exclusion != "" || r.IsError {
 			problems = append(problems, fmt.Sprintf("the attempt did not run cleanly: exclusion %q, error %v, exit %d %s", r.Exclusion, r.IsError, r.ExitCode, r.Note))
 		}
-		b, err := os.ReadFile(filepath.Join(o.Out, a.ID+".transcript.jsonl"))
+		b, err := os.ReadFile(filepath.Join(outDir(o, a.Config), a.ID+".transcript.jsonl"))
 		if err != nil {
 			return c, err
 		}
@@ -144,6 +154,12 @@ func RunCanary(o RunOptions, task Task, claudeMD string) (CanaryReceipt, error) 
 			problems = append(problems, CheckProfileCanary(b, Configs[name], claudeMD, o.ConfigDir, o.PluginDir)...)
 		} else {
 			problems = append(problems, CheckCanary(b, Configs[name], claudeMD, o.ConfigDir)...)
+		}
+		if o.side != nil && o.side.G != nil && Configs[name].Plugin {
+			problems = append(problems, CheckHookRuntime(Configs[name], b, o.side.G.Marker)...)
+		}
+		if o.Profile == ProfileStage6 && Configs[name].Plugin {
+			problems = append(problems, CheckPluginData(o, Configs[name])...)
 		}
 		if len(problems) > 0 {
 			c.Pass = false
@@ -451,4 +467,89 @@ func probeContainer(o RunOptions, task Task) (problems []string) {
 	platform := ask("-c", "import sys; print(sys.platform)")
 	network := ask("-c", netProbe)
 	return append(CheckContainerCanary(platform, network, string(commits)), failures...)
+}
+
+// CheckHookRuntime is the canary's question of what ran a plugin
+// configuration's hooks (ADR-163 Decision 9): the marker only the staged
+// binary's hook output carries is in G's and in no other configuration's, so
+// P's, W's and C's hooks ran under Node. A registration with no marker asks
+// nothing.
+func CheckHookRuntime(c Config, transcript []byte, marker string) []string {
+	if marker == "" || !c.Plugin {
+		return nil
+	}
+	// Only a hook's own output counts: its name, id and diagnostics are
+	// metadata, and a hook that failed attests nothing.
+	var shown, succeeded []string
+	for _, line := range bytes.Split(transcript, []byte("\n")) {
+		var m struct {
+			Type, Subtype, Outcome string
+			ExitCode               *int `json:"exit_code"`
+			Output, Stdout         string
+		}
+		if json.Unmarshal(line, &m) != nil || m.Type != "system" || m.Subtype != "hook_response" {
+			continue
+		}
+		text := m.Output + "\n" + m.Stdout
+		shown = append(shown, text)
+		if m.Outcome == "success" && (m.ExitCode == nil || *m.ExitCode == 0) {
+			succeeded = append(succeeded, text)
+		}
+	}
+	switch {
+	case c.GoHooks && !strings.Contains(strings.Join(succeeded, "\n"), marker):
+		return []string{fmt.Sprintf("configuration G: no succeeded hook's output carries %q, so its hooks did not run under the staged binary", marker)}
+	case !c.GoHooks && strings.Contains(strings.Join(shown, "\n"), marker):
+		return []string{fmt.Sprintf("configuration %s: a hook's output carries %q, the staged binary's marker, so its hooks did not run under Node", c.Name, marker)}
+	}
+	return nil
+}
+
+// CheckPluginData is the canary's question of the directory Claude Code gives
+// the plugin's hooks as CLAUDE_PLUGIN_DATA: after the attempt it holds a file
+// the plugin wrote, besides G's staged binary, so the hooks used the directory
+// bench computed and made fresh.
+func CheckPluginData(o RunOptions, c Config) []string {
+	dir := pluginDataDir(o)
+	staged := ""
+	if c.GoHooks && o.side != nil && o.side.G != nil {
+		staged = filepath.Clean(filepath.FromSlash(o.side.G.StageAs))
+	}
+	wrote := false
+	err := filepath.Walk(dir, func(p string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if rel, _ := filepath.Rel(dir, p); info.Mode().IsRegular() && rel != staged {
+			wrote = true
+		}
+		return nil
+	})
+	if err != nil || !wrote {
+		return []string{fmt.Sprintf("configuration %s: the plugin data directory %s holds no file its hooks wrote (%v): they did not use the directory bench computed", c.Name, dir, err)}
+	}
+	return nil
+}
+
+// CheckSideTree is the canary's question of C's setting (ADR-163 Decision 9):
+// the attempt's .quality-harness.json holds it in C's tree and in no other
+// configuration's.
+func CheckSideTree(c Config, tree string, reg *SideRegistration) []string {
+	if reg == nil || reg.C == nil {
+		return nil
+	}
+	var got map[string]string
+	if b, err := os.ReadFile(filepath.Join(tree, checkFile)); err == nil {
+		if err := json.Unmarshal(b, &got); err != nil {
+			return []string{fmt.Sprintf("%s in configuration %s's tree cannot be read: %v", checkFile, c.Name, err)}
+		}
+	}
+	v, has := got[reg.C.Key]
+	switch {
+	case c.Quiet && (!has || v != reg.C.Value):
+		return []string{fmt.Sprintf("configuration C: %s holds %s %q, want %q", checkFile, reg.C.Key, v, reg.C.Value)}
+	case !c.Quiet && has:
+		return []string{fmt.Sprintf("configuration %s: %s carries %s: only C's does", c.Name, checkFile, reg.C.Key)}
+	}
+	return nil
 }

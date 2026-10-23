@@ -580,6 +580,7 @@ Zy, 2026-10-18, approved measuring the plugin where its mechanism can work; 2026
 
 - **Arms P+mrw and P with a batching cue** (2026-10-19): quality-harness ADR-107 T4 asks for them with turns per attempt as the target. ADR-112's stage measures A, P and W only; these need their own pre-registration and a stage after ADR-163's.
 - **Hiding the host interpreters from the attempt** (2026-10-19): ADR-163 counts calls to host interpreters by absolute path, `env -i`, `command -p` or `xcrun`. If T4's agent pilot counts any, how to hide them before block 1 is decided with Zy then, and this entry closes.
+- **The side reader applies rulings to P only, untested** (2026-10-23): `bench side` applies `rule` to the control's attempts (`internal/bench/side.go`, `if src.config == control {`), since a side arm's attempts live in `side/`, which no ruling names. No T6 test sets a ruling, so a mutant that drops the call or rules the side arm survives. Add a ruled-P fixture to `TestTheSideReaderUsesPAsControlAndTheRegisteredBar` before the first side verdict is read (T5).
 
 
 ## Pre-registered for a whole-file re-read guard (`--if-changed sha=X`) — written before the measurement
