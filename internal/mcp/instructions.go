@@ -69,7 +69,8 @@ func instructionsText() string {
 6. a step after the write: mrw_write with then [NAME]
 7. license known lines unseen: mrw_read with quiet true
 8. long lines: mrw_read with grep, max_cols 200
-mrw_read with sub or rewrite returns the plan, licensed, no ack: send it as plan.
+9. re-read: mrw_read with if_changed
+sub or rewrite on mrw_read returns a licensed plan: send it as plan.
 
 WHICH SURFACE. CLI has --context, --check on prose and more;
 `+"`mrw --root DIR read`"+` reaches ANY checkout. This surface serves ONE fixed checkout,
@@ -91,7 +92,7 @@ A SERVE LICENSES NOTHING UNTIL YOU ACKNOWLEDGE IT.
 %s
 An id you omit leaves its lines unwritable: a host can cut a result unseen.
 
-WRITING. mrw_write takes one plan and those ck ids as ack. Optional format: plan (default), apply_patch, or search_replace. git is refused. Each hunk is a header line
+WRITING. mrw_write takes one plan and those ck ids as ack; format: plan (default), apply_patch or search_replace. git is refused. Each hunk is a header line
 
     @@ <path> <address> <op> [guards]
 then its body lines. Ops: replace, insert-after, insert-before, delete, create, unlink, rename.
@@ -102,7 +103,7 @@ a range. The START must match EXACTLY ONE line: none or several fails that hunk
 and the refusal names its matches. Every address resolves against the ORIGINAL
 file; a pattern is NOT a way to edit a file you have not read — its line must
 have been served. Paths are relative to the root; two spellings of ONE file
-(case, symlink) are one: a plan naming both is refused.
+are one: a plan naming both is refused.
 
 Guards: sha=<hex> whole file, on every op; lines=<n> and anchor="<text>",
 refused on create, unlink and rename. A BODY line starting @@ needs body=<n> and raw=true.

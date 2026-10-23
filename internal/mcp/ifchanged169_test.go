@@ -10,6 +10,18 @@ import (
 	"testing"
 )
 
+// ADR-169 Decision 6: the handshake an MCP host reads at the start of a session
+// names the guard among its recipes, within the 4096-byte bound.
+func TestTheHandshakeTeachesIfChanged(t *testing.T) {
+	got := instructionsText()
+	if !strings.Contains(got, "mrw_read with if_changed") {
+		t.Errorf("the handshake's recipes do not name if_changed:\n%s", got)
+	}
+	if len(got) > maxInstructionsChars {
+		t.Errorf("instructions are %d bytes, over %d", len(got), maxInstructionsChars)
+	}
+}
+
 // ADR-169 T2. mrw_read takes if_changed, an object of path to the sha prefix
 // the caller holds, and answers a spec of an unchanged file with one line and no
 // checkpoint. That answer delivered what was asked for, so it is not an error
