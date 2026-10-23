@@ -294,6 +294,12 @@ func TestTheChecksTableNamesARepositorySourceForEveryPoolRepository(t *testing.T
 		"a quoted -k":                               {"astropy/astropy", set("command", `pytest "-k" foo`)},
 		"options set before the runner":             {"astropy/astropy", set("command", "PYTEST_ADDOPTS=-kfoo pytest")},
 		"a command naming a test file":              {"astropy/astropy", set("command", "pytest test_x.py")},
+		"a backslashed -k":                          {"astropy/astropy", set("command", `pytest \-k foo`)},
+		"--keyword":                                 {"astropy/astropy", set("command", "pytest --keyword foo")},
+		"a marker selection":                        {"astropy/astropy", set("command", "pytest -m slow")},
+		"options set through env":                   {"astropy/astropy", set("command", "env PYTEST_ADDOPTS=-kfoo pytest")},
+		"last-failed":                               {"astropy/astropy", set("command", "pytest --lf")},
+		"a deselection":                             {"astropy/astropy", set("command", "pytest --deselect=x")},
 	} {
 		if _, err := LoadChecks(tableWith(t, tc.repo, tc.edit), repos); err == nil || !strings.Contains(err.Error(), tc.repo) {
 			t.Errorf("%s: %v, want a refusal naming %s", name, err, tc.repo)

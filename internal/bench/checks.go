@@ -40,8 +40,12 @@ type Checks struct {
 var (
 	checkSource  = regexp.MustCompile(`^[^:]+:[0-9]+@[0-9a-f]{40}$`)
 	commandSplit = regexp.MustCompile(`&&|\|\||;`)
-	// envAssign is a variable set before a command: NAME=value.
+	// envAssign is a variable set for a command: NAME=value.
 	envAssign = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*=`)
+	// selectors are pytest's options that run a subset of the collected
+	// tests, matched on the option name before any `=`.
+	selectors = map[string]bool{"--keyword": true, "--deselect": true, "--ignore": true, "--ignore-glob": true,
+		"--lf": true, "--last-failed": true, "--sw": true, "--stepwise": true}
 )
 
 // LoadChecks reads the table and refuses it unless every entry has a source
@@ -78,24 +82,32 @@ func LoadChecks(path string, repos []string) (*Checks, error) {
 }
 
 // wholeRunner refuses a command that selects a subset: an argument holding a
-// path, a test id, a .py file or -k, read with its quotes removed so that
-// `"-k"` is -k; or a variable set before the runner, which can carry options
-// (PYTEST_ADDOPTS). The first word of each simple command is the program, so
-// `bin/test` is one, and `python runtests.py` names its runner script.
+// path, a test id or a .py file, -k, pytest's other selection options, or -m
+// other than `-m pytest`; or a variable set anywhere in it, which can carry
+// options (PYTEST_ADDOPTS). Words are read with quotes and backslashes removed,
+// so `"-k"` and `\-k` are -k. The first word of each simple command is the
+// program, so `bin/test` is one, and `python runtests.py` names its runner
+// script. It catches the selectors a runner documents, not every way a shell
+// can hide one: the table is also read by a person, and its sha is registered.
 func wholeRunner(command string) error {
 	segments := 0
 	for _, seg := range commandSplit.Split(command, -1) {
-		words := strings.Fields(strings.NewReplacer(`"`, "", `'`, "").Replace(seg))
+		words := strings.Fields(strings.NewReplacer(`"`, "", `'`, "", `\`, "").Replace(seg))
 		if len(words) == 0 {
 			continue
 		}
 		segments++
-		if envAssign.MatchString(words[0]) {
-			return fmt.Errorf("command %q sets %q before its runner: the declared check is the runner alone", command, words[0])
+		for _, w := range words {
+			if envAssign.MatchString(w) {
+				return fmt.Errorf("command %q sets %q: the declared check is the runner alone", command, w)
+			}
 		}
 		for i, w := range words[1:] {
 			script := i == 0 && (words[0] == "python" || words[0] == "python3") && strings.HasSuffix(w, ".py")
-			if strings.Contains(w, "/") || strings.Contains(w, "::") || strings.HasPrefix(w, "-k") || strings.HasSuffix(w, ".py") && !script {
+			name, _, _ := strings.Cut(w, "=")
+			marker := strings.HasPrefix(w, "-m") && !(w == "-m" && i+2 < len(words) && words[i+2] == "pytest")
+			if strings.Contains(w, "/") || strings.Contains(w, "::") || strings.HasPrefix(w, "-k") || marker || selectors[name] ||
+				strings.HasSuffix(w, ".py") && !script {
 				return fmt.Errorf("command %q selects a subset by %q: the declared check is the whole runner", command, w)
 			}
 		}
