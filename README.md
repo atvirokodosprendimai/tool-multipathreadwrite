@@ -83,7 +83,7 @@ What this does not show:
 
 Latency and shape numbers for the engine itself are in [docs/measure.md](docs/measure.md), the six-guarantee comparison in [docs/comparison.md](docs/comparison.md), and model × score readings in [docs/model-benches.md](docs/model-benches.md).
 
-**Status: stable at v1.73.0 (2026-10-23), the tag cut from `c88bb23`.** Break campaign for it: [docs/break/campaign-v1.73.0.txt](docs/break/campaign-v1.73.0.txt), 59 probes, exit codes identical to v1.72.0. New: `mrw --skill` prints mrw's Agent Skills `SKILL.md` and `mrw --skill --dir DIR` installs it beside your agent's standing instructions; `mrw --help` opens with that line (ADR-168).
+**Status: stable at v1.74.0 (2026-10-23), the tag cut from `e61e2d4`.** Break campaign for it: [docs/break/campaign-v1.74.0.txt](docs/break/campaign-v1.74.0.txt), 59 probes, exit codes identical to v1.73.0. New: `mrw read --if-changed PATH=SHA` answers a file you read earlier with one line — `unchanged since sha … — N lines, B bytes not served` — when it has not changed, and serves it as ever when it has; MCP `mrw_read` takes `if_changed` (ADR-169).
 
 Decisions: [docs/adr/](docs/adr/). How a change reaches `main`: [CONTRIBUTING.md](CONTRIBUTING.md). Driving it from a checkout: [AGENTS.md](AGENTS.md).
 Caller practices: [BESTPRACTICES.md](BESTPRACTICES.md). Updating the binary: [UPDATE.md](UPDATE.md).
