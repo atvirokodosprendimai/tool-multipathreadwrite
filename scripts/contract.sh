@@ -1748,7 +1748,7 @@ fixture
 R_MCP=$R
 # ADR-113: mrw_write runs the check by default; check: false matches the CLI's --no-check above.
 req=$(printf '%s' "$PLAN" | python3 -c 'import json,sys; print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":sys.stdin.read(),"check":False}}}))')
-mcpout=$(printf '%s\n' "$req" | "$MRW" -C "$R_MCP" mcp 2>"$WORK/mcp.err"); rc=$?
+mcpout=$(printf '%s\n' "$req" | "$MRW" -C "$R_MCP" mcp --enable 2>"$WORK/mcp.err"); rc=$?
 want 0 "$rc" "mrw mcp applies the same plan over a real pipe"
 
 # The spec: a server MUST NOT write anything to stdout that is not a valid MCP
@@ -1796,7 +1796,7 @@ grep -q 'return 11 }' "$R_MCP/a.go" && ok "and the file really changed" || bad "
 fixture
 R_KILL=$R
 rm -f "$WORK/in" "$WORK/out"; mkfifo "$WORK/in" "$WORK/out"
-"$MRW" -C "$R_KILL" mcp < "$WORK/in" > "$WORK/out" 2>/dev/null &
+"$MRW" -C "$R_KILL" mcp --enable < "$WORK/in" > "$WORK/out" 2>/dev/null &
 srv=$!
 exec 9>"$WORK/in"; exec 8<"$WORK/out"
 printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.go"]}}}' >&9
@@ -1808,7 +1808,7 @@ kill -0 "$srv" 2>/dev/null && bad "the server survived SIGKILL" || ok "the serve
 
 # A NEW server completes a write the dead one licensed.
 req=$(printf '@@ a.go 3 replace\nfunc A() int { return 12 }\n' | python3 -c 'import json,sys; print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":sys.stdin.read()}}}))')
-out=$(printf '%s\n' "$req" | "$MRW" -C "$R_KILL" mcp 2>/dev/null)
+out=$(printf '%s\n' "$req" | "$MRW" -C "$R_KILL" mcp --enable 2>/dev/null)
 grep -q '"applied":true' <<<"$out" \
   && ok "a NEW server completes a write the killed one licensed" \
   || bad "the ledger did not survive the kill: $(head -c 200 <<<"$out")"
@@ -1830,7 +1830,7 @@ want 0 "$rc" "and a CLI write after the killed server is licensed too"
 grep -qE '^[[:space:]]+mcp[[:space:]]' "$WORK/help.out" \
   && ok "mrw --help lists mcp" \
   || bad "mrw --help does not list mcp"
-out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}\n' | "$MRW" mcp 2>&1); rc=$?
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}\n' | "$MRW" mcp --enable 2>&1); rc=$?
 want 0 "$rc" "mrw mcp starts a server"
 grep -q 'mrw_write' <<<"$out" \
   && ok "which advertises mrw_write" \
@@ -1855,7 +1855,7 @@ printf 'package demo\n\nfunc Only() int { return 7 }\n' > "$R_HOST/only-in-host.
 # No --root: the environment must decide, not the working directory.
 out=$(cd "$R_CWD" && CLAUDE_PROJECT_DIR="$R_HOST" printf '%s\n' \
   '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["only-in-host.go"]}}}' \
-  | CLAUDE_PROJECT_DIR="$R_HOST" "$MRW" mcp 2>"$WORK/root.err"); rc=$?
+  | CLAUDE_PROJECT_DIR="$R_HOST" "$MRW" mcp --enable 2>"$WORK/root.err"); rc=$?
 want 0 "$rc" "mrw mcp starts with no --root"
 grep -q 'func Only' <<<"$out" \
   && ok "and serves the tree CLAUDE_PROJECT_DIR names, not its own cwd" \
@@ -1874,7 +1874,7 @@ for l in open(sys.argv[1]) if False else sys.argv[1].splitlines():
 # An explicit --root beats the host: a user overriding on purpose must win.
 out=$(printf '%s\n' \
   '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["only-in-host.go"]}}}' \
-  | CLAUDE_PROJECT_DIR="$R_HOST" "$MRW" --root "$R_CWD" mcp 2>/dev/null)
+  | CLAUDE_PROJECT_DIR="$R_HOST" "$MRW" --root "$R_CWD" mcp --enable 2>/dev/null)
 grep -q 'UNREADABLE\|REFUSED' <<<"$out" \
   && ok "and an explicit --root overrides the host's environment" \
   || bad "--root did not win over CLAUDE_PROJECT_DIR: $(head -c 160 <<<"$out")"
@@ -1888,7 +1888,7 @@ grep -q 'UNREADABLE\|REFUSED' <<<"$out" \
 # the tree — rather than by reading the field back out of the descriptor.
 fixture
 
-out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}\n' | m mcp 2>/dev/null)
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}\n' | m mcp --enable 2>/dev/null)
 want 0 $? "tools/list answers"
 python3 - "$out" <<'PY'
 import json,sys
@@ -1913,7 +1913,7 @@ PY
 # THE ROW: mrw_read says readOnlyHint, so running it must leave the tree alone.
 before=$(cd "$R" && find . -type f -newer go.mod -o -type f | sort | xargs shasum -a 256 | shasum -a 256)
 printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.go"]}}}\n' \
-  | m mcp >/dev/null 2>&1
+  | m mcp --enable >/dev/null 2>&1
 after=$(cd "$R" && find . -type f -newer go.mod -o -type f | sort | xargs shasum -a 256 | shasum -a 256)
 [ "$before" = "$after" ] \
   && ok "and mrw_read really is read-only, as its annotation claims" \
@@ -1924,7 +1924,7 @@ m read a.go >"$WORK/served.out" 2>&1
 # The plan's newlines must reach mrw as the two-character escape \n INSIDE the
 # JSON string, not as real newlines — a real one would split the message across
 # two lines and the server would see two malformed frames. Hence \\n here.
-out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ a.go 3 replace\\nfunc A() int { return 41 }\\n"}}}\n' | m mcp 2>/dev/null)
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ a.go 3 replace\\nfunc A() int { return 41 }\\n"}}}\n' | m mcp --enable 2>/dev/null)
 python3 - "$out" <<'PY'
 import json,sys
 r=json.loads(sys.argv[1])["result"]
@@ -1963,7 +1963,7 @@ with open('$R/wide.go','w') as f:
 # so the flat refusal survives for them, and this row pins it where its
 # assertions remain true.
 printf '// small\n' > "$R/small.go"
-out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["wide.go","small.go"]}}}\n' | m mcp 2>/dev/null)
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["wide.go","small.go"]}}}\n' | m mcp --enable 2>/dev/null)
 want 0 $? "the server answers a read that is too large"
 python3 - "$out" <<'PY'
 import json,re,sys
@@ -2011,7 +2011,7 @@ tr -s '[:space:]' ' ' < "$SRC/AGENTS.md" | grep -qF "$rule" \
   && ok "AGENTS.md still states the always + plan sentence this row holds the wire against" \
   || bad "the always + plan sentence moved in AGENTS.md; the wire and the repository now teach different rules"
 
-out=$(printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}\n' | m mcp 2>/dev/null)
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}\n' | m mcp --enable 2>/dev/null)
 want 0 $? "initialize answers"
 python3 - "$out" <<'PY'
 import json,sys
@@ -2039,7 +2039,7 @@ PY
 [ $? -eq 0 ] && ok "and the handshake teaches the format without pointing at a file the caller cannot open" \
              || bad "the initialize instructions are missing, unbounded, or a pointer to nothing"
 
-out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}\n' | m mcp 2>/dev/null)
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}\n' | m mcp --enable 2>/dev/null)
 want 0 $? "tools/list answers"
 python3 - "$out" "$rule" <<'PY'
 import json,sys
@@ -2174,7 +2174,7 @@ grep -q 'matched no line' <<<"$out" \
 # and a file's `written`.
 fixture
 
-out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}\n' | m mcp 2>/dev/null)
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}\n' | m mcp --enable 2>/dev/null)
 want 0 $? "tools/list answers"
 python3 - "$out" <<'PY'
 import json,sys
@@ -2306,7 +2306,7 @@ want 2 "$rc" "and an insertion refuses a RANGE, whether it is written 3-6 or /a/
 # ADR-012 taught an enum the engine never sent and two independent reviewers
 # caught it. This row is that lesson applied to a RULE rather than a value: the
 # exactly-once refusal is asserted on the wire and in the binary, in one place.
-out=$(printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}\n' | m mcp 2>/dev/null)
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}\n' | m mcp --enable 2>/dev/null)
 python3 - "$out" <<'PY'
 import json,sys
 i=json.loads(sys.argv[1])["result"]["instructions"]
@@ -2323,7 +2323,7 @@ PY
 # the agent may never read. Observed directly: agents settling for the smaller
 # surface because it is the one they can see. So the wire routes them, and this
 # row checks the routing is on the wire AND that the flags it names are real.
-out=$(printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}\n' | m mcp 2>/dev/null)
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}\n' | m mcp --enable 2>/dev/null)
 python3 - "$out" <<'PY'
 import json,sys
 i=json.loads(sys.argv[1])["result"]["instructions"]
@@ -2357,7 +2357,7 @@ PY
 [ $? -eq 0 ] && ok "the handshake routes a shell-capable caller to the CLI, first" \
              || bad "the surface does not say it is the smaller one"
 
-out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}\n' | m mcp 2>/dev/null)
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}\n' | m mcp --enable 2>/dev/null)
 python3 - "$out" <<'PY'
 import json,sys
 for t in json.loads(sys.argv[1])["result"]["tools"]:
@@ -2410,7 +2410,7 @@ for i in range(40):
         f.write('a line that matches nothing\n')
         for j in range(400): f.write('the NEEDLE is here\n')
 "
-out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"grep":"NEEDLE"}}}\n' | m --root "$R" mcp 2>/dev/null)
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"grep":"NEEDLE"}}}\n' | m --root "$R" mcp --enable 2>/dev/null)
 MRW_BIN="$MRW" python3 - "$R" "$out" <<'PY'
 import json, subprocess, sys, os
 root, raw = sys.argv[1], sys.argv[2]
@@ -2426,7 +2426,7 @@ first = idx[0]
 assert ":" not in first, "index entry %r carries an address; a pattern containing a slash makes that ambiguous" % first
 req = {"jsonrpc":"2.0","id":1,"method":"tools/call",
        "params":{"name":"mrw_read","arguments":{"specs":[first],"grep":"NEEDLE"}}}
-p = subprocess.run([os.environ["MRW_BIN"], "--root", root, "mcp"],
+p = subprocess.run([os.environ["MRW_BIN"], "--root", root, "mcp", "--enable"],
                    input=json.dumps(req)+"\n", capture_output=True, text=True)
 back = json.loads(p.stdout.splitlines()[0])["result"]
 assert back.get("isError") is not True, "index entry %r is not a spec the tool accepts" % first
@@ -2444,7 +2444,7 @@ PY
 
 # And a grep that FITS serves content and records it, so the ledger licenses a
 # write to what the caller was actually shown.
-out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["doc000.csv"],"grep":"NEEDLE"}}}\n' | m --root "$R" mcp 2>/dev/null)
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["doc000.csv"],"grep":"NEEDLE"}}}\n' | m --root "$R" mcp --enable 2>/dev/null)
 python3 - "$out" <<'PY'
 import json,sys
 res = json.loads(sys.argv[1])["result"]
@@ -2456,7 +2456,7 @@ PY
 
 # The grammar matches the CLI's: a range and a grep are two answers to one
 # question, and BOTH surfaces say so.
-out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["doc000.csv:1-2"],"grep":"NEEDLE"}}}\n' | m --root "$R" mcp 2>/dev/null)
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["doc000.csv:1-2"],"grep":"NEEDLE"}}}\n' | m --root "$R" mcp --enable 2>/dev/null)
 grep -q 'two answers to one question' <<<"$out" \
   && ok "and a ranged spec with grep is refused, in the CLI's own words" \
   || bad "the two surfaces disagree on the grammar: $out"
@@ -2481,7 +2481,7 @@ mrw = os.environ["MRW_BIN"]
 def call(args):
     req = {"jsonrpc":"2.0","id":1,"method":"tools/call",
            "params":{"name":"mrw_read","arguments":args}}
-    p = subprocess.run([mrw, "--root", root, "mcp"],
+    p = subprocess.run([mrw, "--root", root, "mcp", "--enable"],
                        input=json.dumps(req)+"\n", capture_output=True, text=True)
     line = p.stdout.splitlines()[0]
     # THE ENCODED LINE is what the host receives, so it is what the cap governs.
@@ -2527,7 +2527,7 @@ PY
 # §51 passed, and NOTHING ELSE COULD HAVE CAUGHT IT: §50 asserts the flags the
 # routing names EXIST in the CLI's help, and --grep still exists. A gate that
 # checks a thing exists cannot catch a thing that is present and false.
-out=$(printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}\n' | m mcp 2>/dev/null)
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}\n' | m mcp --enable 2>/dev/null)
 python3 - "$out" <<'PY'
 import json,sys
 i = json.loads(sys.argv[1])["result"]["instructions"]
@@ -2547,8 +2547,8 @@ PY
 
 # THE ROW THAT BINDS: every long flag the wire still names as the CLI's must NOT
 # be an argument mrw_read declares. This is the direction §50 cannot check.
-out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}\n' | m mcp 2>/dev/null)
-ins=$(printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n' | m mcp 2>/dev/null)
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}\n' | m mcp --enable 2>/dev/null)
+ins=$(printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n' | m mcp --enable 2>/dev/null)
 python3 - "$out" "$ins" <<'PY'
 import json,re,sys
 tools = json.loads(sys.argv[1])["result"]["tools"]
@@ -2576,19 +2576,19 @@ PY
 # explicit --root / must still be SERVED. A guard that refused it would be a
 # list of paths somebody found distasteful rather than a rule, and it would
 # break the population whose documents really do live under a wide root.
-( cd / && env -u CLAUDE_PROJECT_DIR "$MRW" mcp < /dev/null > /dev/null 2>&1 )
+( cd / && env -u CLAUDE_PROJECT_DIR "$MRW" mcp --enable < /dev/null > /dev/null 2>&1 )
 want 2 "$?" "a fallback onto the filesystem root is refused"
 
-out=$( cd / && env -u CLAUDE_PROJECT_DIR "$MRW" mcp < /dev/null 2>&1 )
+out=$( cd / && env -u CLAUDE_PROJECT_DIR "$MRW" mcp --enable < /dev/null 2>&1 )
 grep -q -- '--root' <<<"$out" \
   && ok "and the refusal names the flag that fixes it" \
   || bad "the refusal is a dead end, it does not say how to name a tree: $out"
 
-( cd / && env -u CLAUDE_PROJECT_DIR "$MRW" --root / mcp < /dev/null > /dev/null 2>&1 )
+( cd / && env -u CLAUDE_PROJECT_DIR "$MRW" --root / mcp --enable < /dev/null > /dev/null 2>&1 )
 want 0 "$?" "but an EXPLICIT --root / is still served — explicitness is the licence"
 
 R53=$(mktemp -d)
-( cd "$R53" && env -u CLAUDE_PROJECT_DIR "$MRW" mcp < /dev/null > /dev/null 2>&1 )
+( cd "$R53" && env -u CLAUDE_PROJECT_DIR "$MRW" mcp --enable < /dev/null > /dev/null 2>&1 )
 want 0 "$?" "and an ordinary directory reached by fallback still serves"
 rm -rf "$R53"
 
@@ -3204,7 +3204,7 @@ while True:
     assert pages <= 30, "still paging after %d pages — the continuation is not advancing" % pages
     req = json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":
                       {"name":"mrw_read","arguments":{"specs":[spec]}}})
-    out = subprocess.run([mrw, "-C", root, "mcp"], input=req+"\n",
+    out = subprocess.run([mrw, "-C", root, "mcp", "--enable"], input=req+"\n",
                          capture_output=True, text=True).stdout
     r = json.loads(out)["result"]
     body = r["content"][0]["text"]
@@ -3237,7 +3237,7 @@ with open('$R/huge.go','w') as f:
     for i in range(12000): f.write('// padding padding padding padding padding %06d\n' % i)
 "
 total=$(wc -l < "$R/huge.go" | tr -d ' ')
-out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["huge.go"]}}}\n' | m mcp 2>/dev/null)
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["huge.go"]}}}\n' | m mcp --enable 2>/dev/null)
 # ⚠ A PAGE LICENSES NOTHING UNTIL IT IS ACKNOWLEDGED (ADR-031). This row used to
 # read and then write, because being SENT a page was taken as receiving it —
 # the belief a host's truncation falsified on 2026-09-05. Acknowledging every
@@ -3251,7 +3251,7 @@ print(",".join('"%s"' % c for c in re.findall(r"^-- ck ([0-9a-f]{16}) open ", r[
 PY
 )
 [ -n "$cks" ] && ok "the page carries checkpoints to acknowledge" || bad "a paged read carries no checkpoint"
-out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ huge.go 1 replace\\n// page one\\n","dry_run":true,"ack":[%s]}}}\n' "$cks" | m mcp 2>/dev/null)
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ huge.go 1 replace\\n// page one\\n","dry_run":true,"ack":[%s]}}}\n' "$cks" | m mcp --enable 2>/dev/null)
 python3 - "$out" <<'PY'
 import json,sys
 r=json.loads(sys.argv[1])["result"]
@@ -3283,8 +3283,8 @@ with open('$R/pager.go','w') as f:
 # "Argument list too long" and the row reports a behaviour mismatch that is not
 # one. macOS's limit is larger, which is why this was green here and red in CI.
 # Caught in review of PR #76.
-printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}\n' | m mcp 2>/dev/null > "$WORK/init.json"
-printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["pager.go"]}}}\n' | m mcp 2>/dev/null > "$WORK/page.json"
+printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}\n' | m mcp --enable 2>/dev/null > "$WORK/init.json"
+printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["pager.go"]}}}\n' | m mcp --enable 2>/dev/null > "$WORK/page.json"
 python3 - "$WORK/init.json" "$WORK/page.json" <<'PY'
 import json,sys
 i=json.load(open(sys.argv[1]))["result"]["instructions"]
@@ -3367,7 +3367,7 @@ fi
 # MCP-only caller has no README and no AGENTS.md, so the wire is the ONLY place
 # it can learn the rule before meeting it as a refusal. Both halves here, in one
 # row, so the wire cannot drift from the binary in either direction.
-out=$(printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}\n' | m mcp 2>/dev/null)
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}\n' | m mcp --enable 2>/dev/null)
 python3 - "$out" <<'PY'
 import json,sys
 i=json.loads(sys.argv[1])["result"]["instructions"]
@@ -3514,7 +3514,7 @@ for i in range(60):
 # Results go to FILES, not argv: a page of a 12,000-line file is ~700 KB, and
 # Linux refuses a single argument over 128 KB ("Argument list too long") —
 # which is how the first cut of this row went red in CI and green on macOS.
-call61() { printf '%s\n' "$2" | m mcp 2>/dev/null > "$WORK/61-$1.json"; }
+call61() { printf '%s\n' "$2" | m mcp --enable 2>/dev/null > "$WORK/61-$1.json"; }
 call61 served '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.go"]}}}'
 call61 paged  '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["big.txt"]}}}'
 call61 index  '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"grep":"NEEDLE"}}}'
@@ -3675,9 +3675,9 @@ with open('$R/pager.go','w') as f:
 "
 # ⚠ THROUGH FILES, NOT ARGV — the page is ~156 KB and Linux caps one argument at
 # 131,072 bytes (MAX_ARG_STRLEN). The same trap §48 records.
-printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["pager.go"]}}}\n' | m mcp 2>/dev/null > "$WORK/p62.json"
-printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.go"],"exclude":["x"]}}}\n' | m mcp 2>/dev/null > "$WORK/r62.json"
-printf '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}\n' | m mcp 2>/dev/null > "$WORK/l62.json"
+printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["pager.go"]}}}\n' | m mcp --enable 2>/dev/null > "$WORK/p62.json"
+printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.go"],"exclude":["x"]}}}\n' | m mcp --enable 2>/dev/null > "$WORK/r62.json"
+printf '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}\n' | m mcp --enable 2>/dev/null > "$WORK/l62.json"
 python3 - "$WORK/p62.json" "$WORK/r62.json" "$WORK/l62.json" <<'PY'
 import json,sys
 page=json.load(open(sys.argv[1]))["result"]
@@ -3714,9 +3714,9 @@ PY
 # The third call is the one that pins WHICH count decides: a range that matches no
 # line is still OBSERVED, so it must stay unflagged even though it counts a problem.
 fixture
-printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["nope_dir"]}}}\n' | m mcp 2>/dev/null > "$WORK/n63.json"
-printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.go","nope_dir"]}}}\n' | m mcp 2>/dev/null > "$WORK/s63.json"
-printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.go:99"]}}}\n' | m mcp 2>/dev/null > "$WORK/m63.json"
+printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["nope_dir"]}}}\n' | m mcp --enable 2>/dev/null > "$WORK/n63.json"
+printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.go","nope_dir"]}}}\n' | m mcp --enable 2>/dev/null > "$WORK/s63.json"
+printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.go:99"]}}}\n' | m mcp --enable 2>/dev/null > "$WORK/m63.json"
 python3 - "$WORK/n63.json" "$WORK/s63.json" "$WORK/m63.json" <<'PY'
 import json,sys
 nothing=json.load(open(sys.argv[1]))["result"]
@@ -3778,7 +3778,7 @@ grep -q '+0' <<<"$out" && ok "the plan refusal names what was written" || bad "t
 # dropped, which is the shape of defect this whole record is about.
 fixture
 req=$(printf '@@ a.go 3,+1 replace anchor="func A()"\nfunc A() int { return 11 }\n' | python3 -c 'import json,sys; print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":sys.stdin.read()}}}))')
-printf '%s\n' "$req" | m mcp 2>/dev/null > "$WORK/w64.json"
+printf '%s\n' "$req" | m mcp --enable 2>/dev/null > "$WORK/w64.json"
 python3 - "$WORK/w64.json" "$R/a.go" <<'PY'
 import json,sys
 res=json.load(open(sys.argv[1]))["result"]
@@ -3905,7 +3905,7 @@ grep -qi 'relative end clamps at the last line, has no backwards' AGENTS.md \
 # accepted it — the defect issues #51 and #73 recorded, one surface over. Driven
 # through the BUILT server so the assertion is about what goes on the wire.
 fixture
-printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"c","version":"1"}}}\n{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}\n' | m mcp 2>/dev/null > "$WORK/w64b.json"
+printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"c","version":"1"}}}\n{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}\n' | m mcp --enable 2>/dev/null > "$WORK/w64b.json"
 python3 - "$WORK/w64b.json" <<'PY'
 import json,sys
 init=None; tools=None
@@ -4182,7 +4182,7 @@ python3 - "$R" <<'PY'
 import sys, pathlib
 pathlib.Path(sys.argv[1], "big.txt").write_text("".join("line %d\n" % i for i in range(1, 12001)))
 PY
-out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["big.txt"]}}}\n' | m mcp 2>/dev/null)
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["big.txt"]}}}\n' | m mcp --enable 2>/dev/null)
 want 0 $? "the server answers a read that must page"
 # the page is kept in $R/page.json below: $out is reused by every write
 # ⚠ THE PAGE GOES THROUGH A FILE, NOT THROUGH ARGV. Linux caps a single
@@ -4257,7 +4257,7 @@ PY
 plan_preack=$(python3 -c "
 import sys,json
 print(json.dumps(open(sys.argv[1]).read())[1:-1])" "$R/preack.plan")
-out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"%s","dry_run":true}}}\n' "$plan_preack" | m mcp 2>/dev/null)
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"%s","dry_run":true}}}\n' "$plan_preack" | m mcp --enable 2>/dev/null)
 python3 - "$out" <<'PY'
 import json,sys
 r=json.loads(sys.argv[1])["result"]
@@ -4266,7 +4266,7 @@ assert sc["failed"] == sc["failed"] and sc["applied"] == 0, "a freshly served pa
 PY
 want 0 $? "a freshly served page licenses NO block until it is acknowledged"
 
-out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ big.txt 1 replace\\nX\\n","dry_run":true}}}\n' | m mcp 2>/dev/null)
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ big.txt 1 replace\\nX\\n","dry_run":true}}}\n' | m mcp --enable 2>/dev/null)
 python3 - "$out" <<'PY'
 import json,sys
 r=json.loads(sys.argv[1])["result"]
@@ -4277,7 +4277,7 @@ want 0 $? "an unacknowledged page licenses nothing"
 
 # Acknowledged FIRST and LAST, and the middle deliberately not — the shape the
 # host's cut actually produced.
-out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ big.txt 1 replace\\nX\\n","dry_run":true,"ack":["%s","%s"]}}}\n' "$first" "$last" | m mcp 2>/dev/null)
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ big.txt 1 replace\\nX\\n","dry_run":true,"ack":["%s","%s"]}}}\n' "$first" "$last" | m mcp --enable 2>/dev/null)
 python3 - "$out" <<'PY'
 import json,sys
 r=json.loads(sys.argv[1])["result"]
@@ -4298,7 +4298,7 @@ print(m.group(1) if m else "")
 PY
 )
 [ -n "$lastspan" ] && ok "the last checkpoint names the span it opens" || bad "the last checkpoint's open marker carries no range"
-out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ big.txt %s replace\\nX\\n","dry_run":true,"ack":["%s","%s"]}}}\n' "$lastspan" "$first" "$last" | m mcp 2>/dev/null)
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ big.txt %s replace\\nX\\n","dry_run":true,"ack":["%s","%s"]}}}\n' "$lastspan" "$first" "$last" | m mcp --enable 2>/dev/null)
 python3 - "$out" <<'PY'
 import json,sys
 r=json.loads(sys.argv[1])["result"]
@@ -4308,7 +4308,7 @@ PY
 want 0 $? "the last acknowledged segment licenses its own lines too"
 
 # And a line covered only by a checkpoint nobody echoed stays unwritable.
-out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ big.txt 900 replace\\nX\\n","dry_run":true,"ack":["%s","%s"]}}}\n' "$first" "$last" | m mcp 2>/dev/null)
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ big.txt 900 replace\\nX\\n","dry_run":true,"ack":["%s","%s"]}}}\n' "$first" "$last" | m mcp --enable 2>/dev/null)
 python3 - "$out" <<'PY'
 import json,sys
 r=json.loads(sys.argv[1])["result"]
@@ -4340,7 +4340,7 @@ t=json.load(open(sys.argv[1]))["result"]["content"][0]["text"]
 print(",".join('"%s"' % c for c in re.findall(r"^-- ck ([0-9a-f]{16}) open ", t, re.M)))
 PY
 )
-out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"%s","dry_run":true,"ack":[%s]}}}\n' "$plan" "$allcks" | m mcp 2>/dev/null)
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"%s","dry_run":true,"ack":[%s]}}}\n' "$plan" "$allcks" | m mcp --enable 2>/dev/null)
 python3 - "$out" <<'PY'
 import json,sys
 r=json.loads(sys.argv[1])["result"]
@@ -4420,12 +4420,12 @@ PY
 for ceiling in 200000 20000; do
   flags=""
   [ "$ceiling" = 200000 ] || flags="--max-result-chars $ceiling"
-  adv=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/list"}\n' | m mcp $flags 2>/dev/null \
+  adv=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/list"}\n' | m mcp --enable $flags 2>/dev/null \
         | python3 -c 'import sys,json; d=json.load(sys.stdin); print(" ".join("%s=%s" % (t["name"], t["_meta"]["anthropic/maxResultSizeChars"]) for t in sorted(d["result"]["tools"], key=lambda t: t["name"])))')
   [ "$adv" = "mrw_read=$ceiling mrw_write=$ceiling" ] \
     && ok "both tools advertise the ceiling in force ($ceiling)" \
     || bad "the advertised ceiling is not the one in force ($ceiling): $adv"
-  m mcp $flags < "$R/calls.jsonl" > "$R/answers.jsonl" 2>/dev/null
+  m mcp --enable $flags < "$R/calls.jsonl" > "$R/answers.jsonl" 2>/dev/null
   out=$(python3 - "$R/answers.jsonl" "$ceiling" <<'PY'
 import json, sys
 limit, dec, over, seen = int(sys.argv[2]), json.JSONDecoder(), [], 0
@@ -4462,7 +4462,7 @@ done
 # against a server that elides everything, which would be a ban rather than a
 # narrowing. The big receipt says what it dropped; the small one drops nothing
 # and says nothing.
-m mcp < "$R/calls.jsonl" > "$R/answers.jsonl" 2>/dev/null
+m mcp --enable < "$R/calls.jsonl" > "$R/answers.jsonl" 2>/dev/null
 out=$(python3 - "$R/answers.jsonl" <<'PY'
 import json, sys
 rows = [json.loads(l)["result"] for l in open(sys.argv[1]) if l.strip()]
@@ -4495,8 +4495,8 @@ print(json.dumps({"jsonrpc": "2.0", "id": 2, "method": "tools/call",
                   "params": {"name": "mrw_write",
                              "arguments": {"plan": "@@ tiny.txt 1 replace\nMUTATED\n"}}}))
 PY
-m mcp < "$R/one.jsonl" >/dev/null 2>&1
-out=$(m mcp --max-result-chars 0 < "$R/onewrite.jsonl" 2>/dev/null | python3 -c '
+m mcp --enable < "$R/one.jsonl" >/dev/null 2>&1
+out=$(m mcp --enable --max-result-chars 0 < "$R/onewrite.jsonl" 2>/dev/null | python3 -c '
 import json, sys
 d = json.load(sys.stdin)
 print("error" if "error" in d else "result")')
@@ -4872,7 +4872,7 @@ want "$applied" "$changed" "and no file changed that was not applied"
 # halves so a server that licenses nothing cannot pass.
 fixture
 printf 'one\ntwo\nthree\n' > "$R/small.txt"
-out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["small.txt"]}}}\n' | m mcp 2>/dev/null)
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["small.txt"]}}}\n' | m mcp --enable 2>/dev/null)
 want 0 $? "the server answers a fitting read"
 printf '%s' "$out" > "$R/fit.json"
 python3 - "$R/fit.json" <<'PY'
@@ -4886,7 +4886,7 @@ open(sys.argv[1]+".cks","w").write(" ".join(cks))
 PY
 want 0 $? "a fitting serve carries checkpoints and did not page"
 cks=$(cat "$R/fit.json.cks")
-out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ small.txt 2 replace\\nTWO\\n"}}}\n' | m mcp 2>/dev/null)
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ small.txt 2 replace\\nTWO\\n"}}}\n' | m mcp --enable 2>/dev/null)
 python3 - "$out" "$R/small.txt" <<'PY'
 import json,sys
 r=json.loads(sys.argv[1])["result"]
@@ -4898,7 +4898,7 @@ assert open(sys.argv[2]).read() == "one\ntwo\nthree\n", "an unacked write change
 PY
 want 0 $? "an unacked fitting write is refused and the tree is unchanged"
 first=$(printf '%s' "$cks" | awk '{print $1}')
-out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ small.txt 2 replace\\nTWO\\n","ack":["%s"]}}}\n' "$first" | m mcp 2>/dev/null)
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ small.txt 2 replace\\nTWO\\n","ack":["%s"]}}}\n' "$first" | m mcp --enable 2>/dev/null)
 python3 - "$out" "$R/small.txt" <<'PY'
 import json,sys
 r=json.loads(sys.argv[1])["result"]
@@ -4917,7 +4917,7 @@ A78=$(mktemp -d "$WORK/a78-XXXXXX")
 B78=$(mktemp -d "$WORK/b78-XXXXXX")
 printf 'one\ntwo\nthree\n' > "$A78/f.txt"
 printf 'one\ntwo\nthree\n' > "$B78/f.txt"
-out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["f.txt"]}}}\n' | "$MRW" --root "$A78" mcp 2>/dev/null)
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["f.txt"]}}}\n' | "$MRW" --root "$A78" mcp --enable 2>/dev/null)
 want 0 $? "root A answers a fitting read"
 printf '%s' "$out" > "$A78/read.json"
 python3 - "$A78/read.json" <<'PY'
@@ -4932,7 +4932,7 @@ PY
 want 0 $? "A's fitting serve carries checkpoints"
 cks=$(cat "$A78/read.json.cks")
 first=$(printf '%s' "$cks" | awk '{print $1}')
-out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ f.txt 2 replace\\nTWO\\n","ack":["%s"]}}}\n' "$first" | "$MRW" --root "$B78" mcp 2>/dev/null)
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ f.txt 2 replace\\nTWO\\n","ack":["%s"]}}}\n' "$first" | "$MRW" --root "$B78" mcp --enable 2>/dev/null)
 python3 - "$out" "$B78/f.txt" <<'PY'
 import json,sys
 r=json.loads(sys.argv[1])["result"]
@@ -4941,7 +4941,7 @@ assert sc["failed"] == 1 and sc.get("applied") is False, "A's ack licensed a wri
 assert open(sys.argv[2]).read() == "one\ntwo\nthree\n", "B's tree changed"
 PY
 want 0 $? "A's ack does not license a write under B"
-out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ f.txt 2 replace\\nTWO\\n","ack":["%s"]}}}\n' "$first" | "$MRW" --root "$A78" mcp 2>/dev/null)
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ f.txt 2 replace\\nTWO\\n","ack":["%s"]}}}\n' "$first" | "$MRW" --root "$A78" mcp --enable 2>/dev/null)
 python3 - "$out" "$A78/f.txt" <<'PY'
 import json,sys
 r=json.loads(sys.argv[1])["result"]
@@ -5051,7 +5051,7 @@ patch83=$(printf '%s\n' \
 printf '%s\n' "$patch83" > "$WORK/p83.apply"
 R=$(mktemp -d "$WORK/r83-XXXXXX")
 printf 'package demo\n\nfunc A() int { return 1 }\nfunc B() int { return 2 }\nfunc C() int { return 3 }\n' > "$R/a.go"
-out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.go:3"]}}}\n' | m mcp 2>/dev/null)
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.go:3"]}}}\n' | m mcp --enable 2>/dev/null)
 want 0 $? "MCP serves a.go:3"
 printf '%s' "$out" > "$R/read83.json"
 python3 - "$R/read83.json" <<'PY'
@@ -5070,7 +5070,7 @@ acks=open(sys.argv[2]).read().split()
 print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":plan,"format":"apply_patch","ack":acks}}}))
 PY
 )
-out=$(printf '%s\n' "$req" | m mcp 2>/dev/null)
+out=$(printf '%s\n' "$req" | m mcp --enable 2>/dev/null)
 python3 - "$out" "$R/a.go" <<'PY'
 import json,sys
 r=json.loads(sys.argv[1])["result"]
@@ -5088,7 +5088,7 @@ want 0 $? "MCP format apply_patch, one unread line writes nothing"
 
 fixture
 printf 'package demo\n\nfunc A() int { return 1 }\nfunc B() int { return 2 }\nfunc C() int { return 3 }\n' > "$R/a.go"
-out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.go"]}}}\n' | m mcp 2>/dev/null)
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.go"]}}}\n' | m mcp --enable 2>/dev/null)
 printf '%s' "$out" > "$R/read83s.json"
 python3 - "$R/read83s.json" <<'PY'
 import json,re,sys
@@ -5105,7 +5105,7 @@ acks=open(sys.argv[2]).read().split()
 print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":plan,"format":"apply_patch","ack":acks}}}))
 PY
 )
-out=$(printf '%s\n' "$req" | m mcp 2>/dev/null)
+out=$(printf '%s\n' "$req" | m mcp --enable 2>/dev/null)
 python3 - "$out" "$R/a.go" <<'PY'
 import json,sys
 r=json.loads(sys.argv[1])["result"]
@@ -5123,7 +5123,7 @@ import json,sys
 print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":open(sys.argv[1]).read()}}}))
 PY
 )
-out=$(printf '%s\n' "$req" | m mcp 2>/dev/null)
+out=$(printf '%s\n' "$req" | m mcp --enable 2>/dev/null)
 python3 - "$out" "$R/a.go" <<'PY'
 import json,sys
 r=json.loads(sys.argv[1])["result"]
@@ -5138,7 +5138,7 @@ import json,sys
 print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":open(sys.argv[1]).read(),"format":"git"}}}))
 PY
 )
-out=$(printf '%s\n' "$req" | m mcp 2>/dev/null)
+out=$(printf '%s\n' "$req" | m mcp --enable 2>/dev/null)
 python3 - "$out" <<'PY'
 import json,sys
 r=json.loads(sys.argv[1])
@@ -5148,7 +5148,7 @@ assert "git patch is not" in r["content"][0]["text"], "git refuse does not name 
 PY
 want 0 $? "MCP format=git is refused, naming the grammar"
 
-out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}\n' | m mcp 2>/dev/null)
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}\n' | m mcp --enable 2>/dev/null)
 python3 - "$out" <<'PY'
 import json,sys
 tools={t["name"]:t for t in json.loads(sys.argv[1])["result"]["tools"]}
@@ -5215,7 +5215,7 @@ grep -q 'return 1 }' "$R/a.go" && ok "near-miss SEARCH wrote nothing" || bad "ne
 printf '%s\n' "$sr84" > "$WORK/p84.sr"
 R=$(mktemp -d "$WORK/r84m-XXXXXX")
 printf 'package demo\n\nfunc A() int { return 1 }\nfunc B() int { return 2 }\nfunc C() int { return 3 }\n' > "$R/a.go"
-out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.go:3"]}}}\n' | m mcp 2>/dev/null)
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.go:3"]}}}\n' | m mcp --enable 2>/dev/null)
 want 0 $? "MCP serves a.go:3 for SEARCH/REPLACE"
 printf '%s' "$out" > "$R/read84.json"
 python3 - "$R/read84.json" <<'PY'
@@ -5233,7 +5233,7 @@ acks=open(sys.argv[2]).read().split()
 print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":plan,"format":"search_replace","ack":acks}}}))
 PY
 )
-out=$(printf '%s\n' "$req" | m mcp 2>/dev/null)
+out=$(printf '%s\n' "$req" | m mcp --enable 2>/dev/null)
 python3 - "$out" "$R/a.go" <<'PY'
 import json,sys
 r=json.loads(sys.argv[1])["result"]
@@ -5249,7 +5249,7 @@ assert "return 1 }" in open(sys.argv[2]).read(), "unread SEARCH/REPLACE wrote"
 PY
 want 0 $? "MCP format search_replace, one unread line writes nothing"
 
-out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}\n' | m mcp 2>/dev/null)
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}\n' | m mcp --enable 2>/dev/null)
 python3 - "$out" <<'PY'
 import json,sys
 tools={t["name"]:t for t in json.loads(sys.argv[1])["result"]["tools"]}
@@ -5286,7 +5286,7 @@ PY
 [ $? -eq 0 ] && ok "and the binary prints the why after Shared" \
              || bad "instructions omitted the why or dropped Shared"
 
-out=$(printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}\n' | m mcp 2>/dev/null)
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}\n' | m mcp --enable 2>/dev/null)
 want 0 $? "initialize still answers"
 python3 - "$out" "$why85" <<'PY'
 import json,sys
@@ -5647,7 +5647,7 @@ for i in 2 3; do
   printf 'func A() {\n\treturn\n}\n' > "$R/f.go"
   m read 'f.go:1' >"$WORK/served.out"
   req=$(printf '@@ f.go 1 replace anchor="func A"\nfunc A() { return }\n' | python3 -c 'import json,sys; print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":sys.stdin.read()}}}))')
-  mcpout=$(printf '%s\n' "$req" | "$MRW" -C "$R" mcp 2>/dev/null); rc=$?
+  mcpout=$(printf '%s\n' "$req" | "$MRW" -C "$R" mcp --enable 2>/dev/null); rc=$?
   want 0 "$rc" "mrw_write $i over a pipe exits 0"
 done
 pat=$(python3 -c 'import json,sys; print(json.dumps(json.loads(sys.argv[1].splitlines()[0])["result"]["structuredContent"]["pattern"],sort_keys=True))' "$mcpout")
@@ -6057,7 +6057,7 @@ PY
 [ $? -eq 0 ] && ok "and it teaches always + plan plus @@ path 0 create" \
              || bad "instructions still teach 3+ or omit the cookbook"
 
-out=$(printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}\n' | m mcp 2>/dev/null)
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}\n' | m mcp --enable 2>/dev/null)
 want 0 $? "initialize still answers"
 python3 - "$out" <<'PY'
 import json,sys
@@ -6378,7 +6378,7 @@ for i in $(seq 1 60); do
   awk 'BEGIN { print "none"; for (j = 0; j < 400; j++) print "the NEEDLE is here" }' > "$R/g/d$i.csv"
 done
 printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["no-such-dir","g"],"grep":"NEEDLE"}}}' \
-  | m mcp > "$WORK/122.out" 2>/dev/null
+  | m mcp --enable > "$WORK/122.out" 2>/dev/null
 python3 - "$WORK/122.out" <<'PY'
 import json,sys
 t=json.load(open(sys.argv[1]))["result"]["content"][0]["text"]
@@ -6387,7 +6387,7 @@ assert "-- no-such-dir:" in t, "the index does not name the missing path: %s" % 
 PY
 want 0 $? "an oversized grep index names the path it could not use"
 printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["g"],"grep":"NEEDLE"}}}' \
-  | m mcp > "$WORK/122b.out" 2>/dev/null
+  | m mcp --enable > "$WORK/122b.out" 2>/dev/null
 python3 - "$WORK/122b.out" <<'PY'
 import json,sys
 t=json.load(open(sys.argv[1]))["result"]["content"][0]["text"]
@@ -6402,7 +6402,7 @@ want 0 $? "and the same grep without the missing path names nothing"
 fixture
 for v in 2025-11-25 2025-06-18; do
   printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"%s"}}\n' "$v" \
-    | m mcp > "$WORK/123-$v.out" 2>/dev/null
+    | m mcp --enable > "$WORK/123-$v.out" 2>/dev/null
 done
 python3 - "$WORK/123-2025-11-25.out" "$WORK/123-2025-06-18.out" <<'PY'
 import json,sys
@@ -6417,7 +6417,7 @@ want 0 $? "initialize answers the version the host asked for"
 # -32602. The pair: a call whose params are not even an object is still one.
 fixture
 printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"x","echo_pad":-1}}}' \
-  | m mcp > "$WORK/124.out" 2>/dev/null
+  | m mcp --enable > "$WORK/124.out" 2>/dev/null
 python3 - "$WORK/124.out" <<'PY'
 import json,sys
 r=json.load(open(sys.argv[1]))
@@ -6426,7 +6426,7 @@ r=r["result"]
 assert r.get("isError") is True and "echo_pad" in r["content"][0]["text"], "not an isError result naming echo_pad: %s" % r
 PY
 want 0 $? "an argument mistake is a tool result the model reads"
-printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":"x"}' | m mcp > "$WORK/124b.out" 2>/dev/null
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":"x"}' | m mcp --enable > "$WORK/124b.out" 2>/dev/null
 python3 - "$WORK/124b.out" <<'PY'
 import json,sys
 r=json.load(open(sys.argv[1]))
@@ -6445,7 +6445,7 @@ M='"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcont
   printf '{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{%s}}\n' "$M"
   printf '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["b.go"]},%s}}\n' "$M"
   printf '%s\n' '{"jsonrpc":"2.0","id":3,"method":"tools/list","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"1900-01-01","io.modelcontextprotocol/clientCapabilities":{}}}}'
-} | m mcp > "$WORK/125.out" 2>/dev/null
+} | m mcp --enable > "$WORK/125.out" 2>/dev/null
 python3 - "$WORK/125.out" <<'PY'
 import json,sys
 lines=[json.loads(l) for l in open(sys.argv[1]) if l.strip()]
@@ -6474,7 +6474,7 @@ printf 'hello\n' > "$R/x y.txt"
 {
   printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["x y.txt"]}}}'
   printf '%s\n' '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["no such.txt"]}}}'
-} | m mcp > "$WORK/126.out" 2>/dev/null
+} | m mcp --enable > "$WORK/126.out" 2>/dev/null
 python3 - "$WORK/126.out" <<'PY'
 import json,sys
 r=[json.loads(l) for l in open(sys.argv[1]) if l.strip()][0]
@@ -6930,7 +6930,7 @@ fi
 # was sized from raw bytes while the ceiling measures the encoded answer.
 fixture
 python3 -c "import sys; sys.stdout.write('<div class=\"a\">&amp;</div>\n' * 5688)" > "$R/m.tsx"
-printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["m.tsx"]}}}' | m mcp > "$R/out149" 2>/dev/null
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["m.tsx"]}}}' | m mcp --enable > "$R/out149" 2>/dev/null
 # The result is bounded at 200,000 encoded bytes; the JSON-RPC envelope around
 # it adds under a hundred. Read from a file, not argv: Linux caps one argument
 # at 128 KiB, and this answer is near 200,000 bytes (CI on #232).
@@ -6945,7 +6945,7 @@ assert len(line) <= 200100, "over the ceiling"
 PY
 # The pair: a CLOSED range over the same file is not paged (ADR-014), so it is
 # refused, and the refusal names the encoding, not the per-file receipt.
-printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["m.tsx:1-5000"]}}}' | m mcp > "$R/out149b" 2>/dev/null
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["m.tsx:1-5000"]}}}' | m mcp --enable > "$R/out149b" 2>/dev/null
 python3 - "$R/out149b" <<'PY' && ok "a closed markup range over the ceiling is refused, naming the encoding" || bad "closed markup range: $(head -c 300 "$R/out149b")"
 import json, sys
 res = json.loads(open(sys.argv[1]).read().strip().splitlines()[-1])["result"]
@@ -7095,7 +7095,7 @@ for argv in 'mcp --bogus' '--rot . mcp' 'read --bogus' 'mcp stray'; do
   { [ "$rc" = 2 ] && [ ! -s "$WORK/o155" ] && grep -q -- '--help\|no arguments' "$WORK/e155"; } \
     && ok "mrw $argv: exit 2, nothing on stdout, the reason on stderr" || bad "mrw $argv: exit $rc, stdout: $(head -3 "$WORK/o155")"
 done
-"$MRW" mcp --help >"$WORK/o155" 2>&1; rc=$?
+"$MRW" mcp --enable --help >"$WORK/o155" 2>&1; rc=$?
 { [ "$rc" = 0 ] && grep -q USAGE "$WORK/o155"; } && ok "mrw mcp --help still prints its help" || bad "mcp --help: exit $rc"
 
 # 156. ADR-078 T2: the MCP server refuses what it cannot represent. An id that
@@ -7118,7 +7118,7 @@ lines=[b'{"jsonrpc":"2.0","id":{},"method":"ping"}',
        b'{"jsonrpc":"2.0","id":11,"method":"tools/call","params":{"name":"mrw_read","arguments":{"grep":"A","exclude":["vendor/"]}}}']
 open(sys.argv[1],"wb").write(b"\n".join(lines)+b"\n")
 PY
-bounded 20 "$WORK/out156" sh -c '"$0" -C "$1" mcp < "$2" 2>/dev/null' "$MRW" "$R" "$WORK/in156"; want 0 $? "the server answers every line and exits at EOF"
+bounded 20 "$WORK/out156" sh -c '"$0" -C "$1" mcp --enable < "$2" 2>/dev/null' "$MRW" "$R" "$WORK/in156"; want 0 $? "the server answers every line and exits at EOF"
 python3 - "$WORK/out156" > "$WORK/v156" <<'PY'
 import json,sys
 rs=[json.loads(l) for l in open(sys.argv[1]) if l.startswith("{")]
@@ -7150,7 +7150,7 @@ req={"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","a
 open(sys.argv[1],"w").write(json.dumps(req)+"\n")
 PY
 t0=$(date +%s)
-bounded 60 "$WORK/out157" sh -c '"$0" -C "$1" mcp < "$2" 2>/dev/null' "$MRW" "$R" "$WORK/in157"; rc=$?
+bounded 60 "$WORK/out157" sh -c '"$0" -C "$1" mcp --enable < "$2" 2>/dev/null' "$MRW" "$R" "$WORK/in157"; rc=$?
 t1=$(date +%s)
 want 0 "$rc" "a read of 100,000 specs is answered"
 # The size, not the wording, shows the read stopped: a read that ran on to the
@@ -7170,7 +7170,7 @@ printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"m
   '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["f.svg:2-"]}}}' \
   '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["h.js"]}}}' \
   '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["h.js:2-"]}}}' > "$WORK/in158"
-bounded 20 "$WORK/out158" sh -c '"$0" -C "$1" mcp < "$2" 2>/dev/null' "$MRW" "$R" "$WORK/in158"; want 0 $? "the server answers every request"
+bounded 20 "$WORK/out158" sh -c '"$0" -C "$1" mcp --enable < "$2" 2>/dev/null' "$MRW" "$R" "$WORK/in158"; want 0 $? "the server answers every request"
 python3 - "$WORK/out158" > "$WORK/v158" <<'PY'
 import json,sys
 by={r["id"]:r for r in (json.loads(l) for l in open(sys.argv[1]) if l.startswith("{"))}
@@ -7304,10 +7304,10 @@ fixture
 m iter add a.go b.go >/dev/null
 # ADR-113: check: false — this row counts the landing, and the fixture's go.mod would infer a check.
 rq165() { printf '%s' "$1" | python3 -c 'import json,sys; print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":sys.stdin.read(),"check":False}}}))'; }
-printf '%s\n' "$(rq165 "$(printf '@@ @1-2 1 replace\nx\n')")" | "$MRW" -C "$R" mcp >/dev/null 2>"$WORK/mcp165.err"; want 0 $? "mrw mcp answers a pointer that names two entries"
+printf '%s\n' "$(rq165 "$(printf '@@ @1-2 1 replace\nx\n')")" | "$MRW" -C "$R" mcp --enable >/dev/null 2>"$WORK/mcp165.err"; want 0 $? "mrw mcp answers a pointer that names two entries"
 [ "$(m stats --json 2>/dev/null | jq -r '.counts.refused_apply, .plans' | tr '\n' ' ')" = "1 1 " ] && ok "and mrw_write counts it as one refusal" || bad "an MCP pointer refusal: $(m stats --json 2>&1 | head -c 300)"
 m read a.go >"$WORK/served.out"
-printf '%s\n' "$(rq165 "$(printf '@@ @1 3 replace\nfunc A() int { return 8 }\n')")" | "$MRW" -C "$R" mcp >/dev/null 2>>"$WORK/mcp165.err"; want 0 $? "mrw mcp applies a pointer that resolves to one file"
+printf '%s\n' "$(rq165 "$(printf '@@ @1 3 replace\nfunc A() int { return 8 }\n')")" | "$MRW" -C "$R" mcp --enable >/dev/null 2>>"$WORK/mcp165.err"; want 0 $? "mrw mcp applies a pointer that resolves to one file"
 grep -q 'return 8' "$R/a.go" && [ "$(m stats --json 2>/dev/null | jq -r '.counts.refused_apply, .counts.applied, .plans' | tr '\n' ' ')" = "1 1 2 " ] \
   && ok "and it landed and is counted as applied, not as a refusal" || bad "the MCP pointer write: $(head -c 200 "$R/a.go"); $(m stats --json 2>&1 | head -c 300)"
 
@@ -7336,7 +7336,7 @@ for j in 0 1 2 3 4 5 6 7; do
 	printf 'x%d\n' "$j" > "$R/p167_$j.txt"
 done
 for j in 0 1 2 3 4 5 6 7; do
-	printf '%s\n' "$(rq167r "p167_$j.txt")" | "$MRW" -C "$R" mcp > "$WORK/r167.$j" 2>&1 &
+	printf '%s\n' "$(rq167r "p167_$j.txt")" | "$MRW" -C "$R" mcp --enable > "$WORK/r167.$j" 2>&1 &
 	pids167[$j]=$!
 done
 for j in 0 1 2 3 4 5 6 7; do wait "${pids167[$j]}"; done
@@ -7344,7 +7344,7 @@ landed=0; noid=0
 for j in 0 1 2 3 4 5 6 7; do
 	ck=$(grep -oE 'ck [^ ]+ open' "$WORK/r167.$j" | head -1 | cut -d' ' -f2)
 	[ -n "$ck" ] || { noid=$((noid + 1)); continue; }
-	printf '%s\n' "$(rq167w "$(printf '@@ p167_%d.txt 1 replace\ny%d\n' "$j" "$j")" "$ck")" | "$MRW" -C "$R" mcp > "$WORK/w167.$j" 2>&1
+	printf '%s\n' "$(rq167w "$(printf '@@ p167_%d.txt 1 replace\ny%d\n' "$j" "$j")" "$ck")" | "$MRW" -C "$R" mcp --enable > "$WORK/w167.$j" 2>&1
 	[ "$(cat "$R/p167_$j.txt")" = "y$j" ] && landed=$((landed + 1))
 done
 [ "$noid" = 0 ] && ok "each of eight concurrent reads served a checkpoint id" || bad "$noid read(s) served no checkpoint: $(head -c 200 "$WORK/r167.0")"
@@ -7385,10 +7385,10 @@ m write --no-check --json "$R/p169b.mrw" >/dev/null 2>&1; want 0 $? "while a --j
 # as not read, without it. Pair both, so a remedy on every refusal cannot pass.
 fixture
 printf 'one\ntwo\nthree\n' > "$R/s170.txt"; printf 'uno\ndos\n' > "$R/n170.txt"
-printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["s170.txt"]}}}\n' | m mcp >/dev/null 2>&1
+printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["s170.txt"]}}}\n' | m mcp --enable >/dev/null 2>&1
 want 0 $? "the server serves s170.txt"
 for f in s170 n170; do
-  printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ %s.txt 2 replace\\nX\\n"}}}\n' "$f" | m mcp > "$WORK/w170.$f" 2>/dev/null
+  printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ %s.txt 2 replace\\nX\\n"}}}\n' "$f" | m mcp --enable > "$WORK/w170.$f" 2>/dev/null
 done
 python3 - "$WORK/w170.s170" "$WORK/w170.n170" "$R" <<'PY'
 import json,sys
@@ -7541,16 +7541,16 @@ left=$(pgrep -f "$R/rec174.sh" | wc -l | tr -d ' ')
 # The pair: the same call without the key is applied or served.
 fixture
 printf 'one\ntwo\n' > "$R/a.txt"
-printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ b.txt 0 create\nX\n","no_check":true}}}' | m mcp 2>/dev/null > "$WORK/w175.json"
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ b.txt 0 create\nX\n","no_check":true}}}' | m mcp --enable 2>/dev/null > "$WORK/w175.json"
 { jq -e '.result.isError == true and (.result.content[0].text | contains("\"no_check\"") and contains("\"plan\""))' "$WORK/w175.json" > /dev/null && [ ! -e "$R/b.txt" ]; } \
   && ok "an undeclared argument is refused by name, and nothing is written" || bad "the refused write: $(head -c 400 "$WORK/w175.json")"
-printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ b.txt 0 create\nX\n"}}}' | m mcp 2>/dev/null > "$WORK/w175b.json"
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ b.txt 0 create\nX\n"}}}' | m mcp --enable 2>/dev/null > "$WORK/w175b.json"
 { jq -e '.result and (.result.isError | not)' "$WORK/w175b.json" > /dev/null && [ "$(cat "$R/b.txt" 2>/dev/null)" = X ]; } \
   && ok "and the same call without it is served and applied: b.txt holds X" || bad "the declared write: $(head -c 400 "$WORK/w175b.json")"
-printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.txt"],"context":1}}}' | m mcp 2>/dev/null > "$WORK/r175.json"
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.txt"],"context":1}}}' | m mcp --enable 2>/dev/null > "$WORK/r175.json"
 jq -e '.result.isError == true and (.result.content[0].text | contains("\"context\"") and (contains("-- ck ") | not))' "$WORK/r175.json" > /dev/null \
   && ok "an undeclared argument is refused by name on mrw_read, and nothing is served" || bad "the refused read: $(head -c 400 "$WORK/r175.json")"
-printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.txt"]}}}' | m mcp 2>/dev/null > "$WORK/r175b.json"
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.txt"]}}}' | m mcp --enable 2>/dev/null > "$WORK/r175b.json"
 jq -e '(.result.isError | not) and (.result.content[0].text | contains("1| one"))' "$WORK/r175b.json" > /dev/null \
   && ok "and the same call without it is served and applied: a.txt is served" || bad "the declared read: $(head -c 400 "$WORK/r175b.json")"
 
@@ -7559,10 +7559,10 @@ jq -e '(.result.isError | not) and (.result.content[0].text | contains("1| one")
 # a call with declared arguments is still served.
 fixture
 printf 'one\ntwo\n' > "$R/a.txt"
-printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | m mcp 2>/dev/null > "$WORK/l176.json"
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | m mcp --enable 2>/dev/null > "$WORK/l176.json"
 jq -e '(.result.tools | length) >= 2 and all(.result.tools[]; .inputSchema.additionalProperties == false)' "$WORK/l176.json" > /dev/null \
   && ok "every input schema is closed: additionalProperties false on both tools" || bad "tools/list: $(head -c 400 "$WORK/l176.json")"
-printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.txt"]}}}' | m mcp 2>/dev/null > "$WORK/r176.json"
+printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.txt"]}}}' | m mcp --enable 2>/dev/null > "$WORK/r176.json"
 jq -e '(.result.isError | not) and (.result.content[0].text | contains("1| one"))' "$WORK/r176.json" > /dev/null \
   && ok "and a call with declared arguments is still served" || bad "the declared read: $(head -c 400 "$WORK/r176.json")"
 
@@ -7867,7 +7867,7 @@ import json, subprocess, sys, os
 root, mrw = sys.argv[1], os.environ["MRW_BIN"]
 def call(args):
     req = {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "mrw_read", "arguments": args}}
-    p = subprocess.run([mrw, "--root", root, "mcp", "--max-result-chars", "6000"],
+    p = subprocess.run([mrw, "--root", root, "mcp", "--enable", "--max-result-chars", "6000"],
                        input=json.dumps(req) + "\n", capture_output=True, text=True, timeout=30)
     return json.loads(p.stdout.splitlines()[0])["result"]
 res = call({"ast_grep": "NEEDLE"})
@@ -7912,7 +7912,7 @@ import json, subprocess, sys, os
 reqs = [{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18",
          "capabilities": {}, "clientInfo": {"name": "c", "version": "1"}}},
         {"jsonrpc": "2.0", "id": 2, "method": "tools/list"}]
-p = subprocess.run([os.environ["MRW_BIN"], "--root", sys.argv[1], "mcp"], capture_output=True, text=True,
+p = subprocess.run([os.environ["MRW_BIN"], "--root", sys.argv[1], "mcp", "--enable"], capture_output=True, text=True,
                    input="".join(json.dumps(r) + "\n" for r in reqs), timeout=30)
 lines = [json.loads(l) for l in p.stdout.splitlines() if l.startswith("{")]
 ins = next(m["result"]["instructions"] for m in lines if m.get("id") == 1)
@@ -8050,13 +8050,13 @@ if [ -w "$led197" ]; then
   skip "mrw_write sends the receipt on a ledger failure (permission bits not enforced here — running as root?)"
 else
   req=$(printf '@@ a.go 3 replace\nfunc A() int { return 197 }\n' | python3 -c 'import json,sys; print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":sys.stdin.read()}}}))')
-  printf '%s\n' "$req" | "$MRW" -C "$R" mcp > "$WORK/j197" 2> /dev/null
+  printf '%s\n' "$req" | "$MRW" -C "$R" mcp --enable > "$WORK/j197" 2> /dev/null
   { grep -q 'return 197' "$R/a.go" && jq -se 'length == 1 and (.[0] | .error == null and .result.isError == true and .result.structuredContent.applied == true and (.result.structuredContent.error | length > 0))' "$WORK/j197" > /dev/null; } \
     && ok "the write landed and the answer is its receipt, applied, naming the ledger error" || bad "ledger failure over MCP: $(head -c 400 "$WORK/j197")"
   chmod 600 "$led197"
   m read a.go >"$WORK/served.out"
   req=$(printf '@@ a.go 3 replace\nfunc A() int { return 1970 }\n' | python3 -c 'import json,sys; print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":sys.stdin.read()}}}))')
-  printf '%s\n' "$req" | "$MRW" -C "$R" mcp > "$WORK/p197" 2> /dev/null
+  printf '%s\n' "$req" | "$MRW" -C "$R" mcp --enable > "$WORK/p197" 2> /dev/null
   jq -se 'length == 1 and (.[0] | .result.structuredContent.applied == true and (.result.structuredContent | has("error") | not))' "$WORK/p197" > /dev/null \
     && ok "the pair: with the ledger writable the receipt has no error" || bad "the pair: $(head -c 400 "$WORK/p197")"
 fi
@@ -8078,7 +8078,7 @@ out=$(m read ../outside198.txt 2>&1); want 1 $? "the pair: a path out of a real 
 # rest of the line is discarded, and the next line is served.
 fixture
 python3 -c 'import sys; sys.stdout.write("{\"pad\":\"" + "a" * (65 << 20) + "\"}\n" + "{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"tools/list\"}\n")' \
-  | "$MRW" -C "$R" mcp > "$WORK/j199" 2> /dev/null; want 0 $? "the server survives a 65 MiB line and ends at EOF"
+  | "$MRW" -C "$R" mcp --enable > "$WORK/j199" 2> /dev/null; want 0 $? "the server survives a 65 MiB line and ends at EOF"
 jq -se 'length == 2 and (.[0] | .id == null and .error.code == -32600 and (.error.message | test("67108864"))) and .[1].id == 9 and (.[1].result.tools | length > 0)' "$WORK/j199" > /dev/null \
   && ok "the long line gets -32600 naming the limit, and the next request is answered" || bad "oversized request: $(head -c 400 "$WORK/j199")"
 
@@ -8134,7 +8134,7 @@ fixture
 seq 1 100 > "$R/g202.txt"
 printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["g202.txt:/^(1|100)$/"]}}}' \
   '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["g202.txt:7-9"]}}}' \
-  | "$MRW" -C "$R" mcp > "$WORK/j202" 2> /dev/null; want 0 $? "the server answers two reads and ends at EOF"
+  | "$MRW" -C "$R" mcp --enable > "$WORK/j202" 2> /dev/null; want 0 $? "the server answers two reads and ends at EOF"
 jq -se '.[0].result.content[0].text | test("open lines 1-2 \\(2 lines follow\\)") and test("open lines 100-100 ") and (test("open lines 1-100") | not)' "$WORK/j202" > /dev/null \
   && ok "lines 1 (with the line after it) and 100 get a checkpoint each, none spanning the gap" || bad "gap checkpoint: $(head -c 600 "$WORK/j202")"
 jq -se '.[1].result.content[0].text | test("open lines 7-10 ") and ([scan("-- ck [^ ]+ open")] | length == 1)' "$WORK/j202" > /dev/null \
@@ -8162,9 +8162,9 @@ m write --no-check "$R/p203.mrw" > /dev/null 2>&1; want 0 $? "a write with two b
 fixture
 mkfifo "$R/p204"
 printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["p204"]}}}' > "$WORK/q204"
-bounded 10 "$WORK/o204" sh -c 'exec "$1" -C "$2" mcp --max-result-chars 16 < "$3"' _ "$MRW" "$R" "$WORK/q204"; want 0 $? "a FIFO read under a 16-character ceiling ends at EOF instead of hanging"
+bounded 10 "$WORK/o204" sh -c 'exec "$1" -C "$2" mcp --enable --max-result-chars 16 < "$3"' _ "$MRW" "$R" "$WORK/q204"; want 0 $? "a FIFO read under a 16-character ceiling ends at EOF instead of hanging"
 grep -q '"id":1' "$WORK/o204" && ok "and the request is answered" || bad "FIFO under a small ceiling: $(head -c 400 "$WORK/o204")"
-bounded 10 "$WORK/k204" sh -c 'exec "$1" -C "$2" mcp < "$3"' _ "$MRW" "$R" "$WORK/q204"; want 0 $? "the pair: the same read under the default ceiling ends at EOF"
+bounded 10 "$WORK/k204" sh -c 'exec "$1" -C "$2" mcp --enable < "$3"' _ "$MRW" "$R" "$WORK/q204"; want 0 $? "the pair: the same read under the default ceiling ends at EOF"
 grep '"id":1' "$WORK/k204" | jq -e '.result.isError == true' > /dev/null && ok "and refuses the FIFO" || bad "FIFO refusal: $(head -c 400 "$WORK/k204")"
 
 # 205. ADR-108: the working set reads back every line it saves. A 70,000-byte
@@ -8304,7 +8304,7 @@ m read a.go >"$WORK/served.out"
 req213() {
   python3 -c 'import json,sys; print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":json.loads(sys.argv[1])}}))' "$1"
 }
-out=$(req213 '{"plan":"@@ a.go 3 replace\nfunc A() int { return 213 }\n"}' | "$MRW" -C "$R" mcp 2>/dev/null)
+out=$(req213 '{"plan":"@@ a.go 3 replace\nfunc A() int { return 213 }\n"}' | "$MRW" -C "$R" mcp --enable 2>/dev/null)
 python3 - "$out" <<'PY' && ok "mrw_write runs the check: ran, exit 3, applied, not isError" || bad "mrw_write did not report its failed check: $(head -c 400 <<<"$out")"
 import json, sys
 r = json.loads(sys.argv[1])["result"]
@@ -8313,7 +8313,7 @@ c = sc.get("check") or {}
 sys.exit(0 if c.get("ran") is True and c.get("exit_code") == 3 and sc.get("applied") is True and not r.get("isError") else 1)
 PY
 m stats --json | grep -q '"failed_check": 1' && ok "and counts it failed_check" || bad "the failed check was not counted: $(m stats --json | head -c 300)"
-out=$(req213 '{"plan":"@@ a.go 3 replace\nfunc A() int { return 2130 }\n","check":false}' | "$MRW" -C "$R" mcp 2>/dev/null)
+out=$(req213 '{"plan":"@@ a.go 3 replace\nfunc A() int { return 2130 }\n","check":false}' | "$MRW" -C "$R" mcp --enable 2>/dev/null)
 python3 - "$out" <<'PY' && ok "the pair: check: false runs none, and the write applies" || bad "check: false: $(head -c 400 <<<"$out")"
 import json, sys
 sc = json.loads(sys.argv[1])["result"]["structuredContent"]
@@ -8360,13 +8360,13 @@ grep -q 'gen216/x.txt' <<<"$out" && ok "a path named is served though ignored" |
 req216() {
   python3 -c 'import json,sys; print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":json.loads(sys.argv[1])}}))' "$1"
 }
-out=$(req216 '{"grep":"NEEDLE216"}' | "$MRW" -C "$R" mcp 2>/dev/null)
+out=$(req216 '{"grep":"NEEDLE216"}' | "$MRW" -C "$R" mcp --enable 2>/dev/null)
 python3 - "$out" <<'PY' && ok "mrw_read counts what its grep skipped" || bad "mrw_read skipped: $(head -c 400 <<<"$out")"
 import json, sys
 sc = json.loads(json.loads(sys.argv[1])["result"]["content"][-1]["text"])
 sys.exit(0 if sc.get("skipped") == {"ignored": 0, "ignored_dirs": 1, "binary": 1, "nested": 0, "unkeepable": 0, "linked_dirs": 0} else 1)
 PY
-out=$(req216 '{"grep":"NEEDLE216","no_ignore":true}' | "$MRW" -C "$R" mcp 2>/dev/null)
+out=$(req216 '{"grep":"NEEDLE216","no_ignore":true}' | "$MRW" -C "$R" mcp --enable 2>/dev/null)
 python3 - "$out" <<'PY' && ok "the pair: no_ignore walks all and counts nothing" || bad "no_ignore: $(head -c 400 <<<"$out")"
 import json, sys
 r = json.loads(sys.argv[1])["result"]
@@ -8384,7 +8384,7 @@ m read a.go >"$WORK/served.out"
 req215() {
   python3 -c 'import json,sys; print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":json.loads(sys.argv[1])}}))' "$1"
 }
-out=$(req215 '{"plan":"@@ a.go 3 replace\nfunc A() int { return 215 }\n","then":["ok215"]}' | "$MRW" -C "$R" mcp 2>/dev/null)
+out=$(req215 '{"plan":"@@ a.go 3 replace\nfunc A() int { return 215 }\n","then":["ok215"]}' | "$MRW" -C "$R" mcp --enable 2>/dev/null)
 python3 - "$out" <<'PY' && ok "mrw_write runs a declared step after its check" || bad "the step did not run: $(head -c 400 <<<"$out")"
 import json, sys
 r = json.loads(sys.argv[1])["result"]
@@ -8392,7 +8392,7 @@ st = (r["structuredContent"].get("then") or {}).get("steps") or []
 sys.exit(0 if len(st) == 1 and st[0].get("status") == "pass" and not r.get("isError") else 1)
 PY
 before=$(cat "$R/a.go")
-out=$(req215 '{"plan":"@@ a.go 3 replace\nfunc A() int { return 2150 }\n","then":["nope215"]}' | "$MRW" -C "$R" mcp 2>/dev/null)
+out=$(req215 '{"plan":"@@ a.go 3 replace\nfunc A() int { return 2150 }\n","then":["nope215"]}' | "$MRW" -C "$R" mcp --enable 2>/dev/null)
 python3 - "$out" <<'PY' && [ "$(cat "$R/a.go")" = "$before" ] && ok "the pair: an undeclared step is refused and nothing is written" || bad "undeclared step: $(head -c 400 <<<"$out")"
 import json, sys
 r = json.loads(sys.argv[1])["result"]
@@ -8407,7 +8407,7 @@ fixture
 printf 'one\ntwo\nthree\n' > "$R/m217.txt"
 printf '# a note\nm217.txt:3\n' > "$R/list217"
 req217() {
-  python3 -c 'import json,sys; print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":json.loads(sys.argv[1])}}))' "$1" | "$MRW" -C "$R" mcp 2>/dev/null
+  python3 -c 'import json,sys; print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":json.loads(sys.argv[1])}}))' "$1" | "$MRW" -C "$R" mcp --enable 2>/dev/null
 }
 check217() {
   python3 - "$1" "$2" <<'PY'
@@ -8511,11 +8511,11 @@ w220='{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write"
 p220='{"jsonrpc":"2.0","id":2,"method":"ping"}'
 # A plain pipe, not bounded: bounded gives its command /dev/null for stdin. The
 # server ends at end of input once the 2 s check has answered.
-{ printf "$w220\n" ''; sleep 0.5; printf '%s\n' "$p220"; } | "$MRW" -C "$R" mcp > "$WORK/out220" 2>/dev/null
+{ printf "$w220\n" ''; sleep 0.5; printf '%s\n' "$p220"; } | "$MRW" -C "$R" mcp --enable > "$WORK/out220" 2>/dev/null
 order=$(grep -o '"id":[12]' "$WORK/out220" | tr -d '\n')
 [ "$order" = '"id":2"id":1' ] && ok "a ping sent during a write's check is answered first" || bad "answer order $order: $(cat "$WORK/out220")"
 printf 'package a\nfunc A() {}\n' > "$R/a220.go"; m read a220.go >"$WORK/served.out"
-{ printf "$w220\n" ',"check":false'; sleep 0.5; printf '%s\n' "$p220"; } | "$MRW" -C "$R" mcp > "$WORK/out220b" 2>/dev/null
+{ printf "$w220\n" ',"check":false'; sleep 0.5; printf '%s\n' "$p220"; } | "$MRW" -C "$R" mcp --enable > "$WORK/out220b" 2>/dev/null
 order=$(grep -o '"id":[12]' "$WORK/out220b" | tr -d '\n')
 [ "$order" = '"id":1"id":2' ] && ok "the pair: with no check the answers keep their order" || bad "answer order $order: $(cat "$WORK/out220b")"
 rm -f "$R/.quality-harness.json"
@@ -8602,20 +8602,20 @@ rm -rf "$g225" "$R/.quality-harness.json"
 # refused without the CLI's "pass --force", which mrw_write cannot take; the
 # pair: the CLI's own refusal of the same plan keeps it.
 fixture
-out=$(printf '\357\273\277{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}\n' | m mcp 2>/dev/null)
+out=$(printf '\357\273\277{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}\n' | m mcp --enable 2>/dev/null)
 grep -q '"result"' <<<"$out" && ! grep -q -- '-32700' <<<"$out" && ok "a BOM'd initialize is answered" || bad "BOM initialize: $out"
-out=$(printf 'not json\n' | m mcp 2>/dev/null)
+out=$(printf 'not json\n' | m mcp --enable 2>/dev/null)
 grep -q -- '-32700' <<<"$out" && ok "the pair: a line that is not JSON is still a parse error" || bad "garbage: $out"
 printf 'never served\n' > "$R/unread226.md"
-out=$(printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}\n{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ unread226.md 1 replace\\nx\\n"}}}\n' | m mcp 2>/dev/null)
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}\n{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ unread226.md 1 replace\\nx\\n"}}}\n' | m mcp --enable 2>/dev/null)
 grep -q 'has not been read' <<<"$out" && ! grep -q -- '--force' <<<"$out" && ok "an mrw_write refusal does not advise --force" || bad "mcp force: $out"
 printf '@@ unread226.md 1 replace\nx\n' > "$WORK/p226"
 out=$(m write --no-check "$WORK/p226" 2>&1)
 grep -q -- '--force' <<<"$out" && ok "the pair: the CLI's refusal keeps it" || bad "cli force: $out"
 m read a.go >"$WORK/served.out"
-out=$(printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}\n{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.go:1"],"ack":["nosuch226"]}}}\n' | m mcp 2>/dev/null)
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}\n{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.go:1"],"ack":["nosuch226"]}}}\n' | m mcp --enable 2>/dev/null)
 grep -q 'matched no checkpoint.*nosuch226' <<<"$out" && ok "an ack id that matches nothing is named" || bad "unknown ack: $out"
-out=$(printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}\n{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.go:1"]}}}\n' | m mcp 2>/dev/null)
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}\n{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.go:1"]}}}\n' | m mcp --enable 2>/dev/null)
 ! grep -q 'matched no checkpoint' <<<"$out" && ok "the pair: a read with no stale ack names none" || bad "no ack: $out"
 printf '{"check":"sleep 30"}\n' > "$R/.quality-harness.json"
 m read a.go >"$WORK/served.out"
@@ -8627,7 +8627,7 @@ printf '{"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId
 # the input is a process substitution, since an async command's stdin is
 # /dev/null, and it ends on its own.
 s226=$SECONDS
-bounded 25 "$WORK/o226" sh -c 'exec "$1" -C "$2" mcp < "$3" 2>/dev/null' _ "$MRW" "$R" <(cat "$WORK/i226a"; sleep 1; cat "$WORK/i226b"; sleep 2)
+bounded 25 "$WORK/o226" sh -c 'exec "$1" -C "$2" mcp --enable < "$3" 2>/dev/null' _ "$MRW" "$R" <(cat "$WORK/i226a"; sleep 1; cat "$WORK/i226b"; sleep 2)
 t226=$((SECONDS - s226))
 grep -q '"skipped":"interrupted"' "$WORK/o226" && [ "$t226" -lt 15 ] && ok "a cancel stops the write's running check, reported interrupted" || bad "cancel (${t226}s): $(head -c 400 "$WORK/o226")"
 rm -f "$R/.quality-harness.json"
@@ -8896,7 +8896,7 @@ if ln -s real239 "$R/alias239" 2>/dev/null; then
   out=$(m read --grep needle239 2>&1); want 0 $? "a grep over a tree holding a link to a directory exits 0"
   { grep -q '^==> real239/x.txt' <<<"$out" && ! grep -q 'alias239/x.txt' <<<"$out"; } && ok "and serves the real path once, following no link" || bad "link walk: $out"
   grep -q -- '-- skipped: 1 link(s) to a directory, not followed; name one to be told why' <<<"$out" && ok "and counts the link, saying to name one" || bad "link count: $out"
-  out=$(printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"grep":"needle239"}}}' | "$MRW" -C "$R" mcp 2>/dev/null)
+  out=$(printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"grep":"needle239"}}}' | "$MRW" -C "$R" mcp --enable 2>/dev/null)
   python3 - "$out" <<'PY' && ok "mrw_read counts it as skipped.linked_dirs" || bad "mrw_read linked_dirs: $(head -c 400 <<<"$out")"
 import json, sys
 sc = json.loads(json.loads(sys.argv[1])["result"]["content"][-1]["text"])
@@ -9184,7 +9184,7 @@ import json, re, subprocess, sys
 mrw, root, cols, line = sys.argv[1], sys.argv[2], int(sys.argv[3]), int(sys.argv[4])
 def call(name, args):
     req = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": name, "arguments": args}})
-    out = subprocess.run([mrw, "-C", root, "mcp"], input=req + "\n", capture_output=True, text=True, timeout=60).stdout
+    out = subprocess.run([mrw, "-C", root, "mcp", "--enable"], input=req + "\n", capture_output=True, text=True, timeout=60).stdout
     return json.loads(out)["result"]
 args = {"specs": ["m258.txt"]}
 if cols:
@@ -9244,7 +9244,7 @@ out=$(m read --grep needle233 nest233 2>&1)
 grep -q 'nest233/in.txt' <<<"$out" && ok "the pair: the nested repository named is walked" || bad "named nested: $out"
 out=$(m read --grep needle233 --no-ignore 2>&1)
 grep -q 'nest233/in.txt' <<<"$out" && ok "the pair: --no-ignore walks it" || bad "no-ignore nested: $out"
-out=$(printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"grep":"needle233"}}}' | "$MRW" -C "$R" mcp 2>/dev/null)
+out=$(printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"grep":"needle233"}}}' | "$MRW" -C "$R" mcp --enable 2>/dev/null)
 python3 - "$out" <<'PY' && ok "mrw_read counts it as skipped.nested" || bad "mrw_read nested: $(head -c 400 <<<"$out")"
 import json, sys
 sc = json.loads(json.loads(sys.argv[1])["result"]["content"][-1]["text"])
@@ -9638,7 +9638,7 @@ seed269() { printf 'Old\nOldX\nxOld\nkeep Old and Old\n' > "$R/d269/one.txt"; pr
 printf 'New\nOldX\nxOld\nkeep New and New\n' > "$WORK/one269"
 printf 'xOld\nNew\n' > "$WORK/two269"
 printf 'Old\nOldX\nxOld\nkeep Old and Old\n' > "$WORK/one269.orig"
-mcpwrite269() { python3 -c 'import json,sys; print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":json.loads(sys.argv[1])}}))' "$1" | m mcp 2>/dev/null; }
+mcpwrite269() { python3 -c 'import json,sys; print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":json.loads(sys.argv[1])}}))' "$1" | m mcp --enable 2>/dev/null; }
 verdict269() { python3 -c 'import json,sys; r=json.loads(sys.stdin.readline())["result"]; sc=r.get("structuredContent") or {}; print("applied" if sc.get("applied") and not sc.get("failed") else "refused" if r.get("isError") or sc else "other")'; }
 seed269
 v269=$(mcpwrite269 '{"grep":"\\bOld\\b","sub":"New","check":false}' | verdict269)
@@ -9704,7 +9704,7 @@ grep -q "start the pattern with (?i)" <<<"$out" && ok "with ADR-140's pointer" |
 # directory. The pair: the same calls with a writable XDG_STATE_HOME serve.
 R=$(mktemp -d "$WORK/r275-XXXXXX"); printf 'one\n' > "$R/a.txt"
 mkdir -p "$WORK/s275" "$WORK/s275ok"; : > "$WORK/s275/mrw"
-mcp275() { printf '%s\n' "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"$2\",\"arguments\":$3}}" | XDG_STATE_HOME="$1" "$MRW" --root "$R" mcp 2>&1; }
+mcp275() { printf '%s\n' "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"$2\",\"arguments\":$3}}" | XDG_STATE_HOME="$1" "$MRW" --root "$R" mcp --enable 2>&1; }
 out=$(mcp275 "$WORK/s275" mrw_read '{"specs":["a.txt"]}')
 { grep -q "mrw's state directory" <<<"$out" && grep -q 'set XDG_STATE_HOME to a writable absolute directory' <<<"$out"; } \
   && ok "mrw mcp: mrw_read names mrw's state directory and the variable that moves it" || bad "mrw_read, unusable state: $out"
@@ -9801,7 +9801,7 @@ out=$(cd "$R" && "$MRW" write --no-check --grep 'head -1' --sub '$1 x' . 2>&1); 
 { grep -qF 'names $1, which' <<<"$out" && grep -qF '$$' <<<"$out" && [ "$(cat "$R/s.sh")" = 'x | head -1' ]; } \
   && ok "and names the reference and \$\$, nothing written" || bad "--sub \$1 over no group: $out"
 v280=$(python3 -c 'import json; print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"grep":"head -1","sub":"$1 x","check":False}}})); print(json.dumps({"jsonrpc":"2.0","id":2,"method":"ping"}))' \
-  | (cd "$R" && "$MRW" mcp 2>/dev/null) \
+  | (cd "$R" && "$MRW" mcp --enable 2>/dev/null) \
   | python3 -c 'import json,sys; ls=[json.loads(l) for l in sys.stdin if l.strip()]; r=ls[0].get("result") or {}; t="".join(c.get("text","") for c in r.get("content",[])); print(("refused" if r.get("isError") and "$1" in t else "other"), ("answered" if len(ls) > 1 and ls[1].get("id") == 2 and "result" in ls[1] else "silent"))')
 { [ "$v280" = "refused answered" ] && [ "$(cat "$R/s.sh")" = 'x | head -1' ]; } \
   && ok "mrw_write with the same sub is an isError result, and the server answers the next request" || bad "mrw_write sub \$1: $v280"
@@ -9868,7 +9868,7 @@ out=$(cd "$R" && XDG_STATE_HOME="$WORK/s284" "$MRW" read --quiet f.txt 2>&1); wa
 R=$(mktemp -d "$WORK/r285-XXXXXX"); printf 'alpha\n' > "$R/f.txt"
 mkdir -p "$WORK/s285"; : > "$WORK/s285/mrw"
 v285=$(python3 -c 'import json; print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["f.txt"]}}})); print(json.dumps({"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["f.txt"],"quiet":True}}}))' \
-  | (cd "$R" && XDG_STATE_HOME="$WORK/s285" "$MRW" mcp 2>/dev/null) \
+  | (cd "$R" && XDG_STATE_HOME="$WORK/s285" "$MRW" mcp --enable 2>/dev/null) \
   | python3 -c '
 import json,sys
 ls=[json.loads(l) for l in sys.stdin if l.strip()]
@@ -10073,7 +10073,7 @@ doc=$(cd "$R" && "$MRW" read --json f.txt:1 2>&1); want 0 $? "read --json of a l
 # against a ceiling that counts the escaped form (ADR-165), so its text still
 # carries the escape; a change to MCP escaping turns this red.
 esc291=$(printf '\\u003%s' e)
-mcp291=$(printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["f.txt:1"]}}}' | "$MRW" -C "$R" mcp 2>/dev/null)
+mcp291=$(printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["f.txt:1"]}}}' | "$MRW" -C "$R" mcp --enable 2>/dev/null)
 grep -qF "$esc291" <<<"$mcp291" && ok "the pair: mrw_read over MCP still escapes > as in JSON's own spelling" || bad "mcp mrw_read: $mcp291"
 doc=$(cd "$R" && printf '@@ f.txt 1 replace anchor="q<z>&"\nx\n' | "$MRW" write --json --no-check - 2>&1)
 { grep -qF 'anchor \"q<z>&\" not in line 1: x<a>&' <<<"$doc" && ! grep -q 'u003\|u0026' <<<"$doc"; } \
@@ -10169,6 +10169,31 @@ want 2 "$rc294" "mrw read --if-changed on a named file no spec serves exits 2"
 n294=$(cd "$R" && "$MRW" read --grep alpha --if-changed "g.txt=$sha294" . 2>&1); rc294=$?
 { [ "$rc294" = 0 ] && grep -qF -- '-- guard not used: g.txt (this read did not serve it)' <<<"$n294"; } \
   && ok "a guard the walk did not reach is named, not refused" || bad "walk: exit $rc294: $n294"
+
+# 295. ADR-170: `mrw mcp` lists no tools and refuses every call until it is
+# enabled, with --enable or MRW_MCP=on, so a host that registered it no longer
+# puts mrw_read and mrw_write in front of a model that has a shell. The pairs: the
+# same session with --enable, and with MRW_MCP=on, serves both tools; --enable=false
+# beats MRW_MCP=on; a variable that is neither on nor off is named and leaves them
+# off.
+R=$(mktemp -d "$WORK/r295-XXXXXX"); printf 'alpha\n' > "$R/f.txt"
+s295=$(printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' \
+  '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ n295.txt 0 create\nx\n"}}}')
+off295=$(printf '%s\n' "$s295" | env -u MRW_MCP "$MRW" -C "$R" mcp 2>/dev/null); want 0 $? "mrw mcp without --enable answers a session"
+{ jq -se '.[0].result.tools == [] and (.[1].error.message | contains("--enable") and contains("MRW_MCP=on")) and (.[1] | has("result") | not)' <<<"$off295" >/dev/null && [ ! -e "$R/n295.txt" ]; } \
+  && ok "mrw mcp without --enable lists no tools and refuses a call" || bad "off session: $off295"
+on295=$(printf '%s\n' "$s295" | env -u MRW_MCP "$MRW" -C "$R" mcp --enable 2>/dev/null); want 0 $? "mrw mcp --enable answers a session"
+{ jq -se '[.[0].result.tools[].name] == ["mrw_read","mrw_write"] and (.[1].result | has("content"))' <<<"$on295" >/dev/null && [ -e "$R/n295.txt" ]; } \
+  && ok "mrw mcp --enable serves both tools" || bad "enabled session: $on295"
+rm -f "$R/n295.txt"
+var295=$(printf '%s\n' "$s295" | MRW_MCP=on "$MRW" -C "$R" mcp 2>/dev/null)
+jq -se '(.[0].result.tools | length) == 2' <<<"$var295" >/dev/null && ok "MRW_MCP=on enables them without the flag" || bad "MRW_MCP=on: $var295"
+rm -f "$R/n295.txt"
+fal295=$(printf '%s\n' "$s295" | MRW_MCP=on "$MRW" -C "$R" mcp --enable=false 2>/dev/null)
+{ jq -se '.[0].result.tools == []' <<<"$fal295" >/dev/null && [ ! -e "$R/n295.txt" ]; } && ok "the pair: --enable=false beats MRW_MCP=on" || bad "--enable=false: $fal295"
+printf '%s\n' "$s295" | MRW_MCP=yes "$MRW" -C "$R" mcp >"$WORK/y295.out" 2>"$WORK/y295.err"
+{ jq -se '.[0].result.tools == []' "$WORK/y295.out" >/dev/null && grep -qF 'MRW_MCP="yes"' "$WORK/y295.err"; } \
+  && ok "and MRW_MCP=yes leaves them off and is named on stderr" || bad "MRW_MCP=yes: $(cat "$WORK/y295.out" "$WORK/y295.err")"
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
 # killed process is a zombie until its adopter reaps it, and pgrep lists

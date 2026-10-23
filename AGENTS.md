@@ -166,7 +166,8 @@ mrw read --if-changed f.go=8dc37337 f.go:40-60
 project.
 
 
-If you are reaching mrw over MCP (`mrw mcp`), use the `mrw_read` and `mrw_write`
+If you are reaching mrw over MCP (`mrw mcp --enable`; the tools are off, and every call refused, until `--enable` or
+`MRW_MCP=on` enables them, ADR-170), use the `mrw_read` and `mrw_write`
 tools instead of the shell recipes below. The arguments are the same strings —
 `specs` is what you would pass to `mrw read`, `plan` is the file you would pass
 to `mrw write` — and every rule in this section applies unchanged, because it is

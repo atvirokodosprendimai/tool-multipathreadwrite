@@ -443,6 +443,11 @@ func handle(line string, serveRoot string, release func(), notify func(any)) (re
 		}
 		return resultResponse(req.ID, discoverResult())
 	case "tools/call":
+		// ADR-170: with the tools off nothing is read, written or recorded;
+		// the refusal names the switch, in either era.
+		if ToolsOff {
+			return errorResponse(req.ID, codeMethodNotFound, toolsOffRefusal), true
+		}
 		// The handlers are adapters over the same engine functions cmd/mrw
 		// calls; the root is what binds them to this checkout. The era goes
 		// in, because a modern result is decorated INSIDE the call, where
@@ -469,6 +474,9 @@ func handle(line string, serveRoot string, release func(), notify func(any)) (re
 		return resultResponse(req.ID, e.decorate(map[string]any{}))
 	case "tools/list":
 		list := map[string]any{"tools": tools()}
+		if ToolsOff {
+			list["tools"] = []tool{}
+		}
 		if e.modern {
 			list["ttlMs"] = cacheTTLMs
 			list["cacheScope"] = "public"
@@ -519,6 +527,11 @@ func serverInfo() map[string]any {
 // Version is what the server reports as its own version during initialize. The
 // command sets it from the binary's stamp so the wire and `mrw --version` agree.
 var Version = "dev"
+
+// ToolsOff is set by `mrw mcp` unless the switch is on (ADR-170): the server
+// then lists no tools and refuses every call. Zero is on, so a caller of Serve
+// that never meets the subcommand keeps serving.
+var ToolsOff bool
 
 // tools declares the surface. The handlers land in T2; the schemas are declared
 // here so a host reading tools/list is never told about a tool that does not

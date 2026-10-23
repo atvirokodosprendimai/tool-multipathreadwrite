@@ -136,13 +136,13 @@ func CheckRoot(root string, src Source) error {
 	if filepath.Dir(abs) == abs {
 		return fmt.Errorf("refusing to serve %s: nothing named a project, so this is the directory this process happened to start in, and it is a filesystem root.\n"+
 			"Every read and write would be scoped to the whole filesystem. Name the tree you mean:\n"+
-			"  mrw --root /path/to/repo mcp\n"+
+			"  mrw --root /path/to/repo mcp --enable\n"+
 			"or set CLAUDE_PROJECT_DIR. An explicit --root is always honoured, including this one", abs)
 	}
 	if home, err := os.UserHomeDir(); err == nil && resolved(home) == abs {
 		return fmt.Errorf("refusing to serve %s: nothing named a project, so this is the directory this process happened to start in, and it is your home directory.\n"+
 			"Name the tree you mean:\n"+
-			"  mrw --root /path/to/repo mcp\n"+
+			"  mrw --root /path/to/repo mcp --enable\n"+
 			"or set CLAUDE_PROJECT_DIR. An explicit --root is always honoured, including this one", abs)
 	}
 	return nil

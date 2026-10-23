@@ -111,8 +111,8 @@ ledger.
 ## 4. A host without a shell uses the MCP server
 
 With a shell, the CLI is the better surface: it has `--context`, `--then-sh` and every read flag, and one
-command reaches any checkout with `--root`. A host with no shell runs `mrw mcp` and calls `mrw_read` and
-`mrw_write` (README, "MCP"). Register it only for the hosts that need it: a user-scope registration puts the
+command reaches any checkout with `--root`. A host with no shell runs `mrw mcp --enable` and calls `mrw_read` and
+`mrw_write` (README, "MCP"); without `--enable` or `MRW_MCP=on` the server lists no tools (ADR-170). Register it only for the hosts that need it: a user-scope registration puts the
 two tools into every project on the machine, including those whose instructions say to use the shell.
 
 ## 5. Check that it is happening

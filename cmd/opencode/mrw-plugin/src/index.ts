@@ -43,10 +43,11 @@ type Run = { stdout: string; stderr: string; exitCode: number };
 
 // run spawns mrw in dir with args, feeds input on stdin and collects the
 // output. A child that exits without reading its input is reported by its exit
-// code, not raised; an aborted call kills the child.
-function run(dir: string, args: string[], abort: AbortSignal, input = ""): Promise<Run> {
+// code, not raised; an aborted call kills the child. env, when given, is the
+// child's environment instead of this process's.
+function run(dir: string, args: string[], abort: AbortSignal, input = "", env?: NodeJS.ProcessEnv): Promise<Run> {
   return new Promise((resolve, reject) => {
-    const proc = spawn(resolveBinary(dir), args, { cwd: dir, stdio: ["pipe", "pipe", "pipe"], signal: abort });
+    const proc = spawn(resolveBinary(dir), args, { cwd: dir, env, stdio: ["pipe", "pipe", "pipe"], signal: abort });
     const stdout: Buffer[] = [];
     const stderr: Buffer[] = [];
     proc.stdout.on("data", (chunk: Buffer) => stdout.push(chunk));
@@ -77,7 +78,10 @@ async function cli(title: string, ctx: ToolContext, args: string[]) {
 async function mcp(title: string, ctx: ToolContext, dir: string, name: string, args: Record<string, unknown>) {
   const request = { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } };
   // The binary is the session checkout's; --root names the checkout it serves.
-  const r = await run(root(ctx), ["--root", dir, "mcp", "--max-result-chars", String(CEILING)], ctx.abort, JSON.stringify(request) + "\n");
+  // MRW_MCP=on, not --enable: a binary from before ADR-170 ignores the variable
+  // and serves as ever, where it would refuse an unknown flag.
+  const env = { ...process.env, MRW_MCP: "on" };
+  const r = await run(root(ctx), ["--root", dir, "mcp", "--max-result-chars", String(CEILING)], ctx.abort, JSON.stringify(request) + "\n", env);
   let response: { result?: { content?: { text?: string }[]; isError?: boolean }; error?: { message?: string } } | undefined;
   for (const line of r.stdout.split("\n")) {
     try {
