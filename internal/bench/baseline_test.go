@@ -149,9 +149,10 @@ func TestABaselineThatStopsKeepsItsRowsAndResumes(t *testing.T) {
 	if err := Baseline(r.opts); err == nil || !strings.Contains(err.Error(), "rm boom") {
 		t.Fatalf("a stage whose image would not drop: %v", err)
 	}
-	var kept []BaselineRow
-	if err := readJSON(filepath.Join(r.opts.Out, "baseline.partial.json"), &kept); err != nil || len(kept) != 1 || kept[0].Instance != "i-one" || !kept[0].Green {
-		t.Fatalf("the rows kept: %+v, %v, want i-one", kept, err)
+	var kept partialFile
+	if err := readJSON(filepath.Join(r.opts.Out, "baseline.partial.json"), &kept); err != nil || len(kept.Rows) != 1 || kept.Rows[0].Instance != "i-one" || !kept.Rows[0].Green ||
+		kept.Stage != "base" || len(kept.SelectionSHA256) != 64 || len(kept.ChecksSHA256) != 64 {
+		t.Fatalf("the partial file: %+v, %v, want i-one and the run's identity", kept, err)
 	}
 	if exists(filepath.Join(r.opts.Out, "baseline.json")) {
 		t.Fatal("a stopped stage wrote baseline.json")
@@ -174,6 +175,79 @@ func TestABaselineThatStopsKeepsItsRowsAndResumes(t *testing.T) {
 	}
 	if exists(filepath.Join(r.opts.Out, "baseline.partial.json")) {
 		t.Error("the partial file outlived the baseline")
+	}
+}
+
+// TestAPartialFromAnotherRunIsRefused: rows saved by another stage, another
+// checks table, another list of instances, or that are not the first of the
+// current instances in order, are not resumed: the run is refused before a
+// container is touched or a file written.
+func TestAPartialFromAnotherRunIsRefused(t *testing.T) {
+	r := newBaselineRig(t, [2]string{"i-one", "exit 0"}, [2]string{"i-two", "exit 2"}, [2]string{"i-three", "exit 0"})
+	put(t, filepath.Join(r.root, "fail-rm"), "", 0o644)
+	if err := Baseline(r.opts); err == nil {
+		t.Fatal("the stage was meant to stop")
+	}
+	if err := os.Remove(filepath.Join(r.root, "fail-rm")); err != nil {
+		t.Fatal(err)
+	}
+	partialPath := filepath.Join(r.opts.Out, "baseline.partial.json")
+	saved, err := os.ReadFile(partialPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherChecks := filepath.Join(filepath.Dir(r.opts.Checks), "other-checks.json")
+	put(t, otherChecks, `[{"repo":"fixture","command":"sh status","source":"setup.cfg:1@`+strings.Repeat("b", 40)+`"}]`+"\n", 0o644)
+	reordered := []Task{r.opts.Tasks[1], r.opts.Tasks[0], r.opts.Tasks[2]}
+	var tampered partialFile
+	if err := json.Unmarshal(saved, &tampered); err != nil {
+		t.Fatal(err)
+	}
+	tampered.Rows[0].Instance = "i-two" // the run's identity, rows that are not its prefix
+	swapped, err := json.Marshal(tampered)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var longer partialFile // the run's identity, a row for every instance and one more
+	if err := json.Unmarshal(saved, &longer); err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"i-two", "i-three", "i-four"} {
+		longer.Rows = append(longer.Rows, BaselineRow{Instance: id})
+	}
+	extra, err := json.Marshal(longer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct {
+		name, want string
+		edit       func(o *BaselineOptions)
+		partial    []byte
+	}{
+		{"another stage", `stage "base", not "other"`, func(o *BaselineOptions) { o.Stage = "other" }, saved},
+		{"another checks table", "another checks table", func(o *BaselineOptions) { o.Checks = otherChecks }, saved},
+		{"another list of instances", "another list of instances", func(o *BaselineOptions) { o.Tasks = reordered }, saved},
+		{"rows that are not the prefix", "row 1 is i-two", func(*BaselineOptions) {}, swapped},
+		{"more rows than instances", "more rows than instances", func(*BaselineOptions) {}, extra},
+	} {
+		put(t, partialPath, string(c.partial), 0o644)
+		calls := strings.Join(r.dockerCalls(), "\n")
+		o := r.opts
+		c.edit(&o)
+		if err := Baseline(o); err == nil || !strings.Contains(err.Error(), c.want) {
+			t.Errorf("%s: %v, want a refusal naming %q", c.name, err, c.want)
+		}
+		if got, _ := os.ReadFile(partialPath); string(got) != string(c.partial) {
+			t.Errorf("%s: the partial file was rewritten", c.name)
+		}
+		if strings.Join(r.dockerCalls(), "\n") != calls || exists(filepath.Join(r.opts.Out, "baseline.json")) {
+			t.Errorf("%s: docker was called or a baseline written", c.name)
+		}
+	}
+	// The same run resumes.
+	put(t, partialPath, string(saved), 0o644)
+	if err := Baseline(r.opts); err != nil {
+		t.Errorf("the matching partial was refused: %v", err)
 	}
 }
 

@@ -72,9 +72,16 @@ func Baseline(o BaselineOptions) error {
 		return fmt.Errorf("%s holds a baseline already: one run decides, so it is not run again", path)
 	}
 	// The rows of a run that stopped are kept as they finish, and a rerun
-	// skips those instances: a check, once run, is never run again.
+	// skips those instances: a check, once run, is never run again. They are
+	// this run's only if its stage, instances and checks are the same.
 	partial := filepath.Join(o.Out, "baseline.partial.json")
-	done, err := loadPartial(partial)
+	ids := make([]string, len(o.Tasks))
+	for i, t := range o.Tasks {
+		ids[i] = t.ID
+	}
+	idSum := sha256.Sum256([]byte(strings.Join(ids, "\n")))
+	id := runIdentity{Stage: o.Stage, SelectionSHA256: hex.EncodeToString(idSum[:]), ChecksSHA256: checks.SHA256}
+	done, err := loadPartial(partial, id, ids)
 	if err != nil {
 		return err
 	}
@@ -82,8 +89,8 @@ func Baseline(o BaselineOptions) error {
 		return err
 	}
 	var rows []BaselineRow
-	for _, t := range o.Tasks {
-		if i := slices.IndexFunc(done, func(r BaselineRow) bool { return r.Instance == t.ID }); i >= 0 {
+	for i, t := range o.Tasks {
+		if i < len(done) {
 			rows = append(rows, done[i])
 			continue
 		}
@@ -93,7 +100,7 @@ func Baseline(o BaselineOptions) error {
 			return err
 		}
 		rows = append(rows, row)
-		if serr := savePartial(partial, rows); serr != nil {
+		if serr := savePartial(partial, id, rows); serr != nil {
 			return serr
 		}
 		if err != nil {
@@ -120,8 +127,23 @@ func Baseline(o BaselineOptions) error {
 // complete: the row is kept, the stage stops.
 type dropError struct{ error }
 
-// loadPartial reads the rows an earlier run of this directory finished.
-func loadPartial(path string) ([]BaselineRow, error) {
+// runIdentity is what makes a partial file one run's: the stage, the digest of
+// the instance ids in order, and the checks table.
+type runIdentity struct {
+	Stage           string `json:"stage"`
+	SelectionSHA256 string `json:"selection_sha256"`
+	ChecksSHA256    string `json:"checks_sha256"`
+}
+
+type partialFile struct {
+	runIdentity
+	Rows []BaselineRow `json:"rows"`
+}
+
+// loadPartial reads the rows an earlier run of this directory finished, and
+// refuses them unless it was this run: the same identity, and rows that are
+// exactly the first of the current instances, in order.
+func loadPartial(path string, id runIdentity, ids []string) ([]BaselineRow, error) {
 	b, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
 		return nil, nil
@@ -129,17 +151,40 @@ func loadPartial(path string) ([]BaselineRow, error) {
 	if err != nil {
 		return nil, err
 	}
-	var rows []BaselineRow
-	if err := json.Unmarshal(b, &rows); err != nil {
+	var p partialFile
+	if err := json.Unmarshal(b, &p); err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
-	return rows, nil
+	var differs []string
+	if p.Stage != id.Stage {
+		differs = append(differs, fmt.Sprintf("stage %q, not %q", p.Stage, id.Stage))
+	}
+	if p.SelectionSHA256 != id.SelectionSHA256 {
+		differs = append(differs, "another list of instances")
+	}
+	if p.ChecksSHA256 != id.ChecksSHA256 {
+		differs = append(differs, "another checks table")
+	}
+	if len(p.Rows) > len(ids) {
+		differs = append(differs, "more rows than instances")
+	} else {
+		for i, r := range p.Rows {
+			if r.Instance != ids[i] {
+				differs = append(differs, fmt.Sprintf("row %d is %s, the instance there is %s", i+1, r.Instance, ids[i]))
+				break
+			}
+		}
+	}
+	if len(differs) > 0 {
+		return nil, fmt.Errorf("%s is another run's (%s): its rows are kept; use another --out or remove it", path, strings.Join(differs, "; "))
+	}
+	return p.Rows, nil
 }
 
 // savePartial rewrites the finished rows whole, through a rename, so a stop
 // leaves the earlier file or the new one and never half of either.
-func savePartial(path string, rows []BaselineRow) error {
-	b, err := json.MarshalIndent(rows, "", "  ")
+func savePartial(path string, id runIdentity, rows []BaselineRow) error {
+	b, err := json.MarshalIndent(partialFile{id, rows}, "", "  ")
 	if err != nil {
 		return err
 	}
