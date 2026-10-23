@@ -530,6 +530,7 @@ func TestShimCallsTakeTurnsAndNeverTouchTheIndex(t *testing.T) {
 	t.Run("a signal kills the container command", aSignalKillsTheContainerCommand)
 	t.Run("a command group is killed with its leader", aCommandGroupIsKilledWithItsLeader)
 	t.Run("a shim killed mid-sync leaves no shell behind", aShimKilledMidSyncLeavesNoShellBehind)
+	t.Run("a lock a killed shim left does not stop the next call", aLockAKilledShimLeftDoesNotStopTheNextCall)
 	g := newStage6Rig(t)
 	cfg := g.start()
 	order := filepath.Join(g.work, "order")
@@ -1085,6 +1086,22 @@ func aShimKilledMidSyncLeavesNoShellBehind(t *testing.T) {
 	t.Run("while the write-back diffs", func(t *testing.T) { midSyncKill(t, "slow-post", "post") })
 }
 
+// aLockAKilledShimLeftDoesNotStopTheNextCall: a shim killed while a snapshot git
+// writes leaves index.lock on the snapshot index. The next call clears it; before
+// it did, every later sync died on the lock under set -e, so no write-back shell
+// ever started.
+func aLockAKilledShimLeftDoesNotStopTheNextCall(t *testing.T) {
+	g := newStage6Rig(t)
+	cfg := g.start()
+	put(t, filepath.Join(g.root, "opt", "bench", "index.lock"), "", 0o644)
+	if _, stderr, code := g.shim(cfg, cfg.Tree, "python", "-c", "echo box > locked.txt"); code != 0 {
+		t.Fatalf("a call after a killed shim's lock failed: %d %s", code, stderr)
+	}
+	if got, _ := os.ReadFile(filepath.Join(cfg.Tree, "locked.txt")); string(got) != "box\n" {
+		t.Errorf("the write-back after a killed shim's lock is %q, want box", got)
+	}
+}
+
 func midSyncKill(t *testing.T, knob, phase string) {
 	g := newStage6Rig(t)
 	cfg := g.start()
@@ -1092,39 +1109,52 @@ func midSyncKill(t *testing.T, knob, phase string) {
 	put(t, filepath.Join(g.root, knob), "", 0o644)
 	put(t, filepath.Join(g.root, "leader"), "", 0o644)
 	pidFiles := filepath.Join(g.root, "opt", "bench", "pid."+phase+".*")
-	start := func() (*exec.Cmd, *os.Process) {
+	start := func() (*exec.Cmd, *os.Process, chan error) {
+		// A file, not a buffer: with a pipe, Wait would wait for every process
+		// holding it, a container shell the kill left sleeping included.
+		stderr, err := os.Create(filepath.Join(t.TempDir(), "stderr"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = stderr.Close() })
 		cmd := exec.Command(cfg.Bench, append([]string{"shim"}, append(cfg.args("python"), "-c", "true")...)...)
-		cmd.Dir = cfg.Tree
+		cmd.Dir, cmd.Stderr = cfg.Tree, stderr
 		if err := cmd.Start(); err != nil {
 			t.Fatal(err)
 		}
-		// A hang guard, not a performance bar: under -race on a loaded CI runner
-		// the shim's sync before the post phase has taken over the 10 s this
-		// once allowed (run 39620090459), so it waits up to a minute.
-		deadline := time.Now().Add(time.Minute)
-		for time.Now().Before(deadline) {
+		exited := make(chan error, 1)
+		go func() { exited <- cmd.Wait() }()
+		// A hang guard, not a performance bar. A shim that ends before its shell
+		// records a pid fails at once with what it printed: the 60 s this waits
+		// was once raised from 10 s for slowness (#488) when the cause was a
+		// stale index.lock that made every later sync exit early.
+		deadline := time.After(time.Minute)
+		for {
 			if matches, _ := filepath.Glob(pidFiles); len(matches) == 1 {
 				b, err := os.ReadFile(matches[0])
 				if n, aerr := strconv.Atoi(strings.TrimSpace(string(b))); err == nil && aerr == nil {
 					p, _ := os.FindProcess(n)
 					t.Cleanup(func() { _ = p.Kill() })
-					return cmd, p
+					return cmd, p, exited
 				}
 			}
-			time.Sleep(50 * time.Millisecond)
+			select {
+			case err := <-exited:
+				out, _ := os.ReadFile(stderr.Name())
+				t.Fatalf("the shim ended before its %s shell recorded a pid: %v: %s", phase, err, out)
+			case <-deadline:
+				_ = cmd.Process.Kill()
+				t.Fatalf("the %s shell never recorded its pid", phase)
+			case <-time.After(50 * time.Millisecond):
+			}
 		}
-		_ = cmd.Process.Kill()
-		t.Fatal("the sync never recorded its pid")
-		return nil, nil
 	}
 	alive := func(p *os.Process) bool { return p.Signal(syscall.Signal(0)) == nil }
 
-	cmd, sync1 := start()
+	cmd, sync1, done := start()
 	if err := cmd.Process.Signal(syscall.SIGTERM); err != nil {
 		t.Fatal(err)
 	}
-	done := make(chan error, 1)
-	go func() { done <- cmd.Wait() }()
 	select {
 	case <-done:
 	case <-time.After(20 * time.Second):
@@ -1135,9 +1165,9 @@ func midSyncKill(t *testing.T, knob, phase string) {
 		t.Error("the shell of the sync outlived a signal to its shim")
 	}
 
-	cmd, sync2 := start()
+	cmd, sync2, exited := start()
 	_ = cmd.Process.Kill()
-	_ = cmd.Wait()
+	<-exited
 	if !alive(sync2) {
 		t.Fatal("the fixture did not leave a sync running")
 	}

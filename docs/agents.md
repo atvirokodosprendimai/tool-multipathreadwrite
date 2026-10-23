@@ -88,6 +88,13 @@ Your final report lists any command that broke this.
 
 Then read the subagent's transcript for slips: the last line is a request, and a fast agent breaks it.
 
+Split the work so parallel subagents do not read the same files. In the transcripts the context study
+measured, 18–27% of what subagents read was lines a sibling of the same parent also read (22.6% Claude
+Code, 17.6% Codex, 26.6% Cursor; `bench/context-study/README.md`, M3). mrw cannot cut that: each
+subagent has its own context and has not seen its sibling's text, so only the orchestrator can. Give
+each one a disjoint set of files or directories, and when several need the same lines, paste those
+lines into each brief instead of asking each to find and read them.
+
 ## 3. In a sandbox, give mrw a writable state directory first
 
 mrw keeps its read ledger outside the checkout, under `XDG_STATE_HOME` (default `~/.local/state`). A
