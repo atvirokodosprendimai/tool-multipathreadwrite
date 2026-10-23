@@ -10131,6 +10131,44 @@ E=$(mktemp -d "$WORK/r293e-XXXXXX"); "$MRW" skill --dir "$E" >/dev/null 2>&1; pr
 "$MRW" skill --dir "$E" >/dev/null 2>&1; want 1 $? "the pair: mrw skill --dir over a skill edited after it was written exits 1"
 grep -qx -- '- mine' "$E/mrw/SKILL.md" && ok "mrw skill --dir keeps a skill a person edited" || bad "the edited skill lost its edit"
 
+
+# 294. ADR-169: `mrw read --if-changed PATH=SHA` answers each spec of a file whose
+# sha the caller holds with one line instead of its text, and serves a file that
+# changed as ever. The pairs: the same read without the guard serves the lines;
+# a wrong or stale sha serves them; a guard the read cannot use is a usage error,
+# exit 2, with nothing served, while the same guard on a file the read names is
+# answered. An unchanged answer licenses nothing: a write to a line the first
+# read did not serve is still refused.
+R=$(mktemp -d "$WORK/r294-XXXXXX"); printf 'alpha\nbravo\ncharlie\ndelta\n' > "$R/f.txt"; printf 'kilo\nlima\n' > "$R/g.txt"
+sha294=$(cd "$R" && "$MRW" read --stat f.txt | sed -n 's/.* sha \([0-9a-f]*\).*/\1/p')
+(cd "$R" && "$MRW" read f.txt:1 >/dev/null 2>&1)
+u294=$(cd "$R" && "$MRW" read --if-changed "f.txt=$sha294" f.txt 2>&1); rc294=$?
+want 0 "$rc294" "mrw read --if-changed exits 0 on an unchanged file"
+{ [ "$u294" = "==> f.txt  unchanged since sha $sha294 — 4 lines, 26 bytes not served" ] && ! grep -qE '^ *[0-9]+\| ' <<<"$u294"; } \
+  && ok "mrw read --if-changed answers an unchanged file in one line and exits 0" || bad "unchanged answer: $u294"
+p294=$(cd "$R" && "$MRW" read f.txt 2>&1)
+grep -qE '^ *4\| delta$' <<<"$p294" && ok "the pair: the same read without the guard serves the lines" || bad "unguarded read: $p294"
+printf 'alpha\nbravo\ncharlie\ndelta\n' > "$R/h.txt"
+(cd "$R" && "$MRW" read h.txt:1 > "$R/.out" 2>&1)
+sh294=$(cd "$R" && "$MRW" read --stat h.txt | sed -n 's/.* sha \([0-9a-f]*\).*/\1/p')
+(cd "$R" && "$MRW" read --if-changed "h.txt=$sh294" h.txt > "$R/.out" 2>&1)
+printf '@@ h.txt 4 replace\nDELTA\n' | (cd "$R" && "$MRW" write --no-check - >/dev/null 2>&1); want 1 $? "a write to a line only an unchanged answer covered is refused"
+printf 'alpha\nbravo\ncharlie\ndelta\nECHO\n' > "$R/f.txt"
+c294=$(cd "$R" && "$MRW" read --if-changed "f.txt=$sha294" f.txt 2>&1); rc294=$?
+want 0 "$rc294" "mrw read --if-changed exits 0 on a changed file"
+{ grep -qE '^ *5\| ECHO$' <<<"$c294" && ! grep -q 'unchanged since' <<<"$c294" && ! grep -qF "sha $sha294" <<<"$c294"; } \
+  && ok "mrw read --if-changed serves a changed file" || bad "changed file: $c294"
+o294=$(cd "$R" && "$MRW" read --if-changed "f.txt=${sha294}00" f.txt 2>&1)
+grep -q 'unchanged since' <<<"$o294" && bad "a guard with a wrong sha answered unchanged: $o294" || ok "the pair: a stale sha is not answered unchanged"
+r294=$(cd "$R" && "$MRW" read --if-changed "g.txt=$sha294" f.txt 2>&1); rc294=$?
+want 2 "$rc294" "mrw read --if-changed on a named file no spec serves exits 2"
+{ [ "$rc294" = 2 ] && ! grep -qE '^ *[0-9]+\| ' <<<"$r294" && grep -q 'g.txt' <<<"$r294"; } \
+  && ok "mrw read --if-changed refuses a guard the read cannot use" || bad "unusable guard: $r294"
+(cd "$R" && "$MRW" read --if-changed "f.txt=abc" f.txt >/dev/null 2>&1); want 2 $? "the pair: a sha shorter than 8 digits exits 2"
+(cd "$R" && "$MRW" read --stat --if-changed "f.txt=$sha294" f.txt >/dev/null 2>&1); want 2 $? "the pair: --if-changed beside --stat exits 2"
+n294=$(cd "$R" && "$MRW" read --grep alpha --if-changed "g.txt=$sha294" . 2>&1); rc294=$?
+{ [ "$rc294" = 0 ] && grep -qF -- '-- guard not used: g.txt (this read did not serve it)' <<<"$n294"; } \
+  && ok "a guard the walk did not reach is named, not refused" || bad "walk: exit $rc294: $n294"
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
 # killed process is a zombie until its adopter reaps it, and pgrep lists

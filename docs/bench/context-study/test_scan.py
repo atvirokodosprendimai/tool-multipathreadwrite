@@ -69,10 +69,41 @@ def claude_tree(root):
     main += [cl_use(8.5, 9, "Bash", {"command": CREATE})]   # a create body counts once: 6 chars
     main += [cl_use(9, 7, "Agent", AGENT_INPUT)]
     main += cl_read(12, 8, "/p/a.py", A)                    # after the write: not redundant
-    # one mrw call: a.py:1 and b.py:1 re-served, then a.py:11 new; only b.py is a whole-file re-serve
-    main += [cl_use(13, 11, "Bash", {"command": "mrw read a.py:1 b.py:1 a.py:11"}),
+    # one mrw call: a.py:1 and b.py:1 re-served, then a.py:11 new; only b.py is a whole-file re-serve.
+    # It carries an --if-changed guard that a.py's change defeated, so its lines are served (ADR-169).
+    main += [cl_use(13, 11, "Bash", {"command": "mrw read --if-changed a.py=deadbeef a.py:1 b.py:1 a.py:11"}),
              cl_res(13.5, 11, "==> /p/a.py\n@@ 1-1\n    1| %s\n==> /p/b.py\n@@ 1-1\n    1| %s\n"
                     "==> /p/a.py\n@@ 11-11\n   11| zeta" % (A[0], B[0]))]
+    # a guarded call answered unchanged: one line, no served line, 310 bytes withheld
+    main += [cl_use(14, 12, "Bash", {"command": "mrw read --if-changed a.py=deadbeef a.py:1-10"}),
+             cl_res(14.5, 12, "==> /p/a.py  unchanged since sha deadbeef — 10 lines, 310 bytes not served")]
+    # an unnumbered read (-N): a blank line, a line that looks like a note and one that looks numbered
+    # are all content, beside a guarded path holding a space, unchanged
+    main += [cl_use(15, 13, "Bash", {"command": "mrw read -N --if-changed 'a file.go=deadbeef' x.txt 'a file.go'"}),
+             cl_res(15.5, 13, "==> /p/x.txt  5L  31B  sha abcdef12\n@@ 1-5\nhi\n\nho\n-- comment\n123| literal\n"
+                    "==> a file.go  unchanged since sha deadbeef — 3 lines, 40 bytes not served")]
+    # a --json answer, read as its content: one numbered line served
+    main += [cl_use(16, 14, "Bash", {"command": "mrw read --json --if-changed y.txt=deadbeef y.txt"}),
+             cl_res(16.5, 14, json.dumps({"content": "==> /p/y.txt  1L  3B  sha abcdef12\n@@ 1-1\n    1| hi\n",
+                                          "receipt": {}}))]
+    # a read and a write in one call: the write's receipt is not served text
+    main += [cl_use(17, 15, "Bash", {"command": "mrw read z.txt:1 && mrw write --no-check -"}),
+             cl_res(17.5, 15, "==> /p/z.txt  1L  3B  sha abcdef12\n@@ 1-1\n    1| ok\n"
+                    "ok   z.txt 1 replace  -1 +1\nwrote z.txt  1L -> 1L  sha 12345678\n"
+                    "1 hunk(s), 1 file(s), 0 failed, 0 advisories — applied")]
+    # a range --max-lines withheld whole serves nothing, and the write receipt after it is not served text
+    main += [cl_use(18, 16, "Bash", {"command": "mrw read --max-lines 0 w.txt:1-5 && mrw write --no-check -"}),
+             cl_res(18.5, 16, "==> /p/w.txt  5L  20B  sha abcdef12\n@@ 1-5  WITHHELD 5 line(s): --max-lines reached\n"
+                    "ok   w.txt 1 replace  -1 +1\nwrote w.txt  5L -> 5L  sha 12345678\n"
+                    "1 hunk(s), 1 file(s), 0 failed, 0 advisories — applied")]
+    # a numbered range --max-chars cut after two lines: its diagnostic and the kind line are not content
+    main += [cl_use(19, 17, "Bash", {"command": "mrw read --max-chars 60 v.txt:1-5"}),
+             cl_res(19.5, 17, "==> /p/v.txt  5L  30B  sha abcdef12\n@@ 1-5\n    1| alpha\n    2| bravo\n"
+                    "v.txt: WITHHELD: --max-chars reached\nmrw: incomplete: 1 range(s) could not be served")]
+    # an mrw_read page whose note sits right after its range line: the note takes no content slot
+    main += [cl_use(20, 18, "mcp__mrw__mrw_read", {"specs": ["u.txt:1-2"]}),
+             cl_res(20.5, 18, "==> /p/u.txt  9L  60B  sha abcdef12\n@@ 1-2\n-- PARTIAL: a page; next_read continues\n"
+                    "    1| aa\n    2| bb\n")]
     sub1 = [{"type": "user", "timestamp": iso(10), "isSidechain": True,
              "message": {"role": "user", "content": "go explore b.py"}}]
     sub1 += cl_read(10.2, 1, "/p/b.py", B)                   # parent had it: savable
@@ -240,8 +271,10 @@ def main():
     m1 = cl["main"]["M1"]["visible_chars"]
     want = {
         # Claude: M2 strict is copy-study's rule; the sed read only reaches the extended pool
+        # (copy-study's parser, reused unchanged, reads the -N line `123| literal` as numbered line 123)
         "claude strict served": (cl["main"]["M2"]["strict"]["served_chars"],
-                                 4 * c(A) + c(B) + c(B[:2]) + c(A[:1]) + c(B[:1]) + c(["zeta"])),
+                                 4 * c(A) + c(B) + c(B[:2]) + c(A[:1]) + c(B[:1]) + c(["zeta"]) + c(["hi"])
+                                 + c(["literal"]) + c(["ok"]) + c(["alpha", "bravo"]) + c(["aa", "bb"])),
         "claude strict within": (cl["main"]["M2"]["strict"]["within_epoch_chars"],
                                  c(A) + c(B[:2]) + c(A[:1]) + c(B[:1])),
         "claude strict cross": (cl["main"]["M2"]["strict"]["cross_epoch_chars"], c(A)),
@@ -259,7 +292,17 @@ def main():
         "claude prose": (m1["prose"], len("Hello world")),
         "claude write new/old": ((m1["write_new"], m1["write_old"]), (3 + 6, 4)),
         "claude subagent prompt": (m1["subagent_prompt"], len(json.dumps(AGENT_INPUT))),
-        "claude reported": (cl["main"]["M1"]["reported_output_tokens"], 1000 + 11 * 100),
+        "claude reported": (cl["main"]["M1"]["reported_output_tokens"], 1000 + 18 * 100),
+        # ADR-169's adoption counts: four guarded calls, two unchanged answers and what they withheld
+        # (a path holding a space included), the chars mrw served — numbered, unnumbered (-N) and inside
+        # a --json answer — and the guard arguments typed, a quoted one whole
+        "claude guard": ((cl["main"]["M2"]["ext"]["guard_calls"], cl["main"]["M2"]["ext"]["guard_unchanged_answers"],
+                          cl["main"]["M2"]["ext"]["guard_withheld_bytes"], cl["main"]["M2"]["ext"]["guard_arg_chars"],
+                          cl["main"]["M2"]["ext"]["guard_mrw_served_chars"]),
+                         (4, 2, 350, 2 * len("--if-changed a.py=deadbeef") + len("--if-changed 'a file.go=deadbeef'")
+                          + len("--if-changed y.txt=deadbeef"),
+                          c(A[:1]) + c(B[:1]) + c(["zeta"]) + c(["hi", "", "ho", "-- comment", "123| literal"])
+                          + c(["hi"]) + c(["ok"]) + c(["alpha", "bravo"]) + c(["aa", "bb"]))),
         "claude M3 parent": (cl["subagent"]["M3"]["parent_savable_chars"], 3 * c(B)),
         "claude M3 sibling": (cl["subagent"]["M3"]["sibling_overlap_chars"], 2 * c(B)),
         "claude M3 served": (cl["subagent"]["M3"]["served_chars"], 3 * c(B) + c(A)),

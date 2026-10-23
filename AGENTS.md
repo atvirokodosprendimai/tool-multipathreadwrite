@@ -158,6 +158,8 @@ mrw read --quiet f.go:40-60
 mrw read --grep P --max-cols 200 f.jsonl
 # 9. narrow any command's output without leaving mrw
 cmd | mrw read --grep P --max-lines 20 -
+# 10. re-read a file you read earlier, its text only if it changed (the sha is the 8 hex digits its header printed)
+mrw read --if-changed f.go=8dc37337 f.go:40-60
 ```
 
 `./bin/mrw` after `go build`. Building and using it here is fine — it is the

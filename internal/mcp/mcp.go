@@ -618,6 +618,12 @@ func tools() []tool {
 						"description": "A file inside the root holding one spec a line, as `mrw read --files-from FILE`: blank lines and # comments are skipped. Not together with specs, grep or ast_grep. `-` is refused: stdin carries the protocol.",
 						"examples":    []any{"read.specs"},
 					},
+					"if_changed": map[string]any{
+						"type":                 "object",
+						"additionalProperties": map[string]any{"type": "string"},
+						"description":          "Re-read a file you read earlier: an object of path to the sha you hold, 8 to 64 hex digits of its sha256 (the 8 a header prints are enough), as `mrw read --if-changed`. Each spec of a file that still has that sha is answered with one line, `==> PATH  unchanged since sha SHA — N lines, B bytes not served`, instead of its text, with no checkpoint, and listed in the receipt's `unchanged`; a file that changed is served as ever. An unchanged answer records nothing, so it licenses no write, and it is not an error. A path no spec of the call serves is refused, except under `grep` or `ast_grep`, where a file the walk did not reach is named, not refused. Not together with count, stat, quiet, sub or rewrite. A JSON object keeps the last of a repeated key, so two guards on one file cannot be told apart here. The index of a grep too large to serve is not judged: send `if_changed` with the specs you resend. A page's next_read is a plain spec: send `if_changed` again with it to have it judged.",
+						"examples":             []any{map[string]any{"internal/x/y.go": "8dc37337"}},
+					},
 					"ack": map[string]any{
 						"type":        "array",
 						"items":       map[string]any{"type": "string"},

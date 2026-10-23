@@ -35,7 +35,7 @@ func stdinRead(cmd *cli.Command, pattern string, grepSet bool, posArgs []string)
 	if len(posArgs) != 1 {
 		return cli.Exit("- reads standard input, and a read of it names nothing else: read the files in another call", exitUsage)
 	}
-	for _, f := range []string{"sub", "quiet", "stat", "count", "files-from", "ast-grep", "exclude", "no-ignore", "json"} {
+	for _, f := range []string{"sub", "quiet", "stat", "count", "files-from", "ast-grep", "exclude", "no-ignore", "json", "if-changed"} {
 		if cmd.IsSet(f) {
 			return cli.Exit(fmt.Sprintf("- reads standard input, which licenses nothing and is no tree to walk, so --%s has nothing to act on: drop it, or read a file", f), exitUsage)
 		}

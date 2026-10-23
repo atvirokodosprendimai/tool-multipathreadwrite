@@ -25,6 +25,12 @@ func TestNoShippedMCPReceiptFieldDisappears(t *testing.T) {
 		for sub := range inner {
 			got["mcp_read "+k+"."+sub] = true
 		}
+		// A list's elements are "[]", as unchanged[].path is (ADR-169).
+		items, _ := props[k].(map[string]any)["items"].(map[string]any)
+		elem, _ := items["properties"].(map[string]any)
+		for sub := range elem {
+			got["mcp_read "+k+"[]."+sub] = true
+		}
 	}
 	observed, _ := props["observed"].(map[string]any)
 	entry, _ := observed["additionalProperties"].(map[string]any)

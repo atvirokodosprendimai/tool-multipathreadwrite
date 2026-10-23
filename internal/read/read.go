@@ -188,6 +188,26 @@ type Options struct {
 	// a budget that silenced its own report would be ADR-032's elided receipt
 	// on the CLI.
 	Withheld io.Writer
+	// IfChanged answers a spec in one line instead of its text when the file it
+	// names still has the sha the caller holds (ADR-169): keyed by the spec's
+	// path as written, cleaned, valued by a hex prefix of the file's sha256 in
+	// any case. A spec of a file that changed, or that no key names, is served
+	// as ever. An unchanged spec records nothing in the ledger.
+	IfChanged map[string]string
+	// Unchanged, when not nil, receives each spec answered unchanged that
+	// reached the caller: one the character budget dropped is withheld and not
+	// listed (ADR-169).
+	Unchanged *[]Unchanged
+}
+
+// Unchanged is one spec a guard (Options.IfChanged) answered without its text:
+// the file's path, the sha prefix as the caller gave it, and the lines and
+// bytes the spec would have served (ADR-169).
+type Unchanged struct {
+	Path  string `json:"path"`
+	SHA   string `json:"sha"`
+	Lines int    `json:"lines"`
+	Bytes int    `json:"bytes"`
 }
 
 // Budget is a writer with a character budget (ADR-165): a write that fits
@@ -645,6 +665,10 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 			problems++
 			continue
 		}
+		guard, guarded := "", false
+		if sp.Data == nil { // the key is the spec's path as written, before load may relativize it
+			guard, guarded = opt.IfChanged[filepath.Clean(sp.Path)]
+		}
 		var b []byte
 		if sp.Data != nil {
 			b = sp.Data // ADR-161: standard input, one unnamed file
@@ -664,6 +688,36 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 		foreign := lines.Unsplittable(b)
 		lines, sha := split(b)
 		fileLines[filepath.Clean(sp.Path)] = len(lines)
+		// ADR-169: the caller holds this file's sha, so the spec is answered in
+		// one line, not served, and nothing is recorded: the answer is about
+		// text, never about permission.
+		if guarded && strings.HasPrefix(sha, strings.ToLower(guard)) {
+			spans, missed := resolve(sp.Ranges, lines, opt.Context, b)
+			if opt.NextLine && len(sp.Ranges) > 0 {
+				spans = withNextLine(spans, len(lines))
+			}
+			n, size := spanSize(b, spans, opt.MaxLines)
+			fmt.Fprintf(w, "==> %s  unchanged since sha %s — %d lines, %d bytes not served\n", sp.Path, guard, n, size)
+			// Whether the unchanged line itself reached the caller is judged
+			// before anything else is printed, so a diagnostic that overruns
+			// the budget after it cannot withdraw an answer already delivered
+			// (the Codex review of #514).
+			delivered := !bud.Over()
+			// A range that would not have been served is reported as it is
+			// without the guard (Zy, 2026-10-23): a read that returns nothing
+			// stays visible, and the unchanged answer adds no problem of its own.
+			for _, m := range missed {
+				reportOn(sp.Path, "!! no match for %s\n", m)
+				problems++
+			}
+			if !delivered {
+				fmt.Fprintf(withheld, "%s: WITHHELD: --max-chars reached\n", withheldName(sp))
+				problems++
+			} else if opt.Unchanged != nil {
+				*opt.Unchanged = append(*opt.Unchanged, Unchanged{Path: sp.Path, SHA: guard, Lines: n, Bytes: size})
+			}
+			continue
+		}
 		header := fmt.Sprintf("==> %s  %dL  %dB  sha %s", sp.Path, len(lines), len(b), sha[:8])
 		// countMissed is the pattern a counted file no longer matches: the walk
 		// found it, and another writer changed it before this read. A plain
@@ -1226,6 +1280,26 @@ func withNextLine(in []span, total int) []span {
 		out[i] = s
 	}
 	return merge(out)
+}
+
+// spanSize counts the lines spans cover in b and the bytes those lines hold,
+// line endings included, the way lines.Split ends them: what a guarded spec
+// would have served (ADR-169), up to maxLines when the read caps each spec.
+func spanSize(b []byte, spans []span, maxLines *int) (n, size int) {
+	ls, eol, final := lines.Split(string(b))
+	for _, s := range spans {
+		for i := s.start; i <= s.end; i++ {
+			if maxLines != nil && n == *maxLines {
+				return n, size
+			}
+			n++
+			size += len(ls[i-1]) + len(eol)
+			if i == len(ls) && !final {
+				size -= len(eol)
+			}
+		}
+	}
+	return n, size
 }
 
 // split numbers b's lines as the write engine does (ADR-065, lines.Split) and
