@@ -89,11 +89,11 @@ printf '@@ f.txt 1 replace\nQ\n' | t "$MRW" write --quiet --dry-run - >/dev/null
 fresh; printf 'one\ntwo\n' > f.txt
 big=$(head -c 120000 /dev/zero | tr '\0' 'x')
 req=$(python3 -c 'import json,sys; print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ f.txt - create\n"+sys.argv[1]+"\n","dry_run":True}}}))' "$big")
-out=$(printf '%s\n' "$req" | t "$MRW" mcp 2>&1); rc=$?; say "mcp-120KB-request-line" $rc "$(echo "$out" | head -c 160 | tr '\n' ' ')"
-out=$(printf '[{"jsonrpc":"2.0","id":1,"method":"tools/list"}]\n' | t "$MRW" mcp 2>&1); say "mcp-batch-array" $? "$(echo "$out" | head -c 120 | tr '\n' ' ')"
-out=$(printf '{"jsonrpc":"2.0","method":"tools/list"}\n{"jsonrpc":"2.0","id":"s","method":"tools/list"}\n' | t "$MRW" mcp 2>&1); say "mcp-notification-then-string-id" $? "$(echo "$out" | grep -o '"id":"s"' | head -1) responses=$(echo "$out" | grep -c jsonrpc)"
-out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":"f.txt"}}}\n' | t "$MRW" mcp 2>&1); say "mcp-specs-as-string" $? "$(echo "$out" | head -c 140 | tr '\n' ' ')"
-out=$(printf 'not json at all\n{"jsonrpc":"2.0","id":2,"method":"tools/list"}\n' | t "$MRW" mcp 2>&1); say "mcp-garbage-then-valid" $? "responses=$(echo "$out" | grep -c jsonrpc) $(echo "$out" | head -c 100 | tr '\n' ' ')"
+out=$(printf '%s\n' "$req" | t "$MRW" mcp --enable 2>&1); rc=$?; say "mcp-120KB-request-line" $rc "$(echo "$out" | head -c 160 | tr '\n' ' ')"
+out=$(printf '[{"jsonrpc":"2.0","id":1,"method":"tools/list"}]\n' | t "$MRW" mcp --enable 2>&1); say "mcp-batch-array" $? "$(echo "$out" | head -c 120 | tr '\n' ' ')"
+out=$(printf '{"jsonrpc":"2.0","method":"tools/list"}\n{"jsonrpc":"2.0","id":"s","method":"tools/list"}\n' | t "$MRW" mcp --enable 2>&1); say "mcp-notification-then-string-id" $? "$(echo "$out" | grep -o '"id":"s"' | head -1) responses=$(echo "$out" | grep -c jsonrpc)"
+out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":"f.txt"}}}\n' | t "$MRW" mcp --enable 2>&1); say "mcp-specs-as-string" $? "$(echo "$out" | head -c 140 | tr '\n' ' ')"
+out=$(printf 'not json at all\n{"jsonrpc":"2.0","id":2,"method":"tools/list"}\n' | t "$MRW" mcp --enable 2>&1); say "mcp-garbage-then-valid" $? "responses=$(echo "$out" | grep -c jsonrpc) $(echo "$out" | head -c 100 | tr '\n' ' ')"
 
 # ---------- 9. state and env ----------
 fresh; printf 'x\n' > f.txt; out=$(t env -u HOME -u XDG_STATE_HOME "$MRW" read f.txt 2>&1); say "no-HOME-no-XDG" $? "$out"

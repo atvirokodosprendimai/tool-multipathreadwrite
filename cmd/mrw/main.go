@@ -420,13 +420,22 @@ func mcpCmd() *cli.Command {
 		Description: `Speaks newline-delimited JSON-RPC 2.0 on stdin and stdout, which is
 what an MCP host connects to. There is no socket and nothing listens on a port.
 
-Add it to a host's config as the command ` + "`mrw`" + ` with the argument ` + "`mcp`" + `. The
+Add it to a host's config as the command ` + "`mrw`" + ` with the arguments ` + "`mcp --enable`" + `. The
 server shares this checkout's ledger with the CLI, so a file read over MCP may
 be edited from a shell and the reverse.
 
 Stdout carries MCP messages and nothing else — diagnostics go to stderr — so
-this subcommand is not useful to run by hand.`,
+this subcommand is not useful to run by hand.
+
+The tools are OFF until enabled (ADR-170): started without ` + "`--enable`" + ` or MRW_MCP=on this
+server lists no tools and refuses every call, because a host with a shell does
+better with the CLI. A host with no shell registers ` + "`mrw mcp --enable`" + `, or sets
+MRW_MCP=on in the server's environment, and restarts the server.`,
 		Flags: []cli.Flag{
+			&cli.BoolFlag{
+				Name:  "enable",
+				Usage: "serve the tools mrw_read and mrw_write; without it, or MRW_MCP=on, the server lists none and refuses every call. `--enable=false` turns them off whatever MRW_MCP says, which is read only when the flag is absent",
+			},
 			&cli.IntFlag{
 				Name:  "max-result-chars",
 				Value: mcp.DefaultMaxResultChars,
@@ -469,6 +478,9 @@ this subcommand is not useful to run by hand.`,
 				return cli.Exit("mrw mcp: "+err.Error(), exitUsage)
 			}
 			mcp.MaxResultChars = budget
+			// ADR-170: resolved with the budget, so a bad registration still
+			// fails at start with the switch off.
+			mcp.ToolsOff = !mcpEnabled(cmd, os.LookupEnv, os.Stderr)
 			// Announced on STDERR: the spec forbids anything on stdout that is
 			// not an MCP message, and a server silently bound to the wrong tree
 			// is this subcommand's worst failure — every refusal it then gives
@@ -487,6 +499,26 @@ this subcommand is not useful to run by hand.`,
 			return nil
 		},
 	}
+}
+
+// mcpEnabled resolves the ADR-170 switch: --enable decides when it is given
+// (so `--enable=false` beats MRW_MCP=on), else MRW_MCP=on turns the tools on;
+// off, empty, unset and any other value leave them off, and only another value
+// is named on warn, verbatim: the raw value is compared, not a trimmed one. The
+// variable is read only when the flag is absent, as
+func mcpEnabled(cmd *cli.Command, lookup func(string) (string, bool), warn io.Writer) bool {
+	if cmd.IsSet("enable") {
+		return cmd.Bool("enable")
+	}
+	raw, _ := lookup("MRW_MCP")
+	switch raw {
+	case "on":
+		return true
+	case "", "off":
+	default:
+		fmt.Fprintf(warn, "mrw mcp: MRW_MCP=%q is not one of on or off; the tools stay off\n", raw)
+	}
+	return false
 }
 
 // resultBudget resolves the MCP result ceiling: the flag, else the

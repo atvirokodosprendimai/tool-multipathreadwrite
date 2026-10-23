@@ -36,4 +36,8 @@ for those records, against roughly 2,800 shell invocations; a repository with no
 such rule, reached through the same user-scope registration, made 57 MCP writes
 in a day.
 
+Since ADR-170 (v1.75.0) `mrw mcp` lists no tools until it is started with `--enable` or `MRW_MCP=on`. That registration
+(`args: ["mcp"]`) therefore needs the switch added, `args: ["mcp", "--enable"]`, and the server restarted; it lives in
+the owner's account config, outside this repository, so the owner adds it.
+
 M and Zy in this repository's notes and records are the same owner.

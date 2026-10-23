@@ -20,6 +20,11 @@ const built = path.join(repo, "bin", exe);
 const bare = process.platform === "win32" ? process.env.PATH : "/usr/bin:/bin";
 process.env.PATH = bare;
 
+// ADR-170: the binary serves its tools only when enabled, so the fixture says off
+// in its own environment (whatever this shell exports): only the plugin's own
+// MRW_MCP=on for its child can turn them on.
+process.env.MRW_MCP = "off";
+
 // tmp makes a directory the test removes when it ends.
 function tmp(t, prefix) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));

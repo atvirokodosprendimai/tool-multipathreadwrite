@@ -50,6 +50,17 @@ var exampleReadSpecs = []string{
 	"cmd/app/main.go:$",
 }
 
+// toolsOffRefusal is the JSON-RPC error a tools/call gets while the tools are
+// off, and toolsOffInstructions what initialize and server/discover say (ADR-170).
+const (
+	toolsOffRefusal = "mrw's MCP tools are off: this server was started without --enable or MRW_MCP=on. " +
+		"A host with a shell should use the CLI (mrw read, mrw write); a host with no shell enables them " +
+		"with `mrw mcp --enable` or MRW_MCP=on in the server's environment, then restarts the server."
+	toolsOffInstructions = "mrw's MCP tools are off. With a shell, use the CLI: `mrw read`, `mrw write`, `mrw --skill` " +
+		"prints how. A host with no shell enables the tools by starting the server as `mrw mcp --enable`, " +
+		"or with MRW_MCP=on in its environment, and restarting it."
+)
+
 // instructionsText is the `instructions` field of the initialize result — the
 // place the 2025-06-18 lifecycle provides for a server to say how it is meant
 // to be driven.
@@ -60,6 +71,9 @@ var exampleReadSpecs = []string{
 // one worked plan, quoted twice, so the two copies cannot disagree about a
 // format that has no second source.
 func instructionsText() string {
+	if ToolsOff {
+		return toolsOffInstructions
+	}
 	return guide.Shared() + "\n\n" + guide.WhyAllOrNothing() + "\n\n" + fmt.Sprintf(`Recipes:
 1. the same change at many sites, none in context: mrw_write with grep and sub (grep \bOld\b, sub New)
 2. see each change: the same with dry_run true

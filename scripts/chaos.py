@@ -739,7 +739,7 @@ def modern_expect(method, version, caps):
 def suite_mcp(n):
     for i in range(n):
         root = fresh("mcp", i); names = make_tree(root, 3)
-        p = subprocess.Popen([MRW, "--root", root, "mcp"], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+        p = subprocess.Popen([MRW, "--root", root, "mcp", "--enable"], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                              stderr=subprocess.PIPE, env=ENV)
         msgs = []
         def send(obj_or_raw):
@@ -844,7 +844,7 @@ def suite_mcp(n):
                  {"jsonrpc": "2.0", "method": "server/discover"},
                  {"jsonrpc": "2.0", "id": 500, "method": "ping"}]
         try:
-            q = subprocess.run([MRW, "--root", root, "mcp"], input=b"\n".join(json.dumps(x).encode() for x in notes) + b"\n",
+            q = subprocess.run([MRW, "--root", root, "mcp", "--enable"], input=b"\n".join(json.dumps(x).encode() for x in notes) + b"\n",
                                capture_output=True, env=ENV, timeout=20)
             qo = q.stdout.decode("utf-8", "replace")
             lines = [l for l in qo.splitlines() if l.strip()]

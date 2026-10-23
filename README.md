@@ -440,11 +440,16 @@ ledger.
   "mcpServers": {
     "mrw": {
       "command": "mrw",
-      "args": ["mcp"]
+      "args": ["mcp", "--enable"]
     }
   }
 }
 ```
+
+The tools are off until enabled (ADR-170, v1.75.0): `mrw mcp` started without `--enable` or `MRW_MCP=on` lists no tools
+and refuses every call, naming the switch, so a host that has a shell uses the CLI. A host with no shell adds `--enable` to
+the registration's `args`, or `MRW_MCP=on` to its environment, and restarts the server. `--enable=false` turns them off
+whatever `MRW_MCP` says, which is read only when the flag is absent; any value but `on` or `off` leaves them off and is named on stderr.
 
 A write's check does not hold the server: requests sent while it runs are answered, and a call that sends
 `_meta.progressToken` hears `notifications/progress` until its answer (ADR-121).
@@ -453,7 +458,7 @@ Use an absolute path for `command` if `mrw` is not on the host's `PATH`. Launch
 with an explicit root when the host does not set `CLAUDE_PROJECT_DIR`:
 
 ```sh
-mrw --root DIR mcp
+mrw --root DIR mcp --enable
 ```
 
 ```json
@@ -461,16 +466,16 @@ mrw --root DIR mcp
   "mcpServers": {
     "mrw": {
       "command": "/absolute/path/to/mrw",
-      "args": ["--root", "/absolute/path/to/repo", "mcp"]
+      "args": ["--root", "/absolute/path/to/repo", "mcp", "--enable"]
     }
   }
 }
 ```
 
 On a host with a shell, prefer the CLI. Where you register the server decides
-where its tools appear. At user scope (`claude mcp add -s user mrw -- mrw mcp`)
+where its tools appear. At user scope (`claude mcp add -s user mrw -- mrw mcp --enable`)
 both tools load in every project on the machine; at local scope, run from one
-checkout (`claude mcp add -s local mrw -- mrw mcp`), they load only there.
+checkout (`claude mcp add -s local mrw -- mrw mcp --enable`), they load only there.
 Choose user scope when every project should reach mrw over MCP, and local scope
 when only one should.
 
@@ -612,8 +617,8 @@ the session's directory.
 
 ### Or over MCP alone
 
-opencode is also an MCP host, so `mrw mcp` works there without the plugin: list it
-under `mcp` in `opencode.json` as a local server running `mrw mcp` (see [MCP](#mcp)).
+opencode is also an MCP host, so `mrw mcp --enable` works there without the plugin: list it
+under `mcp` in `opencode.json` as a local server running `mrw mcp --enable` (see [MCP](#mcp)).
 opencode prefixes an MCP tool with its server's name, so a server named `mrw`
 answers as `mrw_mrw_read` and `mrw_mrw_write` beside the plugin's tools. Both work
 together, over the same engine and ledger; the plugin adds `check`, `stats`, `seen`

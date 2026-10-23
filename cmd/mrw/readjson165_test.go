@@ -68,7 +68,7 @@ func TestReadJSONCarriesTheServedTextAndTheReceiptMrwReadSends(t *testing.T) {
 		t.Helper()
 		req, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": 1, "method": "tools/call",
 			"params": map[string]any{"name": "mrw_read", "arguments": args}})
-		out, _, _ := run(string(req)+"\n", "mcp")
+		out, _, _ := run(string(req)+"\n", "mcp", "--enable")
 		var resp struct {
 			Result struct {
 				Content []struct{ Text string } `json:"content"`
