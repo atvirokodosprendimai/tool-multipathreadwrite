@@ -97,6 +97,7 @@ line="$*"; line="${line//$'\n'/ }"; printf '%s\n' "$line" >> "$LOG"
 sub() { REPLY="$1"; REPLY="${REPLY//\/testbed/$ROOT/testbed}"; REPLY="${REPLY//\/opt\//$ROOT/opt/}"; }
 case "$1" in
 run) if [ -e "$ROOT/fail-run" ]; then echo "docker: boom" 1>&2; exit 1; fi; echo fakeid; exit 0;;
+image) if [ "$2" = rm ] && [ -e "$ROOT/fail-rm" ]; then echo "docker: rm boom" 1>&2; exit 1; fi; exit 0;;
 ps) [ -e "$ROOT/ps.out" ] || exit 0; want=""; for a in "$@"; do case "$a" in label=mrw-bench-attempt=*) want="${a#label=mrw-bench-attempt=}";; esac; done; while read -r id lab; do if [ "$lab" = "$want" ]; then echo "$id"; fi; done < "$ROOT/ps.out"; exit 0;;
 exec)
 	shift; dir=""

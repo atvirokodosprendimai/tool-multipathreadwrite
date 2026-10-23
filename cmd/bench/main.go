@@ -10,6 +10,7 @@
 //	              [--block K [--configs-for MODEL=A,B,P ...]] [--disk-path PATH --disk-floor GiB]
 //	bench canary  --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass
 //	              [--profile stage5|stage6 [--plugin-dir DIR] [--node PATH] [--work-line FILE]]
+//	bench baseline --stage S --out DIR --selection FILE --dataset FILE --checks FILE [--surviving FILE] [--docker PATH] [--budget 20m]
 //	bench export-paired --pair X,Y --model M --scorer-sha SHA --selection FILE --canary FILE DIR...
 //	bench verify  --stage S --tasks N --repeats R DIR
 //	bench look    DIR                                     (a Stage 5 directory: exit 0 complete, 1 a block due)
@@ -43,6 +44,7 @@ const usageText = `usage:
   bench canary  --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass [--profile stage5|stage6 [--plugin-dir DIR] [--node PATH] [--work-line FILE]]
   bench verify  --stage S --tasks N --repeats R DIR
   bench run     … [--block K [--configs-for MODEL=A,B,P ...]] [--disk-path PATH --disk-floor GiB]
+  bench baseline --stage S --out DIR --selection FILE --dataset FILE --checks FILE [--surviving FILE] [--docker PATH] [--budget 20m]   (the declared check once per instance on the unmodified tree; no model)
   bench look    DIR
   bench export-paired --pair X,Y --model M --scorer-sha SHA --selection FILE --canary FILE DIR...
   bench analyze [--tasks-dir DIR] [--selection FILE ...] DIR
@@ -66,6 +68,8 @@ func main() {
 		err = canary(os.Args[2:])
 	case "verify":
 		err = verify(os.Args[2:])
+	case "baseline":
+		err = baseline(os.Args[2:])
 	case "export-paired":
 		err = exportPaired(os.Args[2:], os.Stdout)
 	case "analyze":
@@ -196,7 +200,12 @@ func run(args []string) error {
 		return err
 	}
 	if o.Block > 0 {
-		if o.Tasks, err = bench.BlockTasks(o.Tasks, o.Block); err != nil {
+		// Stage6 draws its blocks from the surviving pool, whose block count is its own (ADR-163 Decision 4).
+		blockOf := bench.BlockTasks
+		if o.Profile == bench.ProfileStage6 {
+			blockOf = bench.SurvivingBlock
+		}
+		if o.Tasks, err = blockOf(o.Tasks, o.Block); err != nil {
 			return err
 		}
 	}
@@ -204,6 +213,35 @@ func run(args []string) error {
 		return err
 	}
 	return bench.Run(*o)
+}
+
+// baseline runs each selected instance's declared check once on the
+// unmodified tree in its container and records green or red (ADR-163
+// Decision 4). It starts no model.
+func baseline(args []string) error {
+	fs := flag.NewFlagSet("baseline", flag.ContinueOnError)
+	o := bench.BaselineOptions{}
+	fs.StringVar(&o.Stage, "stage", "", "the stage's name; its containers carry it as a label")
+	fs.StringVar(&o.Out, "out", "", "the directory baseline.json is written to; one holding a baseline is refused")
+	fs.StringVar(&o.Selection, "selection", "", "the selection whose instances are run, in its order")
+	dataset := fs.String("dataset", "", "the SWE-bench dataset file the instances are read from")
+	fs.StringVar(&o.Checks, "checks", "", "the declared-check table, bench/swe-bench/checks.json")
+	fs.StringVar(&o.Surviving, "surviving", "", "write the green instances, in the selection's order, as a selection: the surviving pool")
+	fs.StringVar(&o.Docker, "docker", "docker", "the docker CLI")
+	fs.StringVar(&o.Scratch, "scratch", os.TempDir(), "where host trees are built")
+	fs.DurationVar(&o.Budget, "budget", bench.DefaultBudget, "bounds a container's life, so a check that hangs ends with it")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if o.Selection == "" || *dataset == "" {
+		return fmt.Errorf("baseline needs --selection and --dataset")
+	}
+	o.SWE = &bench.SWEGrader{Docker: o.Docker}
+	var err error
+	if o.Tasks, err = bench.LoadSWEBench(o.Selection, *dataset); err != nil {
+		return err
+	}
+	return bench.Baseline(o)
 }
 
 func canary(args []string) error {
