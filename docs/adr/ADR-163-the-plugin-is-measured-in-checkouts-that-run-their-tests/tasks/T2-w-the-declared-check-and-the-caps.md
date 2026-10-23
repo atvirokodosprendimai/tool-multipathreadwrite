@@ -49,14 +49,10 @@ out=$(go test ./internal/bench/ -count=1 -v -run '^(TestConfigurationWIsPPlusThe
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `TestTheRunnerRefusesToOverwriteAnEarlierRunsReceipts` | `internal/bench/runner_test.go` | placeholder until this task's tests land: earlier stages' receipts survive (ADR-156 T2); the rows below replace it, with their Steps, in the commit that adds the tests | none | — |
-
-Planned tests, which this table names in the commit that adds them:
-
-- TestConfigurationWIsPPlusTheWorkLine in internal/bench/checks_test.go: W's arguments are P's; its instruction is P's plus the line, whose sha is in `run.json`; A and P carry no line; W without `--work-line` or without `stage6` is refused; the canary refuses the line in P (steps S3)
-- TestTheDeclaredCheckIsWrittenBeforeTheBaseCommitInEveryArm in internal/bench/checks_test.go: under `stage6`, A, P and W trees hold the same `.quality-harness.json` in the base commit and not in the diff; without the profile no file is written (steps S3)
-- TestTheChecksTableNamesARepositorySourceForEveryPoolRepository in internal/bench/checks_test.go: every repository of `selection-adr-162.json` has a command and a source; a missing repository, a missing source, or a command with a path or `-k` argument is refused (steps S2, S3)
-- TestMaxTurnsIsTheStagesAndTheRowsCarryIt in internal/bench/checks_test.go: `--max-turns 90` makes 61 to 90 turns within budget and is in `run.json`, the rows and `scaffold`; without the flag it is 60; two blocks with different `checks_sha256`, `work_line_sha256` or `max_turns` are refused by the export (steps S3)
+| `TestConfigurationWIsPPlusTheWorkLine` | `internal/bench/checks_test.go` | W's arguments are P's; its instruction is P's plus the line, whose sha is in `run.json`; A and P carry no line; W without `--work-line` or without `stage6` is refused; the canary refuses the line in P | none | S3 |
+| `TestTheDeclaredCheckIsWrittenBeforeTheBaseCommitInEveryArm` | `internal/bench/checks_test.go` | under `stage6`, A, P and W trees hold the same `.quality-harness.json` in the base commit and not in the diff; without the profile no file is written | none | S3 |
+| `TestTheChecksTableNamesARepositorySourceForEveryPoolRepository` | `internal/bench/checks_test.go` | every repository of `selection-adr-162.json` has a command and a source; a missing repository, a missing source, or a command with a path or `-k` argument is refused | none | S2, S3 |
+| `TestMaxTurnsIsTheStagesAndTheRowsCarryIt` | `internal/bench/checks_test.go` | `--max-turns 90` makes 61 to 90 turns within budget and is in `run.json`, the rows and `scaffold`; without the flag it is 60; blocks with different `checks_sha256`, `work_line_sha256` or `max_turns` are refused by the export | none | S3 |
 
 ## Reachability
 
@@ -69,6 +65,16 @@ Planned tests, which this table names in the commit that adds them:
 
 ## Mutation Log
 (empty until execute)
+- 2026-10-23 · 1ded736c* · mutant killed · exit 1 · `internal/bench/materialize.go` · the declared check is never written into the tree before the base commit · acceptance-sha256:e562e6b3b419db3340ab47782fd30600dae327da78c4af144dfed0874f210a93
+- 2026-10-23 · 1ded736c* · mutant killed · exit 1 · `internal/bench/runner.go` · --max-turns does not reach the over-budget rule · acceptance-sha256:e562e6b3b419db3340ab47782fd30600dae327da78c4af144dfed0874f210a93
+- 2026-10-23 · 1ded736c* · mutant killed · exit 1 · `internal/bench/export.go` · the export accepts blocks whose checks_sha256 differ · acceptance-sha256:e562e6b3b419db3340ab47782fd30600dae327da78c4af144dfed0874f210a93
+- 2026-10-23 · 1ded736c* · mutant killed · exit 1 · `internal/bench/checks.go` · configuration W carries no work line: W is P · acceptance-sha256:e562e6b3b419db3340ab47782fd30600dae327da78c4af144dfed0874f210a93
+- 2026-10-23 · 1ded736c* · mutant killed · exit 1 · `internal/bench/export.go` · the export accepts blocks whose work_line_sha256 differ · acceptance-sha256:e562e6b3b419db3340ab47782fd30600dae327da78c4af144dfed0874f210a93
+- 2026-10-23 · 1ded736c* · mutant killed · exit 1 · `internal/bench/checks.go` · a command naming a test path, node id or -k subset is accepted as the whole runner · acceptance-sha256:e562e6b3b419db3340ab47782fd30600dae327da78c4af144dfed0874f210a93
+- 2026-10-23 · 1ded736c* · mutant killed · exit 1 · `internal/bench/checks.go` · a pool repository the table does not name is accepted · acceptance-sha256:e562e6b3b419db3340ab47782fd30600dae327da78c4af144dfed0874f210a93
+- 2026-10-23 · 1ded736c* · mutant killed · exit 1 · `internal/bench/runner.go` · run.json carries no work_line_sha256 · acceptance-sha256:e562e6b3b419db3340ab47782fd30600dae327da78c4af144dfed0874f210a93
+- 2026-10-23 · 1ded736c* · mutant killed · exit 1 · `internal/bench/checks.go` · every configuration carries the work line: A and P become W · acceptance-sha256:e562e6b3b419db3340ab47782fd30600dae327da78c4af144dfed0874f210a93
+- 2026-10-23 · 1ded736c* · mutant killed · exit 1 · `internal/bench/checks.go` · a -k subset is accepted as the whole runner · acceptance-sha256:e562e6b3b419db3340ab47782fd30600dae327da78c4af144dfed0874f210a93
 
 ## Invariants
 
@@ -89,3 +95,19 @@ The fence exits 0 and S2 is recorded; or a pool repository's files document no r
 
 ## Verification Log
 (empty until execute)
+- 2026-10-23 · 1ded736c* · exit 0 · `set -o pipefail …` · acceptance-sha256:e562e6b3b419db3340ab47782fd30600dae327da78c4af144dfed0874f210a93 · ms:6057
+- 2026-10-23 · 1ded736c* · exit 0 · `set -o pipefail …` · acceptance-sha256:e562e6b3b419db3340ab47782fd30600dae327da78c4af144dfed0874f210a93 · ms:6026
+- 2026-10-23 · 1ded736c* · exit 0 · `set -o pipefail …` · acceptance-sha256:e562e6b3b419db3340ab47782fd30600dae327da78c4af144dfed0874f210a93 · ms:6050
+- 2026-10-23 · 1ded736c* · exit 0 · `set -o pipefail …` · acceptance-sha256:e562e6b3b419db3340ab47782fd30600dae327da78c4af144dfed0874f210a93 · ms:6399
+- 2026-10-23 · 1ded736c* · exit 0 · `set -o pipefail …` · acceptance-sha256:e562e6b3b419db3340ab47782fd30600dae327da78c4af144dfed0874f210a93 · ms:6070
+- 2026-10-23 · 1ded736c* · exit 0 · `set -o pipefail …` · acceptance-sha256:e562e6b3b419db3340ab47782fd30600dae327da78c4af144dfed0874f210a93 · ms:6011
+- 2026-10-23 · 1ded736c* · exit 0 · `set -o pipefail …` · acceptance-sha256:e562e6b3b419db3340ab47782fd30600dae327da78c4af144dfed0874f210a93 · ms:5908
+- 2026-10-23 · 1ded736c* · exit 0 · `set -o pipefail …` · acceptance-sha256:e562e6b3b419db3340ab47782fd30600dae327da78c4af144dfed0874f210a93 · ms:6043
+- 2026-10-23 · human-observed · S2 recorded 2026-10-23: bench/swe-bench/checks.json holds one entry per pool repository (11), each read from the repository's own files fetched from GitHub at the newest pool base commit (by instance created_at, base_commit from the dataset row only) and checked at the oldest; sources astropy setup.cfg:120, django tox.ini:35, matplotlib pytest.ini:10, seaborn Makefile:4, requests Makefile:9, xarray setup.cfg:139, pylint tox.ini:37, pytest tox.ini:28, scikit-learn Makefile:27, sphinx tox.ini:27, sympy bin/test:4, each @ its 40-hex newest base. Runners that named their suite root (sklearn, matplotlib, pylint, seaborn, requests) are recorded bare per Zy 2026-10-23 ('Bare runner'); differences at the oldest base are noted per entry ('Newest, note the gap'). No entry was taken from FAIL_TO_PASS, PASS_TO_PASS or a patch. SHA-256 7f169124fbdcdc8e5fa118614aeb275122fc7947fdd7034570141c3c93fb71a7, registered in BACKLOG 'Pre-registered for ADR-163' · acceptance-sha256:e562e6b3b419db3340ab47782fd30600dae327da78c4af144dfed0874f210a93
+- 2026-10-23 · 1ded736c* · exit 0 · `set -o pipefail …` · acceptance-sha256:e562e6b3b419db3340ab47782fd30600dae327da78c4af144dfed0874f210a93 · ms:6128
+- 2026-10-23 · 1ded736c* · exit 1 · `set -o pipefail …` · acceptance-sha256:e562e6b3b419db3340ab47782fd30600dae327da78c4af144dfed0874f210a93 · ms:4055 · test-lock-sha256:703aeab0d90d0cbb5d6a264d98ef8b95ff837d3f3f9b955860eb2169d1893f7b · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJaW50ZXJuYWwvYmVuY2gvY2hlY2tzX3Rlc3QuZ28JVGVzdENvbmZpZ3VyYXRpb25XSXNQUGx1c1RoZVdvcmtMaW5lCTI3M2Y0MjFiYmU0NDI4YTBkZGFmYzAxNzMzZDIxODA3YjIyY2ZlYmY3NTNmZTFiYzY3NzFlOWM3MWQyYzYxNDAKYm9keQlpbnRlcm5hbC9iZW5jaC9jaGVja3NfdGVzdC5nbwlUZXN0TWF4VHVybnNJc1RoZVN0YWdlc0FuZFRoZVJvd3NDYXJyeUl0CTYyYzc4YzAxMDhhZDc3Yzc3ODBiODNjN2QyMzIwMWIzMmM2MDU3Y2Y2NmYxNDQwN2M0ZDEyODJjOTcyYzkzZDEKYm9keQlpbnRlcm5hbC9iZW5jaC9jaGVja3NfdGVzdC5nbwlUZXN0VGhlQ2hlY2tzVGFibGVOYW1lc0FSZXBvc2l0b3J5U291cmNlRm9yRXZlcnlQb29sUmVwb3NpdG9yeQk0NWYwYzRiMmYwODgwNWRmM2FmYzI5ZDA1YzQ1NGZhOWFkZTY3Y2U3NWU5OGQzMjUzMjA1MTBjZGRlZDlmNWM4CmJvZHkJaW50ZXJuYWwvYmVuY2gvY2hlY2tzX3Rlc3QuZ28JVGVzdFRoZURlY2xhcmVkQ2hlY2tJc1dyaXR0ZW5CZWZvcmVUaGVCYXNlQ29tbWl0SW5FdmVyeUFybQk4ZmUwNjNlZjQ0YzA2NTRmMGQ5MTFmNDEyZTlmZDcwNjJkNTJiMWIxMjU4MjY2ZTdjZDM2Y2MxOGRmMDY4NTY5
+  ```
+  ```
+- 2026-10-23 · 1ded736c* · exit 0 · `set -o pipefail …` · acceptance-sha256:e562e6b3b419db3340ab47782fd30600dae327da78c4af144dfed0874f210a93 · ms:5888
+- 2026-10-23 · 1ded736c* · exit 0 · `set -o pipefail …` · acceptance-sha256:e562e6b3b419db3340ab47782fd30600dae327da78c4af144dfed0874f210a93 · ms:6387
+- 2026-10-23 · 1ded736c* · exit 0 · `set -o pipefail …` · acceptance-sha256:e562e6b3b419db3340ab47782fd30600dae327da78c4af144dfed0874f210a93 · ms:6129

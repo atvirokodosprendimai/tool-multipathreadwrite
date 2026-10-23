@@ -168,6 +168,14 @@ func repoPath(t Task) (string, error) {
 // fixture's base/ directory, with its instructions prepared (PrepareInstructions) and the
 // result committed, so the oracle can diff against HEAD. It returns HEAD.
 func Materialize(t Task, dst string, files []string) (string, error) {
+	return materialize(t, dst, files, "")
+}
+
+// materialize is Materialize with the stage's declared check: under stage6 it
+// is written as .quality-harness.json before the base commit, so it is in
+// every arm's tree and never in the diff the harness grades (ADR-163
+// Decision 2).
+func materialize(t Task, dst string, files []string, check string) (string, error) {
 	if t.Repo == "fixture" {
 		if err := copyTree(filepath.Join(t.Dir, "base"), dst); err != nil {
 			return "", err
@@ -197,6 +205,11 @@ func Materialize(t Task, dst string, files []string) (string, error) {
 			return "", err
 		}
 		if err := dropSections(dst, repos[t.Repo].DropSections); err != nil {
+			return "", err
+		}
+	}
+	if check != "" {
+		if err := writeCheckFile(dst, check); err != nil {
 			return "", err
 		}
 	}

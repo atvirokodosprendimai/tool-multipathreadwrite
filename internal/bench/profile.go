@@ -136,7 +136,10 @@ func resolveProfile(o *RunOptions) error {
 		return fmt.Errorf("--node %s is not an executable file", o.Node)
 	}
 	if o.Profile == ProfileStage6 {
-		return resolveContainer(o)
+		if err := resolveContainer(o); err != nil {
+			return err
+		}
+		return resolveDeclared(o)
 	}
 	return nil
 }

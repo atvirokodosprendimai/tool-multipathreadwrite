@@ -25,15 +25,18 @@ type Config struct {
 	Tools  []string
 	Mrw    bool // a pinned mrw on PATH, its instructions appended, the hook installed
 	Plugin bool // the quality-harness plugin loaded with --plugin-dir (ADR-162)
+	Work   bool // W: the instruction carries the pre-registered work line (ADR-163)
 }
 
-// Configs are A (the baseline), B (mrw forced) and P (A with the
-// quality-harness plugin, run only under the stage5 profile). Task, Agent,
+// Configs are A (the baseline), B (mrw forced), P (A with the
+// quality-harness plugin, run only under the stage5 profile) and W (P with one
+// more line in its instruction, run only under stage6). Task, Agent,
 // WebFetch and WebSearch are offered to none.
 var Configs = map[string]Config{
 	"A": {Name: "A", Tools: []string{"Bash", "Read", "Edit", "Write", "Glob", "Grep"}},
 	"B": {Name: "B", Tools: []string{"Bash", "Glob"}, Mrw: true},
 	"P": {Name: "P", Tools: []string{"Bash", "Read", "Edit", "Write", "Glob", "Grep"}, Plugin: true},
+	"W": {Name: "W", Tools: []string{"Bash", "Read", "Edit", "Write", "Glob", "Grep"}, Plugin: true, Work: true},
 }
 
 // ErrStartErrors and ErrDiskFloor stop a run at an attempt boundary, resumable
@@ -44,12 +47,10 @@ var (
 	ErrDiskFloor   = errors.New("free disk is below the floor")
 )
 
-// The registered budget (BACKLOG, "Pre-registered for ADR-156"): an attempt
-// past either is unsolved, its cost counted.
-const (
-	DefaultBudget = 20 * time.Minute
-	MaxTurns      = 60
-)
+// The registered wall-time budget (BACKLOG, "Pre-registered for ADR-156"): an
+// attempt past it, or past the turn cap (DefaultMaxTurns), is unsolved, its
+// cost counted.
+const DefaultBudget = 20 * time.Minute
 
 // Exclusions the registration admits; no other reason leaves an attempt out.
 const (
@@ -142,6 +143,12 @@ type RunOptions struct {
 	DiskFloorGiB float64             // the free space, in GiB, below which no attempt starts; 0 for no floor
 	Docker       string              // the docker CLI; the stage6 profile starts a container with it (ADR-163)
 	CanaryImage  string              // the image a task with none of its own (the canary fixture) runs its container in under stage6
+	Checks       string              // stage6: the declared-check table, bench/swe-bench/checks.json (ADR-163 Decision 2)
+	WorkLine     string              // stage6: the file holding the line configuration W adds to its instruction (ADR-163 Decision 3)
+	MaxTurns     int                 // the stage's turn cap; 0 for the registered DefaultMaxTurns
+	checks       *Checks             // read by resolveDeclared
+	workLine     string              // the line, read by resolveDeclared
+	workLineSHA  string              // the SHA-256 of the file it was read from
 }
 
 // plan is what run.json records; a second Run into the same directory must
@@ -164,6 +171,9 @@ type plan struct {
 	Block            int                 `json:"block,omitempty"`
 	Looks            int                 `json:"looks,omitempty"`
 	ConfigsFor       map[string][]string `json:"configs_for,omitempty"`
+	MaxTurns         int                 `json:"max_turns,omitempty"`
+	ChecksSHA256     string              `json:"checks_sha256,omitempty"`
+	WorkLineSHA256   string              `json:"work_line_sha256,omitempty"`
 }
 
 // attempt is one run of one task in one configuration on one model.
@@ -261,6 +271,14 @@ func Run(o RunOptions) (err error) {
 	}
 	p := plan{Stage: o.Stage, Models: o.Models, Configs: o.Configs, Repeats: o.Repeats, Seed: o.Seed, CLIVersion: cli, MrwVersion: mrwVersion, Containment: o.Containment, Profile: o.Profile, Plugin: o.plugin}
 	p.ConfigsFor = o.ConfigsFor
+	p.WorkLineSHA256 = o.workLineSHA
+	if o.checks != nil {
+		p.ChecksSHA256 = o.checks.SHA256
+	}
+	// Stage 5's run.json keeps its bytes: the cap is written once a stage has one of its own.
+	if o.Profile == ProfileStage6 || o.MaxTurns != 0 {
+		p.MaxTurns = o.maxTurns()
+	}
 	if o.Block > 0 {
 		p.Block, p.Looks = o.Block, Looks
 	}
@@ -429,10 +447,18 @@ func gates(o RunOptions) (string, error) {
 		return "", errors.New("the stage6 profile is not settled: ADR-163 T1 S1 has not recorded the inspection of a real image, so bench run refuses it; bench canary may run")
 	case o.Profile == ProfileStage6 && o.CanaryImage == "" && slices.ContainsFunc(o.Tasks, func(t Task) bool { return t.swe == nil }):
 		return "", errors.New("the stage6 profile starts a container of the image of each task, and a task with none needs --canary-image")
+	case hasConfig(o, "W") && o.Profile != ProfileStage6:
+		return "", fmt.Errorf("configuration W runs only under --profile %s (ADR-163 Decision 3)", ProfileStage6)
+	case hasConfig(o, "W") && o.WorkLine == "":
+		return "", errors.New("configuration W needs --work-line, the file holding the line quality-harness's ADR-112 pre-registers (ADR-163 Decision 3)")
+	case o.WorkLine != "" && o.Profile != ProfileStage6:
+		return "", fmt.Errorf("--work-line is configuration W's, and runs only under --profile %s (ADR-163 Decision 3)", ProfileStage6)
+	case o.Profile == ProfileStage6 && o.Checks == "" && slices.ContainsFunc(o.Tasks, func(t Task) bool { return t.swe != nil }):
+		return "", errors.New("the stage6 profile writes each repository's declared check into the tree, and a SWE-bench task needs --checks (ADR-163 Decision 2)")
 	case hasConfig(o, "P") && o.Profile == "":
 		return "", fmt.Errorf("configuration P runs only under --profile %s, which every configuration shares (ADR-162 Decision 1)", ProfileStage5)
-	case hasConfig(o, "P") && o.PluginDir == "":
-		return "", errors.New("configuration P needs --plugin-dir, the plugin's directory in a tagged checkout (ADR-162 Decision 1)")
+	case (hasConfig(o, "P") || hasConfig(o, "W")) && o.PluginDir == "":
+		return "", errors.New("configuration P and W need --plugin-dir, the plugin's directory in a tagged checkout (ADR-162 Decision 1)")
 	}
 	cd, err := filepath.Abs(o.ConfigDir)
 	if err != nil {
@@ -670,7 +696,7 @@ func runAttempt(o RunOptions, a attempt, order int, cli, mrwVersion string) (r R
 		r.Exclusion, r.Note = ExclusionSetup, err.Error()
 		return r
 	}
-	baseSHA, err := Materialize(a.Task, tree, nil)
+	baseSHA, err := materialize(a.Task, tree, nil, o.declaredFor(a.Task))
 	if err != nil {
 		r.Exclusion, r.Note = ExclusionSetup, err.Error()
 		return r
@@ -749,7 +775,7 @@ func runAttempt(o RunOptions, a attempt, order int, cli, mrwVersion string) (r R
 	// error all the same (the re-review of #411).
 	r.IsError, r.NumTurns, r.ToolCalls, r.CostUSD, r.Usage = t.IsError || !t.Result || r.ExitCode != 0, t.NumTurns, t.ToolCalls, t.CostUSD, t.Usage
 	r.InitTools, r.InitMCP = t.Tools, t.MCPServers
-	r.OverBudget = r.TimedOut || t.NumTurns > MaxTurns
+	r.OverBudget = r.TimedOut || t.NumTurns > o.maxTurns()
 	if a.shim != nil {
 		var note string
 		r.ShimCounts, note = shimCounts(a.shim.logPath(), t.Commands, imageFor(o, a.Task), a.shim.Container, filepath.Join(scratch, "tools"))
@@ -885,10 +911,7 @@ func invocation(o RunOptions, a attempt, scratch string) ([]string, []string, er
 	if o.Profile != "" {
 		c, skills = profiled(c), "--include-hook-events"
 	}
-	instruction := a.Task.Instruction
-	if o.StatusLine {
-		instruction = strings.Replace(PromptTemplate, "{instruction}", a.Task.Instruction, 1)
-	}
+	instruction := instructionFor(o, a.Config, a.Task)
 	args := []string{"-p", instruction, "--output-format", "stream-json", "--verbose", "--model", a.Model,
 		"--tools", strings.Join(c.Tools, ","), "--strict-mcp-config", "--mcp-config", empty,
 		skills, "--no-session-persistence", "--no-chrome", "--permission-mode", "bypassPermissions",

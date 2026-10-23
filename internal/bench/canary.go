@@ -137,6 +137,9 @@ func RunCanary(o RunOptions, task Task, claudeMD string) (CanaryReceipt, error) 
 		if err != nil {
 			return c, err
 		}
+		if o.workLine != "" {
+			problems = append(problems, CheckWorkLine(Configs[name], instructionFor(o, Configs[name], task), o.workLine)...)
+		}
 		if o.Profile != "" {
 			problems = append(problems, CheckProfileCanary(b, Configs[name], claudeMD, o.ConfigDir, o.PluginDir)...)
 		} else {

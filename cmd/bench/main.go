@@ -4,12 +4,12 @@
 //
 //	bench run     --stage S --out DIR --model M [--model M2] --claude PATH --mrw PATH
 //	              --config-dir DIR --containment bypass --canary FILE [--task ID ...]
-//	              [--configs A,B[,P]] [--repeats N] [--seed N] [--budget 20m]
-//	              [--profile stage5|stage6 [--plugin-dir DIR] [--node PATH]] [--status-line]
+//	              [--configs A,B[,P,W]] [--repeats N] [--seed N] [--budget 20m] [--max-turns N]
+//	              [--profile stage5|stage6 [--plugin-dir DIR] [--node PATH] [--work-line FILE] [--checks FILE]] [--status-line]
 //	              [--source swe-bench --dataset FILE --swebench-python PATH [--selection FILE] [--docker PATH]]
 //	              [--block K [--configs-for MODEL=A,B,P ...]] [--disk-path PATH --disk-floor GiB]
 //	bench canary  --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass
-//	              [--profile stage5|stage6 [--plugin-dir DIR] [--node PATH]]
+//	              [--profile stage5|stage6 [--plugin-dir DIR] [--node PATH] [--work-line FILE]]
 //	bench export-paired --pair X,Y --model M --scorer-sha SHA --selection FILE --canary FILE DIR...
 //	bench verify  --stage S --tasks N --repeats R DIR
 //	bench look    DIR                                     (a Stage 5 directory: exit 0 complete, 1 a block due)
@@ -39,8 +39,8 @@ import (
 )
 
 const usageText = `usage:
-  bench run     --stage S --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass --canary FILE [--task ID ...] [--configs A,B[,P]] [--repeats N] [--seed N] [--budget 20m] [--profile stage5|stage6 [--plugin-dir DIR] [--node PATH]] [--status-line] [--source swe-bench --dataset FILE --swebench-python PATH [--selection FILE] [--docker PATH]]
-  bench canary  --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass [--profile stage5|stage6 [--plugin-dir DIR] [--node PATH]]
+  bench run     --stage S --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass --canary FILE [--task ID ...] [--configs A,B[,P,W]] [--repeats N] [--seed N] [--budget 20m] [--max-turns N] [--profile stage5|stage6 [--plugin-dir DIR] [--node PATH] [--work-line FILE] [--checks FILE]] [--status-line] [--source swe-bench --dataset FILE --swebench-python PATH [--selection FILE] [--docker PATH]]
+  bench canary  --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass [--profile stage5|stage6 [--plugin-dir DIR] [--node PATH] [--work-line FILE]]
   bench verify  --stage S --tasks N --repeats R DIR
   bench run     … [--block K [--configs-for MODEL=A,B,P ...]] [--disk-path PATH --disk-floor GiB]
   bench look    DIR
@@ -126,6 +126,9 @@ func stageFlags(name string) (*flag.FlagSet, *bench.RunOptions, *multi, *string)
 	fs.StringVar(&o.Node, "node", "", "the node the profile links on every attempt's PATH; found on PATH when empty")
 	fs.StringVar(&o.Docker, "docker", "docker", "the docker CLI: stage6 starts the container of each attempt with it, and a SWE-bench run pulls and removes images with it")
 	fs.StringVar(&o.CanaryImage, "canary-image", "", "stage6: the image a task with none of its own (the canary fixture) runs its container in")
+	fs.StringVar(&o.Checks, "checks", "", "stage6: the declared-check table, bench/swe-bench/checks.json: one whole runner per repository, written as .quality-harness.json into every arm's tree before the base commit (ADR-163 Decision 2); required with a SWE-bench source")
+	fs.StringVar(&o.WorkLine, "work-line", "", "stage6: the file holding the one line configuration W adds to its instruction, the text quality-harness's ADR-112 pre-registers; its SHA-256 goes in run.json (ADR-163 Decision 3)")
+	fs.IntVar(&o.MaxTurns, "max-turns", 0, "the stage's turn cap, written in run.json and the rows; 0 for the registered 60 (ADR-163 Decision 3)")
 	return fs, o, models, tasks
 }
 
@@ -135,7 +138,7 @@ func run(args []string) error {
 	fs.StringVar(&o.Stage, "stage", "", "the stage's name")
 	fs.StringVar(&o.Canary, "canary", "", "a passing canary.json for this CLI version")
 	fs.Var(&only, "task", "run only this task (repeatable); default every measured task")
-	configs := fs.String("configs", "A,B", "the configurations: A, B, and P (the quality-harness plugin, under --profile stage5 with --plugin-dir)")
+	configs := fs.String("configs", "A,B", "the configurations: A, B, P (the quality-harness plugin, under --profile stage5 with --plugin-dir), and W (P plus --work-line's line, under --profile stage6)")
 	fs.IntVar(&o.Repeats, "repeats", 2, "attempts per task, configuration and model")
 	fs.Int64Var(&o.Seed, "seed", 156, "the order's seed")
 	fs.BoolVar(&o.StatusLine, "status-line", false, "append the registered STATUS sentence to every instruction and record the claim (ADR-162)")
@@ -211,6 +214,9 @@ func canary(args []string) error {
 	o.Models, o.Stage, o.Repeats, o.Configs = *models, "canary", 1, []string{"A", "B"}
 	if o.PluginDir != "" {
 		o.Configs = append(o.Configs, "P")
+	}
+	if o.WorkLine != "" {
+		o.Configs = append(o.Configs, "W")
 	}
 	task, err := bench.LoadTask(filepath.Join(*tasksDir, "canary"))
 	if err != nil {
