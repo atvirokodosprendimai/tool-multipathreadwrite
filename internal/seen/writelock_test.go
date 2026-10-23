@@ -7,6 +7,12 @@ import (
 	"time"
 )
 
+// hangGuard bounds a wait that only a deadlock can exceed: it is a hang
+// guard, not a performance bar. It was 3 s, and on a loaded Windows CI runner
+// (run 39942406446, the package taking 254 s) a Record that had not deadlocked
+// took longer; a real deadlock waits forever, so a minute still catches it.
+const hangGuard = time.Minute
+
 // ADR-075. A second holder of the write lock waits until the first releases,
 // and a release may be called twice.
 func TestAWriteLockExcludesASecondWriter(t *testing.T) {
@@ -36,7 +42,7 @@ func TestAWriteLockExcludesASecondWriter(t *testing.T) {
 	select {
 	case r := <-got:
 		r()
-	case <-time.After(3 * time.Second):
+	case <-time.After(hangGuard):
 		t.Fatal("the second writer never got the write lock after the first released it")
 	}
 	release()
@@ -60,7 +66,7 @@ func TestTheLedgerCanBeWrittenUnderTheWriteLock(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-	case <-time.After(3 * time.Second):
+	case <-time.After(hangGuard):
 		t.Fatal("Record waited on the write lock: the two locks are one file")
 	}
 }

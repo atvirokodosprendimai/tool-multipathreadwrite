@@ -8,7 +8,7 @@
 **Consumes:** `mrw read --if-changed` (T1), `mrw_read` `if_changed` (T2)
 **Data dependency:** S3's measurement needs transcripts made with a release that has the flag; the gate here is hermetic and proves only that the counter and the registered bar exist
 **Proof map:** v1
-**Rests-on:** `the guide tests run`, `the guide test passed`, `the skill matches the binary`, `the scanner self-test passed`, `the bar is registered`, `gofmt`, `the engine packages it does not own`
+**Rests-on:** `the guide tests run`, `the guide test passed`, `the skill matches the binary`, `the handshake teaches the guard`, `the scanner self-test passed`, `the bar is registered`, `gofmt`, `the engine packages it does not own`
 
 ## Goal
 
@@ -43,9 +43,10 @@ Decision 6 and the record's "what would make this decision wrong": callers are t
 
 ```bash
 set -o pipefail
-out=$(go test ./internal/guide/ ./cmd/mrw/ -count=1 -v -run '^(TestTheInstructionsTeachTheReReadGuard|TestTheRepositorySkillIsTheBinarysSkill)$' 2>&1) \
+out=$(go test ./internal/guide/ ./cmd/mrw/ ./internal/mcp/ -count=1 -v -run '^(TestTheInstructionsTeachTheReReadGuard|TestTheRepositorySkillIsTheBinarysSkill|TestTheHandshakeTeachesIfChanged)$' 2>&1) \
   && grep -qE '^--- PASS: TestTheInstructionsTeachTheReReadGuard \(' <<<"$out" \
   && grep -qE '^--- PASS: TestTheRepositorySkillIsTheBinarysSkill \(' <<<"$out" \
+  && grep -qE '^--- PASS: TestTheHandshakeTeachesIfChanged \(' <<<"$out" \
   && python3 -I docs/bench/context-study/test_scan.py \
   && grep -qF 'Pre-registered for ADR-169' docs/adr/BACKLOG.md \
   && [ -z "$(gofmt -l internal cmd)" ] \
@@ -58,6 +59,7 @@ out=$(go test ./internal/guide/ ./cmd/mrw/ -count=1 -v -run '^(TestTheInstructio
 |-----------|------|----------|--------|-------|
 | `TestTheInstructionsTeachTheReReadGuard` | `internal/guide/ifchanged169_test.go` | the guard is in the full instructions and the skill; the core's word bound holds | none | S1, S2 |
 | `TestTheRepositorySkillIsTheBinarysSkill` | `cmd/mrw/skill168_test.go` | the checked-in skill is the binary's output | none | S2 |
+| `TestTheHandshakeTeachesIfChanged` | `internal/mcp/ifchanged169_test.go` | the MCP handshake's recipes name `if_changed` within the 4096-byte bound | none | S2 |
 
 ## Reachability
 
@@ -79,6 +81,8 @@ out=$(go test ./internal/guide/ ./cmd/mrw/ -count=1 -v -run '^(TestTheInstructio
 - 2026-10-23 · f7a4e512* · mutant killed · exit 1 · `docs/bench/context-study/scan.py` · a range never closes: a write receipt after a read is counted as served · acceptance-sha256:aa564d7e8d1bbad410b2415ccf6ffcb399a2a8fd60e813c1ed5c80c0b764ac15
 - 2026-10-23 · 370d7fd1* · mutant killed · exit 1 · `docs/bench/context-study/scan.py` · a withheld range (@@ 1-5  WITHHELD …) opens a served range · acceptance-sha256:aa564d7e8d1bbad410b2415ccf6ffcb399a2a8fd60e813c1ed5c80c0b764ac15
 - 2026-10-23 · b32544cb* · mutant killed · exit 1 · `docs/bench/context-study/scan.py` · numbered output is counted line by line: a page note or WITHHELD diagnostic takes a content slot · acceptance-sha256:aa564d7e8d1bbad410b2415ccf6ffcb399a2a8fd60e813c1ed5c80c0b764ac15
+- 2026-10-23 · 9040f08b* · mutant killed · exit 1 · `internal/mcp/instructions.go` · the MCP handshake loses the guard recipe · acceptance-sha256:e6126b662c40da4f46f9e0e7eaa828359c5fa9ddd1f3a1574da0edd85d72af8d
+- 2026-10-23 · 9040f08b* · mutant killed · exit 1 · `docs/bench/context-study/scan.py` · a range-withheld diagnostic does not close a -N range · acceptance-sha256:e6126b662c40da4f46f9e0e7eaa828359c5fa9ddd1f3a1574da0edd85d72af8d
 
 ## Invariants
 
@@ -119,3 +123,8 @@ The fence exits 0 and S3's bar is registered.
 - 2026-10-23 · 370d7fd1* · exit 0 · `set -o pipefail …` · acceptance-sha256:aa564d7e8d1bbad410b2415ccf6ffcb399a2a8fd60e813c1ed5c80c0b764ac15 · ms:645
 - 2026-10-23 · b32544cb* · exit 0 · `set -o pipefail …` · acceptance-sha256:aa564d7e8d1bbad410b2415ccf6ffcb399a2a8fd60e813c1ed5c80c0b764ac15 · ms:1445
 - 2026-10-23 · b32544cb* · exit 0 · `set -o pipefail …` · acceptance-sha256:aa564d7e8d1bbad410b2415ccf6ffcb399a2a8fd60e813c1ed5c80c0b764ac15 · ms:492
+- 2026-10-23 · 9040f08b* · exit 0 · `set -o pipefail …` · acceptance-sha256:e6126b662c40da4f46f9e0e7eaa828359c5fa9ddd1f3a1574da0edd85d72af8d · ms:1222
+- 2026-10-23 · 9040f08b* · exit 0 · `set -o pipefail …` · acceptance-sha256:e6126b662c40da4f46f9e0e7eaa828359c5fa9ddd1f3a1574da0edd85d72af8d · ms:1592
+- 2026-10-23 · 9040f08b* · exit 0 · `set -o pipefail …` · acceptance-sha256:e6126b662c40da4f46f9e0e7eaa828359c5fa9ddd1f3a1574da0edd85d72af8d · ms:2034
+- 2026-10-23 · 9040f08b* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:e6126b662c40da4f46f9e0e7eaa828359c5fa9ddd1f3a1574da0edd85d72af8d · ms:0 · test-lock-sha256:c7a990ae650444f526ccd6403613c463d609427d33210d5945452db4785b30ad · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJY21kL21ydy9za2lsbDE2OF90ZXN0LmdvCVRlc3REaXJSZWFzb25LZWVwc1RoZUVuZ2luZVJlYXNvbldob2xlCWE0ZjUxZTk1NjJhY2I3NjY5MDdmYTE4NGQ5ZGU2OWRiYmMzZDQ1NzY5NTk5MDcyNTdkMzI3OTM2YjFiOGZmYzYKYm9keQljbWQvbXJ3L3NraWxsMTY4X3Rlc3QuZ28JVGVzdEtlcHREaWZmZXJlbmNlTmFtZXNPbmx5V2hhdElzS2VwdAllZWFiMjg3N2JjZWZjZjE0MGNmNTlmNTk2OGY3NDY5Zjg2NmVhMTJjN2ZhODg1ZTcxMTRkYWM1NmZjMjQyOWIzCmJvZHkJY21kL21ydy9za2lsbDE2OF90ZXN0LmdvCVRlc3RSb290SGVscFBvaW50c0FnZW50c0F0VGhlU2tpbGwJM2NjZmQwOWY1YmUyMzBkN2YxMTU3YzU0YWYwNzM1MzEyOGE4ODU5OThlY2RiYzMyZWNjMTM0NWNjYmI4YjhlMQpib2R5CWNtZC9tcncvc2tpbGwxNjhfdGVzdC5nbwlUZXN0U2tpbGxDb21tYW5kUHJpbnRzVGhlU2tpbGwJOTllZTQ4Zjc3MjViYWNjYWEzMGM1Yjg3NTE3MzgwMGM1MGM3Nzg2ZWNmOTNlZWU3ZjMzNzg5MzNkZWY2NTZkYwpib2R5CWNtZC9tcncvc2tpbGwxNjhfdGVzdC5nbwlUZXN0U2tpbGxEaXJJbnN0YWxsc0FuZFJlcGxhY2VzT25seUl0c093bglhNjEyMDE5MGYyNWM1ZmEwZWU5ODQ0MWU4MzY0Y2FhNjkzMWRlOTU3ZjYzMWEwYzNiNDE2ZjBmNTE0OTk5MTkzCmJvZHkJY21kL21ydy9za2lsbDE2OF90ZXN0LmdvCVRlc3RTa2lsbERpcktlZXBzVGhlVHJpZ2dlckFuZFRoZUJPTQkzMGI2N2Q2NzQ0YmI0MjhkMDU0NThlYTZlYzk5OTlhOGNhMzhkOWU2MDc4Nzk4Zjc3ZDRlM2Y4ZmMxZjdjMzc4CmJvZHkJY21kL21ydy9za2lsbDE2OF90ZXN0LmdvCVRlc3RTa2lsbERpcktlZXBzV2hhdEFQZXJzb25DaGFuZ2VkCTRkNmNjYjU1YTFkYzVjNmMyODkxNDYyNTQ0MjNkMzkxM2NiNzIwOTA3MjZlM2NjZmQyZGU5YWI2MWI5M2M3ZjkKYm9keQljbWQvbXJ3L3NraWxsMTY4X3Rlc3QuZ28JVGVzdFNraWxsRGlyUmVhZHNPbmx5VGhlU2hhcGVJdFByaW50cwlmYzJiZGQ2YmFjY2Y2Nzk0YjEwN2I3NThiNWMzZTk5MjJiNTNjNDQ0OTI0NjJmYzU1ZjQ0YmFiNjYwZjQ5MTk2CmJvZHkJY21kL21ydy9za2lsbDE2OF90ZXN0LmdvCVRlc3RUaGVSZXBvc2l0b3J5U2tpbGxJc1RoZUJpbmFyeXNTa2lsbAlhYzcyMTljOWYyNDYyZDBlNDVmZmU5ZTMyMWY1NDljZGUwYzIzYWMyY2YyYzFlNTZhNGMyNmRhYTkwODI4OWU3CmJvZHkJY21kL21ydy9za2lsbDE2OF90ZXN0LmdvCVRlc3RVbmtlcHRDb21wb25lbnRGaW5kc0FUcmFpbGluZ0RvdE9yU3BhY2UJNjUwNDEyYjRlYWRiY2YyZWMyOTZlOTY1MDAzODg0MGU4ZTRhMzAxZTQyNmQ4NzliZjE2NTkwZDk1YmIzMDVlOApib2R5CWludGVybmFsL2d1aWRlL2lmY2hhbmdlZDE2OV90ZXN0LmdvCVRlc3RUaGVJbnN0cnVjdGlvbnNUZWFjaFRoZVJlUmVhZEd1YXJkCTlmNWM5ZjIyMDJkNmIxN2EzMzU5ZDA0Yzk5ODk0NThmNTBhMjQ4OTY0N2Q0NTkwNDQ0NzY5NDFkYTZhMTUxMjIKYm9keQlpbnRlcm5hbC9tY3AvaWZjaGFuZ2VkMTY5X3Rlc3QuZ28JVGVzdElmQ2hhbmdlZEFuc3dlcnNVbmNoYW5nZWRXaXRob3V0QW5FcnJvcgllMmEzMzdmMTdlZDA3MzVhMWVjODZlNjM2YjkyNTg3YzBhNjFhM2E3YmUxMTFkZGYwYzNlZmUzODQ4Yjc1ZGU4CmJvZHkJaW50ZXJuYWwvbWNwL2lmY2hhbmdlZDE2OV90ZXN0LmdvCVRlc3RUaGVIYW5kc2hha2VUZWFjaGVzSWZDaGFuZ2VkCWRmMDMxMmRiMzI5MmNhZGEzNzk5OGFlNGI4NGZkM2E1NWFkYzk1ZWY3OWI0MzVjN2I4NDA2MjRiNjYyOThmOTE · test-lock-kind:replace
+- 2026-10-23 · human-observed · relock and fence change 2026-10-23 reviewed: T3's fence also runs internal/mcp's TestTheHandshakeTeachesIfChanged (new), since the MCP handshake's recipes now name if_changed (recipe 9; three phrases cut to keep the 4096-byte bound); test_scan.py gains a -N range closed by a range-withheld diagnostic, which found WITHHELD_NOTE missing that form, now fixed. No assertion removed or weakened; approved · acceptance-sha256:e6126b662c40da4f46f9e0e7eaa828359c5fa9ddd1f3a1574da0edd85d72af8d
