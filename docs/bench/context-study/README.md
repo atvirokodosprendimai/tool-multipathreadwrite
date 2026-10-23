@@ -43,10 +43,11 @@ In plain words:
   re-read a line they had read before it. Re-serves are concentrated: the top tenth of sessions holds
   66% (Claude), 83% (Codex) and 82% (Cursor) of within-epoch re-serves.
 - **A whole-file guard** (2026-10-23, BACKLOG "Pre-registered for a whole-file re-read guard"). A read
-  that names the sha it last saw and is answered "unchanged" saves a call's text only when every line it
-  served was a within-epoch re-serve. That is 1.35% of served chars on Claude, 0.95% on Codex and 6.14% on
-  Cursor, out of within-epoch shares of 4.02%, 2.41% and 9.87% in the same run (the table above is the
-  2026-10-22 run). The rest are re-reads that mix old lines with new ones.
+  that names the sha it last saw and is answered "unchanged" saves a call's text for a file only when
+  every line the call served of that file was a within-epoch re-serve. That is 1.32% of served chars on
+  Claude, 0.86% on Codex and 6.10% on Cursor, out of within-epoch shares of 4.03%, 2.41% and 9.87% in the
+  same run (the table above is the 2026-10-22 run). The rest are within-epoch re-serves that one call
+  served beside lines of the same file that were not: new lines, or lines last read before a compaction.
 - **Subagents.** 4–5% of what subagents read on Claude and Cursor are lines their parent had already been
   served; on Codex almost all of the 13% is inside **forked** subagents (1,207,450 of 1,301,096 chars),
   which already carry the parent's history in context: redundancy within one context. Fresh Codex

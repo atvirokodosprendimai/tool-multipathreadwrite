@@ -869,18 +869,19 @@ class Host:
         compactions = mid = 0
         reread = False
         # A whole-file guard (--if-changed sha=X) answers one call's serve of one file only when every
-        # line of it is a within-epoch re-serve. A serve is grouped by (timestamp, path); a write or a
-        # compaction ends the group. Two calls with one timestamp merge, which can only undercount.
-        group, g_chars, g_whole = None, 0, False
+        # line of it is a within-epoch re-serve. Serves are grouped by call (timestamp), then by file,
+        # wherever in the call the file's lines fall; a write or a compaction ends the call. Two calls
+        # with one timestamp merge, which can only undercount.
+        call, files = None, {}
         for ev in s.events:
             if ev[0] == "serve":
                 _, ts, path, n, text, is_strict = ev
-                if (ts, path) != group:
-                    k["ext_whole_within"] += g_chars if g_whole else 0
-                    group, g_chars, g_whole = (ts, path), 0, True
+                if ts != call or not files:
+                    k["ext_whole_within"] += sum(ch for ch, whole in files.values() if whole)
+                    call, files = ts, {}
                 ext.see(path, n, text)
-                g_chars += len(text) + 1
-                g_whole = g_whole and ext.last == "within"
+                ch, whole = files.get(ext.fid(path), (0, True))
+                files[ext.fid(path)] = (ch + len(text) + 1, whole and ext.last == "within")
                 if ext.last:
                     reread = reread or ext.last == "cross"
                     self.ex["M2"].offer(self.rng, {"host": self.name, "kind": s.kind, "class": ext.last,
@@ -889,8 +890,8 @@ class Host:
                 if is_strict:
                     strict.see(path, n, text)
                 continue
-            k["ext_whole_within"] += g_chars if g_whole else 0
-            group, g_chars, g_whole = None, 0, False
+            k["ext_whole_within"] += sum(ch for ch, whole in files.values() if whole)
+            call, files = None, {}
             if ev[0] == "write":
                 ext.invalidate(ev[2])
                 strict.invalidate(ev[2])
@@ -900,7 +901,7 @@ class Host:
                     mid += 1
                     ext.compact()
                     strict.compact()
-        k["ext_whole_within"] += g_chars if g_whole else 0
+        k["ext_whole_within"] += sum(ch for ch, whole in files.values() if whole)
         k["compactions"] += compactions
         k["mid_session_compactions"] += mid
         k["sessions_with_compaction"] += bool(mid)

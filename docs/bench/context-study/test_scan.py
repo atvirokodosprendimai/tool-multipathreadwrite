@@ -69,6 +69,10 @@ def claude_tree(root):
     main += [cl_use(8.5, 9, "Bash", {"command": CREATE})]   # a create body counts once: 6 chars
     main += [cl_use(9, 7, "Agent", AGENT_INPUT)]
     main += cl_read(12, 8, "/p/a.py", A)                    # after the write: not redundant
+    # one mrw call: a.py:1 and b.py:1 re-served, then a.py:11 new; only b.py is a whole-file re-serve
+    main += [cl_use(13, 11, "Bash", {"command": "mrw read a.py:1 b.py:1 a.py:11"}),
+             cl_res(13.5, 11, "==> /p/a.py\n@@ 1-1\n    1| %s\n==> /p/b.py\n@@ 1-1\n    1| %s\n"
+                    "==> /p/a.py\n@@ 11-11\n   11| zeta" % (A[0], B[0]))]
     sub1 = [{"type": "user", "timestamp": iso(10), "isSidechain": True,
              "message": {"role": "user", "content": "go explore b.py"}}]
     sub1 += cl_read(10.2, 1, "/p/b.py", B)                   # parent had it: savable
@@ -236,14 +240,18 @@ def main():
     m1 = cl["main"]["M1"]["visible_chars"]
     want = {
         # Claude: M2 strict is copy-study's rule; the sed read only reaches the extended pool
-        "claude strict served": (cl["main"]["M2"]["strict"]["served_chars"], 4 * c(A) + c(B) + c(B[:2])),
-        "claude strict within": (cl["main"]["M2"]["strict"]["within_epoch_chars"], c(A) + c(B[:2])),
+        "claude strict served": (cl["main"]["M2"]["strict"]["served_chars"],
+                                 4 * c(A) + c(B) + c(B[:2]) + c(A[:1]) + c(B[:1]) + c(["zeta"])),
+        "claude strict within": (cl["main"]["M2"]["strict"]["within_epoch_chars"],
+                                 c(A) + c(B[:2]) + c(A[:1]) + c(B[:1])),
         "claude strict cross": (cl["main"]["M2"]["strict"]["cross_epoch_chars"], c(A)),
-        "claude ext within": (cl["main"]["M2"]["ext"]["within_epoch_chars"], c(A) + c(B) + c(B[:2])),
-        # a whole-file guard answers a call only when all it served was a within-epoch re-serve:
-        # the read at 3 and the sed at 7.5, not the read at 6 that also served new lines
+        "claude ext within": (cl["main"]["M2"]["ext"]["within_epoch_chars"],
+                              c(A) + c(B) + c(B[:2]) + c(A[:1]) + c(B[:1])),
+        # a whole-file guard answers a call's file only when all it served of it was a within-epoch
+        # re-serve: the read at 3, the sed at 7.5 and b.py in the mrw call at 13; not the read at 6,
+        # which also served new lines, nor a.py at 13, whose new line 11 comes after b.py
         "claude whole-file unchanged": (cl["main"]["M2"]["ext"]["whole_file_unchanged_within_chars"],
-                                        c(A) + c(B)),
+                                        c(A) + c(B) + c(B[:1])),
         "claude reconciles": (cl["copy_study_scanner_today"]["redundant_chars"],
                               cl["all"]["M2"]["strict"]["redundant_chars"]),
         "claude compactions": (cl["main"]["M2"]["mid_session_compactions"], 1),
@@ -251,7 +259,7 @@ def main():
         "claude prose": (m1["prose"], len("Hello world")),
         "claude write new/old": ((m1["write_new"], m1["write_old"]), (3 + 6, 4)),
         "claude subagent prompt": (m1["subagent_prompt"], len(json.dumps(AGENT_INPUT))),
-        "claude reported": (cl["main"]["M1"]["reported_output_tokens"], 1000 + 10 * 100),
+        "claude reported": (cl["main"]["M1"]["reported_output_tokens"], 1000 + 11 * 100),
         "claude M3 parent": (cl["subagent"]["M3"]["parent_savable_chars"], 3 * c(B)),
         "claude M3 sibling": (cl["subagent"]["M3"]["sibling_overlap_chars"], 2 * c(B)),
         "claude M3 served": (cl["subagent"]["M3"]["served_chars"], 3 * c(B) + c(A)),
