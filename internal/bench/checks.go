@@ -40,6 +40,8 @@ type Checks struct {
 var (
 	checkSource  = regexp.MustCompile(`^[^:]+:[0-9]+@[0-9a-f]{40}$`)
 	commandSplit = regexp.MustCompile(`&&|\|\||;`)
+	// envAssign is a variable set before a command: NAME=value.
+	envAssign = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*=`)
 )
 
 // LoadChecks reads the table and refuses it unless every entry has a source
@@ -76,18 +78,24 @@ func LoadChecks(path string, repos []string) (*Checks, error) {
 }
 
 // wholeRunner refuses a command that selects a subset: an argument holding a
-// path or a test id, or -k. The first word of each simple command is the
-// program, so `bin/test` is one.
+// path, a test id, a .py file or -k, read with its quotes removed so that
+// `"-k"` is -k; or a variable set before the runner, which can carry options
+// (PYTEST_ADDOPTS). The first word of each simple command is the program, so
+// `bin/test` is one, and `python runtests.py` names its runner script.
 func wholeRunner(command string) error {
 	segments := 0
 	for _, seg := range commandSplit.Split(command, -1) {
-		words := strings.Fields(seg)
+		words := strings.Fields(strings.NewReplacer(`"`, "", `'`, "").Replace(seg))
 		if len(words) == 0 {
 			continue
 		}
 		segments++
-		for _, w := range words[1:] {
-			if strings.Contains(w, "/") || strings.Contains(w, "::") || strings.HasPrefix(w, "-k") {
+		if envAssign.MatchString(words[0]) {
+			return fmt.Errorf("command %q sets %q before its runner: the declared check is the runner alone", command, words[0])
+		}
+		for i, w := range words[1:] {
+			script := i == 0 && (words[0] == "python" || words[0] == "python3") && strings.HasSuffix(w, ".py")
+			if strings.Contains(w, "/") || strings.Contains(w, "::") || strings.HasPrefix(w, "-k") || strings.HasSuffix(w, ".py") && !script {
 				return fmt.Errorf("command %q selects a subset by %q: the declared check is the whole runner", command, w)
 			}
 		}

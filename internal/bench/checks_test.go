@@ -199,7 +199,7 @@ func TestTheDeclaredCheckIsWrittenBeforeTheBaseCommitInEveryArm(t *testing.T) {
 	g := checkRig(t)
 	log := filepath.Join(g.work, "base.log")
 	// What the CLI finds when it starts: the file in HEAD, and a clean status.
-	g.claude("{ git show HEAD:.quality-harness.json 2>&1; git status --porcelain; echo --; } >> " + shellQuote(log) + "; " + g.applyFix())
+	g.claude("{ git show HEAD:.quality-harness.json 2>&1; git status --porcelain; test -e .quality-harness.json || echo ABSENT; echo --; } >> " + shellQuote(log) + "; " + g.applyFix())
 	blocks := func() []string {
 		b, _ := os.ReadFile(log)
 		if len(b) == 0 {
@@ -234,7 +234,7 @@ func TestTheDeclaredCheckIsWrittenBeforeTheBaseCommitInEveryArm(t *testing.T) {
 		if r := runAttempt(o, g.attempt("plain."+profile), 0, "9.9.9", ""); r.Exclusion != "" {
 			t.Fatalf("profile %q: %s %s", profile, r.Exclusion, r.Note)
 		}
-		if b := blocks(); len(b) != 1 || strings.Contains(b[0], "check") && !strings.Contains(b[0], "fatal") {
+		if b := blocks(); len(b) != 1 || !strings.Contains(b[0], "ABSENT") || strings.Contains(b[0], `"check"`) {
 			t.Errorf("profile %q wrote the check file: %q", profile, b)
 		}
 	}
@@ -291,6 +291,9 @@ func TestTheChecksTableNamesARepositorySourceForEveryPoolRepository(t *testing.T
 		"a command naming a file":                   {"astropy/astropy", set("command", "pytest tests/test_x.py")},
 		"a command with -k":                         {"astropy/astropy", set("command", "pytest -k foo")},
 		"a command naming a test":                   {"astropy/astropy", set("command", "pytest x::y")},
+		"a quoted -k":                               {"astropy/astropy", set("command", `pytest "-k" foo`)},
+		"options set before the runner":             {"astropy/astropy", set("command", "PYTEST_ADDOPTS=-kfoo pytest")},
+		"a command naming a test file":              {"astropy/astropy", set("command", "pytest test_x.py")},
 	} {
 		if _, err := LoadChecks(tableWith(t, tc.repo, tc.edit), repos); err == nil || !strings.Contains(err.Error(), tc.repo) {
 			t.Errorf("%s: %v, want a refusal naming %s", name, err, tc.repo)
