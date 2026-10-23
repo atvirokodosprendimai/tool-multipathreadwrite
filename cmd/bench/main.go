@@ -4,17 +4,18 @@
 //
 //	bench run     --stage S --out DIR --model M [--model M2] --claude PATH --mrw PATH
 //	              --config-dir DIR --containment bypass --canary FILE [--task ID ...]
-//	              [--configs A,B[,P,W]] [--repeats N] [--seed N] [--budget 20m] [--max-turns N]
-//	              [--profile stage5|stage6 [--plugin-dir DIR] [--node PATH] [--work-line FILE] [--checks FILE]] [--status-line]
+//	              [--configs A,B[,P,W[,G,C]]] [--repeats N] [--seed N] [--budget 20m] [--max-turns N]
+//	              [--profile stage5|stage6 [--plugin-dir DIR] [--node PATH] [--work-line FILE] [--checks FILE] [--side-arms FILE [--qh-binary FILE --qh-sums FILE]]] [--status-line]
 //	              [--source swe-bench --dataset FILE --swebench-python PATH [--selection FILE] [--docker PATH]]
 //	              [--block K [--configs-for MODEL=A,B,P ...]] [--disk-path PATH --disk-floor GiB]
 //	bench canary  --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass
-//	              [--profile stage5|stage6 [--plugin-dir DIR] [--node PATH] [--work-line FILE]]
+//	              [--profile stage5|stage6 [--plugin-dir DIR] [--node PATH] [--work-line FILE] [--side-arms FILE [--qh-binary FILE --qh-sums FILE]]]
 //	bench baseline --stage S --out DIR --selection FILE --dataset FILE --checks FILE [--surviving FILE] [--docker PATH] [--budget 20m]
 //	bench export-paired --pair X,Y --model M --scorer-sha SHA --selection FILE --canary FILE DIR...
 //	bench verify  --stage S --tasks N --repeats R DIR
 //	bench look    DIR                                     (a Stage 5 directory: exit 0 complete, 1 a block due)
 //	bench analyze [--tasks-dir DIR] [--selection FILE ...] DIR
+//	bench side    --control P --arm G|C DIR...             (a side arm read against P, per model: ADR-163 Decision 9)
 //	bench hook    --log FILE --tree DIR (configuration B's PreToolUse hook)
 //	bench shim    --docker PATH --container NAME --tree DIR --state DIR --base SHA --name CMD -- ARGS...   (the shims of stage6; not run by hand)
 //	bench swebench-select [--n 20]                         (instance ids on stdin; Stage 3's rule)
@@ -40,14 +41,15 @@ import (
 )
 
 const usageText = `usage:
-  bench run     --stage S --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass --canary FILE [--task ID ...] [--configs A,B[,P,W]] [--repeats N] [--seed N] [--budget 20m] [--max-turns N] [--profile stage5|stage6 [--plugin-dir DIR] [--node PATH] [--work-line FILE] [--checks FILE]] [--status-line] [--source swe-bench --dataset FILE --swebench-python PATH [--selection FILE] [--docker PATH]]
-  bench canary  --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass [--profile stage5|stage6 [--plugin-dir DIR] [--node PATH] [--work-line FILE]]
+  bench run     --stage S --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass --canary FILE [--task ID ...] [--configs A,B[,P,W[,G,C]]] [--repeats N] [--seed N] [--budget 20m] [--max-turns N] [--profile stage5|stage6 [--plugin-dir DIR] [--node PATH] [--work-line FILE] [--checks FILE] [--side-arms FILE [--qh-binary FILE --qh-sums FILE]]] [--status-line] [--source swe-bench --dataset FILE --swebench-python PATH [--selection FILE] [--docker PATH]]
+  bench canary  --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass [--profile stage5|stage6 [--plugin-dir DIR] [--node PATH] [--work-line FILE] [--side-arms FILE [--qh-binary FILE --qh-sums FILE]]]
   bench verify  --stage S --tasks N --repeats R DIR
   bench run     … [--block K [--configs-for MODEL=A,B,P ...]] [--disk-path PATH --disk-floor GiB]
   bench baseline --stage S --out DIR --selection FILE --dataset FILE --checks FILE [--surviving FILE] [--docker PATH] [--budget 20m]   (the declared check once per instance on the unmodified tree; no model)
   bench look    DIR
   bench export-paired --pair X,Y --model M --scorer-sha SHA --selection FILE --canary FILE DIR...
   bench analyze [--tasks-dir DIR] [--selection FILE ...] DIR
+  bench side    --control P --arm G|C DIR...   (side arm G or C read against P alone, per model, paired by task; DIR is each block's directory)
   bench hook    --log FILE --tree DIR
   bench shim    --docker PATH --container NAME --tree DIR --state DIR --base SHA --name CMD -- ARGS...   (the shims of stage6; not run by hand)
   bench swebench-select [--n 20] < ids
@@ -74,6 +76,8 @@ func main() {
 		err = exportPaired(os.Args[2:], os.Stdout)
 	case "analyze":
 		err = analyze(os.Args[2:], os.Stdout)
+	case "side":
+		err = side(os.Args[2:], os.Stdout)
 	case "look":
 		os.Exit(look(os.Args[2:], os.Stdout, os.Stderr))
 	case "hook":
@@ -133,6 +137,9 @@ func stageFlags(name string) (*flag.FlagSet, *bench.RunOptions, *multi, *string)
 	fs.StringVar(&o.Checks, "checks", "", "stage6: the declared-check table, bench/swe-bench/checks.json: one whole runner per repository, written as .quality-harness.json into every arm's tree before the base commit (ADR-163 Decision 2); required with a SWE-bench source")
 	fs.StringVar(&o.WorkLine, "work-line", "", "stage6: the file holding the one line configuration W adds to its instruction, the text quality-harness's ADR-112 pre-registers; its SHA-256 goes in run.json (ADR-163 Decision 3)")
 	fs.IntVar(&o.MaxTurns, "max-turns", 0, "the stage's turn cap, written in run.json and the rows; 0 for the registered 60 (ADR-163 Decision 3)")
+	fs.StringVar(&o.SideArms, "side-arms", "", "stage6: the file that registers side arms G (Go hooks) and C (turnEnd notify) at the plugin's tag: C's setting, G's asset sha256, stage path, runtime setting and hook-output marker; the arms run beside P and are read against it by bench side (ADR-163 Decision 9)")
+	fs.StringVar(&o.QhBinary, "qh-binary", "", "stage6, G: the release asset (qh-darwin-arm64) bench verifies against --qh-sums and the registration, then stages into each G attempt's own plugin data directory")
+	fs.StringVar(&o.QhSums, "qh-sums", "", "stage6, G: the release's SHA256SUMS that names the asset")
 	return fs, o, models, tasks
 }
 
@@ -142,7 +149,7 @@ func run(args []string) error {
 	fs.StringVar(&o.Stage, "stage", "", "the stage's name")
 	fs.StringVar(&o.Canary, "canary", "", "a passing canary.json for this CLI version")
 	fs.Var(&only, "task", "run only this task (repeatable); default every measured task")
-	configs := fs.String("configs", "A,B", "the configurations: A, B, P (the quality-harness plugin, under --profile stage5 with --plugin-dir), and W (P plus --work-line's line, under --profile stage6)")
+	configs := fs.String("configs", "A,B", "the configurations: A, B, P (the quality-harness plugin, under --profile stage5 with --plugin-dir), W (P plus --work-line's line, under --profile stage6), and the side arms G (P with its hooks run by the qh binary) and C (P with turnEnd notify), under --profile stage6 with --side-arms and beside P")
 	fs.IntVar(&o.Repeats, "repeats", 2, "attempts per task, configuration and model")
 	fs.Int64Var(&o.Seed, "seed", 156, "the order's seed")
 	fs.BoolVar(&o.StatusLine, "status-line", false, "append the registered STATUS sentence to every instruction and record the claim (ADR-162)")
@@ -255,6 +262,13 @@ func canary(args []string) error {
 	}
 	if o.WorkLine != "" {
 		o.Configs = append(o.Configs, "W")
+	}
+	if o.SideArms != "" {
+		arms, err := bench.SideNamed(o.SideArms)
+		if err != nil {
+			return err
+		}
+		o.Configs = append(o.Configs, arms...)
 	}
 	task, err := bench.LoadTask(filepath.Join(*tasksDir, "canary"))
 	if err != nil {
@@ -442,6 +456,47 @@ func analyze(args []string, w io.Writer) error {
 			fmt.Fprintf(w, "| %s | %s | swe-bench, %s against A (%s) | (%s) | look %d | %d | %d | %d | %+.3f [%+.3f, %+.3f] | %+.3f [%+.3f, %+.3f] | %d |\n",
 				r.Stage, r.Model, r.Comparison, r.Descriptive, r.Verdict, r.Look, r.Tasks, r.Attempts, r.Excluded, r.RelCost, r.RelLo, r.RelHi, r.SolvedDiff, r.SolvedLo, r.SolvedHi, r.ReadsB)
 		}
+	}
+	return nil
+}
+
+// side reads a side arm against P, per model and paired by task, over the
+// blocks given (ADR-163 Decision 9). It reads nothing of ADR-112's rows or stop
+// rule.
+func side(args []string, w io.Writer) error {
+	fs := flag.NewFlagSet("side", flag.ContinueOnError)
+	control := fs.String("control", "", "the control: P, the only one a side arm is read against")
+	arm := fs.String("arm", "", "the side arm: G or C")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *control == "" || *arm == "" || fs.NArg() == 0 {
+		return fmt.Errorf("side needs --control P, --arm G|C and the stage's block directories")
+	}
+	rows, err := bench.Side(fs.Args(), *control, *arm)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintln(w, "| stage | model | arm | verdict | paired | excluded | cost (arm−P)/P [99%] | solved arm−P [99%, Tango] | turns P / arm | wall s P / arm |")
+	fmt.Fprintln(w, "|---|---|---|---|---|---|---|---|---|---|")
+	for _, r := range rows {
+		x := r.Result
+		fmt.Fprintf(w, "| %s | %s | %s against %s | %s | %d | %d | %+.3f [%+.3f, %+.3f] | %+.3f [%+.3f, %+.3f] | %.1f / %.1f | %.1f / %.1f |\n",
+			r.Stage, r.Model, r.Arm, r.Control, r.Verdict, x.Tasks, x.Excluded, x.RelCost, x.RelLo, x.RelHi, x.SolvedDiff, x.SolvedLo, x.SolvedHi,
+			r.TurnsControl, r.TurnsArm, r.WallControl, r.WallArm)
+	}
+	for _, r := range rows {
+		fmt.Fprintf(w, "\n%s, %s: tests that %s. ", r.Model, r.Verdict, r.Claim)
+		if r.Verdict == bench.SideDescriptive {
+			fmt.Fprintf(w, "Fewer than %d paired tasks: the numbers are published and no claim is read from them. ", bench.SideFloor)
+		}
+		if len(r.Result.Unpaired) > 0 {
+			fmt.Fprintf(w, "Dropped, unpaired: %s. ", strings.Join(r.Result.Unpaired, ", "))
+		}
+		if len(r.Result.CostUnpaired) > 0 {
+			fmt.Fprintf(w, "Paired for solving and out of the cost comparison: %s.", strings.Join(r.Result.CostUnpaired, ", "))
+		}
+		fmt.Fprintln(w)
 	}
 	return nil
 }

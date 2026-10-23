@@ -21,23 +21,34 @@ import (
 // Config is one of the configurations ADR-156 Decision 1 compares, and
 // ADR-162's third.
 type Config struct {
-	Name   string
-	Tools  []string
-	Mrw    bool // a pinned mrw on PATH, its instructions appended, the hook installed
-	Plugin bool // the quality-harness plugin loaded with --plugin-dir (ADR-162)
-	Work   bool // W: the instruction carries the pre-registered work line (ADR-163)
+	Name    string
+	Tools   []string
+	Mrw     bool // a pinned mrw on PATH, its instructions appended, the hook installed
+	Plugin  bool // the quality-harness plugin loaded with --plugin-dir (ADR-162)
+	Work    bool // W: the instruction carries the pre-registered work line (ADR-163)
+	GoHooks bool // G: P with its hooks run by the qh binary instead of Node (ADR-163 Decision 9)
+	Quiet   bool // C: P with the setting that ends a turn without continuing it (ADR-163 Decision 9)
 }
 
 // Configs are A (the baseline), B (mrw forced), P (A with the
 // quality-harness plugin, run only under the stage5 profile) and W (P with one
-// more line in its instruction, run only under stage6). Task, Agent,
-// WebFetch and WebSearch are offered to none.
+// more line in its instruction, run only under stage6), and the side arms G (P
+// with its hooks run by the qh binary) and C (P with the turn-end setting that
+// ends a turn without continuing it), run only under stage6 and read against P
+// alone (ADR-163 Decision 9). Task, Agent, WebFetch and WebSearch are offered
+// to none.
 var Configs = map[string]Config{
 	"A": {Name: "A", Tools: []string{"Bash", "Read", "Edit", "Write", "Glob", "Grep"}},
 	"B": {Name: "B", Tools: []string{"Bash", "Glob"}, Mrw: true},
 	"P": {Name: "P", Tools: []string{"Bash", "Read", "Edit", "Write", "Glob", "Grep"}, Plugin: true},
 	"W": {Name: "W", Tools: []string{"Bash", "Read", "Edit", "Write", "Glob", "Grep"}, Plugin: true, Work: true},
+	"G": {Name: "G", Tools: []string{"Bash", "Read", "Edit", "Write", "Glob", "Grep"}, Plugin: true, GoHooks: true},
+	"C": {Name: "C", Tools: []string{"Bash", "Read", "Edit", "Write", "Glob", "Grep"}, Plugin: true, Quiet: true},
 }
+
+// Side says whether c is a side arm: read against P alone, never exported to
+// the scorer (ADR-163 Decision 9).
+func (c Config) Side() bool { return c.GoHooks || c.Quiet }
 
 // ErrStartErrors and ErrDiskFloor stop a run at an attempt boundary, resumable
 // (ADR-162 Decisions 5 and 9): three start errors in a row, rather than
@@ -92,6 +103,7 @@ type Receipt struct {
 	SlippedWrites []string   `json:"slipped_writes,omitempty"`
 	Status        string     `json:"status,omitempty"` // the STATUS line's claim, with --status-line (ADR-162)
 	Plugin        *PluginRef `json:"plugin,omitempty"` // configuration P's plugin (ADR-162)
+	Side          *SideMeta  `json:"side,omitempty"`   // a side arm's tag, asset and settings (ADR-163 Decision 9)
 	Exclusion     string     `json:"exclusion,omitempty"`
 	Note          string     `json:"note,omitempty"`
 	// CheckRedAtBase is the task's flag (Task.CheckRedAtBase), copied so the
@@ -149,6 +161,12 @@ type RunOptions struct {
 	checks       *Checks             // read by resolveDeclared
 	workLine     string              // the line, read by resolveDeclared
 	workLineSHA  string              // the SHA-256 of the file it was read from
+	SideArms     string              // stage6: the registration of side arms G and C at the plugin's tag (ADR-163 Decision 9)
+	QhBinary     string              // stage6, G: the release asset bench verifies and stages
+	QhSums       string              // stage6, G: the release's SHA256SUMS that names it
+	side         *SideRegistration   // read by resolveSide
+	qh           []byte              // G's asset, as verified
+	qhSHA        string              // its SHA-256
 }
 
 // plan is what run.json records; a second Run into the same directory must
@@ -174,6 +192,9 @@ type plan struct {
 	MaxTurns         int                 `json:"max_turns,omitempty"`
 	ChecksSHA256     string              `json:"checks_sha256,omitempty"`
 	WorkLineSHA256   string              `json:"work_line_sha256,omitempty"`
+	SideAdmitted     []string            `json:"side_admitted,omitempty"`
+	SideConfigsFor   map[string][]string `json:"side_configs_for,omitempty"`
+	Side             map[string]SideMeta `json:"side,omitempty"`
 }
 
 // attempt is one run of one task in one configuration on one model.
@@ -269,7 +290,8 @@ func Run(o RunOptions) (err error) {
 			}
 		}
 	}
-	p := plan{Stage: o.Stage, Models: o.Models, Configs: o.Configs, Repeats: o.Repeats, Seed: o.Seed, CLIVersion: cli, MrwVersion: mrwVersion, Containment: o.Containment, Profile: o.Profile, Plugin: o.plugin}
+	core, _ := splitSide(o.Configs)
+	p := plan{Stage: o.Stage, Models: o.Models, Configs: core, Repeats: o.Repeats, Seed: o.Seed, CLIVersion: cli, MrwVersion: mrwVersion, Containment: o.Containment, Profile: o.Profile, Plugin: o.plugin}
 	p.ConfigsFor = o.ConfigsFor
 	p.WorkLineSHA256 = o.workLineSHA
 	if o.checks != nil {
@@ -279,6 +301,17 @@ func Run(o RunOptions) (err error) {
 	if o.Profile == ProfileStage6 || o.MaxTurns != 0 {
 		p.MaxTurns = o.maxTurns()
 	}
+	// The side arms go in fields of their own: configs and configs_for stay
+	// ADR-112's (ADR-163 Decision 9).
+	if admitted := sideAdmitted(o); len(admitted) > 0 {
+		p.SideAdmitted, p.SideConfigsFor, p.Side = admitted, map[string][]string{}, map[string]SideMeta{}
+		for _, m := range o.Models {
+			p.SideConfigsFor[m] = sideFor(o, m)
+		}
+		for _, arm := range admitted {
+			p.Side[arm] = *o.sideMeta(arm)
+		}
+	}
 	if o.Block > 0 {
 		p.Block, p.Looks = o.Block, Looks
 	}
@@ -287,6 +320,15 @@ func Run(o RunOptions) (err error) {
 	}
 	for _, t := range o.Tasks {
 		p.Tasks = append(p.Tasks, t.ID)
+	}
+	if o.Block > 1 {
+		var first plan
+		if err := readJSON(filepath.Join(filepath.Dir(o.Out), "block-1", "run.json"), &first); err != nil {
+			return fmt.Errorf("block %d needs block 1's run.json beside it: %w", o.Block, err)
+		}
+		if err := sameSide(first, p); err != nil {
+			return err
+		}
 	}
 	if err := claimOut(o.Out, p); err != nil {
 		return err
@@ -317,7 +359,7 @@ func Run(o RunOptions) (err error) {
 			if try > 0 {
 				at.ID = fmt.Sprintf("%s.r%d", a.ID, try)
 			}
-			base := filepath.Join(o.Out, at.ID)
+			base := filepath.Join(outDir(o, at.Config), at.ID)
 			var r Receipt
 			switch {
 			case exists(base + ".receipt.json"):
@@ -344,6 +386,9 @@ func Run(o RunOptions) (err error) {
 					if err := o.SWE.ensure(image); err != nil {
 						return err
 					}
+				}
+				if err := os.MkdirAll(filepath.Dir(base), 0o755); err != nil {
+					return err
 				}
 				if err := writeOnce(base+".started", []byte(time.Now().UTC().Format(time.RFC3339)+"\n")); err != nil {
 					return err
@@ -440,6 +485,9 @@ func gates(o RunOptions) (string, error) {
 			return "", fmt.Errorf("--configs-for names %s, which the stage does not run", m)
 		}
 	}
+	if err := sideGates(o); err != nil {
+		return "", err
+	}
 	switch {
 	case o.Profile != "" && o.Profile != ProfileStage5 && o.Profile != ProfileStage6:
 		return "", fmt.Errorf("--profile %q: want %s or %s (ADR-162, ADR-163)", o.Profile, ProfileStage5, ProfileStage6)
@@ -498,16 +546,27 @@ func Verify(dir, stage string, tasks, repeats int) error {
 	var missing []string
 	for _, t := range p.Tasks {
 		for _, m := range p.Models {
+			// The core's receipts are in the block directory, the side arms' in
+			// side/ (ADR-163 Decision 9).
+			type planned struct{ dir, config string }
+			var arms []planned
 			for _, c := range plannedConfigs(p, m) {
+				arms = append(arms, planned{dir, c})
+			}
+			for _, c := range p.SideConfigsFor[m] {
+				arms = append(arms, planned{filepath.Join(dir, sideDir), c})
+			}
+			for _, arm := range arms {
+				c := arm.config
 				for rep := 1; rep <= p.Repeats; rep++ {
 					id := fmt.Sprintf("%s.%s.%s.%d", t, c, safe(m), rep)
-					b, err := os.ReadFile(filepath.Join(dir, id+".receipt.json"))
+					b, err := os.ReadFile(filepath.Join(arm.dir, id+".receipt.json"))
 					if err != nil {
 						missing = append(missing, id)
 						continue
 					}
 					var r Receipt
-					if err := json.Unmarshal(b, &r); err != nil || r.Attempt != id || r.Task != t || r.Config != c || r.Model != m || r.Repeat != rep {
+					if err := json.Unmarshal(b, &r); err != nil || !readsBack(p, r, id, t, c, m, rep) {
 						missing = append(missing, id+" (its receipt does not read back as this attempt)")
 						continue
 					}
@@ -515,9 +574,9 @@ func Verify(dir, stage string, tasks, repeats int) error {
 					// the registration owes it (the re-review of #411).
 					for try := 0; replaced(r.Exclusion, try); try++ {
 						next := fmt.Sprintf("%s.r%d", id, try+1)
-						b, err := os.ReadFile(filepath.Join(dir, next+".receipt.json"))
+						b, err := os.ReadFile(filepath.Join(arm.dir, next+".receipt.json"))
 						r = Receipt{}
-						if err != nil || json.Unmarshal(b, &r) != nil || r.Attempt != next || r.Task != t || r.Config != c || r.Model != m || r.Repeat != rep {
+						if err != nil || json.Unmarshal(b, &r) != nil || !readsBack(p, r, next, t, c, m, rep) {
 							missing = append(missing, next+" (the replacement an excluded attempt is owed)")
 							break
 						}
@@ -532,6 +591,12 @@ func Verify(dir, stage string, tasks, repeats int) error {
 	return nil
 }
 
+// readsBack says whether r is attempt id of task t, configuration c, model m
+// and repeat rep, and for a side arm records what run.json says it ran.
+func readsBack(p plan, r Receipt, id, t, c, m string, rep int) bool {
+	return r.Attempt == id && r.Task == t && r.Config == c && r.Model == m && r.Repeat == rep && (!isSide(c) || sameMeta(r.Side, p.Side[c]))
+}
+
 // checkCanary refuses a stage whose canary did not pass for this CLI version.
 func checkCanary(path, cli string, o RunOptions) error {
 	b, err := os.ReadFile(path)
@@ -539,11 +604,15 @@ func checkCanary(path, cli string, o RunOptions) error {
 		return fmt.Errorf("canary: %w", err)
 	}
 	var c struct {
-		Pass       bool       `json:"pass"`
-		CLIVersion string     `json:"cli_version"`
-		Profile    string     `json:"profile"`
-		Configs    []string   `json:"configs"`
-		Plugin     *PluginRef `json:"plugin"`
+		Pass             bool              `json:"pass"`
+		CLIVersion       string            `json:"cli_version"`
+		Profile          string            `json:"profile"`
+		Configs          []string          `json:"configs"`
+		SideConfigs      []string          `json:"side_configs"`
+		Plugin           *PluginRef        `json:"plugin"`
+		PluginData       string            `json:"plugin_data"`
+		SideRegistration *SideRegistration `json:"side_registration"`
+		SideAsset        string            `json:"side_asset_sha256"`
 	}
 	if err := json.Unmarshal(b, &c); err != nil {
 		return fmt.Errorf("canary %s: %w", path, err)
@@ -562,13 +631,23 @@ func checkCanary(path, cli string, o RunOptions) error {
 		// re-review of T3): a canary that never ran P authorizes no P.
 		for _, m := range o.Models {
 			for _, name := range configsFor(o, m) {
-				if !slices.Contains(c.Configs, name) {
+				listed := c.Configs
+				if isSide(name) {
+					listed = c.SideConfigs
+				}
+				if !slices.Contains(listed, name) {
 					return fmt.Errorf("canary %s did not test configuration %s, which %s runs", path, name, m)
 				}
 			}
 		}
 		if o.plugin != nil && (c.Plugin == nil || *c.Plugin != *o.plugin) {
 			return fmt.Errorf("canary %s loaded plugin %v; this stage runs %v", path, c.Plugin, *o.plugin)
+		}
+		if o.Profile == ProfileStage6 && o.plugin != nil && c.PluginData != pluginDataDir(o) {
+			return fmt.Errorf("canary %s saw the plugin data directory %q; this stage's is %q", path, c.PluginData, pluginDataDir(o))
+		}
+		if o.side != nil && !o.canaryRan(c.SideRegistration, c.SideAsset) {
+			return fmt.Errorf("canary %s ran side registration %+v with asset %q; this stage runs %+v with asset %q", path, c.SideRegistration, c.SideAsset, *o.side, o.qhSHA)
 		}
 	}
 	return nil
@@ -602,13 +681,10 @@ func claimOut(out string, p plan) error {
 	return nil
 }
 
-// configsFor is what a model runs: its own list from --configs-for, else the
-// stage's.
+// configsFor is everything a model runs: its core configurations (coreFor) and
+// the side arms admitted where it runs P.
 func configsFor(o RunOptions, model string) []string {
-	if cs, ok := o.ConfigsFor[model]; ok {
-		return cs
-	}
-	return o.Configs
+	return append(slices.Clone(coreFor(o, model)), sideFor(o, model)...)
 }
 
 // hasConfig says whether any model of the stage runs configuration c.
@@ -629,21 +705,15 @@ func mapValues(m map[string][]string) [][]string {
 	return out
 }
 
+// planAttempts is the stage's attempts in a seeded random order. The core's are
+// shuffled alone, as they are in a stage without side arms, and the side arms'
+// follow, shuffled among themselves, so adding them does not move the core's.
 func planAttempts(o RunOptions) []attempt {
-	var as []attempt
-	for _, t := range o.Tasks {
-		for _, m := range o.Models {
-			for _, c := range configsFor(o, m) {
-				for r := 1; r <= o.Repeats; r++ {
-					as = append(as, attempt{
-						ID:   fmt.Sprintf("%s.%s.%s.%d", t.ID, c, safe(m), r),
-						Task: t, Model: m, Config: Configs[c], Repeat: r,
-					})
-				}
-			}
-		}
-	}
+	as := attemptsOf(o, coreFor)
 	rand.New(rand.NewSource(o.Seed)).Shuffle(len(as), func(i, j int) { as[i], as[j] = as[j], as[i] })
+	side := attemptsOf(o, sideFor)
+	rand.New(rand.NewSource(o.Seed+1)).Shuffle(len(side), func(i, j int) { side[i], side[j] = side[j], side[i] })
+	as = append(as, side...)
 	// A SWE-bench instance's attempts run one after another, in the seeded
 	// order among themselves, so its image is pulled once and removed once
 	// they are graded (T5 S2: twenty images do not fit on this disk).
@@ -653,6 +723,25 @@ func planAttempts(o RunOptions) []attempt {
 			at[t.ID] = i
 		}
 		slices.SortStableFunc(as, func(x, y attempt) int { return at[x.Task.ID] - at[y.Task.ID] })
+	}
+	return as
+}
+
+// attemptsOf are the attempts of the configurations pick names for each model,
+// in plan order.
+func attemptsOf(o RunOptions, pick func(RunOptions, string) []string) []attempt {
+	var as []attempt
+	for _, t := range o.Tasks {
+		for _, m := range o.Models {
+			for _, c := range pick(o, m) {
+				for r := 1; r <= o.Repeats; r++ {
+					as = append(as, attempt{
+						ID:   fmt.Sprintf("%s.%s.%s.%d", t.ID, c, safe(m), r),
+						Task: t, Model: m, Config: Configs[c], Repeat: r,
+					})
+				}
+			}
+		}
 	}
 	return as
 }
@@ -682,6 +771,9 @@ func runAttempt(o RunOptions, a attempt, order int, cli, mrwVersion string) (r R
 	if a.Config.Plugin {
 		r.Plugin = o.plugin
 	}
+	if a.Config.Side() {
+		r.Side = o.sideMeta(a.Config.Name)
+	}
 	scratch, err := os.MkdirTemp(o.Scratch, "bench-")
 	if err != nil {
 		_ = os.MkdirAll(o.Scratch, 0o755)
@@ -696,9 +788,13 @@ func runAttempt(o RunOptions, a attempt, order int, cli, mrwVersion string) (r R
 		r.Exclusion, r.Note = ExclusionSetup, err.Error()
 		return r
 	}
-	baseSHA, err := materialize(a.Task, tree, nil, o.declaredFor(a.Task))
+	baseSHA, err := materializeArm(a.Task, tree, nil, o.declaredFor(a.Task), o.extraFor(a.Config))
 	if err != nil {
 		r.Exclusion, r.Note = ExclusionSetup, err.Error()
+		return r
+	}
+	if p := CheckSideTree(a.Config, tree, o.side); len(p) > 0 {
+		r.Exclusion, r.Note = ExclusionSetup, strings.Join(p, "; ")
 		return r
 	}
 	// Under stage6 the attempt container is started from the tree just built,
@@ -725,7 +821,11 @@ func runAttempt(o RunOptions, a attempt, order int, cli, mrwVersion string) (r R
 		r.Exclusion, r.Note = ExclusionSetup, err.Error()
 		return r
 	}
-	base := filepath.Join(o.Out, a.ID)
+	base := filepath.Join(outDir(o, a.Config), a.ID)
+	if err := os.MkdirAll(filepath.Dir(base), 0o755); err != nil {
+		r.Exclusion, r.Note = ExclusionSetup, err.Error()
+		return r
+	}
 	stdout, err := os.OpenFile(base+".transcript.jsonl", os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
 	if err != nil {
 		r.Exclusion, r.Note = ExclusionSetup, err.Error()
@@ -995,6 +1095,23 @@ func invocation(o RunOptions, a attempt, scratch string) ([]string, []string, er
 	if !a.Config.Mrw {
 		if p := onPath("mrw", path); p != "" {
 			return nil, nil, fmt.Errorf("configuration A's PATH holds %s", p)
+		}
+	}
+	// Claude Code, not bench, sets CLAUDE_PLUGIN_DATA for a plugin's hooks, to a
+	// directory under CLAUDE_CONFIG_DIR that every attempt of the stage shares.
+	// So each plugin arm's attempt starts with that directory moved aside and a
+	// fresh one made, and G's staged binary is the one difference in it
+	// (ADR-163 Decision 9).
+	if o.Profile == ProfileStage6 && a.Config.Plugin {
+		data, err := o.freshPluginData(a.ID)
+		if err != nil {
+			return nil, nil, err
+		}
+		if a.Config.GoHooks {
+			if err := o.stageQH(data); err != nil {
+				return nil, nil, err
+			}
+			env = append(env, o.sideEnv()...)
 		}
 	}
 	if a.shim != nil {
