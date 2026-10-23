@@ -3,12 +3,12 @@ package mcp
 import (
 	"bytes"
 	"encoding/json"
-	"math"
 	"math/big"
 	"math/rand"
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -216,29 +216,44 @@ func TestAnExponentIsReducedExactlyAndInLinearTime(t *testing.T) {
 			t.Errorf("exponentPlus(%q, %d) = %s, want %s", c[0], adj, got, want)
 		}
 	}
-	// Linear, judged by how the time grows rather than by a wall-clock budget:
-	// a 3 s budget failed once at 3.10 s under -race on a loaded machine while
-	// the reduction stayed linear, and no one budget sits safely between
-	// "linear but loaded" and "the big.Int path" on every machine. Measured
-	// 2026-10-23 on an M-series Mac at load 3: this judgment took 0.05 s
-	// without -race and 0.85 s with it; the big.Int reduction #343 replaced took
-	// 8.9 s, and its 4M-digit time was 13.8 times its 1M-digit time, where a
-	// linear one is about 4. Load slows both sizes alike, so the ratio holds;
-	// below 100 ms timer noise outweighs it, and a regression is seconds long.
-	judge := func(n int) time.Duration {
-		id := append([]byte("1e"), bytes.Repeat([]byte("7"), n)...)
-		best := time.Duration(math.MaxInt64)
-		for range 2 {
-			start := time.Now()
-			if !validRequestID(id) || callKey(id) == "" {
-				t.Fatalf("a %d-digit exponent id was refused", n)
-			}
-			best = min(best, time.Since(start))
-		}
-		return best
+	// A 4M-digit exponent id is still taken and keyed: correctness, not timing.
+	id := append([]byte("1e"), bytes.Repeat([]byte("7"), 4<<20)...)
+	if !validRequestID(id) || callKey(id) == "" {
+		t.Fatal("a 4M-digit exponent id was refused")
 	}
-	small, large := judge(1<<20), judge(4<<20)
-	if large > 100*time.Millisecond && large > 8*small {
-		t.Errorf("a 4M-digit exponent took %s, %.1f times a 1M-digit one (%s): the reduction is not linear", large, float64(large)/float64(small), small)
+	// The reduction is linear, judged by how its time grows with the exponent
+	// and not by a wall-clock budget: a 3 s budget failed once at 3.10 s under
+	// -race on a loaded machine while the reduction stayed linear. Measured
+	// 2026-10-23 on an M-series Mac at load 3: the big.Int reduction #343
+	// replaced took 8.9 s at 4M digits, 13.8 times its 1M-digit time; a linear
+	// one is about 4 times. exponentPlus alone is timed, repeated until a
+	// 1M-digit sample takes 20 ms, in three adjacent 1M/4M pairs so that load
+	// meets both halves of a pair; their median ratio over 6 fails (n^1.3 or
+	// worse), and pairs that disagree threefold are too noisy to judge. A
+	// regression heuristic, not a proof of complexity (the Codex review of #509).
+	reduce := func(n, reps int) time.Duration {
+		exp := bytes.Repeat([]byte("7"), n)
+		start := time.Now()
+		for range reps {
+			_ = exponentPlus(exp, 1)
+		}
+		return time.Since(start)
+	}
+	reps := 1
+	for reps < 1<<16 && reduce(1<<20, reps) < 20*time.Millisecond {
+		reps *= 2
+	}
+	var ratios []float64
+	for range 3 {
+		small := reduce(1<<20, reps)
+		ratios = append(ratios, float64(reduce(4<<20, reps))/float64(small))
+	}
+	sort.Float64s(ratios)
+	t.Logf("exponentPlus 1M-to-4M ratios %.1f, %.1f, %.1f over %d repetitions", ratios[0], ratios[1], ratios[2], reps)
+	if ratios[2] > 3*ratios[0] {
+		t.Skipf("the timing was too noisy to judge growth: 1M-to-4M ratios %.1f, %.1f, %.1f (%d repetitions)", ratios[0], ratios[1], ratios[2], reps)
+	}
+	if ratios[1] > 6 {
+		t.Errorf("exponentPlus at 4M digits took %.1f times its 1M-digit time (ratios %.1f, %.1f, %.1f; %d repetitions): the reduction is not linear", ratios[1], ratios[0], ratios[1], ratios[2], reps)
 	}
 }
