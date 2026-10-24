@@ -13,7 +13,7 @@ import (
 // is not one stays searchable.
 func TestAGrepPatternThatIsAReadFlagIsRefusedByName(t *testing.T) {
 	root := t.TempDir()
-	if err := os.WriteFile(filepath.Join(root, "a.rb"), []byte("class A\n  def x\n  end\nend\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "a.rb"), []byte("class A\n  def x\n  end\nend\n# run with -C 2\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	for _, c := range []struct {
@@ -21,13 +21,13 @@ func TestAGrepPatternThatIsAReadFlagIsRefusedByName(t *testing.T) {
 		code int
 		want []string
 	}{
-		{[]string{"read", "--grep", "-C", "2", "def x|end:?$", "a.rb"}, 2, []string{`--grep took "-C" as its pattern`, "mrw read --grep PATTERN -C …", `--grep='(?:-C)'`}},
+		{[]string{"read", "--grep", "-C", "2", "def x|end:?$", "a.rb"}, 2, []string{`--grep took "-C" as its pattern`, "mrw read --grep PATTERN -C …", `--grep="(?:-C)"`}},
 		{[]string{"read", "--grep=-C", "2", "a.rb"}, 2, []string{`--grep took "-C" as its pattern`}},
 		{[]string{"read", "--grep", "--max-lines", "2", "def", "a.rb"}, 2, []string{`--grep took "--max-lines" as its pattern`}},
 		{[]string{"read", "--grep", "def x", "-C", "2", "a.rb"}, 0, []string{"def x"}},
 		{[]string{"read", "--grep", "-foo", "a.rb"}, 1, []string{"no file matched /-foo/"}},
 		{[]string{"read", "--grep", "-i", "a.rb"}, 1, []string{"no file matched /-i/"}},
-		{[]string{"read", "--grep=(?:-C)", "a.rb"}, 1, []string{"no file matched"}},
+		{[]string{"read", "--grep=(?:-C)", "a.rb"}, 0, []string{"run with -C 2"}},
 	} {
 		out, code := runIn(t, root, c.argv...)
 		if code != c.code {
