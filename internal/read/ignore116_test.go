@@ -423,6 +423,9 @@ func TestASkipIsCountedOncePerPath(t *testing.T) {
 		{[]string{"sub/a.log", "sub"}, WalkSkipped{Binary: 1}},
 		{[]string{".", "build/x.go"}, WalkSkipped{Ignored: 1, Binary: 1}},
 		{[]string{".", "build"}, WalkSkipped{Ignored: 1, Binary: 1}},
+		// A twin takes its twin's read but its own verdict: named after the walk
+		// found it binary, the file is served and not counted (serial result).
+		{[]string{".", "sub/b.bin"}, WalkSkipped{Ignored: 1, IgnoredDirs: 1}},
 	} {
 		var sk WalkSkipped
 		if _, _, err := Walk(root, c.paths, WalkOptions{Pattern: needle, Skipped: &sk}); err != nil {
