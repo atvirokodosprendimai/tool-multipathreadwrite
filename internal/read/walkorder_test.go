@@ -37,7 +37,7 @@ func TestAParallelWalkAnswersAsASerialOneWould(t *testing.T) {
 	put(".gitignore", "*.log\n", 0o644)
 	var want []string
 	for d := 0; d < 8; d++ {
-		for f := 0; f < 30; f++ {
+		for f := 0; f < 60; f++ {
 			n := fmt.Sprintf("d%d/f%03d.txt", d, f)
 			put(n, "one\nneedle\n", 0o644)
 			want = append(want, n)
@@ -53,8 +53,9 @@ func TestAParallelWalkAnswersAsASerialOneWould(t *testing.T) {
 		}
 	}
 	unreadable = append(unreadable, "zz.txt")
-	if len(want)+len(unreadable) <= flushEvery {
-		t.Fatalf("%d offers do not cross a flush batch of %d", len(want)+len(unreadable), flushEvery)
+	// Two flush boundaries, with failures in all three batches.
+	if len(want)+len(unreadable) <= 2*flushEvery {
+		t.Fatalf("%d offers do not cross two flush batches of %d", len(want)+len(unreadable), flushEvery)
 	}
 	for _, n := range unreadable {
 		put(n, "needle\n", 0o000)

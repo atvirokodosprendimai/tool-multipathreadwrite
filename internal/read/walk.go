@@ -169,6 +169,9 @@ type walker struct {
 	// how many are read at once, and wg waits for them (flush).
 	jobs []*scanJob
 	// pending is the queued job for each path, so a path offered twice is read once.
+	// settled is how many of problems are final: every queued job's `at` is at or
+	// past it, so flush rebuilds only what follows and never copies a batch twice.
+	settled int
 	pending map[string]*scanJob
 	sem     chan struct{}
 	wg      sync.WaitGroup
@@ -577,11 +580,13 @@ func (w *walker) takeAll() {
 
 // flush waits for every queued read, then applies the results in queue order:
 // a key already served is skipped as before, and a read's Problem is put back
-// at the place in w.problems it was queued at.
+// at the place in w.problems it was queued at. Only the problems from settled
+// on are rebuilt (a job is queued with at >= settled), so a walk of many
+// failures copies each once, not once per batch.
 func (w *walker) flush() {
 	w.wg.Wait()
 	var problems []Problem
-	done := 0
+	done := w.settled
 	for _, j := range w.jobs {
 		if w.seen[j.key] {
 			continue
@@ -606,7 +611,9 @@ func (w *walker) flush() {
 			})
 		}
 	}
-	w.problems = append(problems, w.problems[done:]...)
+	problems = append(problems, w.problems[done:]...)
+	w.problems = append(w.problems[:w.settled], problems...)
+	w.settled = len(w.problems)
 	w.jobs, w.pending = nil, nil
 }
 
