@@ -334,7 +334,7 @@ These are gates, not a tour of the records behind them.
   in `--json`); it runs the whole check when nothing places, or a `.go` path cannot be placed, a
   directory holds no package, a module file (`go.mod`, `go.sum`, `go.work`, `go.work.sum`) was
   written, or the write removed a Go or module file. Its pass covers the packages it could place only.
-  A tree that declares no check gets none, whatever the language; mrw does not infer one (ADR-054). To check
+  A tree that declares no check gets none, except a Go module: with a `go.mod` and no declared check, mrw runs `go test` (`internal/check/check.go`). For any other stack, declare one (ADR-054). To check
   Ruby, declare it: `"scoped_check": "bundle exec rubocop --force-exclusion {files}"` in `.quality-harness.json`.
   A non-prose hunk
   whose `{}` `()` `[]` nets moved prints a balance row and stays `ok` — a
