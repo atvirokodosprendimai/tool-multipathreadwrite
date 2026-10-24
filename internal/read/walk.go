@@ -1,7 +1,9 @@
 package read
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path"
@@ -14,6 +16,7 @@ import (
 	"unicode"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/lines"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/regular"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 )
 
@@ -169,6 +172,7 @@ type walker struct {
 	pending map[string]*scanJob
 	sem     chan struct{}
 	wg      sync.WaitGroup
+	big     sync.Mutex
 	// nested holds each checkout found below the root, by its root-relative
 	// "/"-joined directory: its own rules apply beneath it and the outer
 	// rules do not, as git keeps a nested repository's files its own.
@@ -423,9 +427,46 @@ func (w *walker) walkDir(named string, full string) {
 // what a walk waits on; more than this only queues in the kernel.
 const maxScanners = 8
 
-// scanRead reads one candidate whole. It is a variable so a test can swap it
+// scanRead reads one candidate: whole, up to ADR-104's cap, when budget is 0,
+// else up to budget bytes, or errBudget. It is a variable so a test can swap it
 // for a counter of the reads in flight.
-var scanRead = readCapped
+var scanRead = func(path string, budget int64) ([]byte, error) {
+	if budget == 0 || budget >= maxFileBytes { // the cap is the tighter bound, and its refusal is worded by readCapped
+		return readCapped(path)
+	}
+	return readBudget(path, budget)
+}
+
+// errBudget is readBudget's answer to a file longer than its budget.
+var errBudget = errors.New("longer than the scan budget")
+
+// readBudget reads path whole if it is at most budget bytes, else errBudget. A
+// job takes one scan slot on the strength of a stat made earlier; a file that
+// has grown since, or a regular file whose stat underreports, must not be held
+// whole beside seven others (the Codex review of #525), so such a job is read
+// again alone.
+func readBudget(path string, budget int64) ([]byte, error) {
+	f, fi, err := regular.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = f.Close() }()
+	if fi.Mode().IsRegular() && fi.Size() > budget {
+		return nil, errBudget
+	}
+	b, err := io.ReadAll(io.LimitReader(f, budget+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(b)) > budget {
+		return nil, errBudget
+	}
+	return b, nil
+}
+
+// flushEvery is how many offers are queued before they are applied. Without
+// it every job, a non-match too, stays in memory until the walk ends.
+const flushEvery = 256
 
 // bigFile is the size from which a file is read alone. Each read holds its
 // file whole in memory (ADR-104 reads to a 1 GiB cap), and a scan holds about
@@ -467,6 +508,9 @@ type scanJob struct {
 // the results in the order offer was called, so specs, problems and counts are
 // those of a serial walk. size is the file's, from the stat the caller made.
 func (w *walker) offer(p, full string, discovered bool, size int64) {
+	if len(w.jobs) >= flushEvery {
+		w.flush()
+	}
 	j := &scanJob{p: p, full: full, key: filepath.ToSlash(filepath.Clean(p)), discovered: discovered, at: len(w.problems)}
 	w.jobs = append(w.jobs, j)
 	if twin, ok := w.pending[j.key]; ok {
@@ -477,19 +521,34 @@ func (w *walker) offer(p, full string, discovered bool, size int64) {
 		w.pending = map[string]*scanJob{}
 	}
 	w.pending[j.key] = j
-	n := scanSlots(size, cap(w.sem))
-	for range n {
+	exclusive := size >= bigFile
+	held := scanSlots(size, cap(w.sem))
+	if exclusive {
+		w.takeAll()
+	} else {
 		w.sem <- struct{}{}
 	}
 	w.wg.Add(1)
 	go func() {
 		defer func() {
-			for range n {
+			for range held {
 				<-w.sem
 			}
 			w.wg.Done()
 		}()
-		b, err := scanRead(j.full)
+		budget := int64(bigFile)
+		if exclusive {
+			budget = 0
+		}
+		b, err := scanRead(j.full, budget)
+		if errors.Is(err, errBudget) {
+			// Larger than the stat said: give the slot back and read it alone.
+			<-w.sem
+			held = 0
+			w.takeAll()
+			held = cap(w.sem)
+			b, err = scanRead(j.full, 0)
+		}
 		if err != nil {
 			j.err = err
 			return
@@ -503,6 +562,17 @@ func (w *walker) offer(p, full string, discovered bool, size int64) {
 			}
 		}
 	}()
+}
+
+// takeAll takes every scan slot, so what follows is read with nothing beside
+// it. big serialises the takers: two taking a few slots each would wait on one
+// another for ever, while a taker of one slot waits only for a read to end.
+func (w *walker) takeAll() {
+	w.big.Lock()
+	defer w.big.Unlock()
+	for range cap(w.sem) {
+		w.sem <- struct{}{}
+	}
 }
 
 // flush waits for every queued read, then applies the results in queue order:

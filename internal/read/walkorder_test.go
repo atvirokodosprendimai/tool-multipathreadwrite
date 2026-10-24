@@ -53,6 +53,9 @@ func TestAParallelWalkAnswersAsASerialOneWould(t *testing.T) {
 		}
 	}
 	unreadable = append(unreadable, "zz.txt")
+	if len(want)+len(unreadable) <= flushEvery {
+		t.Fatalf("%d offers do not cross a flush batch of %d", len(want)+len(unreadable), flushEvery)
+	}
 	for _, n := range unreadable {
 		put(n, "needle\n", 0o000)
 	}
@@ -146,7 +149,7 @@ func TestBigFilesAreReadAloneAndSmallOnesTogether(t *testing.T) {
 		cur, bigCur, peak, bigAt int
 	)
 	prev := scanRead
-	scanRead = func(path string) ([]byte, error) {
+	scanRead = func(path string, budget int64) ([]byte, error) {
 		fi, err := os.Stat(path)
 		if err != nil {
 			return nil, err
@@ -169,7 +172,7 @@ func TestBigFilesAreReadAloneAndSmallOnesTogether(t *testing.T) {
 			bigCur--
 		}
 		mu.Unlock()
-		return prev(path)
+		return prev(path, budget)
 	}
 	t.Cleanup(func() { scanRead = prev })
 
@@ -181,7 +184,87 @@ func TestBigFilesAreReadAloneAndSmallOnesTogether(t *testing.T) {
 	if bigAt != 0 {
 		t.Fatalf("%d reads began beside a file of bigFile bytes, want none", bigAt)
 	}
-	if peak < 2 {
+	// With one CPU the pool has one slot and nothing is read beside anything.
+	if peak < 2 && min(runtime.NumCPU(), maxScanners) >= 2 {
 		t.Fatalf("at most %d read at a time, want small files read together", peak)
+	}
+}
+
+// TestAFileThatOutgrewItsStatIsReadAlone: a job takes one scan slot on the
+// strength of a stat made before the read. A file longer than its budget by
+// the time it is read (it grew, or its stat underreports) is read again with
+// every slot, so a walk never holds several such files whole at once. The
+// read here reports the overrun for one small file, as readBudget would.
+func TestAFileThatOutgrewItsStatIsReadAlone(t *testing.T) {
+	root := t.TempDir()
+	for i := 0; i < 30; i++ {
+		if err := os.WriteFile(filepath.Join(root, fmt.Sprintf("s%02d.txt", i)), []byte("needle\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var (
+		mu                   sync.Mutex
+		cur, growCur, beside int
+		retried              bool
+	)
+	prev := scanRead
+	scanRead = func(path string, budget int64) ([]byte, error) {
+		grew := filepath.Base(path) == "s07.txt"
+		if grew && budget > 0 {
+			return nil, errBudget
+		}
+		mu.Lock()
+		if grew {
+			retried = true
+		}
+		if grew && cur > 0 || growCur > 0 {
+			beside++
+		}
+		cur++
+		if grew {
+			growCur++
+		}
+		mu.Unlock()
+		time.Sleep(15 * time.Millisecond)
+		mu.Lock()
+		cur--
+		if grew {
+			growCur--
+		}
+		mu.Unlock()
+		return prev(path, budget)
+	}
+	t.Cleanup(func() { scanRead = prev })
+
+	specs, problems, err := Walk(root, nil, WalkOptions{Pattern: regexp.MustCompile("needle")})
+	if err != nil || len(problems) != 0 || len(specs) != 30 {
+		t.Fatalf("walk: %d specs, problems %v, err %v; want 30 specs", len(specs), problems, err)
+	}
+	if !retried {
+		t.Fatal("the file over its budget was not read again")
+	}
+	if beside != 0 {
+		t.Fatalf("%d reads overlapped the file that outgrew its stat, want none", beside)
+	}
+}
+
+// TestReadBudgetRefusesAFileOverItsBudget: the budget is a size, not a count of
+// lines, and a file at the budget is read whole.
+func TestReadBudgetRefusesAFileOverItsBudget(t *testing.T) {
+	dir := t.TempDir()
+	at, over := filepath.Join(dir, "at"), filepath.Join(dir, "over")
+	for p, n := range map[string]int64{at: 64, over: 65} {
+		if err := os.WriteFile(p, nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Truncate(p, n); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if b, err := readBudget(at, 64); err != nil || len(b) != 64 {
+		t.Fatalf("a file at its budget: %d bytes, err %v, want 64 and none", len(b), err)
+	}
+	if _, err := readBudget(over, 64); err != errBudget {
+		t.Fatalf("a file over its budget: err %v, want errBudget", err)
 	}
 }
