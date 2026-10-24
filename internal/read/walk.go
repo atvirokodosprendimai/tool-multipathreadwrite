@@ -7,8 +7,10 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
+	"sync"
 	"unicode"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/lines"
@@ -136,13 +138,14 @@ func Walk(root string, paths []string, opt WalkOptions) ([]Spec, []Problem, erro
 
 	w := walker{root: root, absRoot: absRoot, opt: opt, seen: map[string]bool{}, nested: map[string]*ignorer{},
 		skipFiles: map[string]bool{}, skipDirs: map[string]bool{}, skipBin: map[string]bool{}, skipNested: map[string]bool{}, skipNames: map[string]bool{}, skipLinks: map[string]bool{},
-		res: rooted.NewResolver(root)}
+		sem: make(chan struct{}, min(runtime.NumCPU(), maxScanners)), res: rooted.NewResolver(root)}
 	if !opt.NoIgnore {
 		w.ign = newIgnorer(absRoot)
 	}
 	for _, p := range paths {
 		w.consider(p)
 	}
+	w.flush()
 	if opt.Skipped != nil {
 		*opt.Skipped = w.skipCounts()
 	}
@@ -159,6 +162,13 @@ type walker struct {
 	problems []Problem
 	ign      *ignorer         // nil outside a checkout or under NoIgnore
 	res      *rooted.Resolver // resolves what this walk discovers, and dies with it (ADR-131)
+	// jobs are the candidates offer queued, in the order it was called; sem bounds
+	// how many are read at once, and wg waits for them (flush).
+	jobs []*scanJob
+	// pending is the queued job for each path, so a path offered twice is read once.
+	pending map[string]*scanJob
+	sem     chan struct{}
+	wg      sync.WaitGroup
 	// nested holds each checkout found below the root, by its root-relative
 	// "/"-joined directory: its own rules apply beneath it and the outer
 	// rules do not, as git keeps a nested repository's files its own.
@@ -189,7 +199,7 @@ func (w *walker) consider(p string) {
 		w.walkDir(n.rel, n.full)
 		return
 	}
-	w.offer(n.rel, n.full, false)
+	w.offer(n.rel, n.full, false, n.size)
 }
 
 // namedPath is a path the caller named that judgeNamed accepted: rel is the
@@ -199,6 +209,7 @@ type namedPath struct {
 	rel  string
 	full string
 	dir  bool
+	size int64 // of a file, so offer can keep a large one from being read beside others
 }
 
 // judgeNamed judges one path the caller named, before anything is read: it is
@@ -278,7 +289,7 @@ func judgeNamed(root, absRoot, p string) (namedPath, *Problem) {
 	if !fi.Mode().IsRegular() {
 		return namedPath{}, &Problem{Path: p, Reason: lines.NotRegular}
 	}
-	return namedPath{rel: p, full: full}, nil
+	return namedPath{rel: p, full: full, size: fi.Size()}, nil
 }
 
 // walkDir descends. A symlinked directory is never entered, and the walk does
@@ -399,7 +410,7 @@ func (w *walker) walkDir(named string, full string) {
 			w.skipFiles[r] = true
 			return nil
 		}
-		w.offer(rel, full, true)
+		w.offer(rel, full, true, st.Size())
 		return nil
 	})
 	if err != nil {
@@ -407,41 +418,126 @@ func (w *walker) walkDir(named string, full string) {
 	}
 }
 
-// offer turns one candidate into a spec if it matches and is not already there.
-// A discovered binary that would have matched is skipped and counted; a named
-// one is served, as a path the caller names always is (ADR-116).
-func (w *walker) offer(p, full string, discovered bool) {
-	key := filepath.ToSlash(filepath.Clean(p))
-	if w.seen[key] {
+// maxScanners bounds the files read at once. A walk of a large tree is syscall
+// bound (open, fstat, read, close per file), so reading several together is
+// what a walk waits on; more than this only queues in the kernel.
+const maxScanners = 8
+
+// scanRead reads one candidate whole. It is a variable so a test can swap it
+// for a counter of the reads in flight.
+var scanRead = readCapped
+
+// bigFile is the size from which a file is read alone. Each read holds its
+// file whole in memory (ADR-104 reads to a 1 GiB cap), and a scan holds about
+// four times its size (the bytes, a string copy, the lines), so eight at once
+// would hold eight times what a serial walk does: eight 48 MiB files peaked
+// at about 1 GB resident against about 200 MB serially. Below this size the
+// worst case is 8 x 8 MiB x 4, about 256 MiB, under the serial peak for one
+// file at the 1 GiB cap.
+const bigFile = 8 << 20
+
+// scanSlots is how many of the n scan slots a file of size bytes takes: one,
+// or all of them for a big file, which therefore waits for the others to
+// finish and is read with nothing beside it.
+func scanSlots(size int64, n int) int {
+	if size >= bigFile {
+		return n
+	}
+	return 1
+}
+
+// scanJob is one queued candidate and, once its goroutine is done, what reading
+// it found. The answer is a function of the file alone; whether it is served
+// is decided in order by flush, so reading in parallel changes nothing a caller
+// sees. A job whose path was already queued has dup set and reads nothing: it
+// takes its twin's result.
+type scanJob struct {
+	p, full, key string
+	discovered   bool
+	at           int // len(problems) when queued: where a Problem of this job goes
+	dup          *scanJob
+	err          error
+	matched      bool
+	sniff        bool // the file would be skipped as a binary, if discovered
+}
+
+// offer queues one candidate to be read and matched. A discovered binary that
+// would have matched is skipped and counted; a named one is served, as a path
+// the caller names always is (ADR-116). Nothing is decided here: flush applies
+// the results in the order offer was called, so specs, problems and counts are
+// those of a serial walk. size is the file's, from the stat the caller made.
+func (w *walker) offer(p, full string, discovered bool, size int64) {
+	j := &scanJob{p: p, full: full, key: filepath.ToSlash(filepath.Clean(p)), discovered: discovered, at: len(w.problems)}
+	w.jobs = append(w.jobs, j)
+	if twin, ok := w.pending[j.key]; ok {
+		j.dup = twin
 		return
 	}
-	b, err := readCapped(full)
-	if err != nil {
-		w.problems = append(w.problems, Problem{Path: p, Reason: err.Error()})
-		return
+	if w.pending == nil {
+		w.pending = map[string]*scanJob{}
 	}
-	binary := discovered && !w.opt.NoIgnore && lines.Unsplittable(b) != ""
-	lines, _ := split(b)
-	matched := false
-	for _, l := range lines {
-		if w.opt.Pattern.MatchString(l) {
-			matched = true
-			break
+	w.pending[j.key] = j
+	n := scanSlots(size, cap(w.sem))
+	for range n {
+		w.sem <- struct{}{}
+	}
+	w.wg.Add(1)
+	go func() {
+		defer func() {
+			for range n {
+				<-w.sem
+			}
+			w.wg.Done()
+		}()
+		b, err := scanRead(j.full)
+		if err != nil {
+			j.err = err
+			return
+		}
+		j.sniff = !w.opt.NoIgnore && lines.Unsplittable(b) != ""
+		ls, _ := split(b)
+		for _, l := range ls {
+			if w.opt.Pattern.MatchString(l) {
+				j.matched = true
+				break
+			}
+		}
+	}()
+}
+
+// flush waits for every queued read, then applies the results in queue order:
+// a key already served is skipped as before, and a read's Problem is put back
+// at the place in w.problems it was queued at.
+func (w *walker) flush() {
+	w.wg.Wait()
+	var problems []Problem
+	done := 0
+	for _, j := range w.jobs {
+		if w.seen[j.key] {
+			continue
+		}
+		if t := j.dup; t != nil {
+			j.err, j.matched, j.sniff = t.err, t.matched, t.sniff
+		}
+		problems = append(problems, w.problems[done:j.at]...)
+		done = j.at
+		switch {
+		case j.err != nil:
+			problems = append(problems, Problem{Path: j.p, Reason: j.err.Error()})
+		case !j.matched:
+		case j.discovered && j.sniff:
+			w.skipBin[j.key] = true
+		default:
+			w.seen[j.key] = true
+			w.specs = append(w.specs, Spec{
+				Path:   j.key,
+				Raw:    j.key,
+				Ranges: []Range{{Re: w.opt.Pattern, Text: "/" + w.opt.Pattern.String() + "/"}},
+			})
 		}
 	}
-	if !matched {
-		return
-	}
-	if binary {
-		w.skipBin[key] = true
-		return
-	}
-	w.seen[key] = true
-	w.specs = append(w.specs, Spec{
-		Path:   key,
-		Raw:    key,
-		Ranges: []Range{{Re: w.opt.Pattern, Text: "/" + w.opt.Pattern.String() + "/"}},
-	})
+	w.problems = append(problems, w.problems[done:]...)
+	w.jobs, w.pending = nil, nil
 }
 
 // ignored judges rel, root-relative and "/"-joined, by the rules of the
@@ -500,6 +596,8 @@ func (w *walker) nestedBelowCheckout(dir, abs string) bool {
 // drops as the walk counts what it skips.
 type hitJudge struct{ w *walker }
 
+// newHitJudge returns a judge whose walker has no scan pool (sem is nil): it
+// judges paths and must never offer one.
 func newHitJudge(root, absRoot string) *hitJudge {
 	w := &walker{root: root, absRoot: absRoot, seen: map[string]bool{}, nested: map[string]*ignorer{},
 		skipFiles: map[string]bool{}, skipDirs: map[string]bool{}, skipBin: map[string]bool{}, skipNested: map[string]bool{}, skipNames: map[string]bool{}, skipLinks: map[string]bool{}}
