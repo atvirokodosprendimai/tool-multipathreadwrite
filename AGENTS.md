@@ -148,8 +148,8 @@ mrw write --grep '\bOld\b' --sub 'New' --dry-run .
 mrw write --ast-grep 'foo($A, $B)' --rewrite 'bar($B, $A)' .
 # 4. look before you change, only at what you will use
 mrw read --grep P --count . && mrw read 'f.go:/P/' -C 3 --max-lines 40
-# 5. different changes at several sites: one read of all of them, then one plan on standard input
-mrw read 'a.go:/func A/,+12' b.go:40-60 && printf '%s\n' "$plan" | mrw write -
+# 5. different changes at several sites: one read of all of them, then the plan in a file (the host's file tool, a temporary directory)
+mrw read 'a.go:/func A/,+12' b.go:40-60 && mrw write "$TMPDIR/plan.txt"
 # 6. a step after the write, in the same call (--then-sh's caveat is below, under the write rules)
 mrw write - --then NAME
 # 7. license lines you already know, without them in your context (/dev/null licenses nothing)

@@ -48,8 +48,11 @@ serve (binary, images, PDFs) and a host with no shell.
 
 Inspection reads are free: `git show`, `git diff`, logs and files you will not edit may use any reader.
 
-Run `mrw instructions --core` once at the start of a session, before the first read: it prints the rules
-that matter most, and `mrw instructions` adds the recipes.
+Run `mrw instructions --core` once, at the start of a session, before the first read.
+After a compaction, re-read the lines you will edit; read the rules again only if they are gone from
+your context. Run `mrw instructions` when a refusal names something the core does not. A plan is your
+input, not a repository edit: write it to a file with the host's file tool, in a temporary directory,
+and run `mrw write` on that file.
 ```
 
 **Use one trigger per host, and keep them identical.** A machine that runs Claude Code, Codex and Cursor
@@ -58,8 +61,9 @@ Change them together.
 
 **Load the contract before the first read, not after a day of work.** A Windows agent on 2026-10-22 wrote
 sound plans all day and read badly all day; it found the read recipes only when it read `mrw instructions`
-at the end of the day, and listed the habits in §6. Telling the agent to run `mrw instructions --core` at
-session start costs a few hundred input tokens once.
+at the end of the day, and listed the habits in §6. Telling the agent to run `mrw instructions --core`
+once at session start costs a few hundred input tokens; reading the full text after it, and the rules
+again after every compaction, cost an outside team 8% of its tool output (ADR-171).
 
 **Add the skill beside the trigger, not in its place.** `mrw --skill` prints mrw's Agent Skills `SKILL.md` — a
 description the host loads every session, then `mrw instructions --core` and the recipes — and
@@ -79,7 +83,7 @@ Every file you read to edit, and every edit, goes through mrw:
 - read: `mrw read path:N-M path:/regexp/` — many specs in one call; outside the checkout `mrw --root DIR read …`
 - search contents: `mrw read --grep P dir/`, or `rg -l P . | mrw read --files-from -` — never grep/cat/sed -n/head on a file
 - narrow command output: `cmd 2>&1 | mrw read --grep P --max-lines 40 -`
-- edit: one plan on standard input, `mrw write -` (`@@ path N-M replace anchor="…"`), read first
+- edit: one plan in a file (write it with the host's file tool in a temporary directory; a plan file is your input, not a repository edit), `mrw write "$TMPDIR/plan.txt"` (`@@ path N-M replace anchor="…"`; `body=` only when `mrw instructions` names your case), read first
 - new file: `mrw write --create path < content`; delete: `@@ path - unlink`
 - `--no-check` for a write to prose or shell only; a literal `$` in a `--sub` replacement is `$$`
 - never `>`, `cp`, `sed -i`, or the host's Edit/Write

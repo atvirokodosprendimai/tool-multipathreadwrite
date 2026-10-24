@@ -1443,6 +1443,9 @@ some files written: the receipt says PARTIALLY APPLIED and names them.
 A value with spaces can be double-quoted (anchor="func openTestStore"),
 single-quoted (anchor='func openTestStore'), or — for anchor= only — left
 unquoted until the next key= (anchor=func openTestStore body=1).
+body= is optional for an ordinary body: it runs to the next @@ header. A count
+is needed for an empty create (body=0), a body holding a line that begins @@,
+and a body whose first line begins body=; see mrw instructions.
 body= is a line count, not a character count. Python str splits characters;
 do not use len(body) as body=.
 body=@path loads the body from a root-relative file (an empty file is the
