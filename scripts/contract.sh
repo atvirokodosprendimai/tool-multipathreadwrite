@@ -10194,6 +10194,19 @@ fal295=$(printf '%s\n' "$s295" | MRW_MCP=on "$MRW" -C "$R" mcp --enable=false 2>
 printf '%s\n' "$s295" | MRW_MCP=yes "$MRW" -C "$R" mcp >"$WORK/y295.out" 2>"$WORK/y295.err"
 { jq -se '.[0].result.tools == []' "$WORK/y295.out" >/dev/null && grep -qF 'MRW_MCP="yes"' "$WORK/y295.err"; } \
   && ok "and MRW_MCP=yes leaves them off and is named on stderr" || bad "MRW_MCP=yes: $(cat "$WORK/y295.out" "$WORK/y295.err")"
+
+# 296. MRW-07: `--grep -C 2 P f` takes -C as the pattern and used to end `bad line
+# number`; a --grep value that is exactly a flag read defines is refused by name,
+# exit 2. The pair: `--grep P -C 2 f` serves, and a dash pattern that is no flag
+# (`--grep -foo`) is still searched.
+R=$(mktemp -d "$WORK/r296-XXXXXX"); printf 'class A\n  def x\n  end\nend\n' > "$R/a.rb"
+out=$(cd "$R" && "$MRW" read --grep 'def x' -C 2 a.rb 2>&1); want 0 $? "the pair: --grep P -C 2 a.rb serves, exit 0"
+out=$(cd "$R" && "$MRW" read --grep -C 2 'def x|end:?$' a.rb 2>&1); want 2 $? "--grep -C 2 P a.rb is refused, exit 2"
+grep -q -- '--grep took "-C" as its pattern; put the pattern right after --grep: mrw read --grep PATTERN -C' <<<"$out" && ok "and names -C and the corrected order" || bad "--grep -C: $out"
+out=$(cd "$R" && "$MRW" read --grep -foo a.rb 2>&1); want 1 $? "a dash pattern that is no flag is still searched, exit 1"
+printf '# run with -C 2\n' >> "$R/a.rb"
+out=$(cd "$R" && "$MRW" read --grep="(?:-C)" a.rb 2>&1); want 0 $? "the literal form the refusal names, --grep=\"(?:-C)\", searches for -C, exit 0"
+grep -q 'run with -C 2' <<<"$out" && ok "and serves the line holding -C" || bad "the literal form found nothing: $out"
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
 # killed process is a zombie until its adopter reaps it, and pgrep lists
