@@ -8,7 +8,7 @@
 **Spec:** None — no spec stage
 **Cross-references:** ADR-002, ADR-005, ADR-034, ADR-038, ADR-118, ADR-133, ADR-150, ADR-161, ADR-169, docs/agents.md, README.md, AGENTS.md
 **Governs:** `cmd/mrw/main.go`, `internal/seen/seen.go`, `internal/mcp/ack.go`, `docs/agents.md`, `scripts/contract.sh`
-**Enforced-by:** None — until T1 lands, which adds `internal/seen/forget175_test.go::TestForgetDropsEveryLicenceInTheCheckout`
+**Enforced-by:** `internal/seen/forget175_test.go::TestForgetDropsEveryLicenceInTheCheckout`
 **Invalidates:** None — opt-in; the ledger, its format and every licence rule are unchanged until something calls the new flag.
 **Served-path change:** `mrw seen --forget` empties this checkout's read ledger and says how many files it held; after it, a write needs a fresh read of the lines it touches. Nothing calls it unless a person or a host hook does.
 

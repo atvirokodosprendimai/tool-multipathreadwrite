@@ -182,8 +182,9 @@ func rootCommand() *cli.Command {
 			// A newer mrw's ledger is not stale: it is left alone, and the caller
 			// is told which binary wrote it (ADR-150).
 			if writer, newer, err := seen.Newer(cmd.String("root")); err == nil && newer {
-				// A write says it once, in a refusal or after its landing (ADR-157).
-				if verb != "write" {
+				// A write says it once, in a refusal or after its landing (ADR-157);
+				// so does `seen --forget`, whose refusal carries the notice (ADR-175).
+				if verb != "write" && (verb != "seen" || !slices.Contains(cmd.Args().Slice(), "--forget")) {
 					fmt.Fprintln(os.Stderr, seen.NewerNotice(writer))
 				}
 			} else if stale, err := seen.IsStale(cmd.String("root")); err == nil && stale {

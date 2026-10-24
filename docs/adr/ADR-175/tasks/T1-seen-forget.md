@@ -8,7 +8,7 @@
 **Consumes:** none
 **Data dependency:** hermetic
 **Proof map:** v1
-**Rests-on:** `the forget tests run`, `the forget unit test passed`, `the forget binary test passed`, `the pending test passed`, `the contract run`, `section 300 exists`, `the forget row passes`, `gofmt`, `the engine packages it does not own`, `no untracked file in them`
+**Rests-on:** `the forget tests run`, `the forget unit test passed`, `the forget binary test passed`, `the newer-ledger notice is said once`, `the pending test passed`, `the contract run`, `section 300 exists`, `the forget row passes`, `gofmt`, `the engine packages it does not own`, `no untracked file in them`
 
 ## Goal
 
@@ -37,10 +37,11 @@ Decision 1: `mrw seen --forget` removes every observation in this checkout's led
 
 ```bash
 set -o pipefail
-out=$(go test ./internal/seen/ ./internal/mcp/ ./cmd/mrw/ -count=1 -v -run '^(TestForgetDropsEveryLicenceInTheCheckout|TestForgetDropsPendingAcknowledgements|TestSeenForgetMakesTheNextWriteNeedAFreshRead)$' 2>&1) \
+out=$(go test ./internal/seen/ ./internal/mcp/ ./cmd/mrw/ -count=1 -v -run '^(TestForgetDropsEveryLicenceInTheCheckout|TestForgetDropsPendingAcknowledgements|TestSeenForgetMakesTheNextWriteNeedAFreshRead|TestSeenForgetOverANewerLedgerSaysSoOnce)$' 2>&1) \
   && grep -qE '^--- PASS: TestForgetDropsEveryLicenceInTheCheckout \(' <<<"$out" \
   && grep -qE '^--- PASS: TestSeenForgetMakesTheNextWriteNeedAFreshRead \(' <<<"$out" \
   && grep -qE '^--- PASS: TestForgetDropsPendingAcknowledgements \(' <<<"$out" \
+  && grep -qE '^--- PASS: TestSeenForgetOverANewerLedgerSaysSoOnce \(' <<<"$out" \
   && c=$(./scripts/contract.sh 2>&1) \
   && grep -q '^# 300\.' scripts/contract.sh \
   && grep -qF 'PASS  after mrw seen --forget a write needs a fresh read' <<<"$c" \
@@ -55,6 +56,7 @@ out=$(go test ./internal/seen/ ./internal/mcp/ ./cmd/mrw/ -count=1 -v -run '^(Te
 |-----------|------|----------|--------|-------|
 | `TestForgetDropsEveryLicenceInTheCheckout` | `internal/seen/forget175_test.go` | read and written observations gone, header kept, count, newer ledger untouched | none | S1, S2, S3 |
 | `TestSeenForgetMakesTheNextWriteNeedAFreshRead` | `cmd/mrw/forget175_test.go` | the flag through the binary; the refusal; the fresh read; the usage errors | none | S1, S2 |
+| `TestSeenForgetOverANewerLedgerSaysSoOnce` | `cmd/mrw/forget175_test.go` | over a newer mrw's ledger the refusal says so once (review of #527) | none | S2 |
 | `TestForgetDropsPendingAcknowledgements` | `internal/mcp/forget175_test.go` | a pending checkpoint served before `--forget` licenses nothing after it | none | S1, S2 |
 
 ## Reachability
@@ -70,6 +72,19 @@ out=$(go test ./internal/seen/ ./internal/mcp/ ./cmd/mrw/ -count=1 -v -run '^(Te
 - 2026-10-24 · 8278fcda* · mutant killed · exit 1 · `internal/seen/seen.go` · S2: Forget keeps observations whose Written is set · acceptance-sha256:a2d95dc6c5227e1716eafc060e22b47cc1a77d4a5117d9f6b566513870330753
 - 2026-10-24 · 8278fcda* · mutant killed · exit 1 · `internal/seen/seen.go` · S3: the ADR-150 newer-ledger guard dropped · acceptance-sha256:a2d95dc6c5227e1716eafc060e22b47cc1a77d4a5117d9f6b566513870330753
 - 2026-10-24 · 8278fcda* · mutant killed · exit 1 · `internal/mcp/ack.go` · S2: ForgetPending leaves the pending store intact · acceptance-sha256:a2d95dc6c5227e1716eafc060e22b47cc1a77d4a5117d9f6b566513870330753
+- 2026-10-24 · 2199256e* · mutant survived · exit 0 · `cmd/mrw/main.go` · seen --forget over a newer ledger repeats the notice · acceptance-sha256:a2d95dc6c5227e1716eafc060e22b47cc1a77d4a5117d9f6b566513870330753
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
+- 2026-10-24 · 2199256e* · mutant survived · exit 0 · `cmd/mrw/main.go` · seen --forget over a newer ledger repeats the notice · acceptance-sha256:a2d95dc6c5227e1716eafc060e22b47cc1a77d4a5117d9f6b566513870330753
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
+- 2026-10-24 · 2199256e* · mutant survived · exit 0 · `cmd/mrw/main.go` · seen --forget over a newer ledger repeats the notice · acceptance-sha256:a2d95dc6c5227e1716eafc060e22b47cc1a77d4a5117d9f6b566513870330753
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
+- 2026-10-24 · 2199256e* · mutant killed · exit 1 · `cmd/mrw/main.go` · seen --forget over a newer ledger repeats the notice · acceptance-sha256:f0e896bd791e609b7755ec9ad3f0f8f40c83142042efa752c3668ff23050c2bc
 
 ## Invariants
 
@@ -102,3 +117,9 @@ The fence exits 0.
 - 2026-10-24 · 8278fcda* · exit 0 · `set -o pipefail …` · acceptance-sha256:a2d95dc6c5227e1716eafc060e22b47cc1a77d4a5117d9f6b566513870330753 · ms:102315
 - 2026-10-24 · 8278fcda* · exit 0 · `set -o pipefail …` · acceptance-sha256:a2d95dc6c5227e1716eafc060e22b47cc1a77d4a5117d9f6b566513870330753 · ms:93473
 - 2026-10-24 · 8278fcda* · exit 0 · `set -o pipefail …` · acceptance-sha256:a2d95dc6c5227e1716eafc060e22b47cc1a77d4a5117d9f6b566513870330753 · ms:94020
+- 2026-10-24 · 2199256e* · exit 0 · `set -o pipefail …` · acceptance-sha256:a2d95dc6c5227e1716eafc060e22b47cc1a77d4a5117d9f6b566513870330753 · ms:77173
+- 2026-10-24 · 2199256e* · exit 0 · `set -o pipefail …` · acceptance-sha256:a2d95dc6c5227e1716eafc060e22b47cc1a77d4a5117d9f6b566513870330753 · ms:77580
+- 2026-10-24 · 2199256e* · exit 0 · `set -o pipefail …` · acceptance-sha256:a2d95dc6c5227e1716eafc060e22b47cc1a77d4a5117d9f6b566513870330753 · ms:76891
+- 2026-10-24 · 2199256e* · exit 0 · `set -o pipefail …` · acceptance-sha256:f0e896bd791e609b7755ec9ad3f0f8f40c83142042efa752c3668ff23050c2bc · ms:80722
+- 2026-10-24 · 2199256e* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:f0e896bd791e609b7755ec9ad3f0f8f40c83142042efa752c3668ff23050c2bc · ms:0 · test-lock-sha256:c2a898aae8608c8c3d4bcb0d120db34db4c751133601f9ec2b07421687286362 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJY21kL21ydy9mb3JnZXQxNzVfdGVzdC5nbwlUZXN0U2VlbkZvcmdldE1ha2VzVGhlTmV4dFdyaXRlTmVlZEFGcmVzaFJlYWQJZTk3ZTY0YmE5NWM0MzUyNTIwNjc0ZTM3YjM2M2UwNTk3YzlkNTAzYjk0MTIyNDVmY2RlYTYzZmQ2ZjkxNTBjOApib2R5CWNtZC9tcncvZm9yZ2V0MTc1X3Rlc3QuZ28JVGVzdFNlZW5Gb3JnZXRPdmVyQU5ld2VyTGVkZ2VyU2F5c1NvT25jZQlkZTVmZDM4NjdmNzlhMjQwZWI1MmE1ZjU5YjExMDhlNDQ0MTk0N2Q3MWFjNzc0OWY1ZTZiMDIyZTNiNmNjMTY4CmJvZHkJaW50ZXJuYWwvbWNwL2ZvcmdldDE3NV90ZXN0LmdvCVRlc3RGb3JnZXREcm9wc1BlbmRpbmdBY2tub3dsZWRnZW1lbnRzCTZmNzZlN2UzNGE3OWY2M2U1NjViNWFlNTljNTYwZjQ5MmIzMWI0YmM3ZDVmZGRhMzYzZTZlMjY1OTM0MzNlNTcKYm9keQlpbnRlcm5hbC9zZWVuL2ZvcmdldDE3NV90ZXN0LmdvCVRlc3RGb3JnZXREcm9wc0V2ZXJ5TGljZW5jZUluVGhlQ2hlY2tvdXQJYWNlNWMwODUxYmZmODJjNzYxMjA1OTk0MDhhOTQwODE0NTRiNDY1OTgyMzMyM2YyY2QzM2RjZGE1YWFhM2NjZQ · test-lock-kind:replace
+- 2026-10-24 · 2199256e* · exit 0 · `set -o pipefail …` · acceptance-sha256:f0e896bd791e609b7755ec9ad3f0f8f40c83142042efa752c3668ff23050c2bc · ms:78903

@@ -55,3 +55,19 @@ func TestSeenForgetMakesTheNextWriteNeedAFreshRead(t *testing.T) {
 		}
 	}
 }
+
+// The review of #527: over a ledger a newer mrw wrote, `seen --forget` is
+// refused, exit 2, and says so once (ADR-150), not once from the root's notice
+// and again from its own refusal.
+func TestSeenForgetOverANewerLedgerSaysSoOnce(t *testing.T) {
+	root := newerRoot(t)
+	var out string
+	var code int
+	errOut := stderrOf(t, func() { out, code = runIn(t, root, "seen", "--forget") })
+	if code != 2 {
+		t.Fatalf("seen --forget over a newer ledger exited %d, want 2: %s%s", code, out, errOut)
+	}
+	if n := strings.Count(out+errOut, "written by a newer mrw"); n != 1 {
+		t.Errorf("the newer-ledger notice appears %d times, want once:\n%s%s", n, out, errOut)
+	}
+}
