@@ -559,6 +559,24 @@ func savePending(root string, store map[string]pending) error {
 	return state.WriteSynced(p, b, 0o644)
 }
 
+// ForgetPending empties this root's store of served-but-unacknowledged spans
+// (ADR-175). A later ack promotes such a span into the ledger when the file's
+// sha still matches, with no observation needed first, so leaving the store
+// would let a serve from before a compaction license a write after it. Taken
+// under the store's own lock, before any ledger lock, as everything here is.
+func ForgetPending(root string) error {
+	release, err := state.Hold(root, pendingLock)
+	if err != nil {
+		return err
+	}
+	defer release()
+	store, err := loadPending(root)
+	if err != nil || len(store) == 0 {
+		return err
+	}
+	return savePending(root, map[string]pending{})
+}
+
 // currentSHA is the digest of the file as it stands, in the same form the
 // ledger records, so promotion can tell a live acknowledgement from a stale one.
 // The file is streamed into the hash, never held whole (ADR-107): a file grown

@@ -722,6 +722,11 @@ whose marker is missing, unreadable or not an absolute path — mrw did not writ
 those, so it does not know what they are — nor the entry for the root you are
 running in. --prune --dry-run prints the same list and removes nothing.
 
+--forget empties the read ledger of this checkout, read and written files alike, so
+that a write needs a fresh read of the lines it touches. A host hook runs it after
+it compacts its context (docs/agents.md); it costs every session in the checkout a
+re-read, and it is refused, exit 2, over a ledger a newer mrw wrote.
+
 There is no automatic reaper and there will not be one: a path that is gone may
 be a deleted checkout or a volume that is not mounted, and only you can tell.`,
 		Flags: []cli.Flag{
@@ -733,9 +738,19 @@ be a deleted checkout or a volume that is not mounted, and only you can tell.`,
 				Name:  "dry-run",
 				Usage: "with --prune: print what would be removed, and remove nothing",
 			},
+			&cli.BoolFlag{
+				Name:  "forget",
+				Usage: "empty this checkout's read ledger: every later write needs a fresh read",
+			},
 		},
 		Action: func(_ context.Context, cmd *cli.Command) error {
 			root := cmd.Root().String("root")
+			if cmd.Bool("forget") {
+				if cmd.Bool("prune") || cmd.Bool("dry-run") {
+					return cli.Exit("mrw seen: --forget empties the ledger and takes neither --prune nor --dry-run", exitUsage)
+				}
+				return forget(root)
+			}
 			if cmd.Bool("prune") {
 				return prune(root, cmd.Bool("dry-run"))
 			}
@@ -2896,6 +2911,24 @@ func prune(root string, dry bool) error {
 		return cli.Exit(fmt.Sprintf("mrw seen --prune: %d director%s could not be removed",
 			failed, plural(failed, "y", "ies")), exitUsage)
 	}
+	return nil
+}
+
+// forget is `mrw seen --forget` (ADR-175): the pending MCP acknowledgements go
+// first, since an ack would otherwise promote one into the ledger just emptied.
+func forget(root string) error {
+	if err := mcp.ForgetPending(root); err != nil {
+		return exitWith(err)
+	}
+	n, err := seen.Forget(root)
+	if err != nil {
+		return exitWith(err)
+	}
+	if n == 0 {
+		fmt.Println("forgot 0 file(s)")
+		return nil
+	}
+	fmt.Printf("forgot %d file(s): a write now needs a fresh read of the lines it touches\n", n)
 	return nil
 }
 

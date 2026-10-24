@@ -159,3 +159,46 @@ agent off the host's Edit and Write tools and onto mrw, so the agent is told the
 rules' absence is not permission. Contain an agent that uses mrw with the host's sandbox or the operating
 system's permissions, or allow mrw only where you would allow every write (ADR-168 Decision 6). This says
 what mrw does when it runs; how each host evaluates a rule for a shell command is the host's to document.
+
+## 8. After a compaction, make the ledger forget
+
+When a host compacts its context, the model keeps a summary, not the lines it was served, and the read ledger
+still licenses them: a write to a line read before the compaction is allowed although the model no longer holds
+it (measured once: 2 such writes in a 100K-window run, none broke a test). mrw cannot see a compaction; the
+host can. `mrw seen --forget` empties the ledger of the checkout, read and written files alike, and
+prints `forgot N file(s)`; after it a write needs a fresh read of the lines it touches (ADR-175).
+
+For Claude Code, run it when a session starts after a compaction or a clear. The hook reads the checkout
+from its input's `cwd`, because `CLAUDE_PROJECT_DIR` stays on the project the session started in after a
+move into a git worktree. It needs `jq`. In `.claude/settings.json` (or the user's):
+
+<!-- ADR-175 hook -->
+```json
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "compact|clear",
+        "hooks": [
+          { "type": "command", "command": "mrw --root \"$(jq -r .cwd)\" seen --forget" }
+        ]
+      }
+    ]
+  }
+}
+```
+
+What it costs and what it does not reach:
+
+- **Every session in the checkout re-reads.** The ledger has no sessions, so a sibling session loses its licences
+  too. That is a refusal, never a wrong write, and it is why nothing runs `--forget` on its own.
+- **It clears what is persisted, not a command in flight.** A sibling's read or write that is already running may
+  record after it.
+- **The re-read must show the lines.** After a forget, `mrw read` the lines (not --if-changed, which answers an
+  unchanged file in one line and records nothing; not --quiet, which licenses lines without printing them).
+  Neither puts the lines back in front of the model.
+- **Plan makers need no re-read.** `mrw write --grep … --sub` and `--ast-grep … --rewrite` (and their MCP forms)
+  compute each edit from the file's current bytes and license exactly those lines.
+
+mrw ships no hook and installs none: the host's configuration is the user's. Other hosts need their own
+equivalent (`docs/adr/BACKLOG.md` keeps the Codex and Cursor ones).

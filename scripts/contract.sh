@@ -10238,6 +10238,32 @@ out=$(m write --no-check "$WORK/q297.plan" 2>&1); want 2 $? "the pair: a count s
 [ "$(cat "$R/f297.txt")" = "$before297" ] && ok "and writes nothing" || bad "changed: $(cat "$R/f297.txt")"
 rm -f "$R/f297.txt" "$WORK/p297.plan" "$WORK/q297.plan"
 
+# 300. ADR-175: `mrw seen --forget` empties the checkout's read ledger, for a host
+# hook that runs it after compacting its context, so that a write needs a fresh
+# read of the lines it touches. The pairs: the same plan a read licensed is
+# refused after it and applies after a fresh read; an empty ledger is forgot 0;
+# --forget beside --prune or --dry-run is a usage error, exit 2, and forgets
+# nothing.
+R=$(mktemp -d "$WORK/r300-XXXXXX"); printf 'one\ntwo\nthree\n' > "$R/f.txt"
+(cd "$R" && "$MRW" read f.txt > "$R/.out" 2>&1)
+f300=$(cd "$R" && "$MRW" seen --forget 2>&1); rc300=$?
+want 0 "$rc300" "mrw seen --forget exits 0"
+[ "$f300" = "forgot 1 file(s): a write now needs a fresh read of the lines it touches" ] \
+  && ok "mrw seen --forget says how many files the ledger held" || bad "forget: $f300"
+w300=$(printf '@@ f.txt 2 replace\nTWO\n' | (cd "$R" && "$MRW" write --no-check - 2>&1)); rc300=$?
+want 1 "$rc300" "a write to a line read before --forget is refused, exit 1"
+{ grep -qF 'f.txt has not been read' <<<"$w300" && [ "$(cat "$R/f.txt")" = "$(printf 'one\ntwo\nthree')" ]; } \
+  && ok "after mrw seen --forget a write needs a fresh read" || bad "refusal: $w300"
+(cd "$R" && "$MRW" read f.txt > "$R/.out" 2>&1)
+printf '@@ f.txt 2 replace\nTWO\n' | (cd "$R" && "$MRW" write --no-check - >/dev/null 2>&1); want 0 $? "the pair: a fresh read licenses the same write again"
+{ printf 'one\nTWO\nthree\n' | cmp -s - "$R/f.txt"; } && ok "and the write landed" || bad "the fresh-read write did not land: $(cat "$R/f.txt")"
+(cd "$R" && "$MRW" seen --forget > "$R/.out" 2>&1; "$MRW" seen --forget 2>&1) | grep -qx 'forgot 0 file(s)' \
+  && ok "the pair: an empty ledger is forgot 0 file(s)" || bad "empty ledger: $(cat "$R/.out")"
+(cd "$R" && "$MRW" read f.txt > "$R/.out" 2>&1)
+(cd "$R" && "$MRW" seen --forget --prune >/dev/null 2>&1); want 2 $? "the pair: --forget beside --prune exits 2"
+(cd "$R" && "$MRW" seen --forget --dry-run >/dev/null 2>&1); want 2 $? "the pair: --forget beside --dry-run exits 2"
+printf '@@ f.txt 2 replace\nTWO\n' | (cd "$R" && "$MRW" write --no-check - >/dev/null 2>&1); want 0 $? "and the refused usage forgot nothing: the read still licenses the write"
+
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
 # killed process is a zombie until its adopter reaps it, and pgrep lists

@@ -672,6 +672,31 @@ func Drop(root string, paths []string) error {
 	})
 }
 
+// Forget empties the checkout's ledger and returns how many files it held
+// (ADR-175). It exists for a host that compacted its context: the model keeps
+// a summary, not the lines it was served, and the ledger would still license a
+// write to them. Read and written observations go alike; the header stays, so
+// the format is unchanged (ADR-150). It clears what the ledger holds when it
+// takes the lock, not a command already in flight (ADR-175 Decision 2).
+func Forget(root string) (int, error) {
+	n := 0
+	err := withLock(root, func() error {
+		// ADR-150: a newer mrw's ledger is never written over, and unlike a
+		// read or a drop this call was asked to change it, so it says so.
+		if writer, newer, err := Newer(root); err == nil && newer {
+			return errors.New(NewerNotice(writer))
+		}
+		top, _ := state.Checkout(root)
+		l, err := loadAll(top)
+		if err != nil {
+			return ledgerNotRead(err)
+		}
+		n = len(l)
+		return save(top, Ledger{})
+	})
+	return n, err
+}
+
 func Record(root string, obs map[string]Observation) error {
 	if len(obs) == 0 {
 		return nil
