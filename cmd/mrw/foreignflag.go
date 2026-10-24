@@ -1,6 +1,12 @@
 package main
 
-import "strings"
+import (
+	"fmt"
+	"slices"
+	"strings"
+
+	"github.com/urfave/cli/v3"
+)
 
 // foreignFlags maps a flag a caller types on `mrw read` — one grep, ripgrep or
 // ack has and read does not — to what mrw spells instead (ADR-140). Every
@@ -74,4 +80,24 @@ func patternFlagHint(pattern string) string {
 		return ""
 	}
 	return foreignFlags[pattern[1:]]
+}
+
+// readFlagPatternRefusal is the refusal for a --grep value that is exactly the
+// spelling of a flag the command defines: `mrw read --grep -C 2 PATTERN f` takes
+// -C as the pattern and PATTERN as a path. "" when the pattern is no such
+// spelling. --grep=-C reaches the same value, so both are refused; a pattern
+// that merely starts with a dash is untouched.
+func readFlagPatternRefusal(flags []cli.Flag, pattern string) string {
+	name, ok := strings.CutPrefix(pattern, "-")
+	if !ok {
+		return ""
+	}
+	long := strings.HasPrefix(name, "-")
+	name = strings.TrimPrefix(name, "-")
+	for _, f := range flags {
+		if slices.Contains(f.Names(), name) && long == (len(name) > 1) {
+			return fmt.Sprintf("--grep took %q as its pattern; put the pattern right after --grep: mrw read --grep PATTERN %s … (to search for the literal, write --grep='(?:%s)')", pattern, pattern, pattern)
+		}
+	}
+	return ""
 }

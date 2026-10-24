@@ -971,6 +971,11 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			excludes := cmd.StringSlice("exclude")
 			filesFrom := cmd.String("files-from")
 			posArgs := cmd.Args().Slice()
+			if grepSet {
+				if msg := readFlagPatternRefusal(cmd.Flags, pattern); msg != "" {
+					return cli.Exit(msg, exitUsage)
+				}
+			}
 
 			// An empty value is accepted or refused explicitly rather than
 			// silently meaning "not given". An empty PATTERN matches every
