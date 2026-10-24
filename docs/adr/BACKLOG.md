@@ -727,3 +727,7 @@ new capability.
   3). `rooted.Resolve` validates a path and returns it; read, stage, commit and path ops reopen it by name, so a
   link swapped in between can redirect them. Planned as ADR-106 (`~/.claude/plans/ok-create-a-plan-whimsical-newell.md`):
   the write path through an `os.Root` handed the resolved path, and a pre-commit identity recheck.
+
+## From ADR-171
+
+- **A one-line answer to a repeated `mrw instructions`** (2026-10-24): when the same state directory sees `mrw instructions` again, print one line instead of 12.9K characters. Deferred: it makes a read-only command depend on state, and ADR-171 Decision 2 removes the reason for the repeat (the header and the trigger say to read the rules once a session). Reopen if a re-measure after ADR-171 still shows repeated full reads.

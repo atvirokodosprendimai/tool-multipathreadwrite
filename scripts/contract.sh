@@ -10207,6 +10207,37 @@ out=$(cd "$R" && "$MRW" read --grep -foo a.rb 2>&1); want 1 $? "a dash pattern t
 printf '# run with -C 2\n' >> "$R/a.rb"
 out=$(cd "$R" && "$MRW" read --grep="(?:-C)" a.rb 2>&1); want 0 $? "the literal form the refusal names, --grep=\"(?:-C)\", searches for -C, exit 0"
 grep -q 'run with -C 2' <<<"$out" && ok "and serves the line holding -C" || bad "the literal form found nothing: $out"
+
+# 297. ADR-171: the guide stops teaching what costs a caller tokens. Core rule 4
+# says to omit body= unless the full text names the case, the header says when to
+# read the rules, recipe 5 sends the plan in a file, and `mrw write --help` opens
+# its body= lines with the count being optional. The pairs: a plan without body=
+# applies, one with a count short of its body is refused and writes nothing, and
+# a plan file holding an apostrophe and a dollar sign applies as written.
+fixture
+core297=$(m instructions --core 2>&1); want 0 $? "mrw instructions --core exits 0"
+{ grep -qF 'omit body= unless mrw instructions names your case' <<<"$core297" \
+  && ! grep -qF 'goes on the header' <<<"$core297" \
+  && grep -qF 'after a compaction only if lost' <<<"$core297" \
+  && [ "$(wc -w <<<"$core297")" -lt 300 ]; } && ok "the core says to omit body=, when to re-read, and stays under 300 words" || bad "core: $core297"
+full297=$(m instructions 2>&1)
+{ grep -qF 'mrw write "$TMPDIR/plan.txt"' <<<"$full297" \
+  && ! grep -qF '"$plan" | mrw write -' <<<"$full297" \
+  && grep -qF 'it cannot catch a hunk left out whole' <<<"$full297"; } && ok "the full text sends the plan in a file and names what a count cannot catch" || bad "full text: $full297"
+hlp297=$(m write --help 2>&1); want 0 $? "mrw write --help exits 0"
+grep -qF 'body= is optional for an ordinary body' <<<"$hlp297" && ok "and says body= is optional for an ordinary body" || bad "write help: $hlp297"
+printf 'a\nb\nc\nd\n' > "$R/f297.txt"
+out=$(m read --quiet f297.txt)
+printf '%s\n' '@@ f297.txt 2-3 replace anchor="b"' "it's \$HOME" 'two' 'three' '@@ f297.txt 4 replace' 'D' > "$WORK/p297.plan"
+out=$(m write --no-check "$WORK/p297.plan" 2>&1); want 0 $? "a plan file with no body= and an apostrophe and a dollar sign applies"
+[ "$(cat "$R/f297.txt")" = "$(printf 'a\nit'"'"'s $HOME\ntwo\nthree\nD')" ] && ok "and wrote its lines as given" || bad "wrote: $(cat "$R/f297.txt")"
+out=$(m read --quiet f297.txt)
+printf '%s\n' '@@ f297.txt 1-2 replace anchor="a" body=1' 'x' 'y' > "$WORK/q297.plan"
+before297=$(cat "$R/f297.txt")
+out=$(m write --no-check "$WORK/q297.plan" 2>&1); want 2 $? "the pair: a count short of its body is refused as a bad plan"
+[ "$(cat "$R/f297.txt")" = "$before297" ] && ok "and writes nothing" || bad "changed: $(cat "$R/f297.txt")"
+rm -f "$R/f297.txt" "$WORK/p297.plan" "$WORK/q297.plan"
+
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
 # killed process is a zombie until its adopter reaps it, and pgrep lists

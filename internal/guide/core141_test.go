@@ -15,14 +15,14 @@ var coreRules = []struct {
 	core []string
 	full []string
 }{
-	{1, []string{"every file read, edit and create", "one read of every site", "mrw write -"},
+	{1, []string{"every file read, edit and create", "one read of every site", "mrw write PLANFILE"},
 		[]string{"one read of every site", "mrw write - reads it from standard input"}},
 	{2, []string{"per line", "except in a file mrw just wrote", "read on past your range"},
 		[]string{"Read before you write, per line", "A file mrw just wrote is wholly known", "read on past the range"}},
 	{3, []string{"fails validation writes nothing", "--force", "reports what reached disk"},
 		[]string{"nothing is written", "reports what reached disk", "PARTIALLY APPLIED"}},
-	{4, []string{"anchor=", "body= is a line count"},
-		[]string{"A multi-line replace requires anchor=", "body= is a line count"}},
+	{4, []string{"anchor=", "omit body= unless mrw instructions names your case"},
+		[]string{"A multi-line replace requires anchor=", "body= is optional for an ordinary inline body"}},
 	{5, []string{"For a write: exit 0", "1 a hunk failed and nothing was written", "3 applied but the check did not pass", "A read exits 1", "through a pipe"},
 		[]string{"A write exits 1 when a hunk fails validation", "Exit 3 means the write applied and the check did not pass", "Never read an exit code through a pipe"}},
 	{6, []string{"(?i)", "--stat lists", "--max-cols", "unread", "--no-numbers"},
@@ -41,7 +41,7 @@ func TestTheCoreIsEightShortRulesTheFullContractStillCarries(t *testing.T) {
 	if n := len(strings.Fields(core)); n > 300 {
 		t.Errorf("the core is %d words, want at most 300", n)
 	}
-	if !strings.HasPrefix(core, "The eight rules that matter most (mrw instructions prints the whole contract)") {
+	if !strings.HasPrefix(core, "The eight rules that matter most; read them once a session, and after a compaction only if lost:") {
 		t.Errorf("the core's first line does not name the full form:\n%s", core)
 	}
 	num := regexp.MustCompile(`(?m)^([0-9]+)\. `).FindAllStringSubmatch(core, -1)
