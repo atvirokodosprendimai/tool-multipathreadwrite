@@ -49,8 +49,8 @@ func Recipes() string {
   mrw write --ast-grep 'foo($A, $B)' --rewrite 'bar($B, $A)' .
 4. look before you change, only at what you will use (count first, then read the matches you need):
   mrw read --grep P --count . && mrw read 'f.go:/P/' -C 3 --max-lines 40
-5. different changes at several sites: one read of all of them, then one plan on standard input:
-  mrw read 'a.go:/func A/,+12' b.go:40-60 && printf '%s\n' "$plan" | mrw write -
+5. different changes at several sites: one read of all of them, then the plan in a file — written with the host's file tool, in a temporary directory you may write — so no shell parser sees its text:
+  mrw read 'a.go:/func A/,+12' b.go:40-60 && mrw write "$TMPDIR/plan.txt"
 6. a step after the write, in the same call (NAME is a step in .quality-harness.json; a code write already runs the project's check; ` + ThenShCaveat() + `):
   mrw write - --then NAME
 7. license lines you already know, without them in your context (a read into /dev/null licenses nothing; a file mrw just wrote needs no re-read):
@@ -89,8 +89,8 @@ A write exits 1 when a hunk fails validation, or is refused during staging, befo
 MSYS rewrites a spec whose file part holds a / before mrw starts. Export MSYS_NO_PATHCONV=1 or MSYS2_ARG_CONV_EXCL='*', or use PowerShell or WSL.
 A shell glob and an address suffix do not mix.
 A value with spaces can be double-quoted (anchor="func openTestStore"), single-quoted (anchor='func openTestStore'), or — for anchor= only — left unquoted until the next key=. An unquoted anchor= that contains a double quote is refused; write it as anchor="…".
-body= is a line count, not a character count. Python str splits characters; do not use len(body) as body=.
-body= goes ON the header, never on a line of its own: @@ a.go 12-14 replace anchor="func A" body=3, then exactly 3 body lines.
+body= is optional for an ordinary inline body, which runs to the next @@ header or the end of the plan. A count is needed in four cases: an empty create is body=0; a body holding a line that begins @@ needs body=N, and raw=true too when that line is a valid hunk header (below); a body whose first line begins body= needs its count. from= and body=@path take no inline count. Plans mrw compiles from foreign formats keep theirs.
+When you write a count it is a line count, not a character count (Python str splits characters; do not use len(body) as body=), and it goes ON the header, never on a line of its own: @@ a.go 12-14 replace anchor="func A" body=3, then exactly 3 body lines. A count catches a body shorter than declared, lost in a channel or in the authoring; it cannot catch a hunk left out whole.
 body=@path loads the body from a root-relative file.
 A body line that is itself a valid hunk header (@@ b.txt 0 create) is not content: it starts a new hunk, silently. A body that holds one needs body=N and raw=true on its header: @@ a.md 0 create body=2 raw=true.
 from=PATH:ADDR is a body copied from lines of a file as it was before the plan (ADDR is N, N-M, A,+N, $ or N-$): it is refused unless you were served them, --force or not, and the receipt names what it copied. With a delete of the same range it moves a block; both address the original.
@@ -101,6 +101,7 @@ Ops: replace, insert-after, insert-before, delete, create, unlink, rename.
 @@ path 0 create makes a new file; empty is body=0. A new file is not a reason to skip mrw.
 A multi-line replace requires anchor= taken from the served first line. sha= and lines= do not stand in for it.
 A file mrw just wrote is wholly known: it produced every line, so a chain of edits to it needs no re-read, until something else changes it.
+Read these rules once a session. After a compaction, re-read the lines you will edit (the ledger survives it and still licenses lines you no longer hold, but does not require the re-read); read the rules again only if they are gone from your context.
 Read every site in one call: mrw read a.go:40-60 'b.go:/func Start/,+12' c.go:$
 A spec is a bare path (the whole file) or PATH:RANGE[,RANGE...]. A RANGE is N, N-M, N- (to the end), -M (from the start), A,+N (A plus the N lines after it), $ (the last line), /regexp/ (every matching line; -C N, or --context N, adds lines either side), /from/,/to/ (to the first match of to at or after from) or, in a JSON file, a path such as $.a.b, $.a[0] or $["k"] (the lines of that one value). A ranged read also serves, and licenses, the line after each range that ends before the file does (ADR-161), so mrw read f.txt:2 prints lines 2 and 3 and a replace of line 2 is not refused for want of the line after it. Quote a spec that contains a space.
 A write plan takes N, N-M, N-, $, A,+N, /regexp/ and /from/,/to/, but not -M or a comma list, nor a JSON path; its start pattern must match exactly once, or occurrence=N names the Nth match once every match before it has been read, and it refuses a relative end past the last line where a read clamps.
@@ -112,6 +113,7 @@ To find files you cannot name: --grep PATTERN walks the paths given, or the root
 A content read naming its specs whose state directory cannot be written (a read-only sandbox) still prints its answer and exits as it would, with mrw: nothing was recorded on standard error (just above the kind line when it exits 1); --quiet, --sub, --rewrite and a read that needs the working set still exit 2. No new licence is recorded, so a write to those lines exits 2 naming the state directory while it stays unwritable, and once it can be written is refused as unread unless an earlier read licensed them. Set XDG_STATE_HOME to a writable absolute directory outside the checkout for the whole session, so every read and write uses one ledger.
 A pattern is a Go regular expression: start it with (?i) to ignore case.
 mrw write PLAN reads a plan from a file and mrw write - reads it from standard input. mrw read - serves standard input as one unnamed file, with addresses, --grep, -C, --max-lines and --max-cols, and licenses nothing; a file named - is ./-. A lone - may stand before flags: mrw moves it last, so they are read.
+Send a plan in a file, written with the host's file tool in a temporary directory you may write; where no such directory is writable a plan file inside the checkout is fine, removed after the write, and where the host has no file tool, mrw write - <<'PLAN' with a quoted delimiter stays the form. A file avoids shell quoting; it does not make the plan complete.
 mrw instructions --core prints the eight rules that matter most.
 mrw skill prints the core and the recipes as an Agent Skills SKILL.md, and mrw skill --dir DIR installs it as DIR/mrw/SKILL.md.
 `
@@ -122,11 +124,11 @@ mrw skill prints the core and the recipes as an Agent Skills SKILL.md, and mrw s
 // choice of rules is the work, and a test holds each to the full text and every
 // flag it names to the binary.
 func Core() string {
-	return `The eight rules that matter most (mrw instructions prints the whole contract):
-1. Use mrw for every file read, edit and create: one read of every site, one plan, one write (mrw write PLAN, or mrw write - from standard input); the same change at many sites: mrw write --grep P --sub R.
+	return `The eight rules that matter most; read them once a session, and after a compaction only if lost:
+1. Use mrw for every file read, edit and create: one read of every site, one plan, one write (mrw write PLANFILE); the same change at many sites: mrw write --grep P --sub R.
 2. Read before you write, per line: a write to a line mrw has not served you is refused, except in a file mrw just wrote. After a multi-line body, read on past your range until the enclosing structure closes.
 3. A plan that fails validation writes nothing: read the refusal, which names the file, the plan line and the reason, and do not reach for --force. A commit that fails reports what reached disk.
-4. A multi-line replace needs anchor= copied from the line your read printed; body= is a line count and goes on the header.
+4. A multi-line replace needs anchor= copied from the line your read printed; omit body= unless mrw instructions names your case.
 5. For a write: exit 0 fine, 1 a hunk failed and nothing was written, 2 usage or filesystem, 3 applied but the check did not pass (it failed, timed out or was interrupted). A read exits 1 when a range cannot be served. Never read an exit code through a pipe: mrw write plan | head returns head's status.
 6. Find with mrw read --grep PATTERN [paths]; start the pattern with (?i) to ignore case; --stat lists the matching files; --max-cols N cuts a long line to a window, and a line it cut is unread; --no-numbers drops the numbers.
 7. A new file is mrw write --create PATH < content, or @@ path 0 create in a plan.
