@@ -115,13 +115,17 @@ command -v jq >/dev/null 2>&1 || { echo "contract.sh needs jq on PATH (the --jso
 MRW=${MRW:-$WORK/mrw}
 go build -o "$MRW" ./cmd/mrw
 fails=0
+checks=0   # assertions run: ok() and bad() count, skip() never does. The total is
+           # printed at the end because the README used to quote it by hand and
+           # drifted from the rows it described — a count that cannot drift is
+           # the point of this file.
 
-ok()   { printf '  PASS  %s\n' "$1"; }
+ok()   { checks=$((checks + 1)); printf '  PASS  %s\n' "$1"; }
 # A skip is honest; a silent pass is not. Used where the trigger is a
 # permission bit, which uid 0 ignores — under root the row would go green
 # without exercising anything, which is the defect class this file exists for.
 skip() { printf '  SKIP  %s\n' "$1"; }
-bad()  { printf '  FAIL  %s\n' "$1"; fails=$((fails + 1)); }
+bad()  { checks=$((checks + 1)); printf '  FAIL  %s\n' "$1"; fails=$((fails + 1)); }
 # want <expected-exit> <actual-exit> <description>
 want() { [ "$1" = "$2" ] && ok "$3" || bad "$3 (exit $2, want $1)"; }
 # bounded SECS OUT CMD... runs CMD with its stdout and stderr in OUT and waits
@@ -10251,8 +10255,8 @@ done
   || bad "survivors in the run's group after 3 s (pgrep exit $prc): $left$(ps -o pid,ppid,etime,comm -p "$(echo $left | tr ' ' ',')" 2>/dev/null | tail -n +2 | tr '\n' ';')"
 
 if [ "$fails" -eq 0 ]; then
-  echo "contract holds"
+  echo "contract holds: $checks assertions"
 else
-  echo "$fails assertion(s) FAILED"
+  echo "$checks assertions, $fails FAILED"
 fi
 exit $(( fails > 0 ))
