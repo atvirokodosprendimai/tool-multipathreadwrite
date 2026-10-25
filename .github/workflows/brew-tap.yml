@@ -1,0 +1,118 @@
+name: brew-tap
+
+# ADR-172: render the Homebrew formula from the release manifest and push it
+# to the org tap, so `brew install atvirokodosprendimai/tap/mrw` (and
+# `brew upgrade`) always serve the released archives. Runs only after a
+# strict version tag's ci run succeeds AND the Release has assets — the tap
+# is a downstream of the Release, not a gate on it; a failed push must not
+# un-publish a tagged release.
+#
+# The generator is vendored from the skills repo at run time (ADR-172: one
+# copy of the convention; this repo keeps no renderer to drift). The formula
+# is generated, never hand-edited: its shas come from SHA256SUMS.txt, the
+# manifest a curl-based installer verifies against.
+
+on:
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  tap:
+    # workflow_run carries no ref context of the tag push that triggered ci,
+    # so the tag is re-derived from the run itself — the head_branch of a tag
+    # push IS the tag — and re-checked for strictness, because ci's own tag
+    # glob (`v*.*.*`) also matches pre-releases like v1.2.3-rc1.
+    if: >-
+      github.event.workflow_run.conclusion == 'success'
+      && startsWith(github.event.workflow_run.head_branch, 'v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve and verify the tag this run published
+        id: tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          set -euo pipefail
+          tag="$(gh api "repos/${{ github.repository }}/actions/runs/${RUN_ID}" --jq '.head_branch')"
+          # A regex, not a glob: v[0-9].* would reject a two-digit major (v10.0.0).
+          if ! printf '%s' "$tag" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "not a strict vX.Y.Z tag: $tag — skipping"
+            exit 0
+          fi
+          # Only a published Release with assets proceeds; ci's `release` job
+          # owns the publish, so its success is the precondition.
+          assets="$(gh api "repos/${{ github.repository }}/releases/tags/$tag" --jq '[.assets[].name] | length')"
+          [ "$assets" -gt 0 ] || { echo "no assets on $tag yet — skipping"; exit 0; }
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - uses: denoland/setup-deno@v2
+        if: steps.tag.outputs.tag
+        with:
+          deno-version: v2.x
+
+      - name: Vendor the generator and render the formula
+        if: steps.tag.outputs.tag
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl -fsSL -o gen-brew-formula.ts \
+            "https://raw.githubusercontent.com/atvirokodosprendimai/skills/main/tools/gen-brew-formula.ts"
+          deno run -A gen-brew-formula.ts \
+            "${{ github.repository }}" "$TAG" mrw \
+            "Multi-path read and write: batch reads and batched, all-or-nothing edits" \
+            > formula.rb
+          # The formula is the release attestation: its shas must be the
+          # manifest's, so a half-published release cannot reach the tap.
+          curl -fsSL -o sums.txt \
+            "https://github.com/${{ github.repository }}/releases/download/${TAG}/SHA256SUMS.txt"
+          deno eval '
+            const f = await Deno.readTextFile("formula.rb");
+            const m = await Deno.readTextFile("sums.txt");
+            const got = [...f.matchAll(/sha256 "([0-9a-f]{64})"/g)].map((x) => x[1]).sort();
+            const want = [...m.matchAll(/^([0-9a-f]{64})\s+\*?mrw_(?:darwin|linux)_(?:amd64|arm64)\.tar\.gz$/gm)].map((x) => x[1]).sort();
+            if (got.length !== 4 || want.length !== 4 || got.join() !== want.join())
+              throw new Error("formula shas diverge from SHA256SUMS.txt");
+            console.log("formula shas match the release manifest");
+          '
+          echo '=== rendered ==='
+          cat formula.rb
+
+      - name: Push the formula to the org tap
+        if: steps.tag.outputs.tag
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+          PUSH_TOKEN: ${{ secrets.PUSH_TOKEN }}
+        run: |
+          set -euo pipefail
+          git clone --depth 1 "https://x-access-token:${PUSH_TOKEN}@github.com/atvirokodosprendimai/homebrew-tap.git" tap
+          cd tap
+          cp ../formula.rb Formula/mrw.rb
+          git add Formula/mrw.rb
+          git -c user.name="mrw-release-bot" -c user.email="actions@users.noreply.github.com" \
+            commit -m "mrw ${TAG}: regenerate formula from SHA256SUMS.txt"
+          git push origin HEAD:main
+
+      - name: Verify the tap now serves this release
+        if: steps.tag.outputs.tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          set -euo pipefail
+          served="$(gh api repos/atvirokodosprendimai/homebrew-tap/contents/Formula/mrw.rb --jq '.content' | base64 -d)"
+          # The check is the release itself, not "a commit exists": the
+          # bootstrap formula (tap PR #3) already touches this path, so only
+          # the version string proves THIS run's push landed.
+          echo "$served" | grep -q "version \"${TAG#v}\"" || {
+            echo "tap Formula/mrw.rb does not serve ${TAG}"
+            exit 1
+          }
+          echo "tap serves mrw ${TAG}"
