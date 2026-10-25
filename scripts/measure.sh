@@ -19,10 +19,10 @@
 #   * mrw path: the ACTUAL bytes mrw prints, headers and line numbers included.
 #     Nothing is excluded to flatter it.
 #
-# What is NOT measured, and must not be claimed: output tokens. The agent emits
-# an edit plan for mrw, and old_string/new_string pairs for Edit. Those are the
-# same order of magnitude, so this is an INPUT-side and round-trip result, not
-# a total-cost one.
+# What is NOT measured, and must not be claimed: output tokens. That an edit plan
+# and its old_string/new_string pairs cost about the same to emit is an assumption,
+# not a finding, so this is an INPUT-side and round-trip result, not a total-cost
+# one.
 #
 # SEVEN shapes are measured, and the ones where mrw LOSES are in on purpose:
 # a benchmark that shows only the favourable shape is marketing. Shapes A, B and
