@@ -46,6 +46,7 @@ set -o pipefail
   && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal cmd/mrw \
   && [ "$(grep -cE '^require|^[[:space:]]' go.mod)" = "1" ]
 ```
+2026-10-25 · ADR-176: Renovate now bumps the pin this fence greps — a `renovate.json` regex custom manager extracts this grep's version shape into the same PR as `package.json`; the literal must keep naming the current pin.
 
 ## Tests
 

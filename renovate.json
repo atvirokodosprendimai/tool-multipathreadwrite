@@ -1,3 +1,18 @@
 {
-  "$schema": "https://docs.renovatebot.com/renovate-schema.json"
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^docs[/]adr[/]ADR-147/"],
+      "matchStrings": [
+        "`knip@(?<currentValue>\\d+\\.\\d+\\.\\d+)",
+        "--save-exact knip@(?<currentValue>\\d+\\.\\d+\\.\\d+)",
+        "`knip` \\((?<currentValue>\\d+\\.\\d+\\.\\d+)\\)",
+        "`knip` (?<currentValue>\\d+\\.\\d+\\.\\d+), exact",
+        "grep -q '\"knip\": \"(?<currentValue>\\d+\\.\\d+\\.\\d+)\"'"
+      ],
+      "datasourceTemplate": "npm",
+      "depNameTemplate": "knip"
+    }
+  ]
 }
