@@ -28,3 +28,5 @@
 # exists to keep out of the tree.
 __pycache__/
 .DS_Store
+# Local Pi runtime state (agentsmemory extension writes here)
+.atl/
