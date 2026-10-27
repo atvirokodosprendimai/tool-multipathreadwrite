@@ -3069,6 +3069,15 @@ ctx=$(hook55 s5e mcp__mrw__mrw_write "{\"plan\":\"@@ 'docs/adr/x.md' 1 replace\\
 [ -z "$ctx" ] && ok "a single-quoted path is literal to mrw, names no file, and delivers nothing" || bad "single quotes were stripped, which mrw does not do: $ctx"
 ctx=$(hook55 s5f mcp__mrw__mrw_write '{"plan":"@@ docs/adr/x.md /^func (s *Store) Get/,/^}/ replace\nX\n"}' | ctx55)
 grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ok "a pattern address with spaces is one token, and the path before it delivers" || bad "a pattern address split the header: $ctx"
+# Issue #537 (review of #539): mrw drops EVERY leading mark of a header line, so
+# the hook must too. One mark, two marks, and the pair that must deliver
+# nothing: text before the marks is not a header for either of them.
+ctx=$(hook55 s5j mcp__mrw__mrw_write '{"plan":"﻿@@ docs/adr/x.md 1 replace\nX\n"}' | ctx55)
+grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ok "a plan with one leading mark delivers early for the file it names" || bad "one leading mark hid the header from the hook: $ctx"
+ctx=$(hook55 s5k mcp__mrw__mrw_write '{"plan":"﻿﻿@@ docs/adr/x.md 1 replace\nX\n"}' | ctx55)
+grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ok "and two leading marks deliver too, as mrw reads that header" || bad "two leading marks hid the header from the hook: $ctx"
+ctx=$(hook55 s5l mcp__mrw__mrw_write '{"plan":"x﻿﻿@@ docs/adr/x.md 1 replace\nX\n"}' | ctx55)
+! grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ok "the pair: marks after other text do not make a header" || bad "a mark inside a line made a header for the hook: $ctx"
 ctx=$(hook55 s5g mcp__mrw__mrw_write '{"plan":"@@ \"docs/adr/x.md 1 replace\nX\n@@ README.md 1 replace\nY\n"}' | ctx55)
 ! grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && grep -q 'INLINE RULE BODY 55' <<<"$ctx" && ok "an unterminated quote yields no path from that line, and the next header still delivers early" || bad "unterminated quote: $ctx"
 ctx=$(hook55 s5h mcp__mrw__mrw_write '{"plan":"@@ docs/adr/x.md 1 replace anchor=\"a\" anchor=\"b\"\nX\n"}' | ctx55)

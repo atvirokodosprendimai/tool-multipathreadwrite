@@ -43,7 +43,7 @@ reading, such as a subshell that changes directory, delivers nothing and is name
 3. [S3] Take served paths from every `==> path  NL  NB  sha …` header in the tool result as well as
    the named ones, the path read back from that suffix, so a grep delivers and any spaces survive.
    [proof: mutation]
-4. [S4] Tokenise plan headers as `mrw` does — `splitHeader` ported, a BOM stripped once per line —
+4. [S4] Tokenise plan headers as `mrw` does — `splitHeader` ported, every leading BOM stripped per line —
    and take the first field of every header-shaped line the tokeniser can split as a candidate,
    bodies included; do not mirror
    whether mrw accepts the plan (a refused plan delivers early, never silently). [proof: mutation]

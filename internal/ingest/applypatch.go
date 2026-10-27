@@ -28,6 +28,7 @@ const (
 // CompileApplyPatch turns a Codex apply_patch document into native plan text.
 // root is the checkout the paths are relative to. The function writes nothing.
 func CompileApplyPatch(root string, doc []byte) ([]byte, error) {
+	doc, _ = DropLeadingMarks(doc)
 	s := strings.ReplaceAll(string(doc), "\r\n", "\n")
 	s = strings.ReplaceAll(s, "\r", "\n")
 	if looksLikeGit(s) {

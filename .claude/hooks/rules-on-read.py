@@ -348,10 +348,11 @@ def plan_paths(plan):
     a header delivers early for a file the plan did not touch, and a plan mrw
     refuses delivers early for the files it names. The mirror this replaced
     could only add silence: everywhere it was stricter than mrw, a successful
-    write delivered nothing. A BOM is stripped once, as mrw strips it."""
+    write delivered nothing. Every leading BOM is stripped, as mrw strips them
+    (issue #537: Windows PowerShell 5.1 can pipe two)."""
     out = []
     for line in plan.splitlines():
-        hdr = line[1:] if line.startswith(_BOM) else line
+        hdr = line.lstrip(_BOM)
         if hdr.startswith("@@ "):
             fields = split_header(hdr[3:])
             if fields:

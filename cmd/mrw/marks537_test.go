@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -54,5 +56,34 @@ func TestAKeptPlanWithTwoByteOrderMarksRerunsByItsPath(t *testing.T) {
 	k.run("", nil, "read", "--quiet", "f.txt")
 	if _, e, code := k.run("", nil, "write", "--no-check", path); code != 0 || k.read("f.txt") != "ALPHA\nb\n" {
 		t.Errorf("the kept plan did not rerun: exit %d, f.txt %q\n%s", code, k.read("f.txt"), e)
+	}
+}
+
+// Review of #539. The two foreign formats took no leading mark at all; both now
+// take one silently and several with the count named.
+func TestTheForeignFormatsTakeLeadingByteOrderMarksFromStandardInput(t *testing.T) {
+	const bom = "\xef\xbb\xbf"
+	const patch = "*** Begin Patch\n*** Add File: n.txt\n+hi\n*** End Patch\n"
+	const sr = "f.txt\n<<<<<<< SEARCH\na\n=======\nA\n>>>>>>> REPLACE\n"
+	k := newKeptRig(t)
+	for _, c := range []struct{ format, doc, file, want string }{
+		{"apply_patch", patch, "n.txt", "hi\n"},
+		{"search_replace", sr, "f.txt", "A\nb\n"},
+	} {
+		for marks := 1; marks <= 2; marks++ {
+			k.reset()
+			k.file("f.txt", "a\nb\n")
+			_ = os.Remove(filepath.Join(k.root, "n.txt"))
+			k.run("", nil, "read", "--quiet", "f.txt")
+			_, errOut, code := k.run(strings.Repeat(bom, marks)+c.doc, nil, "write", "--no-check", "--format", c.format, "-")
+			b, _ := os.ReadFile(filepath.Join(k.root, c.file)) // n.txt is absent while the format is refused
+			if code != 0 || string(b) != c.want {
+				t.Errorf("%s, %d mark(s): exit %d, %s %q\n%s", c.format, marks, code, c.file, b, errOut)
+			}
+			named := strings.Contains(errOut, "mrw: the "+c.format+" document begins with 2 UTF-8 byte order marks, all dropped")
+			if (marks == 2) != named || (marks == 1 && strings.Contains(errOut, "byte order mark")) {
+				t.Errorf("%s, %d mark(s): the count note is wrong:\n%s", c.format, marks, errOut)
+			}
+		}
 	}
 }
