@@ -121,6 +121,23 @@ most in under 300 words (ADR-141). `mrw --instructions` is refused, exit 2,
 with a message naming `mrw instructions`; so is any other undefined flag that is
 exactly the name of a subcommand of the command it was given to.
 
+### Tools beside mrw
+
+mrw is one static binary and needs nothing else to read, search or write: the `.gitignore` walk, the regex
+search and the JSON paths are its own code, so no `git` binary is called for them. Two features run another
+program, and a few tools make an agent's session shorter:
+
+| Tool | What uses it | Without it |
+|------|--------------|------------|
+| [`ast-grep`](https://ast-grep.github.io/) | `--ast-grep PATTERN` (read), `--ast-grep … --rewrite …` (write), `ast_grep` / `rewrite` on MCP | those flags exit 2: `ast-grep: not found on PATH`; everything else works |
+| a POSIX `sh` | the project's check after a code write, `mrw check`, `--then`, `--then-sh` | the check reports it could not start; on Windows mrw falls back to the `sh.exe` Git for Windows installs beside `git.exe` (ADR-082) |
+| `rg`, or any searcher | `--files-from -`, when your own index beats a walk | use `--grep`, which walks and serves in one call |
+| `jq` | nothing in mrw; reading a `--json` receipt or `mrw read --json` from a script | read the human receipt |
+
+Install ast-grep with `brew install ast-grep`, `npm install -g @ast-grep/cli` or `cargo install ast-grep --locked`.
+mrw looks for the binary named `ast-grep`, not its `sg` alias. Checked with ast-grep 0.51.0 on 2026-10-27: a
+read and a `--rewrite` write both work, and with no `ast-grep` on PATH the read exits 2 naming it.
+
 ### Tell your agent to use it
 
 An agent with mrw on its PATH still reaches for `cat`, `grep` and its own Edit tool unless its standing
