@@ -136,7 +136,7 @@ func runAction(ctx context.Context, cmd *cli.Command) error {
 	// and the newest 64 by name are the 64 that finished last.
 	_, done := check.RunLogNames(time.Now(), os.Getpid())
 	logPath := res.OutputFile
-	if final := filepath.Join(dir, done); os.Rename(logPath, final) == nil {
+	if final := filepath.Join(dir, done); renameNoReplace(logPath, final) == nil {
 		logPath = final
 	} else {
 		done = ""
@@ -324,4 +324,14 @@ func runJSONRequested(args []string) bool {
 		}
 	}
 	return on
+}
+
+// renameNoReplace moves from to to and fails if to exists: a hard link is
+// refused on an existing name where a rename would replace it, so a log that is
+// already there is never lost to another run's (ADR-177 Decision 3).
+func renameNoReplace(from, to string) error {
+	if err := os.Link(from, to); err != nil {
+		return err
+	}
+	return os.Remove(from)
 }

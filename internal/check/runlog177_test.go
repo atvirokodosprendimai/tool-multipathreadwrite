@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -182,5 +183,24 @@ func TestTheRunEntryWithNoTimeoutAsksForTheCeiling(t *testing.T) {
 	res, err := Exec(ctx, t.TempDir(), "sleep 5", RunSpec{LogDir: t.TempDir(), LogName: "o.running.log"})
 	if err != nil || res.Skipped != "timed out after 24h0m0s" {
 		t.Errorf("skipped %q, %v; want the 24-hour ceiling named", res.Skipped, err)
+	}
+}
+
+// Two runs of one process that end in the same instant must not share a name:
+// the second rename would replace the first log while its receipt names it.
+func TestRunLogNamesDifferForTheSameInstantAndPid(t *testing.T) {
+	now := time.Now()
+	r1, d1 := RunLogNames(now, 42)
+	r2, d2 := RunLogNames(now, 42)
+	if r1 == r2 || d1 == d2 {
+		t.Errorf("same instant and pid gave the same names: %s %s / %s %s", r1, d1, r2, d2)
+	}
+	if !isRunningLog(r1) || !isDoneLog(d1) || strings.TrimSuffix(r1, runningSuffix) != strings.TrimSuffix(d1, doneSuffix) {
+		t.Errorf("one run's names are not one stem: %s %s", r1, d1)
+	}
+	// The time still leads, so name order is time order.
+	_, later := RunLogNames(now.Add(time.Millisecond), 1)
+	if !(d1 < later && d2 < later) {
+		t.Errorf("a later instant must sort after: %s %s %s", d1, d2, later)
 	}
 }

@@ -453,7 +453,7 @@ func TestRunLogIsNamedWhenTheCommandEnds(t *testing.T) {
 		t.Fatalf("exit %d:\n%s", code, out)
 	}
 	stamp := strings.TrimPrefix(filepath.Base(receiptField(out, "log")), "run-")
-	got, err := time.Parse("20060102T150405.000Z", stamp[:len("20060102T150405.000Z")])
+	got, err := time.Parse("20060102T150405.000000000Z", stamp[:len("20060102T150405.000000000Z")])
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -516,5 +516,38 @@ func TestRunLastLineBlankIsJudgedAcrossFragmentBoundaries(t *testing.T) {
 	out, _ = runIn(t, root, "run", `echo previous; head -c 4097 /dev/zero | tr '\0' ' '; awk 'BEGIN{for(i=0;i<21000;i++)printf "\342\200\203"}'; echo FAIL`)
 	if got := receiptField(out, "last"); got != "…" {
 		t.Errorf("the pair: the same line ending in FAIL: last %q, want …", got)
+	}
+}
+
+// The done rename never replaces a log that is already there.
+func TestRunLogIsNeverReplacedByTheRename(t *testing.T) {
+	dir := t.TempDir()
+	from, to := filepath.Join(dir, "a.running.log"), filepath.Join(dir, "a.log")
+	if err := os.WriteFile(from, []byte("new\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(to, []byte("old\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := renameNoReplace(from, to); err == nil {
+		t.Error("renamed over an existing log")
+	}
+	if b, _ := os.ReadFile(to); string(b) != "old\n" {
+		t.Errorf("the existing log was replaced: %q", b)
+	}
+	if _, err := os.Stat(from); err != nil {
+		t.Errorf("the refused rename lost the running log: %v", err)
+	}
+	if err := os.Remove(to); err != nil {
+		t.Fatal(err)
+	}
+	if err := renameNoReplace(from, to); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(to); string(b) != "new\n" {
+		t.Errorf("the pair: a free name did not receive the log: %q", b)
+	}
+	if _, err := os.Stat(from); err == nil {
+		t.Error("the running name was left behind")
 	}
 }

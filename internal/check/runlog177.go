@@ -2,6 +2,8 @@ package check
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -81,10 +83,19 @@ func openLog(spec RunSpec) (*os.File, error) {
 const runLogPrefix, runningSuffix, doneSuffix = "run-", ".running.log", ".log"
 
 // RunLogNames are the names of a run's log while it runs and after it exits:
-// run-<UTC time to the millisecond>-<pid>.running.log and the same ending
-// .log. They sort by time (ADR-177 Decision 3).
+// run-<UTC time to the nanosecond>-<pid>-<8 hex from crypto/rand>.running.log
+// and the same ending .log. They sort by time, and the salt only breaks ties:
+// two runs of one process that end in the same instant must not share a name,
+// or the second would replace the first log while its receipt names it
+// (ADR-177 Decision 3). Should the salt not be readable, the clock's
+// nanoseconds stand in for it.
 func RunLogNames(now time.Time, pid int) (running, done string) {
-	stem := fmt.Sprintf("%s%s-%d", runLogPrefix, now.UTC().Format("20060102T150405.000Z"), pid)
+	var salt [4]byte
+	if _, err := rand.Read(salt[:]); err != nil {
+		n := time.Now().UnixNano()
+		salt = [4]byte{byte(n), byte(n >> 8), byte(n >> 16), byte(n >> 24)}
+	}
+	stem := fmt.Sprintf("%s%s-%d-%s", runLogPrefix, now.UTC().Format("20060102T150405.000000000Z"), pid, hex.EncodeToString(salt[:]))
 	return stem + runningSuffix, stem + doneSuffix
 }
 
