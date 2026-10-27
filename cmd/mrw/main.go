@@ -1707,8 +1707,26 @@ held or went unchecked.`,
 			// every step not_run: the check could not run, or the ledger could not
 			// record the landing, so none followed it (ADR-092 T4; the 2026-09-29 gap survey, C3).
 			var stepsNotRun *check.StepsResult
+			// ADR-176: the standard-input plan the parser read, kept beside the
+			// state directory when the run ends with nothing in the tree.
+			// keptDone makes it once, whichever exit reaches it first.
+			var tee *planTee
+			var refusedPlan string
+			keptDone := false
+			keepRefused := func(res apply.Result) {
+				if tee == nil || keptDone || writer.MutationOf(res) != writer.None {
+					return
+				}
+				keptDone = true
+				path, line := tee.keep()
+				refusedPlan = path
+				if line != "" {
+					fmt.Fprintln(os.Stderr, line)
+				}
+			}
 			refuseWith := func(res apply.Result, err error) error {
 				msg := err.Error()
+				keepRefused(res)
 				// A refusal after the write landed (the ledger could not be
 				// written, the check could not start) still says what landed
 				// and counts it: the tree changed either way. In human form the
@@ -1747,7 +1765,7 @@ held or went unchecked.`,
 					enc := json.NewEncoder(os.Stdout)
 					enc.SetIndent("", "  ")
 					enc.SetEscapeHTML(false)
-					_ = enc.Encode(receipt{Result: res, Pattern: authoring.PatternOf(root), Error: msg, Then: stepsNotRun})
+					_ = enc.Encode(receipt{Result: res, Pattern: authoring.PatternOf(root), Error: msg, Then: stepsNotRun, RefusedPlan: refusedPlan})
 				}
 				return exitWith(err)
 			}
@@ -1830,7 +1848,8 @@ held or went unchecked.`,
 				piped.OnTrim = func() {
 					fmt.Fprintln(os.Stderr, "mrw: the plan ended in CRLF after lines that end in LF; that CRLF is most likely the one PowerShell appends to what it pipes, so it was dropped")
 				}
-				src = piped
+				tee = &planTee{src: piped}
+				src = tee
 			}
 			var hunks []plan.Hunk
 			var err error
@@ -2017,6 +2036,7 @@ held or went unchecked.`,
 			// ADR-132: what the caller is shown spells paths with "/", as
 			// mrw_write's receipt does (ADR-091); the engine kept its own.
 			res := shown(land.Res)
+			keepRefused(res)
 			if land.Err != nil {
 				// ADR-001 rule 3: every hunk carries its own verdict, and a
 				// filesystem failure is not an exception. Apply fills the
@@ -2049,7 +2069,7 @@ held or went unchecked.`,
 				return refuseWith(res, land.LedgerErr)
 			}
 
-			receipt := receipt{Result: res}
+			receipt := receipt{Result: res, RefusedPlan: refusedPlan}
 
 			// ADR-055: a landed write joined the recent-window ring in Land,
 			// BEFORE the receipt is rendered, so the receipt can say "3 of
@@ -2179,6 +2199,9 @@ type receipt struct {
 	// check ran (ADR-127): absent when none did, and when no check ran.
 	// Advisory, as Drift is.
 	DriftWriters int `json:"drift_writers,omitempty"`
+	// RefusedPlan is where a standard-input plan that ended with nothing in the
+	// tree was kept (ADR-176): absent when nothing was kept.
+	RefusedPlan string `json:"refused_plan,omitempty"`
 }
 
 // checkReceipt is `mrw check --json`: the check's own flat fields, unchanged,

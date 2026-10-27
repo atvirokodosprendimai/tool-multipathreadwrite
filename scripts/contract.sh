@@ -10333,6 +10333,30 @@ grep -qF 'f.txt/child' <<<"$m300" && [ "$(n300)" = "$b300" ] && ok "and the refu
 m300=$("$MRW" --root "$WORK/no-such-root-300" seen --forget --forget=false 2>&1); rc300=$?
 grep -qF 'seen --forget:' <<<"$m300" && bad "the pair: --forget --forget=false was refused as a forget: $m300" || ok "the pair: --forget --forget=false is not a forget, the gate leaves it to a plain seen"
 
+
+# 301. ADR-176: a plan piped to `mrw write -` that ends with nothing in the tree is
+# kept in <state home>/mrw-refused, named on stderr, and runs again by its path.
+# The pairs: a refused plan is kept and its repaired copy applies from the path; a
+# plan that landed keeps nothing, and neither does a refused plan file.
+R=$(mktemp -d "$WORK/r301-XXXXXX"); printf 'alpha\nbravo\n' > "$R/f.txt"
+K301="$XDG_STATE_HOME/mrw-refused"; rm -rf "$K301"
+(cd "$R" && "$MRW" read --quiet f.txt)
+e301=$(printf '@@ f.txt 1 replace body=1\nALPHA\nextra\n' | (cd "$R" && "$MRW" write --no-check - 2>&1 >/dev/null)); want 2 $? "a piped plan with a stray line is refused, exit 2"
+k301=$(ls "$K301"/*.plan 2>/dev/null); n301=$(printf '%s\n' "$k301" | grep -c .)
+{ [ "$n301" = 1 ] && [ "$(cat "$k301")" = "$(printf '@@ f.txt 1 replace body=1\nALPHA\nextra')" ] && grep -qF "is kept at $k301" <<<"$e301"; } \
+  && ok "the refused piped plan is kept as sent and stderr names its path" || bad "kept: n=$n301 $k301: $e301"
+printf '@@ f.txt 1 replace body=1\nALPHA\n' > "$k301"
+(cd "$R" && "$MRW" write --no-check "$k301" >/dev/null 2>&1); want 0 $? "the repaired copy applies from its path"
+{ [ "$(sed -n 1p "$R/f.txt")" = ALPHA ] && [ -e "$k301" ]; } \
+  && ok "a plan refused from standard input is kept and runs again by its path" || bad "rerun: $(cat "$R/f.txt")"
+rm -rf "$K301"
+printf '@@ f.txt 1 replace body=1\nalpha\nextra\n' > "$R/bad.plan"
+(cd "$R" && "$MRW" write --no-check bad.plan >/dev/null 2>&1); want 2 $? "the pair: a refused plan FILE is refused too"
+(cd "$R" && "$MRW" read --quiet f.txt)
+printf '@@ f.txt 1 replace\nalpha\n' | (cd "$R" && "$MRW" write --no-check - >/dev/null 2>&1); want 0 $? "a piped plan that lands exits 0"
+{ [ ! -e "$K301" ] || [ -z "$(ls "$K301")" ]; } \
+  && ok "a piped plan that landed keeps nothing" || bad "kept after a landing or a plan file: $(ls "$K301")"
+
 # 302. ADR-177: `mrw run 'CMD'` runs one command string with sh -c, keeps its
 # output in a log beside mrw's state directory and prints a receipt of four
 # lines instead of the output; it exits with the command's own code. The pairs:
