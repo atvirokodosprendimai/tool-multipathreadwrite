@@ -27,6 +27,13 @@ each install when one is missing, and `.claude/rules/static-analysis.md` gives t
 Go builds and tests run on **Linux and Windows** in CI; `contract.sh` runs on
 Linux, because it drives a POSIX shell.
 
+For a bounded local run on macOS or Linux, use `python3 scripts/test-fast.py`. It runs the
+existing four-slot oracle pool beside the remaining Go tests in separate processes, with two
+Go runtime workers per process and two package workers per command. Both groups must pass;
+a timeout stops their process groups. This is an optional alternative for local iteration;
+the declared `go test ./...` gate and the CI test matrix stay in place. More `t.Parallel()`
+is unsafe for tests that share environment variables, signals or injected test hooks.
+
 The Windows shell boundary has its own small suite,
 `cmd/mrw/shell_windows_test.go`: it builds the real binary and drives it through
 PowerShell, so exit statuses, drive-letter paths and a plan file the *shell*
