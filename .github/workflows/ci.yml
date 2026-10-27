@@ -60,6 +60,9 @@ jobs:
             exit 1
           fi
 
+      - name: Local parallel test runner checks
+        run: python3 -m unittest discover -s scripts -p test_test_fast.py -v
+
       - name: Vet
         run: go vet ./...
 
