@@ -83,7 +83,7 @@ What this does not show:
 
 Latency and shape numbers for the engine itself are in [docs/measure.md](docs/measure.md), the six-guarantee comparison in [docs/comparison.md](docs/comparison.md), and model × score readings in [docs/model-benches.md](docs/model-benches.md).
 
-**Status: stable at v1.75.0 (2026-10-23), the tag cut from `c81cb11`.** Break campaign for it: [docs/break/campaign-v1.75.0.txt](docs/break/campaign-v1.75.0.txt), 59 probes, exit codes identical to v1.74.1. **Migration:** `mrw mcp` now serves no tools until it is enabled — a registration that wants them adds `--enable` to its args (`mrw mcp --enable`) or sets `MRW_MCP=on`, then restarts the server; with a shell, use the CLI and leave it off (ADR-170). Since v1.74.0: `mrw read --if-changed PATH=SHA` answers a file you read earlier with one line when it has not changed (ADR-169).
+**Status: stable at v1.75.1 (2026-10-27), the tag cut from `0ec1b97f`.** Break campaign for it: [docs/break/campaign-v1.75.1.txt](docs/break/campaign-v1.75.1.txt), 59 probes, exit codes identical to v1.75.0. **Migration since v1.75.0:** `mrw mcp` now serves no tools until it is enabled — a registration that wants them adds `--enable` to its args (`mrw mcp --enable`) or sets `MRW_MCP=on`, then restarts the server; with a shell, use the CLI and leave it off (ADR-170). Since v1.74.0: `mrw read --if-changed PATH=SHA` answers a file you read earlier with one line when it has not changed (ADR-169).
 
 Decisions: [docs/adr/](docs/adr/). How a change reaches `main`: [CONTRIBUTING.md](CONTRIBUTING.md). Driving it from a checkout: [AGENTS.md](AGENTS.md).
 Caller practices: [BESTPRACTICES.md](BESTPRACTICES.md). Updating the binary: [UPDATE.md](UPDATE.md).
