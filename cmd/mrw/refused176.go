@@ -23,6 +23,10 @@ const keptPlanCap = 16 * 1024 * 1024
 // keptPlansMax is how many kept plans stay in the directory.
 const keptPlansMax = 16
 
+// keptPlanGrace is how long after its last write a kept plan is out of the
+// trim's reach: another run may be saving it (ADR-176).
+const keptPlanGrace = time.Minute
+
 // planTee copies what the plan parser reads from standard input, after the
 // CRLF trim, so a refused plan can be kept as the parser saw it. It never reads
 // ahead of the parser; past keptPlanCap it drops its copy.
@@ -97,24 +101,43 @@ func (t *planTee) write() (string, error) {
 	return path, nil
 }
 
-// trimKept removes all but the newest keptPlansMax plans by name, whose prefix
-// is the time, and never the one this run just kept: a name can sort before
-// others written in the same instant, and the path it returns must exist.
-// Best effort: two runs trimming at once may leave one more.
+// trimKept removes plans until the newest keptPlansMax stay, by name, whose
+// prefix is the time. It never removes the one this run just kept: a name can
+// sort before others written in the same instant, and the path it returns must
+// exist. Nor does it remove a plan modified within keptPlanGrace: two runs
+// trimming at once each snapshot the directory and each would remove the
+// other's plan, which is still being saved. So the directory may briefly hold
+// more than keptPlansMax, and two runs trimming at once may leave one more.
 func trimKept(dir, keep string) {
 	ents, err := os.ReadDir(dir)
 	if err != nil {
 		return
 	}
-	var names []string
-	for _, e := range ents {
-		if strings.HasSuffix(e.Name(), ".plan") && e.Name() != keep {
-			names = append(names, e.Name())
-		}
+	type plan struct {
+		name   string
+		recent bool
 	}
-	sort.Strings(names)
-	for len(names) > keptPlansMax-1 {
-		_ = os.Remove(filepath.Join(dir, names[0]))
-		names = names[1:]
+	var plans []plan
+	for _, e := range ents {
+		if !strings.HasSuffix(e.Name(), ".plan") || e.Name() == keep {
+			continue
+		}
+		fi, err := e.Info()
+		if err != nil {
+			continue
+		}
+		plans = append(plans, plan{e.Name(), time.Since(fi.ModTime()) < keptPlanGrace})
+	}
+	sort.Slice(plans, func(i, j int) bool { return plans[i].name < plans[j].name })
+	excess := len(plans) - (keptPlansMax - 1)
+	for _, p := range plans {
+		if excess <= 0 {
+			return
+		}
+		if p.recent {
+			continue
+		}
+		_ = os.Remove(filepath.Join(dir, p.name))
+		excess--
 	}
 }

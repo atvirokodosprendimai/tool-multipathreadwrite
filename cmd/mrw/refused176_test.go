@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
 )
@@ -65,6 +66,22 @@ func (k *keptRig) kept() []string {
 func (k *keptRig) reset() {
 	k.t.Helper()
 	if err := os.RemoveAll(k.dir()); err != nil {
+		k.t.Fatal(err)
+	}
+}
+
+// seed puts a kept plan in the directory as if a run had saved it age ago.
+func (k *keptRig) seed(name, body string, age time.Duration) {
+	k.t.Helper()
+	if err := os.MkdirAll(k.dir(), 0o700); err != nil {
+		k.t.Fatal(err)
+	}
+	p := filepath.Join(k.dir(), name)
+	if err := os.WriteFile(p, []byte(body), 0o600); err != nil {
+		k.t.Fatal(err)
+	}
+	when := time.Now().Add(-age)
+	if err := os.Chtimes(p, when, when); err != nil {
 		k.t.Fatal(err)
 	}
 }
@@ -284,9 +301,7 @@ func TestAPlanRefusedFromStandardInputIsKept(t *testing.T) {
 			t.Fatal(err)
 		}
 		for i := 0; i < 16; i++ {
-			if err := os.WriteFile(filepath.Join(k.dir(), fmt.Sprintf("20200101T0000%02dZ-1-aaaa.plan", i)), []byte("old\n"), 0o600); err != nil {
-				t.Fatal(err)
-			}
+			k.seed(fmt.Sprintf("20200101T0000%02dZ-1-aaaa.plan", i), "old\n", time.Hour)
 		}
 		k.run("@@ f.txt 1 replace body=1\nA\nB\n", nil, "write", "--no-check", "-")
 		names := k.kept()
@@ -311,9 +326,7 @@ func TestAPlanRefusedFromStandardInputIsKept(t *testing.T) {
 			t.Fatal(err)
 		}
 		for i := 0; i < 16; i++ {
-			if err := os.WriteFile(filepath.Join(k.dir(), fmt.Sprintf("29991231T2359%02dZ-1-ffff.plan", i)), []byte("later\n"), 0o600); err != nil {
-				t.Fatal(err)
-			}
+			k.seed(fmt.Sprintf("29991231T2359%02dZ-1-ffff.plan", i), "later\n", time.Hour)
 		}
 		js, _, _ := k.run("@@ f.txt 1 replace body=1\nA\nB\n", nil, "write", "--json", "--no-check", "-")
 		var doc struct {
@@ -327,6 +340,34 @@ func TestAPlanRefusedFromStandardInputIsKept(t *testing.T) {
 		}
 		if n := len(k.kept()); n != 16 {
 			t.Errorf("%d kept plans, want 16", n)
+		}
+	})
+
+	// Codex on ADR-176: two runs trimming at once each snapshot the directory
+	// and each remove what sorts oldest, which can be the other's plan that is
+	// still being saved. A plan modified within the last minute is not the
+	// trim's to remove. This one sorts before everything, as a save by a run
+	// with an earlier clock reading would, and stands for that other process.
+	t.Run("a plan another run has just saved survives the trim", func(t *testing.T) {
+		k.t = t
+		k.reset()
+		for i := 0; i < 16; i++ {
+			k.seed(fmt.Sprintf("29991231T2359%02dZ-1-ffff.plan", i), "later\n", time.Hour)
+		}
+		const foreign = "19700101T000000.000000000Z-1-0000.plan"
+		k.seed(foreign, "in flight\n", 0)
+		js, _, _ := k.run("@@ f.txt 1 replace body=1\nA\nB\n", nil, "write", "--json", "--no-check", "-")
+		var doc struct {
+			RefusedPlan string `json:"refused_plan"`
+		}
+		if err := json.Unmarshal([]byte(js), &doc); err != nil {
+			t.Fatalf("--json: %v\n%s", err, js)
+		}
+		if _, err := os.Stat(doc.RefusedPlan); doc.RefusedPlan == "" || err != nil {
+			t.Errorf("refused_plan %q does not exist: %v", doc.RefusedPlan, err)
+		}
+		if _, err := os.Stat(filepath.Join(k.dir(), foreign)); err != nil {
+			t.Errorf("a plan saved a moment ago was trimmed: %v", err)
 		}
 	})
 
