@@ -239,8 +239,14 @@ func scanLog(path string) (lines int, size int64, last string) {
 	// nonblank is judged over every byte of the line, not the kept prefix: a
 	// line of 4,096 spaces and then FAIL is the last line, shown as ….
 	over, nonblank := false, false
+	// pend is the start of a multi-byte character cut by a fragment boundary,
+	// carried to the next fragment so a U+2003 split in two is still a space.
+	var pend []byte
 	end := func() {
 		lines++
+		if len(pend) > 0 {
+			nonblank = true // bytes that never became a character are text
+		}
 		if nonblank {
 			if t := strings.TrimRight(string(cur), "\r"); strings.TrimSpace(t) != "" {
 				last = t
@@ -248,7 +254,7 @@ func scanLog(path string) (lines int, size int64, last string) {
 				last = "…"
 			}
 		}
-		cur, over, nonblank = cur[:0], false, false
+		cur, over, nonblank, pend = cur[:0], false, false, pend[:0]
 	}
 	for {
 		frag, err := r.ReadSlice('\n')
@@ -260,7 +266,11 @@ func scanLog(path string) (lines int, size int64, last string) {
 		take := min(max(lastScanBytes-len(cur), 0), len(body))
 		cur = append(cur, body[:take]...)
 		over = over || take < len(body)
-		nonblank = nonblank || len(bytes.TrimSpace(body)) > 0
+		if !nonblank {
+			var whole []byte
+			whole, pend = splitPartialRune(append(append([]byte(nil), pend...), body...))
+			nonblank = len(bytes.TrimSpace(whole)) > 0
+		}
 		if errors.Is(err, bufio.ErrBufferFull) {
 			continue
 		}
@@ -278,4 +288,40 @@ func scanLog(path string) (lines int, size int64, last string) {
 		last = string([]rune(last)[:lastChars]) + "…"
 	}
 	return lines, size, last
+}
+
+// splitPartialRune cuts a trailing, incomplete multi-byte character off b.
+func splitPartialRune(b []byte) (whole, partial []byte) {
+	for i := 1; i < utf8.UTFMax && i <= len(b); i++ {
+		if c := b[len(b)-i]; utf8.RuneStart(c) {
+			if !utf8.FullRune(b[len(b)-i:]) {
+				return b[:len(b)-i], b[len(b)-i:]
+			}
+			break
+		}
+	}
+	return b, nil
+}
+
+// runJSONRequested reads --json out of the raw arguments of a run whose parser
+// stopped early, as the parser reads a boolean flag: the last occurrence wins,
+// a bare --json and =true, =1 are true, =false, =0 are false, a value that is
+// none of those leaves the last good one, and nothing after -- is a flag.
+func runJSONRequested(args []string) bool {
+	on := false
+	for _, a := range args {
+		if a == "--" {
+			break
+		}
+		name, val, hasVal := strings.Cut(strings.TrimLeft(a, "-"), "=")
+		if name != "json" || !strings.HasPrefix(a, "-") {
+			continue
+		}
+		if !hasVal {
+			on = true
+		} else if b, err := strconv.ParseBool(val); err == nil {
+			on = b
+		}
+	}
+	return on
 }

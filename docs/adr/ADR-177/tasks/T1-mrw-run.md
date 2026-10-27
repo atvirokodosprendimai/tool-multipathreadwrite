@@ -8,7 +8,7 @@
 **Consumes:** none
 **Data dependency:** hermetic
 **Proof map:** v1
-**Rests-on:** `the run tests run`, `the receipt test passed`, `the short-log test passed`, `the exit test passed`, `the could-not-start test passed`, `the one-argument test passed`, `the depth test passed`, `the interrupt test passed`, `the help test passed`, `the ceiling test passed`, `the prune test passed`, `the receipts test passed`, `the whole check and cmd packages pass`, `the receipts file holds run`, `the contract run`, `the own-log test passed`, `the completion-name test passed`, `the ceiling default test passed`, `the stopped-before-start test passed`, `the exit-code table passed`, `the usage-json test passed`, `the last-line test passed`, `the json row passes`, `section 302 exists`, `the receipt row passes`, `the exit row passes`, `the read-line row passes`, `the two-argument row passes`, `the short-log row passes`, `gofmt`, `the engine packages it does not own`, `no untracked file in them`
+**Rests-on:** `the run tests run`, `the receipt test passed`, `the short-log test passed`, `the exit test passed`, `the could-not-start test passed`, `the one-argument test passed`, `the depth test passed`, `the interrupt test passed`, `the help test passed`, `the ceiling test passed`, `the prune test passed`, `the receipts test passed`, `the whole check and cmd packages pass`, `the receipts file holds run`, `the contract run`, `the own-log test passed`, `the completion-name test passed`, `the ceiling default test passed`, `the stopped-before-start test passed`, `the exit-code table passed`, `the usage-json test passed`, `the last-line test passed`, `the json-flag test passed`, `the boundary test passed`, `the json row passes`, `section 302 exists`, `the receipt row passes`, `the exit row passes`, `the read-line row passes`, `the two-argument row passes`, `the short-log row passes`, `gofmt`, `the engine packages it does not own`, `no untracked file in them`
 
 ## Goal
 
@@ -46,12 +46,15 @@ Decisions 1-9: `mrw run 'CMD'` runs CMD through an exported runner entry with th
 14. [S14] A parser usage error under `--json` is one `{"error": …}` document. Mutant: the `usageError` hook removed. [proof: mutation]
 15. [S15] `last` is judged over the whole line. Mutant: the whole-line blank test replaced by the kept prefix's. [proof: mutation]
 16. [S16] Contract §302 parses stdout as exactly one document and drives a `--json` refusal through the binary. [proof: acceptance]
+17. [S17] The protected log counts toward the 64: it and the newest 63 others stay, 64 in all. Mutant: `keep--` dropped, so 65 stay. [proof: mutation]
+18. [S18] The `--json` fallback for a usage error reads the arguments as the parser reads a boolean flag. Mutant: the last-occurrence rule replaced by first-wins. [proof: mutation]
+19. [S19] A multi-byte space cut by a read boundary does not make a blank line the last line. Mutant: the carried partial character dropped. [proof: mutation]
 
 ## Acceptance
 
 ```bash
 set -o pipefail
-out=$(go test ./cmd/mrw/ ./internal/check/ -count=1 -v -run '^(TestRunKeepsTheOutputAndPrintsOneReceipt|TestRunKeepsTheLogOfAShortOrEmptySuccess|TestRunExitsWithTheCommandsOwnCode|TestRunThatCannotStartSaysSoAndExitsTwo|TestRunTakesExactlyOneCommandString|TestRunIsRefusedAtTheStepDepthLimit|TestRunStoppedByAnInterruptExits130|TestRunHelpNamesTheShellTrust|TestTheRunEntryTakesItsOwnTimeout|TestRunLogsArePrunedByAgeAndCount|TestARunKeepsItsOwnLogWhenSixtyFourOthersFinishedBeforeIt|TestTheRunEntryWithNoTimeoutAsksForTheCeiling|TestRunStoppedBeforeItStartsExits130Or124|TestRunExitCodeNamesWhatStoppedTheCommand|TestRunUsageErrorUnderJSONIsOneRefusalDocument|TestRunLastLineIsJudgedWholeNotByItsKeptPrefix|TestRunLogIsNamedWhenTheCommandEnds|TestNoShippedReceiptFieldDisappears)$' 2>&1) \
+out=$(go test ./cmd/mrw/ ./internal/check/ -count=1 -v -run '^(TestRunKeepsTheOutputAndPrintsOneReceipt|TestRunKeepsTheLogOfAShortOrEmptySuccess|TestRunExitsWithTheCommandsOwnCode|TestRunThatCannotStartSaysSoAndExitsTwo|TestRunTakesExactlyOneCommandString|TestRunIsRefusedAtTheStepDepthLimit|TestRunStoppedByAnInterruptExits130|TestRunHelpNamesTheShellTrust|TestTheRunEntryTakesItsOwnTimeout|TestRunLogsArePrunedByAgeAndCount|TestARunKeepsItsOwnLogWhenSixtyFourOthersFinishedBeforeIt|TestTheRunEntryWithNoTimeoutAsksForTheCeiling|TestRunStoppedBeforeItStartsExits130Or124|TestRunExitCodeNamesWhatStoppedTheCommand|TestRunUsageErrorUnderJSONIsOneRefusalDocument|TestRunLastLineIsJudgedWholeNotByItsKeptPrefix|TestRunLogIsNamedWhenTheCommandEnds|TestRunJSONFlagIsReadAsTheParserReadsIt|TestRunLastLineBlankIsJudgedAcrossFragmentBoundaries|TestNoShippedReceiptFieldDisappears)$' 2>&1) \
   && grep -qE '^--- PASS: TestRunKeepsTheOutputAndPrintsOneReceipt \(' <<<"$out" \
   && grep -qE '^--- PASS: TestRunKeepsTheLogOfAShortOrEmptySuccess \(' <<<"$out" \
   && grep -qE '^--- PASS: TestRunExitsWithTheCommandsOwnCode \(' <<<"$out" \
@@ -70,6 +73,8 @@ out=$(go test ./cmd/mrw/ ./internal/check/ -count=1 -v -run '^(TestRunKeepsTheOu
   && grep -qE '^--- PASS: TestRunUsageErrorUnderJSONIsOneRefusalDocument \(' <<<"$out" \
   && grep -qE '^--- PASS: TestRunLastLineIsJudgedWholeNotByItsKeptPrefix \(' <<<"$out" \
   && grep -qE '^--- PASS: TestRunLogIsNamedWhenTheCommandEnds \(' <<<"$out" \
+  && grep -qE '^--- PASS: TestRunJSONFlagIsReadAsTheParserReadsIt \(' <<<"$out" \
+  && grep -qE '^--- PASS: TestRunLastLineBlankIsJudgedAcrossFragmentBoundaries \(' <<<"$out" \
   && go test ./internal/check/ ./cmd/mrw/ -count=1 >/dev/null \
   && grep -qx 'run output_file' docs/receipts.txt \
   && c=$(./scripts/contract.sh 2>&1) \
@@ -107,6 +112,8 @@ out=$(go test ./cmd/mrw/ ./internal/check/ -count=1 -v -run '^(TestRunKeepsTheOu
 | `TestRunUsageErrorUnderJSONIsOneRefusalDocument` | `cmd/mrw/run177_test.go` | `--json --bogus` is one `{"error": …}` document, exit 2; without `--json` none | none | S14 |
 | `TestRunLastLineIsJudgedWholeNotByItsKeptPrefix` | `cmd/mrw/run177_test.go` | 4,096 spaces then text is the last line (`…`); a blank long line is not | none | S15 |
 | `TestRunLogIsNamedWhenTheCommandEnds` | `cmd/mrw/run177_test.go` | the log's name carries the time the command ended | none | S11 |
+| `TestRunJSONFlagIsReadAsTheParserReadsIt` | `cmd/mrw/run177_test.go` | the raw `--json` forms: last wins, `=true`/`=1`/`=false`/`=0`, stop at `--`; through the binary's usage error | none | S18 |
+| `TestRunLastLineBlankIsJudgedAcrossFragmentBoundaries` | `cmd/mrw/run177_test.go` | 4,097 spaces then 21,000 U+2003 after a meaningful line leave that line the last; the pair ending in FAIL is `…` | none | S19 |
 
 ## Reachability
 
@@ -132,6 +139,9 @@ out=$(go test ./cmd/mrw/ ./internal/check/ -count=1 -v -run '^(TestRunKeepsTheOu
 - 2026-10-27 · 5e342885* · mutant killed · exit 1 · `cmd/mrw/run177.go` · an interrupt before the command starts exits 2 again (S13) · acceptance-sha256:01e464a5eaa936fb18d2fc6f77022fe180a4346098cb561136712de13c10b46f · covers:the stopped-before-start test passed
 - 2026-10-27 · 5e342885* · mutant killed · exit 1 · `cmd/mrw/main.go` · the usage-error hook for mrw run --json is removed (S14) · acceptance-sha256:01e464a5eaa936fb18d2fc6f77022fe180a4346098cb561136712de13c10b46f · covers:the usage-json test passed
 - 2026-10-27 · 5e342885* · mutant killed · exit 1 · `cmd/mrw/run177.go` · blankness judged from the kept prefix only (S15) · acceptance-sha256:01e464a5eaa936fb18d2fc6f77022fe180a4346098cb561136712de13c10b46f · covers:the last-line test passed
+- 2026-10-27 · e3f5ea87* · mutant killed · exit 1 · `internal/check/runlog177.go` · the protected log no longer counts toward the 64, so 65 stay (S17) · acceptance-sha256:90c1da2c18aaca85f28f20991c3ef9c2dc29d0e2c255915b82925e1e6b89763c · covers:the own-log test passed
+- 2026-10-27 · e3f5ea87* · mutant killed · exit 1 · `cmd/mrw/run177.go` · a later --json=false no longer overrides an earlier true (S18) · acceptance-sha256:90c1da2c18aaca85f28f20991c3ef9c2dc29d0e2c255915b82925e1e6b89763c · covers:the json-flag test passed
+- 2026-10-27 · e3f5ea87* · mutant killed · exit 1 · `cmd/mrw/run177.go` · the partial character is not carried across fragments (S19) · acceptance-sha256:90c1da2c18aaca85f28f20991c3ef9c2dc29d0e2c255915b82925e1e6b89763c · covers:the boundary test passed
 
 ## Invariants
 
@@ -173,3 +183,8 @@ The fence exits 0. Stop and ask if the entry needs a change to the check's own b
 - 2026-10-27 · 5e342885* · exit 0 · `set -o pipefail …` · acceptance-sha256:01e464a5eaa936fb18d2fc6f77022fe180a4346098cb561136712de13c10b46f · ms:133794
 - 2026-10-27 · 5e342885* · exit 0 · `set -o pipefail …` · acceptance-sha256:01e464a5eaa936fb18d2fc6f77022fe180a4346098cb561136712de13c10b46f · ms:136157
 - 2026-10-27 · 5e342885* · exit 0 · `set -o pipefail …` · acceptance-sha256:01e464a5eaa936fb18d2fc6f77022fe180a4346098cb561136712de13c10b46f · ms:144493
+- 2026-10-27 · e3f5ea87* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:90c1da2c18aaca85f28f20991c3ef9c2dc29d0e2c255915b82925e1e6b89763c · ms:0 · test-lock-sha256:8c95d241bc7e9ca65bd47ba3798cc8a76b911e5c8969ab6964a69ba991b7f1ce · test-lock-file:docs/adr/locks/8c95d241bc7e9ca65bd47ba3798cc8a76b911e5c8969ab6964a69ba991b7f1ce.lock · test-lock-kind:replace
+- 2026-10-27 · e3f5ea87* · exit 0 · `set -o pipefail …` · acceptance-sha256:90c1da2c18aaca85f28f20991c3ef9c2dc29d0e2c255915b82925e1e6b89763c · ms:153899
+- 2026-10-27 · e3f5ea87* · exit 0 · `set -o pipefail …` · acceptance-sha256:90c1da2c18aaca85f28f20991c3ef9c2dc29d0e2c255915b82925e1e6b89763c · ms:189514
+- 2026-10-27 · e3f5ea87* · exit 0 · `set -o pipefail …` · acceptance-sha256:90c1da2c18aaca85f28f20991c3ef9c2dc29d0e2c255915b82925e1e6b89763c · ms:158221
+- 2026-10-27 · e3f5ea87* · exit 0 · `set -o pipefail …` · acceptance-sha256:90c1da2c18aaca85f28f20991c3ef9c2dc29d0e2c255915b82925e1e6b89763c · ms:142509

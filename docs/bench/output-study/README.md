@@ -65,7 +65,7 @@ now counts each `mrw read` file block that was served completely (every line its
 `measure_repeat.py` read a block's path as `\S+`, so a path with a space was never repeated: its block count
 moved from 34,736 to 34,741 (repeated blocks, 240, are unchanged). Both scripts also dropped their prefilter on a
 file's modification time, so the window is the transcript lines' own timestamps only; on this window it admitted
-the same 155 files and changed nothing else. The baseline JSONs and the bars below were recomputed.
+the same 155 files and changed nothing else. `measure_repeat.py` fills its served-block cache from every result of a session and counts only inside the window, so a reference just after `--since` is tied to a block served just before it; on this window no reference exists and nothing moved. The baseline JSONs and the bars below were recomputed.
 
 ## What these numbers do not say
 

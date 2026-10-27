@@ -63,10 +63,17 @@ for f in files:
         for b in c:
             if b.get("type") == "tool_use":
                 uses[b.get("id")] = b.get("name")
-            if b.get("type") != "tool_result" or b.get("tool_use_id") not in uses or not inside:
+            if b.get("type") != "tool_result" or b.get("tool_use_id") not in uses:
                 continue
             cc = b.get("content")
             t = "".join(x.get("text", "") for x in cc if isinstance(x, dict)) if isinstance(cc, list) else str(cc or "")
+            if not inside:
+                # a reference in the window may stand for a block served before
+                # it: the cache is filled from the whole session, nothing is counted
+                for path, sha, body in blocks(t):
+                    if any(NUMBERED.match(ln) for ln in body):
+                        served[(path, sha)] = len("\n".join(ln for ln in body if not ln.startswith("-- same as served")))
+                continue
             any_ = True
             s["all"] += len(t)
             if len(t) >= 500:

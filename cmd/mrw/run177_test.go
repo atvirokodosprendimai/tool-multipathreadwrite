@@ -461,3 +461,58 @@ func TestRunLogIsNamedWhenTheCommandEnds(t *testing.T) {
 		t.Errorf("the log is named %s, from before the command ended (it ran 1 s from %s)", got.Format(time.RFC3339Nano), before.UTC().Format(time.RFC3339Nano))
 	}
 }
+
+// The --json fallback for a usage error reads the arguments as the parser reads
+// a boolean flag: the last occurrence wins, --json and =true/=1 are true,
+// =false/=0 are false, and nothing after -- is a flag.
+func TestRunJSONFlagIsReadAsTheParserReadsIt(t *testing.T) {
+	for _, c := range []struct {
+		args []string
+		want bool
+	}{
+		{[]string{"--json"}, true},
+		{[]string{"-json"}, true},
+		{[]string{"--json=true"}, true},
+		{[]string{"--json=1"}, true},
+		{[]string{"--json=false"}, false},
+		{[]string{"--json=0"}, false},
+		{[]string{"--json", "--json=false"}, false},
+		{[]string{"--json=false", "--json"}, true},
+		{[]string{"--bogus", "--json=true", "echo hi"}, true},
+		{[]string{"--json", "--", "x"}, true},
+		{[]string{"--", "--json"}, false},
+		{[]string{"--json=maybe"}, false},
+		{[]string{"echo hi"}, false},
+		{nil, false},
+	} {
+		if got := runJSONRequested(c.args); got != c.want {
+			t.Errorf("%q: %v, want %v", c.args, got, c.want)
+		}
+	}
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	root := t.TempDir()
+	out, code := runIn(t, root, "run", "--bogus", "--json=true", "echo hi")
+	var doc map[string]any
+	if err := decodeFirst(out, &doc); err != nil || code != 2 || len(doc) != 1 {
+		t.Errorf("--bogus --json=true: exit %d, %v, %s; want one {error} document", code, err, out)
+	}
+	if out, code = runIn(t, root, "run", "--json", "--json=false", "--bogus", "echo hi"); code != 2 || strings.HasPrefix(out, "{") {
+		t.Errorf("--json --json=false --bogus: exit %d, %q; want 2 and no document", code, out)
+	}
+}
+
+// A whitespace-only line is blank whole: a multi-byte space (U+2003) split
+// across the 64 KiB read boundary must not make it the last line.
+func TestRunLastLineBlankIsJudgedAcrossFragmentBoundaries(t *testing.T) {
+	needShell(t)
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	root := t.TempDir()
+	out, _ := runIn(t, root, "run", `echo previous; head -c 4097 /dev/zero | tr '\0' ' '; awk 'BEGIN{for(i=0;i<21000;i++)printf "\342\200\203"}'; echo`)
+	if got := receiptField(out, "last"); got != "previous" {
+		t.Errorf("a line of spaces and U+2003 across the 64 KiB boundary: last %q, want previous", got)
+	}
+	out, _ = runIn(t, root, "run", `echo previous; head -c 4097 /dev/zero | tr '\0' ' '; awk 'BEGIN{for(i=0;i<21000;i++)printf "\342\200\203"}'; echo FAIL`)
+	if got := receiptField(out, "last"); got != "…" {
+		t.Errorf("the pair: the same line ending in FAIL: last %q, want …", got)
+	}
+}

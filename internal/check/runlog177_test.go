@@ -127,28 +127,46 @@ func TestRunLogsArePrunedByAgeAndCount(t *testing.T) {
 // A long run's own log must survive its prune: 64 runs that started after it
 // and finished before it leave it the oldest name, and the receipt names it.
 func TestARunKeepsItsOwnLogWhenSixtyFourOthersFinishedBeforeIt(t *testing.T) {
-	dir := t.TempDir()
 	t0 := time.Now().Add(-30 * time.Minute)
-	for i := 1; i <= RunLogsKept; i++ {
-		_, done := RunLogNames(t0.Add(time.Duration(i)*time.Second), 1000+i)
-		if err := os.WriteFile(filepath.Join(dir, done), []byte("x\n"), 0o600); err != nil {
+	_, mine := RunLogNames(t0, 42)
+	fill := func() string {
+		dir := t.TempDir()
+		for i := 1; i <= RunLogsKept; i++ {
+			_, done := RunLogNames(t0.Add(time.Duration(i)*time.Second), 1000+i)
+			if err := os.WriteFile(filepath.Join(dir, done), []byte("x\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := os.WriteFile(filepath.Join(dir, mine), []byte("the long run's output\n"), 0o600); err != nil {
 			t.Fatal(err)
 		}
+		return dir
 	}
-	_, mine := RunLogNames(t0, 42)
-	if err := os.WriteFile(filepath.Join(dir, mine), []byte("the long run's output\n"), 0o600); err != nil {
-		t.Fatal(err)
+	retained := func(dir string) int {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return len(entries)
 	}
+	// The protected log counts toward the 64: it and the newest 63 others stay.
+	dir := fill()
 	n := PruneRunLogs(dir, time.Now(), mine)
 	if _, err := os.Stat(filepath.Join(dir, mine)); err != nil {
 		t.Fatalf("pruned %d; the run's own log is gone: %v", n, err)
 	}
-	if n != 0 {
-		t.Errorf("pruned %d; the 64 others are the newest 64 and stay", n)
+	if got := retained(dir); n != 1 || got != RunLogsKept {
+		t.Errorf("pruned %d, %d logs retained; want 1 pruned and exactly %d retained", n, got, RunLogsKept)
 	}
-	// The pair: the same directory without the exemption loses that log.
-	if n := PruneRunLogs(dir, time.Now(), ""); n != 1 {
-		t.Errorf("without the exemption %d were pruned, want the one oldest name", n)
+	// The pair: the same directory without the exemption keeps 64 as well, and
+	// the one it loses is that log.
+	dir = fill()
+	n = PruneRunLogs(dir, time.Now(), "")
+	if _, err := os.Stat(filepath.Join(dir, mine)); err == nil {
+		t.Errorf("without the exemption the oldest name survived")
+	}
+	if got := retained(dir); n != 1 || got != RunLogsKept {
+		t.Errorf("without the exemption: pruned %d, %d retained; want 1 and %d", n, got, RunLogsKept)
 	}
 }
 

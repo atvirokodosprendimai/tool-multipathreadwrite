@@ -272,7 +272,7 @@ func usageError(_ context.Context, cmd *cli.Command, err error, _ bool) error {
 	// Decision 7 of ADR-177: mrw run --json answers a refusal, this one included,
 	// with one {"error": …} document. The parser may stop before it has set
 	// --json, so the raw arguments are read too.
-	if cmd.Name == "run" && (cmd.Bool("json") || slices.Contains(cmd.Root().Args().Slice(), "--json")) {
+	if cmd.Name == "run" && runJSONRequested(cmd.Root().Args().Slice()) {
 		emitRunJSON(checkRefusal{Error: msg})
 	}
 	return cli.Exit(msg, exitUsage)
