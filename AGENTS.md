@@ -263,6 +263,12 @@ the inner quotes from the first form (`--%` does not help); cmd needs `"t.json:$
 single quotes. In pwsh 7 a double-quoted `\"` reaches mrw with its backslashes. An unquoted `[0]` is a glob, which
 works only while no file matches it.
 
+To take a few fields out of a JSON document instead of its lines — single-line and piped JSON included, where a path address
+serves the whole line — `mrw read --json-path '$.a.b,$.c[0]' f.json` (or `CMD --json | mrw read --json-path '$.a,$.b' -`)
+prints one line per expression, `EXPR = VALUE`, the value compacted (ADR-178). It licenses nothing and records nothing: read
+the path address `f.json:$.a.b` before editing the value. A miss prints `NOT FOUND`, a file that is not one JSON document
+prints `NOT JSON`, and either exits 1. The same quoting applies to the expressions.
+
 **And when you do not know which files to name, do not enumerate them —
 `--grep` walks and serves in one call:**
 

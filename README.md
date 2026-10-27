@@ -193,6 +193,14 @@ unless a line after its range was served, when the range ends before the last li
 Quote a JSON path for the shell: pwsh 7 takes `'t.json:$["k"]'`, Windows PowerShell 5.1 needs `'t.json:$[\"k\"]'`,
 cmd needs `"t.json:$[\"k\"]"`, and Git Bash and other POSIX shells take single quotes; an unquoted `[0]` is a glob (ADR-157).
 
+`--json-path EXPR[,EXPR…]` takes a few fields out of a JSON file, or of `-` for piped output, as one line each,
+`EXPR = VALUE`, the value compacted: `mrw read --json-path '$.name,$.scripts.build' package.json`, or
+`CMD --json | mrw read --json-path '$.a,$.b' -`. A path address of single-line JSON serves the whole line; this does not.
+A projection licenses nothing and records nothing, so read the path address (`package.json:$.scripts.build`) before editing
+the value; an expression the document lacks prints `NOT FOUND`, a file that is not one JSON document prints `NOT JSON`, and
+either exits 1. It takes `--max-cols` and `--max-chars`, and `--json` for a named file (on `-` it is refused), and refuses the flags that serve lines, `-N` included (ADR-178). Quote
+the expressions as above.
+
 `--root DIR` (or `-C DIR`) is `mrw`'s own flag and goes before the subcommand: `mrw --root DIR read …`. Most
 subcommands also take it after the verb; `read` does not, because its own `-C` is context, and a `read --root`
 is refused with that spelling (ADR-165).

@@ -31,7 +31,7 @@ func stdinSpec(posArgs []string) bool {
 // with every address, --grep, -C, --max-lines and --max-cols, so a command's
 // output is narrowed by mrw and not by grep, sed -n or head. It records
 // nothing: standard input is not a file a plan can name (ADR-161).
-func stdinRead(cmd *cli.Command, pattern string, grepSet bool, posArgs []string) error {
+func stdinRead(cmd *cli.Command, pattern string, grepSet bool, posArgs []string, projections []read.Projection) error {
 	if len(posArgs) != 1 {
 		return cli.Exit("- reads standard input, and a read of it names nothing else: read the files in another call", exitUsage)
 	}
@@ -45,6 +45,9 @@ func stdinRead(cmd *cli.Command, pattern string, grepSet bool, posArgs []string)
 	sp, err := read.ParseSpec("stdin" + strings.TrimPrefix(posArgs[0], "-"))
 	if err != nil {
 		return cli.Exit(strings.Replace(err.Error(), "stdin", "-", 1), exitUsage)
+	}
+	if len(projections) > 0 && len(sp.Ranges) > 0 {
+		return cli.Exit(fmt.Sprintf("%s: --json-path prints values, and an address names lines: give - alone", posArgs[0]), exitUsage)
 	}
 	sp.Raw = posArgs[0]
 	var re *regexp.Regexp
@@ -96,6 +99,7 @@ func stdinRead(cmd *cli.Command, pattern string, grepSet bool, posArgs []string)
 		MaxCols:  cmd.Int("max-cols"),
 		NextLine: true,
 		Withheld: &withheld,
+		Project:  projections,
 	})
 	if err := out.Flush(); err != nil {
 		return cli.Exit(fmt.Sprintf("the answer could not be written: %v", err), exitUsage)
