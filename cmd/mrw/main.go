@@ -182,8 +182,9 @@ func rootCommand() *cli.Command {
 			// A newer mrw's ledger is not stale: it is left alone, and the caller
 			// is told which binary wrote it (ADR-150).
 			if writer, newer, err := seen.Newer(cmd.String("root")); err == nil && newer {
-				// A write says it once, in a refusal or after its landing (ADR-157).
-				if verb != "write" {
+				// A write says it once, in a refusal or after its landing (ADR-157);
+				// so does `seen --forget`, whose refusal carries the notice (ADR-175).
+				if verb != "write" && (verb != "seen" || !asksToForget(cmd.Args().Slice())) {
 					fmt.Fprintln(os.Stderr, seen.NewerNotice(writer))
 				}
 			} else if stale, err := seen.IsStale(cmd.String("root")); err == nil && stale {
@@ -722,6 +723,11 @@ whose marker is missing, unreadable or not an absolute path — mrw did not writ
 those, so it does not know what they are — nor the entry for the root you are
 running in. --prune --dry-run prints the same list and removes nothing.
 
+--forget empties the read ledger of this checkout, read and written files alike, so
+that a write needs a fresh read of the lines it touches. A host hook runs it after
+it compacts its context (docs/agents.md); it costs every session in the checkout a
+re-read, and it is refused, exit 2, over a ledger a newer mrw wrote.
+
 There is no automatic reaper and there will not be one: a path that is gone may
 be a deleted checkout or a volume that is not mounted, and only you can tell.`,
 		Flags: []cli.Flag{
@@ -733,9 +739,19 @@ be a deleted checkout or a volume that is not mounted, and only you can tell.`,
 				Name:  "dry-run",
 				Usage: "with --prune: print what would be removed, and remove nothing",
 			},
+			&cli.BoolFlag{
+				Name:  "forget",
+				Usage: "empty this checkout's read ledger: every later write needs a fresh read",
+			},
 		},
 		Action: func(_ context.Context, cmd *cli.Command) error {
 			root := cmd.Root().String("root")
+			if cmd.Bool("forget") {
+				if cmd.Bool("prune") || cmd.Bool("dry-run") {
+					return cli.Exit("mrw seen: --forget empties the ledger and takes neither --prune nor --dry-run", exitUsage)
+				}
+				return forget(root)
+			}
 			if cmd.Bool("prune") {
 				return prune(root, cmd.Bool("dry-run"))
 			}
@@ -2897,6 +2913,54 @@ func prune(root string, dry bool) error {
 			failed, plural(failed, "y", "ies")), exitUsage)
 	}
 	return nil
+}
+
+// forget is `mrw seen --forget` (ADR-175): a newer mrw's ledger is refused first,
+// so that nothing changes; then the pending MCP acknowledgements go, since an ack
+// would otherwise promote one into the ledger just emptied. The pending store is
+// per root and the ledger per checkout, so the checkout's top is emptied too: a
+// server started there is not the root a hook ran from.
+func forget(root string) error {
+	if writer, newer, err := seen.Newer(root); err == nil && newer {
+		// main prints "mrw: " itself.
+		return exitWith(errors.New(strings.TrimPrefix(seen.NewerNotice(writer), "mrw: ")))
+	}
+	roots := []string{root}
+	if top, _ := state.Checkout(root); top != root {
+		roots = append(roots, top)
+	}
+	for _, r := range roots {
+		if err := mcp.ForgetPending(r); err != nil {
+			return exitWith(err)
+		}
+	}
+	n, err := seen.Forget(root)
+	if err != nil {
+		return exitWith(err)
+	}
+	if n == 0 {
+		fmt.Println("forgot 0 file(s)")
+		return nil
+	}
+	fmt.Printf("forgot %d file(s): a write now needs a fresh read of the lines it touches\n", n)
+	return nil
+}
+
+// asksToForget reports whether argv, still unparsed, carries the --forget flag
+// in any spelling the parser takes: -forget, --forget, and either with =true
+// (ADR-175). Before it runs, the root's newer-ledger notice stands down for the
+// refusal that carries it.
+func asksToForget(args []string) bool {
+	for _, a := range args {
+		name, val, hasVal := strings.Cut(strings.TrimLeft(a, "-"), "=")
+		if dashes := len(a) - len(strings.TrimLeft(a, "-")); dashes < 1 || dashes > 2 || name != "forget" {
+			continue
+		}
+		if on, err := strconv.ParseBool(val); !hasVal || (err == nil && on) {
+			return true
+		}
+	}
+	return false
 }
 
 // plural picks the singular or the plural form for n.

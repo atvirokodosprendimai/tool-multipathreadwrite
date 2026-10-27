@@ -582,6 +582,10 @@ Zy, 2026-10-18, approved measuring the plugin where its mechanism can work; 2026
 - **Hiding the host interpreters from the attempt** (2026-10-19): ADR-163 counts calls to host interpreters by absolute path, `env -i`, `command -p` or `xcrun`. If T4's agent pilot counts any, how to hide them before block 1 is decided with Zy then, and this entry closes.
 - **The side reader applies rulings to P only, untested** (2026-10-23): `bench side` applies `rule` to the control's attempts (`internal/bench/side.go`, `if src.config == control {`), since a side arm's attempts live in `side/`, which no ruling names. No T6 test sets a ruling, so a mutant that drops the call or rules the side arm survives. Add a ruled-P fixture to `TestTheSideReaderUsesPAsControlAndTheRegisteredBar` before the first side verdict is read (T5).
 
+## From ADR-175
+
+- **Compaction hooks for Codex and Cursor** (2026-10-24): the `mrw seen --forget` hook is documented for Claude Code only (`docs/agents.md` §8); equivalents for other hosts are deferred (ADR-175: compaction hooks for Codex and Cursor). Arm when a Codex or Cursor user reports a post-compaction unlicensed write, or when either host documents a compaction event a command can hang on.
+
 
 ## Pre-registered for a whole-file re-read guard (`--if-changed sha=X`) — written before the measurement
 
