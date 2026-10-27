@@ -474,6 +474,8 @@ func TestRunJSONFlagIsReadAsTheParserReadsIt(t *testing.T) {
 		{[]string{"-json"}, true},
 		{[]string{"--json=true"}, true},
 		{[]string{"--json=1"}, true},
+		{[]string{"--json="}, true},
+		{[]string{"--json=false", "--json="}, true},
 		{[]string{"--json=false"}, false},
 		{[]string{"--json=0"}, false},
 		{[]string{"--json", "--json=false"}, false},

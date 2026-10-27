@@ -142,6 +142,7 @@ out=$(go test ./cmd/mrw/ ./internal/check/ -count=1 -v -run '^(TestRunKeepsTheOu
 - 2026-10-27 · e3f5ea87* · mutant killed · exit 1 · `internal/check/runlog177.go` · the protected log no longer counts toward the 64, so 65 stay (S17) · acceptance-sha256:90c1da2c18aaca85f28f20991c3ef9c2dc29d0e2c255915b82925e1e6b89763c · covers:the own-log test passed
 - 2026-10-27 · e3f5ea87* · mutant killed · exit 1 · `cmd/mrw/run177.go` · a later --json=false no longer overrides an earlier true (S18) · acceptance-sha256:90c1da2c18aaca85f28f20991c3ef9c2dc29d0e2c255915b82925e1e6b89763c · covers:the json-flag test passed
 - 2026-10-27 · e3f5ea87* · mutant killed · exit 1 · `cmd/mrw/run177.go` · the partial character is not carried across fragments (S19) · acceptance-sha256:90c1da2c18aaca85f28f20991c3ef9c2dc29d0e2c255915b82925e1e6b89763c · covers:the boundary test passed
+- 2026-10-27 · 80bf726a* · mutant killed · exit 1 · `cmd/mrw/run177.go` · S18: an empty --json= value read as false · acceptance-sha256:90c1da2c18aaca85f28f20991c3ef9c2dc29d0e2c255915b82925e1e6b89763c · covers:the json-flag test passed
 
 ## Invariants
 
@@ -188,3 +189,6 @@ The fence exits 0. Stop and ask if the entry needs a change to the check's own b
 - 2026-10-27 · e3f5ea87* · exit 0 · `set -o pipefail …` · acceptance-sha256:90c1da2c18aaca85f28f20991c3ef9c2dc29d0e2c255915b82925e1e6b89763c · ms:189514
 - 2026-10-27 · e3f5ea87* · exit 0 · `set -o pipefail …` · acceptance-sha256:90c1da2c18aaca85f28f20991c3ef9c2dc29d0e2c255915b82925e1e6b89763c · ms:158221
 - 2026-10-27 · e3f5ea87* · exit 0 · `set -o pipefail …` · acceptance-sha256:90c1da2c18aaca85f28f20991c3ef9c2dc29d0e2c255915b82925e1e6b89763c · ms:142509
+- 2026-10-27 · 80bf726a* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:90c1da2c18aaca85f28f20991c3ef9c2dc29d0e2c255915b82925e1e6b89763c · ms:0 · test-lock-sha256:a1c49e2414df1a53ff6e6376c3fbe6632de04c0acf1ddb2a3920141d2b6e4201 · test-lock-file:docs/adr/locks/a1c49e2414df1a53ff6e6376c3fbe6632de04c0acf1ddb2a3920141d2b6e4201.lock · test-lock-kind:replace
+- 2026-10-27 · 80bf726a* · exit 0 · `set -o pipefail …` · acceptance-sha256:90c1da2c18aaca85f28f20991c3ef9c2dc29d0e2c255915b82925e1e6b89763c · ms:139066
+- 2026-10-27 · 80bf726a* · exit 0 · `set -o pipefail …` · acceptance-sha256:90c1da2c18aaca85f28f20991c3ef9c2dc29d0e2c255915b82925e1e6b89763c · ms:134823

@@ -317,7 +317,7 @@ func runJSONRequested(args []string) bool {
 		if name != "json" || !strings.HasPrefix(a, "-") {
 			continue
 		}
-		if !hasVal {
+		if !hasVal || val == "" { // urfave/cli v3 reads an empty boolean value as true
 			on = true
 		} else if b, err := strconv.ParseBool(val); err == nil {
 			on = b
