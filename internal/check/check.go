@@ -211,6 +211,8 @@ type Result struct {
 	OutsideScope []string `json:"outside_scope,omitempty"`
 	// outsideTemplate is the scoped_check that left them out, for OutsideLine.
 	outsideTemplate string
+	// sig is the signal that killed the command, for Signal (ADR-177).
+	sig int
 }
 
 // OutsideLine is the line both surfaces print for OutsideScope, or "" when
@@ -252,10 +254,24 @@ func StoppedBeforeStart(r Result) bool {
 // and nothing bounded how many accumulated: 3,103 on one machine (ADR-080).
 const LogRetention = 7 * 24 * time.Hour
 
+// isCheckLog is the name of a check's log in the temp directory.
+func isCheckLog(name string) bool {
+	ok, _ := filepath.Match("mrw-check-*.log", name)
+	return ok
+}
+
 // pruneLogs removes this program's check logs older than cutoff from dir and
-// says how many. Only regular files named like one are touched; an error on any
-// one is passed over, since the temp directory is shared and sticky.
+// says how many (ADR-080).
 func pruneLogs(dir string, cutoff time.Time) int {
+	return pruneMatching(dir, isCheckLog, cutoff, 0)
+}
+
+// pruneMatching removes this program's logs in dir whose name match accepts and
+// that are older than cutoff, then, when keepNewest is above zero, all but the
+// newest keepNewest of the rest by name, and says how many. Only regular files
+// are touched; an error on any one is passed over, since the temp directory is
+// shared and sticky.
+func pruneMatching(dir string, match func(name string) bool, cutoff time.Time, keepNewest int) int {
 	// Listed, not globbed: a glob reads metacharacters in dir too, so a TMPDIR
 	// of t[x] pruned tx's logs and kept its own (the reviews of #241).
 	entries, err := os.ReadDir(dir)
@@ -263,17 +279,27 @@ func pruneLogs(dir string, cutoff time.Time) int {
 		return 0
 	}
 	n := 0
+	var kept []string // in name order, which ReadDir guarantees
 	for _, e := range entries {
-		if ok, _ := filepath.Match("mrw-check-*.log", e.Name()); !ok {
+		if !match(e.Name()) {
 			continue
 		}
 		m := filepath.Join(dir, e.Name())
 		fi, err := os.Lstat(m)
-		if err != nil || !fi.Mode().IsRegular() || !fi.ModTime().Before(cutoff) {
+		if err != nil || !fi.Mode().IsRegular() {
 			continue
 		}
-		if os.Remove(m) == nil {
+		if fi.ModTime().Before(cutoff) && os.Remove(m) == nil {
 			n++
+			continue
+		}
+		kept = append(kept, m)
+	}
+	if keepNewest > 0 && len(kept) > keepNewest {
+		for _, m := range kept[:len(kept)-keepNewest] {
+			if os.Remove(m) == nil {
+				n++
+			}
 		}
 	}
 	return n
@@ -344,6 +370,13 @@ func Run(ctx context.Context, root string, cfg Config, editedPaths []string, opt
 // sequence (ADR-092). Every guarantee a check has lives here, so a step has
 // them too — output to a file, the verdict from the process, the timeout.
 func run(ctx context.Context, root string, cfg Config, cmdline string, env []string) (Result, error) {
+	return runWith(ctx, root, cfg, cmdline, env, RunSpec{})
+}
+
+// runWith is run with the timeout, the log and the log's fate the caller's
+// (ADR-177): a zero spec is the check's own, a temporary log that a passing
+// run deletes. Exec is the other caller.
+func runWith(ctx context.Context, root string, cfg Config, cmdline string, env []string, spec RunSpec) (Result, error) {
 	// Ran is NOT set here. It is set once a ProcessState exists, because this
 	// type's whole job is to distinguish "no evidence" from "evidence of
 	// success" (ADR-003 rule 2) and a process that never STARTED produced
@@ -380,12 +413,15 @@ func run(ctx context.Context, root string, cfg Config, cmdline string, env []str
 		}
 		timeout = time.Duration(secs) * time.Second
 	}
+	if spec.Timeout > 0 {
+		timeout = spec.Timeout
+	}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	// The output goes to a file first and is read back from there. Nothing
 	// between the process and its exit code may be a pipe.
-	f, err := os.CreateTemp("", "mrw-check-*.log")
+	f, err := openLog(spec)
 	if err != nil {
 		return res, err
 	}
@@ -422,6 +458,7 @@ func run(ctx context.Context, root string, cfg Config, cmdline string, env []str
 		// It started and exited badly. That is a real verdict, and exit 3's
 		// meaning: the tree is changed and unverified.
 		res.Ran, res.ExitCode = true, c.ProcessState.ExitCode()
+		res.sig = signalOf(c.ProcessState)
 	default:
 		// It never started. Ran stays false, so this routes to "no check could
 		// run" and exit 2 — the configuration problem ADR-003's table files a
@@ -483,7 +520,7 @@ func run(ctx context.Context, root string, cfg Config, cmdline string, env []str
 	// on success — whether it withheld earlier lines or cut a long one (ADR-104,
 	// the review of #295) — because the report points at the file and deleting
 	// a file the report points at is worse than leaving it.
-	if res.Ran && res.ExitCode == 0 && res.Truncated == 0 && !cut {
+	if !spec.keep && res.Ran && res.ExitCode == 0 && res.Truncated == 0 && !cut {
 		if err := os.Remove(res.OutputFile); err == nil {
 			res.OutputFile = ""
 		}

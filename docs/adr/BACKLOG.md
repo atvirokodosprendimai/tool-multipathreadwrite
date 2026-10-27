@@ -739,3 +739,46 @@ new capability.
 ## From ADR-176
 
 - **Keeping `--create`'s refused standard input** (2026-10-24): ADR-176 keeps a refused standard-input PLAN so the caller reruns it by path. `mrw write --create PATH` reads a file's CONTENT from standard input (ADR-139), not a plan, and a refused one (the path exists, the content is over the limit) drops it the same way. Left out because the rerun there is a new `--create` of the same content, which the caller can pipe again at the cost of one file, not a plan with a line to fix; revisit if a field run shows `--create` content re-sent after a refusal.
+
+## Pre-registered for ADR-177, ADR-178 and ADR-179 — written with the records, before any code
+
+Zy, 2026-10-27: *"yes, go, address these, measure, plan, implement verify, udupate the instrucitons, no counter-arguing, all follow same direction."*
+
+**The baseline** is `docs/bench/output-study/baseline-2026-10-27.json` and `repeat-baseline-2026-10-27.json`: `measure_output.py` and `measure_repeat.py`, as added in the change that wrote this entry, with `--since 2026-09-27T10:11:00Z --until 2026-10-27T10:11:00Z` — every tool result whose transcript line is stamped in that window (129 main-session transcripts, 107 with an mrw call; 100,931,328 characters of tool output).
+
+**The run.** With the same two scripts, unchanged, and `--since T --until T+30d`, T the UTC time of the tag of the release that ships the last of the three records. If the window is extended (below), `--until` moves to T+60d and `--since` stays T: one window, never a rolling one. Counters a later task adds (ADR-179 T2 S2, T8 S2) are reported beside these, never in place of them, and measure over the baseline's window.
+
+**Exposure first.** A bucket is judged only when its window's denominator is at least half the baseline's (e.g. at least 9,538 `mrw read` calls for a `mrw read` share). A bucket below that is inconclusive. The run as a whole is inconclusive if fewer than 50 transcripts in the window hold an mrw call.
+
+**The expected change, per bucket** (a share of all tool output unless it says otherwise; baseline → bar):
+
+| record | bucket (script keys) | baseline | bar |
+|---|---|---|---|
+| ADR-177 `mrw run` | Bash outputs over 4 KB that are not mrw and not reads (`bash_big_nonread_chars` / ALL) | 1.53% | ≤ 1.0% |
+| ADR-177 `mrw run` | commands piped into head/tail per non-mrw Bash call (`bash_piped_head_tail_calls` / `bash_nonmrw_calls`) | 48.1% (11,478 of 23,850) | ≤ 38% |
+| ADR-177 `mrw run` | reads of `mrw-runs/` logs (`mrw_runs_log_read_chars` beside `mrw_run_chars`) | 0 | reported, no bar |
+| ADR-178 `--json-path` | JSON documents of 1 KB or more (`json_docs_chars` / ALL) | 6.13% | ≤ 5.2% |
+| ADR-178 `--json-path` | `--json-path` calls (`mrw_json_path_calls`) | 0 | reported, no bar |
+| ADR-179 (a) | long-line excess in `mrw read` (`longlines_saved_mrw read` / `mrw read` chars) | 7.94% | ≤ 4.0% |
+| ADR-179 (b) | whole-file reads over 150 lines, completely served blocks, Read + `mrw read` / ALL | 2.70% | ≤ 2.15% (the same 20% cut; the first figures, 4.15% → 3.3%, counted partial reads and batches) |
+| ADR-179 (d) | repeated identical mrw content blocks (`repeat_block_chars` / `all`, measure_repeat) | 0.22% | ≤ 0.15% |
+| ADR-179 (c) | foldable near-identical runs (`fold_near_saved` / ALL) | 1.13% | ≤ 0.85% |
+| ADR-179 (e) | notice lines repeated inside one tool result (`notice_repeat_chars`) | 0.028% | reported, no bar |
+| ADR-179 (f) | characters per `mrw write` call (`mrw write` chars / calls), and `--terse` calls (`mrw_write_terse_calls`) | 606 / 0 | ≤ 450 / reported |
+| ADR-179 (g) | characters per `mrw read --grep` call (`mrw_read_grep_chars` / `mrw_read_grep_calls`) | 2,176 | reported, no bar |
+| ADR-179 (h) | not measured by these scripts; T8 S2's counter | — | reported, no bar |
+
+**The measurement bars, before code, over the baseline's window.** ADR-179 T2 proceeds only if `.go` and `.md` files carry at least 25% of the characters of whole-file reads over 150 lines; ADR-179 T8 proceeds only if whole-line comment runs (`//` and `/* */`) of two or more lines in `.go` blocks of `mrw read` output are at least 1.0% of `mrw read` characters. Below either bar the task stops and the numbers go to Zy.
+
+**What each outcome does.**
+- A bucket at or past its bar: the part is kept and its taught lines stay.
+- A bucket that moved less than half the way from baseline to bar: the part is reported to Zy as not adopted, with its taught lines put to Zy for removal from `mrw instructions` and `mrw skill`. Nothing is removed on this alone.
+- **Inconclusive** (exposure, above): the window is extended once to 60 days; still inconclusive, the numbers go to Zy.
+- **ADR-179 (d) is also judged on cost:** `reference_chars` (and `same_as_served_chars`) against `reference_stands_for_chars`, the characters of the blocks the references stood for (measure_repeat ties each reference to the block its session last served for that path and sha; `reference_unmatched_count` counts those with none); a reference that costs more than a third of what it replaced is reported. (f)'s default question is answered here too: if `--terse` appears in at least 20% of `mrw write` calls and no failure-report complaint is filed, the terse receipt as the default goes to Zy as a record.
+
+**What would make this impossible to fail:** a window in which nobody uses mrw, or a bucket with no exposure. The exposure rule makes both inconclusive rather than a pass; a workload shift (more test runs, fewer reads) moves the shares for reasons unrelated to these records, which is why each part is judged against its own bucket and none against the total.
+
+## From ADR-177
+
+- **A `run` tool in the opencode plugin** (2026-10-27): the plugin offers one tool per subcommand (`cmd/opencode/mrw-plugin/src/index.ts:242-271`); `mrw run` is not added there with ADR-177. Arm when an opencode user asks, or when the plugin is next extended (ADR-177: a `run` tool in the opencode plugin).
+- **A size cap on one `mrw run` log** (2026-10-27): no cap is decided; a command can fill the state home's disk. Arm when a user reports a run log over 1 GiB, or a full disk traced to `mrw-runs/` (ADR-177: a size cap on one run's log).

@@ -221,7 +221,7 @@ func rootCommand() *cli.Command {
 			cmd.Metadata = map[string]any{"notFound": cli.Exit(
 				fmt.Sprintf("unknown command %q (want %s)", name, strings.Join(names, ", ")), exitUsage)}
 		},
-		Commands: []*cli.Command{readCmd(), writeCmd(), checkCmd(), iterCmd(), seenCmd(), statsCmd(), mcpCmd(), instructionsCmd(), skillCmd(), versionCmd()},
+		Commands: []*cli.Command{readCmd(), writeCmd(), checkCmd(), runCmd(), iterCmd(), seenCmd(), statsCmd(), mcpCmd(), instructionsCmd(), skillCmd(), versionCmd()},
 	}
 	installUsageErrors(cmd)
 	return cmd
@@ -268,6 +268,12 @@ func usageError(_ context.Context, cmd *cli.Command, err error, _ bool) error {
 		msg += "; " + h
 	} else if h := foreignFlagHint(cmd.FullName(), refusedFlag(err)); h != "" {
 		msg += "; " + h
+	}
+	// Decision 7 of ADR-177: mrw run --json answers a refusal, this one included,
+	// with one {"error": …} document. The parser may stop before it has set
+	// --json, so the raw arguments are read too.
+	if cmd.Name == "run" && runJSONRequested(cmd.Root().Args().Slice()) {
+		emitRunJSON(checkRefusal{Error: msg})
 	}
 	return cli.Exit(msg, exitUsage)
 }
@@ -419,7 +425,10 @@ func main() {
 		}
 	}
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "mrw:", statehint.Hint(err))
+		// A command's own exit (mrw run) carries no message: its receipt is the report.
+		if msg := statehint.Hint(err); msg.Error() != "" {
+			fmt.Fprintln(os.Stderr, "mrw:", msg)
+		}
 		os.Exit(exitCode(err))
 	}
 }

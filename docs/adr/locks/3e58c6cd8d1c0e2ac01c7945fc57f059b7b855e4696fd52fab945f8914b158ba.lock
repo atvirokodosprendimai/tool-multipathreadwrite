@@ -1,0 +1,2 @@
+check@2	1bb497e3e13a1105cf24e3359fa3ef75de08b66ff8a2839cd7f9ea97824d9eb3
+body	cmd/mrw/receipts111_test.go	TestNoShippedReceiptFieldDisappears	fe739e5d9a358e811c4607b0cd862e52d12479a9fada2b2aa97090bd6357aace
