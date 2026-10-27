@@ -735,3 +735,7 @@ new capability.
 ## From ADR-171
 
 - **A one-line answer to a repeated `mrw instructions`** (2026-10-24): when the same state directory sees `mrw instructions` again, print one line instead of 12.9K characters. Deferred: it makes a read-only command depend on state, and ADR-171 Decision 2 removes the reason for the repeat (the header and the trigger say to read the rules once a session). Reopen if a re-measure after ADR-171 still shows repeated full reads.
+
+## From ADR-176
+
+- **Keeping `--create`'s refused standard input** (2026-10-24): ADR-176 keeps a refused standard-input PLAN so the caller reruns it by path. `mrw write --create PATH` reads a file's CONTENT from standard input (ADR-139), not a plan, and a refused one (the path exists, the content is over the limit) drops it the same way. Left out because the rerun there is a new `--create` of the same content, which the caller can pipe again at the cost of one file, not a plan with a line to fix; revisit if a field run shows `--create` content re-sent after a refusal.

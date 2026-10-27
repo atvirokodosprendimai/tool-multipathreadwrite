@@ -47,21 +47,32 @@ func Hold(root, name string) (func(), error) {
 	}, nil
 }
 
-// HoldWithin is Hold with a bounded wait (ADR-110). It tries the lock without
-// blocking and retries with a growing pause until wait has passed, then returns
-// a LockTimeoutError naming the holder; a wait of 0 tries once. Hold waited for
-// ever, so a live holder that had stopped blocked every writer after it with
-// nothing said. A goroutine around the blocking call would not do: abandoned at
-// the deadline, it takes the lock later and holds it with nobody to release it.
-//
-// Whoever takes a lock here writes its pid to <name>.holder beside it, for the
-// next waiter to name — a separate file because Windows locks a byte range, and
-// a waiter could not read the locked file itself.
+// HoldWithin is Hold with a bounded wait (ADR-110): HoldFileWithin on the lock
+// file name in root's state directory.
 func HoldWithin(root, name string, wait time.Duration) (func(), error) {
 	path, err := Path(root, name)
 	if err != nil {
 		return nil, err
 	}
+	return HoldFileWithin(path, wait)
+}
+
+// HoldFileWithin takes the lock file at path exclusively, making its directory
+// if need be. It tries the lock without blocking and retries with a growing
+// pause until wait has passed, then returns a LockTimeoutError naming the
+// holder; a wait of 0 tries once. Hold waited for ever, so a live holder that
+// had stopped blocked every writer after it with nothing said. A goroutine
+// around the blocking call would not do: abandoned at the deadline, it takes the
+// lock later and holds it with nobody to release it.
+//
+// The path is the caller's, not a state directory's, so a lock can live beside
+// what it guards: processes with different state homes that reach one directory
+// through a link share the lock in it (ADR-176).
+//
+// Whoever takes a lock here writes its pid to <path>.holder beside it, for the
+// next waiter to name — a separate file because Windows locks a byte range, and
+// a waiter could not read the locked file itself.
+func HoldFileWithin(path string, wait time.Duration) (func(), error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return nil, err
 	}
@@ -82,7 +93,7 @@ func HoldWithin(root, name string, wait time.Duration) (func(), error) {
 		}
 		if !time.Now().Before(deadline) {
 			_ = f.Close()
-			return nil, &LockTimeoutError{Name: name, Wait: wait, Holder: holderOf(path)}
+			return nil, &LockTimeoutError{Name: filepath.Base(path), Wait: wait, Holder: holderOf(path)}
 		}
 		time.Sleep(min(pause, time.Until(deadline)))
 		pause = min(2*pause, 250*time.Millisecond)

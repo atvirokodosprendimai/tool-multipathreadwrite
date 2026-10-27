@@ -114,6 +114,7 @@ A content read naming its specs whose state directory cannot be written (a read-
 A pattern is a Go regular expression: start it with (?i) to ignore case.
 mrw write PLAN reads a plan from a file and mrw write - reads it from standard input. mrw read - serves standard input as one unnamed file, with addresses, --grep, -C, --max-lines and --max-cols, and licenses nothing; a file named - is ./-. A lone - may stand before flags: mrw moves it last, so they are read.
 Send a plan in a file, written with the host's file tool in a temporary directory you may write; where no such directory is writable a plan file inside the checkout is fine, removed after the write, and where the host has no file tool, mrw write - <<'PLAN' with a quoted delimiter stays the form. A file avoids shell quoting; it does not make the plan complete.
+A plan piped to mrw write - that ends with nothing in the tree (a refusal, a dry run, a commit that landed nothing) is kept in <state home>/mrw-refused/, the newest 16, beside mrw's state directory and not in it: stderr names the path, and the same command with that path in place of - runs the edited copy.
 mrw instructions --core prints the eight rules that matter most.
 mrw skill prints the core and the recipes as an Agent Skills SKILL.md, and mrw skill --dir DIR installs it as DIR/mrw/SKILL.md.
 `
