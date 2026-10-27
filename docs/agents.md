@@ -141,6 +141,7 @@ From that agent's own review of a day of use (2026-10-22). Its writes were sound
 | reading before knowing how much matches | context spent on lines it did not need | `mrw read --grep P --count` first |
 | a grep-and-cut pipeline to learn a line number, then a hunk on that number | two calls, and a number that goes stale | a pattern address, `@@ f.go /^func A/ replace …`, with `occurrence=N` when the start matches more than once |
 | `sed -i` on a plan whose `body=` count was wrong | an edit outside the ledger | regenerate the plan from what you read. `body=` is an optional line count: leave it out unless the body needs one. Where it is needed and missing, the plan is refused with a hint, except for a body line that is itself a valid hunk header (`@@ b.txt 0 create`), which silently starts a new hunk; a body holding one needs `body=N raw=true` |
+| a build, a test suite or a gate run as `CMD \| tail` (or `\| head`) | the pipeline's exit code is the last command's, and the output still costs context | `mrw run 'CMD'`: the output goes to a log and a four-line receipt carries the command's own exit code, the last line, the log's path and a read of it; look further with `mrw read --grep P -C 3 - < LOG` (ADR-177) |
 
 ## 7. What allowing mrw allows
 
@@ -151,7 +152,7 @@ elsewhere — allows:
   the root it was given, not to a root anyone chose.
   A host's per-path rules for its Edit and Write tools do not reach a shell command, so `deny Write(.env)`
   or `allow Edit(src/**)` does not stop `mrw write`.
-- **shell.** `--then-sh 'CMD'` runs any command; `mrw check` and `--then` run what the project declares.
+- **shell.** `--then-sh 'CMD'` and `mrw run 'CMD'` run any command; `mrw check` and `--then` run what the project declares.
 
 mrw's own refusals — a write into `.git`, into its state directory, through a link that leaves the root, to
 a reserved Windows name — keep a plan honest, not an agent contained. The trigger and the skill move an

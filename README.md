@@ -155,7 +155,7 @@ after upgrading mrw. Add it beside the trigger, not in its place: a host loads a
 relevant, and nothing measured says it does for a routine edit (ADR-168). `mrw --help` opens with this line.
 
 **What allowing mrw allows.** mrw runs as you. A harness rule that allows it (`Bash(mrw:*)` or its equivalent)
-allows writes to any file you can write, under any `--root` it is given, and shell through `--then-sh`,
+allows writes to any file you can write, under any `--root` it is given, and shell through `--then-sh`, `mrw run`,
 `mrw check` and `--then`; a host's per-path rules for its Edit and Write tools do not reach it. mrw's own
 refusals — `.git`, its state, a link that leaves the root — keep a plan honest, not an agent contained.
 Contain an agent with the host's sandbox or the operating system's permissions, or allow mrw only where you
@@ -366,7 +366,7 @@ These are gates, not a tour of the records behind them.
   `.quality-harness.json`, and `--then-sh 'CMD'` an ad-hoc shell step; both repeat and run in
   command-line order after a landed write whose check passed, on `write` and `check`. The first that
   does not pass stops the rest, named `NOT RUN`; exit 3 (2 if it could not start); `--json` carries
-  `then: {steps, pruned_logs}`. --then-sh runs any shell command it is given: a harness rule that allows mrw without reading its arguments allows arbitrary shell through --then-sh.
+  `then: {steps, pruned_logs}`. --then-sh and mrw run run any shell command they are given: a harness rule that allows mrw without reading its arguments allows arbitrary shell through --then-sh and mrw run.
   `could_not_start` means the shell could not start (a missing command inside it is a `fail`, exit
   127); a step runs with `MRW_STEP_DEPTH` one deeper, and `--then` is refused at depth 8, so a step
   that re-runs mrw with steps cannot recurse without end; `"steps"` is read only when a step is asked for.
@@ -571,6 +571,8 @@ starts with `/` is rewritten too, into a false "no match".
 | 2 | usage, parse or I/O error — including a check miss |
 | 3 | the write applied and the check failed, timed out or was interrupted (before it started, too); the tree is changed and unverified. Not a rollback |
 
+`mrw run 'CMD'` gives the codes a meaning of its own (ADR-177), as `mrw version --check-latest` does: it exits with the command's own code, `128+N` when a signal N killed it, `124` when it reached its 24-hour deadline and `130` when mrw was interrupted. Its own failures (a usage error, a log that could not be made, a shell that could not start) are `2` with a `mrw:` line on stderr and no `exit` line in the receipt, which tells them from a command that exited 2.
+
 Exit 1 on `read` means incomplete: `UNREADABLE`, `REFUSED`, `no match`, or
 `WITHHELD`. The output always names which, and the last stderr line begins with the kind
 (ADR-146): `mrw: no match: …` when a search found no file and nothing it was asked for was
@@ -650,6 +652,30 @@ Linux. opencode itself is not run in CI.
 
 `mrw skill` (or `mrw --skill`) prints mrw's Agent Skills `SKILL.md`, and `mrw --skill --dir DIR` installs it as
 `DIR/mrw/SKILL.md`, replacing only one it wrote and nobody edited (ADR-168); see "Tell your agent to use it".
+
+`mrw run 'CMD'` runs one command string with `sh -c` in the root and keeps its output out of your context: standard
+output and standard error, interleaved, go to a log in `<state home>/mrw-runs/` (mode 0600, beside mrw's state
+directory and never in it, so `mrw seen --prune` does not look at it), and mrw prints a receipt of four lines instead
+(ADR-177):
+
+```
+exit 1 · 2,314 lines · 187,902 bytes · 41.2 s
+last: FAIL	github.com/x/y/internal/read	3.112s
+log: /Users/zy/.local/state/mrw-runs/run-20261027T101500.123Z-4242.log
+read: mrw read -- '-:2275-$' < '/Users/zy/.local/state/mrw-runs/run-20261027T101500.123Z-4242.log'
+```
+
+`last:` is the last non-empty line, cut to 200 characters; `read:` serves the log's last 40 lines (on Windows it is
+the PowerShell form, `Get-Content -Raw -LiteralPath … | mrw read -- '-:N-$'`), and `mrw read --grep P -C 3 - < LOG`
+searches it. A log is not a tree file, so a named-path read of it is refused; standard input reaches it and
+records nothing. Its exit code is the command's (see "Exit status"), which `CMD | tail` loses. Standard input is the
+null device, the deadline is 24 hours, and an interrupt, terminate or hangup sent to mrw stops the command's group.
+`--json` prints one document, receipt type `run` in [docs/receipts.txt](docs/receipts.txt); at `MRW_STEP_DEPTH` 8 it
+is refused, and its command runs one level deeper. Every log is kept, passing ones too, and **stays on disk with
+whatever the command printed**: logs older than 7 days, and all but the newest 64, are eligible for removal and a
+later completed `mrw run` removes them. When `XDG_STATE_HOME` is inside a checkout (or `--root "$HOME"`), `mrw-runs/`
+is inside it too and is an ordinary directory there: ignore it. It runs any shell command it is given, as
+`--then-sh` does, so allowing mrw allows arbitrary shell. CLI only: MCP is for hosts with no shell.
 
 `mrw check`, `mrw iter`, `mrw seen`, `mrw seen --prune`, `mrw seen --forget`, and `mrw stats` exist
 only on the CLI, and so through the opencode plugin, which runs it. `mrw check` is not read-only: it runs whatever the project

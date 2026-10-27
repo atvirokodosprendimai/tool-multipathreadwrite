@@ -13,7 +13,7 @@ description: >-
 metadata:
   mrw-version: "v1.76.0"
   generated-by: "mrw skill"
-  content-sha256: "29bdb29e7701a79fa78176a221dcc95bac0302f32db5b6089f23b65432f481ac"
+  content-sha256: "cad434bb76b815b9d0328a9b6b2cc1b9884f39f5131e150367b1e6f7d565cf49"
 ---
 
 # mrw
@@ -39,7 +39,7 @@ Recipes:
   mrw read --grep P --count . && mrw read 'f.go:/P/' -C 3 --max-lines 40
 5. different changes at several sites: one read of all of them, then the plan in a file — written with the host's file tool, in a temporary directory you may write — so no shell parser sees its text:
   mrw read 'a.go:/func A/,+12' b.go:40-60 && mrw write "$TMPDIR/plan.txt"
-6. a step after the write, in the same call (NAME is a step in .quality-harness.json; a code write already runs the project's check; --then-sh runs any shell command it is given: a harness rule that allows mrw without reading its arguments allows arbitrary shell through --then-sh.):
+6. a step after the write, in the same call (NAME is a step in .quality-harness.json; a code write already runs the project's check; --then-sh and mrw run run any shell command they are given: a harness rule that allows mrw without reading its arguments allows arbitrary shell through --then-sh and mrw run.):
   mrw write - --then NAME
 7. license lines you already know, without them in your context (a read into /dev/null licenses nothing; a file mrw just wrote needs no re-read):
   mrw read --quiet f.go:40-60
@@ -51,6 +51,8 @@ Recipes:
   mrw read a.go:40-52 b.go:9 && printf '%s\n' '@@ b.go 9 insert-after from=a.go:40-52' '@@ a.go 40-52 delete' | mrw write -
 11. re-read a file you read earlier, its text only if it changed (the sha is the 8 hex digits its header printed):
   mrw read --if-changed f.go=8dc37337 f.go:40-60
+12. run a long command (a build, a test suite, a gate) with its output kept out of your context, one string, instead of cmd | tail, which returns tail's status: a four-line receipt with the command's own exit code, the log's path and a read of it; then read the log by pattern from standard input, LOG being the path the receipt printed (--then-sh and mrw run run any shell command they are given: a harness rule that allows mrw without reading its arguments allows arbitrary shell through --then-sh and mrw run.):
+  mrw run 'go test ./...' ; mrw read --grep FAIL -C 3 - < 'LOG'
 
 `mrw instructions` prints the whole contract. This file was printed by `mrw skill` from mrw v1.76.0; when `mrw version` prints another version, `mrw skill --dir <the directory holding this mrw folder>` replaces it.
 

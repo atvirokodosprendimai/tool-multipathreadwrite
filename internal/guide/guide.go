@@ -62,7 +62,9 @@ func Recipes() string {
 10. copy lines you have read without typing them again, or move them with a delete of the same range (a copy of lines you were not served is refused, --force or not):
   mrw read a.go:40-52 b.go:9 && printf '%s\n' '@@ b.go 9 insert-after from=a.go:40-52' '@@ a.go 40-52 delete' | mrw write -
 11. re-read a file you read earlier, its text only if it changed (the sha is the 8 hex digits its header printed):
-  mrw read --if-changed f.go=8dc37337 f.go:40-60`
+  mrw read --if-changed f.go=8dc37337 f.go:40-60
+12. run a long command (a build, a test suite, a gate) with its output kept out of your context, one string, instead of cmd | tail, which returns tail's status: a four-line receipt with the command's own exit code, the log's path and a read of it; then read the log by pattern from standard input, LOG being the path the receipt printed (` + ThenShCaveat() + `):
+  mrw run 'go test ./...' ; mrw read --grep FAIL -C 3 - < 'LOG'`
 }
 
 // CLI is Shared plus the why, the operator traps that only the shell
@@ -84,6 +86,7 @@ Exit 3 means the write applied and the check did not pass — it failed, timed o
 could_not_start means mrw could not start the shell; a command the shell cannot find is a step that ran and failed (exit 127). A step runs with MRW_STEP_DEPTH one higher than its caller's, and --then and --then-sh are refused at depth 8, so a step that re-runs mrw with steps stops instead of recursing. A "steps" block is read only when a step is asked for.
 A check, like a step, runs with MRW_STEP_DEPTH one higher than mrw's own; at depth 8 mrw starts neither: --then and --then-sh, a write whose check is due, and mrw check are refused, exit 2, before anything is written or run, while a write that starts no check still lands (--no-check writes without it). A command that clears the environment, such as env -i or sudo, restarts the count below it, as setsid leaves the process group. On unix a stopped check, step or ast-grep process group hears SIGTERM first, and whatever ignores it is killed a second later; an mrw killed that way can leave its own check running.
 A step runs as written: a step command holding {files}, {dirs} or {packages} is refused, since mrw expands them only in scoped_check. A passing step prints the last line of its output under its verdict.
+mrw run 'CMD' exits with the command's own code, 128+N when a signal N killed it; 124 (it reached its 24-hour deadline) and 130 (mrw was interrupted) are mrw's. Its own failures exit 2 with a mrw: line and no exit line in the receipt. Every log is kept for 7 days at least, up to the newest 64. At depth 8 mrw run is refused, and its command runs one level deeper.
 ` + ThenShCaveat() + `
 A write exits 1 when a hunk fails validation, or is refused during staging, before the commit loop, for a cause in its target (held, a permission, a name refused, changed since mrw read it), and nothing is written; 2 on a usage or filesystem failure, or a failure in the commit loop.
 MSYS rewrites a spec whose file part holds a / before mrw starts. Export MSYS_NO_PATHCONV=1 or MSYS2_ARG_CONV_EXCL='*', or use PowerShell or WSL.
@@ -139,7 +142,7 @@ func Core() string {
 // ThenShCaveat is the one sentence every surface carries beside --then-sh
 // (ADR-092 Decision 8).
 func ThenShCaveat() string {
-	return "--then-sh runs any shell command it is given: a harness rule that allows mrw without reading its arguments allows arbitrary shell through --then-sh."
+	return "--then-sh and mrw run run any shell command they are given: a harness rule that allows mrw without reading its arguments allows arbitrary shell through --then-sh and mrw run."
 }
 
 // Skill is mrw's Agent Skills SKILL.md (ADR-168): YAML frontmatter a skill host

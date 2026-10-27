@@ -236,10 +236,10 @@ func TestTheGuardsAgreeWithTheParserOnRandomArgv(t *testing.T) {
 func pick2(rng *rand.Rand, fs []cli.Flag) cli.Flag { return fs[rng.Intn(len(fs))] }
 
 // readsArgs names the commands that read their positionals as paths or a
-// verb: read (main.go:631), write (:934), iter (:1297) and check (:1397).
-// stats and seen never call cmd.Args(); version and instructions only refuse
-// any (:319, :337). A positional handed to the others reaches nothing.
-var readsArgs = map[string]bool{"read": true, "write": true, "iter": true, "check": true}
+// verb: read (main.go:631), write (:934), iter (:1297), check (:1397) and run
+// (ADR-177). stats and seen never call cmd.Args(); version and instructions only
+// refuse any (:319, :337). A positional handed to the others reaches nothing.
+var readsArgs = map[string]bool{"read": true, "write": true, "iter": true, "check": true, "run": true}
 
 // flagShaped is what the parser reads as a flag: two dashes, or one dash
 // before a letter (command_parse.go:131-139). ` -1= ` is not one.

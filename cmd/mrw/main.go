@@ -221,7 +221,7 @@ func rootCommand() *cli.Command {
 			cmd.Metadata = map[string]any{"notFound": cli.Exit(
 				fmt.Sprintf("unknown command %q (want %s)", name, strings.Join(names, ", ")), exitUsage)}
 		},
-		Commands: []*cli.Command{readCmd(), writeCmd(), checkCmd(), iterCmd(), seenCmd(), statsCmd(), mcpCmd(), instructionsCmd(), skillCmd(), versionCmd()},
+		Commands: []*cli.Command{readCmd(), writeCmd(), checkCmd(), runCmd(), iterCmd(), seenCmd(), statsCmd(), mcpCmd(), instructionsCmd(), skillCmd(), versionCmd()},
 	}
 	installUsageErrors(cmd)
 	return cmd
@@ -419,7 +419,10 @@ func main() {
 		}
 	}
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "mrw:", statehint.Hint(err))
+		// A command's own exit (mrw run) carries no message: its receipt is the report.
+		if msg := statehint.Hint(err); msg.Error() != "" {
+			fmt.Fprintln(os.Stderr, "mrw:", msg)
+		}
 		os.Exit(exitCode(err))
 	}
 }

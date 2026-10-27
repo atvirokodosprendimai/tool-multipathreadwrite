@@ -10333,6 +10333,54 @@ grep -qF 'f.txt/child' <<<"$m300" && [ "$(n300)" = "$b300" ] && ok "and the refu
 m300=$("$MRW" --root "$WORK/no-such-root-300" seen --forget --forget=false 2>&1); rc300=$?
 grep -qF 'seen --forget:' <<<"$m300" && bad "the pair: --forget --forget=false was refused as a forget: $m300" || ok "the pair: --forget --forget=false is not a forget, the gate leaves it to a plain seen"
 
+# 302. ADR-177: `mrw run 'CMD'` runs one command string with sh -c, keeps its
+# output in a log beside mrw's state directory and prints a receipt of four
+# lines instead of the output; it exits with the command's own code. The pairs:
+# the output reaches the log and not stdout; the printed read line, run as
+# printed from a state home whose name holds a space and a quote, serves the
+# last 40 lines while a named-path read of the same log is refused; 3, 7 and a
+# signal (128+N) pass through beside 0; two arguments are refused and run
+# nothing beside the one-string form that runs; a passing short and an empty run
+# keep their logs; at MRW_STEP_DEPTH 8 nothing runs and no log is made.
+R=$(mktemp -d "$WORK/r302-XXXXXX"); S302="$WORK/st302 it's"
+o302=$(XDG_STATE_HOME="$S302" "$MRW" -C "$R" run 'i=1; while [ $i -le 500 ]; do echo "line $i"; i=$((i+1)); done; exit 1' 2>"$WORK/e302"); rc302=$?
+want 1 "$rc302" "mrw run exits with the command's own code"
+log302=$(grep '^log: ' <<<"$o302"); log302=${log302#log: }
+n302=$(printf '%s\n' "$o302" | wc -l | tr -d ' ')
+{ [ "$n302" = 4 ] && ! grep -q 'line 250' <<<"$o302" && grep -qx 'last: line 500' <<<"$o302" && [ ! -s "$WORK/e302" ] \
+  && [ "$(wc -l < "$log302" | tr -d ' ')" = 500 ] && [ "$(head -n 1 "$log302")" = 'line 1' ]; } \
+  && ok "mrw run prints a receipt, not the output, and keeps the output in its log" || bad "receipt ($n302 lines): $o302"
+read302=$(grep '^read: ' <<<"$o302"); read302=${read302#read: }
+r302=$(cd "$R" && PATH="$(dirname "$MRW"):$PATH" XDG_STATE_HOME="$S302" bash -c "$read302" 2>&1); rc302=$?
+{ [ "$rc302" = 0 ] && [ "$(grep -c '| line ' <<<"$r302")" = 40 ] && grep -q '^ *461| line 461$' <<<"$r302" && grep -q '^ *500| line 500$' <<<"$r302"; } \
+  && ok "the read line mrw run prints reaches the log" || bad "read line [$read302] exit $rc302: $r302"
+(cd "$R" && XDG_STATE_HOME="$S302" "$MRW" read "$log302" >/dev/null 2>&1); [ $? -ne 0 ] \
+  && ok "the pair: a named-path read of the log is refused, which is why the line reads standard input" || bad "a named-path read of a log outside the root was served"
+XDG_STATE_HOME="$S302" "$MRW" -C "$R" run 'exit 7' >/dev/null 2>&1; want 7 $? "mrw run passes exit 7 through"
+XDG_STATE_HOME="$S302" "$MRW" -C "$R" run 'exit 0' >/dev/null 2>&1; want 0 $? "the pair: a passing command exits 0"
+XDG_STATE_HOME="$S302" "$MRW" -C "$R" run 'kill -TERM $$' >/dev/null 2>&1; want 143 $? "mrw run reports a command killed by TERM as 128+15"
+XDG_STATE_HOME="$S302" "$MRW" -C "$R" run --json 'exit 3' > "$WORK/j302" 2>&1; rc302=$?
+{ [ "$rc302" = 3 ] && grep -q '"exit_code": 3' "$WORK/j302" && grep -q '"ran": true' "$WORK/j302" && grep -q '"output_file"' "$WORK/j302"; } \
+  && ok "mrw run --json is one document with the command's exit_code" || bad "json: exit $rc302: $(cat "$WORK/j302")"
+rm -f "$R/marker302"
+XDG_STATE_HOME="$S302" "$MRW" -C "$R" run touch marker302 >"$WORK/o302" 2>&1; want 2 $? "mrw run with two arguments is refused"
+{ [ ! -e "$R/marker302" ] && grep -qF "mrw run 'CMD'" "$WORK/o302" && ! grep -q '^exit ' "$WORK/o302"; } \
+  && ok "and runs nothing, naming the one-string form" || bad "two arguments: $(cat "$WORK/o302")"
+XDG_STATE_HOME="$S302" "$MRW" -C "$R" run 'touch marker302' >/dev/null 2>&1; want 0 $? "the pair: the one-string form exits 0"
+[ -e "$R/marker302" ] && ok "and runs the command" || bad "the one-string form did not run"
+S302b="$WORK/st302b"
+o302=$(XDG_STATE_HOME="$S302b" "$MRW" -C "$R" run 'echo hi' 2>&1); rc302=$?
+log302=$(grep '^log: ' <<<"$o302"); log302=${log302#log: }
+{ [ "$rc302" = 0 ] && [ "$(cat "$log302")" = hi ]; } && ok "a short passing mrw run keeps its log" || bad "short run (exit $rc302) log [$log302]: $o302"
+o302=$(XDG_STATE_HOME="$S302b" "$MRW" -C "$R" run 'true' 2>&1)
+log302=$(grep '^log: ' <<<"$o302"); log302=${log302#log: }
+{ [ -f "$log302" ] && [ ! -s "$log302" ] && ! grep -q '^last:' <<<"$o302" && ! compgen -G "$S302b/mrw-runs/*.running.log" >/dev/null; } \
+  && ok "and an empty passing run keeps an empty log, renamed from .running.log" || bad "empty run: $o302"
+MRW_STEP_DEPTH=8 XDG_STATE_HOME="$WORK/st302c" "$MRW" -C "$R" run 'touch marker302c' >/dev/null 2>&1; want 2 $? "mrw run at MRW_STEP_DEPTH 8 is refused, exit 2"
+{ [ ! -e "$R/marker302c" ] && [ ! -e "$WORK/st302c/mrw-runs" ]; } && ok "and runs nothing and makes no log directory" || bad "depth 8 ran or made a log"
+MRW_STEP_DEPTH=7 XDG_STATE_HOME="$WORK/st302c" "$MRW" -C "$R" run 'echo "d=$MRW_STEP_DEPTH"' 2>&1 | grep -qx 'last: d=8' \
+  && ok "the pair: at 7 it runs, one level deeper" || bad "depth 7 did not run at 8"
+
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
 # killed process is a zombie until its adopter reaps it, and pgrep lists

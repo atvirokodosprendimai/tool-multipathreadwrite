@@ -276,8 +276,8 @@ func TestRootHelpPointsAgentsAtTheSkill(t *testing.T) {
 				t.Errorf("mrw %v does not name %q", argv, want)
 			}
 		}
-		if n := strings.Count(strings.TrimRight(out, "\n"), "\n") + 1; n > 29 {
-			t.Errorf("mrw %v is %d lines, over 29", argv, n)
+		if n := strings.Count(strings.TrimRight(out, "\n"), "\n") + 1; n > 30 {
+			t.Errorf("mrw %v is %d lines, over 30", argv, n)
 		}
 	}
 	full := strings.Split(strings.TrimRight(guide.CLI(), "\n"), "\n")
