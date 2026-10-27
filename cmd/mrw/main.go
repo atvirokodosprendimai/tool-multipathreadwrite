@@ -1865,11 +1865,21 @@ held or went unchecked.`,
 			}
 			switch format {
 			case "plan", "":
-				hunks, err = plan.Parse(src)
+				// Issue #537: the parser drops every leading mark; the caller is
+				// told when that was more than one.
+				br := bufio.NewReader(src)
+				if n, more := ingest.LeadingMarks(br); n > 1 || more {
+					fmt.Fprintln(os.Stderr, "mrw: "+ingest.MarksNote("the plan", n, more))
+				}
+				hunks, err = plan.Parse(br)
 			case "apply_patch":
 				raw, rerr := io.ReadAll(src)
 				if rerr != nil {
 					return refuse(fmt.Sprintf("%s: %v", name, rerr))
+				}
+				raw, marks := ingest.DropLeadingMarks(raw)
+				if marks > 1 {
+					fmt.Fprintln(os.Stderr, "mrw: "+ingest.MarksNote("the apply_patch document", marks, false))
 				}
 				compiled, cerr := ingest.CompileApplyPatch(cmd.Root().String("root"), raw)
 				if cerr != nil {
@@ -1883,6 +1893,10 @@ held or went unchecked.`,
 				raw, rerr := io.ReadAll(src)
 				if rerr != nil {
 					return refuse(fmt.Sprintf("%s: %v", name, rerr))
+				}
+				raw, marks := ingest.DropLeadingMarks(raw)
+				if marks > 1 {
+					fmt.Fprintln(os.Stderr, "mrw: "+ingest.MarksNote("the search_replace document", marks, false))
 				}
 				compiled, cerr := ingest.CompileSearchReplace(cmd.Root().String("root"), raw)
 				if cerr != nil {

@@ -3069,6 +3069,15 @@ ctx=$(hook55 s5e mcp__mrw__mrw_write "{\"plan\":\"@@ 'docs/adr/x.md' 1 replace\\
 [ -z "$ctx" ] && ok "a single-quoted path is literal to mrw, names no file, and delivers nothing" || bad "single quotes were stripped, which mrw does not do: $ctx"
 ctx=$(hook55 s5f mcp__mrw__mrw_write '{"plan":"@@ docs/adr/x.md /^func (s *Store) Get/,/^}/ replace\nX\n"}' | ctx55)
 grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ok "a pattern address with spaces is one token, and the path before it delivers" || bad "a pattern address split the header: $ctx"
+# Issue #537 (review of #539): mrw drops EVERY leading mark of a header line, so
+# the hook must too. One mark, two marks, and the pair that must deliver
+# nothing: text before the marks is not a header for either of them.
+ctx=$(hook55 s5j mcp__mrw__mrw_write '{"plan":"﻿@@ docs/adr/x.md 1 replace\nX\n"}' | ctx55)
+grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ok "a plan with one leading mark delivers early for the file it names" || bad "one leading mark hid the header from the hook: $ctx"
+ctx=$(hook55 s5k mcp__mrw__mrw_write '{"plan":"﻿﻿@@ docs/adr/x.md 1 replace\nX\n"}' | ctx55)
+grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ok "and two leading marks deliver too, as mrw reads that header" || bad "two leading marks hid the header from the hook: $ctx"
+ctx=$(hook55 s5l mcp__mrw__mrw_write '{"plan":"x﻿﻿@@ docs/adr/x.md 1 replace\nX\n"}' | ctx55)
+! grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ok "the pair: marks after other text do not make a header" || bad "a mark inside a line made a header for the hook: $ctx"
 ctx=$(hook55 s5g mcp__mrw__mrw_write '{"plan":"@@ \"docs/adr/x.md 1 replace\nX\n@@ README.md 1 replace\nY\n"}' | ctx55)
 ! grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && grep -q 'INLINE RULE BODY 55' <<<"$ctx" && ok "an unterminated quote yields no path from that line, and the next header still delivers early" || bad "unterminated quote: $ctx"
 ctx=$(hook55 s5h mcp__mrw__mrw_write '{"plan":"@@ docs/adr/x.md 1 replace anchor=\"a\" anchor=\"b\"\nX\n"}' | ctx55)
@@ -10412,6 +10421,31 @@ MRW_STEP_DEPTH=8 XDG_STATE_HOME="$WORK/st302c" "$MRW" -C "$R" run 'touch marker3
 { [ ! -e "$R/marker302c" ] && [ ! -e "$WORK/st302c/mrw-runs" ]; } && ok "and runs nothing and makes no log directory" || bad "depth 8 ran or made a log"
 MRW_STEP_DEPTH=7 XDG_STATE_HOME="$WORK/st302c" "$MRW" -C "$R" run 'echo "d=$MRW_STEP_DEPTH"' 2>&1 | grep -qx 'last: d=8' \
   && ok "the pair: at 7 it runs, one level deeper" || bad "depth 7 did not run at 8"
+
+# 303. Issue #537: a plan on standard input may begin with several UTF-8 byte
+# order marks (Windows PowerShell 5.1 with a UTF-8 $OutputEncoding that has a
+# preamble pipes two); the parser drops every one and stderr counts them. The
+# pairs: one mark lands and is silent; two land and are named; text before the
+# header is still refused beside the marks; a refused plan with two marks that
+# was kept reruns by its path once the file has been read.
+R=$(mktemp -d "$WORK/r303-XXXXXX"); S303="$WORK/st303"; B303=$(printf '\xef\xbb\xbf')
+printf 'a\nb\n' > "$R/f.txt"; XDG_STATE_HOME="$S303" "$MRW" -C "$R" read --quiet f.txt
+printf '%s@@ f.txt 1 replace body=1\nONE\n' "$B303" | XDG_STATE_HOME="$S303" "$MRW" -C "$R" write --no-check - 2>"$WORK/e303"; want 0 $? "a plan with one leading mark lands"
+{ [ "$(head -n 1 "$R/f.txt")" = ONE ] && ! grep -q 'byte order mark' "$WORK/e303"; } \
+  && ok "and one mark is silent" || bad "one mark: $(cat "$WORK/e303")"
+XDG_STATE_HOME="$S303" "$MRW" -C "$R" read --quiet f.txt
+printf '%s%s@@ f.txt 1 replace body=1\nTWO\n' "$B303" "$B303" | XDG_STATE_HOME="$S303" "$MRW" -C "$R" write --no-check - 2>"$WORK/e303"; want 0 $? "the pair: a plan with two leading marks lands"
+{ [ "$(head -n 1 "$R/f.txt")" = TWO ] && grep -q '^mrw: the plan begins with 2 UTF-8 byte order marks, all dropped' "$WORK/e303"; } \
+  && ok "and stderr names the count" || bad "two marks: $(cat "$WORK/e303")"
+XDG_STATE_HOME="$S303" "$MRW" -C "$R" read --quiet f.txt
+printf '%s%sjunk\n@@ f.txt 1 replace body=1\nTHREE\n' "$B303" "$B303" | XDG_STATE_HOME="$S303" "$MRW" -C "$R" write --no-check - >/dev/null 2>&1; want 2 $? "the pair: text before the header is still refused beside the marks"
+[ "$(head -n 1 "$R/f.txt")" = TWO ] && ok "and nothing was written" || bad "a plan with text before its header wrote"
+printf 'c\nd\n' > "$R/g.txt"
+printf '%s%s@@ g.txt 1 replace body=1\nKEPT\n' "$B303" "$B303" | XDG_STATE_HOME="$S303" "$MRW" -C "$R" write --no-check - >/dev/null 2>&1; want 1 $? "a two-mark plan for an unread file is refused"
+k303=$(ls "$S303"/mrw-refused/*.plan 2>/dev/null | tail -n 1)
+XDG_STATE_HOME="$S303" "$MRW" -C "$R" read --quiet g.txt
+{ [ -n "$k303" ] && XDG_STATE_HOME="$S303" "$MRW" -C "$R" write --no-check "$k303" >/dev/null 2>&1 && [ "$(head -n 1 "$R/g.txt")" = KEPT ]; } \
+  && ok "and the kept plan reruns by its path" || bad "kept plan [$k303] did not rerun"
 
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
