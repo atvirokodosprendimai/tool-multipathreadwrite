@@ -1865,7 +1865,13 @@ held or went unchecked.`,
 			}
 			switch format {
 			case "plan", "":
-				hunks, err = plan.Parse(src)
+				// Issue #537: the parser drops every leading mark; the caller is
+				// told when that was more than one.
+				br := bufio.NewReader(src)
+				if n := ingest.LeadingMarks(br); n > 1 {
+					fmt.Fprintln(os.Stderr, "mrw: "+ingest.PlanMarksNote(n))
+				}
+				hunks, err = plan.Parse(br)
 			case "apply_patch":
 				raw, rerr := io.ReadAll(src)
 				if rerr != nil {

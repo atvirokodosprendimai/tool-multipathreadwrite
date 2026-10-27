@@ -373,7 +373,7 @@ func handle(line string, serveRoot string, release func(), notify func(any)) (re
 	// ADR-128: a UTF-8 byte-order mark before a message is not part of it. A
 	// Windows host writes one at the start of a text stream, and the first
 	// request — initialize — was a parse error.
-	line = strings.TrimPrefix(line, "\ufeff")
+	line = strings.TrimLeft(line, "\xef\xbb\xbf") // every one: a host may write two (issue #537)
 	if strings.TrimSpace(line) == "" {
 		// A blank line carries no message. Answering it with an error would
 		// put a complaint on the wire about something nobody sent.
