@@ -35,7 +35,8 @@ Decisions 1–4: a `mrw write` whose standard-input plan was read and whose run 
 7. [S7] `docs/receipts.txt` and a contract row: a refused piped plan is kept and its rerun from the path applies; a landed piped plan keeps nothing. [proof: acceptance]
 8. [S8] From the Codex review of 2026-10-27: the plan just kept survives the trim when 16 others sort after it, and the path the run names exists; the tee's cap is exact, `keptPlanCap` bytes kept and one more not. Mutants: the trim no longer skips the plan just kept; the cap comparison `>` made `>=`. [proof: mutation]
 9. [S9] From the second Codex review: the trim never removes a plan modified within the last minute (`keptPlanGrace`), as it never removes the one just kept, because two runs trimming at once each snapshot the directory and each would remove the other's plan while it is being saved; the directory may briefly hold more than 16 (ADR-176 Decision 4). Test: a plan dated 1970 with a current modification time, standing for another run's save, and 16 old plans dated 2999 around a refused write: the returned `refused_plan` and the fresh plan both exist; the seeded plans of S5 and S8 now carry an old modification time. Mutant: the recent-modification guard removed. [proof: mutation]
-10. [S10] From the third Codex review: the one-minute grace narrows the race between two runs and does not close it, since a run can pause past any grace between saving its plan and trimming. Creating a plan and trimming run under one lock (`state.HoldWithin(dir, "refused-plans.lock", 10 s)`, taken after the directory is made and released on return; a lock error means the plan is not kept, and stderr says why), so no other run of this version trims between a plan's creation and the trim that spares it; the grace stays as a backstop for older mrw (ADR-176 Decision 4). Test: the test process holds the same lock, a refused piped write of the built binary is started, has not exited and kept nothing after 300 ms, and once the lock is released exits within a bound with `refused_plan` existing. Mutant: the lock not taken. [proof: mutation]
+10. [S10] From the third Codex review: the one-minute grace narrows the race between two runs and does not close it, since a run can pause past any grace between saving its plan and trimming. Creating a plan and trimming run under one lock (`state.HoldFileWithin(<kept directory>/.lock, 10 s)`, taken after the directory is made and released on return; a lock error means the plan is not kept, and stderr says why), so no other run of this version trims between a plan's creation and the trim that spares it; the grace stays as a backstop for older mrw (ADR-176 Decision 4). Test: the test process holds the same lock, a refused piped write of the built binary is started, has not exited and kept nothing after 300 ms, and once the lock is released exits within a bound with `refused_plan` existing. Mutant: the lock not taken. [proof: mutation]
+11. [S11] From the fourth Codex review: a lock under the caller's state home is two locks for two state homes whose `mrw-refused` is one physical directory, so they can create and trim at once. The lock is the `.lock` file in the kept directory (`state.HoldFileWithin`, the body of `state.HoldWithin` taking a path; `HoldWithin` calls it, behaviour unchanged), shared by every process that trims the directory (ADR-176 Decision 4); the trim removes only `*.plan`, so `.lock` and `.lock.holder` stay. `internal/state` is an engine package this record now governs, so the fences below drop its byte-identical clause, and only that one. Test: state home B holds `mrw-refused` as a symlink to state home A's kept directory (skipped on Windows when a symlink cannot be made), the test holds A's lock, a refused piped write under home B has not exited and kept nothing after 300 ms and, once the lock is released, exits within a bound with `refused_plan` existing; the helper `kept` lists `*.plan` only. Mutant: the lock taken again with `state.HoldWithin(dir, "refused-plans.lock", ...)`. [proof: mutation]
 
 ## Acceptance
 
@@ -47,15 +48,15 @@ out=$(go test ./cmd/mrw/ -count=1 -v -run '^(TestAPlanRefusedFromStandardInputIs
   && grep -qF 'PASS  a plan refused from standard input is kept and runs again by its path' <<<"$c" \
   && grep -qF 'PASS  a piped plan that landed keeps nothing' <<<"$c" \
   && [ -z "$(gofmt -l internal cmd)" ] \
-  && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read internal/apply internal/plan internal/seen internal/check internal/state \
-  && [ -z "$(git status --porcelain --untracked-files=all -- internal/read internal/apply internal/plan internal/seen internal/check internal/state)" ]
+  && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read internal/apply internal/plan internal/seen internal/check \
+  && [ -z "$(git status --porcelain --untracked-files=all -- internal/read internal/apply internal/plan internal/seen internal/check)" ]
 ```
 
 ## Tests
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `TestAPlanRefusedFromStandardInputIsKept` | `cmd/mrw/refused176_test.go` | every nothing-written exit after the read keeps the parser's bytes, named on stderr and in `refused_plan`; the CRLF and apply_patch reruns; names, trim, modes; the plan just kept and a plan another run saved a moment ago survive the trim; a run waits for the lock another holds, then keeps its plan; the cap and the unwritable home | none | S1, S2, S4, S5, S6, S8, S9, S10 |
+| `TestAPlanRefusedFromStandardInputIsKept` | `cmd/mrw/refused176_test.go` | every nothing-written exit after the read keeps the parser's bytes, named on stderr and in `refused_plan`; the CRLF and apply_patch reruns; names, trim, modes; the plan just kept and a plan another run saved a moment ago survive the trim; a run waits for the lock another holds, then keeps its plan; a run under another state home that reaches the same kept directory through a link waits for the same lock; the cap and the unwritable home | none | S1, S2, S4, S5, S6, S8, S9, S10, S11 |
 | `TestAWriteThatLandedKeepsNoPlan` | `cmd/mrw/refused176_test.go` | exit 0, exit 3 and `PARTIALLY APPLIED` keep nothing; a plan file, `--create`, `--sub`, `--rewrite` and a pre-read refusal keep nothing | none | S1, S3 |
 | `TestAPlanTeeKeepsAPlanOfExactlyItsCap` | `cmd/mrw/refused176_test.go` | a plan of `keptPlanCap` bytes is kept, one byte more is not | none | S8 |
 
@@ -78,11 +79,12 @@ out=$(go test ./cmd/mrw/ -count=1 -v -run '^(TestAPlanRefusedFromStandardInputIs
 - 2026-10-27 · 1f3c3955* · mutant killed · exit 1 · `cmd/mrw/refused176.go` · S8: the cap comparison made >= · acceptance-sha256:7f6ef2cd38db2f89bee8f7bcb08d55c66b7bb605caa908e6165a1076f93d1be0
 - 2026-10-27 · e85bff61* · mutant killed · exit 1 · `cmd/mrw/refused176.go` · S9: the recent-modification guard removed · acceptance-sha256:7f6ef2cd38db2f89bee8f7bcb08d55c66b7bb605caa908e6165a1076f93d1be0 · covers:the kept-plan tests passed
 - 2026-10-27 · b4f6babe* · mutant killed · exit 1 · `cmd/mrw/refused176.go` · S10: the lock not taken · acceptance-sha256:7f6ef2cd38db2f89bee8f7bcb08d55c66b7bb605caa908e6165a1076f93d1be0 · covers:the kept-plan tests passed
+- 2026-10-27 · f89078f7* · mutant killed · exit 1 · `cmd/mrw/refused176.go` · S11: the lock taken under the caller state home again · acceptance-sha256:e0796db6e47b32634a73a58cdf2dfb983ac6741b8709a96fb92daf168a4ae0a0 · covers:the kept-plan tests passed
 
 ## Invariants
 
 - The refusal's exit code, its text and every existing `--json` key are unchanged; the parser reads the same bytes at the same time as before.
-- No file in the working tree (ADR-004) and none inside `state.Base()`; no engine package changes.
+- No file in the working tree (ADR-004) and none inside `state.Base()`; the one engine package changed is `internal/state` (`HoldFileWithin`, behaviour of `HoldWithin` unchanged); the others are untouched.
 
 ## Risks
 
@@ -121,3 +123,5 @@ The fence exits 0. Stop and ask Zy if the tee cannot sit after the CRLF reader w
 - 2026-10-27 · b4f6babe* · exit 0 · `set -o pipefail …` · acceptance-sha256:7f6ef2cd38db2f89bee8f7bcb08d55c66b7bb605caa908e6165a1076f93d1be0 · ms:79715
 - 2026-10-27 · b4f6babe* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:7f6ef2cd38db2f89bee8f7bcb08d55c66b7bb605caa908e6165a1076f93d1be0 · ms:0 · test-lock-sha256:68d294a59e937e31761fe7a4df721797839465bb5fd6ee3350f6bd5a897c2a43 · test-lock-file:docs/adr/locks/68d294a59e937e31761fe7a4df721797839465bb5fd6ee3350f6bd5a897c2a43.lock · test-lock-kind:replace
 - 2026-10-27 · b4f6babe* · exit 0 · `set -o pipefail …` · acceptance-sha256:7f6ef2cd38db2f89bee8f7bcb08d55c66b7bb605caa908e6165a1076f93d1be0 · ms:78143
+- 2026-10-27 · f89078f7* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:e0796db6e47b32634a73a58cdf2dfb983ac6741b8709a96fb92daf168a4ae0a0 · ms:0 · test-lock-sha256:f329aaf466f4a9d7dece732d9046b6219bee15c1e3da4cd2258e452be6798db7 · test-lock-file:docs/adr/locks/f329aaf466f4a9d7dece732d9046b6219bee15c1e3da4cd2258e452be6798db7.lock · test-lock-kind:replace
+- 2026-10-27 · f89078f7* · exit 0 · `set -o pipefail …` · acceptance-sha256:e0796db6e47b32634a73a58cdf2dfb983ac6741b8709a96fb92daf168a4ae0a0 · ms:105274

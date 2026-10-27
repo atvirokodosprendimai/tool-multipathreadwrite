@@ -35,8 +35,8 @@ go build -o bin/mrw ./cmd/mrw \
   && h=$(./bin/mrw instructions 2>&1) && grep -qF 'mrw-refused/' <<<"$h" \
   && grep -qF 'mrw-refused/' README.md \
   && grep -qF 'mrw-refused/' AGENTS.md \
-  && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read internal/apply internal/plan internal/seen internal/check internal/state \
-  && [ -z "$(git status --porcelain --untracked-files=all -- internal/read internal/apply internal/plan internal/seen internal/check internal/state)" ]
+  && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read internal/apply internal/plan internal/seen internal/check \
+  && [ -z "$(git status --porcelain --untracked-files=all -- internal/read internal/apply internal/plan internal/seen internal/check)" ]
 ```
 
 ## Tests
@@ -57,6 +57,7 @@ go build -o bin/mrw ./cmd/mrw \
 ## Mutation Log
 (empty until execute)
 - 2026-10-24 · 8278fcda* · mutant killed · exit 1 · `internal/guide/guide.go` · S2: the sentence removed from CLI() · acceptance-sha256:95cb80f818cea6d1c7bcf826fc4e9e041725ea5beee5fde7a17e5344109f2a99
+- 2026-10-27 · f89078f7* · mutant killed · exit 1 · `internal/guide/guide.go` · S2: the sentence removed from CLI() · acceptance-sha256:4f1f2ba4e33a59da0c3e9ad4167d6462d258a7877a925855d441f69190a5325a
 
 ## Invariants
 
@@ -85,3 +86,6 @@ The fence exits 0.
 - 2026-10-27 · 1f3c3955* · exit 0 · `set -o pipefail …` · acceptance-sha256:95cb80f818cea6d1c7bcf826fc4e9e041725ea5beee5fde7a17e5344109f2a99 · ms:406
 - 2026-10-27 · e85bff61* · exit 0 · `set -o pipefail …` · acceptance-sha256:95cb80f818cea6d1c7bcf826fc4e9e041725ea5beee5fde7a17e5344109f2a99 · ms:553
 - 2026-10-27 · b4f6babe* · exit 0 · `set -o pipefail …` · acceptance-sha256:95cb80f818cea6d1c7bcf826fc4e9e041725ea5beee5fde7a17e5344109f2a99 · ms:329
+- 2026-10-27 · f89078f7* · exit 0 · `set -o pipefail …` · acceptance-sha256:4f1f2ba4e33a59da0c3e9ad4167d6462d258a7877a925855d441f69190a5325a · ms:512
+- 2026-10-27 · f89078f7* · exit 0 · `set -o pipefail …` · acceptance-sha256:4f1f2ba4e33a59da0c3e9ad4167d6462d258a7877a925855d441f69190a5325a · ms:1147
+- 2026-10-27 · f89078f7* · exit 0 · `set -o pipefail …` · acceptance-sha256:4f1f2ba4e33a59da0c3e9ad4167d6462d258a7877a925855d441f69190a5325a · ms:152

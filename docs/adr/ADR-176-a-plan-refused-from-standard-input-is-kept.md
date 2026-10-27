@@ -8,7 +8,7 @@
 **Owner:** Zy
 **Spec:** None — no spec stage
 **Cross-references:** ADR-001, ADR-004, ADR-034, ADR-066, ADR-077, ADR-110, ADR-111, ADR-132, ADR-139, ADR-161, ADR-166, docs/receipts.txt
-**Governs:** `cmd/mrw/main.go`, `docs/receipts.txt`, `README.md`, `AGENTS.md`, `internal/guide/guide.go`, `scripts/contract.sh`
+**Governs:** `cmd/mrw/main.go`, `docs/receipts.txt`, `README.md`, `AGENTS.md`, `internal/guide/guide.go`, `internal/state/lock.go`, `scripts/contract.sh`
 **Enforced-by:** `cmd/mrw/refused176_test.go::TestAPlanRefusedFromStandardInputIsKept`
 **Invalidates:** None — additive; ADR-077 is untouched (the kept plans are not inside mrw's state directory)
 **Served-path change:** a `mrw write` whose plan came from standard input and wrote nothing keeps the plan beside mrw's state directory and names its path on stderr (and as `refused_plan` under `--json`), so a caller fixes one header and reruns its command with that path in place of `-`, instead of sending the whole plan again.
@@ -23,7 +23,7 @@ Reproduced on v1.75.0 (2026-10-24): `printf '%s\n' '@@ a.rb 2-4 replace anchor="
 
 ## Existing Primitives Audit
 
-- `state.Base()` (`internal/state/state.go:48`): `<state home>/mrw`. The kept plans go in its sibling `<state home>/mrw-refused/`, computed from it in `cmd/mrw`; no change to `internal/state`, and nothing inside `Base()` changes, so `mrw seen --prune` and its size accounting are untouched.
+- `state.Base()` (`internal/state/state.go:48`): `<state home>/mrw`. The kept plans go in its sibling `<state home>/mrw-refused/`, computed from it in `cmd/mrw`; nothing inside `Base()` changes, so `mrw seen --prune` and its size accounting are untouched. `state.HoldWithin` (`internal/state/lock.go`) locks a file under a state directory; the lock here must live in the kept directory itself, so `internal/state` gains `HoldFileWithin`, the same lock at a path, and `HoldWithin` calls it with unchanged behaviour.
 - `writer.MutationOf` (`internal/writer/writer.go:35`): the one predicate for "nothing reached the tree". Reuse.
 - `ingest.NewPipedCRLFReader` (`main.go:1785`): the stream the parser reads. The tee sits after it.
 - `maxPlanLine` (`internal/ingest/create.go:13`, 16 MiB): the kept copy's cap reuses the number.
@@ -37,7 +37,7 @@ Reproduced on v1.75.0 (2026-10-24): `printf '%s\n' '@@ a.rb 2-4 replace anchor="
 
 **3. Running it again and editing it.** The kept file is an ordinary file outside any checkout and outside mrw's state directory: `mrw write <path>` reads it as any plan file, and the caller edits it with `mrw --root <state home>/mrw-refused read|write` or the host's file tool. ADR-077 does not change. Rerunning it does not remove it.
 
-**4. How long it stays.** The directory holds plans from every checkout; after keeping one, mrw removes all but the newest 16 by name (the time prefix), best effort. Creating a plan and trimming run under one lock (`refused-plans.lock`, waited for up to 10 seconds; a lock error means the plan is not kept, and stderr says why), so no other run trims between a plan's creation and the trim that spares it. As a backstop for runs of older mrw that take no lock, the trim never removes a plan modified in the last minute, which such a run may still be saving; a plan whose modification time is in the future (a clock rolled back) stays protected until that time plus a minute. So the directory can hold more than 16 until then, and an older run trimming at once may leave one more, until the next refusal. Nothing else removes them; `mrw seen --prune` does not reach the directory, and deleting it loses nothing mrw needs.
+**4. How long it stays.** The directory holds plans from every checkout; after keeping one, mrw removes all but the newest 16 by name (the time prefix), best effort. Creating a plan and trimming run under one lock, a `.lock` file in the kept directory itself (`state.HoldFileWithin`, waited for up to 10 seconds; a lock error means the plan is not kept, and stderr says why), so no other run trims between a plan's creation and the trim that spares it. The lock is a file in the kept directory, not in mrw's state directory, so every process that trims that directory shares it, whatever its state home: two homes whose `mrw-refused` is one physical directory (one a link to the other) take one lock. The trim removes only `*.plan`, so `.lock` and its `.lock.holder` stay. As a backstop for a lock file removed while held (the directory deleted under a run), the trim never removes a plan modified in the last minute, which another run may still be saving; a plan whose modification time is in the future (a clock rolled back) stays protected until that time plus a minute. So the directory can hold more than 16 until then, and an older run trimming at once may leave one more, until the next refusal. Nothing else removes them; `mrw seen --prune` does not reach the directory, and deleting it loses nothing mrw needs.
 
 **What would make this decision wrong:** callers who never rerun the kept path, so the line is noise on every refusal. Measurable on the next field run by counting writes of a `mrw-refused/` path after a refusal; nothing measures it in this repository (ADR-009 refuses telemetry).
 

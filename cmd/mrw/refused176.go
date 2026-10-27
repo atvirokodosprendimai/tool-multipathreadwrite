@@ -83,10 +83,12 @@ func (t *planTee) write() (string, error) {
 		return "", err
 	}
 	// One lock from before the create through the trim: no other run trims
-	// between this plan's creation and the trim that spares it (ADR-176).
-	release, err := state.HoldWithin(dir, "refused-plans.lock", keptPlanLockWait)
+	// between this plan's creation and the trim that spares it (ADR-176). It is
+	// a file in the kept directory, not in mrw's state directory, so a run
+	// whose home reaches the same directory through a link shares it.
+	release, err := state.HoldFileWithin(filepath.Join(dir, ".lock"), keptPlanLockWait)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("%s: %w", dir, err)
 	}
 	defer release()
 	var salt [4]byte
@@ -115,11 +117,11 @@ func (t *planTee) write() (string, error) {
 // trimKept removes plans until the newest keptPlansMax stay, by name, whose
 // prefix is the time. It never removes the one this run just kept: a name can
 // sort before others written in the same instant, and the path it returns must
-// exist. Creation and trim run under one lock, so no other run of this version
-// trims between a plan's creation and the trim that spares it. It also spares a
-// plan modified within keptPlanGrace, a backstop for runs of older versions
-// that take no lock: two runs trimming at once each snapshot the directory and
-// each would remove the other's plan, which is still being saved. So the
+// exist. Creation and trim run under one lock, so no other run trims between a
+// plan's creation and the trim that spares it. It also spares a plan modified
+// within keptPlanGrace, a backstop for a lock file removed while held (the
+// directory deleted under a run): then two runs trimming at once could each
+// remove the other's plan, which is still being saved. So the
 // directory may briefly hold more than keptPlansMax, as long as a plan's
 // modification time is in the future (a clock rolled back) or recent.
 func trimKept(dir, keep string) {

@@ -59,7 +59,10 @@ func (k *keptRig) kept() []string {
 	}
 	var names []string
 	for _, e := range ents {
-		names = append(names, filepath.Join(k.dir(), e.Name()))
+		// The lock and its holder file live in the directory too, and are not plans.
+		if strings.HasSuffix(e.Name(), ".plan") {
+			names = append(names, filepath.Join(k.dir(), e.Name()))
+		}
 	}
 	return names
 }
@@ -99,6 +102,52 @@ func (k *keptRig) onlyKept(why string) (string, string) {
 		k.t.Fatal(err)
 	}
 	return names[0], string(b)
+}
+
+// waitsOnLock runs a refused piped write of the built binary under state home
+// xdg while the caller holds the kept directory's lock: it must not exit or keep
+// a plan for 300 ms, and once release is called it exits within a bound with
+// refused_plan existing. The child is killed when the test fails.
+func (k *keptRig) waitsOnLock(xdg string, release func()) {
+	k.t.Helper()
+	c := exec.Command(k.bin, "--root", k.root, "write", "--json", "--no-check", "-")
+	c.Env = append(os.Environ(), "XDG_STATE_HOME="+xdg)
+	c.Stdin = strings.NewReader("@@ f.txt 1 replace body=1\nA\nB\n")
+	var o strings.Builder
+	c.Stdout = &o
+	if err := c.Start(); err != nil {
+		k.t.Fatal(err)
+	}
+	done := make(chan struct{})
+	go func() { _ = c.Wait(); close(done) }()
+	defer func() {
+		_ = c.Process.Kill()
+		<-done
+	}()
+	select {
+	case <-done:
+		k.t.Fatal("the run finished while another held the lock")
+	case <-time.After(300 * time.Millisecond):
+	}
+	if n := len(k.kept()); n != 0 {
+		k.t.Fatalf("%d plans kept while the lock was held", n)
+	}
+	release()
+	select {
+	case <-done:
+		// finished
+	case <-time.After(20 * time.Second):
+		k.t.Fatal("the run did not finish after the lock was released")
+	}
+	var doc struct {
+		RefusedPlan string `json:"refused_plan"`
+	}
+	if err := json.Unmarshal([]byte(o.String()), &doc); err != nil {
+		k.t.Fatalf("--json: %v\n%s", err, o.String())
+	}
+	if _, err := os.Stat(doc.RefusedPlan); doc.RefusedPlan == "" || err != nil {
+		k.t.Errorf("refused_plan %q does not exist: %v", doc.RefusedPlan, err)
+	}
 }
 
 func (k *keptRig) file(name, body string) {
@@ -379,53 +428,38 @@ func TestAPlanRefusedFromStandardInputIsKept(t *testing.T) {
 	t.Run("a run waits for the lock another run holds, then keeps its plan", func(t *testing.T) {
 		k.t = t
 		k.reset()
-		if err := os.MkdirAll(k.dir(), 0o700); err != nil {
-			t.Fatal(err)
-		}
-		t.Setenv("XDG_STATE_HOME", k.state)
-		release, err := state.Hold(k.dir(), "refused-plans.lock")
+		release, err := state.HoldFileWithin(filepath.Join(k.dir(), ".lock"), 10*time.Second)
 		if err != nil {
 			t.Fatal(err)
 		}
 		defer release()
-		c := exec.Command(k.bin, "--root", k.root, "write", "--json", "--no-check", "-")
-		c.Env = append(os.Environ(), "XDG_STATE_HOME="+k.state)
-		c.Stdin = strings.NewReader("@@ f.txt 1 replace body=1\nA\nB\n")
-		var o strings.Builder
-		c.Stdout = &o
-		if err := c.Start(); err != nil {
+		k.waitsOnLock(k.state, release)
+	})
+
+	// Codex on ADR-176, fourth review: a lock under the caller's state home is
+	// two locks for two homes that reach one kept directory through a link. The
+	// lock is a file in the directory, so both runs take the same one. A symlink
+	// needs a privilege on some Windows machines; there the test is skipped, and
+	// anywhere else a failure to make one is a failure.
+	t.Run("a run with another state home that shares the kept directory waits for the same lock", func(t *testing.T) {
+		k.t = t
+		k.reset()
+		if err := os.MkdirAll(k.dir(), 0o700); err != nil {
 			t.Fatal(err)
 		}
-		done := make(chan struct{})
-		go func() { _ = c.Wait(); close(done) }()
-		defer func() {
-			_ = c.Process.Kill()
-			<-done
-		}()
-		select {
-		case <-done:
-			t.Fatal("the run finished while another held the lock")
-		case <-time.After(300 * time.Millisecond):
+		other := t.TempDir()
+		if err := os.Symlink(k.dir(), filepath.Join(other, "mrw-refused")); err != nil {
+			if runtime.GOOS == "windows" {
+				t.Skipf("no symlink here: %v", err)
+			}
+			t.Fatal(err)
 		}
-		if n := len(k.kept()); n != 0 {
-			t.Fatalf("%d plans kept while the lock was held", n)
+		release, err := state.HoldFileWithin(filepath.Join(k.dir(), ".lock"), 10*time.Second)
+		if err != nil {
+			t.Fatal(err)
 		}
-		release()
-		select {
-		case <-done:
-			// finished
-		case <-time.After(20 * time.Second):
-			t.Fatal("the run did not finish after the lock was released")
-		}
-		var doc struct {
-			RefusedPlan string `json:"refused_plan"`
-		}
-		if err := json.Unmarshal([]byte(o.String()), &doc); err != nil {
-			t.Fatalf("--json: %v\n%s", err, o.String())
-		}
-		if _, err := os.Stat(doc.RefusedPlan); doc.RefusedPlan == "" || err != nil {
-			t.Errorf("refused_plan %q does not exist: %v", doc.RefusedPlan, err)
-		}
+		defer release()
+		k.waitsOnLock(other, release)
 	})
 
 	t.Run("a plan over 16 MiB is parsed as today and not kept, and says why", func(t *testing.T) {
