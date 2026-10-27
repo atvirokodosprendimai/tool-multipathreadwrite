@@ -112,7 +112,8 @@ func TestRunKeepsTheOutputAndPrintsOneReceipt(t *testing.T) {
 		t.Errorf("directory mode %v, want 0700", fi.Mode().Perm())
 	}
 	read := receiptField(out, "read")
-	if !strings.HasPrefix(read, "mrw read -- '-:461-$' < '") {
+	resolved, _ := filepath.EvalSymlinks(bin)
+	if want := posixQuote(resolved) + " read -- '-:461-$' < '"; !strings.HasPrefix(read, want) {
 		t.Fatalf("read: %q", read)
 	}
 	c := exec.Command("sh", "-c", read)
@@ -132,17 +133,46 @@ func TestRunKeepsTheOutputAndPrintsOneReceipt(t *testing.T) {
 
 // The pair for the receipt: 40 lines or fewer are read whole.
 func TestTheReadLineIsQuotedForThePlatform(t *testing.T) {
-	if got := runReadLine("linux", "/a b/it's/run.log", 3); got != `mrw read -- '-:1-$' < '/a b/it'\''s/run.log'` {
+	exe := "/opt/my mrw/it's/mrw"
+	if got := runReadLine("linux", exe, "/a b/it's/run.log", 3); got != `'/opt/my mrw/it'\''s/mrw' read -- '-:1-$' < '/a b/it'\''s/run.log'` {
 		t.Errorf("unix, 3 lines: %s", got)
 	}
-	if got := runReadLine("linux", "/x/r.log", 40); !strings.HasPrefix(got, `mrw read -- '-:1-$' < `) {
+	if got := runReadLine("linux", exe, "/x/r.log", 40); !strings.Contains(got, ` read -- '-:1-$' < `) {
 		t.Errorf("unix, 40 lines: %s", got)
 	}
-	if got := runReadLine("linux", "/x/r.log", 41); !strings.HasPrefix(got, `mrw read -- '-:2-$' < `) {
+	if got := runReadLine("linux", exe, "/x/r.log", 41); !strings.Contains(got, ` read -- '-:2-$' < `) {
 		t.Errorf("unix, 41 lines: %s", got)
 	}
-	if got := runReadLine("windows", `C:\u's\r.log`, 100); got != `Get-Content -Raw -LiteralPath 'C:\u''s\r.log' | mrw read -- '-:61-$'` {
-		t.Errorf("windows: %s", got)
+	// Windows (Decision 5, measured on Windows 11 in pwsh 7.6 and Windows
+	// PowerShell 5.1): the typed form, a PowerShell double-quoted string, with
+	// ` and $ escaped and ' left alone; it is byte-exact where a pipe is not.
+	bt := "`"
+	want := `cmd /c "` + bt + `"C:\Program Files\mrw\mrw.exe` + bt + `" read -- -:61-` + bt + `$ < ` + bt + `"C:\u's\` + bt + `$x\b` + bt + bt + `c.log` + bt + `""`
+	if got := runReadLine("windows", `C:\Program Files\mrw\mrw.exe`, "C:\\u's\\$x\\b`c.log", 100); got != want {
+		t.Errorf("windows:\n got %s\nwant %s", got, want)
+	}
+	// A Windows path cannot hold a double quote, so a line that would need one
+	// is left out rather than printed wrong.
+	if got := runReadLine("windows", `C:\mrw.exe`, `C:\a"b\r.log`, 5); got != "" {
+		t.Errorf("windows, a quote in the path: %q, want no line", got)
+	}
+}
+
+// F4: the read: line names the binary that wrote the log, not whatever mrw is
+// first on PATH.
+func TestTheReadLineNamesTheRunningBinary(t *testing.T) {
+	exe, err := os.Executable()
+	if err != nil {
+		t.Skip(err)
+	}
+	if resolved, err := filepath.EvalSymlinks(exe); err == nil {
+		exe = resolved
+	}
+	if got := runningBinary(); got != exe || !filepath.IsAbs(got) {
+		t.Fatalf("runningBinary %q, want the resolved absolute %q", got, exe)
+	}
+	if got := runReadLine("linux", runningBinary(), "/x/r.log", 3); !strings.HasPrefix(got, posixQuote(exe)+" read -- ") {
+		t.Errorf("the line does not start with the running binary: %s", got)
 	}
 }
 
@@ -408,6 +438,26 @@ func TestRunExitCodeNamesWhatStoppedTheCommand(t *testing.T) {
 	} {
 		if got := runExitCode(c.skipped, c.signal, c.exit); got != c.want {
 			t.Errorf("skipped %q signal %d exit %d: %d, want %d", c.skipped, c.signal, c.exit, got, c.want)
+		}
+	}
+}
+
+// ADR-177 Decision 6, measured on Windows 11: Git for Windows' sh reports a
+// signal death to its Windows parent as signal<<8, so 3840 is TERM, 2304 KILL
+// and 512 INT. Only a multiple of 256 up to 64<<8 is read so; 300 and 256*65
+// are exit codes. Unix exit codes never exceed 255, so the rule is a value
+// rule applied everywhere and no build tag hides it from the Linux run.
+func TestAWindowsShellSignalStatusIsTheSignal(t *testing.T) {
+	for _, c := range []struct{ exit, sig, code int }{
+		{3840, 15, 143}, {2304, 9, 137}, {512, 2, 130}, {256, 1, 129}, {256 * 64, 64, 192},
+		{256 * 65, 0, 256 * 65}, {300, 0, 300}, {255, 0, 255}, {7, 0, 7}, {0, 0, 0}, {-1, 0, -1},
+	} {
+		sig := shellSignal(c.exit)
+		if sig != c.sig {
+			t.Errorf("shellSignal(%d) = %d, want %d", c.exit, sig, c.sig)
+		}
+		if got := runExitCode("", sig, c.exit); got != c.code {
+			t.Errorf("exit %d: mrw run exits %d, want %d", c.exit, got, c.code)
 		}
 	}
 }

@@ -142,8 +142,12 @@ func runAction(ctx context.Context, cmd *cli.Command) error {
 		done = ""
 		fmt.Fprintf(os.Stderr, "mrw: could not rename the log to %s; it stays %s and is removed after 25 hours\n", final, filepath.Base(logPath))
 	}
-	code := runExitCode(res.Skipped, res.Signal(), res.ExitCode)
-	rec.ExitCode, rec.Signal, rec.OutputFile = code, res.Signal(), logPath
+	sig := res.Signal()
+	if sig == 0 {
+		sig = shellSignal(res.ExitCode)
+	}
+	code := runExitCode(res.Skipped, sig, res.ExitCode)
+	rec.ExitCode, rec.Signal, rec.OutputFile = code, sig, logPath
 	rec.Lines, rec.Bytes, rec.Last = scanLog(logPath)
 	// This run's own log is exempt from the prune, whatever its name sorts as.
 	rec.PrunedLogs = check.PruneRunLogs(dir, time.Now(), done)
@@ -175,6 +179,19 @@ func runExitCode(skipped string, signal, exit int) int {
 	return exit
 }
 
+// shellSignal is the signal N a Windows shell's exit status stands for, or 0.
+// Git for Windows' sh reports a signal death to its Windows parent as N<<8
+// (kill -TERM $$ is 3840), which no wait status marks as a signal. The rule is
+// on the value, whatever the platform: a unix exit code never exceeds 255, so
+// it fires only where such a status can arrive. A multiple of 256 above 64<<8
+// and any status with a low byte are the command's own exit code.
+func shellSignal(exit int) int {
+	if exit >= 256 && exit%256 == 0 && exit>>8 <= 64 {
+		return exit >> 8
+	}
+	return 0
+}
+
 // emitRunJSON writes v as the one indented document mrw run --json prints.
 func emitRunJSON(v any) {
 	enc := json.NewEncoder(os.Stdout)
@@ -195,8 +212,8 @@ func printRunReceipt(w io.Writer, r runReceipt) {
 		fmt.Fprintf(w, "last: %s\n", writer.Shown(r.Last))
 	}
 	fmt.Fprintf(w, "log: %s\n", r.OutputFile)
-	if r.Lines > 0 {
-		fmt.Fprintf(w, "read: %s\n", runReadLine(runtime.GOOS, r.OutputFile, r.Lines))
+	if line := runReadLine(runtime.GOOS, runningBinary(), r.OutputFile, r.Lines); r.Lines > 0 && line != "" {
+		fmt.Fprintf(w, "read: %s\n", line)
 	}
 	if r.PrunedLogs > 0 {
 		fmt.Fprintf(w, "removed: %d old run log(s)\n", r.PrunedLogs)
@@ -204,15 +221,43 @@ func printRunReceipt(w io.Writer, r runReceipt) {
 }
 
 // runReadLine is a command that serves the last lastReadLines lines of a log
-// of the given length: standard input reaches a file outside every checkout,
-// licenses nothing and records nothing in the ledger. Flags go before --. On
-// Windows it is PowerShell's form, with ' doubled (ADR-177 Decision 5).
-func runReadLine(goos, path string, lines int) string {
-	addr := "'-:" + strconv.Itoa(max(lines-lastReadLines+1, 1)) + "-$'"
+// of the given length with the binary exe: standard input reaches a file
+// outside every checkout, licenses nothing and records nothing in the ledger.
+// Flags go before --. On Windows it is the form typed at a PowerShell prompt:
+// cmd's redirection is the one path that keeps the log's bytes (a pipe turns
+// non-ASCII into ? and adds a BOM in Windows PowerShell 5.1), and the whole
+// command is a double-quoted string with ` and $ escaped, so an apostrophe in
+// a path survives (ADR-177 Decision 5). A Windows path cannot hold a double
+// quote; if one does, there is no line.
+func runReadLine(goos, exe, path string, lines int) string {
+	from := max(lines-lastReadLines+1, 1)
 	if goos == "windows" {
-		return "Get-Content -Raw -LiteralPath '" + strings.ReplaceAll(path, "'", "''") + "' | mrw read -- " + addr
+		if strings.Contains(exe+path, `"`) {
+			return ""
+		}
+		q := func(s string) string { return "`\"" + psEscaper.Replace(s) + "`\"" }
+		return `cmd /c "` + q(exe) + " read -- -:" + strconv.Itoa(from) + "-`$ < " + q(path) + `"`
 	}
-	return "mrw read -- " + addr + " < " + posixQuote(path)
+	return posixQuote(exe) + " read -- '-:" + strconv.Itoa(from) + "-$' < " + posixQuote(path)
+}
+
+// psEscaper escapes what a PowerShell double-quoted string would expand or end
+// on: the escape character, $, and the typographic double quotes PowerShell
+// reads as quotes.
+var psEscaper = strings.NewReplacer("`", "``", "$", "`$", "“", "`“", "”", "`”", "„", "`„")
+
+// runningBinary is the path of the mrw that is running, symlinks resolved, so
+// the read: line reads the log with the binary that wrote it and not whichever
+// mrw PATH finds first; bare mrw when the system will not say.
+func runningBinary() string {
+	exe, err := os.Executable()
+	if err != nil {
+		return "mrw"
+	}
+	if resolved, err := filepath.EvalSymlinks(exe); err == nil {
+		return resolved
+	}
+	return exe
 }
 
 // commas groups n's digits by threes.

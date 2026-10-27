@@ -50,12 +50,15 @@ Decisions 1-9: `mrw run 'CMD'` runs CMD through an exported runner entry with th
 18. [S18] The `--json` fallback for a usage error reads the arguments as the parser reads a boolean flag. Mutant: the last-occurrence rule replaced by first-wins. [proof: mutation]
 19. [S19] A multi-byte space cut by a read boundary does not make a blank line the last line. Mutant: the carried partial character dropped. [proof: mutation]
 20. [S20] A run's log names carry a nanosecond time, the pid and a salt, and the done rename never replaces a log: two runs ending in the same instant keep two logs. Mutant: the salt dropped from the stem. [proof: mutation]
+21. [S21] A Windows shell's signal death, `signal<<8`, is read back as signal N: 3840 → 143, 2304 → 137, 512 → 130; 256·65 and 300 are exit codes. The rule is on the value, on every platform (a unix exit code never exceeds 255). Mutant: `shellSignal` returns 0. [proof: mutation]
+22. [S22] The `read:` line names the running binary, symlinks resolved, and the POSIX line runs with no `mrw` on PATH (contract §302). Mutant: bare `mrw` printed in place of the binary's path. [proof: mutation]
+23. [S23] The Windows `read:` line is the typed PowerShell form `cmd /c "`"EXE`" read -- -:N-`$ < `"LOG`""`, with the backtick and `$` escaped and no line for a path holding `"`. Mutant: the old `Get-Content … | mrw read` form restored. [proof: mutation]
 
 ## Acceptance
 
 ```bash
 set -o pipefail
-out=$(go test ./cmd/mrw/ ./internal/check/ -count=1 -v -run '^(TestRunKeepsTheOutputAndPrintsOneReceipt|TestRunKeepsTheLogOfAShortOrEmptySuccess|TestRunExitsWithTheCommandsOwnCode|TestRunThatCannotStartSaysSoAndExitsTwo|TestRunTakesExactlyOneCommandString|TestRunIsRefusedAtTheStepDepthLimit|TestRunStoppedByAnInterruptExits130|TestRunHelpNamesTheShellTrust|TestTheRunEntryTakesItsOwnTimeout|TestRunLogsArePrunedByAgeAndCount|TestARunKeepsItsOwnLogWhenSixtyFourOthersFinishedBeforeIt|TestTheRunEntryWithNoTimeoutAsksForTheCeiling|TestRunStoppedBeforeItStartsExits130Or124|TestRunExitCodeNamesWhatStoppedTheCommand|TestRunUsageErrorUnderJSONIsOneRefusalDocument|TestRunLastLineIsJudgedWholeNotByItsKeptPrefix|TestRunLogIsNamedWhenTheCommandEnds|TestRunLogNamesDifferForTheSameInstantAndPid|TestRunLogIsNeverReplacedByTheRename|TestRunJSONFlagIsReadAsTheParserReadsIt|TestRunLastLineBlankIsJudgedAcrossFragmentBoundaries|TestNoShippedReceiptFieldDisappears)$' 2>&1) \
+out=$(go test ./cmd/mrw/ ./internal/check/ -count=1 -v -run '^(TestRunKeepsTheOutputAndPrintsOneReceipt|TestRunKeepsTheLogOfAShortOrEmptySuccess|TestRunExitsWithTheCommandsOwnCode|TestRunThatCannotStartSaysSoAndExitsTwo|TestRunTakesExactlyOneCommandString|TestRunIsRefusedAtTheStepDepthLimit|TestRunStoppedByAnInterruptExits130|TestRunHelpNamesTheShellTrust|TestTheRunEntryTakesItsOwnTimeout|TestRunLogsArePrunedByAgeAndCount|TestARunKeepsItsOwnLogWhenSixtyFourOthersFinishedBeforeIt|TestTheRunEntryWithNoTimeoutAsksForTheCeiling|TestRunStoppedBeforeItStartsExits130Or124|TestRunExitCodeNamesWhatStoppedTheCommand|TestRunUsageErrorUnderJSONIsOneRefusalDocument|TestRunLastLineIsJudgedWholeNotByItsKeptPrefix|TestRunLogIsNamedWhenTheCommandEnds|TestRunLogNamesDifferForTheSameInstantAndPid|TestRunLogIsNeverReplacedByTheRename|TestRunJSONFlagIsReadAsTheParserReadsIt|TestRunLastLineBlankIsJudgedAcrossFragmentBoundaries|TestNoShippedReceiptFieldDisappears|TestAWindowsShellSignalStatusIsTheSignal|TestTheReadLineIsQuotedForThePlatform|TestTheReadLineNamesTheRunningBinary)$' 2>&1) \
   && grep -qE '^--- PASS: TestRunKeepsTheOutputAndPrintsOneReceipt \(' <<<"$out" \
   && grep -qE '^--- PASS: TestRunKeepsTheLogOfAShortOrEmptySuccess \(' <<<"$out" \
   && grep -qE '^--- PASS: TestRunExitsWithTheCommandsOwnCode \(' <<<"$out" \
@@ -78,6 +81,9 @@ out=$(go test ./cmd/mrw/ ./internal/check/ -count=1 -v -run '^(TestRunKeepsTheOu
   && grep -qE '^--- PASS: TestRunLastLineBlankIsJudgedAcrossFragmentBoundaries \(' <<<"$out" \
   && grep -qE '^--- PASS: TestRunLogNamesDifferForTheSameInstantAndPid \(' <<<"$out" \
   && grep -qE '^--- PASS: TestRunLogIsNeverReplacedByTheRename \(' <<<"$out" \
+  && grep -qE '^--- PASS: TestAWindowsShellSignalStatusIsTheSignal \(' <<<"$out" \
+  && grep -qE '^--- PASS: TestTheReadLineIsQuotedForThePlatform \(' <<<"$out" \
+  && grep -qE '^--- PASS: TestTheReadLineNamesTheRunningBinary \(' <<<"$out" \
   && go test ./internal/check/ ./cmd/mrw/ -count=1 >/dev/null \
   && grep -qx 'run output_file' docs/receipts.txt \
   && c=$(./scripts/contract.sh 2>&1) \
@@ -88,6 +94,7 @@ out=$(go test ./cmd/mrw/ ./internal/check/ -count=1 -v -run '^(TestRunKeepsTheOu
   && grep -qF 'PASS  mrw run with two arguments is refused' <<<"$c" \
   && grep -qF 'PASS  a short passing mrw run keeps its log' <<<"$c" \
   && grep -qF 'PASS  mrw run --json refuses a flag the parser rejects with one {error} document' <<<"$c" \
+  && grep -qF 'PASS  the read line mrw run prints names the running binary, so it needs no mrw on PATH' <<<"$c" \
   && [ -z "$(gofmt -l internal cmd)" ] \
   && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read internal/apply internal/plan internal/seen internal/state \
   && [ -z "$(git status --porcelain --untracked-files=all -- internal/read internal/apply internal/plan internal/seen internal/state)" ]
@@ -119,6 +126,9 @@ out=$(go test ./cmd/mrw/ ./internal/check/ -count=1 -v -run '^(TestRunKeepsTheOu
 | `TestRunLastLineBlankIsJudgedAcrossFragmentBoundaries` | `cmd/mrw/run177_test.go` | 4,097 spaces then 21,000 U+2003 after a meaningful line leave that line the last; the pair ending in FAIL is `…` | none | S19 |
 | `TestRunLogNamesDifferForTheSameInstantAndPid` | `internal/check/runlog177_test.go` | same instant and pid give different names; the time still leads | none | S20 |
 | `TestRunLogIsNeverReplacedByTheRename` | `cmd/mrw/run177_test.go` | the done rename refuses an existing name and loses nothing; a free name receives the log | none | S20 |
+| `TestAWindowsShellSignalStatusIsTheSignal` | `cmd/mrw/run177_test.go` | 3840, 2304 and 512 are TERM, KILL and INT and exit 143, 137, 130; 256·65, 300 and 255 are exit codes | none | S21 |
+| `TestTheReadLineIsQuotedForThePlatform` | `cmd/mrw/run177_test.go` | the POSIX line with an apostrophe in both paths; the Windows typed form with an apostrophe, a `$` and a backtick, and no line for a `"` | none | S8, S23 |
+| `TestTheReadLineNamesTheRunningBinary` | `cmd/mrw/run177_test.go` | the line starts with the resolved running binary, absolute | none | S22 |
 
 ## Reachability
 
@@ -149,6 +159,9 @@ out=$(go test ./cmd/mrw/ ./internal/check/ -count=1 -v -run '^(TestRunKeepsTheOu
 - 2026-10-27 · e3f5ea87* · mutant killed · exit 1 · `cmd/mrw/run177.go` · the partial character is not carried across fragments (S19) · acceptance-sha256:90c1da2c18aaca85f28f20991c3ef9c2dc29d0e2c255915b82925e1e6b89763c · covers:the boundary test passed
 - 2026-10-27 · 80bf726a* · mutant killed · exit 1 · `cmd/mrw/run177.go` · S18: an empty --json= value read as false · acceptance-sha256:90c1da2c18aaca85f28f20991c3ef9c2dc29d0e2c255915b82925e1e6b89763c · covers:the json-flag test passed
 - 2026-10-27 · d0426fc2* · mutant killed · exit 1 · `internal/check/runlog177.go` · the salt is dropped from the stem, so two runs ending in one instant share a name (S20) · acceptance-sha256:3b1876143a29f6f5a1d89f645f2c035aad325a3e159061e65b88e2e28e854fc0 · covers:the name test passed
+- 2026-10-27 · 5952c1ce* · mutant killed · exit 1 · `cmd/mrw/run177.go` · the Windows signal mapping is dropped: shellSignal always returns 0 (S21) · acceptance-sha256:dc0311c5bfa93efd2094c6b7c08ee8e6a28694c18b3bcf588a9f7687c71b1bce · covers:the exit-code table passed
+- 2026-10-27 · 5952c1ce* · mutant killed · exit 1 · `cmd/mrw/run177.go` · the read line names bare mrw instead of the running binary (S22) · acceptance-sha256:dc0311c5bfa93efd2094c6b7c08ee8e6a28694c18b3bcf588a9f7687c71b1bce · covers:the read-line row passes
+- 2026-10-27 · 5952c1ce* · mutant killed · exit 1 · `cmd/mrw/run177.go` · the Windows read line reverts to the Get-Content pipe form (S23) · acceptance-sha256:dc0311c5bfa93efd2094c6b7c08ee8e6a28694c18b3bcf588a9f7687c71b1bce · covers:the receipt test passed
 
 ## Invariants
 
@@ -207,3 +220,24 @@ The fence exits 0. Stop and ask if the entry needs a change to the check's own b
   ```
   ```
 - 2026-10-27 · d0426fc2* · exit 0 · `set -o pipefail …` · acceptance-sha256:3b1876143a29f6f5a1d89f645f2c035aad325a3e159061e65b88e2e28e854fc0 · ms:203945
+- 2026-10-27 · 5952c1ce* · exit 1 · `set -o pipefail …` · acceptance-sha256:dc0311c5bfa93efd2094c6b7c08ee8e6a28694c18b3bcf588a9f7687c71b1bce · ms:81631
+  ```
+  ```
+- 2026-10-27 · 5952c1ce* · exit 1 · `set -o pipefail …` · acceptance-sha256:dc0311c5bfa93efd2094c6b7c08ee8e6a28694c18b3bcf588a9f7687c71b1bce · ms:68892
+  ```
+  ```
+- 2026-10-27 · 5952c1ce* · exit 1 · `set -o pipefail …` · acceptance-sha256:dc0311c5bfa93efd2094c6b7c08ee8e6a28694c18b3bcf588a9f7687c71b1bce · ms:157542
+  ```
+  ```
+- 2026-10-27 · 5952c1ce* · exit 1 · `set -o pipefail …` · acceptance-sha256:dc0311c5bfa93efd2094c6b7c08ee8e6a28694c18b3bcf588a9f7687c71b1bce · ms:236315
+  ```
+  ```
+- 2026-10-27 · 5952c1ce* · exit 0 · `set -o pipefail …` · acceptance-sha256:dc0311c5bfa93efd2094c6b7c08ee8e6a28694c18b3bcf588a9f7687c71b1bce · ms:242419
+- 2026-10-27 · 5952c1ce* · exit 1 · `set -o pipefail …` · acceptance-sha256:dc0311c5bfa93efd2094c6b7c08ee8e6a28694c18b3bcf588a9f7687c71b1bce · ms:171996
+  ```
+  ```
+- 2026-10-27 · 5952c1ce* · exit 0 · `set -o pipefail …` · acceptance-sha256:dc0311c5bfa93efd2094c6b7c08ee8e6a28694c18b3bcf588a9f7687c71b1bce · ms:223302
+- 2026-10-27 · 5952c1ce* · exit 0 · `set -o pipefail …` · acceptance-sha256:dc0311c5bfa93efd2094c6b7c08ee8e6a28694c18b3bcf588a9f7687c71b1bce · ms:158686
+- 2026-10-27 · 5952c1ce* · exit 0 · `set -o pipefail …` · acceptance-sha256:dc0311c5bfa93efd2094c6b7c08ee8e6a28694c18b3bcf588a9f7687c71b1bce · ms:211882
+- 2026-10-27 · 5952c1ce* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:dc0311c5bfa93efd2094c6b7c08ee8e6a28694c18b3bcf588a9f7687c71b1bce · ms:0 · test-lock-sha256:8ea35689363eb20ee3810a28a018dc7a25bece39854d034f138e3773e48cd8ba · test-lock-file:docs/adr/locks/8ea35689363eb20ee3810a28a018dc7a25bece39854d034f138e3773e48cd8ba.lock · test-lock-kind:replace
+- 2026-10-27 · 5952c1ce* · exit 0 · `set -o pipefail …` · acceptance-sha256:dc0311c5bfa93efd2094c6b7c08ee8e6a28694c18b3bcf588a9f7687c71b1bce · ms:151918
