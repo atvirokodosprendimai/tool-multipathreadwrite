@@ -10455,6 +10455,39 @@ XDG_STATE_HOME="$S303" "$MRW" -C "$R" read --quiet g.txt
 { [ -n "$k303" ] && XDG_STATE_HOME="$S303" "$MRW" -C "$R" write --no-check "$k303" >/dev/null 2>&1 && [ "$(head -n 1 "$R/g.txt")" = KEPT ]; } \
   && ok "and the kept plan reruns by its path" || bad "kept plan [$k303] did not rerun"
 
+# 304. ADR-178: `mrw read --json-path EXPR[,EXPR…] FILE|-` prints each selected
+# value as one compact line, `EXPR = VALUE`, instead of the lines that hold it,
+# and licenses nothing. The pairs: a value comes out of one-line JSON while the
+# path address of the same value serves the whole line; a piped document projects
+# while piped text that is not one document is NOT JSON; a write to a projected
+# line is refused while the same write after the path address applies; a miss
+# exits 1 with the hit beside it still printed, and a flag that serves lines is
+# refused.
+R=$(mktemp -d "$WORK/r303-XXXXXX")
+printf '{"name":"demo","scripts":{"build":"go build"},"list":[1,2]}\n' > "$R/one.json"
+printf '{\n  "name": "demo",\n  "list": [1, 2]\n}\n' > "$R/pretty.json"
+o303=$(cd "$R" && "$MRW" read --json-path '$.scripts.build,$.list[1]' one.json 2>&1); rc303=$?
+{ [ "$rc303" = 0 ] && grep -qxF '$.scripts.build = "go build"' <<<"$o303" && grep -qxF '$.list[1] = 2' <<<"$o303" && ! grep -qF demo <<<"$o303"; } \
+  && ok "--json-path projects a value out of single-line JSON" || bad "single-line: exit $rc303: $o303"
+o303=$(cd "$R" && "$MRW" read 'one.json:$.scripts.build' 2>&1)
+grep -qF demo <<<"$o303" && ok "the pair: the path address of the same value serves the whole one-line file" || bad "path address: $o303"
+o303=$(printf '{"a":{"b":[1, 2]}}\n' | (cd "$R" && "$MRW" read --json-path '$.a.b' - 2>&1)); rc303=$?
+{ [ "$rc303" = 0 ] && grep -qxF '$.a.b = [1,2]' <<<"$o303"; } \
+  && ok "--json-path projects a value out of piped JSON" || bad "piped: exit $rc303: $o303"
+o303=$(printf 'x\ny\n' | (cd "$R" && "$MRW" read --json-path '$.a' - 2>&1)); rc303=$?
+{ [ "$rc303" = 1 ] && grep -qF 'NOT JSON:' <<<"$o303"; } \
+  && ok "the pair: piped text that is not one JSON document is NOT JSON, exit 1" || bad "not JSON: exit $rc303: $o303"
+(cd "$R" && "$MRW" read --json-path '$.name' pretty.json > "$WORK/o303.p")
+printf '@@ pretty.json 2 replace\n  "name": "x",\n' | (cd "$R" && "$MRW" write --no-check - >/dev/null 2>&1); w303=$?
+(cd "$R" && "$MRW" read 'pretty.json:$.name' > "$WORK/o303.a")
+printf '@@ pretty.json 2 replace\n  "name": "x",\n' | (cd "$R" && "$MRW" write --no-check - >/dev/null 2>&1); x303=$?
+{ [ "$w303" = 1 ] && [ "$x303" = 0 ] && grep -qF '"name": "x"' "$R/pretty.json"; } \
+  && ok "a projection licenses no line, and the path address still does" || bad "write after a projection exit $w303, after the path address exit $x303"
+o303=$(cd "$R" && "$MRW" read --json-path '$.nope,$.list[0]' pretty.json 2>&1); rc303=$?
+{ [ "$rc303" = 1 ] && grep -qF 'NOT FOUND: no name "nope"' <<<"$o303" && grep -qxF '$.list[0] = 1' <<<"$o303" && grep -qF 'mrw: incomplete:' <<<"$o303"; } \
+  && ok "a --json-path miss exits 1 incomplete" || bad "miss: exit $rc303: $o303"
+(cd "$R" && "$MRW" read --json-path '$.name' --count pretty.json >/dev/null 2>&1); want 2 $? "the pair: --json-path beside --count is refused, exit 2"
+
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
 # killed process is a zombie until its adopter reaps it, and pgrep lists

@@ -198,6 +198,10 @@ type Options struct {
 	// reached the caller: one the character budget dropped is withheld and not
 	// listed (ADR-169).
 	Unchanged *[]Unchanged
+	// Project, when not nil, answers each file with the value at each
+	// expression, one `EXPR = VALUE` line, instead of its lines (ADR-178). It
+	// records nothing, so it licenses no line.
+	Project []Projection
 }
 
 // Unchanged is one spec a guard (Options.IfChanged) answered without its text:
@@ -745,6 +749,10 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 		if bud.Over() { // the header did not fit: nothing of this file was shown
 			fmt.Fprintf(withheld, "%s: WITHHELD: --max-chars reached\n", withheldName(sp))
 			problems++
+			continue
+		}
+		if opt.Project != nil { // ADR-178: values, not lines — nothing observed
+			problems += project(w, withheld, bud, sp, b, opt)
 			continue
 		}
 		if foreign != "" {

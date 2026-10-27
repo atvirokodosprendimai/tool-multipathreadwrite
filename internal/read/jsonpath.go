@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 // jsonStep is one step of a JSON path address (ADR-155): a name in an object,
@@ -107,19 +109,40 @@ var utf8BOM = []byte{0xEF, 0xBB, 0xBF}
 
 const jsonSpace = " \t\r\n"
 
-// jsonSpan resolves a path against a file's bytes to the 1-based lines its
-// value spans, first byte to last. The file must be exactly one JSON document;
-// a leading UTF-8 byte order mark is skipped. A name that appears more than
-// once in an object the path goes through is refused with every line it is on,
-// since the path cannot say which copy it means (ADR-155).
-func jsonSpan(b []byte, steps []jsonStep) (int, int, error) {
+// errNotJSON is what jsonValue wraps when the file is not exactly one JSON
+// document, so a projection can say the document is at fault and not the path.
+var errNotJSON = errors.New("not one JSON document")
+
+// lineOf is the 1-based line of a byte offset in b, counted the way the file's
+// reader counts: by LF, or by CR when the file has no LF.
+func lineOf(b []byte) func(int) int {
 	cr := !bytes.Contains(b, []byte("\n")) && bytes.Contains(b, []byte("\r"))
-	line := func(off int) int {
+	return func(off int) int {
 		if cr {
 			return 1 + bytes.Count(b[:off], []byte("\r"))
 		}
 		return 1 + bytes.Count(b[:off], []byte("\n"))
 	}
+}
+
+// jsonSpan resolves a path against a file's bytes to the 1-based lines its
+// value spans, first byte to last (ADR-155).
+func jsonSpan(b []byte, steps []jsonStep) (int, int, error) {
+	s, e, err := jsonValue(b, steps)
+	if err != nil {
+		return 0, 0, err
+	}
+	line := lineOf(b)
+	return line(s), line(e - 1), nil
+}
+
+// jsonValue resolves a path against a file's bytes to the offsets [s, e) of
+// its value. The file must be exactly one JSON document; a leading UTF-8 byte
+// order mark is skipped. A name that appears more than once in an object the
+// path goes through is refused with every line it is on, since the path cannot
+// say which copy it means (ADR-155).
+func jsonValue(b []byte, steps []jsonStep) (int, int, error) {
+	line := lineOf(b)
 	base := 0
 	if bytes.HasPrefix(b, utf8BOM) {
 		base = len(utf8BOM)
@@ -130,9 +153,9 @@ func jsonSpan(b []byte, steps []jsonStep) (int, int, error) {
 		err := json.Unmarshal(doc, &raw)
 		var se *json.SyntaxError
 		if errors.As(err, &se) && se.Offset > 0 {
-			return 0, 0, fmt.Errorf("not one JSON document: %w, at line %d", err, line(base+int(se.Offset)-1))
+			return 0, 0, fmt.Errorf("%w: %w, at line %d", errNotJSON, err, line(base+int(se.Offset)-1))
 		}
-		return 0, 0, fmt.Errorf("not one JSON document: %w", err)
+		return 0, 0, fmt.Errorf("%w: %w", errNotJSON, err)
 	}
 	// [s, e) is the current value, as offsets into b.
 	s := base + len(doc) - len(bytes.TrimLeft(doc, jsonSpace))
@@ -204,7 +227,97 @@ func jsonSpan(b []byte, steps []jsonStep) (int, int, error) {
 		s, e = found[0][0], found[0][1]
 		at += st.String()
 	}
-	return line(s), line(e - 1), nil
+	return s, e, nil
+}
+
+// Projection is one --json-path expression (ADR-178): the text the caller
+// wrote, which is printed beside its value, and the steps it parsed to.
+type Projection struct {
+	Expr  string
+	steps []jsonStep
+}
+
+// ParseProjections reads the values of --json-path: each is cut at its commas
+// outside a quoted step, every expression must begin `$.` or `$[` (which
+// parseJSONPath assumes) and parse as ADR-155's grammar, and they come back in
+// the order the values and their parts were given.
+func ParseProjections(values []string) ([]Projection, error) {
+	var out []Projection
+	for _, v := range values {
+		for _, expr := range splitProjection(v) {
+			if !isJSONPath(expr) {
+				return nil, fmt.Errorf("%q is not a JSON path: it begins $. or $[, then steps .name, [N] or [\"name\"]", expr)
+			}
+			steps, err := parseJSONPath(expr)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, Projection{Expr: expr, steps: steps})
+		}
+	}
+	return out, nil
+}
+
+// splitProjection cuts v at its commas outside a quoted step: after `["` the
+// text is a JSON string, so `\"` and `\\` are escapes and a comma is part of
+// the name.
+func splitProjection(v string) []string {
+	var parts []string
+	start, quoted := 0, false
+	for i := 0; i < len(v); i++ {
+		switch c := v[i]; {
+		case quoted && c == '\\':
+			i++
+		case quoted && c == '"':
+			quoted = false
+		case !quoted && c == '"' && i > 0 && v[i-1] == '[':
+			quoted = true
+		case !quoted && c == ',':
+			parts = append(parts, v[start:i])
+			start = i + 1
+		}
+	}
+	return append(parts, v[start:])
+}
+
+// project writes a projection of one file's bytes (ADR-178): a line
+// `EXPR = VALUE` per expression, the value with its insignificant whitespace
+// removed and every literal's bytes kept, `EXPR  NOT FOUND: why` for one the
+// document does not hold, and, when the file is not exactly one JSON document,
+// `NOT JSON: why` once. A line the budget dropped is listed on withheld with
+// its expression. It returns the problems it found; it records and licenses
+// nothing.
+func project(w, withheld io.Writer, bud *Budget, sp Spec, b []byte, opt Options) (problems int) {
+	for _, p := range opt.Project {
+		s, e, err := jsonValue(b, p.steps)
+		var value bytes.Buffer
+		if err == nil {
+			err = json.Compact(&value, b[s:e])
+		}
+		name, line, stop := sp.Path+":"+p.Expr, p.Expr+" = "+value.String(), false
+		switch {
+		case errors.Is(err, errNotJSON):
+			name, line, stop = sp.Path, "NOT JSON: "+strings.TrimPrefix(err.Error(), errNotJSON.Error()+": "), true
+		case err != nil:
+			line = p.Expr + "  NOT FOUND: " + err.Error()
+		}
+		if opt.MaxCols > 0 && utf8.RuneCountInString(line) > opt.MaxCols {
+			line = window(line, opt.MaxCols, nil)
+		}
+		fmt.Fprintln(w, line)
+		// One problem per expression that did not reach the caller whole: a
+		// miss, or a line the budget dropped.
+		if bud.Over() {
+			fmt.Fprintf(withheld, "%s: WITHHELD: --max-chars reached\n", name)
+			problems++
+		} else if err != nil {
+			problems++
+		}
+		if stop {
+			break
+		}
+	}
+	return problems
 }
 
 // jsonKind names the kind of JSON value that begins with c.

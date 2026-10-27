@@ -13,7 +13,7 @@ description: >-
 metadata:
   mrw-version: "v1.76.0"
   generated-by: "mrw skill"
-  content-sha256: "aa481dd01c116a26df49dda3491675b98adbd8c69583bdc1ee634fa079940c2e"
+  content-sha256: "b8fc676d98f149f7dde1d5de7ef946b1c77daa39e451beb9ebdd02794ff4c592"
 ---
 
 # mrw
@@ -53,6 +53,8 @@ Recipes:
   mrw read --if-changed f.go=8dc37337 f.go:40-60
 12. run a long command (a build, a test suite, a gate) with its output kept out of your context, one string, instead of cmd | tail, which returns tail's status: a four-line receipt with the command's own exit code, the log's path and a read of it; read the log by pattern in a second call, so the exit code is not lost to it: mrw read --grep FAIL -C 3 - < 'LOG', LOG being the path the receipt printed (--then-sh and mrw run run any shell command they are given: a harness rule that allows mrw without reading its arguments allows arbitrary shell through --then-sh and mrw run.; in Windows PowerShell 5.1 a command holding " reaches mrw as several arguments, so use single quotes inside the command, or pwsh 7):
   mrw run 'go test ./...'
+13. a few fields out of a JSON document (cmd is any command that prints one), one line each instead of the lines that hold them (a path address of single-line JSON serves the whole line); the projection licenses nothing, so read the path address (mrw read f.json:$.a.b) before editing the value:
+  cmd | mrw read --json-path '$.a,$.b' -
 
 `mrw instructions` prints the whole contract. This file was printed by `mrw skill` from mrw v1.76.0; when `mrw version` prints another version, `mrw skill --dir <the directory holding this mrw folder>` replaces it.
 

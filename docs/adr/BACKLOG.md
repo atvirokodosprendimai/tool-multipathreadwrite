@@ -782,3 +782,9 @@ Zy, 2026-10-27: *"yes, go, address these, measure, plan, implement verify, udupa
 
 - **A `run` tool in the opencode plugin** (2026-10-27): the plugin offers one tool per subcommand (`cmd/opencode/mrw-plugin/src/index.ts:242-271`); `mrw run` is not added there with ADR-177. Arm when an opencode user asks, or when the plugin is next extended (ADR-177: a `run` tool in the opencode plugin).
 - **A size cap on one `mrw run` log** (2026-10-27): no cap is decided; a command can fill the state home's disk. Arm when a user reports a run log over 1 GiB, or a full disk traced to `mrw-runs/` (ADR-177: a size cap on one run's log).
+
+## From ADR-178
+
+- **`*` and `..` in a projection** (2026-10-27): `--json-path` takes ADR-155's grammar, one value per expression. Arm when a caller asks for `$.tasks[*].status`-shaped reads, the quality-harness `task-state --json` loop first (ADR-178: `*` and `..` in a projection).
+- **JSON Lines, one projection per line** (2026-10-27): a file of several JSON values is `NOT JSON` today. Arm when the re-measure shows JSONL reads through mrw (ADR-178: JSON Lines).
+- **`json_path` on `mrw_read`** (2026-10-27): CLI only, since the MCP tools are off by default (ADR-170). Arm when a shell-less host asks (ADR-178: `json_path` on `mrw_read`).

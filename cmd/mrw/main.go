@@ -855,6 +855,8 @@ be a deleted checkout or a volume that is not mounted, and only you can tell.`,
 }
 
 func readCmd() *cli.Command {
+	// jsonPaths is --json-path (ADR-178): each use kept whole, in command-line order.
+	jsonPaths := &jsonPathValue{}
 	return &cli.Command{
 		Name: "read",
 		// ADR-099: urfave adds a `help` subcommand (alias `h`) to every command,
@@ -944,6 +946,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				Name:  "if-changed",
 				Usage: "`PATH=SHA`, repeatable, one per file: answer each spec of PATH with one line, `==> PATH  unchanged since sha SHA — N lines, B bytes not served`, instead of its text when the file still has that sha (8 to 64 hex digits of its sha256, the 8 a header prints are enough), and serve it as ever when it changed. An unchanged answer records nothing, so it licenses no write; a range it would not have served is still reported. The flag splits its value on commas, as --exclude does, so a PATH holding one cannot be guarded (ADR-169)",
 			},
+			jsonPathFlag(jsonPaths),
 		},
 		Action: func(_ context.Context, cmd *cli.Command) (retErr error) {
 			// ADR-165: under --json a refusal before the answer is one document,
@@ -1026,6 +1029,28 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			// and cannot be honoured.
 			if filesFromSet && filesFrom == "" {
 				return cli.Exit("--files-from needs a FILE or -", exitUsage)
+			}
+
+			// ADR-178: --json-path prints values and serves no line, so a flag
+			// that serves, folds or licenses lines has nothing to act on beside
+			// it. Said first and by name, before another flag's own table speaks
+			// of it, and with the expressions parsed, so a mistake in either
+			// preempts any read.
+			var projections []read.Projection
+			if cmd.IsSet("json-path") {
+				for _, f := range []string{"grep", "ast-grep", "sub", "rewrite", "count", "stat", "quiet", "context", "max-lines", "if-changed"} {
+					if cmd.IsSet(f) {
+						shown := "--" + f
+						if f == "context" {
+							shown = "-C"
+						}
+						return cli.Exit(fmt.Sprintf("--json-path prints values and serves no line, so %s has nothing to act on, or serves lines of its own: drop %s", shown, shown), exitUsage)
+					}
+				}
+				var perr error
+				if projections, perr = read.ParseProjections(jsonPaths.vals); perr != nil {
+					return cli.Exit("--json-path "+perr.Error(), exitUsage)
+				}
 			}
 
 			if len(excludes) > 0 && !grepSet && !astSet {
@@ -1141,7 +1166,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			// ADR-161: `-` is standard input, read as one unnamed file and
 			// recorded nowhere. A file named - is ./-.
 			if stdinSpec(posArgs) {
-				return stdinRead(cmd, pattern, grepSet, posArgs)
+				return stdinRead(cmd, pattern, grepSet, posArgs, projections)
 			}
 			if cmd.IsSet("sub") {
 				return subRead(cmd, pattern, excludes, posArgs)
@@ -1247,6 +1272,9 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 					sp, err := read.ParseSpec(a)
 					if err != nil {
 						return exitWith(err)
+					}
+					if len(projections) > 0 && len(sp.Ranges) > 0 {
+						return cli.Exit(fmt.Sprintf("%s: --json-path prints values, and an address names lines: give the file alone", a), exitUsage)
 					}
 					specs = append(specs, sp)
 				}
@@ -1385,6 +1413,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				Withheld:  &withheld,
 				IfChanged: ifChanged,
 				Unchanged: &unchanged,
+				Project:   projections,
 			})
 			skipNote()
 			// The answer reaches the caller BEFORE anything is recorded (ADR-088).
@@ -2315,6 +2344,43 @@ func thenShFlag(list *[]check.Step) cli.Flag {
 		Name:  "then-sh",
 		Value: &stepFlag{list: list, adhoc: true},
 		Usage: "like --then, but run `CMD` with sh -c as given (repeatable). " + guide.ThenShCaveat(),
+	}
+}
+
+// jsonPathValue is the value of --json-path (ADR-178). Each use is kept whole
+// and in command-line order: a comma belongs to the expression grammar, and
+// urfave's slice flag would cut at it before read.ParseProjections could honour
+// a quoted step.
+type jsonPathValue struct{ vals []string }
+
+// Set keeps one use of the flag.
+func (f *jsonPathValue) Set(v string) error {
+	f.vals = append(f.vals, v)
+	return nil
+}
+
+// Get is the flag itself, so cmd.Generic hands back its values.
+func (f *jsonPathValue) Get() any { return f }
+
+// String is every value this flag was given, shown as stepFlag shows its own.
+func (f *jsonPathValue) String() string {
+	vals := make([]string, 0, len(f.vals))
+	for _, v := range f.vals {
+		vals = append(vals, writer.Shown(v))
+	}
+	return strings.Join(vals, " ")
+}
+
+// Values is every value this flag was given, in order.
+func (f *jsonPathValue) Values() []string { return f.vals }
+
+// jsonPathFlag is --json-path EXPR[,EXPR…] on read.
+func jsonPathFlag(v *jsonPathValue) cli.Flag {
+	return &cli.GenericFlag{
+		Name:  "json-path",
+		Value: v,
+		Usage: "print the value at each JSON path `EXPR` (ADR-155's grammar, $.a.b[0] or $[\"a b\"]; comma-separated or repeated) of each JSON file, or of - for standard input, as one line `EXPR = VALUE` with the value compacted, instead of the lines that hold it; " +
+			"it licenses and records nothing, so read the path address (f.json:$.a.b) before editing; a miss prints `NOT FOUND`, a file that is not one JSON document `NOT JSON`, and either exits 1. Not with --grep, --ast-grep, --sub, --rewrite, --count, --stat, --quiet, -C, --max-lines, --if-changed or a range",
 	}
 }
 
