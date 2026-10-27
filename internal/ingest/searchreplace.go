@@ -20,6 +20,7 @@ const (
 // nothing. A unique exact SEARCH match is location, not a license and not a
 // fuzzy apply.
 func CompileSearchReplace(root string, doc []byte) ([]byte, error) {
+	doc, _ = DropLeadingMarks(doc)
 	s := strings.ReplaceAll(string(doc), "\r\n", "\n")
 	s = strings.ReplaceAll(s, "\r", "\n")
 	lines := strings.Split(s, "\n")

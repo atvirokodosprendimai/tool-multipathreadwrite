@@ -245,7 +245,9 @@ func Parse(r io.Reader) ([]Hunk, error) {
 		// which is the same sin one layer down. A body line that IS a valid
 		// header after the strip is treated exactly as an un-BOM'd one would
 		// be: as a header, unless raw= or a body= count says otherwise.
-		hdr := strings.TrimPrefix(line, "\ufeff")
+		// Every leading mark, not one: Windows PowerShell 5.1 with a UTF-8
+		// $OutputEncoding that has a preamble pipes two (issue #537).
+		hdr := strings.TrimLeft(line, "\xef\xbb\xbf")
 		// An explicit body= count takes precedence over header detection, so a
 		// body may contain lines that themselves start with "@@ ".
 		if cur != nil && want > 0 {

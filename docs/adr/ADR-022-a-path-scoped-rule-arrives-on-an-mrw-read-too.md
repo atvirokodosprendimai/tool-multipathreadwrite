@@ -146,8 +146,8 @@ from `pkg/` delivers for the header it printed, two mrw calls with two roots bot
 
 **4. Plan headers are tokenised as `internal/plan` tokenises them, and whether mrw accepts the plan
 is not mirrored.** `splitHeader` is ported line for line — double quotes only, a backslash escaping a
-quote or a backslash, a `/pattern/` address one token with its spaces — and a BOM is stripped once per
-line as mrw strips it. The first field of every header-shaped line the tokeniser can split is then a
+quote or a backslash, a `/pattern/` address one token with its spaces — and every leading BOM is stripped
+from a line as mrw strips them (issue #537). The first field of every header-shaped line the tokeniser can split is then a
 candidate, counted and raw bodies included: a body line that looks like a header delivers early for a
 file the plan did not touch,
 and a plan mrw refuses — an unknown op, a guard given twice, `raw=true` without `body=` — delivers

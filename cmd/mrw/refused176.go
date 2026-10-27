@@ -32,8 +32,11 @@ const keptPlanGrace = time.Minute
 const keptPlanLockWait = 10 * time.Second
 
 // planTee copies what the plan parser reads from standard input, after the
-// CRLF trim, so a refused plan can be kept as the parser saw it. It never reads
-// ahead of the parser; past keptPlanCap it drops its copy.
+// CRLF trim, so a refused plan can be kept as the parser saw it. It copies what
+// the reader above it asked for, which can run ahead of the last line parsed
+// when the parser stops before EOF: the scanner's buffer and the byte-order-mark
+// count's bufio.Reader (4096 bytes) both read ahead. A refused plan is kept
+// whole, and past keptPlanCap it drops its copy.
 type planTee struct {
 	src  io.Reader
 	buf  bytes.Buffer
