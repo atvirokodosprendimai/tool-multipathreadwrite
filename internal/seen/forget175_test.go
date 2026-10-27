@@ -3,6 +3,7 @@ package seen
 import (
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -67,31 +68,71 @@ func TestForgetWaitsForTheLedgerLock(t *testing.T) {
 		n   int
 		err error
 	}
-	done := make(chan result, 1)
-	held := make(chan struct{})
-	release := make(chan struct{})
+	var (
+		wg        sync.WaitGroup
+		once      sync.Once
+		holderErr error
+		holderEnd = make(chan struct{})
+		done      = make(chan result, 1)
+		held      = make(chan struct{})
+		started   = make(chan struct{})
+		release   = make(chan struct{})
+	)
+	letGo := func() { once.Do(func() { close(release) }) }
+	// Every goroutine is joined, bounded, on every path out of the test.
+	defer func() {
+		letGo()
+		joined := make(chan struct{})
+		go func() { wg.Wait(); close(joined) }()
+		select {
+		case <-joined:
+		case <-time.After(15 * time.Second):
+			t.Error("a goroutine of the test did not finish after the lock was released")
+			return
+		}
+		if holderErr != nil {
+			t.Errorf("the test could not hold the ledger lock: %v", holderErr)
+		}
+	}()
+	wg.Add(1)
 	go func() {
-		_ = withLock(root, func() error {
+		defer wg.Done()
+		holderErr = withLock(root, func() error {
 			close(held)
 			<-release
 			return nil
 		})
+		close(holderEnd)
 	}()
-	<-held
+	select {
+	case <-held:
+	case <-holderEnd:
+		t.Fatal("the test did not get the ledger lock (see the error reported on exit)")
+	case <-time.After(15 * time.Second):
+		t.Fatal("the test did not get the ledger lock")
+	}
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
+		close(started)
 		n, err := Forget(root)
 		done <- result{n, err}
 	}()
+	// The worker has begun before the window opens, or the window proves nothing.
+	select {
+	case <-started:
+	case <-time.After(15 * time.Second):
+		t.Fatal("the Forget goroutine did not start")
+	}
 	select {
 	case r := <-done:
-		close(release)
 		t.Fatalf("Forget returned %d, %v while the ledger lock was held", r.n, r.err)
 	case <-time.After(300 * time.Millisecond):
 	}
 	if l, err := Load(root); err != nil || len(l) != 1 {
 		t.Errorf("the ledger changed while the lock was held: %v (%v)", l, err)
 	}
-	close(release)
+	letGo()
 	select {
 	case r := <-done:
 		if r.err != nil || r.n != 1 {

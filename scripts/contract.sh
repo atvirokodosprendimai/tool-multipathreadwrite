@@ -10320,6 +10320,18 @@ m300=$("$MRW" --root "$R/f.txt" seen --forget 2>&1); rc300=$?
 want 2 "$rc300" "mrw seen --forget over a root that is a file exits 2"
 grep -qF 'is not a directory' <<<"$m300" && ok "and the refusal says the root is not a directory" || bad "file root: $m300"
 (cd "$R" && "$MRW" --root "$R" seen --forget >/dev/null 2>&1); want 0 $? "the pair: an existing root still exits 0"
+# The review of #533: the gate reads the flag the parser read, not argv, and a
+# root below a regular file is no directory either. `--forget=` is true to the
+# parser; `--forget --forget=false` is not a forget and is left to a plain `seen`.
+b300=$(n300)
+m300=$("$MRW" --root "$WORK/no-such-root-300" seen --forget= 2>&1); rc300=$?
+want 2 "$rc300" "mrw seen --forget= over a root that does not exist exits 2"
+[ "$(n300)" = "$b300" ] && ok "and --forget= made no state directory for the missing root" || bad "--forget= made a state directory"
+m300=$("$MRW" --root "$R/f.txt/child" seen --forget 2>&1); rc300=$?
+want 2 "$rc300" "mrw seen --forget over a root below a regular file exits 2"
+grep -qF 'f.txt/child' <<<"$m300" && [ "$(n300)" = "$b300" ] && ok "and the refusal names the root and made no state directory" || bad "root below a file: $m300"
+m300=$("$MRW" --root "$WORK/no-such-root-300" seen --forget --forget=false 2>&1); rc300=$?
+grep -qF 'seen --forget:' <<<"$m300" && bad "the pair: --forget --forget=false was refused as a forget: $m300" || ok "the pair: --forget --forget=false is not a forget, the gate leaves it to a plain seen"
 
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A

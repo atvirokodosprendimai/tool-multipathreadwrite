@@ -3,6 +3,7 @@ package mcp
 import (
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -57,14 +58,31 @@ func TestForgetPendingWaitsForThePendingLock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	released := false
+	var once sync.Once
+	letGo := func() { once.Do(func() { release() }) }
+	done := make(chan error, 1)
+	started := make(chan struct{})
+	exited := make(chan struct{})
+	// The lock is let go and the worker joined, bounded, on every path out.
 	defer func() {
-		if !released {
-			release()
+		letGo()
+		select {
+		case <-exited:
+		case <-time.After(15 * time.Second):
+			t.Error("the ForgetPending goroutine did not finish after the lock was released")
 		}
 	}()
-	done := make(chan error, 1)
-	go func() { done <- ForgetPending(root) }()
+	go func() {
+		defer close(exited)
+		close(started)
+		done <- ForgetPending(root)
+	}()
+	// The worker has begun before the window opens, or the window proves nothing.
+	select {
+	case <-started:
+	case <-time.After(15 * time.Second):
+		t.Fatal("the ForgetPending goroutine did not start")
+	}
 	select {
 	case err := <-done:
 		t.Fatalf("ForgetPending returned %v while the pending lock was held", err)
@@ -73,8 +91,7 @@ func TestForgetPendingWaitsForThePendingLock(t *testing.T) {
 	if store, err := loadPending(root); err != nil || len(store) == 0 {
 		t.Errorf("the pending store changed while the lock was held: %v (%v)", store, err)
 	}
-	release()
-	released = true
+	letGo()
 	select {
 	case err := <-done:
 		if err != nil {

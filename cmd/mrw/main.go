@@ -179,12 +179,20 @@ func rootCommand() *cli.Command {
 			case "version", "instructions", "skill", "stats", "help", "h", "":
 				return ctx, nil
 			}
+			// The seen subcommand's flags are parsed before this runs (urfave/cli
+			// runs the chain's Before after the leaf's parse), so its parsed --forget
+			// is the answer: argv misreads --forget=, --forget --forget=false and
+			// -- --forget.
+			forgetting := false
+			if sub := cmd.Command("seen"); verb == "seen" && sub != nil {
+				forgetting = sub.Bool("forget")
+			}
 			// Looking up the ledger below makes the root's state directory, so a
 			// forget over a root that is not there, or not a directory, is refused
 			// before it: exit 2, no state directory (ADR-175). A hook's `--root null`,
 			// from an input with no cwd, lands here. main prints "mrw: " itself.
-			if verb == "seen" && asksToForget(cmd.Args().Slice()) {
-				if _, err := rooted.Abs(cmd.String("root")); err != nil {
+			if forgetting {
+				if err := forgettableRoot(cmd.String("root")); err != nil {
 					return ctx, cli.Exit("seen --forget: "+err.Error(), exitUsage)
 				}
 			}
@@ -193,7 +201,7 @@ func rootCommand() *cli.Command {
 			if writer, newer, err := seen.Newer(cmd.String("root")); err == nil && newer {
 				// A write says it once, in a refusal or after its landing (ADR-157);
 				// so does `seen --forget`, whose refusal carries the notice (ADR-175).
-				if verb != "write" && (verb != "seen" || !asksToForget(cmd.Args().Slice())) {
+				if verb != "write" && !forgetting {
 					fmt.Fprintln(os.Stderr, seen.NewerNotice(writer))
 				}
 			} else if stale, err := seen.IsStale(cmd.String("root")); err == nil && stale {
@@ -2955,21 +2963,23 @@ func forget(root string) error {
 	return nil
 }
 
-// asksToForget reports whether argv, still unparsed, carries the --forget flag
-// in any spelling the parser takes: -forget, --forget, and either with =true
-// (ADR-175). Before it runs, the root's newer-ledger notice stands down for the
-// refusal that carries it.
-func asksToForget(args []string) bool {
-	for _, a := range args {
-		name, val, hasVal := strings.Cut(strings.TrimLeft(a, "-"), "=")
-		if dashes := len(a) - len(strings.TrimLeft(a, "-")); dashes < 1 || dashes > 2 || name != "forget" {
-			continue
-		}
-		if on, err := strconv.ParseBool(val); !hasVal || (err == nil && on) {
-			return true
-		}
+// forgettableRoot is nil when root names an existing directory. rooted.Abs
+// answers a missing root, but a root below a regular file gets ENOTDIR from its
+// symlink walk, which it lets through, so the resolved root is statted here
+// (ADR-175).
+func forgettableRoot(root string) error {
+	abs, err := rooted.Abs(root)
+	if err != nil {
+		return err
 	}
-	return false
+	fi, err := os.Stat(abs)
+	if err != nil {
+		return fmt.Errorf("the root %s: %w", root, err)
+	}
+	if !fi.IsDir() {
+		return fmt.Errorf("the root %s is not a directory", root)
+	}
+	return nil
 }
 
 // plural picks the singular or the plural form for n.
