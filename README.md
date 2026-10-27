@@ -573,7 +573,7 @@ starts with `/` is rewritten too, into a false "no match".
 | 2 | usage, parse or I/O error — including a check miss |
 | 3 | the write applied and the check failed, timed out or was interrupted (before it started, too); the tree is changed and unverified. Not a rollback |
 
-`mrw run 'CMD'` gives the codes a meaning of its own (ADR-177), as `mrw version --check-latest` does: it exits with the command's own code, `128+N` when a signal N killed it, `124` when it reached its 24-hour deadline and `130` when mrw was interrupted. Its own failures (a usage error, a log that could not be made, a shell that could not start) are `2` with a `mrw:` line on stderr and no `exit` line in the receipt, which tells them from a command that exited 2.
+`mrw run 'CMD'` gives the codes a meaning of its own (ADR-177), as `mrw version --check-latest` does: it exits with the command's own code, `128+N` when a signal N killed it (on Windows, Git for Windows' sh reports N as `N<<8`, which mrw reads back), `124` when it reached its 24-hour deadline and `130` when mrw was interrupted. Its own failures (a usage error, a log that could not be made, a shell that could not start) are `2` with a `mrw:` line on stderr and no `exit` line in the receipt, which tells them from a command that exited 2.
 
 Exit 1 on `read` means incomplete: `UNREADABLE`, `REFUSED`, `no match`, or
 `WITHHELD`. The output always names which, and the last stderr line begins with the kind
@@ -664,14 +664,15 @@ directory and never in it, so `mrw seen --prune` does not look at it), and mrw p
 exit 1 · 2,314 lines · 187,902 bytes · 41.2 s
 last: FAIL	github.com/x/y/internal/read	3.112s
 log: /Users/zy/.local/state/mrw-runs/run-20261027T101500.123Z-4242.log
-read: mrw read -- '-:2275-$' < '/Users/zy/.local/state/mrw-runs/run-20261027T101500.123Z-4242.log'
+read: '/usr/local/bin/mrw' read -- '-:2275-$' < '/Users/zy/.local/state/mrw-runs/run-20261027T101500.123Z-4242.log'
 ```
 
-`last:` is the last non-empty line, cut to 200 characters; `read:` serves the log's last 40 lines (on Windows it is
-the PowerShell form, `Get-Content -Raw -LiteralPath … | mrw read -- '-:N-$'`), and `mrw read --grep P -C 3 - < LOG`
+`last:` is the last non-empty line, cut to 200 characters; `read:` serves the log's last 40 lines with the running
+binary, not the `mrw` on PATH (on Windows it is the form typed at a PowerShell prompt, `cmd /c "`"EXE`" read -- -:N-`$ < `"LOG`""`,
+since a pipe turns non-ASCII into `?` in Windows PowerShell 5.1), and `mrw read --grep P -C 3 - < LOG`
 searches it. A log is not a tree file, so a named-path read of it is refused; standard input reaches it and
 records nothing. Its exit code is the command's (see "Exit status"), which `CMD | tail` loses. Standard input is the
-null device, the deadline is 24 hours, and an interrupt, terminate or hangup sent to mrw stops the command's group.
+null device, the deadline is 24 hours, and an interrupt, terminate or hangup sent to mrw stops the command's group. In Windows PowerShell 5.1 a command holding `"` reaches mrw as several arguments (its legacy native-argument quoting): use single quotes inside the command, or pwsh 7.
 `--json` prints one document, receipt type `run` in [docs/receipts.txt](docs/receipts.txt); at `MRW_STEP_DEPTH` 8 it
 is refused, and its command runs one level deeper. Every log is kept, passing ones too, and **stays on disk with
 whatever the command printed**: logs older than 7 days, and all but the newest 64, are eligible for removal and a

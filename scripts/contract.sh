@@ -10389,6 +10389,13 @@ r302=$(cd "$R" && PATH="$(dirname "$MRW"):$PATH" XDG_STATE_HOME="$S302" bash -c 
   && ok "the read line mrw run prints reaches the log" || bad "read line [$read302] exit $rc302: $r302"
 (cd "$R" && XDG_STATE_HOME="$S302" "$MRW" read "$log302" >/dev/null 2>&1); [ $? -ne 0 ] \
   && ok "the pair: a named-path read of the log is refused, which is why the line reads standard input" || bad "a named-path read of a log outside the root was served"
+# ADR-177 issue #538: the line names the running binary, so it reads the log with a PATH that holds no mrw; the bare form fails there.
+rb302="PATH=/usr/bin:/bin"
+rn302=$(cd "$R" && env "$rb302" XDG_STATE_HOME="$S302" bash -c "$read302" 2>&1); rc302=$?
+bare302="mrw read -- ${read302#*"' read -- "}"
+(cd "$R" && env "$rb302" XDG_STATE_HOME="$S302" bash -c "$bare302" >/dev/null 2>&1); rcb302=$?
+{ [ "$rc302" = 0 ] && grep -q '^ *500| line 500$' <<<"$rn302" && [ "${read302#"'"}" != "$read302" ] && [ "$rcb302" -ne 0 ]; } \
+  && ok "the read line mrw run prints names the running binary, so it needs no mrw on PATH" || bad "read line [$read302] with no mrw on PATH: exit $rc302 ($rn302); the bare form exit $rcb302"
 XDG_STATE_HOME="$S302" "$MRW" -C "$R" run 'exit 7' >/dev/null 2>&1; want 7 $? "mrw run passes exit 7 through"
 XDG_STATE_HOME="$S302" "$MRW" -C "$R" run 'exit 0' >/dev/null 2>&1; want 0 $? "the pair: a passing command exits 0"
 XDG_STATE_HOME="$S302" "$MRW" -C "$R" run 'kill -TERM $$' >/dev/null 2>&1; want 143 $? "mrw run reports a command killed by TERM as 128+15"
@@ -10419,8 +10426,9 @@ log302=$(grep '^log: ' <<<"$o302"); log302=${log302#log: }
   && ok "and an empty passing run keeps an empty log, renamed from .running.log" || bad "empty run: $o302"
 MRW_STEP_DEPTH=8 XDG_STATE_HOME="$WORK/st302c" "$MRW" -C "$R" run 'touch marker302c' >/dev/null 2>&1; want 2 $? "mrw run at MRW_STEP_DEPTH 8 is refused, exit 2"
 { [ ! -e "$R/marker302c" ] && [ ! -e "$WORK/st302c/mrw-runs" ]; } && ok "and runs nothing and makes no log directory" || bad "depth 8 ran or made a log"
-MRW_STEP_DEPTH=7 XDG_STATE_HOME="$WORK/st302c" "$MRW" -C "$R" run 'echo "d=$MRW_STEP_DEPTH"' 2>&1 | grep -qx 'last: d=8' \
-  && ok "the pair: at 7 it runs, one level deeper" || bad "depth 7 did not run at 8"
+o302=$(MRW_STEP_DEPTH=7 XDG_STATE_HOME="$WORK/st302c" "$MRW" -C "$R" run 'echo "d=$MRW_STEP_DEPTH"' 2>&1); rc302=$?
+{ [ "$rc302" = 0 ] && grep -qx 'last: d=8' <<<"$o302"; } \
+  && ok "the pair: at 7 it runs, one level deeper" || bad "depth 7 did not run at 8 (exit $rc302): $o302"
 
 # 303. Issue #537: a plan on standard input may begin with several UTF-8 byte
 # order marks (Windows PowerShell 5.1 with a UTF-8 $OutputEncoding that has a

@@ -101,7 +101,7 @@ would read as another name: `b.txt.`, `b.txt ` and `b.txt::$DATA` all open
 failure · `3` the write applied but the check failed, timed out or was interrupted,
 so the tree is changed and unverified. Tests assert these; changing one is a breaking change.
 `mrw version --check-latest` gives two of them a meaning of its own (ADR-149): `1` a newer release exists, `2` it could not ask.
-`mrw run 'CMD'` exits with the command's own code, `128+N` for a command killed by signal N; `124` (it reached the 24-hour deadline) and `130` (mrw was interrupted) are mrw's (ADR-177). Its own failures (a usage error, a log that could not be made, a shell that could not start) exit `2` with a `mrw:` line and no `exit` line in the receipt, which tells them from a command that exited 2.
+`mrw run 'CMD'` exits with the command's own code, `128+N` for a command killed by signal N (on Windows, Git for Windows' sh reports N as `N<<8`, which mrw reads back); `124` (it reached the 24-hour deadline) and `130` (mrw was interrupted) are mrw's (ADR-177). Its own failures (a usage error, a log that could not be made, a shell that could not start) exit `2` with a `mrw:` line and no `exit` line in the receipt, which tells them from a command that exited 2.
 A `2` after a write that printed `applied` means the files changed and something after the landing failed: the check could not
 start, or the read ledger could not be updated (a holder on Windows). The message says which; for the ledger, the next edit needs a
 read first. Check the tree before retrying the plan.
@@ -655,10 +655,10 @@ and #73, one release apart.
 - **`mrw run 'CMD'`** runs one command string with `sh -c` in the root, keeps its output (standard output and
   standard error, interleaved) in a log under `<state home>/mrw-runs/` (mode 0600, beside mrw's state
   directory, never in it) and prints a receipt instead of the output: `exit N · lines · bytes · seconds`, the
-  last non-empty line (cut to 200 characters), the log's path, and a `mrw read -- '-:N-$' < 'LOG'` command that
-  serves the last 40 lines (PowerShell's `Get-Content … | mrw read` form on Windows); `mrw read --grep P -C 3 - < LOG`
+  last non-empty line (cut to 200 characters), the log's path, and a `'EXE' read -- '-:N-$' < 'LOG'` command that
+  serves the last 40 lines with the running binary (on Windows the form typed at a PowerShell prompt, `cmd /c "`"EXE`" read -- -:N-`$ < `"LOG`""`); `mrw read --grep P -C 3 - < LOG`
   searches it. The point is a long build or test output that costs the context four lines, with the exit code
-  kept: it replaces `CMD | tail`, which returns tail's status. More than one argument is usage, exit 2; standard
+  kept: it replaces `CMD | tail`, which returns tail's status. More than one argument is usage, exit 2 (in Windows PowerShell 5.1 a command holding `"` reaches mrw as several arguments: use single quotes inside the command, or pwsh 7); standard
   input is the null device; the deadline is 24 hours; an interrupt, terminate or hangup sent to mrw stops the
   command's group. Every log is kept, passing ones too; one older than 7 days, and all but the newest 64, are
   eligible for removal and a later completed run removes them. `--json` is one document (receipt type `run`,
