@@ -684,7 +684,7 @@ func Forget(root string) (int, error) {
 		// ADR-150: a newer mrw's ledger is never written over, and unlike a
 		// read or a drop this call was asked to change it, so it says so.
 		if writer, newer, err := Newer(root); err == nil && newer {
-			return errors.New(NewerNotice(writer))
+			return errors.New(strings.TrimPrefix(NewerNotice(writer), "mrw: "))
 		}
 		top, _ := state.Checkout(root)
 		l, err := loadAll(top)

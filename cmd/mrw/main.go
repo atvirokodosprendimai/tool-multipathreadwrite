@@ -184,7 +184,7 @@ func rootCommand() *cli.Command {
 			if writer, newer, err := seen.Newer(cmd.String("root")); err == nil && newer {
 				// A write says it once, in a refusal or after its landing (ADR-157);
 				// so does `seen --forget`, whose refusal carries the notice (ADR-175).
-				if verb != "write" && (verb != "seen" || !slices.Contains(cmd.Args().Slice(), "--forget")) {
+				if verb != "write" && (verb != "seen" || !asksToForget(cmd.Args().Slice())) {
 					fmt.Fprintln(os.Stderr, seen.NewerNotice(writer))
 				}
 			} else if stale, err := seen.IsStale(cmd.String("root")); err == nil && stale {
@@ -2915,11 +2915,24 @@ func prune(root string, dry bool) error {
 	return nil
 }
 
-// forget is `mrw seen --forget` (ADR-175): the pending MCP acknowledgements go
-// first, since an ack would otherwise promote one into the ledger just emptied.
+// forget is `mrw seen --forget` (ADR-175): a newer mrw's ledger is refused first,
+// so that nothing changes; then the pending MCP acknowledgements go, since an ack
+// would otherwise promote one into the ledger just emptied. The pending store is
+// per root and the ledger per checkout, so the checkout's top is emptied too: a
+// server started there is not the root a hook ran from.
 func forget(root string) error {
-	if err := mcp.ForgetPending(root); err != nil {
-		return exitWith(err)
+	if writer, newer, err := seen.Newer(root); err == nil && newer {
+		// main prints "mrw: " itself.
+		return exitWith(errors.New(strings.TrimPrefix(seen.NewerNotice(writer), "mrw: ")))
+	}
+	roots := []string{root}
+	if top, _ := state.Checkout(root); top != root {
+		roots = append(roots, top)
+	}
+	for _, r := range roots {
+		if err := mcp.ForgetPending(r); err != nil {
+			return exitWith(err)
+		}
 	}
 	n, err := seen.Forget(root)
 	if err != nil {
@@ -2931,6 +2944,23 @@ func forget(root string) error {
 	}
 	fmt.Printf("forgot %d file(s): a write now needs a fresh read of the lines it touches\n", n)
 	return nil
+}
+
+// asksToForget reports whether argv, still unparsed, carries the --forget flag
+// in any spelling the parser takes: -forget, --forget, and either with =true
+// (ADR-175). Before it runs, the root's newer-ledger notice stands down for the
+// refusal that carries it.
+func asksToForget(args []string) bool {
+	for _, a := range args {
+		name, val, hasVal := strings.Cut(strings.TrimLeft(a, "-"), "=")
+		if dashes := len(a) - len(strings.TrimLeft(a, "-")); dashes < 1 || dashes > 2 || name != "forget" {
+			continue
+		}
+		if on, err := strconv.ParseBool(val); !hasVal || (err == nil && on) {
+			return true
+		}
+	}
+	return false
 }
 
 // plural picks the singular or the plural form for n.

@@ -180,7 +180,7 @@ move into a git worktree. It needs `jq`. In `.claude/settings.json` (or the user
       {
         "matcher": "compact|clear",
         "hooks": [
-          { "type": "command", "command": "mrw --root \"$(jq -r .cwd)\" seen --forget" }
+          { "type": "command", "command": "d=$(jq -r '.cwd // empty'); [ -z \"$d\" ] || mrw --root \"$d\" seen --forget" }
         ]
       }
     ]
@@ -194,6 +194,9 @@ What it costs and what it does not reach:
   too. That is a refusal, never a wrong write, and it is why nothing runs `--forget` on its own.
 - **It clears what is persisted, not a command in flight.** A sibling's read or write that is already running may
   record after it.
+- **It reaches the roots it can name.** The pending acknowledgements of an MCP server started at some other
+  directory than the checkout's top or the hook's `cwd` are not forgotten, nor are the licences in other
+  checkouts the session edited through `--root` or `cd`. A hook with no `cwd` in its input does nothing.
 - **The re-read must show the lines.** After a forget, `mrw read` the lines (not --if-changed, which answers an
   unchanged file in one line and records nothing; not --quiet, which licenses lines without printing them).
   Neither puts the lines back in front of the model.

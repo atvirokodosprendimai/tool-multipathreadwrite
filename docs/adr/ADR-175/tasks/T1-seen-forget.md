@@ -8,7 +8,7 @@
 **Consumes:** none
 **Data dependency:** hermetic
 **Proof map:** v1
-**Rests-on:** `the forget tests run`, `the forget unit test passed`, `the forget binary test passed`, `the newer-ledger notice is said once`, `the pending test passed`, `the contract run`, `section 300 exists`, `the forget row passes`, `gofmt`, `the engine packages it does not own`, `no untracked file in them`
+**Rests-on:** `the forget tests run`, `the forget unit test passed`, `the forget binary test passed`, `the newer-ledger notice is said once`, `the subdirectory forget test passed`, `the pending test passed`, `the pending rows pass`, `the contract run`, `section 300 exists`, `the forget row passes`, `gofmt`, `the engine packages it does not own`, `no untracked file in them`
 
 ## Goal
 
@@ -32,19 +32,24 @@ Decision 1: `mrw seen --forget` removes every observation in this checkout's led
 2. [S2] `seen.Forget` and the flag. Mutant: `Forget` keeps observations whose `Written` is set. [proof: mutation]
 3. [S3] Mutant: the ADR-150 newer-ledger guard dropped — the newer-ledger case must go red. [proof: mutation]
 4. [S4] Contract §300. [proof: acceptance]
+5. [S5] The review of #527: `TestSeenForgetFromASubdirectoryForgetsTheCheckout` and §300's MCP rows (the pending store forgotten at the root, at the checkout top from a subdirectory, and left alone when a newer ledger is refused), red first. Mutants: `Forget` reads and saves `root` not the checkout top; `forget` drops its `ForgetPending` calls; the newer-ledger check moved after them. [proof: mutation]
 
 ## Acceptance
 
 ```bash
 set -o pipefail
-out=$(go test ./internal/seen/ ./internal/mcp/ ./cmd/mrw/ -count=1 -v -run '^(TestForgetDropsEveryLicenceInTheCheckout|TestForgetDropsPendingAcknowledgements|TestSeenForgetMakesTheNextWriteNeedAFreshRead|TestSeenForgetOverANewerLedgerSaysSoOnce)$' 2>&1) \
+out=$(go test ./internal/seen/ ./internal/mcp/ ./cmd/mrw/ -count=1 -v -run '^(TestForgetDropsEveryLicenceInTheCheckout|TestForgetDropsPendingAcknowledgements|TestSeenForgetMakesTheNextWriteNeedAFreshRead|TestSeenForgetOverANewerLedgerSaysSoOnce|TestSeenForgetFromASubdirectoryForgetsTheCheckout)$' 2>&1) \
   && grep -qE '^--- PASS: TestForgetDropsEveryLicenceInTheCheckout \(' <<<"$out" \
   && grep -qE '^--- PASS: TestSeenForgetMakesTheNextWriteNeedAFreshRead \(' <<<"$out" \
   && grep -qE '^--- PASS: TestForgetDropsPendingAcknowledgements \(' <<<"$out" \
   && grep -qE '^--- PASS: TestSeenForgetOverANewerLedgerSaysSoOnce \(' <<<"$out" \
+  && grep -qE '^--- PASS: TestSeenForgetFromASubdirectoryForgetsTheCheckout \(' <<<"$out" \
   && c=$(./scripts/contract.sh 2>&1) \
   && grep -q '^# 300\.' scripts/contract.sh \
   && grep -qF 'PASS  after mrw seen --forget a write needs a fresh read' <<<"$c" \
+  && grep -qF 'PASS  the ack served before --forget licenses no write' <<<"$c" \
+  && grep -qF "PASS  a server at the checkout's top is forgotten when --forget runs from a subdirectory" <<<"$c" \
+  && grep -qF 'PASS  and the refusal left the pending acknowledgements alone' <<<"$c" \
   && [ -z "$(gofmt -l internal cmd)" ] \
   && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read internal/apply internal/plan internal/check internal/state \
   && [ -z "$(git status --porcelain --untracked-files=all -- internal/read internal/apply internal/plan internal/check internal/state)" ]
@@ -57,6 +62,7 @@ out=$(go test ./internal/seen/ ./internal/mcp/ ./cmd/mrw/ -count=1 -v -run '^(Te
 | `TestForgetDropsEveryLicenceInTheCheckout` | `internal/seen/forget175_test.go` | read and written observations gone, header kept, count, newer ledger untouched | none | S1, S2, S3 |
 | `TestSeenForgetMakesTheNextWriteNeedAFreshRead` | `cmd/mrw/forget175_test.go` | the flag through the binary; the refusal; the fresh read; the usage errors | none | S1, S2 |
 | `TestSeenForgetOverANewerLedgerSaysSoOnce` | `cmd/mrw/forget175_test.go` | over a newer mrw's ledger the refusal says so once (review of #527) | none | S2 |
+| `TestSeenForgetFromASubdirectoryForgetsTheCheckout` | `cmd/mrw/forget175_test.go` | a forget run from `sub/` of a git checkout empties the ledger a read at the top recorded (review of #527) | none | S5 |
 | `TestForgetDropsPendingAcknowledgements` | `internal/mcp/forget175_test.go` | a pending checkpoint served before `--forget` licenses nothing after it | none | S1, S2 |
 
 ## Reachability
@@ -85,6 +91,12 @@ out=$(go test ./internal/seen/ ./internal/mcp/ ./cmd/mrw/ -count=1 -v -run '^(Te
   the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
   ```
 - 2026-10-24 · 2199256e* · mutant killed · exit 1 · `cmd/mrw/main.go` · seen --forget over a newer ledger repeats the notice · acceptance-sha256:f0e896bd791e609b7755ec9ad3f0f8f40c83142042efa752c3668ff23050c2bc
+- 2026-10-27 · 39d6ff31* · mutant killed · exit 1 · `internal/seen/seen.go` · S5: Forget reads and saves the root, not the checkout top · acceptance-sha256:ae8957d3314fd4fb8336dbe48080212a51db9eb4e8d8bbf27c9216030888ebb8 · covers:the subdirectory forget test passed
+- 2026-10-27 · 39d6ff31* · mutant killed · exit 1 · `cmd/mrw/main.go` · S5: forget never calls ForgetPending · acceptance-sha256:ae8957d3314fd4fb8336dbe48080212a51db9eb4e8d8bbf27c9216030888ebb8 · covers:the pending rows pass
+- 2026-10-27 · 39d6ff31* · mutant killed · exit 1 · `cmd/mrw/main.go` · S5: the checkout top's pending store is not forgotten · acceptance-sha256:ae8957d3314fd4fb8336dbe48080212a51db9eb4e8d8bbf27c9216030888ebb8 · covers:the pending rows pass
+- 2026-10-27 · 39d6ff31* · mutant killed · exit 1 · `cmd/mrw/main.go` · S5: the newer-ledger check comes after the pending store is emptied · acceptance-sha256:ae8957d3314fd4fb8336dbe48080212a51db9eb4e8d8bbf27c9216030888ebb8 · covers:the pending rows pass
+- 2026-10-27 · 39d6ff31* · mutant killed · exit 1 · `cmd/mrw/main.go` · S5: -forget is not the flag · acceptance-sha256:ae8957d3314fd4fb8336dbe48080212a51db9eb4e8d8bbf27c9216030888ebb8 · covers:the newer-ledger notice is said once
+- 2026-10-27 · 39d6ff31* · mutant killed · exit 1 · `cmd/mrw/main.go` · S5: the refusal keeps its own mrw: prefix · acceptance-sha256:ae8957d3314fd4fb8336dbe48080212a51db9eb4e8d8bbf27c9216030888ebb8 · covers:the newer-ledger notice is said once
 
 ## Invariants
 
@@ -123,3 +135,11 @@ The fence exits 0.
 - 2026-10-24 · 2199256e* · exit 0 · `set -o pipefail …` · acceptance-sha256:f0e896bd791e609b7755ec9ad3f0f8f40c83142042efa752c3668ff23050c2bc · ms:80722
 - 2026-10-24 · 2199256e* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:f0e896bd791e609b7755ec9ad3f0f8f40c83142042efa752c3668ff23050c2bc · ms:0 · test-lock-sha256:c2a898aae8608c8c3d4bcb0d120db34db4c751133601f9ec2b07421687286362 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJY21kL21ydy9mb3JnZXQxNzVfdGVzdC5nbwlUZXN0U2VlbkZvcmdldE1ha2VzVGhlTmV4dFdyaXRlTmVlZEFGcmVzaFJlYWQJZTk3ZTY0YmE5NWM0MzUyNTIwNjc0ZTM3YjM2M2UwNTk3YzlkNTAzYjk0MTIyNDVmY2RlYTYzZmQ2ZjkxNTBjOApib2R5CWNtZC9tcncvZm9yZ2V0MTc1X3Rlc3QuZ28JVGVzdFNlZW5Gb3JnZXRPdmVyQU5ld2VyTGVkZ2VyU2F5c1NvT25jZQlkZTVmZDM4NjdmNzlhMjQwZWI1MmE1ZjU5YjExMDhlNDQ0MTk0N2Q3MWFjNzc0OWY1ZTZiMDIyZTNiNmNjMTY4CmJvZHkJaW50ZXJuYWwvbWNwL2ZvcmdldDE3NV90ZXN0LmdvCVRlc3RGb3JnZXREcm9wc1BlbmRpbmdBY2tub3dsZWRnZW1lbnRzCTZmNzZlN2UzNGE3OWY2M2U1NjViNWFlNTljNTYwZjQ5MmIzMWI0YmM3ZDVmZGRhMzYzZTZlMjY1OTM0MzNlNTcKYm9keQlpbnRlcm5hbC9zZWVuL2ZvcmdldDE3NV90ZXN0LmdvCVRlc3RGb3JnZXREcm9wc0V2ZXJ5TGljZW5jZUluVGhlQ2hlY2tvdXQJYWNlNWMwODUxYmZmODJjNzYxMjA1OTk0MDhhOTQwODE0NTRiNDY1OTgyMzMyM2YyY2QzM2RjZGE1YWFhM2NjZQ · test-lock-kind:replace
 - 2026-10-24 · 2199256e* · exit 0 · `set -o pipefail …` · acceptance-sha256:f0e896bd791e609b7755ec9ad3f0f8f40c83142042efa752c3668ff23050c2bc · ms:78903
+- 2026-10-27 · 39d6ff31* · exit 0 · `set -o pipefail …` · acceptance-sha256:ae8957d3314fd4fb8336dbe48080212a51db9eb4e8d8bbf27c9216030888ebb8 · ms:84887
+- 2026-10-27 · 39d6ff31* · exit 0 · `set -o pipefail …` · acceptance-sha256:ae8957d3314fd4fb8336dbe48080212a51db9eb4e8d8bbf27c9216030888ebb8 · ms:174501
+- 2026-10-27 · 39d6ff31* · exit 0 · `set -o pipefail …` · acceptance-sha256:ae8957d3314fd4fb8336dbe48080212a51db9eb4e8d8bbf27c9216030888ebb8 · ms:100943
+- 2026-10-27 · 39d6ff31* · exit 0 · `set -o pipefail …` · acceptance-sha256:ae8957d3314fd4fb8336dbe48080212a51db9eb4e8d8bbf27c9216030888ebb8 · ms:88720
+- 2026-10-27 · 39d6ff31* · exit 0 · `set -o pipefail …` · acceptance-sha256:ae8957d3314fd4fb8336dbe48080212a51db9eb4e8d8bbf27c9216030888ebb8 · ms:86633
+- 2026-10-27 · 39d6ff31* · exit 0 · `set -o pipefail …` · acceptance-sha256:ae8957d3314fd4fb8336dbe48080212a51db9eb4e8d8bbf27c9216030888ebb8 · ms:117878
+- 2026-10-27 · 39d6ff31* · exit 0 · `set -o pipefail …` · acceptance-sha256:ae8957d3314fd4fb8336dbe48080212a51db9eb4e8d8bbf27c9216030888ebb8 · ms:112310
+- 2026-10-27 · 39d6ff31* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:ae8957d3314fd4fb8336dbe48080212a51db9eb4e8d8bbf27c9216030888ebb8 · ms:0 · test-lock-sha256:58a0bb0d569d82384011d135c7658db63d550ae60db279aede28c31f1fec65c1 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJY21kL21ydy9mb3JnZXQxNzVfdGVzdC5nbwlUZXN0U2VlbkZvcmdldEZyb21BU3ViZGlyZWN0b3J5Rm9yZ2V0c1RoZUNoZWNrb3V0CWU1NGE4YmE1NmMzYmY4MDQwYjliNGM1ZjliMGY5NzM2NDI4NTQ1MmM3YWE3N2M5NmRkZjU2ODhkY2M2N2E1N2IKYm9keQljbWQvbXJ3L2ZvcmdldDE3NV90ZXN0LmdvCVRlc3RTZWVuRm9yZ2V0TWFrZXNUaGVOZXh0V3JpdGVOZWVkQUZyZXNoUmVhZAllOTdlNjRiYTk1YzQzNTI1MjA2NzRlMzdiMzYzZTA1OTdjOWQ1MDNiOTQxMjI0NWZjZGVhNjNmZDZmOTE1MGM4CmJvZHkJY21kL21ydy9mb3JnZXQxNzVfdGVzdC5nbwlUZXN0U2VlbkZvcmdldE92ZXJBTmV3ZXJMZWRnZXJTYXlzU29PbmNlCTNlZGY2NjhjYTMzNWU3NmQ2NzI0ZGZiMGYwMjQ0NmVmZmVlNmIxNDgzNjgwZDIwNzZjYWEzYzM1MmEyMzEzZjEKYm9keQlpbnRlcm5hbC9tY3AvZm9yZ2V0MTc1X3Rlc3QuZ28JVGVzdEZvcmdldERyb3BzUGVuZGluZ0Fja25vd2xlZGdlbWVudHMJNmY3NmU3ZTM0YTc5ZjYzZTU2NWI1YWU1OWM1NjBmNDkyYjMxYjRiYzdkNWZkZGEzNjNlNmUyNjU5MzQzM2U1Nwpib2R5CWludGVybmFsL3NlZW4vZm9yZ2V0MTc1X3Rlc3QuZ28JVGVzdEZvcmdldERyb3BzRXZlcnlMaWNlbmNlSW5UaGVDaGVja291dAlhY2U1YzA4NTFiZmY4MmM3NjEyMDU5OTQwOGE5NDA4MTQ1NGI0NjU5ODIzMzIzZjJjZDMzZGNkYTVhYWEzY2Nl · test-lock-kind:replace

@@ -10257,12 +10257,53 @@ want 1 "$rc300" "a write to a line read before --forget is refused, exit 1"
 (cd "$R" && "$MRW" read f.txt > "$R/.out" 2>&1)
 printf '@@ f.txt 2 replace\nTWO\n' | (cd "$R" && "$MRW" write --no-check - >/dev/null 2>&1); want 0 $? "the pair: a fresh read licenses the same write again"
 { printf 'one\nTWO\nthree\n' | cmp -s - "$R/f.txt"; } && ok "and the write landed" || bad "the fresh-read write did not land: $(cat "$R/f.txt")"
-(cd "$R" && "$MRW" seen --forget > "$R/.out" 2>&1; "$MRW" seen --forget 2>&1) | grep -qx 'forgot 0 file(s)' \
-  && ok "the pair: an empty ledger is forgot 0 file(s)" || bad "empty ledger: $(cat "$R/.out")"
+e300=$(cd "$R" && "$MRW" seen --forget >/dev/null 2>&1; "$MRW" seen --forget 2>&1)
+[ "$e300" = 'forgot 0 file(s)' ] && ok "the pair: an empty ledger is forgot 0 file(s)" || bad "empty ledger: $e300"
 (cd "$R" && "$MRW" read f.txt > "$R/.out" 2>&1)
 (cd "$R" && "$MRW" seen --forget --prune >/dev/null 2>&1); want 2 $? "the pair: --forget beside --prune exits 2"
 (cd "$R" && "$MRW" seen --forget --dry-run >/dev/null 2>&1); want 2 $? "the pair: --forget beside --dry-run exits 2"
 printf '@@ f.txt 2 replace\nTWO\n' | (cd "$R" && "$MRW" write --no-check - >/dev/null 2>&1); want 0 $? "and the refused usage forgot nothing: the read still licenses the write"
+
+# The review of #527, the MCP arm. A span `mrw_read` served and no ack has
+# promoted yet would license a write after the forget, so `--forget` empties the
+# pending store too: at the root it ran from, and at the checkout's top (where a
+# server started there keeps its store) when it ran from a subdirectory. Each
+# row pairs the refusal with the same ack licensing the write when nothing was
+# forgotten. A newer mrw's ledger is refused before the store is touched.
+init300='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"t","version":"0"}}}'
+rd300='{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["f.txt"]}}}'
+# mcp300 ROOT REQUEST: a server at ROOT answers the request.
+mcp300() { printf '%s\n%s\n%s\n' "$init300" '{"jsonrpc":"2.0","method":"notifications/initialized"}' "$2" | "$MRW" -C "$1" mcp --enable 2>/dev/null; }
+# wr300 ROOT ACK: a fresh server at ROOT applies the plan under that acknowledgement.
+wr300() { mcp300 "$1" '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ f.txt 2 replace\nTWO\n","ack":["'"$2"'"],"check":false}}}'; }
+# ack300 OUTPUT: the first checkpoint id the read served.
+ack300() { grep -oE 'ck [A-Za-z0-9_-]+ open' <<<"$1" | cut -d' ' -f2 | head -n1; }
+
+R=$(mktemp -d "$WORK/r300m-XXXXXX"); printf 'one\ntwo\nthree\n' > "$R/f.txt"
+a300=$(ack300 "$(mcp300 "$R" "$rd300")")
+[ -n "$a300" ] && ok "an mrw_read serves a checkpoint to acknowledge" || bad "no checkpoint served"
+(cd "$R" && "$MRW" seen --forget >/dev/null 2>&1); want 0 $? "mrw seen --forget after an MCP read exits 0"
+w300=$(wr300 "$R" "$a300")
+[ "$(cat "$R/f.txt")" = "$(printf 'one\ntwo\nthree')" ] && ok "the ack served before --forget licenses no write" || bad "an ack from before --forget licensed a write: $(cat "$R/f.txt")"
+R=$(mktemp -d "$WORK/r300m-XXXXXX"); printf 'one\ntwo\nthree\n' > "$R/f.txt"
+a300=$(ack300 "$(mcp300 "$R" "$rd300")")
+w300=$(wr300 "$R" "$a300")
+[ "$(cat "$R/f.txt")" = "$(printf 'one\nTWO\nthree')" ] && ok "the pair: with no --forget the same ack licenses the write" || bad "the ack did not license the write: $(cat "$R/f.txt")"
+
+R=$(mktemp -d "$WORK/r300m-XXXXXX"); (cd "$R" && git init -q . && mkdir sub); printf 'one\ntwo\nthree\n' > "$R/f.txt"
+a300=$(ack300 "$(mcp300 "$R" "$rd300")")
+(cd "$R/sub" && "$MRW" seen --forget >/dev/null 2>&1); want 0 $? "mrw seen --forget from a subdirectory exits 0"
+w300=$(wr300 "$R" "$a300")
+[ "$(cat "$R/f.txt")" = "$(printf 'one\ntwo\nthree')" ] && ok "a server at the checkout's top is forgotten when --forget runs from a subdirectory" || bad "a subdirectory forget left the top's ack licensing: $(cat "$R/f.txt")"
+
+R=$(mktemp -d "$WORK/r300m-XXXXXX"); printf 'one\ntwo\nthree\n' > "$R/f.txt"
+a300=$(ack300 "$(mcp300 "$R" "$rd300")")
+read -r D300 < <(cd "$R" && "$MRW" seen 2>/dev/null)
+printf '#mrw-seen v7 v9.9.9 (fffffff)\n' > "$D300/seen"
+(cd "$R" && "$MRW" seen --forget >/dev/null 2>&1); want 2 $? "mrw seen --forget over a newer mrw's ledger exits 2"
+rm -f "$D300/seen"
+w300=$(wr300 "$R" "$a300")
+[ "$(cat "$R/f.txt")" = "$(printf 'one\nTWO\nthree')" ] && ok "and the refusal left the pending acknowledgements alone" || bad "the refused forget emptied the pending store: $(cat "$R/f.txt")"
 
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
