@@ -1,0 +1,103 @@
+# Task ADR-176-T1: a plan refused from standard input is kept, named and trimmed
+
+**Depends-on:** none
+**Covers:** none — no spec
+**Estimated scope:** M
+**Owner:** unassigned
+**Produces:** `<state home>/mrw-refused/*.plan`, the stderr line, `refused_plan` in the `--json` refusal, the contract row
+**Consumes:** none
+**Data dependency:** hermetic
+**Proof map:** v1
+**Rests-on:** `the kept-plan tests run`, `the kept-plan tests passed`, `the contract run`, `the kept row passes`, `the landed row passes`, `gofmt`, `the engine packages it does not own`, `no untracked file in them`
+
+## Goal
+
+Decisions 1–4: a `mrw write` whose standard-input plan was read and whose run ends with `writer.MutationOf(res) == None` keeps the bytes the parser read in `<state home>/mrw-refused/` under an exclusive time-pid-random name (0600, directory 0700, at most 16 MiB, newest 16), names it on stderr and as `refused_plan`, and changes nothing else about the run.
+
+## Affected Files
+
+| File | Change | Why |
+|------|--------|-----|
+| `cmd/mrw/refused176.go` | add | the tee (after the CRLF reader, never reading ahead, dropping its copy past 16 MiB), the keep (exclusive create, 0600/0700), the trim to 16, the stderr line |
+| `cmd/mrw/main.go` | edit | the stdin source (`:1784`) goes through the tee; `refuseWith` (`:1690-1708`) and the write's result path keep the plan when `writer.MutationOf` says None and the plan came from stdin; `refused_plan` on the refusal document |
+| `cmd/mrw/refused176_test.go` | add | the tests below |
+| `docs/receipts.txt` | edit | `refused_plan` for `write` (ADR-111) |
+| `scripts/contract.sh` | edit | one section, next free number at implementation |
+
+## Ordered Steps
+
+1. [S1] Write `TestAPlanRefusedFromStandardInputIsKept` and `TestAWriteThatLandedKeepsNoPlan` and see the first RED: a refused piped plan leaves no file and no line. [proof: acceptance]
+2. [S2] The tee and the keep on every nothing-written exit after the plan was read: a parse refusal, a `LoadBodyFiles` refusal, a validation refusal, a staging refusal, a lock timeout (`MRW_WRITE_LOCK_TIMEOUT=0` with the lock held), a dry run, and a commit failure whose undo put everything back. Mutant: the keep call skipped in `refuseWith`. [proof: mutation]
+3. [S3] Nothing kept when anything landed: exit 0, exit 3, and `PARTIALLY APPLIED` — the last asserted through the commit-failure seam, so a keep guarded by `!res.Applied` instead of `MutationOf` fails it. Nothing kept for a plan file, `--create`, `--sub`, `--rewrite`, or a refusal before the plan is read. Mutant: `MutationOf(res) == None` replaced by `!res.Applied`. [proof: mutation]
+4. [S4] The kept bytes are the parser's: the PowerShell CRLF fixture (`cmd/mrw/pwsh161_test.go:25`) refused, kept, repaired and rerun from the file writes exactly the bytes the stdin run would have; an `--format apply_patch` plan is kept and reruns with the same flag. Mutant: the tee placed before the CRLF reader. [proof: mutation]
+5. [S5] Names and trim: two refusals in one process get two files; the seventeenth refusal leaves 16, the oldest gone; 0600 and 0700 on unix. Mutant: the trim removed. [proof: mutation]
+6. [S6] The cap and the sandbox: a plan over 16 MiB is parsed exactly as today, nothing is kept, and the line says why; an unwritable state home keeps nothing, says why, and the refusal's exit and receipt are unchanged. [proof: acceptance]
+7. [S7] `docs/receipts.txt` and a contract row: a refused piped plan is kept and its rerun from the path applies; a landed piped plan keeps nothing. [proof: acceptance]
+
+## Acceptance
+
+```bash
+set -o pipefail
+out=$(go test ./cmd/mrw/ -count=1 -v -run '^(TestAPlanRefusedFromStandardInputIsKept|TestAWriteThatLandedKeepsNoPlan)$' 2>&1) \
+  && for t in TestAPlanRefusedFromStandardInputIsKept TestAWriteThatLandedKeepsNoPlan; do grep -qE "^--- PASS: $t \(" <<<"$out" || exit 1; done \
+  && c=$(./scripts/contract.sh 2>&1) \
+  && grep -qF 'PASS  a plan refused from standard input is kept and runs again by its path' <<<"$c" \
+  && grep -qF 'PASS  a piped plan that landed keeps nothing' <<<"$c" \
+  && [ -z "$(gofmt -l internal cmd)" ] \
+  && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read internal/apply internal/plan internal/seen internal/check internal/state \
+  && [ -z "$(git status --porcelain --untracked-files=all -- internal/read internal/apply internal/plan internal/seen internal/check internal/state)" ]
+```
+
+## Tests
+
+| Test name | File | Verifies | Covers | Steps |
+|-----------|------|----------|--------|-------|
+| `TestAPlanRefusedFromStandardInputIsKept` | `cmd/mrw/refused176_test.go` | every nothing-written exit after the read keeps the parser's bytes, named on stderr and in `refused_plan`; the CRLF and apply_patch reruns; names, trim, modes; the cap and the unwritable home | none | S1, S2, S4, S5, S6 |
+| `TestAWriteThatLandedKeepsNoPlan` | `cmd/mrw/refused176_test.go` | exit 0, exit 3 and `PARTIALLY APPLIED` keep nothing; a plan file, `--create`, `--sub`, `--rewrite` and a pre-read refusal keep nothing | none | S1, S3 |
+
+## Reachability
+
+| Rung | How this task shows it |
+|------|------------------------|
+| 1 — exists | `cmd/mrw/refused176.go` |
+| 2 — something selects it | the write command's nothing-written exits |
+| 3 — the caller can discover it | the stderr line names the path and the rerun; T2's text |
+| 4 — it is used | the Rubie field run's re-sends were the evidence for building it; nothing in this repository measures use (ADR-009) |
+
+## Mutation Log
+(empty until execute)
+- 2026-10-24 · 8278fcda* · mutant killed · exit 1 · `cmd/mrw/main.go` · S2: the keep call skipped in refuseWith · acceptance-sha256:0b0e9781c4eeb43d841b5a5dfcc3905ee5d919b26e22005bdc1aac3a2b7369f2
+- 2026-10-24 · 8278fcda* · mutant killed · exit 1 · `cmd/mrw/main.go` · S3: MutationOf(res) == None replaced by !res.Applied · acceptance-sha256:0b0e9781c4eeb43d841b5a5dfcc3905ee5d919b26e22005bdc1aac3a2b7369f2
+- 2026-10-24 · 8278fcda* · mutant killed · exit 1 · `cmd/mrw/refused172.go` · S5: the trim removed · acceptance-sha256:0b0e9781c4eeb43d841b5a5dfcc3905ee5d919b26e22005bdc1aac3a2b7369f2
+- 2026-10-24 · 8278fcda* · mutant killed · exit 1 · `cmd/mrw/main.go` · S4: the tee placed before the CRLF reader · acceptance-sha256:0b0e9781c4eeb43d841b5a5dfcc3905ee5d919b26e22005bdc1aac3a2b7369f2
+
+## Invariants
+
+- The refusal's exit code, its text and every existing `--json` key are unchanged; the parser reads the same bytes at the same time as before.
+- No file in the working tree (ADR-004) and none inside `state.Base()`; no engine package changes.
+
+## Risks
+
+- The commit-failure seams (`NOTHING WRITTEN`, `PARTIALLY APPLIED`) are reached through the apply package's existing test seams; if `cmd/mrw` cannot reach them, the test drives the binary with a read-only target directory as ADR-066's contract rows do.
+
+## Stop Condition
+
+The fence exits 0. Stop and ask Zy if the tee cannot sit after the CRLF reader without reading ahead.
+
+## Out of Scope
+
+- `--create`'s standard input (deferred: docs/adr/BACKLOG.md "From ADR-176")
+
+## Verification Log
+(empty until execute)
+- 2026-10-24 · 8278fcda* · exit 1 · `set -o pipefail …` · acceptance-sha256:0b0e9781c4eeb43d841b5a5dfcc3905ee5d919b26e22005bdc1aac3a2b7369f2 · ms:1926 · test-lock-sha256:5fdae8ec0bf48b8de755de1c1b60cbe9725352f27d4dbefa8ee23c464ba60417 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJY21kL21ydy9yZWZ1c2VkMTcyX3Rlc3QuZ28JVGVzdEFQbGFuUmVmdXNlZEZyb21TdGFuZGFyZElucHV0SXNLZXB0CTM2M2Q3N2QzYjU1MzJjZTkwNzJmNGEwMjIzNGFkZjUwNzI4ZTAwZjNkZTU1N2E0YzYyN2Q2OTYwOWI2NTdmNDEKYm9keQljbWQvbXJ3L3JlZnVzZWQxNzJfdGVzdC5nbwlUZXN0QVdyaXRlVGhhdExhbmRlZEtlZXBzTm9QbGFuCTdkZjRkMDMwMTYwOWNhMDk4NDZhZDg5ZDk2YTgwNmJlN2Y2YjAzN2YyMTU0ODRmMDMxZTA4YzViOTg1NDUwNDgKYm9keQljbWQvbXJ3L3JlZnVzZWQxNzJfdGVzdC5nbwlhIGNvbW1pdCB0aGF0IGxhbmRlZCBub3RoaW5nIGtlZXBzIHRoZSBwbGFuCWQ0NzNkNmY5ZjQyMWI0MGRiYjE5ZjFmNmQyN2Y3ZmI1NWY2M2I5MzcxNTQzYTNmYTMzNDdjOTc1YjlkNTllMDMKYm9keQljbWQvbXJ3L3JlZnVzZWQxNzJfdGVzdC5nbwlhIHBsYW4gb3ZlciAxNiBNaUIgaXMgcGFyc2VkIGFzIHRvZGF5IGFuZCBub3Qga2VwdCwgYW5kIHNheXMgd2h5CTcxYjg1NDZlNTY2ZjQ2N2NiNmJkMjQ2ZTdmY2EyOGE2YmQyMWVkMDAyZTY0MmJiOTFiZDZkMDMzMjM1YWYyMmQKYm9keQljbWQvbXJ3L3JlZnVzZWQxNzJfdGVzdC5nbwlhIHJlZnVzZWQgcGxhbiBydW5zIGFnYWluIGZyb20gaXRzIHBhdGgJMDRlMTA0OTk3NGZjMDIxOWI1NmJkNTM2YTA3MDY0YjM0OTU0ZTRjOThiNWVlZjZiYjUwYWUyZWJmMTEwNzJjMwpib2R5CWNtZC9tcncvcmVmdXNlZDE3Ml90ZXN0LmdvCWFuIGFwcGx5X3BhdGNoIGRvY3VtZW50IGlzIGtlcHQgYXMgc2VudCBhbmQgcmVydW5zIHdpdGggdGhlIHNhbWUgZmxhZwkyYTM4NjQ2MmJkNTQ0M2QxN2QxYjgxNjBmZDUyOTlkZjk2NTViMjM2MmI4ZDI3MTQwOGRmOTM5NTk2MzQ3NWZkCmJvZHkJY21kL21ydy9yZWZ1c2VkMTcyX3Rlc3QuZ28JYW4gdW53cml0YWJsZSBzdGF0ZSBob21lIGtlZXBzIG5vdGhpbmcsIHNheXMgd2h5LCBhbmQgY2hhbmdlcyBub3RoaW5nIGVsc2UJY2NiNzE4YzIxMzA1OTY4NDMwMGYyNzk1ZTY2OTM2YjcyMWExYzI5ZjA5MjJmZjk4OWQ3NTdkNGIwNGEwNGU3Mgpib2R5CWNtZC9tcncvcmVmdXNlZDE3Ml90ZXN0LmdvCW9ubHkgdGhlIG5ld2VzdCAxNiBzdGF5CTVmMGVlYjcwODQ5ZWQ2ZTdkM2E5YjAzYzMyNzJjZTVmMTYzOTI5NDBkZTQ0YjdlNDBkMmFlYmI2NTI4ZjQ4MWEKYm9keQljbWQvbXJ3L3JlZnVzZWQxNzJfdGVzdC5nbwl0d28gcmVmdXNhbHMgZ2V0IHR3byBmaWxlcywgMDYwMCBpbiBhIDA3MDAgZGlyZWN0b3J5CWNlODBkYjA5ZjhjMWM4YmNhOTg2YjUyOTgyOWJiMDc4OTkwNDFmNzkxYjUyMjgxOWM0MDc3MzE5MzEwNGYxMDA
+  ```
+  ```
+- 2026-10-24 · 8278fcda* · exit 0 · `set -o pipefail …` · acceptance-sha256:0b0e9781c4eeb43d841b5a5dfcc3905ee5d919b26e22005bdc1aac3a2b7369f2 · ms:103396
+- 2026-10-24 · 8278fcda* · exit 0 · `set -o pipefail …` · acceptance-sha256:0b0e9781c4eeb43d841b5a5dfcc3905ee5d919b26e22005bdc1aac3a2b7369f2 · ms:94801
+- 2026-10-24 · 8278fcda* · exit 0 · `set -o pipefail …` · acceptance-sha256:0b0e9781c4eeb43d841b5a5dfcc3905ee5d919b26e22005bdc1aac3a2b7369f2 · ms:95434
+- 2026-10-24 · 8278fcda* · exit 0 · `set -o pipefail …` · acceptance-sha256:0b0e9781c4eeb43d841b5a5dfcc3905ee5d919b26e22005bdc1aac3a2b7369f2 · ms:88416
+- 2026-10-24 · 8278fcda* · exit 0 · `set -o pipefail …` · acceptance-sha256:0b0e9781c4eeb43d841b5a5dfcc3905ee5d919b26e22005bdc1aac3a2b7369f2 · ms:113934
+- 2026-10-24 · 8278fcda* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:0b0e9781c4eeb43d841b5a5dfcc3905ee5d919b26e22005bdc1aac3a2b7369f2 · ms:0 · test-lock-sha256:47de824a68a27bcfa7aa1038e6ad8c1f2bade2cbb234e218de18b0431f4058b3 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJY21kL21ydy9yZWZ1c2VkMTcyX3Rlc3QuZ28JVGVzdEFQbGFuUmVmdXNlZEZyb21TdGFuZGFyZElucHV0SXNLZXB0CTA5ZTBkNzVlNzc0ZjhkNzFlMmUwZTExOGZhMmU2M2YyOTM3NWY2NjZkMGVmMDU2NTdjYTc4ZmNiM2VjNWJiYTUKYm9keQljbWQvbXJ3L3JlZnVzZWQxNzJfdGVzdC5nbwlUZXN0QVdyaXRlVGhhdExhbmRlZEtlZXBzTm9QbGFuCTdkZjRkMDMwMTYwOWNhMDk4NDZhZDg5ZDk2YTgwNmJlN2Y2YjAzN2YyMTU0ODRmMDMxZTA4YzViOTg1NDUwNDgKYm9keQljbWQvbXJ3L3JlZnVzZWQxNzJfdGVzdC5nbwlhIGNvbW1pdCB0aGF0IGxhbmRlZCBub3RoaW5nIGtlZXBzIHRoZSBwbGFuCWQ0NzNkNmY5ZjQyMWI0MGRiYjE5ZjFmNmQyN2Y3ZmI1NWY2M2I5MzcxNTQzYTNmYTMzNDdjOTc1YjlkNTllMDMKYm9keQljbWQvbXJ3L3JlZnVzZWQxNzJfdGVzdC5nbwlhIHBsYW4gb3ZlciAxNiBNaUIgaXMgcGFyc2VkIGFzIHRvZGF5IGFuZCBub3Qga2VwdCwgYW5kIHNheXMgd2h5CTcxYjg1NDZlNTY2ZjQ2N2NiNmJkMjQ2ZTdmY2EyOGE2YmQyMWVkMDAyZTY0MmJiOTFiZDZkMDMzMjM1YWYyMmQKYm9keQljbWQvbXJ3L3JlZnVzZWQxNzJfdGVzdC5nbwlhIHJlZnVzZWQgcGxhbiBydW5zIGFnYWluIGZyb20gaXRzIHBhdGgJMDRlMTA0OTk3NGZjMDIxOWI1NmJkNTM2YTA3MDY0YjM0OTU0ZTRjOThiNWVlZjZiYjUwYWUyZWJmMTEwNzJjMwpib2R5CWNtZC9tcncvcmVmdXNlZDE3Ml90ZXN0LmdvCWFuIGFwcGx5X3BhdGNoIGRvY3VtZW50IGlzIGtlcHQgYXMgc2VudCBhbmQgcmVydW5zIHdpdGggdGhlIHNhbWUgZmxhZwkyMWViOTQ4YWIzOTY1Y2NjOTRhYzA3MTViNTgwYjVhMGFmNzdiMzJmZTFmZWUwMDdkNzljZGQwOTdmMzAzYmNlCmJvZHkJY21kL21ydy9yZWZ1c2VkMTcyX3Rlc3QuZ28JYW4gdW53cml0YWJsZSBzdGF0ZSBob21lIGtlZXBzIG5vdGhpbmcsIHNheXMgd2h5LCBhbmQgY2hhbmdlcyBub3RoaW5nIGVsc2UJY2NiNzE4YzIxMzA1OTY4NDMwMGYyNzk1ZTY2OTM2YjcyMWExYzI5ZjA5MjJmZjk4OWQ3NTdkNGIwNGEwNGU3Mgpib2R5CWNtZC9tcncvcmVmdXNlZDE3Ml90ZXN0LmdvCW9ubHkgdGhlIG5ld2VzdCAxNiBzdGF5CTVmMGVlYjcwODQ5ZWQ2ZTdkM2E5YjAzYzMyNzJjZTVmMTYzOTI5NDBkZTQ0YjdlNDBkMmFlYmI2NTI4ZjQ4MWEKYm9keQljbWQvbXJ3L3JlZnVzZWQxNzJfdGVzdC5nbwl0d28gcmVmdXNhbHMgZ2V0IHR3byBmaWxlcywgMDYwMCBpbiBhIDA3MDAgZGlyZWN0b3J5CWNlODBkYjA5ZjhjMWM4YmNhOTg2YjUyOTgyOWJiMDc4OTkwNDFmNzkxYjUyMjgxOWM0MDc3MzE5MzEwNGYxMDA · test-lock-kind:replace
+- 2026-10-24 · 71b67559* · exit 0 · `set -o pipefail …` · acceptance-sha256:0b0e9781c4eeb43d841b5a5dfcc3905ee5d919b26e22005bdc1aac3a2b7369f2 · ms:77413
+- 2026-10-27 · 4973c064* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:0b0e9781c4eeb43d841b5a5dfcc3905ee5d919b26e22005bdc1aac3a2b7369f2 · ms:0 · test-lock-sha256:b57a38f069b8f31b3e536e81eb2a329b736ad81ca82aa6441e7ffc19e2ce1c93 · test-lock-b64:Y2hlY2tAMgkxYmI0OTdlM2UxM2ExMTA1Y2YyNGUzMzU5ZmEzZWY3NWRlMDhiNjZmZjhhMjgzOWNkN2Y5ZWE5NzgyNGQ5ZWIzCmJvZHkJY21kL21ydy9yZWZ1c2VkMTc2X3Rlc3QuZ28JVGVzdEFQbGFuUmVmdXNlZEZyb21TdGFuZGFyZElucHV0SXNLZXB0CTA5ZTBkNzVlNzc0ZjhkNzFlMmUwZTExOGZhMmU2M2YyOTM3NWY2NjZkMGVmMDU2NTdjYTc4ZmNiM2VjNWJiYTUKYm9keQljbWQvbXJ3L3JlZnVzZWQxNzZfdGVzdC5nbwlUZXN0QVdyaXRlVGhhdExhbmRlZEtlZXBzTm9QbGFuCTdkZjRkMDMwMTYwOWNhMDk4NDZhZDg5ZDk2YTgwNmJlN2Y2YjAzN2YyMTU0ODRmMDMxZTA4YzViOTg1NDUwNDgKYm9keQljbWQvbXJ3L3JlZnVzZWQxNzZfdGVzdC5nbwlhIGNvbW1pdCB0aGF0IGxhbmRlZCBub3RoaW5nIGtlZXBzIHRoZSBwbGFuCWQ0NzNkNmY5ZjQyMWI0MGRiYjE5ZjFmNmQyN2Y3ZmI1NWY2M2I5MzcxNTQzYTNmYTMzNDdjOTc1YjlkNTllMDMKYm9keQljbWQvbXJ3L3JlZnVzZWQxNzZfdGVzdC5nbwlhIHBsYW4gb3ZlciAxNiBNaUIgaXMgcGFyc2VkIGFzIHRvZGF5IGFuZCBub3Qga2VwdCwgYW5kIHNheXMgd2h5CTcxYjg1NDZlNTY2ZjQ2N2NiNmJkMjQ2ZTdmY2EyOGE2YmQyMWVkMDAyZTY0MmJiOTFiZDZkMDMzMjM1YWYyMmQKYm9keQljbWQvbXJ3L3JlZnVzZWQxNzZfdGVzdC5nbwlhIHJlZnVzZWQgcGxhbiBydW5zIGFnYWluIGZyb20gaXRzIHBhdGgJMDRlMTA0OTk3NGZjMDIxOWI1NmJkNTM2YTA3MDY0YjM0OTU0ZTRjOThiNWVlZjZiYjUwYWUyZWJmMTEwNzJjMwpib2R5CWNtZC9tcncvcmVmdXNlZDE3Nl90ZXN0LmdvCWFuIGFwcGx5X3BhdGNoIGRvY3VtZW50IGlzIGtlcHQgYXMgc2VudCBhbmQgcmVydW5zIHdpdGggdGhlIHNhbWUgZmxhZwkyMWViOTQ4YWIzOTY1Y2NjOTRhYzA3MTViNTgwYjVhMGFmNzdiMzJmZTFmZWUwMDdkNzljZGQwOTdmMzAzYmNlCmJvZHkJY21kL21ydy9yZWZ1c2VkMTc2X3Rlc3QuZ28JYW4gdW53cml0YWJsZSBzdGF0ZSBob21lIGtlZXBzIG5vdGhpbmcsIHNheXMgd2h5LCBhbmQgY2hhbmdlcyBub3RoaW5nIGVsc2UJY2NiNzE4YzIxMzA1OTY4NDMwMGYyNzk1ZTY2OTM2YjcyMWExYzI5ZjA5MjJmZjk4OWQ3NTdkNGIwNGEwNGU3Mgpib2R5CWNtZC9tcncvcmVmdXNlZDE3Nl90ZXN0LmdvCW9ubHkgdGhlIG5ld2VzdCAxNiBzdGF5CTVmMGVlYjcwODQ5ZWQ2ZTdkM2E5YjAzYzMyNzJjZTVmMTYzOTI5NDBkZTQ0YjdlNDBkMmFlYmI2NTI4ZjQ4MWEKYm9keQljbWQvbXJ3L3JlZnVzZWQxNzZfdGVzdC5nbwl0d28gcmVmdXNhbHMgZ2V0IHR3byBmaWxlcywgMDYwMCBpbiBhIDA3MDAgZGlyZWN0b3J5CWNlODBkYjA5ZjhjMWM4YmNhOTg2YjUyOTgyOWJiMDc4OTkwNDFmNzkxYjUyMjgxOWM0MDc3MzE5MzEwNGYxMDA · test-lock-kind:replace

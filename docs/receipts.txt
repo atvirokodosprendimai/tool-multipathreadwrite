@@ -240,3 +240,4 @@ mcp_read unchanged[].sha
 read content
 read receipt
 read_refusal error
+write refused_plan

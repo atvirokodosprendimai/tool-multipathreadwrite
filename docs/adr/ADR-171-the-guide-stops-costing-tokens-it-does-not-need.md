@@ -88,7 +88,7 @@ A fourth item is a gap in what the docs show: a write to a `.rb` file runs no ch
 
 ## Out of Scope
 
-- MRW-04, a refused plan from standard input is kept (permanent: boundary: decided by its own record, ADR-172, accepted the same day)
+- MRW-04, a refused plan from standard input is kept (permanent: boundary: decided by its own record, ADR-176, accepted the same day as ADR-172 and renumbered before it merged, since PR #528 had taken 172)
 - MRW-12, an epoch that makes old licences need a fresh read (permanent: boundary: decided by its own record, ADR-175, accepted the same day)
 - A one-line answer to a repeated `mrw instructions` (deferred: docs/adr/BACKLOG.md)
 - Re-measuring the Rubie A/B after this lands (external: the Rubie team: their headless A/B harness; this corpus has none on their repository)
