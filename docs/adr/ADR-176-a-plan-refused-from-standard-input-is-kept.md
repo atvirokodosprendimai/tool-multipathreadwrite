@@ -9,7 +9,7 @@
 **Spec:** None — no spec stage
 **Cross-references:** ADR-001, ADR-004, ADR-034, ADR-066, ADR-077, ADR-110, ADR-111, ADR-132, ADR-139, ADR-161, ADR-166, docs/receipts.txt
 **Governs:** `cmd/mrw/main.go`, `docs/receipts.txt`, `README.md`, `AGENTS.md`, `internal/guide/guide.go`, `scripts/contract.sh`
-**Enforced-by:** None — until T1 lands, which adds `cmd/mrw/refused176_test.go::TestAPlanRefusedFromStandardInputIsKept`
+**Enforced-by:** `cmd/mrw/refused176_test.go::TestAPlanRefusedFromStandardInputIsKept`
 **Invalidates:** None — additive; ADR-077 is untouched (the kept plans are not inside mrw's state directory)
 **Served-path change:** a `mrw write` whose plan came from standard input and wrote nothing keeps the plan beside mrw's state directory and names its path on stderr (and as `refused_plan` under `--json`), so a caller fixes one header and reruns its command with that path in place of `-`, instead of sending the whole plan again.
 

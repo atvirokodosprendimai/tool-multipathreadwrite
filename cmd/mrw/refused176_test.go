@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -300,6 +301,35 @@ func TestAPlanRefusedFromStandardInputIsKept(t *testing.T) {
 		}
 	})
 
+	// Codex on ADR-176: names sort by time then pid, so a run whose name sorts
+	// before 16 others (a lower pid in the same second) trimmed its own plan and
+	// still named it. Plans dated later than any run force that order.
+	t.Run("the plan just kept survives the trim and its path exists", func(t *testing.T) {
+		k.t = t
+		k.reset()
+		if err := os.MkdirAll(k.dir(), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		for i := 0; i < 16; i++ {
+			if err := os.WriteFile(filepath.Join(k.dir(), fmt.Sprintf("29991231T2359%02dZ-1-ffff.plan", i)), []byte("later\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		js, _, _ := k.run("@@ f.txt 1 replace body=1\nA\nB\n", nil, "write", "--json", "--no-check", "-")
+		var doc struct {
+			RefusedPlan string `json:"refused_plan"`
+		}
+		if err := json.Unmarshal([]byte(js), &doc); err != nil {
+			t.Fatalf("--json: %v\n%s", err, js)
+		}
+		if _, err := os.Stat(doc.RefusedPlan); doc.RefusedPlan == "" || err != nil {
+			t.Errorf("refused_plan %q does not exist: %v", doc.RefusedPlan, err)
+		}
+		if n := len(k.kept()); n != 16 {
+			t.Errorf("%d kept plans, want 16", n)
+		}
+	})
+
 	t.Run("a plan over 16 MiB is parsed as today and not kept, and says why", func(t *testing.T) {
 		k.t = t
 		k.reset()
@@ -402,4 +432,21 @@ func TestAWriteThatLandedKeepsNoPlan(t *testing.T) {
 		t.Error("an unknown format was accepted")
 	}
 	none("an unknown --format")
+}
+
+// TestAPlanTeeKeepsAPlanOfExactlyItsCap pins the cap boundary: a plan of
+// keptPlanCap bytes is kept, one byte more is not.
+func TestAPlanTeeKeepsAPlanOfExactlyItsCap(t *testing.T) {
+	for _, c := range []struct {
+		n    int
+		over bool
+	}{{keptPlanCap, false}, {keptPlanCap + 1, true}} {
+		tee := &planTee{src: strings.NewReader(strings.Repeat("x", c.n))}
+		if _, err := io.Copy(io.Discard, tee); err != nil {
+			t.Fatal(err)
+		}
+		if tee.over != c.over || (!c.over && tee.buf.Len() != c.n) {
+			t.Errorf("%d bytes: over %v (want %v), kept %d", c.n, tee.over, c.over, tee.buf.Len())
+		}
+	}
 }

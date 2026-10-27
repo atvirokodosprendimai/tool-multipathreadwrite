@@ -12,7 +12,7 @@
 
 ## Goal
 
-Decision 2's line is not the only place a caller learns it: the full contract, README and AGENTS.md say, in one sentence each, that a plan refused from standard input is kept in the state directory and runs again by its path.
+Decision 2's line is not the only place a caller learns it: the full contract, README and AGENTS.md say, in one sentence each, that a plan refused from standard input is kept beside mrw's state directory and runs again by its path.
 
 ## Affected Files
 
@@ -81,3 +81,5 @@ The fence exits 0.
   ```
 - 2026-10-24 · 8278fcda* · exit 0 · `set -o pipefail …` · acceptance-sha256:95cb80f818cea6d1c7bcf826fc4e9e041725ea5beee5fde7a17e5344109f2a99 · ms:1428
 - 2026-10-24 · 71b67559* · exit 0 · `set -o pipefail …` · acceptance-sha256:95cb80f818cea6d1c7bcf826fc4e9e041725ea5beee5fde7a17e5344109f2a99 · ms:221
+- 2026-10-27 · 4973c064* · exit 0 · `set -o pipefail …` · acceptance-sha256:95cb80f818cea6d1c7bcf826fc4e9e041725ea5beee5fde7a17e5344109f2a99 · ms:356
+- 2026-10-27 · 1f3c3955* · exit 0 · `set -o pipefail …` · acceptance-sha256:95cb80f818cea6d1c7bcf826fc4e9e041725ea5beee5fde7a17e5344109f2a99 · ms:406

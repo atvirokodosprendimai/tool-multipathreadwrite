@@ -78,7 +78,7 @@ func (t *planTee) write() (string, error) {
 	if _, err := rand.Read(salt[:]); err != nil {
 		return "", err
 	}
-	name := fmt.Sprintf("%s-%d-%s.plan", time.Now().UTC().Format("20060102T150405Z"), os.Getpid(), hex.EncodeToString(salt[:]))
+	name := fmt.Sprintf("%s-%d-%s.plan", time.Now().UTC().Format("20060102T150405.000000000Z"), os.Getpid(), hex.EncodeToString(salt[:]))
 	path := filepath.Join(dir, name)
 	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
@@ -93,25 +93,27 @@ func (t *planTee) write() (string, error) {
 		_ = os.Remove(path)
 		return "", err
 	}
-	trimKept(dir)
+	trimKept(dir, name)
 	return path, nil
 }
 
 // trimKept removes all but the newest keptPlansMax plans by name, whose prefix
-// is the time. Best effort: two runs trimming at once may leave one more.
-func trimKept(dir string) {
+// is the time, and never the one this run just kept: a name can sort before
+// others written in the same instant, and the path it returns must exist.
+// Best effort: two runs trimming at once may leave one more.
+func trimKept(dir, keep string) {
 	ents, err := os.ReadDir(dir)
 	if err != nil {
 		return
 	}
 	var names []string
 	for _, e := range ents {
-		if strings.HasSuffix(e.Name(), ".plan") {
+		if strings.HasSuffix(e.Name(), ".plan") && e.Name() != keep {
 			names = append(names, e.Name())
 		}
 	}
 	sort.Strings(names)
-	for len(names) > keptPlansMax {
+	for len(names) > keptPlansMax-1 {
 		_ = os.Remove(filepath.Join(dir, names[0]))
 		names = names[1:]
 	}
