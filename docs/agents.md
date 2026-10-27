@@ -166,7 +166,8 @@ When a host compacts its context, the model keeps a summary, not the lines it wa
 still licenses them: a write to a line read before the compaction is allowed although the model no longer holds
 it (measured once: 2 such writes in a 100K-window run, none broke a test). mrw cannot see a compaction; the
 host can. `mrw seen --forget` empties the ledger of the checkout, read and written files alike, and
-prints `forgot N file(s)`; after it a write needs a fresh read of the lines it touches (ADR-175).
+prints `forgot N file(s)`; after it a write needs a fresh read of the lines it touches (ADR-175). A root that does
+not exist, or is not a directory, is refused, exit 2, and no state directory is made for it.
 
 For Claude Code, run it when a session starts after a compaction or a clear. The hook reads the checkout
 from its input's `cwd`, because `CLAUDE_PROJECT_DIR` stays on the project the session started in after a

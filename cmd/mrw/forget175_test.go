@@ -112,3 +112,73 @@ func TestSeenForgetFromASubdirectoryForgetsTheCheckout(t *testing.T) {
 		t.Errorf("the refused write changed the file: %q", got)
 	}
 }
+
+// stateEntries counts the state directories under the test's state home.
+func stateEntries(t *testing.T) int {
+	t.Helper()
+	es, err := os.ReadDir(filepath.Join(os.Getenv("XDG_STATE_HOME"), "mrw"))
+	if err != nil {
+		return 0
+	}
+	return len(es)
+}
+
+// The review of #533, P2: the missing-root gate is decided by the flag the
+// parser read, not by argv. `--forget=` is true to the parser, so a gate on raw
+// arguments let it past; `--forget --forget=false` and `-- --forget` are not a
+// forget, so the same gate refused what was a plain `seen`. The pair: every
+// spelling that is a forget is refused with no state directory, and the others
+// answer as a plain `seen` over the same root does.
+func TestSeenForgetGateFollowsTheParsedFlag(t *testing.T) {
+	for _, argv := range [][]string{
+		{"seen", "--forget="},
+		{"seen", "--forget=true"},
+		{"seen", "-forget"},
+		{"seen", "--forget", "--forget=false", "--forget"},
+	} {
+		t.Setenv("XDG_STATE_HOME", t.TempDir())
+		gone := filepath.Join(t.TempDir(), "gone")
+		out, code := runIn(t, gone, argv...)
+		if code != 2 || !strings.Contains(out, "does not exist") {
+			t.Errorf("%v over a missing root exited %d, want 2 naming the root: %q", argv, code, out)
+		}
+		if n := stateEntries(t); n != 0 {
+			t.Errorf("%v over a missing root made %d state director(ies)", argv, n)
+		}
+	}
+	for _, argv := range [][]string{
+		{"seen", "--forget", "--forget=false"},
+		{"seen", "--", "--forget"},
+	} {
+		t.Setenv("XDG_STATE_HOME", t.TempDir())
+		gone := filepath.Join(t.TempDir(), "gone")
+		plainOut, plain := runIn(t, gone, "seen")
+		out, code := runIn(t, gone, argv...)
+		if code != plain || strings.Contains(out, "seen --forget:") {
+			t.Errorf("%v is not a forget: exited %d with %q; a plain seen exited %d with %q", argv, code, out, plain, plainOut)
+		}
+	}
+}
+
+// The review of #533, P2: a root below a regular file passes rooted.Abs (the
+// symlink walk answers ENOTDIR, not "does not exist"), so the gate stats the
+// resolved root itself. The pair: an existing directory still forgets.
+func TestSeenForgetOverARootBelowAFileIsRefused(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	dir := t.TempDir()
+	file := filepath.Join(dir, "f.txt")
+	if err := os.WriteFile(file, []byte("x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	root := filepath.Join(file, "child")
+	out, code := runIn(t, root, "seen", "--forget")
+	if code != 2 || !strings.Contains(out, root) {
+		t.Errorf("seen --forget over %s exited %d, want 2 naming the root: %q", root, code, out)
+	}
+	if n := stateEntries(t); n != 0 {
+		t.Errorf("a root below a file made %d state director(ies)", n)
+	}
+	if out, code = runIn(t, dir, "seen", "--forget"); code != 0 {
+		t.Errorf("the pair: an existing root exited %d: %q", code, out)
+	}
+}
