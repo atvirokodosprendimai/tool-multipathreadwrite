@@ -105,6 +105,8 @@ out=$(go test ./internal/read/ ./cmd/mrw/ -count=1 -v -run '^(TestAJSONPathProje
 - 2026-10-27 · 5952c1ce* · mutant killed · exit 1 · `cmd/mrw/main.go` · S1: --max-lines is not refused beside --json-path · acceptance-sha256:01f788a82f335424465de84b7b5b76a39988590f5acb834d5699201f81b1ac18 · covers:the conflict test passed
 - 2026-10-27 · 5952c1ce* · mutant killed · exit 1 · `internal/read/jsonpath.go` · S5: the $ check is removed, so x.a parses as $.a · acceptance-sha256:01f788a82f335424465de84b7b5b76a39988590f5acb834d5699201f81b1ac18 · covers:the expression test passed
 - 2026-10-27 · 5952c1ce* · mutant killed · exit 1 · `internal/read/jsonpath.go` · S6: a value the budget dropped is not listed on the withheld stream · acceptance-sha256:01f788a82f335424465de84b7b5b76a39988590f5acb834d5699201f81b1ac18 · covers:the budget test passed
+- 2026-10-27 · 4a80c019* · mutant killed · exit 1 · `internal/read/jsonpath.go` · S4: the escape clause inside a quoted step is deleted, so an escaped quote closes it · acceptance-sha256:01f788a82f335424465de84b7b5b76a39988590f5acb834d5699201f81b1ac18 · covers:the splitter test passed
+- 2026-10-27 · 4a80c019* · mutant killed · exit 1 · `cmd/mrw/main.go` · S1: -N is not refused beside --json-path · acceptance-sha256:01f788a82f335424465de84b7b5b76a39988590f5acb834d5699201f81b1ac18 · covers:the conflict test passed
 
 ## Invariants
 
@@ -164,3 +166,9 @@ The fence exits 0. Stop and ask if splitting the byte span out of `jsonSpan` cha
 - 2026-10-27 · 5952c1ce* · exit 0 · `set -o pipefail …` · acceptance-sha256:01f788a82f335424465de84b7b5b76a39988590f5acb834d5699201f81b1ac18 · ms:150540
 - 2026-10-27 · 5952c1ce* · exit 0 · `set -o pipefail …` · acceptance-sha256:01f788a82f335424465de84b7b5b76a39988590f5acb834d5699201f81b1ac18 · ms:149219
 - 2026-10-27 · 5952c1ce* · exit 0 · `set -o pipefail …` · acceptance-sha256:01f788a82f335424465de84b7b5b76a39988590f5acb834d5699201f81b1ac18 · ms:159546
+- 2026-10-27 · 4a80c019* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:01f788a82f335424465de84b7b5b76a39988590f5acb834d5699201f81b1ac18 · ms:0 · test-lock-sha256:acdb4c429e857b5367a8a5777eea008e5a5f2318ab704618bae7403c9866c493 · test-lock-file:docs/adr/locks/acdb4c429e857b5367a8a5777eea008e5a5f2318ab704618bae7403c9866c493.lock · test-lock-kind:replace
+- 2026-10-27 · 4a80c019* · exit 1 · `set -o pipefail …` · acceptance-sha256:01f788a82f335424465de84b7b5b76a39988590f5acb834d5699201f81b1ac18 · ms:141428
+  ```
+  ```
+- 2026-10-27 · 4a80c019* · exit 0 · `set -o pipefail …` · acceptance-sha256:01f788a82f335424465de84b7b5b76a39988590f5acb834d5699201f81b1ac18 · ms:144614
+- 2026-10-27 · 4a80c019* · exit 0 · `set -o pipefail …` · acceptance-sha256:01f788a82f335424465de84b7b5b76a39988590f5acb834d5699201f81b1ac18 · ms:134992

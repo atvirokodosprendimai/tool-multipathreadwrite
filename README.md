@@ -198,7 +198,7 @@ cmd needs `"t.json:$[\"k\"]"`, and Git Bash and other POSIX shells take single q
 `CMD --json | mrw read --json-path '$.a,$.b' -`. A path address of single-line JSON serves the whole line; this does not.
 A projection licenses nothing and records nothing, so read the path address (`package.json:$.scripts.build`) before editing
 the value; an expression the document lacks prints `NOT FOUND`, a file that is not one JSON document prints `NOT JSON`, and
-either exits 1. It takes `--max-cols`, `--max-chars` and `--json`, and refuses the flags that serve lines (ADR-178). Quote
+either exits 1. It takes `--max-cols` and `--max-chars`, and `--json` for a named file (on `-` it is refused), and refuses the flags that serve lines, `-N` included (ADR-178). Quote
 the expressions as above.
 
 `--root DIR` (or `-C DIR`) is `mrw`'s own flag and goes before the subcommand: `mrw --root DIR read …`. Most

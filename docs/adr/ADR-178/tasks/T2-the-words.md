@@ -96,3 +96,4 @@ The fence exits 0.
   ```
 - 2026-10-27 · 5952c1ce* · exit 0 · `set -o pipefail …` · acceptance-sha256:16ddc70b09dd7dea8e052ea7ee1537e2575d70af3c33722291c4b03329c9159a · ms:72971
 - 2026-10-27 · 5952c1ce* · exit 0 · `set -o pipefail …` · acceptance-sha256:16ddc70b09dd7dea8e052ea7ee1537e2575d70af3c33722291c4b03329c9159a · ms:55828
+- 2026-10-27 · 4a80c019* · exit 0 · `set -o pipefail …` · acceptance-sha256:16ddc70b09dd7dea8e052ea7ee1537e2575d70af3c33722291c4b03329c9159a · ms:55086

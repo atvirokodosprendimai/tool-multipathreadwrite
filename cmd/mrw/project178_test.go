@@ -163,21 +163,24 @@ func TestAProjectionRefusesTheFlagsThatServeLines(t *testing.T) {
 		{"-C", []string{"-C", "1", "f.json"}},
 		{"--max-lines", []string{"--max-lines", "3", "f.json"}},
 		{"--if-changed", []string{"--if-changed", "f.json=00000000", "f.json"}},
+		{"-N", []string{"-N", "f.json"}},
 		{"f.json:3-9", []string{"f.json:3-9"}},
 		{"f.json:$.name", []string{"f.json:$.name"}},
 		{"-:2", []string{"-:2"}},
 	} {
 		argv := append([]string{"read", "--json-path", "$.name"}, c.argv...)
 		out, _, code := project178Run(t, root, "{}\n", argv...)
-		if code != 2 || !strings.Contains(out, c.name) || strings.Contains(out, "==>") {
-			t.Errorf("%v exited %d, want 2 naming %s, nothing read:\n%s", argv, code, c.name, out)
+		// Every row must carry the json-path refusal itself: another rule's
+		// refusal of the same flag would also name it and exit 2.
+		if code != 2 || !strings.Contains(out, "--json-path prints values") || !strings.Contains(out, c.name) || strings.Contains(out, "==>") {
+			t.Errorf("%v exited %d, want 2 with the --json-path refusal naming %s, nothing read:\n%s", argv, code, c.name, out)
 		}
 	}
 	out, _, code := project178Run(t, root, `{"a":1}`, "read", "--json-path", "$.a", "--json", "-")
 	if code != 2 || !strings.Contains(out, "--json") {
 		t.Errorf("- with --json exited %d, want 2 naming --json:\n%s", code, out)
 	}
-	out, _, code = project178Run(t, root, "", "read", "--json-path", "$.name", "--no-numbers", "--max-cols", "40", "--max-chars", "400", "f.json", "g.json")
+	out, _, code = project178Run(t, root, "", "read", "--json-path", "$.name", "--max-cols", "40", "--max-chars", "400", "f.json", "g.json")
 	if code != 0 || !strings.Contains(out, `$.name = "demo"`) || !strings.Contains(out, `$.name = "other"`) {
 		t.Errorf("two files with the flags that act on a projection exited %d:\n%s", code, out)
 	}

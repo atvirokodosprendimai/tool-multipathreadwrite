@@ -82,6 +82,12 @@ func TestACommaInsideABracketedNameDoesNotSplit(t *testing.T) {
 			t.Errorf("%q split into %q, want %q", c.args, got, c.want)
 		}
 	}
+	// An escaped quote inside the step keeps the comma after it in the name:
+	// the document's key is a",b, and the read finds it.
+	out, problems, _, _ := project178(t, `{"a\",b":1}`, `$["a\",b"]`)
+	if want := `$["a\",b"] = 1` + "\n"; problems != 0 || !strings.HasSuffix(out, want) {
+		t.Errorf("a name holding an escaped quote and a comma: problems %d, want %q last:\n%s", problems, want, out)
+	}
 }
 
 // ADR-178 Decision 4. An expression the document does not hold is named with

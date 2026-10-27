@@ -1038,11 +1038,14 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			// preempts any read.
 			var projections []read.Projection
 			if cmd.IsSet("json-path") {
-				for _, f := range []string{"grep", "ast-grep", "sub", "rewrite", "count", "stat", "quiet", "context", "max-lines", "if-changed"} {
+				for _, f := range []string{"grep", "ast-grep", "sub", "rewrite", "count", "stat", "quiet", "no-numbers", "context", "max-lines", "if-changed"} {
 					if cmd.IsSet(f) {
 						shown := "--" + f
-						if f == "context" {
+						switch f {
+						case "context":
 							shown = "-C"
+						case "no-numbers":
+							shown = "-N"
 						}
 						return cli.Exit(fmt.Sprintf("--json-path prints values and serves no line, so %s has nothing to act on, or serves lines of its own: drop %s", shown, shown), exitUsage)
 					}
@@ -2380,7 +2383,7 @@ func jsonPathFlag(v *jsonPathValue) cli.Flag {
 		Name:  "json-path",
 		Value: v,
 		Usage: "print the value at each JSON path `EXPR` (ADR-155's grammar, $.a.b[0] or $[\"a b\"]; comma-separated or repeated) of each JSON file, or of - for standard input, as one line `EXPR = VALUE` with the value compacted, instead of the lines that hold it; " +
-			"it licenses and records nothing, so read the path address (f.json:$.a.b) before editing; a miss prints `NOT FOUND`, a file that is not one JSON document `NOT JSON`, and either exits 1. Not with --grep, --ast-grep, --sub, --rewrite, --count, --stat, --quiet, -C, --max-lines, --if-changed or a range",
+			"it licenses and records nothing, so read the path address (f.json:$.a.b) before editing; a miss prints `NOT FOUND`, a file that is not one JSON document `NOT JSON`, and either exits 1. Not with --grep, --ast-grep, --sub, --rewrite, --count, --stat, --quiet, -N, -C, --max-lines, --if-changed or a range",
 	}
 }
 
