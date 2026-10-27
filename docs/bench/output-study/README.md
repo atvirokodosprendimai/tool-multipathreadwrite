@@ -23,6 +23,9 @@ over the same window counts the same results whatever the files' mtimes. `--glob
 - `measure_repeat.py` counts, within each session, tool results of 500 characters or more that repeat an earlier
   result byte for byte, and mrw content blocks (path, sha, served text; a block counts only if it holds a numbered
   line) served again unchanged. An answer by reference is counted apart (`reference_chars`), never as a repeat.
+  Each `-- same as served` reference is tied to what it stood for: `reference_stands_for_chars` is the text of the
+  block the same session last served for that path and sha, once per reference; `reference_unmatched_count` counts
+  references with no such block earlier in the session.
 
 ## The registered baseline (2026-10-27)
 
@@ -40,7 +43,7 @@ over the same window counts the same results whatever the files' mtimes. `--glob
 | … of which not reads | 1,544,742 | 142 | 1.5% |
 | JSON documents of 1 KB or more, any tool | 6,190,444 | 1,020 | 6.1% |
 | … of which through `mrw read` | 71,678 | | 0.07% |
-| whole-file reads over 150 lines (Read 1,566,745 + `mrw read` 2,622,244) | 4,188,989 | 219 | 4.2% |
+| whole-file reads over 150 lines, completely served blocks (Read 1,566,745 in 42 + `mrw read` 1,161,016 in 83) | 2,727,761 | 125 | 2.7% |
 | foldable runs, identical up to digits | 1,138,774 | | 1.1% |
 | foldable runs, identical | 173,151 | | 0.17% |
 | repeated identical mrw content blocks (measure_repeat) | 223,463 | 240 | 0.22% |
@@ -54,6 +57,15 @@ Also: 2,080 `mrw read` calls already passed `--max-cols`; 11,478 of 23,850 non-m
 records were first written with: 155 transcripts, 109.6M characters; Bash outputs over 4 KB 10.2M in 1,251 calls,
 the reads included; repeated identical mrw blocks 0.52M, blocks with no served line included. The fixed-window
 re-run above replaces them; its method is the one registered.
+
+**The review correction** (2026-10-27, before any code of ADR-178/179): the whole-file counter had counted a whole
+result with more than 150 lines, so a capped read of a long file and a batch of short files were both counted. It
+now counts each `mrw read` file block that was served completely (every line its header names) and holds more than
+150 lines, one per file: 219 calls and 4,188,989 characters (4.15% of all) became 125 calls and 2,727,761 (2.70%).
+`measure_repeat.py` read a block's path as `\S+`, so a path with a space was never repeated: its block count
+moved from 34,736 to 34,741 (repeated blocks, 240, are unchanged). Both scripts also dropped their prefilter on a
+file's modification time, so the window is the transcript lines' own timestamps only; on this window it admitted
+the same 155 files and changed nothing else. The baseline JSONs and the bars below were recomputed.
 
 ## What these numbers do not say
 

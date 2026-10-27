@@ -22,8 +22,9 @@ def ts(v):
 
 
 since, until = ts(args.since), ts(args.until)
-files = [f for f in glob.glob(os.path.expanduser(args.glob)) if os.path.getmtime(f) >= since.timestamp()]
-HDR = re.compile(r"^==> (\S+)\s+\d+L\s+\d+B\s+sha ([0-9a-f]{8})")
+files = glob.glob(os.path.expanduser(args.glob))
+# the path runs up to the header's metadata suffix, so it may hold spaces
+HDR = re.compile(r"^==> (.+?)\s+\d+L\s+\d+B\s+sha ([0-9a-f]{8})\s*$")
 NUMBERED = re.compile(r"^\s*\d+\| ")
 s = collections.Counter()
 sessions = 0
@@ -44,7 +45,7 @@ def blocks(text):
 
 
 for f in files:
-    seen_res, seen_blk, uses, any_ = set(), set(), {}, False
+    seen_res, seen_blk, served, uses, any_ = set(), set(), {}, {}, False
     for line in open(f, encoding="utf-8", errors="replace"):
         if '"tool_' not in line:
             continue
@@ -79,6 +80,13 @@ for f in files:
                 if ref:
                     s["reference_chars"] += sum(len(ln) + 1 for ln in ref)
                     s["reference_count"] += len(ref)
+                    # what each reference stands for: the block this session last
+                    # served for the same path and sha, text only
+                    stood = served.get((path, sha))
+                    if stood is None:
+                        s["reference_unmatched_count"] += len(ref)
+                    else:
+                        s["reference_stands_for_chars"] += stood * len(ref)
                 if not any(NUMBERED.match(ln) for ln in body):
                     continue  # no content served: a reference, an unchanged answer, a refusal
                 text = "\n".join(ln for ln in body if not ln.startswith("-- same as served"))
@@ -89,5 +97,6 @@ for f in files:
                     s["repeat_block_chars"] += len(text)
                     s["repeat_block_count"] += 1
                 seen_blk.add(key)
+                served[(path, sha)] = len(text)
     sessions += any_
 print(json.dumps({"since": args.since, "until": args.until, "sessions": sessions, **s}, indent=1))

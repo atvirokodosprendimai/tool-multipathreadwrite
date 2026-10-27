@@ -9,7 +9,7 @@
   "longlines": 101,
   "run": 76,
   "json": 73,
-  "outline": 46
+  "outline": 37
  },
  "totals": [
   [
@@ -957,8 +957,8 @@
   "json_docs_calls": 1020,
   "mrw_notice_chars": 100280,
   "mrw_notice_calls": 243,
-  "whole_file_mrw_read_chars": 2622244,
-  "whole_file_mrw_read_calls": 177,
+  "whole_file_mrw_read_chars": 1161016,
+  "whole_file_mrw_read_calls": 83,
   "whole_file_Read_chars": 1566745,
   "whole_file_Read_calls": 42,
   "notice_repeat_chars": 28763,

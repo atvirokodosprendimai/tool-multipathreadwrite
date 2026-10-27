@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/check"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/guide"
 )
 
@@ -294,7 +295,7 @@ func TestRunStoppedByAnInterruptExits130(t *testing.T) {
 	pidFile := filepath.Join(root, "pid")
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	c := exec.CommandContext(ctx, bin, "-C", root, "run", "echo $$ > pid; exec sleep 30")
+	c := exec.CommandContext(ctx, bin, "-C", root, "run", "sleep 30 & echo $! > pid; wait")
 	c.Env = append(os.Environ(), "XDG_STATE_HOME="+t.TempDir())
 	var so bytes.Buffer
 	c.Stdout = &so
@@ -336,5 +337,127 @@ func TestRunHelpNamesTheShellTrust(t *testing.T) {
 	}
 	if !strings.Contains(guide.ThenShCaveat(), "mrw run") || !strings.Contains(guide.ThenShCaveat(), "--then-sh") {
 		t.Errorf("the caveat names %q; want both mrw run and --then-sh", guide.ThenShCaveat())
+	}
+}
+
+// runInCtx is runIn under ctx, for a run whose context is done before it starts.
+func runInCtx(ctx context.Context, t *testing.T, root string, argv ...string) (string, int) {
+	t.Helper()
+	full := append([]string{"mrw", "-C", root}, argv...)
+	var sink bytes.Buffer
+	out, err := captureStdout(t, func() error {
+		cmd := rootCommand()
+		cmd.Writer, cmd.ErrWriter = &sink, &sink
+		return cmd.Run(ctx, full)
+	})
+	code := 0
+	if err != nil {
+		code = exitCode(err)
+		out += err.Error()
+	}
+	return out + sink.String(), code
+}
+
+// An interrupt or a deadline that lands before the command starts is mrw's
+// 130 or 124, not a configuration failure's 2 (ADR-177 Decision 6), and no
+// command ran and no log is left.
+func TestRunStoppedBeforeItStartsExits130Or124(t *testing.T) {
+	needShell(t)
+	state := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", state)
+	root := t.TempDir()
+	cancelled, cancel := context.WithCancel(context.Background())
+	cancel()
+	expired, cancel2 := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	defer cancel2()
+	for _, c := range []struct {
+		ctx     context.Context
+		want    int
+		skipped string
+	}{{cancelled, 130, check.Interrupted}, {expired, 124, check.TimedOutBeforeStart}} {
+		out, code := runInCtx(c.ctx, t, root, "run", "--json", "echo hi > marker")
+		var doc map[string]any
+		if err := decodeFirst(out, &doc); err != nil || code != c.want || doc["ran"] != false || doc["skipped"] != c.skipped || doc["exit_code"] != float64(-1) {
+			t.Errorf("%s: exit %d, %v, %s; want %d, ran false, exit_code -1", c.skipped, code, err, out, c.want)
+		}
+		out, code = runInCtx(c.ctx, t, root, "run", "echo hi > marker")
+		if code != c.want || strings.HasPrefix(out, "exit ") || !strings.Contains(out, c.skipped) {
+			t.Errorf("%s: exit %d, %q; want %d and a line naming it, no receipt", c.skipped, code, out, c.want)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(root, "marker")); err == nil {
+		t.Error("the command ran")
+	}
+	if entries, _ := os.ReadDir(filepath.Join(state, "mrw-runs")); len(entries) != 0 {
+		t.Errorf("a run that never started left %d log(s)", len(entries))
+	}
+}
+
+// What mrw run exits with, from what stopped the command (Decision 6).
+func TestRunExitCodeNamesWhatStoppedTheCommand(t *testing.T) {
+	for _, c := range []struct {
+		skipped      string
+		signal, exit int
+		want         int
+	}{
+		{"timed out after 24h0m0s", 15, -1, 124},
+		{check.Interrupted, 15, -1, 130},
+		{"", 9, -1, 137},
+		{"", 0, 7, 7},
+		{"", 0, 0, 0},
+	} {
+		if got := runExitCode(c.skipped, c.signal, c.exit); got != c.want {
+			t.Errorf("skipped %q signal %d exit %d: %d, want %d", c.skipped, c.signal, c.exit, got, c.want)
+		}
+	}
+}
+
+// Decision 7: a flag the parser rejects is a {"error": …} document under
+// --json, and plain text without it.
+func TestRunUsageErrorUnderJSONIsOneRefusalDocument(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	root := t.TempDir()
+	out, code := runIn(t, root, "run", "--json", "--bogus", "echo hi")
+	var doc map[string]any
+	if err := decodeFirst(out, &doc); err != nil || code != 2 || len(doc) != 1 || !strings.Contains(doc["error"].(string), "bogus") {
+		t.Errorf("--json --bogus: exit %d, %v, %s; want one document holding only error", code, err, out)
+	}
+	if out, code = runIn(t, root, "run", "--bogus", "echo hi"); code != 2 || strings.HasPrefix(out, "{") {
+		t.Errorf("--bogus without --json: exit %d, %q; want 2 and no document", code, out)
+	}
+}
+
+// A line is blank or not by all of it, not by the first 4,096 bytes kept of it.
+func TestRunLastLineIsJudgedWholeNotByItsKeptPrefix(t *testing.T) {
+	needShell(t)
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	root := t.TempDir()
+	out, _ := runIn(t, root, "run", `echo previous; head -c 4096 /dev/zero | tr '\0' ' '; echo FAIL`)
+	if got := receiptField(out, "last"); got != "…" {
+		t.Errorf("a nonblank line behind 4,096 spaces: last %q, want …", got)
+	}
+	out, _ = runIn(t, root, "run", `echo previous; head -c 5000 /dev/zero | tr '\0' ' '; echo`)
+	if got := receiptField(out, "last"); got != "previous" {
+		t.Errorf("the pair: a blank long line: last %q, want previous", got)
+	}
+}
+
+// Names sort by when the command ENDED, so the newest 64 by name are the 64
+// that finished last and a long run's log is not the oldest name.
+func TestRunLogIsNamedWhenTheCommandEnds(t *testing.T) {
+	needShell(t)
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	before := time.Now()
+	out, code := runIn(t, t.TempDir(), "run", "sleep 1")
+	if code != 0 {
+		t.Fatalf("exit %d:\n%s", code, out)
+	}
+	stamp := strings.TrimPrefix(filepath.Base(receiptField(out, "log")), "run-")
+	got, err := time.Parse("20060102T150405.000Z", stamp[:len("20060102T150405.000Z")])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Before(before.Add(time.Second - time.Millisecond)) {
+		t.Errorf("the log is named %s, from before the command ended (it ran 1 s from %s)", got.Format(time.RFC3339Nano), before.UTC().Format(time.RFC3339Nano))
 	}
 }

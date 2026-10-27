@@ -8,7 +8,7 @@
 **Consumes:** none
 **Data dependency:** hermetic
 **Proof map:** v1
-**Rests-on:** `the run tests run`, `the receipt test passed`, `the short-log test passed`, `the exit test passed`, `the could-not-start test passed`, `the one-argument test passed`, `the depth test passed`, `the interrupt test passed`, `the help test passed`, `the ceiling test passed`, `the prune test passed`, `the receipts test passed`, `the whole check and cmd packages pass`, `the receipts file holds run`, `the contract run`, `section 302 exists`, `the receipt row passes`, `the exit row passes`, `the read-line row passes`, `the two-argument row passes`, `the short-log row passes`, `gofmt`, `the engine packages it does not own`, `no untracked file in them`
+**Rests-on:** `the run tests run`, `the receipt test passed`, `the short-log test passed`, `the exit test passed`, `the could-not-start test passed`, `the one-argument test passed`, `the depth test passed`, `the interrupt test passed`, `the help test passed`, `the ceiling test passed`, `the prune test passed`, `the receipts test passed`, `the whole check and cmd packages pass`, `the receipts file holds run`, `the contract run`, `the own-log test passed`, `the completion-name test passed`, `the ceiling default test passed`, `the stopped-before-start test passed`, `the exit-code table passed`, `the usage-json test passed`, `the last-line test passed`, `the json row passes`, `section 302 exists`, `the receipt row passes`, `the exit row passes`, `the read-line row passes`, `the two-argument row passes`, `the short-log row passes`, `gofmt`, `the engine packages it does not own`, `no untracked file in them`
 
 ## Goal
 
@@ -20,7 +20,7 @@ Decisions 1-9: `mrw run 'CMD'` runs CMD through an exported runner entry with th
 |------|--------|-----|
 | `cmd/mrw/run177_test.go` | new | the red tests driving the built binary |
 | `internal/check/runlog177_test.go` | new | the red tests of the entry and of pruning |
-| `internal/check/check.go` | edit | an exported entry over `run` (`:346`) taking log directory and name, timeout, keep-the-log, wrapping `subproc.Interruptible` (as `Run` at `:319`) and returning the wait status; the passing-log deletion (`:486`) skipped when keep-the-log is set; `pruneLogs` (`:258`) takes the pattern and a newest-N bound; the check's calls (`:338`, `:1087`) keep today's values |
+| `internal/check/check.go` | edit | an exported entry over `run` (`:346`) taking log directory and name, timeout, keep-the-log, wrapping `subproc.Interruptible` (as `Run` at `:319`) and returning the wait status; the passing-log deletion (`:486`) skipped when keep-the-log is set; `pruneMatching` takes the match and a newest-N bound beside `pruneLogs`, which the check's calls and its test keep |
 | `cmd/mrw/main.go` | edit | the `run` subcommand in the command list, its one-argument rule, the depth refusal, the rename, the receipt per platform, the exit mapping, `--json` |
 | `internal/guide/guide.go` | edit | `ThenShCaveat()` (`:141`) names `mrw run` beside `--then-sh` |
 | `AGENTS.md` | edit | a backticked `mrw run` in §5, which `TestEverySubcommandReachesTheAgentFacingGuide` (`cmd/mrw/agentsdoc_test.go:29`) needs the moment the subcommand exists |
@@ -39,12 +39,19 @@ Decisions 1-9: `mrw run 'CMD'` runs CMD through an exported runner entry with th
 7. [S7] `--json` and `docs/receipts.txt`. Mutant: the `last` key renamed. [proof: mutation]
 8. [S8] The read line. Mutant: the path printed unquoted. [proof: mutation]
 9. [S9] Contract §302: the receipt and exit through the built binary, the `read:` line run as printed, a failing command's exit passed through, a short passing run's log kept, two arguments refused. [proof: acceptance]
+10. [S10] A run's own log is never pruned: 64 runs that finished before it do not remove it, and the exemption is the caller's named log. Mutant: `PruneRunLogs` ignores `own`. [proof: mutation]
+11. [S11] The completed name is taken when the command ends, so name order is completion order. Mutant: the done name is taken before `Exec`. [proof: mutation]
+12. [S12] The entry's zero timeout is `RunCeiling`. Mutant: `spec.Timeout = RunCeiling` dropped. [proof: mutation]
+13. [S13] The exit mapping is a table, and an interrupt or deadline before the command starts is 130 or 124. Mutants: the 124 case of `runExitCode` deleted; the before-start switch returns 2. [proof: mutation]
+14. [S14] A parser usage error under `--json` is one `{"error": …}` document. Mutant: the `usageError` hook removed. [proof: mutation]
+15. [S15] `last` is judged over the whole line. Mutant: the whole-line blank test replaced by the kept prefix's. [proof: mutation]
+16. [S16] Contract §302 parses stdout as exactly one document and drives a `--json` refusal through the binary. [proof: acceptance]
 
 ## Acceptance
 
 ```bash
 set -o pipefail
-out=$(go test ./cmd/mrw/ ./internal/check/ -count=1 -v -run '^(TestRunKeepsTheOutputAndPrintsOneReceipt|TestRunKeepsTheLogOfAShortOrEmptySuccess|TestRunExitsWithTheCommandsOwnCode|TestRunThatCannotStartSaysSoAndExitsTwo|TestRunTakesExactlyOneCommandString|TestRunIsRefusedAtTheStepDepthLimit|TestRunStoppedByAnInterruptExits130|TestRunHelpNamesTheShellTrust|TestTheRunEntryTakesItsOwnTimeout|TestRunLogsArePrunedByAgeAndCount|TestNoShippedReceiptFieldDisappears)$' 2>&1) \
+out=$(go test ./cmd/mrw/ ./internal/check/ -count=1 -v -run '^(TestRunKeepsTheOutputAndPrintsOneReceipt|TestRunKeepsTheLogOfAShortOrEmptySuccess|TestRunExitsWithTheCommandsOwnCode|TestRunThatCannotStartSaysSoAndExitsTwo|TestRunTakesExactlyOneCommandString|TestRunIsRefusedAtTheStepDepthLimit|TestRunStoppedByAnInterruptExits130|TestRunHelpNamesTheShellTrust|TestTheRunEntryTakesItsOwnTimeout|TestRunLogsArePrunedByAgeAndCount|TestARunKeepsItsOwnLogWhenSixtyFourOthersFinishedBeforeIt|TestTheRunEntryWithNoTimeoutAsksForTheCeiling|TestRunStoppedBeforeItStartsExits130Or124|TestRunExitCodeNamesWhatStoppedTheCommand|TestRunUsageErrorUnderJSONIsOneRefusalDocument|TestRunLastLineIsJudgedWholeNotByItsKeptPrefix|TestRunLogIsNamedWhenTheCommandEnds|TestNoShippedReceiptFieldDisappears)$' 2>&1) \
   && grep -qE '^--- PASS: TestRunKeepsTheOutputAndPrintsOneReceipt \(' <<<"$out" \
   && grep -qE '^--- PASS: TestRunKeepsTheLogOfAShortOrEmptySuccess \(' <<<"$out" \
   && grep -qE '^--- PASS: TestRunExitsWithTheCommandsOwnCode \(' <<<"$out" \
@@ -56,6 +63,13 @@ out=$(go test ./cmd/mrw/ ./internal/check/ -count=1 -v -run '^(TestRunKeepsTheOu
   && grep -qE '^--- PASS: TestTheRunEntryTakesItsOwnTimeout \(' <<<"$out" \
   && grep -qE '^--- PASS: TestRunLogsArePrunedByAgeAndCount \(' <<<"$out" \
   && grep -qE '^--- PASS: TestNoShippedReceiptFieldDisappears \(' <<<"$out" \
+  && grep -qE '^--- PASS: TestARunKeepsItsOwnLogWhenSixtyFourOthersFinishedBeforeIt \(' <<<"$out" \
+  && grep -qE '^--- PASS: TestTheRunEntryWithNoTimeoutAsksForTheCeiling \(' <<<"$out" \
+  && grep -qE '^--- PASS: TestRunStoppedBeforeItStartsExits130Or124 \(' <<<"$out" \
+  && grep -qE '^--- PASS: TestRunExitCodeNamesWhatStoppedTheCommand \(' <<<"$out" \
+  && grep -qE '^--- PASS: TestRunUsageErrorUnderJSONIsOneRefusalDocument \(' <<<"$out" \
+  && grep -qE '^--- PASS: TestRunLastLineIsJudgedWholeNotByItsKeptPrefix \(' <<<"$out" \
+  && grep -qE '^--- PASS: TestRunLogIsNamedWhenTheCommandEnds \(' <<<"$out" \
   && go test ./internal/check/ ./cmd/mrw/ -count=1 >/dev/null \
   && grep -qx 'run output_file' docs/receipts.txt \
   && c=$(./scripts/contract.sh 2>&1) \
@@ -65,6 +79,7 @@ out=$(go test ./cmd/mrw/ ./internal/check/ -count=1 -v -run '^(TestRunKeepsTheOu
   && grep -qF 'PASS  the read line mrw run prints reaches the log' <<<"$c" \
   && grep -qF 'PASS  mrw run with two arguments is refused' <<<"$c" \
   && grep -qF 'PASS  a short passing mrw run keeps its log' <<<"$c" \
+  && grep -qF 'PASS  mrw run --json refuses a flag the parser rejects with one {error} document' <<<"$c" \
   && [ -z "$(gofmt -l internal cmd)" ] \
   && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/read internal/apply internal/plan internal/seen internal/state \
   && [ -z "$(git status --porcelain --untracked-files=all -- internal/read internal/apply internal/plan internal/seen internal/state)" ]
@@ -85,6 +100,13 @@ out=$(go test ./cmd/mrw/ ./internal/check/ -count=1 -v -run '^(TestRunKeepsTheOu
 | `TestTheRunEntryTakesItsOwnTimeout` | `internal/check/runlog177_test.go` | the entry's timeout, not the check's; `mrw run` asks for the 24-hour ceiling | none | S1, S2 |
 | `TestRunLogsArePrunedByAgeAndCount` | `internal/check/runlog177_test.go` | 7 days, then newest 64; a running log and other names untouched | none | S1, S5 |
 | `TestNoShippedReceiptFieldDisappears` | `cmd/mrw/receipts111_test.go` | the `run` type's keys and `docs/receipts.txt` agree | none | S7 |
+| `TestARunKeepsItsOwnLogWhenSixtyFourOthersFinishedBeforeIt` | `internal/check/runlog177_test.go` | 64 later-named logs leave the caller's own log; without the exemption the oldest name goes | none | S10 |
+| `TestTheRunEntryWithNoTimeoutAsksForTheCeiling` | `internal/check/runlog177_test.go` | a zero timeout names `24h0m0s` under an outer 1 s deadline | none | S12 |
+| `TestRunStoppedBeforeItStartsExits130Or124` | `cmd/mrw/run177_test.go` | a cancelled or expired context before the start is 130 or 124, with `--json` `ran` false, no command, no log | none | S13 |
+| `TestRunExitCodeNamesWhatStoppedTheCommand` | `cmd/mrw/run177_test.go` | the exit mapping: timeout 124, interrupt 130, signal 128+N, the command's own code | none | S13 |
+| `TestRunUsageErrorUnderJSONIsOneRefusalDocument` | `cmd/mrw/run177_test.go` | `--json --bogus` is one `{"error": …}` document, exit 2; without `--json` none | none | S14 |
+| `TestRunLastLineIsJudgedWholeNotByItsKeptPrefix` | `cmd/mrw/run177_test.go` | 4,096 spaces then text is the last line (`…`); a blank long line is not | none | S15 |
+| `TestRunLogIsNamedWhenTheCommandEnds` | `cmd/mrw/run177_test.go` | the log's name carries the time the command ended | none | S11 |
 
 ## Reachability
 
@@ -103,6 +125,13 @@ out=$(go test ./cmd/mrw/ ./internal/check/ -count=1 -v -run '^(TestRunKeepsTheOu
 - 2026-10-27 · e9186d50* · mutant killed · exit 1 · `cmd/mrw/run177.go` · the DepthRefusal call is removed (S6) · acceptance-sha256:634dd474b5c72b9103ae155c87b7342ca128fe15ef2d69e8d80d7119dedde630 · covers:the depth test passed
 - 2026-10-27 · e9186d50* · mutant killed · exit 1 · `cmd/mrw/run177.go` · the last key is renamed (S7) · acceptance-sha256:634dd474b5c72b9103ae155c87b7342ca128fe15ef2d69e8d80d7119dedde630 · covers:the receipts test passed
 - 2026-10-27 · e9186d50* · mutant killed · exit 1 · `cmd/mrw/run177.go` · the read line prints the path unquoted (S8) · acceptance-sha256:634dd474b5c72b9103ae155c87b7342ca128fe15ef2d69e8d80d7119dedde630 · covers:the receipt test passed
+- 2026-10-27 · 5e342885* · mutant killed · exit 1 · `internal/check/runlog177.go` · the caller's own log is no longer exempt from the prune (S10) · acceptance-sha256:01e464a5eaa936fb18d2fc6f77022fe180a4346098cb561136712de13c10b46f · covers:the own-log test passed
+- 2026-10-27 · 5e342885* · mutant killed · exit 1 · `cmd/mrw/run177.go` · the done name is taken from the start time, not the end (S11) · acceptance-sha256:01e464a5eaa936fb18d2fc6f77022fe180a4346098cb561136712de13c10b46f · covers:the completion-name test passed
+- 2026-10-27 · 5e342885* · mutant killed · exit 1 · `internal/check/runlog177.go` · a zero timeout no longer becomes the 24-hour ceiling (S12) · acceptance-sha256:01e464a5eaa936fb18d2fc6f77022fe180a4346098cb561136712de13c10b46f · covers:the ceiling default test passed
+- 2026-10-27 · 5e342885* · mutant killed · exit 1 · `cmd/mrw/run177.go` · the 124 case of runExitCode is deleted (S13) · acceptance-sha256:01e464a5eaa936fb18d2fc6f77022fe180a4346098cb561136712de13c10b46f · covers:the exit-code table passed
+- 2026-10-27 · 5e342885* · mutant killed · exit 1 · `cmd/mrw/run177.go` · an interrupt before the command starts exits 2 again (S13) · acceptance-sha256:01e464a5eaa936fb18d2fc6f77022fe180a4346098cb561136712de13c10b46f · covers:the stopped-before-start test passed
+- 2026-10-27 · 5e342885* · mutant killed · exit 1 · `cmd/mrw/main.go` · the usage-error hook for mrw run --json is removed (S14) · acceptance-sha256:01e464a5eaa936fb18d2fc6f77022fe180a4346098cb561136712de13c10b46f · covers:the usage-json test passed
+- 2026-10-27 · 5e342885* · mutant killed · exit 1 · `cmd/mrw/run177.go` · blankness judged from the kept prefix only (S15) · acceptance-sha256:01e464a5eaa936fb18d2fc6f77022fe180a4346098cb561136712de13c10b46f · covers:the last-line test passed
 
 ## Invariants
 
@@ -135,3 +164,12 @@ The fence exits 0. Stop and ask if the entry needs a change to the check's own b
   ```
   ```
 - 2026-10-27 · e9186d50* · exit 0 · `set -o pipefail …` · acceptance-sha256:634dd474b5c72b9103ae155c87b7342ca128fe15ef2d69e8d80d7119dedde630 · ms:166357
+- 2026-10-27 · 5e342885* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:01e464a5eaa936fb18d2fc6f77022fe180a4346098cb561136712de13c10b46f · ms:0 · test-lock-sha256:c61a6bda98b390b167a0dd95a2d4dadec6aa7665db2c325efadbdaa3b9d50c60 · test-lock-file:docs/adr/locks/c61a6bda98b390b167a0dd95a2d4dadec6aa7665db2c325efadbdaa3b9d50c60.lock · test-lock-kind:replace
+- 2026-10-27 · 5e342885* · exit 0 · `set -o pipefail …` · acceptance-sha256:01e464a5eaa936fb18d2fc6f77022fe180a4346098cb561136712de13c10b46f · ms:134195
+- 2026-10-27 · 5e342885* · exit 0 · `set -o pipefail …` · acceptance-sha256:01e464a5eaa936fb18d2fc6f77022fe180a4346098cb561136712de13c10b46f · ms:141817
+- 2026-10-27 · 5e342885* · exit 0 · `set -o pipefail …` · acceptance-sha256:01e464a5eaa936fb18d2fc6f77022fe180a4346098cb561136712de13c10b46f · ms:141920
+- 2026-10-27 · 5e342885* · exit 0 · `set -o pipefail …` · acceptance-sha256:01e464a5eaa936fb18d2fc6f77022fe180a4346098cb561136712de13c10b46f · ms:136820
+- 2026-10-27 · 5e342885* · exit 0 · `set -o pipefail …` · acceptance-sha256:01e464a5eaa936fb18d2fc6f77022fe180a4346098cb561136712de13c10b46f · ms:156799
+- 2026-10-27 · 5e342885* · exit 0 · `set -o pipefail …` · acceptance-sha256:01e464a5eaa936fb18d2fc6f77022fe180a4346098cb561136712de13c10b46f · ms:133794
+- 2026-10-27 · 5e342885* · exit 0 · `set -o pipefail …` · acceptance-sha256:01e464a5eaa936fb18d2fc6f77022fe180a4346098cb561136712de13c10b46f · ms:136157
+- 2026-10-27 · 5e342885* · exit 0 · `set -o pipefail …` · acceptance-sha256:01e464a5eaa936fb18d2fc6f77022fe180a4346098cb561136712de13c10b46f · ms:144493

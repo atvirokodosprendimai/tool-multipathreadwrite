@@ -100,8 +100,11 @@ func isDoneLog(name string) bool {
 // PruneRunLogs removes, best effort, completed run logs in dir older than
 // LogRetention, then all but the newest RunLogsKept by name, and any
 // *.running.log older than 25 hours, whose run is gone. It says how many it
-// removed. A file of any other name is left alone (ADR-177 Decision 4).
-func PruneRunLogs(dir string, now time.Time) int {
-	return pruneMatching(dir, isDoneLog, now.Add(-LogRetention), RunLogsKept) +
+// removed. A file of any other name is left alone, and so is the log named own,
+// the caller's just-finished one: it is never a candidate, whatever its name
+// sorts as (ADR-177 Decision 4).
+func PruneRunLogs(dir string, now time.Time, own string) int {
+	others := func(name string) bool { return name != own && isDoneLog(name) }
+	return pruneMatching(dir, others, now.Add(-LogRetention), RunLogsKept) +
 		pruneMatching(dir, isRunningLog, now.Add(-runningLogAge), 0)
 }

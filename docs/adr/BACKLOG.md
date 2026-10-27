@@ -760,7 +760,7 @@ Zy, 2026-10-27: *"yes, go, address these, measure, plan, implement verify, udupa
 | ADR-178 `--json-path` | JSON documents of 1 KB or more (`json_docs_chars` / ALL) | 6.13% | ≤ 5.2% |
 | ADR-178 `--json-path` | `--json-path` calls (`mrw_json_path_calls`) | 0 | reported, no bar |
 | ADR-179 (a) | long-line excess in `mrw read` (`longlines_saved_mrw read` / `mrw read` chars) | 7.94% | ≤ 4.0% |
-| ADR-179 (b) | whole-file reads over 150 lines, Read + `mrw read` / ALL | 4.15% | ≤ 3.3% |
+| ADR-179 (b) | whole-file reads over 150 lines, completely served blocks, Read + `mrw read` / ALL | 2.70% | ≤ 2.15% (the same 20% cut; the first figures, 4.15% → 3.3%, counted partial reads and batches) |
 | ADR-179 (d) | repeated identical mrw content blocks (`repeat_block_chars` / `all`, measure_repeat) | 0.22% | ≤ 0.15% |
 | ADR-179 (c) | foldable near-identical runs (`fold_near_saved` / ALL) | 1.13% | ≤ 0.85% |
 | ADR-179 (e) | notice lines repeated inside one tool result (`notice_repeat_chars`) | 0.028% | reported, no bar |
@@ -774,7 +774,7 @@ Zy, 2026-10-27: *"yes, go, address these, measure, plan, implement verify, udupa
 - A bucket at or past its bar: the part is kept and its taught lines stay.
 - A bucket that moved less than half the way from baseline to bar: the part is reported to Zy as not adopted, with its taught lines put to Zy for removal from `mrw instructions` and `mrw skill`. Nothing is removed on this alone.
 - **Inconclusive** (exposure, above): the window is extended once to 60 days; still inconclusive, the numbers go to Zy.
-- **ADR-179 (d) is also judged on cost:** `same_as_served_chars` (and measure_repeat's `reference_chars`) against the characters of the blocks they stood for; a reference that costs more than a third of what it replaced is reported. (f)'s default question is answered here too: if `--terse` appears in at least 20% of `mrw write` calls and no failure-report complaint is filed, the terse receipt as the default goes to Zy as a record.
+- **ADR-179 (d) is also judged on cost:** `reference_chars` (and `same_as_served_chars`) against `reference_stands_for_chars`, the characters of the blocks the references stood for (measure_repeat ties each reference to the block its session last served for that path and sha; `reference_unmatched_count` counts those with none); a reference that costs more than a third of what it replaced is reported. (f)'s default question is answered here too: if `--terse` appears in at least 20% of `mrw write` calls and no failure-report complaint is filed, the terse receipt as the default goes to Zy as a record.
 
 **What would make this impossible to fail:** a window in which nobody uses mrw, or a bucket with no exposure. The exposure rule makes both inconclusive rather than a pass; a workload shift (more test runs, fewer reads) moves the shares for reasons unrelated to these records, which is why each part is judged against its own bucket and none against the total.
 

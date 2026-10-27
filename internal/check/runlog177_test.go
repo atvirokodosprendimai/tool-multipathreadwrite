@@ -85,7 +85,7 @@ func TestRunLogsArePrunedByAgeAndCount(t *testing.T) {
 	}
 	name := func(i int) string { return fmt.Sprintf("run-20261001T0000%02d.000Z-1.log", i) }
 	for i := 0; i < 70; i++ {
-		age := time.Hour
+		age := time.Hour + time.Duration(i)*time.Minute // newer names are OLDER files: only the name decides
 		if i < 3 {
 			age = LogRetention + time.Hour
 		}
@@ -96,7 +96,7 @@ func TestRunLogsArePrunedByAgeAndCount(t *testing.T) {
 	touch("notes.txt", 30*24*time.Hour)
 	touch("mrw-check-1.log", 30*24*time.Hour)
 
-	if got := PruneRunLogs(dir, now); got != 3+3+1 {
+	if got := PruneRunLogs(dir, now, ""); got != 3+3+1 {
 		t.Errorf("pruned %d, want 7: 3 older than %s, 3 beyond the newest 64, 1 running log past 25 hours", got, LogRetention)
 	}
 	for i := 0; i < 70; i++ {
@@ -116,10 +116,53 @@ func TestRunLogsArePrunedByAgeAndCount(t *testing.T) {
 			t.Errorf("%s: kept %v, want %v", n, kept, want)
 		}
 	}
-	if got := PruneRunLogs(dir, now); got != 0 {
+	if got := PruneRunLogs(dir, now, ""); got != 0 {
 		t.Errorf("a second pass pruned %d, want 0", got)
 	}
-	if got := PruneRunLogs(filepath.Join(dir, "absent"), now); got != 0 {
+	if got := PruneRunLogs(filepath.Join(dir, "absent"), now, ""); got != 0 {
 		t.Errorf("a missing directory pruned %d", got)
+	}
+}
+
+// A long run's own log must survive its prune: 64 runs that started after it
+// and finished before it leave it the oldest name, and the receipt names it.
+func TestARunKeepsItsOwnLogWhenSixtyFourOthersFinishedBeforeIt(t *testing.T) {
+	dir := t.TempDir()
+	t0 := time.Now().Add(-30 * time.Minute)
+	for i := 1; i <= RunLogsKept; i++ {
+		_, done := RunLogNames(t0.Add(time.Duration(i)*time.Second), 1000+i)
+		if err := os.WriteFile(filepath.Join(dir, done), []byte("x\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_, mine := RunLogNames(t0, 42)
+	if err := os.WriteFile(filepath.Join(dir, mine), []byte("the long run's output\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	n := PruneRunLogs(dir, time.Now(), mine)
+	if _, err := os.Stat(filepath.Join(dir, mine)); err != nil {
+		t.Fatalf("pruned %d; the run's own log is gone: %v", n, err)
+	}
+	if n != 0 {
+		t.Errorf("pruned %d; the 64 others are the newest 64 and stay", n)
+	}
+	// The pair: the same directory without the exemption loses that log.
+	if n := PruneRunLogs(dir, time.Now(), ""); n != 1 {
+		t.Errorf("without the exemption %d were pruned, want the one oldest name", n)
+	}
+}
+
+// The entry's zero Timeout is the 24-hour ceiling, not the check's five
+// minutes and not no deadline: an outer 1 s context stops sleep 5 first, and
+// the report says which deadline it was.
+func TestTheRunEntryWithNoTimeoutAsksForTheCeiling(t *testing.T) {
+	if _, _, ok := Shell(); !ok {
+		t.Skip("no POSIX shell")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	res, err := Exec(ctx, t.TempDir(), "sleep 5", RunSpec{LogDir: t.TempDir(), LogName: "o.running.log"})
+	if err != nil || res.Skipped != "timed out after 24h0m0s" {
+		t.Errorf("skipped %q, %v; want the 24-hour ceiling named", res.Skipped, err)
 	}
 }

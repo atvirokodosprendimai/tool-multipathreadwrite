@@ -31,6 +31,7 @@ Decisions 5, 6 and 9 reach the caller: `mrw instructions` (its recipes, which `m
 1. [S1] Write `TestTheGuideTeachesMrwRun` (`Recipes()` holds `mrw run '` and `- < '`, and `Skill("x")` holds the same recipe) and see it RED.
 2. [S2] The recipe. Mutant: the recipe removed from `Recipes()`. [proof: mutation]
 3. [S3] README, AGENTS.md, `docs/agents.md`, the regenerated skill. [proof: acceptance]
+4. [S4] Recipe 12 is `mrw run` alone, so no later command's status replaces the run's, and the guide says a log is eligible by age or by count. Mutant: recipe 12's command gains a `; mrw read …` after the run. [proof: mutation]
 
 ## Acceptance
 
@@ -72,6 +73,7 @@ out=$(go test ./internal/guide/ -count=1 -v -run '^(TestTheGuideTeachesMrwRun)$'
 - 2026-10-27 · e9186d50* · mutant killed · exit 1 · `internal/guide/guide.go` · the mrw run recipe is removed from Recipes() (S2) · acceptance-sha256:7a12e43efcd43d84ddc5d4e4eb3d1a5b345d20d644f36c7f715db24805af8847 · covers:the guide test passed
 - 2026-10-27 · e9186d50* · mutant killed · exit 1 · `README.md` · README Exit status loses 124 (S3) · acceptance-sha256:7a12e43efcd43d84ddc5d4e4eb3d1a5b345d20d644f36c7f715db24805af8847 · covers:README gives its exit codes
 - 2026-10-27 · e9186d50* · mutant killed · exit 1 · `AGENTS.md` · AGENTS.md exit codes lose 130 (S3) · acceptance-sha256:7a12e43efcd43d84ddc5d4e4eb3d1a5b345d20d644f36c7f715db24805af8847 · covers:AGENTS.md gives its exit codes
+- 2026-10-27 · 5e342885* · mutant killed · exit 1 · `internal/guide/guide.go` · recipe 12 chains a read after the run, so the read's status replaces the run's (S4) · acceptance-sha256:7a12e43efcd43d84ddc5d4e4eb3d1a5b345d20d644f36c7f715db24805af8847 · covers:the guide test passed
 
 ## Invariants
 
@@ -99,3 +101,6 @@ The fence exits 0.
   ```
   ```
 - 2026-10-27 · e9186d50* · exit 0 · `set -o pipefail …` · acceptance-sha256:7a12e43efcd43d84ddc5d4e4eb3d1a5b345d20d644f36c7f715db24805af8847 · ms:50202
+- 2026-10-27 · 5e342885* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:7a12e43efcd43d84ddc5d4e4eb3d1a5b345d20d644f36c7f715db24805af8847 · ms:0 · test-lock-sha256:205221c025f083113c25cd403b32765dc40f494c80dae86738e7c9beb3d338ed · test-lock-file:docs/adr/locks/205221c025f083113c25cd403b32765dc40f494c80dae86738e7c9beb3d338ed.lock · test-lock-kind:replace
+- 2026-10-27 · 5e342885* · exit 0 · `set -o pipefail …` · acceptance-sha256:7a12e43efcd43d84ddc5d4e4eb3d1a5b345d20d644f36c7f715db24805af8847 · ms:64505
+- 2026-10-27 · 5e342885* · exit 0 · `set -o pipefail …` · acceptance-sha256:7a12e43efcd43d84ddc5d4e4eb3d1a5b345d20d644f36c7f715db24805af8847 · ms:57114

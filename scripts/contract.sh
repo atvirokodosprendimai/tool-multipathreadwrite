@@ -10383,9 +10383,17 @@ r302=$(cd "$R" && PATH="$(dirname "$MRW"):$PATH" XDG_STATE_HOME="$S302" bash -c 
 XDG_STATE_HOME="$S302" "$MRW" -C "$R" run 'exit 7' >/dev/null 2>&1; want 7 $? "mrw run passes exit 7 through"
 XDG_STATE_HOME="$S302" "$MRW" -C "$R" run 'exit 0' >/dev/null 2>&1; want 0 $? "the pair: a passing command exits 0"
 XDG_STATE_HOME="$S302" "$MRW" -C "$R" run 'kill -TERM $$' >/dev/null 2>&1; want 143 $? "mrw run reports a command killed by TERM as 128+15"
-XDG_STATE_HOME="$S302" "$MRW" -C "$R" run --json 'exit 3' > "$WORK/j302" 2>&1; rc302=$?
-{ [ "$rc302" = 3 ] && grep -q '"exit_code": 3' "$WORK/j302" && grep -q '"ran": true' "$WORK/j302" && grep -q '"output_file"' "$WORK/j302"; } \
-  && ok "mrw run --json is one document with the command's exit_code" || bad "json: exit $rc302: $(cat "$WORK/j302")"
+XDG_STATE_HOME="$S302" "$MRW" -C "$R" run --json 'exit 3' > "$WORK/j302" 2>"$WORK/je302"; rc302=$?
+{ [ "$rc302" = 3 ] && python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["ran"] is True and d["exit_code"]==3 and d["command"]=="exit 3" and d["output_file"] and d["lines"]==0 and d["bytes"]==0 and set(d)<={"command","ran","exit_code","signal","skipped","duration_ms","lines","bytes","last","output_file","pruned_logs"}' < "$WORK/j302"; } \
+  && ok "mrw run --json is exactly one document with the command's exit_code" || bad "json: exit $rc302: $(cat "$WORK/j302")"
+printf '%s%s' "$(cat "$WORK/j302")" "$(cat "$WORK/j302")" | python3 -c 'import json,sys; json.load(sys.stdin)' >/dev/null 2>&1 \
+  && bad "the pair: two concatenated documents parsed as one" || ok "the pair: the parse used here refuses two documents"
+XDG_STATE_HOME="$S302" "$MRW" -C "$R" run --json --bogus 'echo hi' > "$WORK/jr302" 2>/dev/null; rc302=$?
+{ [ "$rc302" = 2 ] && python3 -c 'import json,sys; d=json.load(sys.stdin); assert list(d)==["error"] and "bogus" in d["error"]' < "$WORK/jr302"; } \
+  && ok "mrw run --json refuses a flag the parser rejects with one {error} document" || bad "json refusal: exit $rc302: $(cat "$WORK/jr302")"
+XDG_STATE_HOME="$S302" "$MRW" -C "$R" run --json touch marker302 > "$WORK/jr302" 2>/dev/null; rc302=$?
+{ [ "$rc302" = 2 ] && python3 -c 'import json,sys; d=json.load(sys.stdin); assert list(d)==["error"]' < "$WORK/jr302"; } \
+  && ok "and two arguments under --json are one {error} document too" || bad "json two arguments: exit $rc302: $(cat "$WORK/jr302")"
 rm -f "$R/marker302"
 XDG_STATE_HOME="$S302" "$MRW" -C "$R" run touch marker302 >"$WORK/o302" 2>&1; want 2 $? "mrw run with two arguments is refused"
 { [ ! -e "$R/marker302" ] && grep -qF "mrw run 'CMD'" "$WORK/o302" && ! grep -q '^exit ' "$WORK/o302"; } \

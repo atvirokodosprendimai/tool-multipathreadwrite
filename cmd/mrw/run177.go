@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -82,12 +83,7 @@ newest 64, and the next completed run removes them. ` + guide.ThenShCaveat(),
 }
 
 func runAction(ctx context.Context, cmd *cli.Command) error {
-	emit := func(v any) {
-		enc := json.NewEncoder(os.Stdout)
-		enc.SetIndent("", "  ")
-		enc.SetEscapeHTML(false)
-		_ = enc.Encode(v)
-	}
+	emit := emitRunJSON
 	// A refusal before anything runs is one document under --json, as check's is.
 	refuse := func(err error) error {
 		if cmd.Bool("json") {
@@ -115,7 +111,7 @@ func runAction(ctx context.Context, cmd *cli.Command) error {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return refuse(err)
 	}
-	running, done := check.RunLogNames(time.Now(), os.Getpid())
+	running, _ := check.RunLogNames(time.Now(), os.Getpid())
 	res, err := check.Exec(ctx, cmd.Root().String("root"), cmdline, check.RunSpec{LogDir: dir, LogName: running})
 	if err != nil {
 		return refuse(err)
@@ -125,18 +121,32 @@ func runAction(ctx context.Context, cmd *cli.Command) error {
 		if cmd.Bool("json") {
 			emit(rec)
 		}
+		// An interrupt or a deadline before the command started is still mrw
+		// stopped, 130 or 124; only a command that could not start is a 2.
+		switch res.Skipped {
+		case check.Interrupted:
+			return cli.Exit(res.Skipped, exitRunInterrupted)
+		case check.TimedOutBeforeStart:
+			return cli.Exit(res.Skipped, exitRunTimedOut)
+		}
 		return cli.Exit(res.Skipped, exitUsage)
 	}
 
+	// Named when the command ended, so names sort in the order runs finished
+	// and the newest 64 by name are the 64 that finished last.
+	_, done := check.RunLogNames(time.Now(), os.Getpid())
 	logPath := res.OutputFile
 	if final := filepath.Join(dir, done); os.Rename(logPath, final) == nil {
 		logPath = final
+	} else {
+		done = ""
+		fmt.Fprintf(os.Stderr, "mrw: could not rename the log to %s; it stays %s and is removed after 25 hours\n", final, filepath.Base(logPath))
 	}
-	code := runExitCode(res)
+	code := runExitCode(res.Skipped, res.Signal(), res.ExitCode)
 	rec.ExitCode, rec.Signal, rec.OutputFile = code, res.Signal(), logPath
 	rec.Lines, rec.Bytes, rec.Last = scanLog(logPath)
-	// After the rename: the log just written is the newest and is never pruned.
-	rec.PrunedLogs = check.PruneRunLogs(dir, time.Now())
+	// This run's own log is exempt from the prune, whatever its name sorts as.
+	rec.PrunedLogs = check.PruneRunLogs(dir, time.Now(), done)
 
 	if cmd.Bool("json") {
 		emit(rec)
@@ -151,17 +161,26 @@ func runAction(ctx context.Context, cmd *cli.Command) error {
 }
 
 // runExitCode is what mrw run exits with (ADR-177 Decision 6): the command's
-// own code, 128+N for signal N, and mrw's 124 and 130 for a run it stopped.
-func runExitCode(res check.Result) int {
+// own code, 128+N for signal N, and mrw's 124 and 130 for a run it stopped. A
+// stopped command died of the TERM mrw sent, so its signal does not count.
+func runExitCode(skipped string, signal, exit int) int {
 	switch {
-	case strings.HasPrefix(res.Skipped, "timed out"):
+	case strings.HasPrefix(skipped, "timed out"):
 		return exitRunTimedOut
-	case res.Skipped == check.Interrupted:
+	case skipped == check.Interrupted:
 		return exitRunInterrupted
-	case res.Signal() > 0:
-		return 128 + res.Signal()
+	case signal > 0:
+		return 128 + signal
 	}
-	return res.ExitCode
+	return exit
+}
+
+// emitRunJSON writes v as the one indented document mrw run --json prints.
+func emitRunJSON(v any) {
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	enc.SetEscapeHTML(false)
+	_ = enc.Encode(v)
 }
 
 // printRunReceipt writes the four lines (Decision 5): last and read are left
@@ -217,13 +236,19 @@ func scanLog(path string) (lines int, size int64, last string) {
 	defer func() { _ = f.Close() }()
 	r := bufio.NewReaderSize(f, 64<<10)
 	var cur []byte
-	over := false
+	// nonblank is judged over every byte of the line, not the kept prefix: a
+	// line of 4,096 spaces and then FAIL is the last line, shown as ….
+	over, nonblank := false, false
 	end := func() {
 		lines++
-		if t := strings.TrimRight(string(cur), "\r"); strings.TrimSpace(t) != "" {
-			last = t
+		if nonblank {
+			if t := strings.TrimRight(string(cur), "\r"); strings.TrimSpace(t) != "" {
+				last = t
+			} else {
+				last = "…"
+			}
 		}
-		cur, over = cur[:0], false
+		cur, over, nonblank = cur[:0], false, false
 	}
 	for {
 		frag, err := r.ReadSlice('\n')
@@ -235,6 +260,7 @@ func scanLog(path string) (lines int, size int64, last string) {
 		take := min(max(lastScanBytes-len(cur), 0), len(body))
 		cur = append(cur, body[:take]...)
 		over = over || take < len(body)
+		nonblank = nonblank || len(bytes.TrimSpace(body)) > 0
 		if errors.Is(err, bufio.ErrBufferFull) {
 			continue
 		}

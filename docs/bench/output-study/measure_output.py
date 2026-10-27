@@ -20,8 +20,7 @@ def ts(s):
 
 
 since, until = ts(args.since), ts(args.until)
-files = [f for f in glob.glob(os.path.expanduser(args.glob))
-         if os.path.getmtime(f) >= since.timestamp()]
+files = glob.glob(os.path.expanduser(args.glob))
 
 MRW = r"\bmrw(?: (?:--root|-C) (?:'[^']*'|\S+))?"
 MRW_READ = re.compile(MRW + r" read\b")
@@ -34,6 +33,8 @@ NOTICE = re.compile(r"^mrw: (the answer went to the null device|still licensed i
 NOTE = re.compile(r"^(mrw: |-- (?!ck |\d+ matching line))")
 NUMBERED = re.compile(r"^\s*\d+\| ?")
 NUM = re.compile(r"\d+")
+# a file block's header: the path runs up to the metadata suffix, so it may hold spaces
+HDR = re.compile(r"^==> (.+?)\s+(\d+)L\s+\d+B\s+sha [0-9a-f]{8}\s*$")
 
 tot = collections.Counter()
 calls = collections.Counter()
@@ -72,6 +73,25 @@ def is_whole_file_mrw_read(cmd):
     after = MRW_READ.split(cmd, 1)[-1].split("&&")[0].split("|")[0].split(";")[0]
     specs = [a.strip("'\"") for a in after.split() if not a.startswith("-")]
     return bool(specs) and all(":" not in sp for sp in specs)
+
+
+def served_blocks(text):
+    """Yield (path, header line count, characters served, numbered lines served)
+    for each mrw file block in one result. The characters are the header, the
+    range lines and the numbered lines: not the notes mrw prints beside them."""
+    blk, chars, numbered = None, 0, 0
+    for ln in text.splitlines() + ["==> END 0L 0B sha 00000000"]:
+        mh = HDR.match(ln)
+        if mh or ln.startswith("==> END"):
+            if blk:
+                yield blk[0], blk[1], chars, numbered
+            blk = (mh.group(1), int(mh.group(2))) if mh else None
+            chars, numbered = (len(ln) + 1, 0) if mh else (0, 0)
+        elif blk and NUMBERED.match(ln):
+            chars += len(ln) + 1
+            numbered += 1
+        elif blk and ln.startswith("@@ "):
+            chars += len(ln) + 1
 
 
 def json_docs(text):
@@ -196,10 +216,15 @@ for f in files:
                     s["whole_file_Read_chars"] += n
                     s["whole_file_Read_calls"] += 1
                     seen_flags.add("outline")
-                if k == "mrw read" and is_whole_file_mrw_read(cmd) and len(lines) > 150:
-                    s["whole_file_mrw_read_chars"] += n
-                    s["whole_file_mrw_read_calls"] += 1
-                    seen_flags.add("outline")
+                if k == "mrw read" and is_whole_file_mrw_read(cmd):
+                    # one count per file block that was served completely (every
+                    # line its header names) and holds more than 150 lines: a
+                    # capped read of a long file, or a batch of short ones, is not
+                    for _path, nl, chars, numbered in served_blocks(text):
+                        if nl > 150 and numbered == nl:
+                            s["whole_file_mrw_read_chars"] += chars
+                            s["whole_file_mrw_read_calls"] += 1
+                            seen_flags.add("outline")
                 # 5. mrw run: big non-mrw bash outputs, and exit-code-losing pipes
                 if name == "Bash" and not k.startswith("mrw"):
                     s["bash_nonmrw_calls"] += 1

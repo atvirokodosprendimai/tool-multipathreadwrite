@@ -13,7 +13,7 @@ description: >-
 metadata:
   mrw-version: "v1.76.0"
   generated-by: "mrw skill"
-  content-sha256: "cad434bb76b815b9d0328a9b6b2cc1b9884f39f5131e150367b1e6f7d565cf49"
+  content-sha256: "28f541953d59c1b8b9a659dce2aa903a98621594519122c4c6a098f235b8111c"
 ---
 
 # mrw
@@ -51,8 +51,8 @@ Recipes:
   mrw read a.go:40-52 b.go:9 && printf '%s\n' '@@ b.go 9 insert-after from=a.go:40-52' '@@ a.go 40-52 delete' | mrw write -
 11. re-read a file you read earlier, its text only if it changed (the sha is the 8 hex digits its header printed):
   mrw read --if-changed f.go=8dc37337 f.go:40-60
-12. run a long command (a build, a test suite, a gate) with its output kept out of your context, one string, instead of cmd | tail, which returns tail's status: a four-line receipt with the command's own exit code, the log's path and a read of it; then read the log by pattern from standard input, LOG being the path the receipt printed (--then-sh and mrw run run any shell command they are given: a harness rule that allows mrw without reading its arguments allows arbitrary shell through --then-sh and mrw run.):
-  mrw run 'go test ./...' ; mrw read --grep FAIL -C 3 - < 'LOG'
+12. run a long command (a build, a test suite, a gate) with its output kept out of your context, one string, instead of cmd | tail, which returns tail's status: a four-line receipt with the command's own exit code, the log's path and a read of it; read the log by pattern in a second call, so the exit code is not lost to it: mrw read --grep FAIL -C 3 - < 'LOG', LOG being the path the receipt printed (--then-sh and mrw run run any shell command they are given: a harness rule that allows mrw without reading its arguments allows arbitrary shell through --then-sh and mrw run.):
+  mrw run 'go test ./...'
 
 `mrw instructions` prints the whole contract. This file was printed by `mrw skill` from mrw v1.76.0; when `mrw version` prints another version, `mrw skill --dir <the directory holding this mrw folder>` replaces it.
 
