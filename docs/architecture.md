@@ -10,6 +10,9 @@ The current state the ADRs in `docs/adr/` are deltas against. AGENTS.md says how
 the code; this says what is where and which direction it may depend. Every rule row names the
 check that fails when the rule breaks.
 
+For existing write guarantees, focused tests, binary contract rows and limits,
+see [Safety evidence for the write path](notes/safety-evidence.md).
+
 ## Module Map
 
 The engine is the six packages AGENTS.md's drill names (`read`, `apply`, `plan`, `seen`, `check`,
@@ -22,7 +25,7 @@ The engine is the six packages AGENTS.md's drill names (`read`, `apply`, `plan`,
 | `internal/mcp` | api | the MCP tools, their schemas, checkpoints and the result ceiling | ADR-023, ADR-031, ADR-113 |
 | `internal/writer` | domain | the write flow shared by both surfaces: lock, apply, check, steps, drift | ADR-075, ADR-112, ADR-127 |
 | `internal/plan` | domain | the plan grammar: headers, guards, bodies | ADR-013, ADR-060, ADR-109 |
-| `internal/apply` | domain | turning a parsed plan into staged writes that land whole or not at all | ADR-001, ADR-066, ADR-132 |
+| `internal/apply` | domain | validating a whole plan, staging writes and reporting what the filesystem commit landed | ADR-001, ADR-066, ADR-132 |
 | `internal/read` | domain | serving ranges, `--grep`, `--ast-grep`, and building the `--sub`/`--rewrite` plans | ADR-007, ADR-104, ADR-161 |
 | `internal/seen` | domain | the read-before-modify ledger and the write lock | ADR-002, ADR-075, ADR-150 |
 | `internal/check` | domain | the project check and declared steps | ADR-003, ADR-054, ADR-092 |
