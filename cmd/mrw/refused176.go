@@ -27,6 +27,10 @@ const keptPlansMax = 16
 // trim's reach: another run may be saving it (ADR-176).
 const keptPlanGrace = time.Minute
 
+// keptPlanLockWait is how long a run waits for the lock that covers creating a
+// kept plan and trimming around it (ADR-176).
+const keptPlanLockWait = 10 * time.Second
+
 // planTee copies what the plan parser reads from standard input, after the
 // CRLF trim, so a refused plan can be kept as the parser saw it. It never reads
 // ahead of the parser; past keptPlanCap it drops its copy.
@@ -78,6 +82,13 @@ func (t *planTee) write() (string, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return "", err
 	}
+	// One lock from before the create through the trim: no other run trims
+	// between this plan's creation and the trim that spares it (ADR-176).
+	release, err := state.HoldWithin(dir, "refused-plans.lock", keptPlanLockWait)
+	if err != nil {
+		return "", err
+	}
+	defer release()
 	var salt [4]byte
 	if _, err := rand.Read(salt[:]); err != nil {
 		return "", err
@@ -104,10 +115,13 @@ func (t *planTee) write() (string, error) {
 // trimKept removes plans until the newest keptPlansMax stay, by name, whose
 // prefix is the time. It never removes the one this run just kept: a name can
 // sort before others written in the same instant, and the path it returns must
-// exist. Nor does it remove a plan modified within keptPlanGrace: two runs
-// trimming at once each snapshot the directory and each would remove the
-// other's plan, which is still being saved. So the directory may briefly hold
-// more than keptPlansMax, and two runs trimming at once may leave one more.
+// exist. Creation and trim run under one lock, so no other run of this version
+// trims between a plan's creation and the trim that spares it. It also spares a
+// plan modified within keptPlanGrace, a backstop for runs of older versions
+// that take no lock: two runs trimming at once each snapshot the directory and
+// each would remove the other's plan, which is still being saved. So the
+// directory may briefly hold more than keptPlansMax, as long as a plan's
+// modification time is in the future (a clock rolled back) or recent.
 func trimKept(dir, keep string) {
 	ents, err := os.ReadDir(dir)
 	if err != nil {

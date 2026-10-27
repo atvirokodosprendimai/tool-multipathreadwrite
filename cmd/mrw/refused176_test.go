@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/state"
 )
 
 // keptRig builds mrw once and runs it over one root and one state home, with
@@ -368,6 +369,62 @@ func TestAPlanRefusedFromStandardInputIsKept(t *testing.T) {
 		}
 		if _, err := os.Stat(filepath.Join(k.dir(), foreign)); err != nil {
 			t.Errorf("a plan saved a moment ago was trimmed: %v", err)
+		}
+	})
+
+	// Codex on ADR-176: a grace by modification time narrows the race between
+	// two runs and does not close it, since a run can pause past any grace
+	// between saving its plan and trimming. Creation and trim run under one
+	// lock, so a run waits while another is between them.
+	t.Run("a run waits for the lock another run holds, then keeps its plan", func(t *testing.T) {
+		k.t = t
+		k.reset()
+		if err := os.MkdirAll(k.dir(), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		t.Setenv("XDG_STATE_HOME", k.state)
+		release, err := state.Hold(k.dir(), "refused-plans.lock")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer release()
+		c := exec.Command(k.bin, "--root", k.root, "write", "--json", "--no-check", "-")
+		c.Env = append(os.Environ(), "XDG_STATE_HOME="+k.state)
+		c.Stdin = strings.NewReader("@@ f.txt 1 replace body=1\nA\nB\n")
+		var o strings.Builder
+		c.Stdout = &o
+		if err := c.Start(); err != nil {
+			t.Fatal(err)
+		}
+		done := make(chan struct{})
+		go func() { _ = c.Wait(); close(done) }()
+		defer func() {
+			_ = c.Process.Kill()
+			<-done
+		}()
+		select {
+		case <-done:
+			t.Fatal("the run finished while another held the lock")
+		case <-time.After(300 * time.Millisecond):
+		}
+		if n := len(k.kept()); n != 0 {
+			t.Fatalf("%d plans kept while the lock was held", n)
+		}
+		release()
+		select {
+		case <-done:
+			// finished
+		case <-time.After(20 * time.Second):
+			t.Fatal("the run did not finish after the lock was released")
+		}
+		var doc struct {
+			RefusedPlan string `json:"refused_plan"`
+		}
+		if err := json.Unmarshal([]byte(o.String()), &doc); err != nil {
+			t.Fatalf("--json: %v\n%s", err, o.String())
+		}
+		if _, err := os.Stat(doc.RefusedPlan); doc.RefusedPlan == "" || err != nil {
+			t.Errorf("refused_plan %q does not exist: %v", doc.RefusedPlan, err)
 		}
 	})
 
