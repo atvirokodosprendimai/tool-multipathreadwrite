@@ -10417,9 +10417,9 @@ log302=$(grep '^log: ' <<<"$o302"); log302=${log302#log: }
   && ok "and an empty passing run keeps an empty log, renamed from .running.log" || bad "empty run: $o302"
 MRW_STEP_DEPTH=8 XDG_STATE_HOME="$WORK/st302c" "$MRW" -C "$R" run 'touch marker302c' >/dev/null 2>&1; want 2 $? "mrw run at MRW_STEP_DEPTH 8 is refused, exit 2"
 { [ ! -e "$R/marker302c" ] && [ ! -e "$WORK/st302c/mrw-runs" ]; } && ok "and runs nothing and makes no log directory" || bad "depth 8 ran or made a log"
-o302=$(MRW_STEP_DEPTH=7 XDG_STATE_HOME="$WORK/st302c" "$MRW" -C "$R" run 'echo "d=$MRW_STEP_DEPTH"' 2>&1)
-grep -qx 'last: d=8' <<<"$o302" \
-  && ok "the pair: at 7 it runs, one level deeper" || bad "depth 7 did not run at 8: $o302"
+o302=$(MRW_STEP_DEPTH=7 XDG_STATE_HOME="$WORK/st302c" "$MRW" -C "$R" run 'echo "d=$MRW_STEP_DEPTH"' 2>&1); rc302=$?
+{ [ "$rc302" = 0 ] && grep -qx 'last: d=8' <<<"$o302"; } \
+  && ok "the pair: at 7 it runs, one level deeper" || bad "depth 7 did not run at 8 (exit $rc302): $o302"
 
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A

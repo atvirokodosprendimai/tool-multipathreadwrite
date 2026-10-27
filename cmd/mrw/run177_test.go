@@ -156,6 +156,17 @@ func TestTheReadLineIsQuotedForThePlatform(t *testing.T) {
 	if got := runReadLine("windows", `C:\mrw.exe`, `C:\a"b\r.log`, 5); got != "" {
 		t.Errorf("windows, a quote in the path: %q, want no line", got)
 	}
+	// cmd.exe expands %VAR% inside double quotes, so a path holding % would
+	// read another file: no line, and the pair without it still prints one.
+	if got := runReadLine("windows", `C:\mrw.exe`, `C:\logs\%USERNAME%\r.log`, 5); got != "" {
+		t.Errorf("windows, a %% in the log path: %q, want no line", got)
+	}
+	if got := runReadLine("windows", `C:\100%\mrw.exe`, `C:\logs\r.log`, 5); got != "" {
+		t.Errorf("windows, a %% in the binary path: %q, want no line", got)
+	}
+	if got := runReadLine("windows", `C:\mrw.exe`, `C:\logs\r.log`, 5); got == "" {
+		t.Error("windows, no % or quote: want a line")
+	}
 }
 
 // F4: the read: line names the binary that wrote the log, not whatever mrw is

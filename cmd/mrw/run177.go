@@ -232,7 +232,10 @@ func printRunReceipt(w io.Writer, r runReceipt) {
 func runReadLine(goos, exe, path string, lines int) string {
 	from := max(lines-lastReadLines+1, 1)
 	if goos == "windows" {
-		if strings.Contains(exe+path, `"`) {
+		// A Windows path cannot hold a double quote, and cmd.exe expands %VAR%
+		// even inside one: either would make the line read another path, so
+		// there is no line.
+		if strings.ContainsAny(exe+path, "\"%") {
 			return ""
 		}
 		q := func(s string) string { return "`\"" + psEscaper.Replace(s) + "`\"" }

@@ -52,7 +52,7 @@ Decisions 1-9: `mrw run 'CMD'` runs CMD through an exported runner entry with th
 20. [S20] A run's log names carry a nanosecond time, the pid and a salt, and the done rename never replaces a log: two runs ending in the same instant keep two logs. Mutant: the salt dropped from the stem. [proof: mutation]
 21. [S21] A Windows shell's signal death, `signal<<8`, is read back as signal N: 3840 → 143, 2304 → 137, 512 → 130; 256·65 and 300 are exit codes. The rule is on the value, on every platform (a unix exit code never exceeds 255). Mutant: `shellSignal` returns 0. [proof: mutation]
 22. [S22] The `read:` line names the running binary, symlinks resolved, and the POSIX line runs with no `mrw` on PATH (contract §302). Mutant: bare `mrw` printed in place of the binary's path. [proof: mutation]
-23. [S23] The Windows `read:` line is the typed PowerShell form `cmd /c "`"EXE`" read -- -:N-`$ < `"LOG`""`, with the backtick and `$` escaped and no line for a path holding `"`. Mutant: the old `Get-Content … | mrw read` form restored. [proof: mutation]
+23. [S23] The Windows `read:` line is the typed PowerShell form `cmd /c "`"EXE`" read -- -:N-`$ < `"LOG`""`, with the backtick and `$` escaped and no line for a path holding `"` or `%`. Mutant: the old `Get-Content … | mrw read` form restored. [proof: mutation]
 
 ## Acceptance
 
@@ -127,7 +127,7 @@ out=$(go test ./cmd/mrw/ ./internal/check/ -count=1 -v -run '^(TestRunKeepsTheOu
 | `TestRunLogNamesDifferForTheSameInstantAndPid` | `internal/check/runlog177_test.go` | same instant and pid give different names; the time still leads | none | S20 |
 | `TestRunLogIsNeverReplacedByTheRename` | `cmd/mrw/run177_test.go` | the done rename refuses an existing name and loses nothing; a free name receives the log | none | S20 |
 | `TestAWindowsShellSignalStatusIsTheSignal` | `cmd/mrw/run177_test.go` | 3840, 2304 and 512 are TERM, KILL and INT and exit 143, 137, 130; 256·65, 300 and 255 are exit codes | none | S21 |
-| `TestTheReadLineIsQuotedForThePlatform` | `cmd/mrw/run177_test.go` | the POSIX line with an apostrophe in both paths; the Windows typed form with an apostrophe, a `$` and a backtick, and no line for a `"` | none | S8, S23 |
+| `TestTheReadLineIsQuotedForThePlatform` | `cmd/mrw/run177_test.go` | the POSIX line with an apostrophe in both paths; the Windows typed form with an apostrophe, a `$` and a backtick, and no line for a `"` or `%` | none | S8, S23 |
 | `TestTheReadLineNamesTheRunningBinary` | `cmd/mrw/run177_test.go` | the line starts with the resolved running binary, absolute | none | S22 |
 
 ## Reachability
@@ -162,6 +162,7 @@ out=$(go test ./cmd/mrw/ ./internal/check/ -count=1 -v -run '^(TestRunKeepsTheOu
 - 2026-10-27 · 5952c1ce* · mutant killed · exit 1 · `cmd/mrw/run177.go` · the Windows signal mapping is dropped: shellSignal always returns 0 (S21) · acceptance-sha256:dc0311c5bfa93efd2094c6b7c08ee8e6a28694c18b3bcf588a9f7687c71b1bce · covers:the exit-code table passed
 - 2026-10-27 · 5952c1ce* · mutant killed · exit 1 · `cmd/mrw/run177.go` · the read line names bare mrw instead of the running binary (S22) · acceptance-sha256:dc0311c5bfa93efd2094c6b7c08ee8e6a28694c18b3bcf588a9f7687c71b1bce · covers:the read-line row passes
 - 2026-10-27 · 5952c1ce* · mutant killed · exit 1 · `cmd/mrw/run177.go` · the Windows read line reverts to the Get-Content pipe form (S23) · acceptance-sha256:dc0311c5bfa93efd2094c6b7c08ee8e6a28694c18b3bcf588a9f7687c71b1bce · covers:the receipt test passed
+- 2026-10-27 · 611f24f3* · mutant killed · exit 1 · `cmd/mrw/run177.go` · the % check is dropped from the Windows read line (S23) · acceptance-sha256:dc0311c5bfa93efd2094c6b7c08ee8e6a28694c18b3bcf588a9f7687c71b1bce · covers:the receipt test passed
 
 ## Invariants
 
@@ -241,3 +242,6 @@ The fence exits 0. Stop and ask if the entry needs a change to the check's own b
 - 2026-10-27 · 5952c1ce* · exit 0 · `set -o pipefail …` · acceptance-sha256:dc0311c5bfa93efd2094c6b7c08ee8e6a28694c18b3bcf588a9f7687c71b1bce · ms:211882
 - 2026-10-27 · 5952c1ce* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:dc0311c5bfa93efd2094c6b7c08ee8e6a28694c18b3bcf588a9f7687c71b1bce · ms:0 · test-lock-sha256:8ea35689363eb20ee3810a28a018dc7a25bece39854d034f138e3773e48cd8ba · test-lock-file:docs/adr/locks/8ea35689363eb20ee3810a28a018dc7a25bece39854d034f138e3773e48cd8ba.lock · test-lock-kind:replace
 - 2026-10-27 · 5952c1ce* · exit 0 · `set -o pipefail …` · acceptance-sha256:dc0311c5bfa93efd2094c6b7c08ee8e6a28694c18b3bcf588a9f7687c71b1bce · ms:151918
+- 2026-10-27 · 611f24f3* · exit 0 · `set -o pipefail …` · acceptance-sha256:dc0311c5bfa93efd2094c6b7c08ee8e6a28694c18b3bcf588a9f7687c71b1bce · ms:144936
+- 2026-10-27 · 611f24f3* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:dc0311c5bfa93efd2094c6b7c08ee8e6a28694c18b3bcf588a9f7687c71b1bce · ms:0 · test-lock-sha256:124788676faa94ed1e278fa4153bb3028a101d6f6aeb0cfc339a657191b5165b · test-lock-file:docs/adr/locks/124788676faa94ed1e278fa4153bb3028a101d6f6aeb0cfc339a657191b5165b.lock · test-lock-kind:replace
+- 2026-10-27 · 611f24f3* · exit 0 · `set -o pipefail …` · acceptance-sha256:dc0311c5bfa93efd2094c6b7c08ee8e6a28694c18b3bcf588a9f7687c71b1bce · ms:135746
