@@ -651,9 +651,10 @@ Linux. opencode itself is not run in CI.
 `mrw skill` (or `mrw --skill`) prints mrw's Agent Skills `SKILL.md`, and `mrw --skill --dir DIR` installs it as
 `DIR/mrw/SKILL.md`, replacing only one it wrote and nobody edited (ADR-168); see "Tell your agent to use it".
 
-`mrw check`, `mrw iter`, `mrw seen`, `mrw seen --prune`, and `mrw stats` exist
+`mrw check`, `mrw iter`, `mrw seen`, `mrw seen --prune`, `mrw seen --forget`, and `mrw stats` exist
 only on the CLI, and so through the opencode plugin, which runs it. `mrw check` is not read-only: it runs whatever the project
-declared. Nothing calls `--prune` for you. Details: [AGENTS.md](AGENTS.md).
+declared. Nothing calls `--prune` for you. `mrw seen --forget` empties the checkout's read ledger so that a write needs a fresh read;
+a host hook runs it after a compaction (ADR-175, [docs/agents.md](docs/agents.md) §8). Details: [AGENTS.md](AGENTS.md).
 
 Round trips are 2 for any N. Re-run `./scripts/measure.sh` rather than quoting
 a table — the ratios track this repository's own files. The contract is

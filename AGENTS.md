@@ -699,6 +699,14 @@ and #73, one release apart.
   you: a path that is gone may be a deleted checkout or an unmounted volume
   (ADR-034). One machine had 22,836 of these directories, 242 MB of disk by `du`, on
   2026-09-07, 98.9% of them dead.
+- **`mrw seen --forget`** empties this checkout's read ledger under its lock, read and written
+  files alike, and prints `forgot N file(s)`; after it a write needs a fresh read of the lines it touches.
+  It first empties this root's pending MCP acknowledgements, which an `ack` would otherwise promote into
+  the ledger. It exits 2 over a newer mrw's ledger (ADR-150) and beside `--prune` or `--dry-run`. It is for a
+  host hook that runs it after a compaction (`docs/agents.md` §8, ADR-175); it costs every session in the
+  checkout a re-read, and it does not reach a command already in flight. A re-read after it must show the
+  lines: `--if-changed` and `--quiet` do not put them back in front of the model; `--sub` and `--rewrite`
+  plans need none.
 
 mrw's OWN state lives outside the tree (ADR-004), so none of these commands
 writes to your checkout of its own accord — with two exceptions: `mrw check`
