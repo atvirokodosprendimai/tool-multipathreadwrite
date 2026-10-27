@@ -179,6 +179,15 @@ func rootCommand() *cli.Command {
 			case "version", "instructions", "skill", "stats", "help", "h", "":
 				return ctx, nil
 			}
+			// Looking up the ledger below makes the root's state directory, so a
+			// forget over a root that is not there, or not a directory, is refused
+			// before it: exit 2, no state directory (ADR-175). A hook's `--root null`,
+			// from an input with no cwd, lands here. main prints "mrw: " itself.
+			if verb == "seen" && asksToForget(cmd.Args().Slice()) {
+				if _, err := rooted.Abs(cmd.String("root")); err != nil {
+					return ctx, cli.Exit("seen --forget: "+err.Error(), exitUsage)
+				}
+			}
 			// A newer mrw's ledger is not stale: it is left alone, and the caller
 			// is told which binary wrote it (ADR-150).
 			if writer, newer, err := seen.Newer(cmd.String("root")); err == nil && newer {

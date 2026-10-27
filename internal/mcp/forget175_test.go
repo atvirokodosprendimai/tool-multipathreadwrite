@@ -4,6 +4,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
+
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/state"
 )
 
 // ADR-175 Decision 1: a span served by mrw_read and not yet acknowledged is
@@ -35,5 +38,52 @@ func TestForgetDropsPendingAcknowledgements(t *testing.T) {
 		case !forget && failed != 0:
 			t.Errorf("the pair: the ack did not license the write without ForgetPending: %v", got["hunks"])
 		}
+	}
+}
+
+// ADR-175 Decision 1: ForgetPending takes the pending store's own lock, as
+// every change to it does (ADR-085), so a server mid-promotion is not emptied
+// under. Held by the test, the lock keeps it waiting with the store intact;
+// released, it finishes and the store is empty.
+func TestForgetPendingWaitsForThePendingLock(t *testing.T) {
+	root, path := checkout(t, "a.txt", "one\ntwo\nthree\n")
+	if len(checkpointsIn(served0(t, call(t, root, "mrw_read", map[string]any{"specs": []any{path}})))) == 0 {
+		t.Fatal("the read carried no checkpoints")
+	}
+	if store, err := loadPending(root); err != nil || len(store) == 0 {
+		t.Fatalf("the read left no pending span to forget: %v (%v)", store, err)
+	}
+	release, err := state.Hold(root, pendingLock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	released := false
+	defer func() {
+		if !released {
+			release()
+		}
+	}()
+	done := make(chan error, 1)
+	go func() { done <- ForgetPending(root) }()
+	select {
+	case err := <-done:
+		t.Fatalf("ForgetPending returned %v while the pending lock was held", err)
+	case <-time.After(300 * time.Millisecond):
+	}
+	if store, err := loadPending(root); err != nil || len(store) == 0 {
+		t.Errorf("the pending store changed while the lock was held: %v (%v)", store, err)
+	}
+	release()
+	released = true
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Errorf("ForgetPending = %v; want nil", err)
+		}
+	case <-time.After(15 * time.Second):
+		t.Fatal("ForgetPending did not return after the lock was released")
+	}
+	if store, err := loadPending(root); err != nil || len(store) != 0 {
+		t.Errorf("the pending store still holds %v after ForgetPending (%v)", store, err)
 	}
 }

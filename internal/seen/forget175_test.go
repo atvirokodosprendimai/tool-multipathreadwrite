@@ -4,6 +4,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 )
 
 // ADR-175 Decision 1: Forget removes every observation of the checkout, read
@@ -49,5 +50,57 @@ func TestForgetDropsEveryLicenceInTheCheckout(t *testing.T) {
 	}
 	if got, _ := os.ReadFile(p); string(got) != body {
 		t.Errorf("a newer ledger was written over:\n%q\nwant\n%q", got, body)
+	}
+}
+
+// ADR-175 Decision 1: Forget runs under the checkout's seen.lock, as Record
+// does, so a writer mid-update is never emptied under. Held by the test, the
+// lock keeps Forget waiting with the ledger intact; released, Forget finishes
+// and empties it.
+func TestForgetWaitsForTheLedgerLock(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	if err := Record(root, map[string]Observation{"a.go": {SHA: strings.Repeat("c", 64)}}); err != nil {
+		t.Fatal(err)
+	}
+	type result struct {
+		n   int
+		err error
+	}
+	done := make(chan result, 1)
+	held := make(chan struct{})
+	release := make(chan struct{})
+	go func() {
+		_ = withLock(root, func() error {
+			close(held)
+			<-release
+			return nil
+		})
+	}()
+	<-held
+	go func() {
+		n, err := Forget(root)
+		done <- result{n, err}
+	}()
+	select {
+	case r := <-done:
+		close(release)
+		t.Fatalf("Forget returned %d, %v while the ledger lock was held", r.n, r.err)
+	case <-time.After(300 * time.Millisecond):
+	}
+	if l, err := Load(root); err != nil || len(l) != 1 {
+		t.Errorf("the ledger changed while the lock was held: %v (%v)", l, err)
+	}
+	close(release)
+	select {
+	case r := <-done:
+		if r.err != nil || r.n != 1 {
+			t.Errorf("Forget = %d, %v; want 1, nil", r.n, r.err)
+		}
+	case <-time.After(15 * time.Second):
+		t.Fatal("Forget did not return after the lock was released")
+	}
+	if l, err := Load(root); err != nil || len(l) != 0 {
+		t.Errorf("the ledger still licenses %v after Forget (%v)", l, err)
 	}
 }

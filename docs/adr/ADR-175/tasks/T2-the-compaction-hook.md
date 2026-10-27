@@ -95,3 +95,4 @@ The fence exits 0 and S2 is signed off with the Claude Code version.
   ```
   ```
 - 2026-10-27 · 39d6ff31* · exit 0 · `set -o pipefail …` · acceptance-sha256:ccef9a443465d86f66b5f4cfd48c88443896596aac28f266cc4f1cab69036abc · ms:720
+- 2026-10-27 · 4973c064* · exit 0 · `set -o pipefail …` · acceptance-sha256:ccef9a443465d86f66b5f4cfd48c88443896596aac28f266cc4f1cab69036abc · ms:270

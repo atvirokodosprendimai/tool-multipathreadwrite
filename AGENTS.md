@@ -702,7 +702,8 @@ and #73, one release apart.
 - **`mrw seen --forget`** empties this checkout's read ledger under its lock, read and written
   files alike, and prints `forgot N file(s)`; after it a write needs a fresh read of the lines it touches.
   It first empties the pending MCP acknowledgements of this root and of the checkout's top, which an `ack` would
-  otherwise promote into the ledger. It exits 2, changing nothing, over a newer mrw's ledger (ADR-150), and beside
+  otherwise promote into the ledger. It exits 2, changing nothing, over a root that does not exist or is not a
+  directory (checked first, so no state directory is made for it), over a newer mrw's ledger (ADR-150), and beside
   `--prune` or `--dry-run`. It is for a
   host hook that runs it after a compaction (`docs/agents.md` §8, ADR-175); it costs every session in the
   checkout a re-read, and it does not reach a command already in flight. A re-read after it must show the
