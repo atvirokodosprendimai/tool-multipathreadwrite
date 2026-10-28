@@ -19,18 +19,19 @@ Decision 1: the receipt of `mrw seen --forget` names `state.Checkout(root)`'s to
 |------|--------|-----|
 | `cmd/mrw/forget180_test.go` | new | the red tests, two real git checkouts |
 | `cmd/mrw/main.go` | edit | `forget` (`:3273-3296`) prints the top it already computes; the `seen` Description (`:753-756`) says the receipt names the checkout |
-| `cmd/mrw/forget175_test.go` | edit | `:31` asserts the old full sentence; it takes the new one (moves ADR-175 T1's test lock: relock with `adr-verify --relock`) |
+| `cmd/mrw/forget175_test.go` | edit | `:31` asserts the old full sentence; it takes the new one, which changes the body `TestSeenForgetMakesTheNextWriteNeedAFreshRead` is locked at in ADR-175 T1 |
+| `docs/adr/ADR-175/tasks/T1-seen-forget.md` | edit | its test lock, rewritten by `adr-verify docs/adr/ADR-175/tasks/T1-seen-forget.md --relock --replace-hashes` |
 | `scripts/contract.sh` | edit | §300's two exact-equality rows (`:10262`, `:10272`) take the new text, their `ok` messages unchanged; §315 the two-checkout rows |
 | `AGENTS.md` | edit | `:750` the printed form |
 | `docs/agents.md` | edit | `:180` the printed form |
 
 ## Ordered Steps
 
-1. [S1] Write `TestSeenForgetNamesTheCheckoutItEmptied` (two git checkouts A and B, each with a licensed file; `seen --forget` run from `A/sub` prints `forgot 1 file(s) in <A's real path>: …`, A's ledger is empty, B's still licenses B's write, a write in A needing the forgotten licence is refused exit 1 and writes nothing; a second forget prints `forgot 0 file(s) in <A's real path>`) and `TestSeenForgetWithRootNamesThatCheckoutAndLeavesTheOtherAlone` (from A's cwd, `mrw --root B seen --forget` names B, empties B, leaves A's licence), and see both RED on the current receipt.
+1. [S1] Write `TestSeenForgetNamesTheCheckoutItEmptied` (two git checkouts A and B, each with a licensed file; `seen --forget` run from `A/sub` prints `forgot 1 file(s) in <A's real path>: …`, A's ledger is empty, B's still licenses B's write, a write in A needing the forgotten licence is refused exit 1 and writes nothing; a second forget prints `forgot 0 file(s) in <A's real path>`; run from a `git worktree` of A, whose `.git` is a file, it names the worktree's own top and leaves A's ledger alone) and `TestSeenForgetWithRootNamesThatCheckoutAndLeavesTheOtherAlone` (from A's cwd, `mrw --root B seen --forget` names B, empties B, leaves A's licence), and see both RED on the current receipt.
 2. [S2] `forget` prints the top. Mutant: print `root` instead of the top — the subdirectory case must go red. [proof: mutation]
 3. [S3] Mutant: the zero-count line drops the checkout — the zero case must go red. [proof: mutation]
 4. [S4] Contract §300's exact rows and §315 (two checkouts: forget from `A/sub` names A and B's write still applies; `--root B` names B and A's write still applies). [proof: acceptance]
-5. [S5] `AGENTS.md`, `docs/agents.md`, the `seen` Description; `forget175_test.go:31`; `adr-verify --relock` on ADR-175 T1, and `adr-lint` over every record whose lock moved. [proof: acceptance]
+5. [S5] `AGENTS.md`, `docs/agents.md`, the `seen` Description; `forget175_test.go:31`; `adr-verify docs/adr/ADR-175/tasks/T1-seen-forget.md --relock --replace-hashes`, and `adr-lint` over every record whose lock moved. [proof: acceptance]
 
 ## Acceptance
 
