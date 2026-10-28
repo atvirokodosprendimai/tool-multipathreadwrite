@@ -668,7 +668,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// ADR-024 removed the flag from answers that DELIVERED something; this restores
 	// it for the one case its enumeration missed, so :202 and this return agree
 	// rather than disagreeing on whether `grep` was passed.
-	served, rpcErr := readResult(ReadReceipt(observed, problems, skipped, counts, unchanged), report, len(observed) == 0 && len(unchanged) == 0)
+	served, rpcErr := readResult(ReadReceipt(observed, problems, skipped, counts, unchanged, nil), report, len(observed) == 0 && len(unchanged) == 0)
 	if rpcErr != nil {
 		return callToolResult{}, rpcErr
 	}
@@ -716,7 +716,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 			marked += newerLine(root)
 		}
 		if marked != report {
-			markedServed, markErr := readResult(ReadReceipt(observed, problems, skipped, counts, unchanged), marked, false)
+			markedServed, markErr := readResult(ReadReceipt(observed, problems, skipped, counts, unchanged, nil), marked, false)
 			if markErr != nil {
 				return callToolResult{}, markErr
 			}

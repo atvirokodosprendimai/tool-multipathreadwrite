@@ -735,6 +735,7 @@ new capability.
 ## From ADR-171
 
 - **A one-line answer to a repeated `mrw instructions`** (2026-10-24): when the same state directory sees `mrw instructions` again, print one line instead of 12.9K characters. Deferred: it makes a read-only command depend on state, and ADR-171 Decision 2 removes the reason for the repeat (the header and the trigger say to read the rules once a session). Reopen if a re-measure after ADR-171 still shows repeated full reads.
+- **The one-line answer is reconsidered beside ADR-179** (2026-10-27): ADR-179 (d) answers a repeated READ by reference (`--if-served`) and lists this entry in its Out of Scope; `mrw instructions` reads no ledger, so (d) does not reach it. Same trigger as above.
 
 ## From ADR-176
 
@@ -788,3 +789,8 @@ Zy, 2026-10-27: *"yes, go, address these, measure, plan, implement verify, udupa
 - **`*` and `..` in a projection** (2026-10-27): `--json-path` takes ADR-155's grammar, one value per expression. Arm when a caller asks for `$.tasks[*].status`-shaped reads, the quality-harness `task-state --json` loop first (ADR-178: `*` and `..` in a projection).
 - **JSON Lines, one projection per line** (2026-10-27): a file of several JSON values is `NOT JSON` today. Arm when the re-measure shows JSONL reads through mrw (ADR-178: JSON Lines).
 - **`json_path` on `mrw_read`** (2026-10-27): CLI only, since the MCP tools are off by default (ADR-170). Arm when a shell-less host asks (ADR-178: `json_path` on `mrw_read`).
+
+## From ADR-179
+
+- **`--outline` and `--no-comments` beyond Go (and Markdown for outline)** (2026-10-27): other languages would go through ast-grep rules, a configuration surface. Arm when ADR-179 T2's or T8's measurement shows another language over the bar its task names (ADR-179: other languages).
+- **The new read flags and `--terse` on `mrw_read` and `mrw_write`** (2026-10-27): CLI only. Arm when a shell-less host asks (ADR-179: these flags on the MCP tools).

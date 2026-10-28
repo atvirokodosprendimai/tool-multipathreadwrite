@@ -35,7 +35,7 @@ func stdinRead(cmd *cli.Command, pattern string, grepSet bool, posArgs []string,
 	if len(posArgs) != 1 {
 		return cli.Exit("- reads standard input, and a read of it names nothing else: read the files in another call", exitUsage)
 	}
-	for _, f := range []string{"sub", "quiet", "stat", "count", "files-from", "ast-grep", "exclude", "no-ignore", "json", "if-changed"} {
+	for _, f := range []string{"sub", "quiet", "stat", "count", "files-from", "ast-grep", "exclude", "no-ignore", "json", "if-changed", "outline", "if-served"} {
 		if cmd.IsSet(f) {
 			return cli.Exit(fmt.Sprintf("- reads standard input, which licenses nothing and is no tree to walk, so --%s has nothing to act on: drop it, or read a file", f), exitUsage)
 		}
@@ -92,19 +92,39 @@ func stdinRead(cmd *cli.Command, pattern string, grepSet bool, posArgs []string,
 		stdout = budget
 	}
 	var withheld bytes.Buffer
+	cols, colsFixed := effectiveMaxCols(cmd)
+	var wholeNames []string
+	var matchesLeft int
+	var long read.LongLines
+	var wholeLong *read.LongLines
+	if !colsFixed {
+		wholeLong = &long
+	}
 	_, problems := read.Run(stdout, cmd.Root().String("root"), []read.Spec{sp}, read.Options{
-		Numbers:  !cmd.Bool("no-numbers"),
-		Context:  cmd.Int("context"),
-		MaxLines: maxLines(cmd),
-		MaxCols:  cmd.Int("max-cols"),
-		NextLine: true,
-		Withheld: &withheld,
-		Project:  projections,
+		Numbers:    !cmd.Bool("no-numbers"),
+		Context:    cmd.Int("context"),
+		MaxLines:   maxLines(cmd),
+		MaxCols:    cols,
+		MaxMatches: maxMatches(cmd),
+		Fold:       cmd.Bool("fold"),
+		Unshown:    &matchesLeft,
+		NoComments: cmd.Bool("no-comments"),
+		WholeNames: &wholeNames,
+		NextLine:   true,
+		Withheld:   &withheld,
+		Project:    projections,
+		WholeLong:  wholeLong,
 	})
 	if err := out.Flush(); err != nil {
 		return cli.Exit(fmt.Sprintf("the answer could not be written: %v", err), exitUsage)
 	}
 	_, _ = os.Stderr.Write(withheld.Bytes())
+	if len(wholeNames) > 0 {
+		fmt.Fprintf(os.Stderr, "mrw: --no-comments reads .go files; served whole: %s\n", namedFiles(wholeNames))
+	}
+	if hint := longLineHint(long); hint != "" && !toNullDevice(os.Stdout) {
+		fmt.Fprintln(os.Stderr, hint)
+	}
 	if problems == 0 && !budget.Over() {
 		return nil
 	}
@@ -115,7 +135,7 @@ func stdinRead(cmd *cli.Command, pattern string, grepSet bool, posArgs []string,
 	if re != nil && !anyLineMatches(re, string(b)) {
 		return cli.Exit(fmt.Sprintf("no match: no line of standard input matched /%s/%s", read.OneLine(pattern), reached), 1)
 	}
-	return cli.Exit(fmt.Sprintf("incomplete: %d range(s) could not be served%s", problems, reached), 1)
+	return cli.Exit(incompleteLine(problems, matchesLeft, maxMatches(cmd), reached), 1)
 }
 
 // anyLineMatches reports whether a line of s matches re, the lines split as

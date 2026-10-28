@@ -112,6 +112,12 @@ Tell the agent, or its launcher, to export `XDG_STATE_HOME` to a
 writable absolute directory outside the checkout for the whole session, so every read and write uses one
 ledger.
 
+A setup that reads many long lines (logs, JSONL, minified files) can set `MRW_MAX_COLS=200` in the agent's environment:
+every read that serves lines then cuts a line over 200 columns to a window round the match, as `--max-cols 200` does, unless
+the call gives `--max-cols` itself (`--max-cols 0` turns it off). A cut line is not recorded as read, so a write to it is
+refused until it is read whole. Without the variable, a read that serves a line over 400 columns whole says so once on
+standard error (ADR-179).
+
 ## 4. A host without a shell uses the MCP server
 
 With a shell, the CLI is the better surface: it has `--context`, `--then-sh` and every read flag, and one
@@ -143,6 +149,9 @@ From that agent's own review of a day of use (2026-10-22). Its writes were sound
 | a grep-and-cut pipeline to learn a line number, then a hunk on that number | two calls, and a number that goes stale | a pattern address, `@@ f.go /^func A/ replace …`, with `occurrence=N` when the start matches more than once |
 | `sed -i` on a plan whose `body=` count was wrong | an edit outside the ledger | regenerate the plan from what you read. `body=` is an optional line count: leave it out unless the body needs one. Where it is needed and missing, the plan is refused with a hint, except for a body line that is itself a valid hunk header (`@@ b.txt 0 create`), which silently starts a new hunk; a body holding one needs `body=N raw=true` |
 | a build, a test suite or a gate run as `CMD \| tail` (or `\| head`) | the pipeline's exit code is the last command's, and the output still costs context | `mrw run 'CMD'`: the output goes to a log and a four-line receipt carries the command's own exit code, the last line, the log's path and a read of it; look further with `mrw read --grep P -C 3 - < LOG` (ADR-177) |
+| a whole-file read of a long Go or Markdown file to find one place | the whole file in context | `mrw read --outline f.go` first: the declarations or headings with their line ranges, licensing nothing; then the range you need (ADR-179) |
+| `--grep` over many files when the first few matches decide | every match in context | `--count` first, then `--max-matches N`: the first N, the rest counted, exit 1 only when some remain (ADR-179) |
+| a log of near-identical lines, or a Go file's comment runs | the repeats in context | `--fold` shows a run once, `--no-comments` shows a comment run as one line; both leave what they hide unlicensed, so read it without the flag before editing (ADR-179) |
 
 ## 7. What allowing mrw allows
 
@@ -200,9 +209,16 @@ What it costs and what it does not reach:
 - **It reaches the roots it can name.** The pending acknowledgements of an MCP server started at some other
   directory than the checkout's top or the hook's `cwd` are not forgotten, nor are the licences in other
   checkouts the session edited through `--root` or `cd`. A hook with no `cwd` in its input does nothing.
-- **The re-read must show the lines.** After a forget, `mrw read` the lines (not --if-changed, which answers an
-  unchanged file in one line and records nothing; not --quiet, which licenses lines without printing them).
+- **The re-read must show the lines.** After a forget, `mrw read` the lines (not --if-changed or --if-served, which answer an
+  spec in one line and record nothing; not --quiet, which licenses lines without printing them).
   Neither puts the lines back in front of the model.
+- **`--if-served` rides on `mrw seen --forget`.** `mrw read --if-served PATH=SHA` answers a spec by reference, `-- same as served: lines
+  A-B at sha X`, when the file has the sha you quote and the ledger says every line was shown (ADR-179). The ledger is the
+  checkout's, not the session's, and a line recorded as shown may never have reached the model (a host that truncates a long
+  output, a read piped to `head`, a read redirected to a file). So use it only in a session alone in its checkout, with
+  `mrw seen --forget` run on start, resume, clear and compaction (matcher `startup|resume|compact|clear`; the block above
+  carries the compaction and clear pair ADR-175 pinned), and read under `--max-chars` below the host's output limit. Asking
+  for the sha is what keeps a fresh session from matching: it holds no header to quote.
 - **Plan makers need no re-read.** `mrw write --grep … --sub` and `--ast-grep … --rewrite` (and their MCP forms)
   compute each edit from the file's current bytes and license exactly those lines.
 
