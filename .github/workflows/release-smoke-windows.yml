@@ -159,6 +159,6 @@ jobs:
             || { echo "::error::cmd: read served something else"; cat "$PLANS/cmd-read.out"; exit 1; }
           cmp -s "$PLANS/cmd-f.txt" <(printf 'one\nTWO\n') \
             || { echo "::error::cmd: the write did not land as written"; od -c "$PLANS/cmd-f.txt"; exit 1; }
-          cmp -s "$PLANS/cmd-g.txt" <(printf 'a\nX\n') \
+          cmp -s "$PLANS/cmd-g.txt" <(printf 'a\nb\n') \
             || { echo "::error::cmd: the refused write changed g.txt"; od -c "$PLANS/cmd-g.txt"; exit 1; }
           echo "cmd: the write landed and the refused write changed nothing"
