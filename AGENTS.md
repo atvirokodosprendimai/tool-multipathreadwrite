@@ -286,7 +286,7 @@ they span and licenses nothing; `--max-matches N` (with `--grep` or `--ast-grep`
 have been shown and counts the rest, and exits 1 only when matches remain unshown; `--fold` shows a run of identical or digit-only-different lines once, and
 `--no-comments` shows a run of whole-line Go comments as one `-- … N comment line(s), A-B` line, each leaving the lines it hides
 unlicensed, so read them without the flag before editing them. `MRW_MAX_COLS=N` in the environment is `--max-cols N` where the
-flag is absent, and a read that serves a line over 400 columns whole says so once on standard error. `--if-served PATH=SHA`
+flag is absent, and a read that serves a line over 400 columns whole, with no width chosen, says so once on standard error. `--if-served PATH=SHA`
 answers a spec by `-- same as served: lines A-B at sha X` when the file still has the sha you quote and the ledger reports every
 line shown; it is safe only in a session alone in its checkout whose host runs `mrw seen --forget` on start, resume, clear and
 compaction and whose reads were made under `--max-chars` below the host's output limit, since a line recorded as shown may never

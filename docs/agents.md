@@ -115,7 +115,7 @@ ledger.
 A setup that reads many long lines (logs, JSONL, minified files) can set `MRW_MAX_COLS=200` in the agent's environment:
 every read that serves lines then cuts a line over 200 columns to a window round the match, as `--max-cols 200` does, unless
 the call gives `--max-cols` itself (`--max-cols 0` turns it off). A cut line is not recorded as read, so a write to it is
-refused until it is read whole. Without the variable, a read that serves a line over 400 columns whole says so once on
+refused until it is read whole. Without the variable, a read that serves a line over 400 columns whole, with no width chosen, says so once on
 standard error (ADR-179).
 
 ## 4. A host without a shell uses the MCP server

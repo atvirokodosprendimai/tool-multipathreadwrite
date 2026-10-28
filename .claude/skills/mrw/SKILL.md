@@ -13,7 +13,7 @@ description: >-
 metadata:
   mrw-version: "v1.76.0"
   generated-by: "mrw skill"
-  content-sha256: "0c40ff8701bcf669c4e1c82be67f81065851feb7bd6cfc51a4958779321f5e57"
+  content-sha256: "e3aa3da766d8b453f204e490f88fc5454895f1ba376d7a0038fc908ce235e8e8"
 ---
 
 # mrw
@@ -63,7 +63,7 @@ Recipes:
   mrw read --fold f.log
 17. a Go file without its comment runs (the elided lines are not licensed; trailing comments, directives and the cgo preamble stay):
   mrw read --no-comments f.go
-18. a setup that reads long lines: set MRW_MAX_COLS=200 in its environment and every read that serves lines cuts them as --max-cols 200 does, unless the call gives --max-cols itself (--max-cols 0 turns it off; a read that serves a line over 400 columns whole says so once on standard error):
+18. a setup that reads long lines: set MRW_MAX_COLS=200 in its environment and every read that serves lines cuts them as --max-cols 200 does, unless the call gives --max-cols itself (--max-cols 0 turns it off; a read that serves a line over 400 columns whole, with no width chosen, says so once on standard error):
   mrw read --grep P .
 19. a write receipt of one line per file, every failure and advisory still printed in full:
   mrw write --terse plan.txt
