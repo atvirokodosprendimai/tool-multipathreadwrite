@@ -272,10 +272,9 @@ func commas(n int64) string {
 	return s
 }
 
-// scanLog streams a log once and reports how many lines it holds, its size, and
-// the last line that is not blank, cut to lastChars characters followed by ….
-// A line is counted as the tail reader counts it: split on \n, a final line
-// without one included. Nothing is held but one line's first lastScanBytes.
+// scanLog reports the log's line count, size and last non-blank line, cut to
+// lastChars characters. Like read, it splits on CR only when the whole file
+// holds no LF. Nothing is held but one line's first lastScanBytes.
 func scanLog(path string) (lines int, size int64, last string) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -283,6 +282,26 @@ func scanLog(path string) (lines int, size int64, last string) {
 	}
 	defer func() { _ = f.Close() }()
 	r := bufio.NewReaderSize(f, 64<<10)
+	// A CR can be a terminator only after ruling out an LF anywhere in the log.
+	// This bounded probe usually ends at the first line; CR-only logs need a pass.
+	separator := byte('\n')
+	for {
+		frag, err := r.ReadSlice('\n')
+		if err == nil {
+			separator = '\n'
+			break
+		}
+		if bytes.IndexByte(frag, '\r') >= 0 {
+			separator = '\r'
+		}
+		if !errors.Is(err, bufio.ErrBufferFull) {
+			break
+		}
+	}
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		return 0, 0, ""
+	}
+	r.Reset(f)
 	var cur []byte
 	// nonblank is judged over every byte of the line, not the kept prefix: a
 	// line of 4,096 spaces and then FAIL is the last line, shown as ….
@@ -305,7 +324,7 @@ func scanLog(path string) (lines int, size int64, last string) {
 		cur, over, nonblank, pend = cur[:0], false, false, pend[:0]
 	}
 	for {
-		frag, err := r.ReadSlice('\n')
+		frag, err := r.ReadSlice(separator)
 		size += int64(len(frag))
 		body := frag
 		if err == nil {

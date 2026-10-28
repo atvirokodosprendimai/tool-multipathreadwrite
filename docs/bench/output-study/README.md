@@ -23,9 +23,10 @@ over the same window counts the same results whatever the files' mtimes. `--glob
 - `measure_repeat.py` counts, within each session, tool results of 500 characters or more that repeat an earlier
   result byte for byte, and mrw content blocks (path, sha, served text; a block counts only if it holds a numbered
   line) served again unchanged. An answer by reference is counted apart (`reference_chars`), never as a repeat.
-  Each `-- same as served` reference is tied to what it stood for: `reference_stands_for_chars` is the text of the
-  block the same session last served for that path and sha, once per reference; `reference_unmatched_count` counts
-  references with no such block earlier in the session.
+  Each `-- same as served` reference is tied to the union of full numbered lines served earlier for that path
+  and sha: `reference_stands_for_chars` counts only the referenced lines, including their printed number and newline,
+  once per reference. A reference with any line absent (or only served cut by `--max-cols`) is unmatched and contributes
+  no replaced characters; `reference_unmatched_count` counts those references.
 
 ## The registered baseline (2026-10-27)
 
@@ -66,6 +67,13 @@ now counts each `mrw read` file block that was served completely (every line its
 moved from 34,736 to 34,741 (repeated blocks, 240, are unchanged). Both scripts also dropped their prefilter on a
 file's modification time, so the window is the transcript lines' own timestamps only; on this window it admitted
 the same 155 files and changed nothing else. `measure_repeat.py` fills its served-block cache from every result of a session and counts only inside the window, so a reference just after `--since` is tied to a block served just before it; on this window no reference exists and nothing moved. The baseline JSONs and the bars below were recomputed.
+
+**Post-release counter correction (2026-10-28):** `measure_repeat.py` formerly credited the entire last block
+for a reference to any of its lines. It now retains the union of full numbered lines and credits only the spans
+named by a reference; missing lines are unmatched. This corrects the cost denominator, not the adoption bars,
+window, exposure rule, or repeat counters. The registered baseline artifacts stay unchanged: their window has
+no references. Re-measurement uses this corrected counter for the baseline and release windows alike.
+`python3 -I scripts/test_measure_repeat.py` checks partial spans, unions, SHA changes and missing history.
 
 ## What these numbers do not say
 

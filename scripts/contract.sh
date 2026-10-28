@@ -10701,6 +10701,36 @@ printf '@@ a.go 3 replace\n// x\n' | (cd "$R" && "$MRW" write --no-check - >/dev
 printf '@@ a.go 5 replace\nfunc A() { _ = 1 }\n' | (cd "$R" && "$MRW" write --no-check - >/dev/null 2>&1); s312=$?
 { [ "$u312" = 1 ] && [ "$s312" = 0 ]; } \
   && ok "an elided comment line is refused a write" || bad "elided line write exit $u312, shown line write exit $s312"
+# 313. ADR-176/177/179 review regressions: line counts and the printed tail use
+# the reader's CR-only boundaries; incomplete declarations have unknown ends;
+# notices name five files and count the rest; reference cost uses the named spans.
+R=$(mktemp -d "$WORK/r313-XXXXXX")
+o313=$("$MRW" -C "$R" run 'i=1; while [ "$i" -le 45 ]; do printf "row%s\r" "$i"; i=$((i+1)); done' 2>"$WORK/e313"); rc313=$?
+read313=$(grep '^read: ' <<<"$o313"); read313=${read313#read: }
+r313=$(cd "$R" && bash -c "$read313" 2>&1); rrc313=$?
+{ [ "$rc313" = 0 ] && [ "$rrc313" = 0 ] && grep -qF '45 lines' <<<"$o313" && grep -qF 'last: row45' <<<"$o313" \
+  && [ "$(grep -c '^ *[0-9]*| row' <<<"$r313")" = 40 ] && grep -q '^ *6| row6$' <<<"$r313" && ! grep -q '^ *1| row1$' <<<"$r313"; } \
+  && ok "a CR-only run prints a working last-40-lines read" || bad "CR run: exit $rc313 [$o313], read exit $rrc313 [$r313]"
+printf 'package p\nfunc Good() {}\nfunc Bad() {\n' > "$R/bad.go"
+b313=$(cd "$R" && "$MRW" read --outline bad.go 2>&1); brc313=$?
+{ [ "$brc313" = 1 ] && grep -qF '2-2 func Good' <<<"$b313" && grep -qF '3-? func Bad' <<<"$b313" && ! grep -qF '3-3 func Bad' <<<"$b313"; } \
+  && ok "an incomplete function has an unknown outline end beside a complete one" || bad "outline: exit $brc313 [$b313]"
+args313=()
+for n313 in $(seq 1 7); do
+  printf 'present\n' > "$R/a$n313.txt"
+  args313+=(--if-changed "a$n313.txt=00000000")
+done
+g313=$(cd "$R" && "$MRW" read --grep absent "${args313[@]}" . 2>&1); grc313=$?
+{ [ "$grc313" = 1 ] && grep -qF 'a1.txt, a2.txt, a3.txt, a4.txt, a5.txt and 2 more' <<<"$g313" && ! grep -qF 'a6.txt' <<<"$g313"; } \
+  && ok "an unused-guard notice names five files and counts the rest" || bad "guard names: exit $grc313 [$g313]"
+for n313 in $(seq 1 7); do printf '\377\376h\000i\000\n\000' > "$R/u$n313.txt"; done
+u313=$(cd "$R" && "$MRW" read u1.txt u2.txt u3.txt u4.txt u5.txt u6.txt u7.txt 2>&1); urc313=$?
+n313=$(grep '^-- note:' <<<"$u313")
+{ [ "$urc313" = 0 ] && grep -qF 'u5.txt is UTF-16 (BOM FF FE) and 2 more' <<<"$n313" && ! grep -qF 'u6.txt' <<<"$n313"; } \
+  && ok "a served-as-bytes notice names five files and counts the rest" || bad "byte names: exit $urc313 [$n313]"
+python3 -I "$SRC/scripts/test_measure_repeat.py" > "$WORK/cost313" 2>&1; rc313=$?
+[ "$rc313" = 0 ] && ok "reference cost counts only the fully served referenced spans" || bad "reference cost: $(cat "$WORK/cost313")"
+
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
 # killed process is a zombie until its adopter reaps it, and pgrep lists

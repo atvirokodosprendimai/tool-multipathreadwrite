@@ -1437,7 +1437,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				if len(named) > 1 {
 					them = "them"
 				}
-				fmt.Fprintf(os.Stderr, "-- guard not used: %s (this read did not serve %s)\n", strings.Join(named, ", "), them)
+				fmt.Fprintf(os.Stderr, "-- guard not used: %s (this read did not serve %s)\n", namedFiles(named), them)
 			}
 			// ADR-078: -C widens a single /pattern/ match and nothing else, so on
 			// a call with none it changed nothing, silently: `mrw read -C 1 a.go:2`
