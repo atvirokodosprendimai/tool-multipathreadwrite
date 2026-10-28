@@ -75,5 +75,5 @@ jobs:
           printf '@@ f.txt 2 replace\nTWO\n' | mrw write --no-check -; check write 0 $?
           cmp -s f.txt <(printf 'one\nTWO\n') || { echo "::error::the write did not land as written"; od -c f.txt; fail=1; }
           printf '@@ g.txt 1 replace\nA\n' | mrw write --no-check -; check "write to an unread file" 1 $?
-          cmp -s g.txt <(printf 'a\nb\n') || { echo "::error::the refused write changed g.txt"; od -c g.txt; fail=1; }
+          cmp -s g.txt <(printf 'a\nX\n') || { echo "::error::the refused write changed g.txt"; od -c g.txt; fail=1; }
           exit $fail
