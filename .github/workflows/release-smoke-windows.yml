@@ -67,16 +67,16 @@ jobs:
           export XDG_STATE_HOME="$W/state"
           printf 'one\ntwo\n' > f.txt; printf 'a\nb\n' > g.txt
           out=$("$MRW" read f.txt:2 2>&1); check read 0 $?
-          grep -q '2| two' <<<"$out" || { echo "::error::git bash: read served: $out"; fail=1; }
+          grep -qE '^ *2\| two$' <<<"$out" || { echo "::error::git bash: read served: $out"; fail=1; }
           "$MRW" write --no-check "$PLANS/write.plan"; check write 0 $?
-          [ "$(sed -n 2p f.txt)" = TWO ] || { echo "::error::git bash: the write did not land"; fail=1; }
+          cmp -s f.txt <(printf 'one\nTWO\n') || { echo "::error::git bash: the write did not land as written"; od -c f.txt; fail=1; }
           "$MRW" write --no-check "$PLANS/refused.plan"; check "write to an unread file" 1 $?
-          [ "$(head -1 g.txt)" = a ] || { echo "::error::git bash: the refused write changed g.txt"; fail=1; }
+          cmp -s g.txt <(printf 'a\nb\n') || { echo "::error::git bash: the refused write changed g.txt"; od -c g.txt; fail=1; }
           r=$("$MRW" run "printf 'r%s\n' 1 2 3; printf '\303\244 \342\202\254\n'"); check run 0 $?
           printf '%s\n' "$r"
           log=$(sed -n 's/^log: //p' <<<"$r")
           "$MRW" read -N -- '-:1-$' < "$log" > served.txt; check "read of the log through bash's <" 0 $?
-          grep -qF "$(tail -1 "$PLANS/expected.log")" served.txt || { echo "::error::git bash: the log's non-ASCII line did not survive"; cat served.txt; fail=1; }
+          grep -qxF "$(tail -1 "$PLANS/expected.log")" served.txt || { echo "::error::git bash: the log's non-ASCII line did not survive"; cat served.txt; fail=1; }
           grep -q '^read: cmd /c ' <<<"$r" && echo "note: the printed read: line is the PowerShell form; Git Bash reads the log with its own <"
           exit $fail
 
@@ -92,7 +92,7 @@ jobs:
           $env:XDG_STATE_HOME = Join-Path $W 'state'
           [IO.File]::WriteAllText((Join-Path $W 'f.txt'), "one`ntwo`n"); [IO.File]::WriteAllText((Join-Path $W 'g.txt'), "a`nb`n")
           $out = & $env:MRW read f.txt:2 2>&1 | Out-String; Check 'read' 0 $LASTEXITCODE
-          if ($out -notmatch '2\| two') { "::error::read served: $out"; $fail = 1 }
+          if ($out -cnotmatch '(?m)^ *2\| two\r?$') { "::error::read served: $out"; $fail = 1 }
           & $env:MRW write --no-check (Join-Path $env:PLANS 'write.plan') | Out-Host; Check 'write' 0 $LASTEXITCODE
           # Null-safe: under Continue an error inside the condition would skip $fail.
           if ((Get-Content -Raw f.txt -ErrorAction SilentlyContinue) -cne "one`nTWO`n") { "::error::the write did not land"; $fail = 1 }
@@ -125,8 +125,8 @@ jobs:
           "%MRW%" read f.txt:2 > read.out 2>&1
           echo read: exit %ERRORLEVEL% (want 0)
           if not "%ERRORLEVEL%"=="0" set FAIL=1
-          findstr /c:"2| two" read.out >nul
-          if errorlevel 1 (echo ::error::cmd: read served something else & type read.out & set FAIL=1)
+          rem the served line is checked, anchored, in the bash step after this one
+          copy /y read.out "%PLANS%\cmd-read.out" >nul
           "%MRW%" write --no-check write.plan
           echo write: exit %ERRORLEVEL% (want 0)
           if not "%ERRORLEVEL%"=="0" set FAIL=1
@@ -152,9 +152,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -qF "$(tail -1 "$PLANS/expected.log")" "$PLANS/cmd-served.txt" \
+          grep -qxF "$(tail -1 "$PLANS/expected.log")" "$PLANS/cmd-served.txt" \
             || { echo "::error::cmd: the log's non-ASCII line did not survive"; cat "$PLANS/cmd-served.txt"; exit 1; }
           echo "cmd served the non-ASCII line byte for byte"
+          grep -qE '^ *2\| two$' "$PLANS/cmd-read.out" \
+            || { echo "::error::cmd: read served something else"; cat "$PLANS/cmd-read.out"; exit 1; }
           cmp -s "$PLANS/cmd-f.txt" <(printf 'one\nTWO\n') \
             || { echo "::error::cmd: the write did not land as written"; od -c "$PLANS/cmd-f.txt"; exit 1; }
           cmp -s "$PLANS/cmd-g.txt" <(printf 'a\nb\n') \
