@@ -3,6 +3,7 @@
 **Status:** Accepted
 **Accepted:** 2026-10-13 by Zy — "accept. here our goal is not to silence issues, but fix em."
 **Date:** 2026-10-13
+**Amended:** 2026-10-28 — prepare the exact knip 6.43.0 pin in PR #523, held until 2026-11-07 under the two-week rule; the original audit observations below remain historical.
 **Owner:** Zy
 **Spec:** None — no spec stage
 **Cross-references:** ADR-088, ADR-089, ADR-092, ADR-131, docs/adr/BACKLOG.md
@@ -70,11 +71,11 @@ actionlint 0.6 s and knip 2.3 s. T2 measures the whole new gate.
    - `actionlint` over `.github/workflows/`, as `go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12`,
      with `SHELLCHECK_OPTS='-S warning'` so a workflow's `run:` scripts meet the bar `scripts/` meets.
    - `knip` in `cmd/opencode/mrw-plugin` — unused files, exports and dependencies — pinned as an exact
-     devDependency `knip@6.38.0`, so `package-lock.json` pins its whole dependency tree (knip 6.38.0
-     declares 10 of its 13 dependencies as `^` ranges, which `npx -y knip@6.38.0` would resolve afresh
-     on every cold cache). It runs from that directory's `node_modules`; when they are missing the step
-     fails and names `npm ci`, rather than passing on a run that could not look. 6.38.0 (published
-     2026-09-23) and not the newest 6.41.0 (2026-10-09): a pin should have been out for two weeks.
+      devDependency `knip@6.43.0`, so `package-lock.json` pins its whole dependency tree. It runs from
+      that directory's `node_modules`; when they are missing the step fails and names `npm ci`, rather
+      than passing on a run that could not look. The original 6.38.0 pin declared 10 of its 13
+      dependencies as `^` ranges, which `npx -y knip@6.38.0` would resolve afresh on every cold cache;
+      it was chosen over 6.41.0 because a pin should have been out for two weeks.
 
    Each step lists its files first, prints `<step>: N file(s)`, and fails when N is 0: on this Mac
    `printf '' | xargs -0 shellcheck` exits 0 having run nothing, so a glob that stopped matching would
@@ -141,7 +142,7 @@ changes.
 | Surface | Change | Producer | Consumer(s) |
 |---------|--------|----------|-------------|
 | `scripts/static.sh` | five more steps; requires ruff, shellcheck and the plugin's `node_modules` | T2 | developers, `.claude/hooks/static-after-commit.py`, CI `test` job, `mrw check --then static` (ADR-092) |
-| `cmd/opencode/mrw-plugin/package.json` | devDependency `knip` 6.38.0, exact | T2 | `npm ci` in CI's `test` and `opencode` jobs |
+| `cmd/opencode/mrw-plugin/package.json` | devDependency `knip` 6.43.0, exact | T2 | `npm ci` in CI's `test` and `opencode` jobs |
 | CI `test` job | installs ruff, shellcheck, node 24 and the plugin's dependencies | T3 | `scripts/static.sh` |
 
 ## Inter-task Contracts
