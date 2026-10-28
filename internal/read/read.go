@@ -375,7 +375,8 @@ func msysHint(s string) string {
 	}
 	return " — this looks like MSYS2 argument conversion (Git Bash): your ':' became ';' " +
 		"and a /pattern/ was expanded against the Git install prefix. Quoting does not stop it. " +
-		"Set MSYS_NO_PATHCONV=1 or MSYS2_ARG_CONV_EXCL='*', or use PowerShell or WSL"
+		"Put the setting on this one command — MSYS_NO_PATHCONV=1 mrw … or MSYS2_ARG_CONV_EXCL='*' mrw … — " +
+		"not in an export, which reaches every later command; or use PowerShell or WSL"
 }
 
 // readElsewhere is the advice for a file the root does not hold: ": " and the

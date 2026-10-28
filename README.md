@@ -572,13 +572,15 @@ is started when its file part holds a `/`, and a one-letter pattern such as
 | environment | regex addresses |
 |---|---|
 | Git Bash / MSYS2 | **fail** |
-| Git Bash with `MSYS_NO_PATHCONV=1` | work |
-| Git Bash with `MSYS2_ARG_CONV_EXCL='*'` | work |
+| Git Bash, `MSYS_NO_PATHCONV=1 mrw …` on the command | work |
+| Git Bash, `MSYS2_ARG_CONV_EXCL='*' mrw …` on the command | work |
 | PowerShell | work |
 | WSL | work |
 
 Line-number, range and `$` addresses are unaffected. A `--grep` pattern that
-starts with `/` is rewritten too, into a false "no match".
+starts with `/` is rewritten too, into a false "no match". Put the setting on
+the mrw command, not in an export: an export reaches every later command in the
+shell, and another native tool then gets POSIX paths MSYS no longer converts.
 
 ## Exit status
 
