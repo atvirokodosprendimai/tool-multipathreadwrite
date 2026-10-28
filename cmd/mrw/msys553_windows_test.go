@@ -67,8 +67,11 @@ func TestTheMSYSPrefixFormWorksAndStaysOnItsCommand(t *testing.T) {
 	if code == 0 || served(out) || !strings.Contains(out, "MSYS_NO_PATHCONV=1 mrw") {
 		t.Errorf("the bare form: exit %d, want it rewritten and the hint naming the prefix:\n%s", code, out)
 	}
-	out, code = run(`MSYS_NO_PATHCONV=1 "$MRW_EXE" read 'sub/f.txt:/two/' >/dev/null && "$MRW_EXE" read 'sub/f.txt:/two/'`)
-	if code == 0 || served(out) {
+	// Bash's VAR=x cmd, not mrw, keeps the prefix on its command; this pins the
+	// advice's premise. `;`, so the second command runs whatever the first did,
+	// and the hint proves it ran and was rewritten.
+	out, code = run(`MSYS_NO_PATHCONV=1 "$MRW_EXE" read 'sub/f.txt:/two/' >/dev/null; "$MRW_EXE" read 'sub/f.txt:/two/'`)
+	if code == 0 || served(out) || !strings.Contains(out, "MSYS2 argument conversion") {
 		t.Errorf("the command after a prefixed one: exit %d, want it rewritten again (the prefix leaked):\n%s", code, out)
 	}
 }
