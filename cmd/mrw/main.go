@@ -93,7 +93,25 @@ func versionString() string {
 	if !ok {
 		return version
 	}
-	return versionFrom(version, info.Settings)
+	return versionFrom(moduleVersion(version, info.Main.Version, info.Settings), info.Settings)
+}
+
+// moduleVersion is the version to report when the linker stamped none: a
+// `go install …@<version>` build is made in module mode, with no vcs.* settings
+// for versionFrom to read, so "dev" alone named nothing although Go recorded
+// the module version it built — a tag, or a pseudo-version ending in the
+// commit. A stamp wins, and a build with a revision (a checkout) keeps "dev",
+// which versionFrom then names by its commit.
+func moduleVersion(v, module string, settings []debug.BuildSetting) string {
+	if v != "dev" || module == "" || module == "(devel)" {
+		return v
+	}
+	for _, s := range settings {
+		if s.Key == "vcs.revision" {
+			return v
+		}
+	}
+	return module
 }
 
 // versionFrom is the composition, split out because it is the half that can be
