@@ -1192,7 +1192,7 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 		if len(asBytes) > 1 {
 			it = "them"
 		}
-		fmt.Fprintf(report, "-- note: %s: served as bytes; a write to %s is refused\n", strings.Join(asBytes, ", "), it)
+		fmt.Fprintf(report, "-- note: %s: served as bytes; a write to %s is refused\n", NamedFiles(asBytes), it)
 	}
 	if opt.Count {
 		fmt.Fprintf(w, "-- %d matching line(s) in %d file(s)\n", countedLines, countedFiles)
@@ -1694,6 +1694,14 @@ func split(b []byte) ([]string, string) {
 	sha := hex.EncodeToString(sum[:])
 	ls, _, _ := lines.Split(string(b))
 	return ls, sha
+}
+
+// NamedFiles names up to five files and counts the rest (ADR-148, ADR-179).
+func NamedFiles(names []string) string {
+	if len(names) <= 5 {
+		return strings.Join(names, ", ")
+	}
+	return fmt.Sprintf("%s and %d more", strings.Join(names[:5], ", "), len(names)-5)
 }
 
 // hintUnexpandedGlob explains an unreadable path that holds a glob

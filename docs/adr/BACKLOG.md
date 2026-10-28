@@ -739,6 +739,11 @@ new capability.
 
 ## From ADR-176
 
+- **Exclusive-create collision coverage — closed (2026-10-28):** the release handoff named a deferral that had
+  not been entered here. `cmd/mrw/review177179_test.go::TestAKeptPlanCollisionNeverReplacesTheOriginal` now freezes
+  time and random bytes, forces the second save onto the first path, and asserts an existing-path refusal and
+  byte-identical original. Removing `O_EXCL` must fail this test. No production naming hook or pending deferral remains.
+
 - **Keeping `--create`'s refused standard input** (2026-10-24): ADR-176 keeps a refused standard-input PLAN so the caller reruns it by path. `mrw write --create PATH` reads a file's CONTENT from standard input (ADR-139), not a plan, and a refused one (the path exists, the content is over the limit) drops it the same way. Left out because the rerun there is a new `--create` of the same content, which the caller can pipe again at the cost of one file, not a plan with a line to fix; revisit if a field run shows `--create` content re-sent after a refusal.
 
 ## Pre-registered for ADR-177, ADR-178 and ADR-179 — written with the records, before any code
@@ -776,6 +781,11 @@ Zy, 2026-10-27: *"yes, go, address these, measure, plan, implement verify, udupa
 - A bucket that moved less than half the way from baseline to bar: the part is reported to Zy as not adopted, with its taught lines put to Zy for removal from `mrw instructions` and `mrw skill`. Nothing is removed on this alone.
 - **Inconclusive** (exposure, above): the window is extended once to 60 days; still inconclusive, the numbers go to Zy.
 - **ADR-179 (d) is also judged on cost:** `reference_chars` (and `same_as_served_chars`) against `reference_stands_for_chars`, the characters of the blocks the references stood for (measure_repeat ties each reference to the block its session last served for that path and sha; `reference_unmatched_count` counts those with none); a reference that costs more than a third of what it replaced is reported. (f)'s default question is answered here too: if `--terse` appears in at least 20% of `mrw write` calls and no failure-report complaint is filed, the terse receipt as the default goes to Zy as a record.
+  **Counter correction, 2026-10-28:** the whole-last-block attribution above overcredits a subset reference.
+  Use the union of full numbered lines previously served at that path and SHA, and count only the reference's
+  spans (number prefix and newline included). A reference with any unknown or column-cut line is unmatched,
+  credited with zero replaced characters. The one-third bar, exposure and fixed window are unchanged;
+  the reference-free registered baseline artifacts remain the original observations.
 
 **What would make this impossible to fail:** a window in which nobody uses mrw, or a bucket with no exposure. The exposure rule makes both inconclusive rather than a pass; a workload shift (more test runs, fewer reads) moves the shares for reasons unrelated to these records, which is why each part is judged against its own bucket and none against the total.
 

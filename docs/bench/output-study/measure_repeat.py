@@ -25,7 +25,9 @@ since, until = ts(args.since), ts(args.until)
 files = glob.glob(os.path.expanduser(args.glob))
 # the path runs up to the header's metadata suffix, so it may hold spaces
 HDR = re.compile(r"^==> (.+?)\s+\d+L\s+\d+B\s+sha ([0-9a-f]{8})\s*$")
-NUMBERED = re.compile(r"^\s*\d+\| ")
+NUMBERED = re.compile(r"^\s*(\d+)\| ")
+REFERENCE = re.compile(r"^-- same as served: lines (\d+-\d+(?:, \d+-\d+)*) at sha ([0-9a-f]{8})$")
+CUT = re.compile(r"\[cols \d+-\d+ of \d+\]$")
 s = collections.Counter()
 sessions = 0
 
@@ -44,6 +46,31 @@ def blocks(text):
             buf.append(ln)
 
 
+def remember(served, path, sha, body):
+    """Keep the union of full numbered lines, not the size of the last read."""
+    known = served.setdefault((path, sha), {})
+    for line in body:
+        match = NUMBERED.match(line)
+        if match and not CUT.search(line):
+            known[int(match.group(1))] = len(line) + 1
+
+
+def reference_size(line, known, sha):
+    """Credit only the referenced lines; one unseen line makes it unmatched."""
+    match = REFERENCE.fullmatch(line)
+    if not match or match.group(2) != sha:
+        return None
+    wanted = set()
+    for span in match.group(1).split(", "):
+        first, last = map(int, span.split("-"))
+        if last < first or last - first + 1 > len(known):
+            return None
+        wanted.update(range(first, last + 1))
+    if not wanted.issubset(known):
+        return None
+    return sum(known[n] for n in wanted)
+
+
 for f in files:
     seen_res, seen_blk, served, uses, any_ = set(), set(), {}, {}, False
     for line in open(f, encoding="utf-8", errors="replace"):
@@ -57,9 +84,10 @@ for f in files:
         if not isinstance(c, list):
             continue
         try:
-            inside = m.get("timestamp") is not None and since <= ts(m["timestamp"]) < until
+            stamp = ts(m["timestamp"]) if m.get("timestamp") is not None else None
+            inside = stamp is not None and since <= stamp < until
         except ValueError:
-            inside = False
+            stamp, inside = None, False
         for b in c:
             if b.get("type") == "tool_use":
                 uses[b.get("id")] = b.get("name")
@@ -68,11 +96,10 @@ for f in files:
             cc = b.get("content")
             t = "".join(x.get("text", "") for x in cc if isinstance(x, dict)) if isinstance(cc, list) else str(cc or "")
             if not inside:
-                # a reference in the window may stand for a block served before
-                # it: the cache is filled from the whole session, nothing is counted
-                for path, sha, body in blocks(t):
-                    if any(NUMBERED.match(ln) for ln in body):
-                        served[(path, sha)] = len("\n".join(ln for ln in body if not ln.startswith("-- same as served")))
+                # Only earlier reads can supply a reference in the window.
+                if stamp is not None and stamp < since:
+                    for path, sha, body in blocks(t):
+                        remember(served, path, sha, body)
                 continue
             any_ = True
             s["all"] += len(t)
@@ -87,13 +114,12 @@ for f in files:
                 if ref:
                     s["reference_chars"] += sum(len(ln) + 1 for ln in ref)
                     s["reference_count"] += len(ref)
-                    # what each reference stands for: the block this session last
-                    # served for the same path and sha, text only
-                    stood = served.get((path, sha))
-                    if stood is None:
-                        s["reference_unmatched_count"] += len(ref)
-                    else:
-                        s["reference_stands_for_chars"] += stood * len(ref)
+                    for line in ref:
+                        stood = reference_size(line, served.get((path, sha), {}), sha)
+                        if stood is None:
+                            s["reference_unmatched_count"] += 1
+                        else:
+                            s["reference_stands_for_chars"] += stood
                 if not any(NUMBERED.match(ln) for ln in body):
                     continue  # no content served: a reference, an unchanged answer, a refusal
                 text = "\n".join(ln for ln in body if not ln.startswith("-- same as served"))
@@ -104,6 +130,6 @@ for f in files:
                     s["repeat_block_chars"] += len(text)
                     s["repeat_block_count"] += 1
                 seen_blk.add(key)
-                served[(path, sha)] = len(text)
+                remember(served, path, sha, body)
     sessions += any_
 print(json.dumps({"since": args.since, "until": args.until, "sessions": sessions, **s}, indent=1))

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"go/ast"
 	"go/parser"
+	"go/scanner"
 	"go/token"
 	"go/types"
 	"path/filepath"
@@ -65,12 +66,40 @@ func goOutline(path string, src []byte) ([]string, error) {
 		}
 		first := fset.PositionFor(start, false).Line
 		last := "?" // a declaration cut off by a parse error has no end
-		if e := fset.PositionFor(d.End(), false).Line; e >= first {
+		end := d.End()
+		// BlockStmt.End falls back to the last statement when its brace is absent.
+		if fn, ok := d.(*ast.FuncDecl); ok && fn.Body != nil && !fn.Body.Rbrace.IsValid() {
+			end = recoveredBlockEnd(fn.Body.Lbrace, src[fset.PositionFor(fn.Body.Lbrace, false).Offset:])
+		}
+		if e := fset.PositionFor(end, false).Line; e >= first {
 			last = strconv.Itoa(e)
 		}
 		rows = append(rows, fmt.Sprintf("%d-%s %s", first, last, strings.TrimSpace(text)))
 	}
 	return rows, err
+}
+
+// recoveredBlockEnd distinguishes a missing brace from a real closing brace
+// go/parser skipped while recovering from an error inside the function.
+func recoveredBlockEnd(start token.Pos, src []byte) token.Pos {
+	file := token.NewFileSet().AddFile("", -1, len(src))
+	var scan scanner.Scanner
+	scan.Init(file, src, nil, 0)
+	depth := 0
+	for {
+		pos, tok, _ := scan.Scan()
+		switch tok {
+		case token.EOF:
+			return token.NoPos
+		case token.LBRACE:
+			depth++
+		case token.RBRACE:
+			depth--
+			if depth == 0 {
+				return start + token.Pos(file.Offset(pos)+1)
+			}
+		}
+	}
 }
 
 // recvText is a method's receiver as written, `(s *Store) ` or `(*Store) `.
