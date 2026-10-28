@@ -13,7 +13,7 @@ description: >-
 metadata:
   mrw-version: "v1.76.0"
   generated-by: "mrw skill"
-  content-sha256: "b8fc676d98f149f7dde1d5de7ef946b1c77daa39e451beb9ebdd02794ff4c592"
+  content-sha256: "e3aa3da766d8b453f204e490f88fc5454895f1ba376d7a0038fc908ce235e8e8"
 ---
 
 # mrw
@@ -55,6 +55,20 @@ Recipes:
   mrw run 'go test ./...'
 13. a few fields out of a JSON document (cmd is any command that prints one), one line each instead of the lines that hold them (a path address of single-line JSON serves the whole line); the projection licenses nothing, so read the path address (mrw read f.json:$.a.b) before editing the value:
   cmd | mrw read --json-path '$.a,$.b' -
+14. a long file's shape before its lines — a .go file's declarations or a .md or .markdown file's headings, each with the lines it spans; it licenses nothing, so read the lines you will edit after it:
+  mrw read --outline f.go docs.md
+15. matches across many files without the flood: count them, then read the first N (when any remain unshown they are counted, the answer says how many and the read exits 1; a match inside a span already shown counts as shown):
+  mrw read --grep P --count . && mrw read --grep P --max-matches 40 .
+16. a log or a file of near-identical lines, each run shown once (only its first line is licensed: read the folded lines without --fold to edit them):
+  mrw read --fold f.log
+17. a Go file without its comment runs (the elided lines are not licensed; trailing comments, directives and the cgo preamble stay):
+  mrw read --no-comments f.go
+18. a setup that reads long lines: set MRW_MAX_COLS=200 in its environment and every read that serves lines cuts them as --max-cols 200 does, unless the call gives --max-cols itself (--max-cols 0 turns it off; a read that serves a line over 400 columns whole, with no width chosen, says so once on standard error):
+  mrw read --grep P .
+19. a write receipt of one line per file, every failure and advisory still printed in full:
+  mrw write --terse plan.txt
+20. answer by reference what you were already served, with --if-served PATH=SHA — only in a session alone in its checkout, whose host runs mrw seen --forget on start, resume, clear and compaction, and whose reads were made under --max-chars below the host's output limit, since a line recorded as shown may never have reached you (anywhere else, recipe 11):
+  mrw read --if-served f.go=8dc37337 f.go:40-60
 
 `mrw instructions` prints the whole contract. This file was printed by `mrw skill` from mrw v1.76.0; when `mrw version` prints another version, `mrw skill --dir <the directory holding this mrw folder>` replaces it.
 

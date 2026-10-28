@@ -238,6 +238,10 @@ mcp_read unchanged[].bytes
 mcp_read unchanged[].lines
 mcp_read unchanged[].path
 mcp_read unchanged[].sha
+mcp_read same_as_served
+mcp_read same_as_served[].path
+mcp_read same_as_served[].sha
+mcp_read same_as_served[].spans
 read content
 read receipt
 read_refusal error

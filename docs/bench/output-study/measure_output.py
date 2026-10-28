@@ -134,6 +134,74 @@ def fold_savings(lines):
     return exact, near
 
 
+def go_comment_runs(text):
+    """ADR-179 T8 S2: the characters, and lines, of whole-line comment runs of two
+    or more lines (// and /* */) in the numbered lines of .go file blocks of one
+    mrw read result. A comment line holds nothing but comment: a line with code
+    before or after its comment is not one, nor is a //go: or //line directive.
+    Block-comment state is known only from a /* seen on a line of the same
+    unbroken stretch of line numbers: it is reset at every gap between served
+    ranges and every new file block, so a range that starts inside a block
+    comment is counted conservatively (its lines are not taken for comments,
+    except those starting with //). A // line inside a raw string is counted, as
+    far as text alone can tell, so the share is an upper bound on that account."""
+    chars = lines_n = 0
+    in_go = False
+    in_block = False
+    run = []  # (line number, characters) of the comment run being built
+    prev_no = None
+
+    def flush():
+        nonlocal chars, lines_n, run
+        if len(run) >= 2:
+            chars += sum(c for _, c in run)
+            lines_n += len(run)
+        run = []
+
+    for ln in text.splitlines():
+        mh = HDR.match(ln)
+        if mh:
+            flush()
+            in_go = mh.group(1).endswith(".go")
+            in_block = False
+            prev_no = None
+            continue
+        mn = re.match(r"^\s*(\d+)\| ?(.*)$", ln)
+        if not mn:
+            flush()
+            in_block = False
+            prev_no = None
+            continue
+        if not in_go:
+            continue
+        no, body = int(mn.group(1)), mn.group(2).strip()
+        if prev_no is not None and no != prev_no + 1:  # a gap between served ranges
+            flush()
+            in_block = False
+        prev_no = no
+        is_comment = False
+        if in_block:
+            if "*/" in body:
+                in_block = False
+                is_comment = body.split("*/", 1)[1].strip() == ""
+            else:
+                is_comment = True
+        elif body.startswith("//"):
+            is_comment = not (body.startswith("//go:") or body.startswith("//line "))
+        elif body.startswith("/*"):
+            if "*/" in body:
+                is_comment = body.endswith("*/") and body.count("/*") == 1
+            else:
+                in_block = True
+                is_comment = True
+        if is_comment:
+            run.append((no, len(ln) + 1))
+        else:
+            flush()
+    flush()
+    return chars, lines_n
+
+
 for f in files:
     uses = {}
     seen_flags = set()
@@ -215,6 +283,8 @@ for f in files:
                 if k == "Read" and not inp.get("offset") and not inp.get("limit") and len(lines) > 150:
                     s["whole_file_Read_chars"] += n
                     s["whole_file_Read_calls"] += 1
+                    ext = os.path.splitext(inp.get("file_path", ""))[1].lower() or "(none)"
+                    s["whole_ext_chars_" + ext] += n
                     seen_flags.add("outline")
                 if k == "mrw read" and is_whole_file_mrw_read(cmd):
                     # one count per file block that was served completely (every
@@ -224,7 +294,15 @@ for f in files:
                         if nl > 150 and numbered == nl:
                             s["whole_file_mrw_read_chars"] += chars
                             s["whole_file_mrw_read_calls"] += 1
+                            ext = os.path.splitext(_path)[1].lower() or "(none)"
+                            s["whole_ext_chars_" + ext] += chars
                             seen_flags.add("outline")
+                if k == "mrw read":
+                    cc_chars, cc_lines = go_comment_runs(text)
+                    if cc_chars:
+                        s["comment_run_chars"] += cc_chars
+                        s["comment_run_lines"] += cc_lines
+                        seen_flags.add("comments")
                 # 5. mrw run: big non-mrw bash outputs, and exit-code-losing pipes
                 if name == "Bash" and not k.startswith("mrw"):
                     s["bash_nonmrw_calls"] += 1
@@ -272,6 +350,13 @@ for f in files:
     for fl in seen_flags:
         sessions_with[fl] += 1
 
+whole_total = s["whole_file_Read_chars"] + s["whole_file_mrw_read_chars"]
+go_md = s["whole_ext_chars_.go"] + s["whole_ext_chars_.md"] + s["whole_ext_chars_.markdown"]
+s["outline_go_md_chars"] = go_md
+s["outline_bucket_chars"] = whole_total
+s["outline_go_md_share_pct"] = round(100.0 * go_md / whole_total, 2) if whole_total else 0
+s["comment_run_denominator_mrw_read_chars"] = tot["mrw read"]
+s["comment_run_share_pct"] = round(100.0 * s["comment_run_chars"] / tot["mrw read"], 3) if tot["mrw read"] else 0
 print(json.dumps({"since": args.since, "until": args.until, "files": len(files),
                   "sessions_with": dict(sessions_with), "totals": tot.most_common(), "calls": calls.most_common(),
                   "candidates": dict(s)}, indent=1))

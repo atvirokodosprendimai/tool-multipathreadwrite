@@ -166,6 +166,9 @@ func TestTheReadReceiptMatchesItsSchema(t *testing.T) {
 	unchanged, _ := props["unchanged"].(map[string]any)
 	unchangedItems, _ := unchanged["items"].(map[string]any)
 	unchangedProps, _ := unchangedItems["properties"].(map[string]any)
+	same, _ := props["same_as_served"].(map[string]any)
+	sameItems, _ := same["items"].(map[string]any)
+	sameProps, _ := sameItems["properties"].(map[string]any)
 	if len(props) == 0 || len(entryProps) == 0 {
 		t.Fatalf("readSchema declares no properties to compare: %v", schema)
 	}
@@ -197,12 +200,22 @@ func TestTheReadReceiptMatchesItsSchema(t *testing.T) {
 
 	// ADR-169: a guarded read carries `unchanged`, built by the one composer the
 	// CLI's --json receipt shares.
-	js, err := json.Marshal(ReadReceipt(map[string]seen.Observation{}, 0, read.WalkSkipped{}, nil, []read.Unchanged{{Path: "a.txt", SHA: "8dc37337", Lines: 2, Bytes: 8}}))
+	js, err := json.Marshal(ReadReceipt(map[string]seen.Observation{}, 0, read.WalkSkipped{}, nil, []read.Unchanged{{Path: "a.txt", SHA: "8dc37337", Lines: 2, Bytes: 8}}, nil))
 	if err != nil {
 		t.Fatal(err)
 	}
 	answers["unchanged"] = map[string]any{"content": []any{
 		map[string]any{"type": "text", "text": "==> a.txt  unchanged since sha 8dc37337 — 2 lines, 8 bytes not served\n"},
+		map[string]any{"type": "text", "text": string(js)},
+	}}
+	// ADR-179: a read that answered a spec by reference carries `same_as_served`,
+	// built by the same composer (the CLI's --if-served; mrw_read has no such flag).
+	js, err = json.Marshal(ReadReceipt(map[string]seen.Observation{}, 0, read.WalkSkipped{}, nil, nil, []read.SameAsServed{{Path: "a.txt", SHA: "8dc37337", Spans: [][2]int{{2, 5}}}}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	answers["same as served"] = map[string]any{"content": []any{
+		map[string]any{"type": "text", "text": "==> a.txt  6L  18B  sha 8dc37337\n-- same as served: lines 2-5 at sha 8dc37337\n"},
 		map[string]any{"type": "text", "text": string(js)},
 	}}
 	carried := map[string]bool{}
@@ -244,6 +257,16 @@ func TestTheReadReceiptMatchesItsSchema(t *testing.T) {
 				carried["unchanged."+k] = true
 			}
 		}
+		sameItems, _ := rc["same_as_served"].([]any)
+		for _, raw := range sameItems {
+			o, _ := raw.(map[string]any)
+			for k := range o {
+				if _, ok := sameProps[k]; !ok {
+					t.Errorf("%s: same_as_served[] carries %q, which readSchema does not declare", name, k)
+				}
+				carried["same_as_served."+k] = true
+			}
+		}
 	}
 	for k := range props {
 		if !carried[k] {
@@ -258,6 +281,11 @@ func TestTheReadReceiptMatchesItsSchema(t *testing.T) {
 	for k := range unchangedProps {
 		if !carried["unchanged."+k] {
 			t.Errorf("readSchema declares unchanged[].%s, and none of the %d receipts carries it", k, len(answers))
+		}
+	}
+	for k := range sameProps {
+		if !carried["same_as_served."+k] {
+			t.Errorf("readSchema declares same_as_served[].%s, and none of the %d receipts carries it", k, len(answers))
 		}
 	}
 }
@@ -304,6 +332,21 @@ func readSchema() map[string]any {
 					},
 				},
 			},
+			// Present only on a read that answered a spec by reference (ADR-179).
+			"same_as_served": map[string]any{
+				"type": "array",
+				"items": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"path": map[string]any{"type": "string"},
+						"sha":  map[string]any{"type": "string"},
+						"spans": map[string]any{
+							"type":  "array",
+							"items": map[string]any{"type": "array", "items": map[string]any{"type": "integer"}},
+						},
+					},
+				},
+			},
 			// Present only on a grep walk that skipped something (ADR-116).
 			"skipped": map[string]any{
 				"type": "object",
@@ -345,4 +388,8 @@ var readDescriptions = map[string]string{
 	"unchanged.sha":        "The sha prefix the caller gave, as it gave it (8 to 64 hex digits of the file's sha256).",
 	"unchanged.lines":      "How many lines this spec would have served.",
 	"unchanged.bytes":      "How many bytes those lines hold, line endings included.",
+	"same_as_served":       "The specs this call answered by reference, `-- same as served: lines A-B at sha X`, because the file still had the sha the caller quoted and the ledger reports every line of the spec shown in that version (ADR-179). Nothing was recorded for them; read without `--if-served` for the text.",
+	"same_as_served.path":  "The file's path as the spec named it.",
+	"same_as_served.sha":   "The 8 hex digits of the file's sha256 the reference names.",
+	"same_as_served.spans": "The lines the reference stands for, as [start, end] pairs, the line after each range (ADR-161) included.",
 }

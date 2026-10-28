@@ -161,6 +161,18 @@ mrw read --grep P --max-cols 200 f.jsonl
 cmd | mrw read --grep P --max-lines 20 -
 # 10. re-read a file you read earlier, its text only if it changed (the sha is the 8 hex digits its header printed)
 mrw read --if-changed f.go=8dc37337 f.go:40-60
+# 11. a long file's shape before its lines: a .go file's declarations or a .md or .markdown file's headings with their line ranges, licensing nothing
+mrw read --outline f.go docs.md
+# 12. matches across many files without the flood: count them, then the first N (the rest counted, exit 1)
+mrw read --grep P --count . && mrw read --grep P --max-matches 40 .
+# 13. a log of near-identical lines, each run shown once (only its first line is licensed)
+mrw read --fold f.log
+# 14. a Go file without its comment runs (the elided lines are not licensed)
+mrw read --no-comments f.go
+# 15. a write receipt of one line per file, every failure and advisory still printed
+mrw write --terse plan.txt
+# 16. by reference what you were already served: only in a session alone in its checkout whose host runs mrw seen --forget on start, resume, clear and compaction, with reads made under --max-chars below the host's limit
+mrw read --if-served f.go=8dc37337 f.go:40-60
 ```
 
 `./bin/mrw` after `go build`. Building and using it here is fine — it is the
@@ -268,6 +280,17 @@ serves the whole line — `mrw read --json-path '$.a.b,$.c[0]' f.json` (or `CMD 
 prints one line per expression, `EXPR = VALUE`, the value compacted (ADR-178). It licenses nothing and records nothing: read
 the path address `f.json:$.a.b` before editing the value. A miss prints `NOT FOUND`, a file that is not one JSON document
 prints `NOT JSON`, and either exits 1. The same quoting applies to the expressions.
+
+**Shorter reads (ADR-179).** `mrw read --outline f.go` prints a `.go` file's declarations or a `.md` or `.markdown` file's headings with the lines
+they span and licenses nothing; `--max-matches N` (with `--grep` or `--ast-grep`) shows matching lines across all the files until N
+have been shown and counts the rest, and exits 1 only when matches remain unshown; `--fold` shows a run of identical or digit-only-different lines once, and
+`--no-comments` shows a run of whole-line Go comments as one `-- … N comment line(s), A-B` line, each leaving the lines it hides
+unlicensed, so read them without the flag before editing them. `MRW_MAX_COLS=N` in the environment is `--max-cols N` where the
+flag is absent, and a read that serves a line over 400 columns whole, with no width chosen, says so once on standard error. `--if-served PATH=SHA`
+answers a spec by `-- same as served: lines A-B at sha X` when the file still has the sha you quote and the ledger reports every
+line shown; it is safe only in a session alone in its checkout whose host runs `mrw seen --forget` on start, resume, clear and
+compaction and whose reads were made under `--max-chars` below the host's output limit, since a line recorded as shown may never
+have reached you. Each flag is refused, exit 2, beside the flags it cannot act with; `mrw read --help` names them.
 
 **And when you do not know which files to name, do not enumerate them —
 `--grep` walks and serves in one call:**
@@ -559,6 +582,9 @@ whole list arrives as one argument and the regex swallows the rest of the line.
   Both JSON receipts carry `pattern` `{advisory_writes, window, fires}` on
   every write (ADR-056), so a `--json` or `mrw_write` caller holds the fact
   the human line prints.
+  `mrw write --terse` prints one line per file (`ok PATH N hunk(s) -A +B sha X`, `dry` under `--dry-run`) and the summary
+  line instead of a row per hunk; every failed hunk, balance and closer row, a delete's and a copy's rows, the check's
+  report and every step verdict still print, and the exit codes are the same (ADR-179). It is refused beside `--quiet`.
   A replace whose body ends in a closer — a fence, `}`, `</div>`, `@endif`, `end`, `fi` — that the replaced range
   did not itself end in, and that one of the next four non-blank lines after it repeats, prints a `closer` row
   under `ok` and stays `ok` (ADR-119): likely the closer the file already had, left below a body that brought its

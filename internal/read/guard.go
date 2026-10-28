@@ -87,6 +87,24 @@ func ResolveGuards(root string, guards []Guard, specs []Spec, walked bool) (keye
 	return keyed, unused, nil
 }
 
+// SharedGuard returns the first path two guard lists both name, whatever its
+// spelling: the same cleaned path or the same file (ADR-179 Decision d). It is
+// asked before any spec resolves, so no finder can hide the clash.
+func SharedGuard(root string, a, b []Guard) (string, bool) {
+	for _, g := range a {
+		for _, h := range b {
+			if filepath.Clean(g.Path) == filepath.Clean(h.Path) {
+				return h.Path, true
+			}
+			fa, fb := guardInfo(root, g.Path), guardInfo(root, h.Path)
+			if fa != nil && fb != nil && os.SameFile(fa, fb) {
+				return h.Path, true
+			}
+		}
+	}
+	return "", false
+}
+
 // guardInfo is the file p names inside root, or nil when mrw cannot find it.
 func guardInfo(root, p string) os.FileInfo {
 	full := rooted.Real(p)
