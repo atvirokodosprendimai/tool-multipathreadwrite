@@ -50,25 +50,30 @@ jobs:
           brew info --json=v2 atvirokodosprendimai/tap/mrw | python3 -c 'import json,sys; f=json.load(sys.stdin)["formulae"][0]; print("formula", f["full_name"], f["versions"]["stable"], "installed", [i["version"] for i in f["installed"]])'
           bin=$(command -v mrw); echo "installed at: $bin -> $(readlink -f "$bin" 2>/dev/null || python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$bin")"
           case "$bin" in "$(brew --prefix)"/bin/mrw) ;; *) echo "::error::mrw on PATH is $bin, not brew's"; fail=1 ;; esac
-          ver=$(mrw version); echo "mrw version: $ver"
+          # Every check reads its own status: under set +e an empty value would compare equal to another empty value.
+          ver=$(mrw version); check "mrw version" 0 $?; echo "mrw version: $ver"
           case "$ver" in "$TAG "*) ;; *) echo "::error::installed mrw says $ver, not $TAG"; fail=1 ;; esac
           case "$(uname -s)-$(uname -m)" in
             Darwin-arm64) arch=darwin_arm64 ;; Darwin-x86_64) arch=darwin_amd64 ;;
             Linux-x86_64) arch=linux_amd64 ;; Linux-aarch64) arch=linux_arm64 ;;
+            *) echo "::error::no release archive for $(uname -s)-$(uname -m)"; exit 1 ;;
           esac
-          R=$(mktemp -d)
-          gh release download "$TAG" -R "$GITHUB_REPOSITORY" -D "$R" -p "mrw_${arch}.tar.gz" -p SHA256SUMS.txt
+          R=$(mktemp -d) || exit 1
+          gh release download "$TAG" -R "$GITHUB_REPOSITORY" -D "$R" -p "mrw_${arch}.tar.gz" -p SHA256SUMS.txt; check "release download" 0 $?
           (cd "$R" && grep " mrw_${arch}.tar.gz\$" SHA256SUMS.txt | shasum -a 256 -c -); check "the archive's sha256" 0 $?
-          tar -xzf "$R/mrw_${arch}.tar.gz" -C "$R" mrw
-          want=$(shasum -a 256 "$R/mrw" | cut -d' ' -f1); got=$(shasum -a 256 "$(readlink -f "$bin" 2>/dev/null || python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$bin")" | cut -d' ' -f1)
+          tar -xzf "$R/mrw_${arch}.tar.gz" -C "$R" mrw; check "extract mrw from the archive" 0 $?
+          real=$(readlink -f "$bin" 2>/dev/null || python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$bin")
+          want=$(shasum -a 256 "$R/mrw" | cut -d' ' -f1); check "hash the release binary" 0 $?
+          got=$(shasum -a 256 "$real" | cut -d' ' -f1); check "hash the installed binary" 0 $?
           echo "release binary sha256: $want"; echo "installed binary sha256: $got"
-          [ "$want" = "$got" ] || { echo "::error::the installed binary is not the release's"; fail=1; }
-          W=$(mktemp -d); cd "$W"; export XDG_STATE_HOME="$W/state"
+          [[ "$want" =~ ^[0-9a-f]{64}$ ]] && [ "$want" = "$got" ] || { echo "::error::the installed binary is not the release's"; fail=1; }
+          W=$(mktemp -d) && cd "$W" || exit 1
+          export XDG_STATE_HOME="$W/state"
           printf 'one\ntwo\n' > f.txt; printf 'a\nb\n' > g.txt
           out=$(mrw read f.txt:2 2>&1); check read 0 $?
-          grep -q '2| two' <<<"$out" || { echo "::error::read served: $out"; fail=1; }
+          grep -qE '^ *2\| two$' <<<"$out" || { echo "::error::read served: $out"; fail=1; }
           printf '@@ f.txt 2 replace\nTWO\n' | mrw write --no-check -; check write 0 $?
-          [ "$(sed -n 2p f.txt)" = TWO ] || { echo "::error::the write did not land"; fail=1; }
+          cmp -s f.txt <(printf 'one\nTWO\n') || { echo "::error::the write did not land as written"; od -c f.txt; fail=1; }
           printf '@@ g.txt 1 replace\nA\n' | mrw write --no-check -; check "write to an unread file" 1 $?
-          [ "$(head -1 g.txt)" = a ] || { echo "::error::the refused write changed g.txt"; fail=1; }
+          cmp -s g.txt <(printf 'a\nb\n') || { echo "::error::the refused write changed g.txt"; od -c g.txt; fail=1; }
           exit $fail
