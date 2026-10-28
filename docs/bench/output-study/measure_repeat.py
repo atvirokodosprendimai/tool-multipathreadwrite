@@ -114,8 +114,8 @@ for f in files:
                 if ref:
                     s["reference_chars"] += sum(len(ln) + 1 for ln in ref)
                     s["reference_count"] += len(ref)
-                    for line in ref:
-                        stood = reference_size(line, served.get((path, sha), {}), sha)
+                    for ref_line in ref:
+                        stood = reference_size(ref_line, served.get((path, sha), {}), sha)
                         if stood is None:
                             s["reference_unmatched_count"] += 1
                         else:
