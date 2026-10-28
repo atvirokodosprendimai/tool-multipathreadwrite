@@ -59,7 +59,8 @@ jobs:
       - name: Git Bash
         shell: bash
         run: |
-          set -uo pipefail
+          # GitHub starts this shell with -e; a refusal this step expects must not end it.
+          set +e -uo pipefail
           fail=0
           check() { echo "$1: exit $3 (want $2)"; [ "$3" = "$2" ] || { echo "::error::git bash: $1 exited $3, want $2"; fail=1; }; }
           W=$(cygpath -m "$RUNNER_TEMP/bash"); mkdir -p "$W"; cd "$W"
@@ -82,6 +83,8 @@ jobs:
       - name: pwsh 7
         shell: pwsh
         run: &ps |
+          # GitHub runs this under 'stop'; 5.1 turns a native command's redirected stderr into a terminating error.
+          $ErrorActionPreference = 'Continue'
           $PSVersionTable.PSVersion.ToString()
           $fail = 0
           function Check($d, $want, $got) { "${d}: exit $got (want $want)"; if ($got -ne $want) { "::error::powershell $($PSVersionTable.PSVersion.Major): $d exited $got, want $want"; $script:fail = 1 } }
@@ -140,6 +143,7 @@ jobs:
           copy /y served.txt "%PLANS%\cmd-served.txt" >nul
           echo note: the printed read: line is the PowerShell form; cmd reads the log with its own ^<
           if "%FAIL%"=="1" (echo ::error::cmd: a check failed & exit /b 1)
+          exit /b 0
 
       - name: cmd kept the log's bytes
         shell: bash
