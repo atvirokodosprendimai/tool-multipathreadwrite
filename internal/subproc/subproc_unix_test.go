@@ -73,14 +73,25 @@ func TestAHeldPipeIsNotWaitedOnForever(t *testing.T) {
 	if err := os.WriteFile(script, []byte(body), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
-	defer cancel()
+	ctx, cancel := context.WithCancel(context.Background())
 	c := Command(ctx, "sh", script, pidFile)
-	start := time.Now()
-	_, _ = c.Output()
-	d := time.Since(start)
-	_ = syscall.Kill(readPid(t, pidFile), syscall.SIGKILL)
-	if d > 5*time.Second {
-		t.Fatalf("Output waited %s for a pipe a grandchild held", d)
+	done := make(chan struct{})
+	go func() {
+		_, _ = c.Output()
+		close(done)
+	}()
+	defer func() {
+		cancel()
+		<-done
+	}()
+	// Cancel only after the escaped grandchild holds the pipe. Starting perl
+	// can exceed the old 300 ms deadline on a race-enabled CI worker.
+	pid := readPid(t, pidFile)
+	defer func() { _ = syscall.Kill(pid, syscall.SIGKILL) }()
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Output waited over 5s after cancellation for a pipe a grandchild held")
 	}
 }

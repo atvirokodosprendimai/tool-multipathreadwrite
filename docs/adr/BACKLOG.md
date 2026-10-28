@@ -805,3 +805,80 @@ Zy, 2026-10-27: *"yes, go, address these, measure, plan, implement verify, udupa
 - **`--outline` and `--no-comments` beyond Go (and Markdown for outline)** (2026-10-27): other languages would go through ast-grep rules, a configuration surface. Arm when ADR-179 T2's or T8's measurement shows another language over the bar its task names (ADR-179: other languages).
 - **The new read flags and `--terse` on `mrw_read` and `mrw_write`** (2026-10-27): CLI only. Arm when a shell-less host asks (ADR-179: these flags on the MCP tools).
 - **`TestAnExponentIsReducedExactlyAndInLinearTime` fails under a loaded full suite** (2026-10-28): at the v1.77.0 release, `go test ./...` on `a508f6a2` failed twice locally at load 15-21 on 10 cores, only this test (`internal/mcp/surface128_test.go:257`), with 1M-to-4M ratios 6.4/7.1/7.2 and 3.7/9.5/9.9 in one run; it passed alone three times at load 21, a third full run passed, and CI passed. The noise guard (skip when ratios disagree threefold) did not fire on the first run. Arm when it fails again in a full run on a tree that does not touch `internal/mcp` (no ADR; found at the v1.77.0 release).
+
+## Post-v1.77.1 cleanup and decisions (2026-10-28)
+
+Zy asked to fix and clean up the reproducible issues, re-examine the open work,
+then decide what to complete. This is the current disposition; it does not
+change an exit code, a trust boundary, or any registered measurement window.
+
+- **Forwarding fixture isolation (fixed):** `internal/bench/container_test.go`
+  now establishes `LC_ALL=C` and an empty `DJANGO_SETTINGS_MODULE` before its
+  baseline snapshot. The existing focused test failed with both inherited
+  target values and passes after the fix. No forwarding implementation changed.
+- **Held-pipe fixture startup (fixed):** PR #543's race job failed because its
+  300 ms cancellation preceded the Perl child's PID file. The fixture now waits
+  for the escaped child to be ready before cancellation. A one-second startup
+  delay reproduces the old failure and passes after the fix; setting
+  `Cmd.WaitDelay=0` still fails the bound assertion. ADR-072 T4 and ADR-095 T2
+  acceptance fences and test locks were refreshed, preserving their assertions.
+- **Kept-plan lock through a Windows junction (test added):**
+  `cmd/mrw/refused176_windows_test.go::TestStateHomesSharingAKeptDirectoryThroughAJunctionUseOneLock`
+  exercises two state homes sharing the kept directory with `mklink /J`,
+  reusing the existing process/lock rig. Junction creation fails the test rather
+  than skipping it. A Windows cross-compile is not execution evidence; Windows
+  CI must run it. The existing privilege-dependent symlink case remains.
+- **Published Windows executable (still needs Windows access):** run the pending
+  randomized/session checks against the published v1.77.1 asset. Source CI and
+  a matching asset checksum do not close this item.
+- **Issue #537 (closed):** PR #539 (`b3cc604c`) shipped the repeated-BOM fix in
+  v1.77.0. Replayed the two-leading-BOM byte stream against installed v1.77.1:
+  exit 0, changed bytes correct, count notice present. The GitHub issue is now
+  closed; this is not a claim that an offline PowerShell session was run.
+- **ADR-164 T3 dependency marker (cleared):** PR #460 merged at
+  `7f433438bc7f579baccd6295d4311876bf3c9990`, an ancestor of main. Its
+  obsolete `Blocked-on` field is removed.
+- **ADR-173 (decision before implementation):** the draft and task are preserved
+  in `4f2e05af^3:docs/adr/ADR-173-a-callers-own-line-cap-is-not-an-incomplete-read.md`
+  and `docs/adr/ADR-173/tasks/`. It proposes exit 0 when only the caller's
+  `--max-lines` withheld content, retaining licensing and receipt meanings.
+  Rebase the design against ADR-179's `--max-matches` and existing
+  `--max-chars` before deciding the next release's budget/exit-code policy.
+  Recover only these files; the stash also contains already-shipped work.
+- **ADR-174 (draft needs revision):** the same stash holds
+  `docs/adr/ADR-174-then-sh-runs-only-when-enabled.md` and its task.
+  Gating `--then-sh` alone no longer supports its claim that blanket permission
+  for mrw excludes arbitrary shell: released `mrw run` also runs shell.
+  Decide a coherent host-permission boundary before implementing the opt-in.
+- **`mrw seen --changed-outside` (measure before a record):** the proposal is
+  advisory reporting of git-visible changes whose current SHA is not a
+  ledger-written SHA, not blocking shell commands. The motivating peer counted
+  two accidental `sed -i` writes, about five deliberate restores, and three
+  removals in one session. That is a lead, not an adoption measurement.
+  Existing copy/context scanners classify known write bodies; they do not prove
+  all shell writes or distinguish legitimate tool outputs from violations.
+  Define the observable cohort and audit ambiguous/tool-generated writes before
+  choosing whether to build this report.
+- **`go install` version stamp (decision before implementation):** local
+  `versionString` reads VCS settings but ignores module-version metadata.
+  Decide whether a module-installed build should use that metadata while an
+  explicit linker stamp remains authoritative; preserve local `dev` builds
+  and the honest no-revision fallback.
+- **Open PRs (triaged, not merged):** #528's required `PUSH_TOKEN` secret is
+  present by name. Its `workflow_run.branches: [main]` filter conflicts with
+  tag release runs (v1.77.1 CI reports `head_branch=v1.77.1`); correct and test
+  the trigger before approval. [GitHub documents that this filter applies to
+  the triggering workflow's branch](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#limiting-your-workflow-to-run-based-on-branches).
+  PR #543 hit the held-pipe fixture failure above. PR #523 changes knip but
+  leaves ADR-147 T2's acceptance grep pinned to 6.38.0; update and reverify that
+  record with the dependency change, rather than weakening the static gate.
+- **Historical receipt routing (reader finding, not recertified):**
+  `work-next` 3.8.59 reports historical done tasks as needing verification.
+  For ADR-026 T4, current green receipt rows exist and `adr-lint` passes,
+  while `adr-next` reads the word `refuse` inside a positive human sign-off as
+  a stop. Keep that reproducer for the harness owner; do not manufacture new
+  red/green history or mass-relock old records to silence the route.
+
+The exponent timing-test entry above retains its recurrence trigger. ADR-169's
+14-day adoption reading is due 2026-11-06; ADR-177–179's first 30-day window ends
+2026-11-27, anchored to v1.77.0. v1.77.1 does not reset either window.
