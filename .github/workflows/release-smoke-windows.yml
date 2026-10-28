@@ -95,7 +95,7 @@ jobs:
           if ($out -cnotmatch '(?m)^ *2\| two\r?$') { "::error::read served: $out"; $fail = 1 }
           & $env:MRW write --no-check (Join-Path $env:PLANS 'write.plan') | Out-Host; Check 'write' 0 $LASTEXITCODE
           # Null-safe: under Continue an error inside the condition would skip $fail.
-          if ((Get-Content -Raw f.txt -ErrorAction SilentlyContinue) -cne "one`nTWO`n") { "::error::the write did not land"; $fail = 1 }
+          if ((Get-Content -Raw f.txt -ErrorAction SilentlyContinue) -cne "one`nTWX`n") { "::error::the write did not land"; $fail = 1 }
           & $env:MRW write --no-check (Join-Path $env:PLANS 'refused.plan') 2>&1 | Out-Host; Check 'write to an unread file' 1 $LASTEXITCODE
           if ((Get-Content -Raw g.txt -ErrorAction SilentlyContinue) -cne "a`nb`n") { "::error::the refused write changed g.txt"; $fail = 1 }
           $r = & $env:MRW run "printf 'r%s\n' 1 2 3" | Out-String; Check 'run' 0 $LASTEXITCODE
