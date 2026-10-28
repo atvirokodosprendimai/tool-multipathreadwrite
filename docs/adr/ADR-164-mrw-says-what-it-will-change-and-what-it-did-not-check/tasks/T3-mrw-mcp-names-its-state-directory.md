@@ -1,7 +1,6 @@
 # Task ADR-164-T3: the state-directory hint reaches every surface
 
 **Depends-on:** T2
-**Blocked-on:** PR #460 merged: `git merge-base --is-ancestor $(gh pr view 460 --json mergeCommit -q .mergeCommit.oid) origin/main`
 **Covers:** none — no spec
 **Estimated scope:** M
 **Owner:** Zy

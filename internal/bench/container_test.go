@@ -859,6 +859,9 @@ func aFailedWriteBackIsCountedApart(t *testing.T) {
 func theCommandVariablesAreForwarded(t *testing.T) {
 	g := newStage6Rig(t)
 	cfg := g.start()
+	// Both values must change after the snapshot, regardless of the host environment.
+	t.Setenv("LC_ALL", "C")
+	t.Setenv("DJANGO_SETTINGS_MODULE", "")
 	t.Setenv("KEPT_VAR", "same")
 	if err := writeStartEnv(cfg.State, os.Environ()); err != nil {
 		t.Fatal(err)
