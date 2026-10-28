@@ -1,49 +1,142 @@
 # ADR-172: brew tap formulas are generated and pushed by CI
 
-**Status:** Proposed
-**Accepted:** pending
+**Status:** Accepted
+**Accepted:** 2026-10-28 by Zy — "Finish the existing PRs: Homebrew trigger fix and dependency PR blockers (Recommended)"
 **Date:** 2026-10-25
-**Owner:** Marty
+**Amended:** 2026-10-28 — repair the tag trigger, pin the renderer and verify publication.
+**Owner:** Marty; maintenance execution by Codex for Zy
 **Spec:** None — no spec stage
-**Cross-references:** ADR-089, ADR-147, ADR-149, UPDATE.md, README.md (Install), CONTRIBUTING.md
-**Governs:** `.github/workflows/brew-tap.yml`; the renderer it runs is `tools/gen-brew-formula.ts` in atvirokodosprendimai/skills, vendored at run time (ADR-172, Decision 4)
-**Enforced-by:** CI only reaches the tap push on a strict `v*.*.*` tag whose Release the `release` job has already published
-**Invalidates:** None — UPDATE.md's manual update recipe is kept and remains the fall-back when the push fails
-**Served-path change:** none for callers of the binary; the only new artifact is a commit in atvirokodosprendimai/homebrew-tap at release time
+**Cross-references:** ADR-089, ADR-147, ADR-149, UPDATE.md
+**Governs:** `.github/workflows/brew-tap.yml`, `scripts/brew_tap.py`, `scripts/test_brew_tap.py`
+**Enforced-by:** `scripts/test_brew_tap.py::test_untrusted_runs_refused`, `scripts/test_brew_tap.py::test_publish_and_retry`, `scripts/test_brew_tap.py::test_workflow_reaches_publisher`
+**Invalidates:** none — checked: binary release assets, the installer and engine contracts stay unchanged.
+**Served-path change:** Homebrew installs and upgrades use the four prebuilt release archives through a generated tap formula.
 
 ## Context
 
-mrw ships release archives (`mrw_<goos>_<goarch>.tar.gz`, `SHA256SUMS.txt`) but installs by curl from `releases/latest` (README). The org's tap (atvirokodosprendimai/homebrew-tap) exists and carries wgmesh, whose formula GoReleaser regenerates every release — one `brew install`/`brew upgrade` surface, no manual sha copy. mrw's pipeline is bespoke (one ci.yml, no goreleaser), so nothing regenerates an mrw formula; a hand-maintained one goes stale on the very next release, and a stale formula serves a stale sha that brew refuses at download time — discovered by a user, not by CI.
+mrw's bespoke release pipeline publishes archives and SHA256SUMS.txt. The org tap
+has a shared renderer in the skills repository, but no merged mrw formula:
+on 2026-10-28 tap PR #3 was still open. The original bootstrap claim in this
+record was premature; its v1.75.0 local installation experience was not evidence
+that the tap's default branch served it.
 
-The skills repository (atvirokodosprendimai/skills `tools/gen-brew-formula.ts`) already carries a pure, tested generator that renders the GoReleaser-shaped formula from a release's own `SHA256SUMS.txt`. What was missing is the wiring: run it at tag time, against the tag, with write access to the tap.
+The first workflow filtered workflow_run to main. The successful v1.77.1 ci run
+40676139276 instead has head_branch=v1.77.1, so that filter excludes the intended
+publisher. Removing it requires explicit checks on the triggering run.
+
+The governed class is the mrw tap publisher and its test; enumerate with
+`git ls-files .github/workflows/brew-tap.yml scripts/*brew*tap*.py` (three files
+after this change). ci.yml selects the tests; other release publishers are not changed.
+
+## Existing Primitives Audit
+
+Reuse ci.yml's successful release run, the published manifest, gh authentication,
+and the skills renderer. Pin the renderer to commit
+a9c2d508f840694cbd601cdbb3b313661fd51bc9 rather than executing mutable main.
+The renderer retains ownership of Ruby formatting and archive selection; this
+repository owns release authorization, attestation and publication.
 
 ## Decision
 
-1. **CI renders and pushes the formula at release time.** A successful tag run of `ci` triggers `brew-tap`, which re-derives the tag from the run (workflow_run events carry no tag ref), confirms the Release already has assets — the precondition `release` owns — and pushes `Formula/mrw.rb` to the tap's default branch with a commit message naming the tag. The tap is a downstream of the Release, not a gate on it: a failed push turns `brew-tap` red and does not un-publish a tagged release.
+1. A completed ci workflow can trigger the publisher without a main branch filter.
+   Before rendering or pushing, require a successful push run of this repository's
+   ci.yml whose strict vX.Y.Z tag and head SHA match the canonical tag commit.
+   Reject forks, PR runs, prereleases and mismatched commits.
+2. Require the tag to be the latest published, non-draft, non-prerelease release,
+   with the manifest and all four darwin/linux amd64/arm64 archives present.
+   Recheck latest immediately before pushing, so an old replay cannot downgrade
+   the tap. A concurrent advance can still reject a non-force push; retry safely.
+3. Execute the pinned renderer with network permission only. Check each OS/CPU
+   URL and its checksum against the manifest, including the version, rather than
+   comparing an unordered set of hashes.
+4. Use the tap's default branch. Keep PUSH_TOKEN out of argv and the remote URL;
+   pass it through GH_TOKEN to gh's Git credential helper for the push.
+   A byte-identical retry makes no commit. Read back and compare the exact formula
+   bytes after publication, including on a no-op retry. Any failure turns this
+   downstream workflow red without changing the released assets.
+5. workflow_dispatch accepts a strict tag for repair or bootstrap. It requires the
+   same successful release CI and current-release checks, so v1.77.1 can be
+   published after this workflow merges without moving its tag or republishing assets.
 
-2. **The formula serves the release archives, never a source build.** mrw's version contract (`mrw version` prints tag + SHA; UPDATE.md verifies it) survives a brew install only when the binary is the published one.
+These checks are falsifiable today: the hermetic suite supplies bad run metadata,
+incomplete releases, incorrect URL/checksum pairs and a rejecting real Git remote.
 
-3. **The sha256 values are taken from the release's `SHA256SUMS.txt`, not recomputed.** The formula attests exactly what was published; before pushing, the workflow asserts the rendered shas equal the manifest's, so a half-published release cannot reach the tap.
+## Alternatives Considered
 
-4. **The generator is vendored from the skills repo at run time, not copied into this repo.** One copy of the convention; mrw keeps no second renderer to drift. Its tests live beside it, in the skills repo.
+- **Adopt GoReleaser:** rejected; the existing binary/archive release contract does
+  not need replacing to publish one formula.
+- **Keep shell logic inline:** rejected; a Python stdlib coordinator makes the
+  production authorization and retry path executable against a local Git remote.
+- **Keep a mutable renderer:** rejected; unrelated skills changes would execute
+  with a tap credential in the environment.
 
-5. **A bootstrap formula landed by hand once** (tap PR #3, same bytes the generator renders) so `brew install atvirokodosprendimai/tap/mrw` works before the first automated push. The automation replaces it at the next tag.
+## Component / Boundary Impact
 
-6. **UPDATE.md gains the brew row** so the update story has one entry per install surface: `brew update && brew upgrade mrw`.
+The release job owns archive publication; the downstream publisher owns one tap
+formula. No Go engine boundary changes. The integration crosses GitHub Actions,
+the skills repository and the tap; no additional service or daemon is introduced.
 
-## Alternatives
+## Wiring & Contract Changes
 
-- **Adopt GoReleaser** (the wgmesh path). Rejected: mrw's two asset shapes (raw + archive, chosen for the one-line curl install) and its contract-checked exit codes are load-bearing; rewriting the release for a formula is the tail wagging the dog.
-- **Hand-maintained formula updated per release.** Rejected: it *will* be forgotten; the failure mode is a stale sha, and the discovery cost lands on a user.
-- **A separate `brew-tap` repo fed by a shared workflow.** Rejected: one more repository to trust, for what a small job does.
+| Surface | Change | Producer | Consumer(s) |
+|---------|--------|----------|-------------|
+| workflow_run / workflow_dispatch | trusted-run or tag input | ci / maintainer | brew-tap job |
+| PUSH_TOKEN | tap contents write credential through credential helper | repository secret | Git push |
+| Formula/mrw.rb | generated prebuilt URL/checksum pairs | pinned renderer and publisher | Homebrew |
+| brew-tap harness step and ci test step | execute regression tests | scripts/test_brew_tap.py | local checks and CI |
+
+## Inter-task Contracts
+
+None — one implementation task.
+
+## Implementation
+
+See [tasks/README.md](ADR-172/tasks/README.md) and
+[T1](ADR-172/tasks/T1-publish-the-release-formula.md).
 
 ## Consequences
 
-- Every strict tag now writes one commit to the tap, directly to its default branch — the same contract wgmesh's GoReleaser push already sets there. If the tap later gains branch protection, the push fails loudly (`brew-tap` red) and the manual recipe in UPDATE.md is the recovery path; the workflow does not silently fall back to a PR nobody reviews.
-- The tap's `mrw` formula is only as current as the last mrw tag.
-- `brew bump-formula-pr` is not the update path here — regeneration is; the DO-NOT-EDIT header says so.
-- The vendored generator's tests live in the skills repo; formula-shape changes are made there and picked up by every AKS release that vendors it.
+- **Positive:** tags and safe manual replays update the tap; retries do not create
+  empty commits and success means the checked formula is actually served.
+- **Negative:** the renderer pin and Deno version need deliberate maintenance.
+- **Neutral:** only the latest stable release is publishable; old releases remain
+  available through their existing GitHub assets.
+
+## Out of Scope
+
+- Source builds and Go version stamping (permanent: boundary: Homebrew serves the published binary).
+- Other tap formulas and the separate bootstrap PR #3 (external: homebrew-tap: PR #3).
+- Binary telemetry (permanent: boundary: ADR-009 prohibits it).
+
+## Risks
+
+| Risk | Likelihood | Impact | Mitigation |
+|------|------------|--------|------------|
+| Missing or insufficient PUSH_TOKEN | Medium | High | fail the downstream job and verify through a real manual replay |
+| Another release or tap writer races | Low | Medium | latest check, non-force push and idempotent retry |
+| Renderer changes its output shape | Low | Medium | immutable pin, per-target validation and real-manifest render |
+| Local doubles miss GitHub authentication behavior | Medium | Medium | post-merge workflow_dispatch and exact served-byte verification |
+
+## Rollback
+
+Disable brew-tap.yml and revert the generated formula through the tap's normal
+review process. Release assets and the curl installer remain available.
+
+## Follow-ups
+
+None outside the task's explicit post-merge integration sign-off.
 
 ## Experiences
 
-- 2026-10-25: formula rendered locally from v1.75.0's SHA256SUMS.txt; `brew style` clean; installed from the rendered file on an M-series Mac; `brew test atvirokodosprendimai/tap/mrw` passed; `/opt/homebrew/bin/mrw version` → `v1.75.0 (c81cb11)`; all four shas cross-checked against the published manifest.
+- 2026-10-25: original author reported local rendering and installation from
+  v1.75.0's manifest. This does not prove the tap's default branch was updated.
+- 2026-10-28: the pinned Deno 2.9.8 renderer produced the v1.77.1 formula from
+  the real manifest; all four OS/CPU URL/checksum pairs validated and Ruby syntax
+  passed. The ten-test local-remote suite passed, with trigger, trust, checksum
+  and served-byte mutants killed. Actual Actions authentication/publication is
+  the task's remaining post-merge sign-off.
+- 2026-10-28: fresh review found that closing Ruby blocks were not tracked and
+  subprocess stderr was hidden. Both were reproduced; two new asserting tests
+  failed before their fixes. The twelve-test suite now passes, with paired
+  scope-regression and diagnostic-suppression mutants killed. The original ten
+  locked test bodies are unchanged; native relock added the two new bodies.

@@ -5,6 +5,6 @@
   "tail_lines": 30,
   "steps": {
     "static": "./scripts/static.sh",
-    "brew-tap": "test -f .github/workflows/brew-tap.yml && grep -q \"SHA256SUMS.txt\" .github/workflows/brew-tap.yml && grep -q \"PUSH_TOKEN\" .github/workflows/brew-tap.yml && grep -q \"atvirokodosprendimai/homebrew-tap\" .github/workflows/brew-tap.yml"
+    "brew-tap": "python3 -m unittest discover -s scripts -p test_brew_tap.py -v"
   }
 }

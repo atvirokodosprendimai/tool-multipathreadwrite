@@ -63,6 +63,9 @@ jobs:
       - name: Local parallel test runner checks
         run: python3 -m unittest discover -s scripts -p test_test_fast.py -v
 
+      - name: Homebrew publisher checks
+        run: python3 -m unittest discover -s scripts -p test_brew_tap.py -v
+
       - name: Vet
         run: go vet ./...
 

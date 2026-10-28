@@ -864,14 +864,13 @@ change an exit code, a trust boundary, or any registered measurement window.
   Decide whether a module-installed build should use that metadata while an
   explicit linker stamp remains authoritative; preserve local `dev` builds
   and the honest no-revision fallback.
-- **Open PRs (triaged, not merged):** #528's required `PUSH_TOKEN` secret is
-  present by name. Its `workflow_run.branches: [main]` filter conflicts with
-  tag release runs (v1.77.1 CI reports `head_branch=v1.77.1`); correct and test
-  the trigger before approval. [GitHub documents that this filter applies to
-  the triggering workflow's branch](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#limiting-your-workflow-to-run-based-on-branches).
-  PR #543 hit the held-pipe fixture failure above. PR #523 changes knip but
-  leaves ADR-147 T2's acceptance grep pinned to 6.38.0; update and reverify that
-  record with the dependency change, rather than weakening the static gate.
+- **Existing PR completion (2026-10-28):** #543 merged at `32addb78` after
+  refresh onto the held-pipe test fix; plugin, static, Go, race, contract and CI
+  checks passed. #523's knip 6.43.0 fence fix and analyser self-test are prepared,
+  but Zy retained ADR-147's two-week waiting period: do not merge before
+  2026-11-07 08:32:43 UTC (npm publication: 2026-10-24). #528 repairs the tag
+  trigger and adds a trusted, idempotent publisher; its post-merge Actions/tap
+  sign-off remains explicit in ADR-172 T1 until real publication succeeds.
 - **Historical receipt routing (reader finding, not recertified):**
   `work-next` 3.8.59 reports historical done tasks as needing verification.
   For ADR-026 T4, current green receipt rows exist and `adr-lint` passes,
