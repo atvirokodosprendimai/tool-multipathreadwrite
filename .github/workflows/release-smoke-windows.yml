@@ -1,0 +1,150 @@
+name: release-smoke-windows
+
+# Robustness plan item 2 (Zy, 2026-10-28): the official Windows release asset,
+# downloaded as a user would, checked against the release's SHA256SUMS.txt and
+# driven through Git Bash, pwsh 7, Windows PowerShell 5.1 and cmd: version, a
+# read, a write, a refused write, mrw run, and a read of the run's log. Each
+# step prints the shell's version, every command and its native exit code, so
+# the job log is the record. It gates nothing. After merge, dispatch it for a
+# tag with `gh workflow run release-smoke-windows.yml -f tag=vX.Y.Z`; it also
+# runs on a pull request that changes this file.
+#
+# The printed `read:` line of a v1.77.1 run receipt is the PowerShell form
+# (ADR-177 Decision 5): the PowerShell steps execute it; Git Bash and cmd read
+# the log with their own redirection and say the printed line is not theirs
+# (ADR-181, proposed).
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: release tag to validate
+        required: true
+  pull_request:
+    paths:
+      - .github/workflows/release-smoke-windows.yml
+
+permissions:
+  contents: read
+
+env:
+  TAG: ${{ inputs.tag || 'v1.77.1' }}
+
+jobs:
+  smoke:
+    runs-on: windows-latest
+    steps:
+      - name: Download the release asset and check its sha256
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          uname -a; bash --version | head -1; git --version
+          D=$(cygpath -m "$RUNNER_TEMP/release")
+          mkdir -p "$D"
+          gh release download "$TAG" -R "$GITHUB_REPOSITORY" -D "$D" -p mrw-windows-amd64.exe -p SHA256SUMS.txt
+          (cd "$D" && grep ' mrw-windows-amd64.exe$' SHA256SUMS.txt | sha256sum -c -)
+          sha256sum "$D/mrw-windows-amd64.exe"
+          ver=$("$D/mrw-windows-amd64.exe" version)
+          echo "mrw version: $ver"
+          case "$ver" in "$TAG "*) ;; *) echo "::error::the asset says $ver, not $TAG"; exit 1 ;; esac
+          echo "MRW=$D/mrw-windows-amd64.exe" >> "$GITHUB_ENV"
+          P=$(cygpath -m "$RUNNER_TEMP/plans")
+          mkdir -p "$P"
+          printf '@@ f.txt 2 replace\nTWO\n' > "$P/write.plan"
+          printf '@@ g.txt 1 replace\nA\n' > "$P/refused.plan"
+          printf 'r1\nr2\nr3\n\303\244 \342\202\254\n' > "$P/expected.log"
+          echo "PLANS=$P" >> "$GITHUB_ENV"
+
+      - name: Git Bash
+        shell: bash
+        run: |
+          set -uo pipefail
+          fail=0
+          check() { echo "$1: exit $3 (want $2)"; [ "$3" = "$2" ] || { echo "::error::git bash: $1 exited $3, want $2"; fail=1; }; }
+          W=$(cygpath -m "$RUNNER_TEMP/bash"); mkdir -p "$W"; cd "$W"
+          export XDG_STATE_HOME="$W/state"
+          printf 'one\ntwo\n' > f.txt; printf 'a\nb\n' > g.txt
+          out=$("$MRW" read f.txt:2 2>&1); check read 0 $?
+          grep -q '2| two' <<<"$out" || { echo "::error::git bash: read served: $out"; fail=1; }
+          "$MRW" write --no-check "$PLANS/write.plan"; check write 0 $?
+          [ "$(sed -n 2p f.txt)" = TWO ] || { echo "::error::git bash: the write did not land"; fail=1; }
+          "$MRW" write --no-check "$PLANS/refused.plan"; check "write to an unread file" 1 $?
+          [ "$(head -1 g.txt)" = a ] || { echo "::error::git bash: the refused write changed g.txt"; fail=1; }
+          r=$("$MRW" run "printf 'r%s\n' 1 2 3; printf '\303\244 \342\202\254\n'"); check run 0 $?
+          printf '%s\n' "$r"
+          log=$(sed -n 's/^log: //p' <<<"$r")
+          "$MRW" read -N -- '-:1-$' < "$log" > served.txt; check "read of the log through bash's <" 0 $?
+          grep -qF "$(tail -1 "$PLANS/expected.log")" served.txt || { echo "::error::git bash: the log's non-ASCII line did not survive"; cat served.txt; fail=1; }
+          grep -q '^read: cmd /c ' <<<"$r" && echo "note: the printed read: line is the PowerShell form; Git Bash reads the log with its own <"
+          exit $fail
+
+      - name: pwsh 7
+        shell: pwsh
+        run: &ps |
+          $PSVersionTable.PSVersion.ToString()
+          $fail = 0
+          function Check($d, $want, $got) { "${d}: exit $got (want $want)"; if ($got -ne $want) { "::error::powershell $($PSVersionTable.PSVersion.Major): $d exited $got, want $want"; $script:fail = 1 } }
+          $W = Join-Path $env:RUNNER_TEMP ("ps" + $PSVersionTable.PSVersion.Major); New-Item -ItemType Directory -Force $W | Out-Null; Set-Location $W
+          $env:XDG_STATE_HOME = Join-Path $W 'state'
+          [IO.File]::WriteAllText((Join-Path $W 'f.txt'), "one`ntwo`n"); [IO.File]::WriteAllText((Join-Path $W 'g.txt'), "a`nb`n")
+          $out = & $env:MRW read f.txt:2 2>&1 | Out-String; Check 'read' 0 $LASTEXITCODE
+          if ($out -notmatch '2\| two') { "::error::read served: $out"; $fail = 1 }
+          & $env:MRW write --no-check (Join-Path $env:PLANS 'write.plan') | Out-Host; Check 'write' 0 $LASTEXITCODE
+          if ((Get-Content f.txt)[1] -ne 'TWO') { "::error::the write did not land"; $fail = 1 }
+          & $env:MRW write --no-check (Join-Path $env:PLANS 'refused.plan') 2>&1 | Out-Host; Check 'write to an unread file' 1 $LASTEXITCODE
+          if ((Get-Content g.txt)[0] -ne 'a') { "::error::the refused write changed g.txt"; $fail = 1 }
+          $r = & $env:MRW run "printf 'r%s\n' 1 2 3" | Out-String; Check 'run' 0 $LASTEXITCODE
+          $r
+          $line = (($r -split "`r?`n") | Where-Object { $_ -like 'read: *' }) -replace '^read: ', ''
+          "printed read line: $line"
+          $served = Invoke-Expression $line | Out-String; Check 'the printed read: line' 0 $LASTEXITCODE
+          if ($served -notmatch 'r3') { "::error::the printed read line served: $served"; $fail = 1 }
+          exit $fail
+
+      - name: Windows PowerShell 5.1
+        shell: powershell
+        run: *ps
+
+      - name: cmd
+        shell: cmd
+        run: |
+          ver
+          set W=%RUNNER_TEMP%\cmd
+          mkdir "%W%"
+          cd /d "%W%"
+          set XDG_STATE_HOME=%W%\state
+          set FAIL=0
+          copy /y "%PLANS%\write.plan" write.plan >nul
+          copy /y "%PLANS%\refused.plan" refused.plan >nul
+          powershell -NoProfile -Command "[IO.File]::WriteAllText('f.txt', \"one`ntwo`n\"); [IO.File]::WriteAllText('g.txt', \"a`nb`n\")"
+          "%MRW%" read f.txt:2 > read.out 2>&1
+          echo read: exit %ERRORLEVEL% (want 0)
+          if not "%ERRORLEVEL%"=="0" set FAIL=1
+          findstr /c:"2| two" read.out >nul
+          if errorlevel 1 (echo ::error::cmd: read served something else & type read.out & set FAIL=1)
+          "%MRW%" write --no-check write.plan
+          echo write: exit %ERRORLEVEL% (want 0)
+          if not "%ERRORLEVEL%"=="0" set FAIL=1
+          "%MRW%" write --no-check refused.plan
+          echo write to an unread file: exit %ERRORLEVEL% (want 1)
+          if not "%ERRORLEVEL%"=="1" set FAIL=1
+          "%MRW%" run "printf 'r%%s\n' 1 2 3; printf '\303\244 \342\202\254\n'" > receipt.txt
+          echo run: exit %ERRORLEVEL% (want 0)
+          if not "%ERRORLEVEL%"=="0" set FAIL=1
+          type receipt.txt
+          for /f "tokens=1,*" %%a in ('findstr /b /c:"log: " receipt.txt') do set LOG=%%b
+          "%MRW%" read -N -- -:1-$ < "%LOG%" > served.txt
+          echo read of the log through cmd's ^<: exit %ERRORLEVEL% (want 0)
+          if not "%ERRORLEVEL%"=="0" set FAIL=1
+          copy /y served.txt "%PLANS%\cmd-served.txt" >nul
+          echo note: the printed read: line is the PowerShell form; cmd reads the log with its own ^<
+          if "%FAIL%"=="1" (echo ::error::cmd: a check failed & exit /b 1)
+
+      - name: cmd kept the log's bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -qF "$(tail -1 "$PLANS/expected.log")" "$PLANS/cmd-served.txt" \
+            || { echo "::error::cmd: the log's non-ASCII line did not survive"; cat "$PLANS/cmd-served.txt"; exit 1; }
+          echo "cmd served the non-ASCII line byte for byte"
