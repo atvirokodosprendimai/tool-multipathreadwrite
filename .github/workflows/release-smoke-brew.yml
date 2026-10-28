@@ -1,0 +1,74 @@
+name: release-smoke-brew
+
+# Robustness plan item 2 (Zy, 2026-10-28): a clean Homebrew install of mrw on a
+# fresh runner, which shares nothing with any developer's installation. It taps
+# atvirokodosprendimai/tap, installs mrw from the published formula (ADR-172),
+# and checks what got installed: the path brew linked, `mrw version` against
+# the expected tag, the binary's sha256 against the release's SHA256SUMS.txt
+# entry for the archive's binary, and a small read, write and refused write.
+# Formula inspection is not installation evidence; this is. It gates nothing.
+# After merge: `gh workflow run release-smoke-brew.yml -f tag=vX.Y.Z`; it also
+# runs on a pull request that changes this file.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: release tag the tap is expected to serve
+        required: true
+  pull_request:
+    paths:
+      - .github/workflows/release-smoke-brew.yml
+
+permissions:
+  contents: read
+
+env:
+  TAG: ${{ inputs.tag || 'v1.77.1' }}
+  HOMEBREW_NO_AUTO_UPDATE: "1"
+  HOMEBREW_NO_INSTALL_CLEANUP: "1"
+
+jobs:
+  install:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: brew install from the tap, then use what was installed
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set +e -uo pipefail
+          fail=0
+          check() { echo "$1: exit $3 (want $2)"; [ "$3" = "$2" ] || { echo "::error::$1 exited $3, want $2"; fail=1; }; }
+          if ! command -v brew >/dev/null; then eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"; fi
+          uname -a; brew --version | head -1
+          command -v mrw && { echo "::error::an mrw is already on PATH before the install: $(command -v mrw)"; exit 1; }
+          brew install atvirokodosprendimai/tap/mrw; check "brew install" 0 $?
+          brew info --json=v2 atvirokodosprendimai/tap/mrw | python3 -c 'import json,sys; f=json.load(sys.stdin)["formulae"][0]; print("formula", f["full_name"], f["versions"]["stable"], "installed", [i["version"] for i in f["installed"]])'
+          bin=$(command -v mrw); echo "installed at: $bin -> $(readlink -f "$bin" 2>/dev/null || python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$bin")"
+          case "$bin" in "$(brew --prefix)"/bin/mrw) ;; *) echo "::error::mrw on PATH is $bin, not brew's"; fail=1 ;; esac
+          ver=$(mrw version); echo "mrw version: $ver"
+          case "$ver" in "$TAG "*) ;; *) echo "::error::installed mrw says $ver, not $TAG"; fail=1 ;; esac
+          case "$(uname -s)-$(uname -m)" in
+            Darwin-arm64) arch=darwin_arm64 ;; Darwin-x86_64) arch=darwin_amd64 ;;
+            Linux-x86_64) arch=linux_amd64 ;; Linux-aarch64) arch=linux_arm64 ;;
+          esac
+          R=$(mktemp -d)
+          gh release download "$TAG" -R "$GITHUB_REPOSITORY" -D "$R" -p "mrw_${arch}.tar.gz" -p SHA256SUMS.txt
+          (cd "$R" && grep " mrw_${arch}.tar.gz\$" SHA256SUMS.txt | shasum -a 256 -c -); check "the archive's sha256" 0 $?
+          tar -xzf "$R/mrw_${arch}.tar.gz" -C "$R" mrw
+          want=$(shasum -a 256 "$R/mrw" | cut -d' ' -f1); got=$(shasum -a 256 "$(readlink -f "$bin" 2>/dev/null || python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$bin")" | cut -d' ' -f1)
+          echo "release binary sha256: $want"; echo "installed binary sha256: $got"
+          [ "$want" = "$got" ] || { echo "::error::the installed binary is not the release's"; fail=1; }
+          W=$(mktemp -d); cd "$W"; export XDG_STATE_HOME="$W/state"
+          printf 'one\ntwo\n' > f.txt; printf 'a\nb\n' > g.txt
+          out=$(mrw read f.txt:2 2>&1); check read 0 $?
+          grep -q '2| two' <<<"$out" || { echo "::error::read served: $out"; fail=1; }
+          printf '@@ f.txt 2 replace\nTWO\n' | mrw write --no-check -; check write 0 $?
+          [ "$(sed -n 2p f.txt)" = TWO ] || { echo "::error::the write did not land"; fail=1; }
+          printf '@@ g.txt 1 replace\nA\n' | mrw write --no-check -; check "write to an unread file" 1 $?
+          [ "$(head -1 g.txt)" = a ] || { echo "::error::the refused write changed g.txt"; fail=1; }
+          exit $fail
