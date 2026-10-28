@@ -11,9 +11,9 @@ description: >-
   heredocs. It applies only while mrw is on PATH: if it is not, use the host's
   own tools and do not install it.
 metadata:
-  mrw-version: "dev (8278fcd, dirty)"
+  mrw-version: "v1.77.1 (926aaba)"
   generated-by: "mrw skill"
-  content-sha256: "b0d5ad7d6eb6af6f2481eb18c7fce26dc3a875d9acfdc47249176a62ddaa6f06"
+  content-sha256: "677268adbd81f6e43cdbea266802d85e7eaabb72e1aac7a1d7c847f45fc33533"
 ---
 
 # mrw
@@ -39,7 +39,7 @@ Recipes:
   mrw read --grep P --count . && mrw read 'f.go:/P/' -C 3 --max-lines 40
 5. different changes at several sites: one read of all of them, then the plan in a file — written with the host's file tool, in a temporary directory you may write — so no shell parser sees its text:
   mrw read 'a.go:/func A/,+12' b.go:40-60 && mrw write "$TMPDIR/plan.txt"
-6. a step after the write, in the same call (NAME is a step in .quality-harness.json; a code write already runs the project's check; --then-sh runs any shell command it is given: a harness rule that allows mrw without reading its arguments allows arbitrary shell through --then-sh.):
+6. a step after the write, in the same call (NAME is a step in .quality-harness.json; a code write already runs the project's check; --then-sh and mrw run run any shell command they are given: a harness rule that allows mrw without reading its arguments allows arbitrary shell through --then-sh and mrw run.):
   mrw write - --then NAME
 7. license lines you already know, without them in your context (a read into /dev/null licenses nothing; a file mrw just wrote needs no re-read):
   mrw read --quiet f.go:40-60
@@ -51,7 +51,25 @@ Recipes:
   mrw read a.go:40-52 b.go:9 && printf '%s\n' '@@ b.go 9 insert-after from=a.go:40-52' '@@ a.go 40-52 delete' | mrw write -
 11. re-read a file you read earlier, its text only if it changed (the sha is the 8 hex digits its header printed):
   mrw read --if-changed f.go=8dc37337 f.go:40-60
+12. run a long command (a build, a test suite, a gate) with its output kept out of your context, one string, instead of cmd | tail, which returns tail's status: a four-line receipt with the command's own exit code, the log's path and a read of it; read the log by pattern in a second call, so the exit code is not lost to it: mrw read --grep FAIL -C 3 - < 'LOG', LOG being the path the receipt printed (--then-sh and mrw run run any shell command they are given: a harness rule that allows mrw without reading its arguments allows arbitrary shell through --then-sh and mrw run.; in Windows PowerShell 5.1 a command holding " reaches mrw as several arguments, so use single quotes inside the command, or pwsh 7):
+  mrw run 'go test ./...'
+13. a few fields out of a JSON document (cmd is any command that prints one), one line each instead of the lines that hold them (a path address of single-line JSON serves the whole line); the projection licenses nothing, so read the path address (mrw read f.json:$.a.b) before editing the value:
+  cmd | mrw read --json-path '$.a,$.b' -
+14. a long file's shape before its lines — a .go file's declarations or a .md or .markdown file's headings, each with the lines it spans; it licenses nothing, so read the lines you will edit after it:
+  mrw read --outline f.go docs.md
+15. matches across many files without the flood: count them, then read the first N (when any remain unshown they are counted, the answer says how many and the read exits 1; a match inside a span already shown counts as shown):
+  mrw read --grep P --count . && mrw read --grep P --max-matches 40 .
+16. a log or a file of near-identical lines, each run shown once (only its first line is licensed: read the folded lines without --fold to edit them):
+  mrw read --fold f.log
+17. a Go file without its comment runs (the elided lines are not licensed; trailing comments, directives and the cgo preamble stay):
+  mrw read --no-comments f.go
+18. a setup that reads long lines: set MRW_MAX_COLS=200 in its environment and every read that serves lines cuts them as --max-cols 200 does, unless the call gives --max-cols itself (--max-cols 0 turns it off; a read that serves a line over 400 columns whole, with no width chosen, says so once on standard error):
+  mrw read --grep P .
+19. a write receipt of one line per file, every failure and advisory still printed in full:
+  mrw write --terse plan.txt
+20. answer by reference what you were already served, with --if-served PATH=SHA — only in a session alone in its checkout, whose host runs mrw seen --forget on start, resume, clear and compaction, and whose reads were made under --max-chars below the host's output limit, since a line recorded as shown may never have reached you (anywhere else, recipe 11):
+  mrw read --if-served f.go=8dc37337 f.go:40-60
 
-`mrw instructions` prints the whole contract. This file was printed by `mrw skill` from mrw dev (8278fcd, dirty); when `mrw version` prints another version, `mrw skill --dir <the directory holding this mrw folder>` replaces it.
+`mrw instructions` prints the whole contract. This file was printed by `mrw skill` from mrw v1.77.1 (926aaba); when `mrw version` prints another version, `mrw skill --dir <the directory holding this mrw folder>` replaces it.
 
 A host's per-path rules for its Edit and Write tools do not reach mrw, which writes wherever its user can: their absence is not permission, and mrw is not a way to reach a path the host refused you.

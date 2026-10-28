@@ -13,13 +13,16 @@ import (
 // --json` builds its receipt with this function too (ADR-165), so the two
 // surfaces cannot drift; mrw_read adds next_read, index and next_index on its
 // own, since only it pages.
-func ReadReceipt(observed map[string]seen.Observation, problems int, skipped read.WalkSkipped, counts map[string]int, unchanged []read.Unchanged) map[string]any {
+func ReadReceipt(observed map[string]seen.Observation, problems int, skipped read.WalkSkipped, counts map[string]int, unchanged []read.Unchanged, sameAsServed []read.SameAsServed) map[string]any {
 	m := withCounts(withSkipped(map[string]any{
 		"observed": slashKeys(observed, filepath.Separator),
 		"problems": problems,
 	}, skipped), counts)
 	if len(unchanged) > 0 {
 		m["unchanged"] = unchanged
+	}
+	if len(sameAsServed) > 0 {
+		m["same_as_served"] = sameAsServed
 	}
 	return m
 }

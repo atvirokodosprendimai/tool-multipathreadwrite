@@ -83,7 +83,7 @@ What this does not show:
 
 Latency and shape numbers for the engine itself are in [docs/measure.md](docs/measure.md), the six-guarantee comparison in [docs/comparison.md](docs/comparison.md), and model × score readings in [docs/model-benches.md](docs/model-benches.md).
 
-**Status: stable at v1.75.0 (2026-10-23), the tag cut from `c81cb11`.** Break campaign for it: [docs/break/campaign-v1.75.0.txt](docs/break/campaign-v1.75.0.txt), 59 probes, exit codes identical to v1.74.1. **Migration:** `mrw mcp` now serves no tools until it is enabled — a registration that wants them adds `--enable` to its args (`mrw mcp --enable`) or sets `MRW_MCP=on`, then restarts the server; with a shell, use the CLI and leave it off (ADR-170). Since v1.74.0: `mrw read --if-changed PATH=SHA` answers a file you read earlier with one line when it has not changed (ADR-169).
+**Status: stable at v1.77.1 (2026-10-28), the tag cut from `926aabad`.** Break campaign for it: [docs/break/campaign-v1.77.1.txt](docs/break/campaign-v1.77.1.txt), 59 probes, exit codes identical to v1.77.0. Since v1.77.0: `mrw run 'CMD'` keeps a command's output in a log and prints a four-line receipt (ADR-177); `mrw read --json-path` projects JSON values (ADR-178); `mrw read --outline`, `--fold`, `--no-comments`, `--max-matches N` and `--if-served PATH=SHA`, the long-line hint and `MRW_MAX_COLS`, and `mrw write --terse` say less (ADR-179). **Migration since v1.75.0:** `mrw mcp` now serves no tools until it is enabled — a registration that wants them adds `--enable` to its args (`mrw mcp --enable`) or sets `MRW_MCP=on`, then restarts the server; with a shell, use the CLI and leave it off (ADR-170). Since v1.76.0: `mrw seen --forget` empties the checkout's read ledger for a host's compaction hook (ADR-175, [docs/agents.md](docs/agents.md) §8).
 
 Decisions: [docs/adr/](docs/adr/). How a change reaches `main`: [CONTRIBUTING.md](CONTRIBUTING.md). Driving it from a checkout: [AGENTS.md](AGENTS.md).
 Caller practices: [BESTPRACTICES.md](BESTPRACTICES.md). Updating the binary: [UPDATE.md](UPDATE.md).
@@ -121,6 +121,23 @@ most in under 300 words (ADR-141). `mrw --instructions` is refused, exit 2,
 with a message naming `mrw instructions`; so is any other undefined flag that is
 exactly the name of a subcommand of the command it was given to.
 
+### Tools beside mrw
+
+mrw is one static binary and needs nothing else to read, search or write: the `.gitignore` walk, the regex
+search and the JSON paths are its own code, so no `git` binary is called for them. Two features run another
+program, and a few tools make an agent's session shorter:
+
+| Tool | What uses it | Without it |
+|------|--------------|------------|
+| [`ast-grep`](https://ast-grep.github.io/) | `--ast-grep PATTERN` (read), `--ast-grep … --rewrite …` (write), `ast_grep` / `rewrite` on MCP | those flags exit 2: `ast-grep: not found on PATH`; everything else works |
+| a POSIX `sh` | the project's check after a code write, `mrw check`, `--then`, `--then-sh` | the check reports it could not start; on Windows mrw falls back to the `sh.exe` Git for Windows installs beside `git.exe` (ADR-082) |
+| `rg`, or any searcher | `--files-from -`, when your own index beats a walk | use `--grep`, which walks and serves in one call |
+| `jq` | nothing in mrw; reading a `--json` receipt or `mrw read --json` from a script | read the human receipt |
+
+Install ast-grep with `brew install ast-grep`, `npm install -g @ast-grep/cli` or `cargo install ast-grep --locked`.
+mrw looks for the binary named `ast-grep`, not its `sg` alias. Checked with ast-grep 0.51.0 on 2026-10-27: a
+read and a `--rewrite` write both work, and with no `ast-grep` on PATH the read exits 2 naming it.
+
 ### Tell your agent to use it
 
 An agent with mrw on its PATH still reaches for `cat`, `grep` and its own Edit tool unless its standing
@@ -138,7 +155,7 @@ after upgrading mrw. Add it beside the trigger, not in its place: a host loads a
 relevant, and nothing measured says it does for a routine edit (ADR-168). `mrw --help` opens with this line.
 
 **What allowing mrw allows.** mrw runs as you. A harness rule that allows it (`Bash(mrw:*)` or its equivalent)
-allows writes to any file you can write, under any `--root` it is given, and shell through `--then-sh`,
+allows writes to any file you can write, under any `--root` it is given, and shell through `--then-sh`, `mrw run`,
 `mrw check` and `--then`; a host's per-path rules for its Edit and Write tools do not reach it. mrw's own
 refusals — `.git`, its state, a link that leaves the root — keep a plan honest, not an agent contained.
 Contain an agent with the host's sandbox or the operating system's permissions, or allow mrw only where you
@@ -175,6 +192,14 @@ ends before the file does (ADR-161), so `f.txt:2` prints lines 2 and 3: a multi-
 unless a line after its range was served, when the range ends before the last line, and this is that line.
 Quote a JSON path for the shell: pwsh 7 takes `'t.json:$["k"]'`, Windows PowerShell 5.1 needs `'t.json:$[\"k\"]'`,
 cmd needs `"t.json:$[\"k\"]"`, and Git Bash and other POSIX shells take single quotes; an unquoted `[0]` is a glob (ADR-157).
+
+`--json-path EXPR[,EXPR…]` takes a few fields out of a JSON file, or of `-` for piped output, as one line each,
+`EXPR = VALUE`, the value compacted: `mrw read --json-path '$.name,$.scripts.build' package.json`, or
+`CMD --json | mrw read --json-path '$.a,$.b' -`. A path address of single-line JSON serves the whole line; this does not.
+A projection licenses nothing and records nothing, so read the path address (`package.json:$.scripts.build`) before editing
+the value; an expression the document lacks prints `NOT FOUND`, a file that is not one JSON document prints `NOT JSON`, and
+either exits 1. It takes `--max-cols` and `--max-chars`, and `--json` for a named file (on `-` it is refused), and refuses the flags that serve lines, `-N` included (ADR-178). Quote
+the expressions as above.
 
 `--root DIR` (or `-C DIR`) is `mrw`'s own flag and goes before the subcommand: `mrw --root DIR read …`. Most
 subcommands also take it after the verb; `read` does not, because its own `-C` is context, and a `read --root`
@@ -213,12 +238,19 @@ rg -l 'func Handle' . | sed 's|$|:/func Handle/|' | mrw read -C 3 --files-from -
 | `--max-chars N` | write at most N characters to standard output, in whole lines, counting everything the read prints there: what does not fit is not served and not licensed, each range and file it kept back is listed on standard error, and the read exits 1 `incomplete: … ; --max-chars N reached`. `0` prints nothing. For a host whose output limit would otherwise cut the answer where it likes (ADR-165) |
 | `--json` | print one JSON document: `content`, the read's standard output exactly as without `--json`, and `receipt`, the object `mrw_read` sends as `content[1]` for the same read (`observed` with each file's ranges and sha, `problems`, and `skipped`, `counts` or `matches` where the read has them), built by the same function. A refusal before the answer is `{"error": …}`; the exit code and standard error are the plain read's. Under `--max-chars` the budget bounds `content`; the JSON around it and the receipt are not charged. Content that is not valid UTF-8 is refused, exit 2, nothing recorded: read it without `--json`. Not on standard input (ADR-165) |
 | `--max-cols N` | cut a line longer than N characters to a window of N centred on the first match of a pattern (the start otherwise), holding the whole match when it fits, marked `[cols A-B of L]`; a line served cut is not recorded as read, so a plan that replaces it is refused until it is read whole (ADR-137, ADR-164). `max_cols` on `mrw_read` does the same, and a line it served cut is in no checkpoint, so no ack licenses it (ADR-154) |
+| `--outline` | print each file's structure instead of its lines: a `.go` file's top-level `func`, `type`, `var` and `const` declarations, a `.md` or `.markdown` file's headings outside fenced blocks, each as `A-B text` with the lines it spans. It licenses nothing: the file is hashed, no line is recorded as read. Any other file is named in one line on standard error and the read exits 1. Refused beside every flag that serves, searches or plans lines, `--max-lines` and `--max-cols`, on `-` and with an address (ADR-179) |
+| `--max-matches N` | with `--grep` or `--ast-grep`: show matching lines across all the files in walk order until N have been shown, and count the rest. When matches remain unshown the answer ends `-- max-matches N reached: M more matching line(s) in K file(s) not shown` and the read exits 1 (a read that showed them all says nothing and exits 0); a match inside a span already shown (context, the line after a range) counts as shown, so more than N lines can print; only what was shown is licensed (ADR-179) |
+| `--fold` | a run of two or more non-blank lines that are identical, or identical but for digits, is its first line and `-- ×N: lines A-B like A`. The folded lines are not shown, so not licensed; a line a `--grep` matched and the line after a range are never folded away (ADR-179) |
+| `--no-comments` | in a `.go` file, a run of two or more whole-line comment lines (`//` or `/* */`) is `-- … N comment line(s), A-B` and is not licensed. Trailing comments, `//go:`, `//line` and `//export` directives, the cgo preamble, the line after a range and any line a `--grep` matched stay. Other files and `-` are served whole and named once on standard error (ADR-179) |
+| `--if-served PATH=SHA` | repeatable, one per file: answer a spec of PATH by `-- same as served: lines A-B at sha SHA` instead of its text when the file still has the sha you quote and the ledger reports every line of the spec shown to you in that version; nothing is recorded, a missed range is still reported (exit 1), and `--json` lists each reference as `same_as_served` (`path`, `sha`, `spans`). Only for a session alone in its checkout whose host runs `mrw seen --forget` on start, resume, clear and compaction and whose reads were made under `--max-chars` below the host's output limit: a line recorded as shown may never have reached you (ADR-179, `docs/agents.md` §8) |
 | `--grep PATTERN` | serve every regexp match under the given paths (measured 2026-09-03: the walk took 0.76× the time of a `grep -rl … \| mrw read --files-from -` pipeline over this repository, ADR-007) |
 | `--ast-grep PATTERN` | serve every `ast-grep` hit (binary on PATH; missing is exit 2; a hang is, on unix, sent SIGTERM at 2 s and killed by 3 s if it ignores it; on Windows it is killed at 2 s). A hit in a file whose lines end in `\r` alone is reported, not served — read that file directly |
 | `--exclude GLOB` | skip matching paths (needs `--grep` or `--ast-grep`) |
 | `--files-from FILE\|-` | one spec per line |
 
 A pattern that matches no file is reported by name and exits 1.
+
+`MRW_MAX_COLS=N` in the environment is `--max-cols N` for a read that serves lines when the flag is absent (`--max-cols 0` on the command line turns it off; `--quiet`, `--sub`, `--rewrite`, `--count`, `--stat`, `--outline` and `--json-path` ignore it; a value that is not a non-negative integer is named once on standard error and ignored). A read that serves a line over 400 columns whole, with no width chosen, says so once on standard error and names `--max-cols 200` (ADR-179).
 
 A read whose standard output is the null device (`>/dev/null`, cmd.exe's `>NUL`) is still
 served and exits as usual, but records nothing in the ledger and says so on stderr (ADR-133).
@@ -264,9 +296,12 @@ A plan is a sequence of hunks. Every address resolves against the original file
 mrw write plan.mrw
 mrw write --dry-run plan.mrw
 mrw write --no-check plan.mrw
+mrw write --terse plan.mrw
 mrw write --json plan.mrw
 mrw write -
 ```
+
+A plan piped to `mrw write -` that ends with nothing in the tree (a refusal, a dry run, a commit that landed nothing) is kept in `<state home>/mrw-refused/`, the newest 16, beside mrw's state directory and not in it: stderr names the path (`refused_plan` under `--json`), and the caller edits that file and runs the same command with the path in place of `-` instead of sending the plan again (ADR-176).
 
 Ops are `replace`, `insert-after`, `insert-before`, `delete`, `create`,
 `unlink`, `rename`. `@@ path - unlink` removes the path. `@@ old - rename`
@@ -349,7 +384,7 @@ These are gates, not a tour of the records behind them.
   `.quality-harness.json`, and `--then-sh 'CMD'` an ad-hoc shell step; both repeat and run in
   command-line order after a landed write whose check passed, on `write` and `check`. The first that
   does not pass stops the rest, named `NOT RUN`; exit 3 (2 if it could not start); `--json` carries
-  `then: {steps, pruned_logs}`. --then-sh runs any shell command it is given: a harness rule that allows mrw without reading its arguments allows arbitrary shell through --then-sh.
+  `then: {steps, pruned_logs}`. --then-sh and mrw run run any shell command they are given: a harness rule that allows mrw without reading its arguments allows arbitrary shell through --then-sh and mrw run.
   `could_not_start` means the shell could not start (a missing command inside it is a `fail`, exit
   127); a step runs with `MRW_STEP_DEPTH` one deeper, and `--then` is refused at depth 8, so a step
   that re-runs mrw with steps cannot recurse without end; `"steps"` is read only when a step is asked for.
@@ -554,6 +589,8 @@ starts with `/` is rewritten too, into a false "no match".
 | 2 | usage, parse or I/O error — including a check miss |
 | 3 | the write applied and the check failed, timed out or was interrupted (before it started, too); the tree is changed and unverified. Not a rollback |
 
+`mrw run 'CMD'` gives the codes a meaning of its own (ADR-177), as `mrw version --check-latest` does: it exits with the command's own code, `128+N` when a signal N killed it (on Windows, Git for Windows' sh reports N as `N<<8`, which mrw reads back), `124` when it reached its 24-hour deadline and `130` when mrw was interrupted. Its own failures (a usage error, a log that could not be made, a shell that could not start) are `2` with a `mrw:` line on stderr and no `exit` line in the receipt, which tells them from a command that exited 2.
+
 Exit 1 on `read` means incomplete: `UNREADABLE`, `REFUSED`, `no match`, or
 `WITHHELD`. The output always names which, and the last stderr line begins with the kind
 (ADR-146): `mrw: no match: …` when a search found no file and nothing it was asked for was
@@ -634,9 +671,35 @@ Linux. opencode itself is not run in CI.
 `mrw skill` (or `mrw --skill`) prints mrw's Agent Skills `SKILL.md`, and `mrw --skill --dir DIR` installs it as
 `DIR/mrw/SKILL.md`, replacing only one it wrote and nobody edited (ADR-168); see "Tell your agent to use it".
 
-`mrw check`, `mrw iter`, `mrw seen`, `mrw seen --prune`, and `mrw stats` exist
+`mrw run 'CMD'` runs one command string with `sh -c` in the root and keeps its output out of your context: standard
+output and standard error, interleaved, go to a log in `<state home>/mrw-runs/` (mode 0600, beside mrw's state
+directory and never in it, so `mrw seen --prune` does not look at it), and mrw prints a receipt of four lines instead
+(ADR-177):
+
+```
+exit 1 · 2,314 lines · 187,902 bytes · 41.2 s
+last: FAIL	github.com/x/y/internal/read	3.112s
+log: /Users/zy/.local/state/mrw-runs/run-20261027T101500.123Z-4242.log
+read: '/usr/local/bin/mrw' read -- '-:2275-$' < '/Users/zy/.local/state/mrw-runs/run-20261027T101500.123Z-4242.log'
+```
+
+`last:` is the last non-empty line, cut to 200 characters; `read:` serves the log's last 40 lines with the running
+binary, not the `mrw` on PATH (on Windows it is the form typed at a PowerShell prompt, `cmd /c "`"EXE`" read -- -:N-`$ < `"LOG`""`,
+since a pipe turns non-ASCII into `?` in Windows PowerShell 5.1), and `mrw read --grep P -C 3 - < LOG`
+searches it. A log is not a tree file, so a named-path read of it is refused; standard input reaches it and
+records nothing. Its exit code is the command's (see "Exit status"), which `CMD | tail` loses. Standard input is the
+null device, the deadline is 24 hours, and an interrupt, terminate or hangup sent to mrw stops the command's group. In Windows PowerShell 5.1 a command holding `"` reaches mrw as several arguments (its legacy native-argument quoting): use single quotes inside the command, or pwsh 7.
+`--json` prints one document, receipt type `run` in [docs/receipts.txt](docs/receipts.txt); at `MRW_STEP_DEPTH` 8 it
+is refused, and its command runs one level deeper. Every log is kept, passing ones too, and **stays on disk with
+whatever the command printed**: logs older than 7 days, and all but the newest 64, are eligible for removal and a
+later completed `mrw run` removes them. When `XDG_STATE_HOME` is inside a checkout (or `--root "$HOME"`), `mrw-runs/`
+is inside it too and is an ordinary directory there: ignore it. It runs any shell command it is given, as
+`--then-sh` does, so allowing mrw allows arbitrary shell. CLI only: MCP is for hosts with no shell.
+
+`mrw check`, `mrw iter`, `mrw seen`, `mrw seen --prune`, `mrw seen --forget`, and `mrw stats` exist
 only on the CLI, and so through the opencode plugin, which runs it. `mrw check` is not read-only: it runs whatever the project
-declared. Nothing calls `--prune` for you. Details: [AGENTS.md](AGENTS.md).
+declared. Nothing calls `--prune` for you. `mrw seen --forget` empties the checkout's read ledger so that a write needs a fresh read;
+a host hook runs it after a compaction (ADR-175, [docs/agents.md](docs/agents.md) §8). Details: [AGENTS.md](AGENTS.md).
 
 Round trips are 2 for any N. Re-run `./scripts/measure.sh` rather than quoting
 a table — the ratios track this repository's own files. The contract is

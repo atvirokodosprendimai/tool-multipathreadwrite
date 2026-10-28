@@ -13,6 +13,7 @@
 # mcp_read       the receipt mrw_read carries in content[1] (ADR-023)
 # read           mrw read --json (ADR-165): content, and receipt, whose keys are mcp_read's
 # read_refusal   a mrw read --json refusal before the answer
+# run            mrw run --json (ADR-177): exit_code is what mrw exits with, -1 when the command never ran
 
 check command
 check declared
@@ -237,6 +238,22 @@ mcp_read unchanged[].bytes
 mcp_read unchanged[].lines
 mcp_read unchanged[].path
 mcp_read unchanged[].sha
+mcp_read same_as_served
+mcp_read same_as_served[].path
+mcp_read same_as_served[].sha
+mcp_read same_as_served[].spans
 read content
 read receipt
 read_refusal error
+write refused_plan
+run command
+run ran
+run exit_code
+run signal
+run skipped
+run duration_ms
+run lines
+run bytes
+run last
+run output_file
+run pruned_logs

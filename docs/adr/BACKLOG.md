@@ -582,6 +582,10 @@ Zy, 2026-10-18, approved measuring the plugin where its mechanism can work; 2026
 - **Hiding the host interpreters from the attempt** (2026-10-19): ADR-163 counts calls to host interpreters by absolute path, `env -i`, `command -p` or `xcrun`. If T4's agent pilot counts any, how to hide them before block 1 is decided with Zy then, and this entry closes.
 - **The side reader applies rulings to P only, untested** (2026-10-23): `bench side` applies `rule` to the control's attempts (`internal/bench/side.go`, `if src.config == control {`), since a side arm's attempts live in `side/`, which no ruling names. No T6 test sets a ruling, so a mutant that drops the call or rules the side arm survives. Add a ruled-P fixture to `TestTheSideReaderUsesPAsControlAndTheRegisteredBar` before the first side verdict is read (T5).
 
+## From ADR-175
+
+- **Compaction hooks for Codex and Cursor** (2026-10-24): the `mrw seen --forget` hook is documented for Claude Code only (`docs/agents.md` §8); equivalents for other hosts are deferred (ADR-175: compaction hooks for Codex and Cursor). Arm when a Codex or Cursor user reports a post-compaction unlicensed write, or when either host documents a compaction event a command can hang on.
+
 
 ## Pre-registered for a whole-file re-read guard (`--if-changed sha=X`) — written before the measurement
 
@@ -731,3 +735,150 @@ new capability.
 ## From ADR-171
 
 - **A one-line answer to a repeated `mrw instructions`** (2026-10-24): when the same state directory sees `mrw instructions` again, print one line instead of 12.9K characters. Deferred: it makes a read-only command depend on state, and ADR-171 Decision 2 removes the reason for the repeat (the header and the trigger say to read the rules once a session). Reopen if a re-measure after ADR-171 still shows repeated full reads.
+- **The one-line answer is reconsidered beside ADR-179** (2026-10-27): ADR-179 (d) answers a repeated READ by reference (`--if-served`) and lists this entry in its Out of Scope; `mrw instructions` reads no ledger, so (d) does not reach it. Same trigger as above.
+
+## From ADR-176
+
+- **Exclusive-create collision coverage — closed (2026-10-28):** the release handoff named a deferral that had
+  not been entered here. `cmd/mrw/review177179_test.go::TestAKeptPlanCollisionNeverReplacesTheOriginal` now freezes
+  time and random bytes, forces the second save onto the first path, and asserts an existing-path refusal and
+  byte-identical original. Removing `O_EXCL` must fail this test. No production naming hook or pending deferral remains.
+
+- **Keeping `--create`'s refused standard input** (2026-10-24): ADR-176 keeps a refused standard-input PLAN so the caller reruns it by path. `mrw write --create PATH` reads a file's CONTENT from standard input (ADR-139), not a plan, and a refused one (the path exists, the content is over the limit) drops it the same way. Left out because the rerun there is a new `--create` of the same content, which the caller can pipe again at the cost of one file, not a plan with a line to fix; revisit if a field run shows `--create` content re-sent after a refusal.
+
+## Pre-registered for ADR-177, ADR-178 and ADR-179 — written with the records, before any code
+
+Zy, 2026-10-27: *"yes, go, address these, measure, plan, implement verify, udupate the instrucitons, no counter-arguing, all follow same direction."*
+
+**The baseline** is `docs/bench/output-study/baseline-2026-10-27.json` and `repeat-baseline-2026-10-27.json`: `measure_output.py` and `measure_repeat.py`, as added in the change that wrote this entry, with `--since 2026-09-27T10:11:00Z --until 2026-10-27T10:11:00Z` — every tool result whose transcript line is stamped in that window (129 main-session transcripts, 107 with an mrw call; 100,931,328 characters of tool output).
+
+**The run.** With the same two scripts, unchanged, and `--since T --until T+30d`, T the UTC time of the tag of the release that ships the last of the three records. If the window is extended (below), `--until` moves to T+60d and `--since` stays T: one window, never a rolling one. Counters a later task adds (ADR-179 T2 S2, T8 S2) are reported beside these, never in place of them, and measure over the baseline's window.
+
+**Exposure first.** A bucket is judged only when its window's denominator is at least half the baseline's (e.g. at least 9,538 `mrw read` calls for a `mrw read` share). A bucket below that is inconclusive. The run as a whole is inconclusive if fewer than 50 transcripts in the window hold an mrw call.
+
+**The expected change, per bucket** (a share of all tool output unless it says otherwise; baseline → bar):
+
+| record | bucket (script keys) | baseline | bar |
+|---|---|---|---|
+| ADR-177 `mrw run` | Bash outputs over 4 KB that are not mrw and not reads (`bash_big_nonread_chars` / ALL) | 1.53% | ≤ 1.0% |
+| ADR-177 `mrw run` | commands piped into head/tail per non-mrw Bash call (`bash_piped_head_tail_calls` / `bash_nonmrw_calls`) | 48.1% (11,478 of 23,850) | ≤ 38% |
+| ADR-177 `mrw run` | reads of `mrw-runs/` logs (`mrw_runs_log_read_chars` beside `mrw_run_chars`) | 0 | reported, no bar |
+| ADR-178 `--json-path` | JSON documents of 1 KB or more (`json_docs_chars` / ALL) | 6.13% | ≤ 5.2% |
+| ADR-178 `--json-path` | `--json-path` calls (`mrw_json_path_calls`) | 0 | reported, no bar |
+| ADR-179 (a) | long-line excess in `mrw read` (`longlines_saved_mrw read` / `mrw read` chars) | 7.94% | ≤ 4.0% |
+| ADR-179 (b) | whole-file reads over 150 lines, completely served blocks, Read + `mrw read` / ALL | 2.70% | ≤ 2.15% (the same 20% cut; the first figures, 4.15% → 3.3%, counted partial reads and batches) |
+| ADR-179 (d) | repeated identical mrw content blocks (`repeat_block_chars` / `all`, measure_repeat) | 0.22% | ≤ 0.15% |
+| ADR-179 (c) | foldable near-identical runs (`fold_near_saved` / ALL) | 1.13% | ≤ 0.85% |
+| ADR-179 (e) | notice lines repeated inside one tool result (`notice_repeat_chars`) | 0.028% | reported, no bar |
+| ADR-179 (f) | characters per `mrw write` call (`mrw write` chars / calls), and `--terse` calls (`mrw_write_terse_calls`) | 606 / 0 | ≤ 450 / reported |
+| ADR-179 (g) | characters per `mrw read --grep` call (`mrw_read_grep_chars` / `mrw_read_grep_calls`) | 2,176 | reported, no bar |
+| ADR-179 (h) | not measured by these scripts; T8 S2's counter | — | reported, no bar |
+
+**The measurement bars, before code, over the baseline's window.** ADR-179 T2 proceeds only if `.go` and `.md` files carry at least 25% of the characters of whole-file reads over 150 lines; ADR-179 T8 proceeds only if whole-line comment runs (`//` and `/* */`) of two or more lines in `.go` blocks of `mrw read` output are at least 1.0% of `mrw read` characters. Below either bar the task stops and the numbers go to Zy.
+
+**What each outcome does.**
+- A bucket at or past its bar: the part is kept and its taught lines stay.
+- A bucket that moved less than half the way from baseline to bar: the part is reported to Zy as not adopted, with its taught lines put to Zy for removal from `mrw instructions` and `mrw skill`. Nothing is removed on this alone.
+- **Inconclusive** (exposure, above): the window is extended once to 60 days; still inconclusive, the numbers go to Zy.
+- **ADR-179 (d) is also judged on cost:** `reference_chars` (and `same_as_served_chars`) against `reference_stands_for_chars`, the characters of the blocks the references stood for (measure_repeat ties each reference to the block its session last served for that path and sha; `reference_unmatched_count` counts those with none); a reference that costs more than a third of what it replaced is reported. (f)'s default question is answered here too: if `--terse` appears in at least 20% of `mrw write` calls and no failure-report complaint is filed, the terse receipt as the default goes to Zy as a record.
+  **Counter correction, 2026-10-28:** the whole-last-block attribution above overcredits a subset reference.
+  Use the union of full numbered lines previously served at that path and SHA, and count only the reference's
+  spans (number prefix and newline included). A reference with any unknown or column-cut line is unmatched,
+  credited with zero replaced characters. The one-third bar, exposure and fixed window are unchanged;
+  the reference-free registered baseline artifacts remain the original observations.
+
+**What would make this impossible to fail:** a window in which nobody uses mrw, or a bucket with no exposure. The exposure rule makes both inconclusive rather than a pass; a workload shift (more test runs, fewer reads) moves the shares for reasons unrelated to these records, which is why each part is judged against its own bucket and none against the total.
+
+## From ADR-177
+
+- **A `run` tool in the opencode plugin** (2026-10-27): the plugin offers one tool per subcommand (`cmd/opencode/mrw-plugin/src/index.ts:242-271`); `mrw run` is not added there with ADR-177. Arm when an opencode user asks, or when the plugin is next extended (ADR-177: a `run` tool in the opencode plugin).
+- **A size cap on one `mrw run` log** (2026-10-27): no cap is decided; a command can fill the state home's disk. Arm when a user reports a run log over 1 GiB, or a full disk traced to `mrw-runs/` (ADR-177: a size cap on one run's log).
+
+## From ADR-178
+
+- **`*` and `..` in a projection** (2026-10-27): `--json-path` takes ADR-155's grammar, one value per expression. Arm when a caller asks for `$.tasks[*].status`-shaped reads, the quality-harness `task-state --json` loop first (ADR-178: `*` and `..` in a projection).
+- **JSON Lines, one projection per line** (2026-10-27): a file of several JSON values is `NOT JSON` today. Arm when the re-measure shows JSONL reads through mrw (ADR-178: JSON Lines).
+- **`json_path` on `mrw_read`** (2026-10-27): CLI only, since the MCP tools are off by default (ADR-170). Arm when a shell-less host asks (ADR-178: `json_path` on `mrw_read`).
+
+## From ADR-179
+
+- **`--outline` and `--no-comments` beyond Go (and Markdown for outline)** (2026-10-27): other languages would go through ast-grep rules, a configuration surface. Arm when ADR-179 T2's or T8's measurement shows another language over the bar its task names (ADR-179: other languages).
+- **The new read flags and `--terse` on `mrw_read` and `mrw_write`** (2026-10-27): CLI only. Arm when a shell-less host asks (ADR-179: these flags on the MCP tools).
+- **`TestAnExponentIsReducedExactlyAndInLinearTime` fails under a loaded full suite** (2026-10-28): at the v1.77.0 release, `go test ./...` on `a508f6a2` failed twice locally at load 15-21 on 10 cores, only this test (`internal/mcp/surface128_test.go:257`), with 1M-to-4M ratios 6.4/7.1/7.2 and 3.7/9.5/9.9 in one run; it passed alone three times at load 21, a third full run passed, and CI passed. The noise guard (skip when ratios disagree threefold) did not fire on the first run. Arm when it fails again in a full run on a tree that does not touch `internal/mcp` (no ADR; found at the v1.77.0 release).
+
+## Post-v1.77.1 cleanup and decisions (2026-10-28)
+
+Zy asked to fix and clean up the reproducible issues, re-examine the open work,
+then decide what to complete. This is the current disposition; it does not
+change an exit code, a trust boundary, or any registered measurement window.
+
+- **Forwarding fixture isolation (fixed):** `internal/bench/container_test.go`
+  now establishes `LC_ALL=C` and an empty `DJANGO_SETTINGS_MODULE` before its
+  baseline snapshot. The existing focused test failed with both inherited
+  target values and passes after the fix. No forwarding implementation changed.
+- **Held-pipe fixture startup (fixed):** PR #543's race job failed because its
+  300 ms cancellation preceded the Perl child's PID file. The fixture now waits
+  for the escaped child to be ready before cancellation. A one-second startup
+  delay reproduces the old failure and passes after the fix; setting
+  `Cmd.WaitDelay=0` still fails the bound assertion. ADR-072 T4 and ADR-095 T2
+  acceptance fences and test locks were refreshed, preserving their assertions.
+- **Kept-plan lock through a Windows junction (test added):**
+  `cmd/mrw/refused176_windows_test.go::TestStateHomesSharingAKeptDirectoryThroughAJunctionUseOneLock`
+  exercises two state homes sharing the kept directory with `mklink /J`,
+  reusing the existing process/lock rig. Junction creation fails the test rather
+  than skipping it. A Windows cross-compile is not execution evidence; Windows
+  CI must run it. The existing privilege-dependent symlink case remains.
+- **Published Windows executable (still needs Windows access):** run the pending
+  randomized/session checks against the published v1.77.1 asset. Source CI and
+  a matching asset checksum do not close this item.
+- **Issue #537 (closed):** PR #539 (`b3cc604c`) shipped the repeated-BOM fix in
+  v1.77.0. Replayed the two-leading-BOM byte stream against installed v1.77.1:
+  exit 0, changed bytes correct, count notice present. The GitHub issue is now
+  closed; this is not a claim that an offline PowerShell session was run.
+- **ADR-164 T3 dependency marker (cleared):** PR #460 merged at
+  `7f433438bc7f579baccd6295d4311876bf3c9990`, an ancestor of main. Its
+  obsolete `Blocked-on` field is removed.
+- **ADR-173 (decision before implementation):** the draft and task are preserved
+  in `4f2e05af^3:docs/adr/ADR-173-a-callers-own-line-cap-is-not-an-incomplete-read.md`
+  and `docs/adr/ADR-173/tasks/`. It proposes exit 0 when only the caller's
+  `--max-lines` withheld content, retaining licensing and receipt meanings.
+  Rebase the design against ADR-179's `--max-matches` and existing
+  `--max-chars` before deciding the next release's budget/exit-code policy.
+  Recover only these files; the stash also contains already-shipped work.
+- **ADR-174 (draft needs revision):** the same stash holds
+  `docs/adr/ADR-174-then-sh-runs-only-when-enabled.md` and its task.
+  Gating `--then-sh` alone no longer supports its claim that blanket permission
+  for mrw excludes arbitrary shell: released `mrw run` also runs shell.
+  Decide a coherent host-permission boundary before implementing the opt-in.
+- **`mrw seen --changed-outside` (measure before a record):** the proposal is
+  advisory reporting of git-visible changes whose current SHA is not a
+  ledger-written SHA, not blocking shell commands. The motivating peer counted
+  two accidental `sed -i` writes, about five deliberate restores, and three
+  removals in one session. That is a lead, not an adoption measurement.
+  Existing copy/context scanners classify known write bodies; they do not prove
+  all shell writes or distinguish legitimate tool outputs from violations.
+  Define the observable cohort and audit ambiguous/tool-generated writes before
+  choosing whether to build this report.
+- **`go install` version stamp (decision before implementation):** local
+  `versionString` reads VCS settings but ignores module-version metadata.
+  Decide whether a module-installed build should use that metadata while an
+  explicit linker stamp remains authoritative; preserve local `dev` builds
+  and the honest no-revision fallback.
+- **Open PRs (triaged, not merged):** #528's required `PUSH_TOKEN` secret is
+  present by name. Its `workflow_run.branches: [main]` filter conflicts with
+  tag release runs (v1.77.1 CI reports `head_branch=v1.77.1`); correct and test
+  the trigger before approval. [GitHub documents that this filter applies to
+  the triggering workflow's branch](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#limiting-your-workflow-to-run-based-on-branches).
+  PR #543 hit the held-pipe fixture failure above. PR #523 changes knip but
+  leaves ADR-147 T2's acceptance grep pinned to 6.38.0; update and reverify that
+  record with the dependency change, rather than weakening the static gate.
+- **Historical receipt routing (reader finding, not recertified):**
+  `work-next` 3.8.59 reports historical done tasks as needing verification.
+  For ADR-026 T4, current green receipt rows exist and `adr-lint` passes,
+  while `adr-next` reads the word `refuse` inside a positive human sign-off as
+  a stop. Keep that reproducer for the harness owner; do not manufacture new
+  red/green history or mass-relock old records to silence the route.
+
+The exponent timing-test entry above retains its recurrence trigger. ADR-169's
+14-day adoption reading is due 2026-11-06; ADR-177–179's first 30-day window ends
+2026-11-27, anchored to v1.77.0. v1.77.1 does not reset either window.

@@ -3069,6 +3069,15 @@ ctx=$(hook55 s5e mcp__mrw__mrw_write "{\"plan\":\"@@ 'docs/adr/x.md' 1 replace\\
 [ -z "$ctx" ] && ok "a single-quoted path is literal to mrw, names no file, and delivers nothing" || bad "single quotes were stripped, which mrw does not do: $ctx"
 ctx=$(hook55 s5f mcp__mrw__mrw_write '{"plan":"@@ docs/adr/x.md /^func (s *Store) Get/,/^}/ replace\nX\n"}' | ctx55)
 grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ok "a pattern address with spaces is one token, and the path before it delivers" || bad "a pattern address split the header: $ctx"
+# Issue #537 (review of #539): mrw drops EVERY leading mark of a header line, so
+# the hook must too. One mark, two marks, and the pair that must deliver
+# nothing: text before the marks is not a header for either of them.
+ctx=$(hook55 s5j mcp__mrw__mrw_write '{"plan":"﻿@@ docs/adr/x.md 1 replace\nX\n"}' | ctx55)
+grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ok "a plan with one leading mark delivers early for the file it names" || bad "one leading mark hid the header from the hook: $ctx"
+ctx=$(hook55 s5k mcp__mrw__mrw_write '{"plan":"﻿﻿@@ docs/adr/x.md 1 replace\nX\n"}' | ctx55)
+grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ok "and two leading marks deliver too, as mrw reads that header" || bad "two leading marks hid the header from the hook: $ctx"
+ctx=$(hook55 s5l mcp__mrw__mrw_write '{"plan":"x﻿﻿@@ docs/adr/x.md 1 replace\nX\n"}' | ctx55)
+! grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && ok "the pair: marks after other text do not make a header" || bad "a mark inside a line made a header for the hook: $ctx"
 ctx=$(hook55 s5g mcp__mrw__mrw_write '{"plan":"@@ \"docs/adr/x.md 1 replace\nX\n@@ README.md 1 replace\nY\n"}' | ctx55)
 ! grep -q 'SCOPED RULE BODY 55' <<<"$ctx" && grep -q 'INLINE RULE BODY 55' <<<"$ctx" && ok "an unterminated quote yields no path from that line, and the next header still delivers early" || bad "unterminated quote: $ctx"
 ctx=$(hook55 s5h mcp__mrw__mrw_write '{"plan":"@@ docs/adr/x.md 1 replace anchor=\"a\" anchor=\"b\"\nX\n"}' | ctx55)
@@ -6104,8 +6113,10 @@ assert not untaught, "instructions omit read flags: %r" % untaught
 # --core is the instructions flag that prints the short form (ADR-141), and
 # --dry-run is the write flag ADR-161's recipe 2 shows before a wide edit, and
 # --force is the write flag ADR-167's recipe 10 says a copy's source never honours, and
-# --dir is the skill flag ADR-168's closing sentence names for installing the skill.
-unknown = set(re.findall(r"--([a-z][a-z-]*)", out)) - set(flags) - {"root", "help", "then", "then-sh", "no-check", "create", "core", "dry-run", "force", "dir"}
+# --dir is the skill flag ADR-168's closing sentence names for installing the skill, and
+# --terse is the write flag ADR-179 teaches for a one-line-per-file receipt, and
+# --forget the seen flag its --if-served paragraph names.
+unknown = set(re.findall(r"--([a-z][a-z-]*)", out)) - set(flags) - {"root", "help", "then", "then-sh", "no-check", "create", "core", "dry-run", "force", "dir", "terse", "forget"}
 assert not unknown, "instructions teach flags read does not have: %r" % sorted(unknown)
 assert re.search(r"^\s+--ast-grep PATTERN\b", opts, re.M), "read --help does not show --ast-grep PATTERN"
 PY
@@ -10237,6 +10248,488 @@ before297=$(cat "$R/f297.txt")
 out=$(m write --no-check "$WORK/q297.plan" 2>&1); want 2 $? "the pair: a count short of its body is refused as a bad plan"
 [ "$(cat "$R/f297.txt")" = "$before297" ] && ok "and writes nothing" || bad "changed: $(cat "$R/f297.txt")"
 rm -f "$R/f297.txt" "$WORK/p297.plan" "$WORK/q297.plan"
+
+# 300. ADR-175: `mrw seen --forget` empties the checkout's read ledger, for a host
+# hook that runs it after compacting its context, so that a write needs a fresh
+# read of the lines it touches. The pairs: the same plan a read licensed is
+# refused after it and applies after a fresh read; an empty ledger is forgot 0;
+# --forget beside --prune or --dry-run is a usage error, exit 2, and forgets
+# nothing.
+R=$(mktemp -d "$WORK/r300-XXXXXX"); printf 'one\ntwo\nthree\n' > "$R/f.txt"
+(cd "$R" && "$MRW" read f.txt > "$R/.out" 2>&1)
+f300=$(cd "$R" && "$MRW" seen --forget 2>&1); rc300=$?
+want 0 "$rc300" "mrw seen --forget exits 0"
+[ "$f300" = "forgot 1 file(s): a write now needs a fresh read of the lines it touches" ] \
+  && ok "mrw seen --forget says how many files the ledger held" || bad "forget: $f300"
+w300=$(printf '@@ f.txt 2 replace\nTWO\n' | (cd "$R" && "$MRW" write --no-check - 2>&1)); rc300=$?
+want 1 "$rc300" "a write to a line read before --forget is refused, exit 1"
+{ grep -qF 'f.txt has not been read' <<<"$w300" && [ "$(cat "$R/f.txt")" = "$(printf 'one\ntwo\nthree')" ]; } \
+  && ok "after mrw seen --forget a write needs a fresh read" || bad "refusal: $w300"
+(cd "$R" && "$MRW" read f.txt > "$R/.out" 2>&1)
+printf '@@ f.txt 2 replace\nTWO\n' | (cd "$R" && "$MRW" write --no-check - >/dev/null 2>&1); want 0 $? "the pair: a fresh read licenses the same write again"
+{ printf 'one\nTWO\nthree\n' | cmp -s - "$R/f.txt"; } && ok "and the write landed" || bad "the fresh-read write did not land: $(cat "$R/f.txt")"
+e300=$(cd "$R" && "$MRW" seen --forget >/dev/null 2>&1; "$MRW" seen --forget 2>&1)
+[ "$e300" = 'forgot 0 file(s)' ] && ok "the pair: an empty ledger is forgot 0 file(s)" || bad "empty ledger: $e300"
+(cd "$R" && "$MRW" read f.txt > "$R/.out" 2>&1)
+(cd "$R" && "$MRW" seen --forget --prune >/dev/null 2>&1); want 2 $? "the pair: --forget beside --prune exits 2"
+(cd "$R" && "$MRW" seen --forget --dry-run >/dev/null 2>&1); want 2 $? "the pair: --forget beside --dry-run exits 2"
+printf '@@ f.txt 2 replace\nTWO\n' | (cd "$R" && "$MRW" write --no-check - >/dev/null 2>&1); want 0 $? "and the refused usage forgot nothing: the read still licenses the write"
+
+# The review of #527, the MCP arm. A span `mrw_read` served and no ack has
+# promoted yet would license a write after the forget, so `--forget` empties the
+# pending store too: at the root it ran from, and at the checkout's top (where a
+# server started there keeps its store) when it ran from a subdirectory. Each
+# row pairs the refusal with the same ack licensing the write when nothing was
+# forgotten. A newer mrw's ledger is refused before the store is touched.
+init300='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"t","version":"0"}}}'
+rd300='{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["f.txt"]}}}'
+# mcp300 ROOT REQUEST: a server at ROOT answers the request.
+mcp300() { printf '%s\n%s\n%s\n' "$init300" '{"jsonrpc":"2.0","method":"notifications/initialized"}' "$2" | "$MRW" -C "$1" mcp --enable 2>/dev/null; }
+# wr300 ROOT ACK: a fresh server at ROOT applies the plan under that acknowledgement.
+wr300() { mcp300 "$1" '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ f.txt 2 replace\nTWO\n","ack":["'"$2"'"],"check":false}}}'; }
+# ack300 OUTPUT: the first checkpoint id the read served.
+ack300() { grep -oE 'ck [A-Za-z0-9_-]+ open' <<<"$1" | cut -d' ' -f2 | head -n1; }
+
+R=$(mktemp -d "$WORK/r300m-XXXXXX"); printf 'one\ntwo\nthree\n' > "$R/f.txt"
+a300=$(ack300 "$(mcp300 "$R" "$rd300")")
+[ -n "$a300" ] && ok "an mrw_read serves a checkpoint to acknowledge" || bad "no checkpoint served"
+(cd "$R" && "$MRW" seen --forget >/dev/null 2>&1); want 0 $? "mrw seen --forget after an MCP read exits 0"
+w300=$(wr300 "$R" "$a300")
+[ "$(cat "$R/f.txt")" = "$(printf 'one\ntwo\nthree')" ] && ok "the ack served before --forget licenses no write" || bad "an ack from before --forget licensed a write: $(cat "$R/f.txt")"
+R=$(mktemp -d "$WORK/r300m-XXXXXX"); printf 'one\ntwo\nthree\n' > "$R/f.txt"
+a300=$(ack300 "$(mcp300 "$R" "$rd300")")
+w300=$(wr300 "$R" "$a300")
+[ "$(cat "$R/f.txt")" = "$(printf 'one\nTWO\nthree')" ] && ok "the pair: with no --forget the same ack licenses the write" || bad "the ack did not license the write: $(cat "$R/f.txt")"
+
+R=$(mktemp -d "$WORK/r300m-XXXXXX"); (cd "$R" && git init -q . && mkdir sub); printf 'one\ntwo\nthree\n' > "$R/f.txt"
+a300=$(ack300 "$(mcp300 "$R" "$rd300")")
+(cd "$R/sub" && "$MRW" seen --forget >/dev/null 2>&1); want 0 $? "mrw seen --forget from a subdirectory exits 0"
+w300=$(wr300 "$R" "$a300")
+[ "$(cat "$R/f.txt")" = "$(printf 'one\ntwo\nthree')" ] && ok "a server at the checkout's top is forgotten when --forget runs from a subdirectory" || bad "a subdirectory forget left the top's ack licensing: $(cat "$R/f.txt")"
+
+R=$(mktemp -d "$WORK/r300m-XXXXXX"); printf 'one\ntwo\nthree\n' > "$R/f.txt"
+a300=$(ack300 "$(mcp300 "$R" "$rd300")")
+read -r D300 < <(cd "$R" && "$MRW" seen 2>/dev/null)
+printf '#mrw-seen v7 v9.9.9 (fffffff)\n' > "$D300/seen"
+(cd "$R" && "$MRW" seen --forget >/dev/null 2>&1); want 2 $? "mrw seen --forget over a newer mrw's ledger exits 2"
+rm -f "$D300/seen"
+w300=$(wr300 "$R" "$a300")
+[ "$(cat "$R/f.txt")" = "$(printf 'one\nTWO\nthree')" ] && ok "and the refusal left the pending acknowledgements alone" || bad "the refused forget emptied the pending store: $(cat "$R/f.txt")"
+
+# The review residue of #527: a root that is not there, or not a directory, is
+# refused before the ledger or the pending store is looked at, and no state
+# directory is made for it. That is what a hook's `--root null` meets when its
+# input carries no cwd. The pair: an existing root still exits 0.
+n300() { find "$XDG_STATE_HOME/mrw" -mindepth 1 -maxdepth 1 2>/dev/null | wc -l | tr -d ' '; }
+before300=$(n300)
+m300=$("$MRW" --root "$WORK/no-such-root-300" seen --forget 2>&1); rc300=$?
+want 2 "$rc300" "mrw seen --forget over a root that does not exist exits 2"
+grep -qF 'does not exist' <<<"$m300" && ok "and the refusal says the root does not exist" || bad "missing root: $m300"
+[ "$(n300)" = "$before300" ] && ok "and it made no state directory for the missing root" || bad "a state directory was made for a missing root"
+(cd "$R" && "$MRW" --root null seen --forget >/dev/null 2>&1); want 2 $? "the hook's --root null, a cwd the input never named, is refused too"
+m300=$("$MRW" --root "$R/f.txt" seen --forget 2>&1); rc300=$?
+want 2 "$rc300" "mrw seen --forget over a root that is a file exits 2"
+grep -qF 'is not a directory' <<<"$m300" && ok "and the refusal says the root is not a directory" || bad "file root: $m300"
+(cd "$R" && "$MRW" --root "$R" seen --forget >/dev/null 2>&1); want 0 $? "the pair: an existing root still exits 0"
+# The review of #533: the gate reads the flag the parser read, not argv, and a
+# root below a regular file is no directory either. `--forget=` is true to the
+# parser; `--forget --forget=false` is not a forget and is left to a plain `seen`.
+b300=$(n300)
+m300=$("$MRW" --root "$WORK/no-such-root-300" seen --forget= 2>&1); rc300=$?
+want 2 "$rc300" "mrw seen --forget= over a root that does not exist exits 2"
+[ "$(n300)" = "$b300" ] && ok "and --forget= made no state directory for the missing root" || bad "--forget= made a state directory"
+m300=$("$MRW" --root "$R/f.txt/child" seen --forget 2>&1); rc300=$?
+want 2 "$rc300" "mrw seen --forget over a root below a regular file exits 2"
+grep -qF 'f.txt/child' <<<"$m300" && [ "$(n300)" = "$b300" ] && ok "and the refusal names the root and made no state directory" || bad "root below a file: $m300"
+m300=$("$MRW" --root "$WORK/no-such-root-300" seen --forget --forget=false 2>&1); rc300=$?
+grep -qF 'seen --forget:' <<<"$m300" && bad "the pair: --forget --forget=false was refused as a forget: $m300" || ok "the pair: --forget --forget=false is not a forget, the gate leaves it to a plain seen"
+
+
+# 301. ADR-176: a plan piped to `mrw write -` that ends with nothing in the tree is
+# kept in <state home>/mrw-refused, named on stderr, and runs again by its path.
+# The pairs: a refused plan is kept and its repaired copy applies from the path; a
+# plan that landed keeps nothing, and neither does a refused plan file.
+R=$(mktemp -d "$WORK/r301-XXXXXX"); printf 'alpha\nbravo\n' > "$R/f.txt"
+K301="$XDG_STATE_HOME/mrw-refused"; rm -rf "$K301"
+(cd "$R" && "$MRW" read --quiet f.txt)
+e301=$(printf '@@ f.txt 1 replace body=1\nALPHA\nextra\n' | (cd "$R" && "$MRW" write --no-check - 2>&1 >/dev/null)); want 2 $? "a piped plan with a stray line is refused, exit 2"
+k301=$(ls "$K301"/*.plan 2>/dev/null); n301=$(printf '%s\n' "$k301" | grep -c .)
+{ [ "$n301" = 1 ] && [ "$(cat "$k301")" = "$(printf '@@ f.txt 1 replace body=1\nALPHA\nextra')" ] && grep -qF "is kept at $k301" <<<"$e301"; } \
+  && ok "the refused piped plan is kept as sent and stderr names its path" || bad "kept: n=$n301 $k301: $e301"
+printf '@@ f.txt 1 replace body=1\nALPHA\n' > "$k301"
+(cd "$R" && "$MRW" write --no-check "$k301" >/dev/null 2>&1); want 0 $? "the repaired copy applies from its path"
+{ [ "$(sed -n 1p "$R/f.txt")" = ALPHA ] && [ -e "$k301" ]; } \
+  && ok "a plan refused from standard input is kept and runs again by its path" || bad "rerun: $(cat "$R/f.txt")"
+rm -rf "$K301"
+printf '@@ f.txt 1 replace body=1\nalpha\nextra\n' > "$R/bad.plan"
+(cd "$R" && "$MRW" write --no-check bad.plan >/dev/null 2>&1); want 2 $? "the pair: a refused plan FILE is refused too"
+(cd "$R" && "$MRW" read --quiet f.txt)
+printf '@@ f.txt 1 replace\nalpha\n' | (cd "$R" && "$MRW" write --no-check - >/dev/null 2>&1); want 0 $? "a piped plan that lands exits 0"
+{ [ ! -e "$K301" ] || [ -z "$(ls "$K301")" ]; } \
+  && ok "a piped plan that landed keeps nothing" || bad "kept after a landing or a plan file: $(ls "$K301")"
+
+# 302. ADR-177: `mrw run 'CMD'` runs one command string with sh -c, keeps its
+# output in a log beside mrw's state directory and prints a receipt of four
+# lines instead of the output; it exits with the command's own code. The pairs:
+# the output reaches the log and not stdout; the printed read line, run as
+# printed from a state home whose name holds a space and a quote, serves the
+# last 40 lines while a named-path read of the same log is refused; 3, 7 and a
+# signal (128+N) pass through beside 0; two arguments are refused and run
+# nothing beside the one-string form that runs; a passing short and an empty run
+# keep their logs; at MRW_STEP_DEPTH 8 nothing runs and no log is made.
+R=$(mktemp -d "$WORK/r302-XXXXXX"); S302="$WORK/st302 it's"
+o302=$(XDG_STATE_HOME="$S302" "$MRW" -C "$R" run 'i=1; while [ $i -le 500 ]; do echo "line $i"; i=$((i+1)); done; exit 1' 2>"$WORK/e302"); rc302=$?
+want 1 "$rc302" "mrw run exits with the command's own code"
+log302=$(grep '^log: ' <<<"$o302"); log302=${log302#log: }
+n302=$(printf '%s\n' "$o302" | wc -l | tr -d ' ')
+{ [ "$n302" = 4 ] && ! grep -q 'line 250' <<<"$o302" && grep -qx 'last: line 500' <<<"$o302" && [ ! -s "$WORK/e302" ] \
+  && [ "$(wc -l < "$log302" | tr -d ' ')" = 500 ] && [ "$(head -n 1 "$log302")" = 'line 1' ]; } \
+  && ok "mrw run prints a receipt, not the output, and keeps the output in its log" || bad "receipt ($n302 lines): $o302"
+read302=$(grep '^read: ' <<<"$o302"); read302=${read302#read: }
+r302=$(cd "$R" && PATH="$(dirname "$MRW"):$PATH" XDG_STATE_HOME="$S302" bash -c "$read302" 2>&1); rc302=$?
+{ [ "$rc302" = 0 ] && [ "$(grep -c '| line ' <<<"$r302")" = 40 ] && grep -q '^ *461| line 461$' <<<"$r302" && grep -q '^ *500| line 500$' <<<"$r302"; } \
+  && ok "the read line mrw run prints reaches the log" || bad "read line [$read302] exit $rc302: $r302"
+(cd "$R" && XDG_STATE_HOME="$S302" "$MRW" read "$log302" >/dev/null 2>&1); [ $? -ne 0 ] \
+  && ok "the pair: a named-path read of the log is refused, which is why the line reads standard input" || bad "a named-path read of a log outside the root was served"
+# ADR-177 issue #538: the line names the running binary, so it reads the log with a PATH that holds no mrw; the bare form fails there.
+rb302="PATH=/usr/bin:/bin"
+rn302=$(cd "$R" && env "$rb302" XDG_STATE_HOME="$S302" bash -c "$read302" 2>&1); rc302=$?
+bare302="mrw read -- ${read302#*"' read -- "}"
+(cd "$R" && env "$rb302" XDG_STATE_HOME="$S302" bash -c "$bare302" >/dev/null 2>&1); rcb302=$?
+{ [ "$rc302" = 0 ] && grep -q '^ *500| line 500$' <<<"$rn302" && [ "${read302#"'"}" != "$read302" ] && [ "$rcb302" -ne 0 ]; } \
+  && ok "the read line mrw run prints names the running binary, so it needs no mrw on PATH" || bad "read line [$read302] with no mrw on PATH: exit $rc302 ($rn302); the bare form exit $rcb302"
+XDG_STATE_HOME="$S302" "$MRW" -C "$R" run 'exit 7' >/dev/null 2>&1; want 7 $? "mrw run passes exit 7 through"
+XDG_STATE_HOME="$S302" "$MRW" -C "$R" run 'exit 0' >/dev/null 2>&1; want 0 $? "the pair: a passing command exits 0"
+XDG_STATE_HOME="$S302" "$MRW" -C "$R" run 'kill -TERM $$' >/dev/null 2>&1; want 143 $? "mrw run reports a command killed by TERM as 128+15"
+XDG_STATE_HOME="$S302" "$MRW" -C "$R" run --json 'exit 3' > "$WORK/j302" 2>"$WORK/je302"; rc302=$?
+{ [ "$rc302" = 3 ] && python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["ran"] is True and d["exit_code"]==3 and d["command"]=="exit 3" and d["output_file"] and d["lines"]==0 and d["bytes"]==0 and set(d)<={"command","ran","exit_code","signal","skipped","duration_ms","lines","bytes","last","output_file","pruned_logs"}' < "$WORK/j302"; } \
+  && ok "mrw run --json is exactly one document with the command's exit_code" || bad "json: exit $rc302: $(cat "$WORK/j302")"
+printf '%s%s' "$(cat "$WORK/j302")" "$(cat "$WORK/j302")" | python3 -c 'import json,sys; json.load(sys.stdin)' >/dev/null 2>&1 \
+  && bad "the pair: two concatenated documents parsed as one" || ok "the pair: the parse used here refuses two documents"
+XDG_STATE_HOME="$S302" "$MRW" -C "$R" run --json --bogus 'echo hi' > "$WORK/jr302" 2>/dev/null; rc302=$?
+{ [ "$rc302" = 2 ] && python3 -c 'import json,sys; d=json.load(sys.stdin); assert list(d)==["error"] and "bogus" in d["error"]' < "$WORK/jr302"; } \
+  && ok "mrw run --json refuses a flag the parser rejects with one {error} document" || bad "json refusal: exit $rc302: $(cat "$WORK/jr302")"
+XDG_STATE_HOME="$S302" "$MRW" -C "$R" run --json touch marker302 > "$WORK/jr302" 2>/dev/null; rc302=$?
+{ [ "$rc302" = 2 ] && python3 -c 'import json,sys; d=json.load(sys.stdin); assert list(d)==["error"]' < "$WORK/jr302"; } \
+  && ok "and two arguments under --json are one {error} document too" || bad "json two arguments: exit $rc302: $(cat "$WORK/jr302")"
+rm -f "$R/marker302"
+XDG_STATE_HOME="$S302" "$MRW" -C "$R" run touch marker302 >"$WORK/o302" 2>&1; want 2 $? "mrw run with two arguments is refused"
+{ [ ! -e "$R/marker302" ] && grep -qF "mrw run 'CMD'" "$WORK/o302" && ! grep -q '^exit ' "$WORK/o302"; } \
+  && ok "and runs nothing, naming the one-string form" || bad "two arguments: $(cat "$WORK/o302")"
+XDG_STATE_HOME="$S302" "$MRW" -C "$R" run 'touch marker302' >/dev/null 2>&1; want 0 $? "the pair: the one-string form exits 0"
+[ -e "$R/marker302" ] && ok "and runs the command" || bad "the one-string form did not run"
+S302b="$WORK/st302b"
+o302=$(XDG_STATE_HOME="$S302b" "$MRW" -C "$R" run 'echo hi' 2>&1); rc302=$?
+log302=$(grep '^log: ' <<<"$o302"); log302=${log302#log: }
+{ [ "$rc302" = 0 ] && [ "$(cat "$log302")" = hi ]; } && ok "a short passing mrw run keeps its log" || bad "short run (exit $rc302) log [$log302]: $o302"
+o302=$(XDG_STATE_HOME="$S302b" "$MRW" -C "$R" run 'true' 2>&1)
+log302=$(grep '^log: ' <<<"$o302"); log302=${log302#log: }
+{ [ -f "$log302" ] && [ ! -s "$log302" ] && ! grep -q '^last:' <<<"$o302" && ! compgen -G "$S302b/mrw-runs/*.running.log" >/dev/null; } \
+  && ok "and an empty passing run keeps an empty log, renamed from .running.log" || bad "empty run: $o302"
+MRW_STEP_DEPTH=8 XDG_STATE_HOME="$WORK/st302c" "$MRW" -C "$R" run 'touch marker302c' >/dev/null 2>&1; want 2 $? "mrw run at MRW_STEP_DEPTH 8 is refused, exit 2"
+{ [ ! -e "$R/marker302c" ] && [ ! -e "$WORK/st302c/mrw-runs" ]; } && ok "and runs nothing and makes no log directory" || bad "depth 8 ran or made a log"
+o302=$(MRW_STEP_DEPTH=7 XDG_STATE_HOME="$WORK/st302c" "$MRW" -C "$R" run 'echo "d=$MRW_STEP_DEPTH"' 2>&1); rc302=$?
+{ [ "$rc302" = 0 ] && grep -qx 'last: d=8' <<<"$o302"; } \
+  && ok "the pair: at 7 it runs, one level deeper" || bad "depth 7 did not run at 8 (exit $rc302): $o302"
+
+# 303. Issue #537: a plan on standard input may begin with several UTF-8 byte
+# order marks (Windows PowerShell 5.1 with a UTF-8 $OutputEncoding that has a
+# preamble pipes two); the parser drops every one and stderr counts them. The
+# pairs: one mark lands and is silent; two land and are named; text before the
+# header is still refused beside the marks; a refused plan with two marks that
+# was kept reruns by its path once the file has been read.
+R=$(mktemp -d "$WORK/r303-XXXXXX"); S303="$WORK/st303"; B303=$(printf '\xef\xbb\xbf')
+printf 'a\nb\n' > "$R/f.txt"; XDG_STATE_HOME="$S303" "$MRW" -C "$R" read --quiet f.txt
+printf '%s@@ f.txt 1 replace body=1\nONE\n' "$B303" | XDG_STATE_HOME="$S303" "$MRW" -C "$R" write --no-check - 2>"$WORK/e303"; want 0 $? "a plan with one leading mark lands"
+{ [ "$(head -n 1 "$R/f.txt")" = ONE ] && ! grep -q 'byte order mark' "$WORK/e303"; } \
+  && ok "and one mark is silent" || bad "one mark: $(cat "$WORK/e303")"
+XDG_STATE_HOME="$S303" "$MRW" -C "$R" read --quiet f.txt
+printf '%s%s@@ f.txt 1 replace body=1\nTWO\n' "$B303" "$B303" | XDG_STATE_HOME="$S303" "$MRW" -C "$R" write --no-check - 2>"$WORK/e303"; want 0 $? "the pair: a plan with two leading marks lands"
+{ [ "$(head -n 1 "$R/f.txt")" = TWO ] && grep -q '^mrw: the plan begins with 2 UTF-8 byte order marks, all dropped' "$WORK/e303"; } \
+  && ok "and stderr names the count" || bad "two marks: $(cat "$WORK/e303")"
+XDG_STATE_HOME="$S303" "$MRW" -C "$R" read --quiet f.txt
+printf '%s%sjunk\n@@ f.txt 1 replace body=1\nTHREE\n' "$B303" "$B303" | XDG_STATE_HOME="$S303" "$MRW" -C "$R" write --no-check - >/dev/null 2>&1; want 2 $? "the pair: text before the header is still refused beside the marks"
+[ "$(head -n 1 "$R/f.txt")" = TWO ] && ok "and nothing was written" || bad "a plan with text before its header wrote"
+printf 'c\nd\n' > "$R/g.txt"
+printf '%s%s@@ g.txt 1 replace body=1\nKEPT\n' "$B303" "$B303" | XDG_STATE_HOME="$S303" "$MRW" -C "$R" write --no-check - >/dev/null 2>&1; want 1 $? "a two-mark plan for an unread file is refused"
+k303=$(ls "$S303"/mrw-refused/*.plan 2>/dev/null | tail -n 1)
+XDG_STATE_HOME="$S303" "$MRW" -C "$R" read --quiet g.txt
+{ [ -n "$k303" ] && XDG_STATE_HOME="$S303" "$MRW" -C "$R" write --no-check "$k303" >/dev/null 2>&1 && [ "$(head -n 1 "$R/g.txt")" = KEPT ]; } \
+  && ok "and the kept plan reruns by its path" || bad "kept plan [$k303] did not rerun"
+
+# 304. ADR-178: `mrw read --json-path EXPR[,EXPR…] FILE|-` prints each selected
+# value as one compact line, `EXPR = VALUE`, instead of the lines that hold it,
+# and licenses nothing. The pairs: a value comes out of one-line JSON while the
+# path address of the same value serves the whole line; a piped document projects
+# while piped text that is not one document is NOT JSON; a write to a projected
+# line is refused while the same write after the path address applies; a miss
+# exits 1 with the hit beside it still printed, and a flag that serves lines is
+# refused.
+R=$(mktemp -d "$WORK/r304-XXXXXX")
+printf '{"name":"demo","scripts":{"build":"go build"},"list":[1,2]}\n' > "$R/one.json"
+printf '{\n  "name": "demo",\n  "list": [1, 2]\n}\n' > "$R/pretty.json"
+o304=$(cd "$R" && "$MRW" read --json-path '$.scripts.build,$.list[1]' one.json 2>&1); rc304=$?
+{ [ "$rc304" = 0 ] && grep -qxF '$.scripts.build = "go build"' <<<"$o304" && grep -qxF '$.list[1] = 2' <<<"$o304" && ! grep -qF demo <<<"$o304"; } \
+  && ok "--json-path projects a value out of single-line JSON" || bad "single-line: exit $rc304: $o304"
+o304=$(cd "$R" && "$MRW" read 'one.json:$.scripts.build' 2>&1)
+grep -qF demo <<<"$o304" && ok "the pair: the path address of the same value serves the whole one-line file" || bad "path address: $o304"
+o304=$(printf '{"a":{"b":[1, 2]}}\n' | (cd "$R" && "$MRW" read --json-path '$.a.b' - 2>&1)); rc304=$?
+{ [ "$rc304" = 0 ] && grep -qxF '$.a.b = [1,2]' <<<"$o304"; } \
+  && ok "--json-path projects a value out of piped JSON" || bad "piped: exit $rc304: $o304"
+o304=$(printf 'x\ny\n' | (cd "$R" && "$MRW" read --json-path '$.a' - 2>&1)); rc304=$?
+{ [ "$rc304" = 1 ] && grep -qF 'NOT JSON:' <<<"$o304"; } \
+  && ok "the pair: piped text that is not one JSON document is NOT JSON, exit 1" || bad "not JSON: exit $rc304: $o304"
+(cd "$R" && "$MRW" read --json-path '$.name' pretty.json > "$WORK/o304.p")
+printf '@@ pretty.json 2 replace\n  "name": "x",\n' | (cd "$R" && "$MRW" write --no-check - >/dev/null 2>&1); w304=$?
+(cd "$R" && "$MRW" read 'pretty.json:$.name' > "$WORK/o304.a")
+printf '@@ pretty.json 2 replace\n  "name": "x",\n' | (cd "$R" && "$MRW" write --no-check - >/dev/null 2>&1); x304=$?
+{ [ "$w304" = 1 ] && [ "$x304" = 0 ] && grep -qF '"name": "x"' "$R/pretty.json"; } \
+  && ok "a projection licenses no line, and the path address still does" || bad "write after a projection exit $w304, after the path address exit $x304"
+o304=$(cd "$R" && "$MRW" read --json-path '$.nope,$.list[0]' pretty.json 2>&1); rc304=$?
+{ [ "$rc304" = 1 ] && grep -qF 'NOT FOUND: no name "nope"' <<<"$o304" && grep -qxF '$.list[0] = 1' <<<"$o304" && grep -qF 'mrw: incomplete:' <<<"$o304"; } \
+  && ok "a --json-path miss exits 1 incomplete" || bad "miss: exit $rc304: $o304"
+o304=$(cd "$R" && "$MRW" read --json-path '$.name' --stat pretty.json 2>&1); rc304=$?
+{ [ "$rc304" = 2 ] && grep -qF -- '--json-path prints values' <<<"$o304"; } \
+  && ok "the pair: --json-path beside --stat is refused by its own rule, exit 2" || bad "stat: exit $rc304: $o304"
+
+# 305. ADR-179 (a): a read that serves a line over 400 columns whole says so once
+# on stderr, and MRW_MAX_COLS=N is --max-cols N where the flag is absent. The
+# pairs: the hint comes with no --max-cols and not with one; a variable-cut line
+# is refused a write while the same line read whole under --max-cols 0 is
+# written; a --quiet read under the variable still licenses the whole line.
+R=$(mktemp -d "$WORK/r305-XXXXXX")
+long305=$(printf 'a%.0s' $(seq 1 500))
+printf 'one\n%s\nthree\n' "$long305" > "$R/a.txt"
+e305=$(cd "$R" && "$MRW" read a.txt 2>&1 > "$WORK/o305.s"); rc305=$?
+n305=$(cd "$R" && "$MRW" read a.txt 2>&1 > "$WORK/o305.s" | grep -c 'over 400 columns')
+e305c=$(cd "$R" && "$MRW" read --max-cols 200 a.txt 2>&1 > "$WORK/o305.s")
+n305z=$(cd "$R" && "$MRW" read a.txt 2>&1 >/dev/null | grep -c 'over 400 columns')
+s305z=$(printf 'x\n%s\n' "$long305" | (cd "$R" && "$MRW" read - 2>&1 >/dev/null) | grep -c 'over 400 columns')
+{ [ "$rc305" = 0 ] && [ "$n305" = 1 ] && grep -qF 'mrw: 1 line(s) over 400 columns served whole, the longest 500;' <<<"$e305" && ! grep -qF 'over 400 columns' <<<"$e305c" && [ "$n305z" = 0 ] && [ "$s305z" = 0 ]; } \
+  && ok "a read of a line over 400 columns hints once" || bad "hint: exit $rc305, $n305 hint(s) [$e305], with --max-cols [$e305c], to the null device $n305z/$s305z"
+printf 'one\n%s\nthree\n' "$long305" > "$R/c.txt"
+o305=$(cd "$R" && MRW_MAX_COLS=100 "$MRW" read c.txt 2>&1)
+printf '@@ c.txt 2 replace\nnew\n' | (cd "$R" && "$MRW" write --no-check - >/dev/null 2>&1); w305=$?
+(cd "$R" && MRW_MAX_COLS=100 "$MRW" read --max-cols 0 c.txt > "$WORK/rd" 2>&1)
+printf '@@ c.txt 2 replace\nnew\n' | (cd "$R" && "$MRW" write --no-check - >/dev/null 2>&1); x305=$?
+{ grep -qF '[cols ' <<<"$o305" && ! grep -qF "$long305" <<<"$o305" && [ "$w305" = 1 ] && [ "$x305" = 0 ] && [ "$(sed -n 2p "$R/c.txt")" = new ]; } \
+  && ok "MRW_MAX_COLS cuts and the cut line is refused a write" || bad "variable: write after the cut read exit $w305, after --max-cols 0 exit $x305: $o305"
+printf 'one\n%s\nthree\n' "$long305" > "$R/b.txt"
+(cd "$R" && MRW_MAX_COLS=100 "$MRW" read --quiet b.txt > "$WORK/rd" 2>&1)
+printf '@@ b.txt 2 replace\nnew\n' | (cd "$R" && "$MRW" write --no-check - >/dev/null 2>&1); q305=$?
+{ [ "$q305" = 0 ] && [ "$(sed -n 2p "$R/b.txt")" = new ]; } \
+  && ok "MRW_MAX_COLS leaves a --quiet read whole" || bad "quiet under the variable: write exit $q305"
+
+# 310. ADR-179 (f): `mrw write --terse` prints one line per file and the summary,
+# and still prints what a caller must read. The pairs: the default receipt has a
+# row per hunk where --terse has none; a failed hunk prints under --terse and
+# the plan exits 1; a failing check exits 3 under --terse and a passing one 0.
+R=$(mktemp -d "$WORK/r310-XXXXXX")
+printf 'a1\na2\na3\n' > "$R/a.txt"; printf 'b1\nb2\n' > "$R/b.txt"
+plan310='@@ a.txt 1 replace\nA1\n@@ a.txt 3 replace\nA3\n@@ b.txt 2 insert-after\nB3\n'
+(cd "$R" && "$MRW" read a.txt b.txt > "$WORK/rd" 2>&1)
+cp "$R/a.txt" "$WORK/a310"; cp "$R/b.txt" "$WORK/b310"
+o310=$(cd "$R" && printf "$plan310" | "$MRW" write --no-check --terse - 2>&1); rc310=$?
+cp "$WORK/a310" "$R/a.txt"; cp "$WORK/b310" "$R/b.txt"
+(cd "$R" && "$MRW" read a.txt b.txt > "$WORK/rd" 2>&1)
+d310=$(cd "$R" && printf "$plan310" | "$MRW" write --no-check - 2>&1)
+{ [ "$rc310" = 0 ] && [ "$(wc -l <<<"$o310" | tr -d ' ')" = 3 ] && grep -qE '^ok   a\.txt  2 hunk\(s\)  -2 \+2  sha [0-9a-f]{8}$' <<<"$o310" && grep -qF 'ok   a.txt 1 replace' <<<"$d310" && ! grep -qF 'ok   a.txt 1 replace' <<<"$o310"; } \
+  && ok "mrw write --terse prints one line per file" || bad "terse: exit $rc310: $o310 --- default: $d310"
+R=$(mktemp -d "$WORK/r310b-XXXXXX")
+printf 'a1\na2\na3\n' > "$R/a.txt"
+(cd "$R" && "$MRW" read a.txt > "$WORK/rd" 2>&1)
+f310=$(cd "$R" && printf '@@ a.txt 99 replace\nz\n' | "$MRW" write --no-check --terse - 2>&1); frc310=$?
+{ [ "$frc310" = 1 ] && grep -qF 'FAIL a.txt 99 replace' <<<"$f310" && grep -qF 'NOTHING WRITTEN' <<<"$f310"; } \
+  && ok "mrw write --terse still prints a failed hunk" || bad "terse failed hunk: exit $frc310: $f310"
+R=$(mktemp -d "$WORK/r310c-XXXXXX")
+printf 'package a\nfunc A() {}\n' > "$R/a.go"; printf '{"check":"exit 1"}\n' > "$R/.quality-harness.json"
+(cd "$R" && "$MRW" read a.go > "$WORK/rd" 2>&1)
+c310=$(cd "$R" && printf '@@ a.go 2 replace\nfunc A() { _ = 1 }\n' | "$MRW" write --terse - 2>&1); crc310=$?
+printf '{"check":"exit 0"}\n' > "$R/.quality-harness.json"
+(cd "$R" && "$MRW" read a.go > "$WORK/rd" 2>&1)
+p310=$(cd "$R" && printf '@@ a.go 2 replace\nfunc A() { _ = 2 }\n' | "$MRW" write --terse - 2>&1); prc310=$?
+{ [ "$crc310" = 3 ] && grep -qF 'ok   a.go  1 hunk(s)' <<<"$c310" && grep -qF 'check FAIL' <<<"$c310" && [ "$prc310" = 0 ]; } \
+  && ok "mrw write --terse keeps the exit 3 of a failing check" || bad "terse check: failing exit $crc310 [$c310], passing exit $prc310 [$p310]"
+R=$(mktemp -d "$WORK/r310d-XXXXXX")
+printf 'b1\nb2\n' > "$R/b.txt"
+(cd "$R" && "$MRW" read b.txt > "$WORK/rd" 2>&1)
+t310=$(cd "$R" && printf '@@ b.txt 1 delete\n' | "$MRW" write --no-check --terse - 2>&1); trc310=$?
+{ [ "$trc310" = 0 ] && grep -qF 'ok   b.txt 1 delete  -1 +0 from "b1" to "b1"' <<<"$t310"; } \
+  && ok "mrw write --terse still says what a delete removed" || bad "terse delete: exit $trc310: $t310"
+
+# 311. ADR-179 (g): `mrw read --grep P --max-matches N` shows N matching lines
+# across the files and counts the rest. The pairs: N under the total shows N,
+# says how many it left and exits 1 while N at the total says nothing and exits
+# 0; a write to a counted, unshown match is refused while one to a shown match
+# applies; beside --json-path it is refused by that flag's rule.
+R=$(mktemp -d "$WORK/r311-XXXXXX")
+printf 'hit 1\nfill\nfill\nhit 2\nfill\n' > "$R/a.txt"; printf 'hit 1\nfill\nfill\nhit 2\nfill\n' > "$R/b.txt"
+o311=$(cd "$R" && "$MRW" read --grep hit --max-matches 3 . 2>&1); rc311=$?
+y311=$(cd "$R" && "$MRW" read --grep hit --max-matches 4 . 2>&1); yrc311=$?
+{ [ "$rc311" = 1 ] && [ "$(grep -c '^ *[0-9]*| hit' <<<"$o311")" = 3 ] && grep -qF -- '-- max-matches 3 reached: 1 more matching line(s) in 1 file(s) not shown' <<<"$o311" && [ "$yrc311" = 0 ] && ! grep -qF 'max-matches' <<<"$y311"; } \
+  && ok "--max-matches shows N matches across files and counts the rest" || bad "max-matches: exit $rc311 [$o311], at the total exit $yrc311 [$y311]"
+R=$(mktemp -d "$WORK/r311b-XXXXXX")
+printf 'hit 1\nfill\nfill\nhit 2\nfill\n' > "$R/a.txt"; printf 'hit 1\nfill\nfill\nhit 2\nfill\n' > "$R/b.txt"
+(cd "$R" && "$MRW" read --grep hit --max-matches 3 . > "$WORK/rd" 2>&1)
+printf '@@ b.txt 4 replace\nz\n' | (cd "$R" && "$MRW" write --no-check - >/dev/null 2>&1); u311=$?
+printf '@@ b.txt 1 replace\nz\n' | (cd "$R" && "$MRW" write --no-check - >/dev/null 2>&1); s311=$?
+{ [ "$u311" = 1 ] && [ "$s311" = 0 ] && [ "$(sed -n 1p "$R/b.txt")" = z ] && [ "$(sed -n 4p "$R/b.txt")" = 'hit 2' ]; } \
+  && ok "a match --max-matches did not show is refused a write" || bad "unshown match write exit $u311, shown match write exit $s311"
+printf '{"a":1}\n' > "$R/f.json"
+j311=$(cd "$R" && "$MRW" read --json-path '$.a' --max-matches 1 f.json 2>&1); jrc311=$?
+{ [ "$jrc311" = 2 ] && grep -qF -- '--json-path prints values' <<<"$j311"; } \
+  && ok "the pair: --max-matches beside --json-path is refused by that rule, exit 2" || bad "json-path: exit $jrc311: $j311"
+R=$(mktemp -d "$WORK/r311c-XXXXXX")
+printf 'x\nMATCH a\nMATCH b\nq\nr\ns\nt\n' > "$R/f.txt"
+p311=$(cd "$R" && "$MRW" read --grep MATCH f.txt 2>&1); pr311=$?
+m311=$(cd "$R" && "$MRW" read --grep MATCH --max-matches 100 f.txt 2>&1); mr311=$?
+{ [ "$pr311" = 0 ] && [ "$mr311" = 0 ] && [ "$p311" = "$m311" ]; } \
+  && ok "the pair: a --max-matches no smaller than the matches serves what the read without it serves" || bad "max-matches 100 [$m311] differs from the plain read [$p311]"
+
+# 307. ADR-179 (d): `mrw read --if-served PATH=SHA` answers a spec by reference
+# when the file has the sha the caller quotes and the ledger reports every line of
+# the spec shown, and records nothing. The pairs: the reference is there where
+# the plain read has the text; a wrong sha serves the text, a malformed one is
+# refused; after `mrw seen --forget` the text is served again.
+R=$(mktemp -d "$WORK/r307-XXXXXX")
+printf 'l1\nl2\nl3\nl4\n' > "$R/a.txt"
+h307=$(cd "$R" && "$MRW" read a.txt 2>&1); sha307=$(grep -oE 'sha [0-9a-f]{8}' <<<"$h307" | head -n 1 | cut -c5-)
+r307=$(cd "$R" && "$MRW" read --if-served "a.txt=$sha307" a.txt 2>&1); rrc307=$?
+{ [ "$rrc307" = 0 ] && grep -qF -- "-- same as served: lines 1-4 at sha $sha307" <<<"$r307" && ! grep -qF 'l3' <<<"$r307" && grep -qF 'l3' <<<"$h307"; } \
+  && ok "--if-served answers a block read at this sha by reference" || bad "if-served: exit $rrc307: $r307"
+w307=$(cd "$R" && "$MRW" read --if-served a.txt=deadbeef a.txt 2>&1); wrc307=$?
+m307=$(cd "$R" && "$MRW" read --if-served a.txt a.txt 2>&1); mrc307=$?
+{ [ "$wrc307" = 0 ] && grep -qF 'l3' <<<"$w307" && ! grep -qF 'same as served' <<<"$w307" && [ "$mrc307" = 2 ] && grep -qF 'PATH=SHA' <<<"$m307"; } \
+  && ok "--if-served without the sha the caller holds serves the text" || bad "wrong sha: exit $wrc307 [$w307], no sha: exit $mrc307 [$m307]"
+(cd "$R" && "$MRW" seen --forget > "$WORK/rd" 2>&1)
+f307=$(cd "$R" && "$MRW" read --if-served "a.txt=$sha307" a.txt 2>&1); frc307=$?
+{ [ "$frc307" = 0 ] && grep -qF 'l3' <<<"$f307" && ! grep -qF 'same as served' <<<"$f307"; } \
+  && ok "after mrw seen --forget --if-served serves the text" || bad "after forget: exit $frc307: $f307"
+c307=$(cd "$R" && "$MRW" read --if-served "a.txt=$sha307" --fold a.txt 2>&1); crc307=$?
+{ [ "$crc307" = 2 ] && grep -qF -- '--if-served' <<<"$c307"; } \
+  && ok "the pair: --if-served beside --fold is refused by name, exit 2" || bad "if-served fold: exit $crc307: $c307"
+
+# 309. ADR-179 (e): a notice mrw prints about a read is printed once per
+# invocation, however many files the read concerns. The pairs: a read whose answer
+# goes to the null device says so once and names the still-licensed files once,
+# while the same read to a file prints neither; two guards used by no spec, one on
+# each of --if-changed and --if-served, are named in one line; one file under both
+# flags is refused, exit 2, whatever the finder matches.
+R=$(mktemp -d "$WORK/r309-XXXXXX")
+printf 'alpha\n' > "$R/a.txt"; printf 'bravo\n' > "$R/b.txt"; printf 'charlie\n' > "$R/c.txt"
+(cd "$R" && "$MRW" read a.txt b.txt c.txt > "$WORK/rd" 2>&1)
+(cd "$R" && "$MRW" read a.txt b.txt c.txt >/dev/null 2> "$WORK/e309")
+(cd "$R" && "$MRW" read a.txt b.txt c.txt > "$WORK/o309" 2> "$WORK/e309f")
+n309=$(grep -c 'the answer went to the null device' "$WORK/e309"); s309=$(grep -c 'still licensed in this version' "$WORK/e309")
+nf309=$(grep -c 'null device\|still licensed' "$WORK/e309f")
+g309=$(cd "$R" && "$MRW" read --grep nomatch-anywhere --if-changed a.txt=00000000 --if-served b.txt=00000000 . 2>&1 | grep -c 'guard not used: a.txt, b.txt (this read did not serve them)')
+x309=$(cd "$R" && "$MRW" read --grep nomatch-anywhere --if-changed a.txt=00000000 --if-served ./a.txt=00000000 . 2>&1); xrc309=$?
+{ [ "$n309" = 1 ] && [ "$s309" = 1 ] && [ "$nf309" = 0 ] && [ "$g309" = 1 ] && [ "$xrc309" = 2 ] && grep -qF -- '--if-served and --if-changed' <<<"$x309"; } \
+  && ok "a read of many files prints each notice once" || bad "notices: null device $n309, still licensed $s309, to a file $nf309, guard $g309, same file under both flags exit $xrc309 [$x309]"
+# 308. ADR-179 (c): `mrw read --fold` prints a run of two or more non-blank lines
+# that are identical, or identical but for digits, as its first line and one
+# `-- ×N: lines A-B like A` line, and licenses only the lines it shows. The pairs:
+# the folded text is absent where the read without --fold has it; a write to a
+# folded line is refused while one to the run's first line applies; --fold
+# beside --quiet is refused by name.
+R=$(mktemp -d "$WORK/r308-XXXXXX")
+printf 'head\nx 1\nx 22\nx 3\nmid\nsame\nsame\n' > "$R/f.txt"
+f308=$(cd "$R" && "$MRW" read --fold f.txt 2>&1); frc308=$?
+n308=$(cd "$R" && "$MRW" read f.txt 2>&1)
+{ [ "$frc308" = 0 ] && grep -qF -- '-- ×3: lines 2-4 like 2, differing only in digits' <<<"$f308" && grep -qF -- '-- ×2: lines 6-7 like 6' <<<"$f308" && ! grep -qF 'x 22' <<<"$f308" && grep -qF 'x 22' <<<"$n308"; } \
+  && ok "--fold collapses a run of lines that differ only in digits" || bad "fold: exit $frc308: $f308"
+R=$(mktemp -d "$WORK/r308b-XXXXXX")
+printf 'head\nx 1\nx 22\nx 3\nmid\n' > "$R/f.txt"
+(cd "$R" && "$MRW" read --fold f.txt > "$WORK/rd" 2>&1)
+printf '@@ f.txt 3 replace\nz\n' | (cd "$R" && "$MRW" write --no-check - >/dev/null 2>&1); u308=$?
+printf '@@ f.txt 2 replace\nz\n' | (cd "$R" && "$MRW" write --no-check - >/dev/null 2>&1); s308=$?
+{ [ "$u308" = 1 ] && [ "$s308" = 0 ] && [ "$(sed -n 2p "$R/f.txt")" = z ] && [ "$(sed -n 3p "$R/f.txt")" = 'x 22' ]; } \
+  && ok "a folded line is refused a write" || bad "folded line write exit $u308, run's first line write exit $s308"
+q308=$(cd "$R" && "$MRW" read --fold --quiet f.txt 2>&1); qrc308=$?
+{ [ "$qrc308" = 2 ] && grep -qF -- '--fold' <<<"$q308" && ! grep -qF '==>' <<<"$q308"; } \
+  && ok "the pair: --fold beside --quiet is refused by name, exit 2" || bad "fold quiet: exit $qrc308: $q308"
+
+
+# 306. ADR-179 (b): `mrw read --outline FILE…` prints a .go file's top-level
+# declarations and a .md file's headings, each with the lines it spans, and
+# licenses nothing. The pairs: the outline lacks the source the plain read has; a
+# write after the outline is refused while one after the plain read applies; files
+# it cannot outline are named once and the read exits 1 while a file it can
+# outline exits 0; --outline beside --grep is refused by name.
+R=$(mktemp -d "$WORK/r306-XXXXXX")
+printf 'package p\n\nfunc A() {}\n\ntype T struct{ n int }\n' > "$R/a.go"
+printf 'x = 1\n' > "$R/x.py"; printf 'y = 1\n' > "$R/y.py"
+o306=$(cd "$R" && "$MRW" read --outline a.go 2>&1); orc306=$?
+p306=$(cd "$R" && "$MRW" read a.go 2>&1)
+{ [ "$orc306" = 0 ] && grep -qxF '3-3 func A' <<<"$o306" && grep -qxF '5-5 type T' <<<"$o306" && ! grep -qF 'struct' <<<"$o306" && grep -qF 'struct' <<<"$p306"; } \
+  && ok "--outline lists the declarations of a Go file with their lines" || bad "outline: exit $orc306: $o306"
+R=$(mktemp -d "$WORK/r306b-XXXXXX")
+printf 'package p\n\nfunc A() {}\n' > "$R/a.go"
+(cd "$R" && "$MRW" read --outline a.go > "$WORK/rd" 2>&1)
+printf '@@ a.go 3 replace\nfunc A() { _ = 1 }\n' | (cd "$R" && "$MRW" write --no-check - >/dev/null 2>&1); u306=$?
+(cd "$R" && "$MRW" read a.go > "$WORK/rd" 2>&1)
+printf '@@ a.go 3 replace\nfunc A() { _ = 1 }\n' | (cd "$R" && "$MRW" write --no-check - >/dev/null 2>&1); s306=$?
+{ [ "$u306" = 1 ] && [ "$s306" = 0 ]; } \
+  && ok "--outline licenses no line" || bad "write after the outline exit $u306, after the plain read exit $s306"
+R=$(mktemp -d "$WORK/r306c-XXXXXX")
+printf 'package p\n\nfunc A() {}\n' > "$R/a.go"; printf 'x = 1\n' > "$R/x.py"; printf 'y = 1\n' > "$R/y.py"
+n306=$(cd "$R" && "$MRW" read --outline x.py a.go y.py 2>&1); nrc306=$?
+(cd "$R" && "$MRW" read --outline a.go > "$WORK/rd" 2>&1); grc306=$?
+c306=$(cd "$R" && "$MRW" read --outline --grep A a.go 2>&1); crc306=$?
+{ [ "$nrc306" = 1 ] && [ "$(grep -c 'no outline for' <<<"$n306")" = 1 ] && grep -qF 'no outline for x.py, y.py' <<<"$n306" && [ "$grc306" = 0 ] && [ "$crc306" = 2 ] && grep -qF -- '--outline' <<<"$c306"; } \
+  && ok "--outline names the files it cannot outline once and exits 1" || bad "unoutlined: exit $nrc306 [$n306], outlinable exit $grc306, --grep exit $crc306 [$c306]"
+c306=$(cd "$R" && "$MRW" read --outline --max-chars 40 a.go 2>&1); mrc306=$?
+j306=$(cd "$R" && "$MRW" read --outline --max-lines 1 a.go 2>&1); jrc306=$?
+{ [ "$mrc306" = 1 ] && grep -qF 'a.go: outline WITHHELD: --max-chars reached' <<<"$c306" && [ "$jrc306" = 2 ] && grep -qF -- '--outline' <<<"$j306"; } \
+  && ok "the pair: --outline under --max-chars names a file whose rows do not fit (exit 1), and --max-lines is refused (exit 2)" || bad "outline limits: --max-chars exit $mrc306 [$c306], --max-lines exit $jrc306 [$j306]"
+
+# 312. ADR-179 (h): `mrw read --no-comments` serves a run of two or more
+# whole-line comment lines of a .go file as one `-- … N comment line(s), A-B`
+# line and licenses only the lines it shows. The pairs: the plain read has the
+# comment text the flag elides; a write to an elided line is refused while one to
+# a shown line applies; a .py file is served whole and named once.
+R=$(mktemp -d "$WORK/r312-XXXXXX")
+printf 'package p\n\n// Doc one.\n// Doc two.\nfunc A() {}\n' > "$R/a.go"; printf '# c\n# d\n' > "$R/x.py"
+e312=$(cd "$R" && "$MRW" read --no-comments a.go x.py 2>&1); erc312=$?
+d312=$(cd "$R" && "$MRW" read a.go 2>&1)
+{ [ "$erc312" = 0 ] && grep -qF -- '-- … 2 comment line(s), 3-4' <<<"$e312" && ! grep -qF 'Doc one' <<<"$e312" && grep -qF 'Doc one' <<<"$d312" && grep -qF '# c' <<<"$e312" && [ "$(grep -c 'served whole' <<<"$e312")" = 1 ]; } \
+  && ok "--no-comments elides a Go comment block" || bad "no-comments: exit $erc312: $e312"
+R=$(mktemp -d "$WORK/r312b-XXXXXX")
+printf 'package p\n\n// Doc one.\n// Doc two.\nfunc A() {}\n' > "$R/a.go"
+(cd "$R" && "$MRW" read --no-comments a.go > "$WORK/rd" 2>&1)
+printf '@@ a.go 3 replace\n// x\n' | (cd "$R" && "$MRW" write --no-check - >/dev/null 2>&1); u312=$?
+printf '@@ a.go 5 replace\nfunc A() { _ = 1 }\n' | (cd "$R" && "$MRW" write --no-check - >/dev/null 2>&1); s312=$?
+{ [ "$u312" = 1 ] && [ "$s312" = 0 ]; } \
+  && ok "an elided comment line is refused a write" || bad "elided line write exit $u312, shown line write exit $s312"
+# 313. ADR-176/177/179 review regressions: line counts and the printed tail use
+# the reader's CR-only boundaries; incomplete declarations have unknown ends;
+# notices name five files and count the rest; reference cost uses the named spans.
+R=$(mktemp -d "$WORK/r313-XXXXXX")
+o313=$("$MRW" -C "$R" run 'i=1; while [ "$i" -le 45 ]; do printf "row%s\r" "$i"; i=$((i+1)); done' 2>"$WORK/e313"); rc313=$?
+read313=$(grep '^read: ' <<<"$o313"); read313=${read313#read: }
+r313=$(cd "$R" && bash -c "$read313" 2>&1); rrc313=$?
+{ [ "$rc313" = 0 ] && [ "$rrc313" = 0 ] && grep -qF '45 lines' <<<"$o313" && grep -qF 'last: row45' <<<"$o313" \
+  && [ "$(grep -c '^ *[0-9]*| row' <<<"$r313")" = 40 ] && grep -q '^ *6| row6$' <<<"$r313" && ! grep -q '^ *1| row1$' <<<"$r313"; } \
+  && ok "a CR-only run prints a working last-40-lines read" || bad "CR run: exit $rc313 [$o313], read exit $rrc313 [$r313]"
+printf 'package p\nfunc Good() {}\nfunc Bad() {\n' > "$R/bad.go"
+b313=$(cd "$R" && "$MRW" read --outline bad.go 2>&1); brc313=$?
+{ [ "$brc313" = 1 ] && grep -qF '2-2 func Good' <<<"$b313" && grep -qF '3-? func Bad' <<<"$b313" && ! grep -qF '3-3 func Bad' <<<"$b313"; } \
+  && ok "an incomplete function has an unknown outline end beside a complete one" || bad "outline: exit $brc313 [$b313]"
+args313=()
+for n313 in $(seq 1 7); do
+  printf 'present\n' > "$R/a$n313.txt"
+  args313+=(--if-changed "a$n313.txt=00000000")
+done
+g313=$(cd "$R" && "$MRW" read --grep absent "${args313[@]}" . 2>&1); grc313=$?
+{ [ "$grc313" = 1 ] && grep -qF 'a1.txt, a2.txt, a3.txt, a4.txt, a5.txt and 2 more' <<<"$g313" && ! grep -qF 'a6.txt' <<<"$g313"; } \
+  && ok "an unused-guard notice names five files and counts the rest" || bad "guard names: exit $grc313 [$g313]"
+for n313 in $(seq 1 7); do printf '\377\376h\000i\000\n\000' > "$R/u$n313.txt"; done
+u313=$(cd "$R" && "$MRW" read u1.txt u2.txt u3.txt u4.txt u5.txt u6.txt u7.txt 2>&1); urc313=$?
+n313=$(grep '^-- note:' <<<"$u313")
+{ [ "$urc313" = 0 ] && grep -qF 'u5.txt is UTF-16 (BOM FF FE) and 2 more' <<<"$n313" && ! grep -qF 'u6.txt' <<<"$n313"; } \
+  && ok "a served-as-bytes notice names five files and counts the rest" || bad "byte names: exit $urc313 [$n313]"
+python3 -I "$SRC/scripts/test_measure_repeat.py" > "$WORK/cost313" 2>&1; rc313=$?
+[ "$rc313" = 0 ] && ok "reference cost counts only the fully served referenced spans" || bad "reference cost: $(cat "$WORK/cost313")"
 
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A

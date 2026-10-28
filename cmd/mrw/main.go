@@ -179,11 +179,29 @@ func rootCommand() *cli.Command {
 			case "version", "instructions", "skill", "stats", "help", "h", "":
 				return ctx, nil
 			}
+			// The seen subcommand's flags are parsed before this runs (urfave/cli
+			// runs the chain's Before after the leaf's parse), so its parsed --forget
+			// is the answer: argv misreads --forget=, --forget --forget=false and
+			// -- --forget.
+			forgetting := false
+			if sub := cmd.Command("seen"); verb == "seen" && sub != nil {
+				forgetting = sub.Bool("forget")
+			}
+			// Looking up the ledger below makes the root's state directory, so a
+			// forget over a root that is not there, or not a directory, is refused
+			// before it: exit 2, no state directory (ADR-175). A hook's `--root null`,
+			// from an input with no cwd, lands here. main prints "mrw: " itself.
+			if forgetting {
+				if err := forgettableRoot(cmd.String("root")); err != nil {
+					return ctx, cli.Exit("seen --forget: "+err.Error(), exitUsage)
+				}
+			}
 			// A newer mrw's ledger is not stale: it is left alone, and the caller
 			// is told which binary wrote it (ADR-150).
 			if writer, newer, err := seen.Newer(cmd.String("root")); err == nil && newer {
-				// A write says it once, in a refusal or after its landing (ADR-157).
-				if verb != "write" {
+				// A write says it once, in a refusal or after its landing (ADR-157);
+				// so does `seen --forget`, whose refusal carries the notice (ADR-175).
+				if verb != "write" && !forgetting {
 					fmt.Fprintln(os.Stderr, seen.NewerNotice(writer))
 				}
 			} else if stale, err := seen.IsStale(cmd.String("root")); err == nil && stale {
@@ -203,7 +221,7 @@ func rootCommand() *cli.Command {
 			cmd.Metadata = map[string]any{"notFound": cli.Exit(
 				fmt.Sprintf("unknown command %q (want %s)", name, strings.Join(names, ", ")), exitUsage)}
 		},
-		Commands: []*cli.Command{readCmd(), writeCmd(), checkCmd(), iterCmd(), seenCmd(), statsCmd(), mcpCmd(), instructionsCmd(), skillCmd(), versionCmd()},
+		Commands: []*cli.Command{readCmd(), writeCmd(), checkCmd(), runCmd(), iterCmd(), seenCmd(), statsCmd(), mcpCmd(), instructionsCmd(), skillCmd(), versionCmd()},
 	}
 	installUsageErrors(cmd)
 	return cmd
@@ -250,6 +268,12 @@ func usageError(_ context.Context, cmd *cli.Command, err error, _ bool) error {
 		msg += "; " + h
 	} else if h := foreignFlagHint(cmd.FullName(), refusedFlag(err)); h != "" {
 		msg += "; " + h
+	}
+	// Decision 7 of ADR-177: mrw run --json answers a refusal, this one included,
+	// with one {"error": …} document. The parser may stop before it has set
+	// --json, so the raw arguments are read too.
+	if cmd.Name == "run" && runJSONRequested(cmd.Root().Args().Slice()) {
+		emitRunJSON(checkRefusal{Error: msg})
 	}
 	return cli.Exit(msg, exitUsage)
 }
@@ -401,7 +425,10 @@ func main() {
 		}
 	}
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "mrw:", statehint.Hint(err))
+		// A command's own exit (mrw run) carries no message: its receipt is the report.
+		if msg := statehint.Hint(err); msg.Error() != "" {
+			fmt.Fprintln(os.Stderr, "mrw:", msg)
+		}
 		os.Exit(exitCode(err))
 	}
 }
@@ -722,6 +749,11 @@ whose marker is missing, unreadable or not an absolute path — mrw did not writ
 those, so it does not know what they are — nor the entry for the root you are
 running in. --prune --dry-run prints the same list and removes nothing.
 
+--forget empties the read ledger of this checkout, read and written files alike, so
+that a write needs a fresh read of the lines it touches. A host hook runs it after
+it compacts its context (docs/agents.md); it costs every session in the checkout a
+re-read, and it is refused, exit 2, over a ledger a newer mrw wrote.
+
 There is no automatic reaper and there will not be one: a path that is gone may
 be a deleted checkout or a volume that is not mounted, and only you can tell.`,
 		Flags: []cli.Flag{
@@ -733,9 +765,19 @@ be a deleted checkout or a volume that is not mounted, and only you can tell.`,
 				Name:  "dry-run",
 				Usage: "with --prune: print what would be removed, and remove nothing",
 			},
+			&cli.BoolFlag{
+				Name:  "forget",
+				Usage: "empty this checkout's read ledger: every later write needs a fresh read",
+			},
 		},
 		Action: func(_ context.Context, cmd *cli.Command) error {
 			root := cmd.Root().String("root")
+			if cmd.Bool("forget") {
+				if cmd.Bool("prune") || cmd.Bool("dry-run") {
+					return cli.Exit("mrw seen: --forget empties the ledger and takes neither --prune nor --dry-run", exitUsage)
+				}
+				return forget(root)
+			}
 			if cmd.Bool("prune") {
 				return prune(root, cmd.Bool("dry-run"))
 			}
@@ -813,6 +855,8 @@ be a deleted checkout or a volume that is not mounted, and only you can tell.`,
 }
 
 func readCmd() *cli.Command {
+	// jsonPaths is --json-path (ADR-178): each use kept whole, in command-line order.
+	jsonPaths := &jsonPathValue{}
 	return &cli.Command{
 		Name: "read",
 		// ADR-099: urfave adds a `help` subcommand (alias `h`) to every command,
@@ -862,6 +906,22 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				Name:  "max-cols",
 				Usage: "cut a line longer than `N` characters to a window of N centred on the first match of a pattern (the start otherwise), holding the whole match when it fits, marked `[cols A-B of L]`. A line served cut is NOT recorded as read: a plan that replaces it is refused until it is read whole (ADR-137). Zero or omitted serves lines whole",
 			},
+			&cli.IntFlag{
+				Name:  "max-matches",
+				Usage: "with --grep or --ast-grep, show matching lines across all the files in walk order until `N` have been shown (a match inside a span already shown counts as shown, so more than N can print) and count the rest: the answer ends `-- max-matches N reached: M more matching line(s) in K file(s) not shown` and the read exits 1 incomplete when some were left; a match inside a span already shown counts as shown, and only what was shown is licensed (ADR-179)",
+			},
+			&cli.BoolFlag{
+				Name:  "no-comments",
+				Usage: "in a .go file, serve a run of two or more whole-line comment lines (// or /* */) as `-- … N comment line(s), A-B` and do not record them as read; trailing comments, //go: and //line directives and the cgo preamble stay, and a file that is not .go (or standard input) is served whole and named in one line on standard error (ADR-179)",
+			},
+			&cli.BoolFlag{
+				Name:  "outline",
+				Usage: "print each file's structure instead of its lines: a .go file's top-level func, type, var and const declarations, a .md file's headings outside fenced blocks, each as `A-B text` with the lines it spans; any other file is named in one line on standard error and the read exits 1. It licenses nothing: the file is hashed, no line recorded as read (ADR-179)",
+			},
+			&cli.BoolFlag{
+				Name:  "fold",
+				Usage: "print a run of two or more non-blank lines that are identical, or identical but for digits, as its first line and `-- ×N: lines A-B like A`; the folded lines are not shown, so not licensed: a write to one is refused until it is read without --fold (ADR-179)",
+			},
 			&cli.BoolFlag{
 				Name:  "count",
 				Usage: "with --grep, print each matching file's header and how many of its lines match, then a total — no line is served, so it licenses no write (ADR-153)",
@@ -899,9 +959,14 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				Usage: "license what the read serves and print none of it: each file's header and `-- licensed N line(s) in M file(s)`, counting what this read licensed (not what earlier reads did), for lines you already know. A read whose answer goes to the null device licenses nothing; this is the way to license without reading. Not with --count, --stat or --sub (ADR-161)",
 			},
 			&cli.StringSliceFlag{
+				Name:  "if-served",
+				Usage: "`PATH=SHA`, repeatable, one per file: answer each spec of PATH by `-- same as served: lines A-B at sha SHA` instead of its text when the file still has that sha and the ledger reports every line of the spec shown to the caller in that version, recording nothing. Opt-in, for a session alone in its checkout whose host empties the ledger on start, resume, clear and compaction (mrw seen --forget) (ADR-179)",
+			},
+			&cli.StringSliceFlag{
 				Name:  "if-changed",
 				Usage: "`PATH=SHA`, repeatable, one per file: answer each spec of PATH with one line, `==> PATH  unchanged since sha SHA — N lines, B bytes not served`, instead of its text when the file still has that sha (8 to 64 hex digits of its sha256, the 8 a header prints are enough), and serve it as ever when it changed. An unchanged answer records nothing, so it licenses no write; a range it would not have served is still reported. The flag splits its value on commas, as --exclude does, so a PATH holding one cannot be guarded (ADR-169)",
 			},
+			jsonPathFlag(jsonPaths),
 		},
 		Action: func(_ context.Context, cmd *cli.Command) (retErr error) {
 			// ADR-165: under --json a refusal before the answer is one document,
@@ -986,6 +1051,31 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				return cli.Exit("--files-from needs a FILE or -", exitUsage)
 			}
 
+			// ADR-178: --json-path prints values and serves no line, so a flag
+			// that serves, folds or licenses lines has nothing to act on beside
+			// it. Said first and by name, before another flag's own table speaks
+			// of it, and with the expressions parsed, so a mistake in either
+			// preempts any read.
+			var projections []read.Projection
+			if cmd.IsSet("json-path") {
+				for _, f := range []string{"grep", "ast-grep", "sub", "rewrite", "count", "stat", "quiet", "no-numbers", "context", "max-lines", "if-changed", "max-matches", "fold", "outline", "no-comments", "if-served"} {
+					if cmd.IsSet(f) {
+						shown := "--" + f
+						switch f {
+						case "context":
+							shown = "-C"
+						case "no-numbers":
+							shown = "-N"
+						}
+						return cli.Exit(fmt.Sprintf("--json-path prints values and serves no line, so %s has nothing to act on, or serves lines of its own: drop %s", shown, shown), exitUsage)
+					}
+				}
+				var perr error
+				if projections, perr = read.ParseProjections(jsonPaths.vals); perr != nil {
+					return cli.Exit("--json-path "+perr.Error(), exitUsage)
+				}
+			}
+
 			if len(excludes) > 0 && !grepSet && !astSet {
 				return cli.Exit("--exclude without --grep: there is nothing to exclude from", exitUsage)
 			}
@@ -1062,6 +1152,89 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 					}
 				}
 			}
+			// ADR-179: --max-matches caps what a finder shows across the whole
+			// read, so it needs one and has nothing to cap beside a count or a plan.
+			// --json-path's list above speaks first when both are given.
+			if cmd.IsSet("max-matches") {
+				if !grepSet && !astSet {
+					return cli.Exit("--max-matches caps the matches a --grep or --ast-grep finds: give --grep PATTERN or --ast-grep PATTERN", exitUsage)
+				}
+				if cmd.Int("max-matches") < 0 {
+					return cli.Exit("--max-matches needs a number of matches, zero or more", exitUsage)
+				}
+				for _, f := range []string{"count", "stat", "sub", "rewrite"} {
+					if cmd.IsSet(f) {
+						return cli.Exit(fmt.Sprintf("--max-matches caps the matches a read shows, and --%s shows none or makes a plan of its own: drop one", f), exitUsage)
+					}
+				}
+			}
+			// ADR-179: --fold shows a run as one line and licenses only that line,
+			// so it has nothing to fold where a read serves no line, prints a plan,
+			// counts what it shows, or budgets matches it would hide.
+			if cmd.Bool("fold") {
+				for _, f := range []string{"quiet", "stat", "count"} {
+					if cmd.Bool(f) {
+						return cli.Exit(fmt.Sprintf("--fold folds the lines a read serves, and --%s serves no line or licenses differently: drop one", f), exitUsage)
+					}
+				}
+				for _, f := range []string{"sub", "rewrite", "max-matches"} {
+					if cmd.IsSet(f) {
+						return cli.Exit(fmt.Sprintf("--fold folds the lines a read serves, and --%s prints a plan or counts matches it would hide: drop one", f), exitUsage)
+					}
+				}
+			}
+			// ADR-179: --outline prints structure, not lines, so every flag that
+			// serves, folds, elides, plans, counts or searches lines has nothing to
+			// act on beside it (--json-path's list above speaks first when both are given).
+			if cmd.Bool("outline") {
+				for _, f := range []string{"quiet", "stat", "count", "fold", "no-comments"} {
+					if cmd.Bool(f) {
+						return cli.Exit(fmt.Sprintf("--outline prints a file's structure and serves no line, so --%s has nothing to act on: drop one", f), exitUsage)
+					}
+				}
+				for _, f := range []string{"grep", "ast-grep", "sub", "rewrite", "context", "if-changed", "max-matches", "max-lines", "max-cols"} {
+					if cmd.IsSet(f) {
+						shown := "--" + f
+						if f == "context" {
+							shown = "-C"
+						}
+						return cli.Exit(fmt.Sprintf("--outline prints a file's structure and serves no line, so %s has nothing to act on: drop %s", shown, shown), exitUsage)
+					}
+				}
+			}
+			// ADR-179: --no-comments elides comment runs from the lines a read serves.
+			if cmd.Bool("no-comments") {
+				for _, f := range []string{"quiet", "stat", "count"} {
+					if cmd.Bool(f) {
+						return cli.Exit(fmt.Sprintf("--no-comments elides lines of the answer, and --%s serves no line or licenses differently: drop one", f), exitUsage)
+					}
+				}
+				for _, f := range []string{"fold", "outline"} {
+					if cmd.Bool(f) {
+						return cli.Exit(fmt.Sprintf("--no-comments elides comment runs from the lines a read serves, and --%s changes those lines in its own way: drop one", f), exitUsage)
+					}
+				}
+				for _, f := range []string{"sub", "rewrite", "max-matches"} {
+					if cmd.IsSet(f) {
+						return cli.Exit(fmt.Sprintf("--no-comments elides lines of the answer, and --%s prints a plan or counts matches it would hide: drop one", f), exitUsage)
+					}
+				}
+			}
+			// ADR-179: --if-served answers by reference the lines a read would serve,
+			// so it has nothing to answer where a read serves no line, prints a plan,
+			// changes the lines it serves or budgets matches it would not show.
+			if cmd.IsSet("if-served") {
+				for _, f := range []string{"quiet", "stat", "count", "fold", "no-comments", "outline"} {
+					if cmd.Bool(f) {
+						return cli.Exit(fmt.Sprintf("--if-served answers by reference the lines a read serves, and --%s serves no line or changes the lines it serves: drop one", f), exitUsage)
+					}
+				}
+				for _, f := range []string{"sub", "rewrite"} {
+					if cmd.IsSet(f) {
+						return cli.Exit(fmt.Sprintf("--if-served answers by reference the lines a read serves, and --%s prints a plan of its own: drop one", f), exitUsage)
+					}
+				}
+			}
 			// ADR-161: --quiet licenses what a read serves; --count and --stat
 			// serve no line and --sub licenses a plan's lines, so none of them
 			// has anything for it to keep quiet.
@@ -1089,6 +1262,22 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 					guards = append(guards, g)
 				}
 			}
+			// ADR-179: --if-served names the sha the caller holds, as --if-changed does.
+			var servedGuards []read.Guard
+			if cmd.IsSet("if-served") {
+				for _, v := range cmd.StringSlice("if-served") {
+					g, guardErr := read.ParseGuard(v)
+					if guardErr != nil {
+						return cli.Exit("--if-served "+guardErr.Error(), exitUsage)
+					}
+					servedGuards = append(servedGuards, g)
+				}
+				// Before any spec resolves, whatever a finder matches: one file under two
+				// guards would be answered twice over.
+				if p, shared := read.SharedGuard(cmd.Root().String("root"), guards, servedGuards); shared {
+					return cli.Exit(fmt.Sprintf("--if-served and --if-changed both name %s: drop one", p), exitUsage)
+				}
+			}
 			// A glob that can never match is refused at parse time rather than
 			// silently matching nothing: one path.Match rejects, or one spelled
 			// so no root-relative path can match it (read.CheckExclude, shared
@@ -1099,7 +1288,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			// ADR-161: `-` is standard input, read as one unnamed file and
 			// recorded nowhere. A file named - is ./-.
 			if stdinSpec(posArgs) {
-				return stdinRead(cmd, pattern, grepSet, posArgs)
+				return stdinRead(cmd, pattern, grepSet, posArgs, projections)
 			}
 			if cmd.IsSet("sub") {
 				return subRead(cmd, pattern, excludes, posArgs)
@@ -1206,18 +1395,49 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 					if err != nil {
 						return exitWith(err)
 					}
+					if len(projections) > 0 && len(sp.Ranges) > 0 {
+						return cli.Exit(fmt.Sprintf("%s: --json-path prints values, and an address names lines: give the file alone", a), exitUsage)
+					}
 					specs = append(specs, sp)
 				}
 			}
+			var unusedGuards []string // named once below, however many flags carried the same guard (ADR-179 Decision e)
 			var ifChanged map[string]string
 			if len(guards) > 0 {
 				var unused []string
 				if ifChanged, unused, err = read.ResolveGuards(root, guards, specs, grepSet || astSet); err != nil {
 					return cli.Exit("--if-changed: "+err.Error(), exitUsage)
 				}
-				for _, p := range unused {
-					fmt.Fprintf(os.Stderr, "-- guard not used: %s (this read did not serve it)\n", p)
+				unusedGuards = append(unusedGuards, unused...)
+			}
+			// ADR-179 Decision (d): the sha the caller quotes, and the ledger's word
+			// on which lines it was shown. A ledger that cannot be read answers nothing.
+			var ifServed map[string]string
+			var servedEntry func(string) seen.Observation
+			var referred []read.SameAsServed
+			if len(servedGuards) > 0 {
+				var unused []string
+				if ifServed, unused, err = read.ResolveGuards(root, servedGuards, specs, grepSet || astSet); err != nil {
+					return cli.Exit("--if-served: "+err.Error(), exitUsage)
 				}
+				unusedGuards = append(unusedGuards, unused...)
+				if ledger, lerr := seen.Snapshot(root); lerr == nil {
+					servedEntry = entryFinder(root, ledger)
+				}
+			}
+			if len(unusedGuards) > 0 { // one line for the invocation, naming every file (ADR-179 Decision e)
+				seenGuard, named := map[string]bool{}, []string{}
+				for _, p := range unusedGuards {
+					if !seenGuard[p] {
+						seenGuard[p] = true
+						named = append(named, p)
+					}
+				}
+				them := "it"
+				if len(named) > 1 {
+					them = "them"
+				}
+				fmt.Fprintf(os.Stderr, "-- guard not used: %s (this read did not serve %s)\n", namedFiles(named), them)
 			}
 			// ADR-078: -C widens a single /pattern/ match and nothing else, so on
 			// a call with none it changed nothing, silently: `mrw read -C 1 a.go:2`
@@ -1325,24 +1545,52 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				return cli.Exit(read.NoMatchLine(astPattern, len(refusals), "")+reached(), 1)
 			}
 
+			cols, colsFixed := effectiveMaxCols(cmd)
+			if cmd.Bool("outline") {
+				for _, sp := range specs {
+					if len(sp.Ranges) > 0 {
+						return cli.Exit(fmt.Sprintf("--outline lists a whole file, and %s names lines: drop the address", sp.Raw), exitUsage)
+					}
+				}
+			}
+			var unoutlined []string
+			var wholeNames []string
+			var matchesLeft int
+			var long read.LongLines
+			var wholeLong *read.LongLines
+			if !colsFixed {
+				wholeLong = &long
+			}
 			var counts map[string]int
 			var unchanged []read.Unchanged
 			if cmd.Bool("count") {
 				counts = map[string]int{}
 			}
 			observed, problems := read.Run(stdout, root, specs, read.Options{
-				Numbers:   !cmd.Bool("no-numbers"),
-				Stat:      cmd.Bool("stat"),
-				Context:   cmd.Int("context"),
-				MaxLines:  maxLines(cmd),
-				MaxCols:   cmd.Int("max-cols"),
-				Count:     cmd.Bool("count"),
-				Counts:    counts,
-				Quiet:     cmd.Bool("quiet"),
-				NextLine:  true,
-				Withheld:  &withheld,
-				IfChanged: ifChanged,
-				Unchanged: &unchanged,
+				Numbers:      !cmd.Bool("no-numbers"),
+				Stat:         cmd.Bool("stat"),
+				Context:      cmd.Int("context"),
+				MaxLines:     maxLines(cmd),
+				MaxCols:      cols,
+				MaxMatches:   maxMatches(cmd),
+				Fold:         cmd.Bool("fold"),
+				Outline:      cmd.Bool("outline"),
+				Unoutlined:   &unoutlined,
+				NoComments:   cmd.Bool("no-comments"),
+				WholeNames:   &wholeNames,
+				Count:        cmd.Bool("count"),
+				Counts:       counts,
+				Quiet:        cmd.Bool("quiet"),
+				NextLine:     true,
+				Withheld:     &withheld,
+				IfChanged:    ifChanged,
+				Unchanged:    &unchanged,
+				IfServed:     ifServed,
+				Served:       servedEntry,
+				SameAsServed: &referred,
+				Project:      projections,
+				WholeLong:    wholeLong,
+				Unshown:      &matchesLeft,
 			})
 			skipNote()
 			// The answer reaches the caller BEFORE anything is recorded (ADR-088).
@@ -1353,8 +1601,17 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				return cli.Exit(fmt.Sprintf("the answer could not be written, so nothing was recorded: %v", err), exitUsage)
 			}
 			_, _ = os.Stderr.Write(withheld.Bytes())
+			if len(unoutlined) > 0 {
+				fmt.Fprintf(os.Stderr, "mrw: --outline reads .go and .md files; no outline for %s\n", namedFiles(unoutlined))
+			}
+			if len(wholeNames) > 0 {
+				fmt.Fprintf(os.Stderr, "mrw: --no-comments reads .go files; served whole: %s\n", namedFiles(wholeNames))
+			}
+			if hint := longLineHint(long); hint != "" && !toNullDevice(os.Stdout) {
+				fmt.Fprintln(os.Stderr, hint)
+			}
 			if cmd.Bool("json") {
-				if err := document(mcp.ReadReceipt(observed, problems+len(refusals), skipped, counts, unchanged)); err != nil {
+				if err := document(mcp.ReadReceipt(observed, problems+len(refusals), skipped, counts, unchanged, referred)); err != nil {
 					return err
 				}
 			}
@@ -1391,7 +1648,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			// own last line — leaves an answer that is not the whole one, and a
 			// cut answer must never read as complete (ADR-165).
 			if problems > 0 || budget.Over() {
-				return cli.Exit(fmt.Sprintf("incomplete: %d range(s) could not be served%s", problems, reached()), 1)
+				return cli.Exit(incompleteLine(problems, matchesLeft, maxMatches(cmd), reached()), 1)
 			}
 			return nil
 		},
@@ -1516,6 +1773,10 @@ held or went unchecked.`,
 				Usage: "print only failed hunks and the summary line, dropping ok and skip rows and file lines; the check's report and every step verdict still print",
 			},
 			&cli.BoolFlag{
+				Name:  "terse",
+				Usage: "print one line per file (ok PATH N hunk(s) -A +B sha X; dry under --dry-run) and the summary instead of a row per hunk; every failed hunk, balance and closer row, the check's report and every step verdict still print, and --json is unchanged (ADR-179)",
+			},
+			&cli.BoolFlag{
 				Name: "check",
 				Usage: "demand the project's check after a successful write, even on a prose-only plan " +
 					"(exit 2 if none can run)",
@@ -1603,6 +1864,9 @@ held or went unchecked.`,
 			if cmd.Bool("check") && cmd.Bool("no-check") {
 				return cli.Exit("--check and --no-check contradict each other: drop one", exitUsage)
 			}
+			if cmd.Bool("terse") && cmd.Bool("quiet") {
+				return cli.Exit("--terse prints a line per file and --quiet prints none: drop one", exitUsage)
+			}
 			if cmd.Int("echo-pad") < 0 {
 				return cli.Exit("--echo-pad must be >= 0", exitUsage)
 			}
@@ -1671,8 +1935,26 @@ held or went unchecked.`,
 			// every step not_run: the check could not run, or the ledger could not
 			// record the landing, so none followed it (ADR-092 T4; the 2026-09-29 gap survey, C3).
 			var stepsNotRun *check.StepsResult
+			// ADR-176: the standard-input plan the parser read, kept beside the
+			// state directory when the run ends with nothing in the tree.
+			// keptDone makes it once, whichever exit reaches it first.
+			var tee *planTee
+			var refusedPlan string
+			keptDone := false
+			keepRefused := func(res apply.Result) {
+				if tee == nil || keptDone || writer.MutationOf(res) != writer.None {
+					return
+				}
+				keptDone = true
+				path, line := tee.keep()
+				refusedPlan = path
+				if line != "" {
+					fmt.Fprintln(os.Stderr, line)
+				}
+			}
 			refuseWith := func(res apply.Result, err error) error {
 				msg := err.Error()
+				keepRefused(res)
 				// A refusal after the write landed (the ledger could not be
 				// written, the check could not start) still says what landed
 				// and counts it: the tree changed either way. In human form the
@@ -1691,7 +1973,7 @@ held or went unchecked.`,
 					tallied = true
 				}
 				if !cmd.Bool("json") && landed && !printed {
-					report(os.Stdout, res, cmd.Bool("quiet"))
+					reportAs(os.Stdout, res, cmd)
 					printed = true
 				}
 				if !cmd.Bool("json") {
@@ -1711,7 +1993,7 @@ held or went unchecked.`,
 					enc := json.NewEncoder(os.Stdout)
 					enc.SetIndent("", "  ")
 					enc.SetEscapeHTML(false)
-					_ = enc.Encode(receipt{Result: res, Pattern: authoring.PatternOf(root), Error: msg, Then: stepsNotRun})
+					_ = enc.Encode(receipt{Result: res, Pattern: authoring.PatternOf(root), Error: msg, Then: stepsNotRun, RefusedPlan: refusedPlan})
 				}
 				return exitWith(err)
 			}
@@ -1794,7 +2076,8 @@ held or went unchecked.`,
 				piped.OnTrim = func() {
 					fmt.Fprintln(os.Stderr, "mrw: the plan ended in CRLF after lines that end in LF; that CRLF is most likely the one PowerShell appends to what it pipes, so it was dropped")
 				}
-				src = piped
+				tee = &planTee{src: piped}
+				src = tee
 			}
 			var hunks []plan.Hunk
 			var err error
@@ -1804,11 +2087,21 @@ held or went unchecked.`,
 			}
 			switch format {
 			case "plan", "":
-				hunks, err = plan.Parse(src)
+				// Issue #537: the parser drops every leading mark; the caller is
+				// told when that was more than one.
+				br := bufio.NewReader(src)
+				if n, more := ingest.LeadingMarks(br); n > 1 || more {
+					fmt.Fprintln(os.Stderr, "mrw: "+ingest.MarksNote("the plan", n, more))
+				}
+				hunks, err = plan.Parse(br)
 			case "apply_patch":
 				raw, rerr := io.ReadAll(src)
 				if rerr != nil {
 					return refuse(fmt.Sprintf("%s: %v", name, rerr))
+				}
+				raw, marks := ingest.DropLeadingMarks(raw)
+				if marks > 1 {
+					fmt.Fprintln(os.Stderr, "mrw: "+ingest.MarksNote("the apply_patch document", marks, false))
 				}
 				compiled, cerr := ingest.CompileApplyPatch(cmd.Root().String("root"), raw)
 				if cerr != nil {
@@ -1822,6 +2115,10 @@ held or went unchecked.`,
 				raw, rerr := io.ReadAll(src)
 				if rerr != nil {
 					return refuse(fmt.Sprintf("%s: %v", name, rerr))
+				}
+				raw, marks := ingest.DropLeadingMarks(raw)
+				if marks > 1 {
+					fmt.Fprintln(os.Stderr, "mrw: "+ingest.MarksNote("the search_replace document", marks, false))
 				}
 				compiled, cerr := ingest.CompileSearchReplace(cmd.Root().String("root"), raw)
 				if cerr != nil {
@@ -1981,6 +2278,7 @@ held or went unchecked.`,
 			// ADR-132: what the caller is shown spells paths with "/", as
 			// mrw_write's receipt does (ADR-091); the engine kept its own.
 			res := shown(land.Res)
+			keepRefused(res)
 			if land.Err != nil {
 				// ADR-001 rule 3: every hunk carries its own verdict, and a
 				// filesystem failure is not an exception. Apply fills the
@@ -1997,7 +2295,7 @@ held or went unchecked.`,
 					return refuseWith(res, land.Err)
 				}
 				if len(res.Hunks) > 0 {
-					report(os.Stdout, res, cmd.Bool("quiet"))
+					reportAs(os.Stdout, res, cmd)
 				}
 				return exitSaying(exitTwoLine(land.Res, land.Err), land.Err)
 			}
@@ -2013,7 +2311,7 @@ held or went unchecked.`,
 				return refuseWith(res, land.LedgerErr)
 			}
 
-			receipt := receipt{Result: res}
+			receipt := receipt{Result: res, RefusedPlan: refusedPlan}
 
 			// ADR-055: a landed write joined the recent-window ring in Land,
 			// BEFORE the receipt is rendered, so the receipt can say "3 of
@@ -2031,7 +2329,7 @@ held or went unchecked.`,
 			// stays one document, rendered once the check is done; the
 			// ledger and the tally carry the landing if mrw is killed first.
 			if !cmd.Bool("json") {
-				report(os.Stdout, res, cmd.Bool("quiet"))
+				reportAs(os.Stdout, res, cmd)
 				printed = true
 				if pattern != "" {
 					// Not hidden by --quiet: quiet drops ok rows, and this
@@ -2143,6 +2441,9 @@ type receipt struct {
 	// check ran (ADR-127): absent when none did, and when no check ran.
 	// Advisory, as Drift is.
 	DriftWriters int `json:"drift_writers,omitempty"`
+	// RefusedPlan is where a standard-input plan that ended with nothing in the
+	// tree was kept (ADR-176): absent when nothing was kept.
+	RefusedPlan string `json:"refused_plan,omitempty"`
 }
 
 // checkReceipt is `mrw check --json`: the check's own flat fields, unchanged,
@@ -2236,6 +2537,43 @@ func thenShFlag(list *[]check.Step) cli.Flag {
 		Name:  "then-sh",
 		Value: &stepFlag{list: list, adhoc: true},
 		Usage: "like --then, but run `CMD` with sh -c as given (repeatable). " + guide.ThenShCaveat(),
+	}
+}
+
+// jsonPathValue is the value of --json-path (ADR-178). Each use is kept whole
+// and in command-line order: a comma belongs to the expression grammar, and
+// urfave's slice flag would cut at it before read.ParseProjections could honour
+// a quoted step.
+type jsonPathValue struct{ vals []string }
+
+// Set keeps one use of the flag.
+func (f *jsonPathValue) Set(v string) error {
+	f.vals = append(f.vals, v)
+	return nil
+}
+
+// Get is the flag itself, so cmd.Generic hands back its values.
+func (f *jsonPathValue) Get() any { return f }
+
+// String is every value this flag was given, shown as stepFlag shows its own.
+func (f *jsonPathValue) String() string {
+	vals := make([]string, 0, len(f.vals))
+	for _, v := range f.vals {
+		vals = append(vals, writer.Shown(v))
+	}
+	return strings.Join(vals, " ")
+}
+
+// Values is every value this flag was given, in order.
+func (f *jsonPathValue) Values() []string { return f.vals }
+
+// jsonPathFlag is --json-path EXPR[,EXPR…] on read.
+func jsonPathFlag(v *jsonPathValue) cli.Flag {
+	return &cli.GenericFlag{
+		Name:  "json-path",
+		Value: v,
+		Usage: "print the value at each JSON path `EXPR` (ADR-155's grammar, $.a.b[0] or $[\"a b\"]; comma-separated or repeated) of each JSON file, or of - for standard input, as one line `EXPR = VALUE` with the value compacted, instead of the lines that hold it; " +
+			"it licenses and records nothing, so read the path address (f.json:$.a.b) before editing; a miss prints `NOT FOUND`, a file that is not one JSON document `NOT JSON`, and either exits 1. Not with --grep, --ast-grep, --sub, --rewrite, --count, --stat, --quiet, -N, -C, --max-lines, --if-changed or a range",
 	}
 }
 
@@ -2707,6 +3045,20 @@ func reportCheck(w *os.File, r *check.Result) {
 // report renders the receipt for a human. It is terse on purpose: the caller is
 // usually an agent paying for every line it reads back.
 func report(w *os.File, res apply.Result, quiet bool) {
+	reportMode(w, res, quiet, false)
+}
+
+// reportAs prints the receipt the write's flags ask for: the default, --quiet's,
+// or --terse's one line per file (ADR-179).
+func reportAs(w *os.File, res apply.Result, cmd *cli.Command) {
+	if cmd.Bool("terse") {
+		reportMode(w, res, false, true)
+		return
+	}
+	report(w, res, cmd.Bool("quiet"))
+}
+
+func reportMode(w *os.File, res apply.Result, quiet, terse bool) {
 	out := bufio.NewWriter(w)
 	defer func() { _ = out.Flush() }()
 
@@ -2718,6 +3070,12 @@ func report(w *os.File, res apply.Result, quiet bool) {
 		case h.Status == apply.StatusSkipped:
 			fmt.Fprintf(out, "skip %s %s %s\n", h.Path, h.Addr, h.Op)
 		default:
+			// ADR-179: --terse says its line per file below; a hunk keeps its own
+			// row for the advisory rows that sit under it, for what a delete removed
+			// (ADR-008) and for what a from= copy copied (ADR-167).
+			if terse && h.Balance == "" && h.Closer == "" && len(h.Echo) == 0 && h.Op != "delete" && h.BodyFrom == "" {
+				continue
+			}
 			// A delete says what it removed, and only a delete: it is the
 			// only op that CONSUMES A RANGE and can be written without a
 			// body. Two ops consume one, and replace refuses an empty body;
@@ -2752,8 +3110,10 @@ func report(w *os.File, res apply.Result, quiet bool) {
 				bounds += fmt.Sprintf(" copied %s from %q to %q", h.BodyFrom, h.CopiedFirst, h.CopiedLast)
 			}
 			fmt.Fprintf(out, "ok   %s %s %s  -%d +%d%s\n", h.Path, h.Addr, h.Op, h.Removed, h.Added, bounds)
-			for _, line := range preview.Lines(h.Before, h.After, h.Start) {
-				fmt.Fprintln(out, line)
+			if !terse {
+				for _, line := range preview.Lines(h.Before, h.After, h.Start) {
+					fmt.Fprintln(out, line)
+				}
 			}
 			if h.Balance != "" {
 				// ADR-054: the delta is a row under the ok line, like Echo.
@@ -2780,7 +3140,12 @@ func report(w *os.File, res apply.Result, quiet bool) {
 		for _, d := range res.DirsCreated {
 			fmt.Fprintf(out, "created %s/\n", d)
 		}
-		for _, f := range res.Files {
+		files := res.Files
+		if terse {
+			terseFiles(out, res)
+			files = nil
+		}
+		for _, f := range files {
 			if !f.Written {
 				continue
 			}
@@ -2895,6 +3260,56 @@ func prune(root string, dry bool) error {
 	if failed > 0 {
 		return cli.Exit(fmt.Sprintf("mrw seen --prune: %d director%s could not be removed",
 			failed, plural(failed, "y", "ies")), exitUsage)
+	}
+	return nil
+}
+
+// forget is `mrw seen --forget` (ADR-175): a newer mrw's ledger is refused first,
+// so that nothing changes; then the pending MCP acknowledgements go, since an ack
+// would otherwise promote one into the ledger just emptied. The pending store is
+// per root and the ledger per checkout, so the checkout's top is emptied too: a
+// server started there is not the root a hook ran from.
+func forget(root string) error {
+	if writer, newer, err := seen.Newer(root); err == nil && newer {
+		// main prints "mrw: " itself.
+		return exitWith(errors.New(strings.TrimPrefix(seen.NewerNotice(writer), "mrw: ")))
+	}
+	roots := []string{root}
+	if top, _ := state.Checkout(root); top != root {
+		roots = append(roots, top)
+	}
+	for _, r := range roots {
+		if err := mcp.ForgetPending(r); err != nil {
+			return exitWith(err)
+		}
+	}
+	n, err := seen.Forget(root)
+	if err != nil {
+		return exitWith(err)
+	}
+	if n == 0 {
+		fmt.Println("forgot 0 file(s)")
+		return nil
+	}
+	fmt.Printf("forgot %d file(s): a write now needs a fresh read of the lines it touches\n", n)
+	return nil
+}
+
+// forgettableRoot is nil when root names an existing directory. rooted.Abs
+// answers a missing root, but a root below a regular file gets ENOTDIR from its
+// symlink walk, which it lets through, so the resolved root is statted here
+// (ADR-175).
+func forgettableRoot(root string) error {
+	abs, err := rooted.Abs(root)
+	if err != nil {
+		return err
+	}
+	fi, err := os.Stat(abs)
+	if err != nil {
+		return fmt.Errorf("the root %s: %w", root, err)
+	}
+	if !fi.IsDir() {
+		return fmt.Errorf("the root %s is not a directory", root)
 	}
 	return nil
 }
@@ -3286,6 +3701,16 @@ func maxLines(cmd *cli.Command) *int {
 		return nil
 	}
 	n := cmd.Int("max-lines")
+	return &n
+}
+
+// maxMatches is the read's match budget, or nil when --max-matches was not
+// given: IsSet again, since zero is a budget that shows no match (ADR-179).
+func maxMatches(cmd *cli.Command) *int {
+	if !cmd.IsSet("max-matches") {
+		return nil
+	}
+	n := cmd.Int("max-matches")
 	return &n
 }
 

@@ -28,6 +28,7 @@ const (
 // CompileApplyPatch turns a Codex apply_patch document into native plan text.
 // root is the checkout the paths are relative to. The function writes nothing.
 func CompileApplyPatch(root string, doc []byte) ([]byte, error) {
+	doc, _ = DropLeadingMarks(doc)
 	s := strings.ReplaceAll(string(doc), "\r\n", "\n")
 	s = strings.ReplaceAll(s, "\r", "\n")
 	if looksLikeGit(s) {
@@ -382,7 +383,7 @@ func emit(op, path string, start, end int, body []string, anchor string) string 
 	needCount := len(body) > 0 && strings.HasPrefix(strings.TrimSpace(body[0]), "body=")
 	raw := false
 	for _, line := range body {
-		if strings.HasPrefix(strings.TrimPrefix(line, "\xef\xbb\xbf"), "@@") { // the parser strips a UTF-8 BOM before it decides what is a header (plan.Parse)
+		if strings.HasPrefix(strings.TrimLeft(line, "\xef\xbb\xbf"), "@@") { // the parser strips every leading UTF-8 BOM before it decides what is a header (plan.Parse)
 			needCount, raw = true, true
 			break
 		}

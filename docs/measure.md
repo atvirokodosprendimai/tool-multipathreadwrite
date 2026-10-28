@@ -1,17 +1,18 @@
 # What mrw saves
 
-**The unit is agent turns, not seconds.** mrw does not make anything faster to
-execute, and no figure here is a wall-clock figure. What it removes is *steps*
-— the read-edit-read-edit round trips an agent spends to change N places, each
-one a full model turn. **Two calls, for any N.** That is the whole product.
+This page measures interface calls and bytes in scripted edit shapes. A planned
+batch uses one read of every site and one write of the whole plan: **two calls,
+for any N sites**. Actual model turns, cost and task outcomes are measured
+separately by the agent benchmark linked below.
 
 ```sh
 ./scripts/measure.sh
 ```
 
-This is the only benchmark in the repository. There are no `go test -bench`
-benchmarks, on purpose: a CPU figure for a tool that spends its life blocked on
-a file read would measure nothing anyone is paying.
+These shape measurements describe the engine's interface overhead. The
+[agent benchmark](bench/RESULTS.md), summarized in the [README](../README.md),
+measures model turns, cost and task outcomes on agent runs. The call and byte
+tables here do not establish those outcomes on their own.
 
 Re-run the script rather than quoting the table. The ratios track how large
 this repository's own files are. Shape D's file list is `git ls-files '*.go'`,
@@ -69,7 +70,9 @@ header and a per-file receipt are charged against 3,436 bytes of payload.
 
 **Shape C is in the table on purpose.** When you need a whole file and there is
 one site, mrw prints *more* than the file holds — it adds a header and a line
-number per line — and saves no round trips. Use Read + Edit there.
+number per line — and saves no round trips. Keep this overhead visible while
+following [ADR-062](adr/ADR-062-instructions-teach-always-and-a-plan.md)'s usage
+instruction: use mrw always and plan one read, one plan, one write.
 
 **Read the two byte rows together or neither.** `Read` takes `offset`/`limit`,
 so the windowed reader is the documented interface, not a strawman. Against it
@@ -85,8 +88,9 @@ The arithmetic does not depend on this repository:
 | 13 in 1 | 14 calls | 2 | 7× fewer |
 | N in M | M + N | **2** | — |
 
-Each of those calls is a **full model turn**. That is the cost mrw removes, and
-it is why the floor is 2 rather than "fewer".
+These are interface-call counts. A host can issue several tool calls within one
+model turn, so fewer calls alone do not establish fewer model turns or lower
+cost. The agent benchmark measures actual turns and cost.
 
 The method, and its biases: the Read+Edit column counts each file's **raw**
 bytes, which understates it, because the real Read tool numbers every line. The

@@ -198,6 +198,46 @@ type Options struct {
 	// reached the caller: one the character budget dropped is withheld and not
 	// listed (ADR-169).
 	Unchanged *[]Unchanged
+	// Project, when not nil, answers each file with the value at each
+	// expression, one `EXPR = VALUE` line, instead of its lines (ADR-178). It
+	// records nothing, so it licenses no line.
+	Project []Projection
+	// MaxMatches, when not nil, ends the matches a --grep or --ast-grep read
+	// shows after that many matching lines across all its files, counts the
+	// rest and says so with the read incomplete (ADR-179). Nil is no budget.
+	MaxMatches *int
+	// WholeLong, when not nil, receives how many lines over LongLineCols this
+	// read printed whole and the longest, for the caller's one hint (ADR-179).
+	// A --quiet read prints no line, and a line --max-cols cut was not whole.
+	WholeLong *LongLines
+	// Unshown, when not nil, receives the matching lines MaxMatches left
+	// unshown, so a caller can name the budget in the kind line of its exit.
+	Unshown *int
+	// Fold prints a run of two or more non-blank lines that are identical, or
+	// identical once each run of digits is one placeholder, as its first line and
+	// `-- ×N: lines A-B like A`; the folded lines are not shown and so not
+	// recorded as read (ADR-179).
+	Fold bool
+	// Outline prints a file's structure instead of its lines (ADR-179): its
+	// top-level declarations (.go) or headings (.md), each with the lines it
+	// spans. The file is hashed and none of it recorded as read. A file it
+	// cannot outline is appended to Unoutlined and counted a problem.
+	Outline    bool
+	Unoutlined *[]string
+	// IfServed answers a spec by reference, `-- same as served: lines A-B at sha
+	// X`, instead of its text when the file still has the sha the caller holds
+	// (keyed like IfChanged) and Served, the ledger's entry for a cleaned path,
+	// reports every line of the spec shown in that version (ADR-179 Decision d).
+	// It records nothing. SameAsServed receives each reference that reached the caller.
+	IfServed     map[string]string
+	Served       func(path string) seen.Observation
+	SameAsServed *[]SameAsServed
+	// NoComments serves a run of two or more whole-line comment lines of a .go
+	// file as `-- … N comment line(s), A-B` and does not record them as read
+	// (ADR-179). A file it cannot do that for (not .go, or standard input) is
+	// served whole and appended to WholeNames.
+	NoComments bool
+	WholeNames *[]string
 }
 
 // Unchanged is one spec a guard (Options.IfChanged) answered without its text:
@@ -209,6 +249,37 @@ type Unchanged struct {
 	Lines int    `json:"lines"`
 	Bytes int    `json:"bytes"`
 }
+
+// SameAsServed is one spec Options.IfServed answered by reference: the file, the
+// 8 hex digits of its sha and the spans (lines, inclusive) the ledger holds shown
+// (ADR-179).
+type SameAsServed struct {
+	Path  string   `json:"path"`
+	SHA   string   `json:"sha"`
+	Spans [][2]int `json:"spans"`
+}
+
+// allShown reports whether the ledger's entry for the file reports every line of
+// every span shown to the caller in this version: seen.Observation.ServedLine
+// judges each, so a file mrw wrote counts only the lines read since (ADR-118).
+func allShown(rec seen.Observation, spans []span) bool {
+	for _, s := range spans {
+		for l := s.start; l <= s.end; l++ {
+			if !rec.ServedLine(l) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// LongLineCols is the width past which a line served whole earns a hint
+// (ADR-179), and LongLines what a read counted of them.
+const LongLineCols = 400
+
+// LongLines is the count of lines over LongLineCols a read printed whole and the
+// length of the longest.
+type LongLines struct{ Count, Longest int }
 
 // Budget is a writer with a character budget (ADR-165): a write that fits
 // passes to W and is charged; the first that does not is dropped, and every
@@ -638,8 +709,14 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 	// (ADR-136), and only where the line after is not served (ADR-161): a page
 	// of mrw_read, whose continuation serves it.
 	neighbourNoted := false
+	// A file served as bytes (ADR-073) is named once for the invocation, with every
+	// other such file, however many specs named it (ADR-179 Decision e).
+	var asBytes []string
+	asBytesSeen := map[string]bool{}
 	countedLines, countedFiles := 0, 0
 	fileLines := map[string]int{} // each file's length, for a quiet read's count of whole files
+	// ADR-179 Decision (g): the match budget's tallies, across files.
+	matchShown, matchLeft, matchLeftFiles := 0, 0, 0
 	bud, _ := w.(*Budget)
 	withheld := opt.Withheld
 	if withheld == nil {
@@ -668,6 +745,10 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 		guard, guarded := "", false
 		if sp.Data == nil { // the key is the spec's path as written, before load may relativize it
 			guard, guarded = opt.IfChanged[filepath.Clean(sp.Path)]
+		}
+		servedWant, servedAsked := "", false // ADR-179 Decision (d): the sha the caller holds for --if-served
+		if sp.Data == nil {
+			servedWant, servedAsked = opt.IfServed[filepath.Clean(sp.Path)]
 		}
 		var b []byte
 		if sp.Data != nil {
@@ -718,6 +799,55 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 			}
 			continue
 		}
+		// ADR-179 Decision (d): the caller quotes the sha it holds, and the ledger
+		// says which lines were shown in that version; a spec both agree on is
+		// answered by reference and records nothing.
+		if servedAsked && opt.Served != nil && strings.HasPrefix(sha, strings.ToLower(servedWant)) {
+			spans, missed := resolve(sp.Ranges, lines, opt.Context, b)
+			if opt.NextLine && len(sp.Ranges) > 0 {
+				spans = withNextLine(spans, len(lines))
+			}
+			if rec := opt.Served(filepath.Clean(sp.Path)); rec.SHA == sha && len(spans) > 0 && allShown(rec, spans) {
+				fmt.Fprintf(w, "==> %s  %dL  %dB  sha %s\n", sp.Path, len(lines), len(b), sha[:8])
+				listed := make([][2]int, len(spans))
+				parts := make([]string, len(spans))
+				for i, s := range spans {
+					listed[i] = [2]int{s.start, s.end}
+					parts[i] = fmt.Sprintf("%d-%d", s.start, s.end)
+				}
+				fmt.Fprintf(w, "-- same as served: lines %s at sha %s\n", strings.Join(parts, ", "), sha[:8])
+				// Whether the reference reached the caller is judged before a missed
+				// range's diagnostic can use up the budget, as the unchanged answer does.
+				delivered := !bud.Over()
+				for _, m := range missed { // a range that would not have been served is still reported
+					reportOn(sp.Path, "!! no match for %s\n", m)
+					problems++
+				}
+				if !delivered {
+					fmt.Fprintf(withheld, "%s: WITHHELD: --max-chars reached\n", withheldName(sp))
+					problems++
+				} else if opt.SameAsServed != nil {
+					*opt.SameAsServed = append(*opt.SameAsServed, SameAsServed{Path: sp.Path, SHA: sha[:8], Spans: listed})
+				}
+				continue
+			}
+		}
+		// ADR-179 Decision (g): the match budget is spent before the header, so
+		// a file the budget leaves nothing of has none and is not observed.
+		var budgeted []span
+		var taken []span // the hits the budget counted shown, to be checked against what is printed
+		fileLeft := 0
+		budgetOn := opt.MaxMatches != nil && len(sp.Ranges) > 0
+		if budgetOn {
+			budgeted, taken, fileLeft = matchBudget(sp.Ranges, lines, opt, &matchShown)
+			if fileLeft > 0 {
+				matchLeft += fileLeft
+				matchLeftFiles++
+			}
+			if len(budgeted) == 0 && fileLeft > 0 {
+				continue
+			}
+		}
 		header := fmt.Sprintf("==> %s  %dL  %dB  sha %s", sp.Path, len(lines), len(b), sha[:8])
 		// countMissed is the pattern a counted file no longer matches: the walk
 		// found it, and another writer changed it before this read. A plain
@@ -745,10 +875,49 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 		if bud.Over() { // the header did not fit: nothing of this file was shown
 			fmt.Fprintf(withheld, "%s: WITHHELD: --max-chars reached\n", withheldName(sp))
 			problems++
+			if budgetOn { // none of this file was shown: what it charged is undone
+				matchShown -= len(taken)
+				matchLeft -= fileLeft
+				if fileLeft > 0 {
+					matchLeftFiles--
+				}
+			}
 			continue
 		}
-		if foreign != "" {
-			fmt.Fprintf(w, "-- note: %s %s: served as bytes; a write to it is refused\n", sp.Path, foreign)
+		if opt.Outline { // ADR-179: the structure, not the lines — nothing observed
+			note(sp.Path, sha, [][2]int{})
+			rows, ok, perr := outlineRows(sp.Path, b, lines)
+			if foreign != "" {
+				ok = false
+			}
+			if !ok {
+				if opt.Unoutlined != nil {
+					*opt.Unoutlined = append(*opt.Unoutlined, sp.Path)
+				}
+				problems++
+				continue
+			}
+			for _, r := range rows {
+				fmt.Fprintln(w, r)
+				if bud.Over() { // the rows do not fit: the outline is named, not silently cut
+					fmt.Fprintf(withheld, "%s: outline WITHHELD: --max-chars reached\n", withheldName(sp))
+					problems++
+					break
+				}
+			}
+			if perr != nil {
+				reportOn(sp.Path, "!! parse error: %v\n", perr)
+				problems++
+			}
+			continue
+		}
+		if opt.Project != nil { // ADR-178: values, not lines — nothing observed
+			problems += project(w, withheld, bud, sp, b, opt)
+			continue
+		}
+		if foreign != "" && !asBytesSeen[sp.Path] {
+			asBytesSeen[sp.Path] = true
+			asBytes = append(asBytes, sp.Path+" "+foreign)
 		}
 		if opt.Stat || opt.Count {
 			// The fact, not the artifact — and a fact the caller cannot count
@@ -761,7 +930,19 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 			}
 			continue
 		}
+		var cm []bool // ADR-179: the whole-line comment lines of a .go file, 1-based
+		if opt.NoComments {
+			if strings.EqualFold(filepath.Ext(sp.Path), ".go") && sp.Data == nil && foreign == "" {
+				cm = commentLines(b)
+			}
+			if cm == nil && opt.WholeNames != nil { // not .go, or a .go file that does not scan
+				*opt.WholeNames = append(*opt.WholeNames, sp.Path)
+			}
+		}
 		spans, missed := resolve(sp.Ranges, lines, opt.Context, b)
+		if budgetOn {
+			spans = budgeted
+		}
 		// served accumulates only what is actually PRINTED below, so a withheld
 		// span never counts as seen. whole starts as a fact about the REQUEST
 		// and is demoted the moment anything is withheld: --max-lines is the
@@ -796,8 +977,30 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 		// range that ends before the file does, so a multi-line replace of
 		// exactly the lines read has the line below it licensed (ADR-052). It
 		// retires ADR-136's note, which only named that line.
+		baseSpans := spans // the lines asked for, before ADR-161's line after each range
 		if opt.NextLine && len(sp.Ranges) > 0 {
 			spans = withNextLine(spans, len(lines))
+		}
+		// ADR-179: --fold and --no-comments act only on the lines asked for, and
+		// never on a line a --grep matched: the line after a range is served for its
+		// licence, and a match is what the caller searched for.
+		var plain []bool
+		if opt.Fold || cm != nil {
+			plain = make([]bool, len(lines)+2)
+			for _, s := range baseSpans {
+				for l := s.start; l <= s.end && l < len(plain); l++ {
+					plain[l] = true
+				}
+			}
+			for _, r := range sp.Ranges {
+				if r.Re != nil && r.ReEnd == nil {
+					for l, text := range lines {
+						if plain[l+1] && r.Re.MatchString(text) {
+							plain[l+1] = false
+						}
+					}
+				}
+			}
 		}
 		capped := opt.MaxLines != nil
 		budget := 0
@@ -827,6 +1030,7 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 			whole = false
 		}
 		stopped := false
+		var printed [][2]int // the lines of each span that reached the answer
 		for si, sn := range spans {
 			n := sn.end - sn.start + 1
 			if capped && budget <= 0 {
@@ -862,13 +1066,39 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 			pieceStart := sn.start
 			for i := 0; i < n; i++ {
 				ln := sn.start + i
+				if ln < len(cm) && cm[ln] && plain[ln] {
+					end := ln
+					for end < sn.start+n-1 && end+1 < len(cm) && cm[end+1] && plain[end+1] {
+						end++
+					}
+					if end > ln {
+						if ln > pieceStart {
+							served = append(served, [2]int{pieceStart, ln - 1})
+						}
+						pieceStart = end + 1
+						whole = false
+						fmt.Fprintf(w, "-- … %d comment line(s), %d-%d\n", end-ln+1, ln, end)
+						if bud.Over() { // the note did not fit: it and the rest of the span are withheld
+							if ln-1 >= sn.start {
+								printed = append(printed, [2]int{sn.start, ln - 1})
+							}
+							withholdFrom(si, ln)
+							stopped = true
+							break
+						}
+						i += end - ln
+						continue
+					}
+				}
 				text := lines[ln-1]
+				cutHere := false
 				if opt.MaxCols > 0 && utf8.RuneCountInString(text) > opt.MaxCols {
 					if ln > pieceStart {
 						served = append(served, [2]int{pieceStart, ln - 1})
 					}
 					pieceStart = ln + 1
 					whole = false
+					cutHere = true
 					text = window(text, opt.MaxCols, res)
 				}
 				switch {
@@ -882,9 +1112,39 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 					if ln-1 >= pieceStart {
 						served = append(served, [2]int{pieceStart, ln - 1})
 					}
+					if ln-1 >= sn.start {
+						printed = append(printed, [2]int{sn.start, ln - 1})
+					}
 					withholdFrom(si, ln)
 					stopped = true
 					break
+				}
+				if opt.WholeLong != nil && !opt.Quiet && !cutHere {
+					if rc := utf8.RuneCountInString(lines[ln-1]); rc > LongLineCols {
+						opt.WholeLong.Count++
+						opt.WholeLong.Longest = max(opt.WholeLong.Longest, rc)
+					}
+				}
+				if opt.Fold {
+					if end, digits := foldRun(lines, ln, sn.start+n-1, plain); end > ln {
+						if ln >= pieceStart {
+							served = append(served, [2]int{pieceStart, ln})
+						}
+						pieceStart = end + 1
+						whole = false
+						like := ""
+						if digits {
+							like = ", differing only in digits"
+						}
+						fmt.Fprintf(w, "-- ×%d: lines %d-%d like %d%s\n", end-ln+1, ln, end, ln, like)
+						if bud.Over() { // the note did not fit: the rest of the span is withheld
+							printed = append(printed, [2]int{sn.start, ln})
+							withholdFrom(si, ln+1)
+							stopped = true
+							break
+						}
+						i += end - ln
+					}
 				}
 			}
 			if stopped {
@@ -893,11 +1153,33 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 			if end := sn.start + n - 1; end >= pieceStart {
 				served = append(served, [2]int{pieceStart, end})
 			}
+			printed = append(printed, [2]int{sn.start, sn.start + n - 1})
 			if cut > 0 {
 				reportOn(sp.Path, "!! %d more line(s) withheld: --max-lines reached\n", cut)
 				problems++
 			}
 			budget -= n
+		}
+		// A match the budget counted shown but --max-lines or --max-chars kept
+		// from the answer was not shown: it is returned to the count.
+		if budgetOn {
+			unprinted := 0
+			for _, h := range taken {
+				in := false
+				for _, p := range printed {
+					in = in || (h.start >= p[0] && h.end <= p[1])
+				}
+				if !in {
+					unprinted++
+				}
+			}
+			if unprinted > 0 {
+				matchShown -= unprinted
+				matchLeft += unprinted
+				if fileLeft == 0 {
+					matchLeftFiles++
+				}
+			}
 		}
 		if whole {
 			note(sp.Path, sha, nil)
@@ -905,12 +1187,30 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 			note(sp.Path, sha, served)
 		}
 	}
+	if len(asBytes) > 0 {
+		it := "it"
+		if len(asBytes) > 1 {
+			it = "them"
+		}
+		fmt.Fprintf(report, "-- note: %s: served as bytes; a write to %s is refused\n", NamedFiles(asBytes), it)
+	}
 	if opt.Count {
 		fmt.Fprintf(w, "-- %d matching line(s) in %d file(s)\n", countedLines, countedFiles)
 	}
 	if opt.Quiet {
 		n, files := licensedCount(observed, fileLines)
 		fmt.Fprintf(report, "-- licensed %d line(s) in %d file(s)\n", n, files)
+	}
+	if opt.MaxMatches != nil && matchLeft > 0 {
+		skipped := ""
+		if bud.Over() {
+			skipped = " (matches in files --max-chars kept back are not counted)"
+		}
+		fmt.Fprintf(report, "-- max-matches %d reached: %d more matching line(s) in %d file(s) not shown%s\n", *opt.MaxMatches, matchLeft, matchLeftFiles, skipped)
+		if opt.Unshown != nil {
+			*opt.Unshown = matchLeft
+		}
+		problems++
 	}
 	if englishUnreadables >= 2 {
 		fmt.Fprint(w, hintSplitRegexAddress())
@@ -1051,6 +1351,90 @@ func licensedCount(observed map[string]seen.Observation, fileLines map[string]in
 		}
 	}
 	return n, files
+}
+
+// matchBudget is Decision (g) of ADR-179 for one file: the spans of the matches
+// the read's budget still allows, the lines of the matches it counted shown, and
+// how many it counted and did not show. shown counts across files. A grep range
+// matches per line; any other range (an ast-grep hit) is one match however many
+// lines it spans. A match inside a span already taken, as context or as the line
+// after a range, is shown and counts toward the budget, and its own span is
+// served with it, so a budget no smaller than the matches serves what the read
+// without the flag serves.
+func matchBudget(ranges []Range, lines []string, opt Options, shown *int) (spans []span, taken []span, left int) {
+	total := len(lines)
+	ctx := min(opt.Context, total)
+	extra := 0
+	if opt.NextLine {
+		extra = 1
+	}
+	// core is kept merged as hits arrive in line order, so a hit is covered when
+	// the last span reaches it: a read of n adjacent hits costs n, not n squared.
+	var core []span
+	take := func(hit, s span) {
+		covered := len(core) > 0 && hit.start >= core[len(core)-1].start && hit.start <= core[len(core)-1].end+extra
+		if covered || *shown < *opt.MaxMatches {
+			if n := len(core); n > 0 && s.start <= core[n-1].end+1 && s.start >= core[n-1].start {
+				core[n-1].end = max(core[n-1].end, s.end)
+			} else {
+				core = append(core, s)
+			}
+			taken = append(taken, hit)
+			*shown++
+			return
+		}
+		left++
+	}
+	for _, r := range ranges {
+		if r.Re != nil && r.ReEnd == nil {
+			for i, l := range lines {
+				if r.Re.MatchString(l) {
+					take(span{i + 1, i + 1}, span{max(1, i+1-ctx), min(total, i+1+ctx)})
+				}
+			}
+			continue
+		}
+		hits, _ := resolve([]Range{r}, lines, opt.Context, nil)
+		for _, h := range hits {
+			take(h, h)
+		}
+	}
+	return merge(core), taken, left
+}
+
+// foldDigits is a run of digits, read as one placeholder when --fold compares lines.
+var foldDigits = regexp.MustCompile(`\d+`)
+
+// foldRun is the last line, up to last, of the run of non-blank lines starting
+// at line from (1-based) that equal it once digit runs are placeholders, and
+// whether any of them differs from the first as written (ADR-179 Decision c).
+// It answers from when nothing follows alike.
+func foldRun(lines []string, from, last int, plain []bool) (end int, digits bool) {
+	first := lines[from-1]
+	if strings.TrimSpace(first) == "" || !plain[from] {
+		return from, false
+	}
+	shape := foldDigits.Split(first, -1)
+	end = from
+	for end < last && plain[end+1] && strings.TrimSpace(lines[end]) != "" && sameShape(foldDigits.Split(lines[end], -1), shape) {
+		digits = digits || lines[end] != first
+		end++
+	}
+	return end, digits
+}
+
+// sameShape reports whether two lines split on digit runs have the same text
+// between them, so the same number of runs: a literal # is not a placeholder.
+func sameShape(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 // matchingLines counts the lines a spec's single-pattern ranges match, each
@@ -1310,6 +1694,14 @@ func split(b []byte) ([]string, string) {
 	sha := hex.EncodeToString(sum[:])
 	ls, _, _ := lines.Split(string(b))
 	return ls, sha
+}
+
+// NamedFiles names up to five files and counts the rest (ADR-148, ADR-179).
+func NamedFiles(names []string) string {
+	if len(names) <= 5 {
+		return strings.Join(names, ", ")
+	}
+	return fmt.Sprintf("%s and %d more", strings.Join(names[:5], ", "), len(names)-5)
 }
 
 // hintUnexpandedGlob explains an unreadable path that holds a glob

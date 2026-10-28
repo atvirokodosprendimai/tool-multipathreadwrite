@@ -24,10 +24,11 @@ func TestNoShippedReceiptFieldDisappears(t *testing.T) {
 	receiptPaths(got, "stats", reflect.TypeOf(statsReceipt{}))
 	receiptPaths(got, "read", reflect.TypeOf(readDocument{}))
 	receiptPaths(got, "read_refusal", reflect.TypeOf(readRefusal{}))
+	receiptPaths(got, "run", reflect.TypeOf(runReceipt{}))
 	for _, name := range authoring.Vocabulary() {
 		got["stats counts."+name] = true
 	}
-	compareWithShipped(t, got, "write", "check", "check_refusal", "stats", "read", "read_refusal")
+	compareWithShipped(t, got, "write", "check", "check_refusal", "stats", "read", "read_refusal", "run")
 }
 
 // receiptPaths adds every key path of a receipt type to got, as
