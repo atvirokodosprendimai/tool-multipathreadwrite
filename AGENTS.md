@@ -35,7 +35,8 @@ pipeline reports the *last* command's status, not the script's.
 `./scripts/measure.sh` measures what mrw saves, shape by shape, including the shapes where it loses
 (`docs/measure.md` says which): quote the script, never a remembered number. A `bin/mrw` built from a
 working tree reports `dev`, which is newer than any tag, not older; the read-before-modify guard has been
-in every release since v0.0.2.
+in every release since v0.0.2. One made by `go install …/cmd/mrw@<version>` reports the module version Go
+recorded for it, a tag or a pseudo-version ending in the commit.
 
 ## The rules this codebase is built around
 
