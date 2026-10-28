@@ -94,9 +94,10 @@ jobs:
           $out = & $env:MRW read f.txt:2 2>&1 | Out-String; Check 'read' 0 $LASTEXITCODE
           if ($out -notmatch '2\| two') { "::error::read served: $out"; $fail = 1 }
           & $env:MRW write --no-check (Join-Path $env:PLANS 'write.plan') | Out-Host; Check 'write' 0 $LASTEXITCODE
-          if ((Get-Content f.txt)[1] -ne 'TWO') { "::error::the write did not land"; $fail = 1 }
+          # Null-safe: under Continue an error inside the condition would skip $fail.
+          if ((Get-Content -Raw f.txt -ErrorAction SilentlyContinue) -cne "one`nTWO`n") { "::error::the write did not land"; $fail = 1 }
           & $env:MRW write --no-check (Join-Path $env:PLANS 'refused.plan') 2>&1 | Out-Host; Check 'write to an unread file' 1 $LASTEXITCODE
-          if ((Get-Content g.txt)[0] -ne 'a') { "::error::the refused write changed g.txt"; $fail = 1 }
+          if ((Get-Content -Raw g.txt -ErrorAction SilentlyContinue) -cne "a`nb`n") { "::error::the refused write changed g.txt"; $fail = 1 }
           $r = & $env:MRW run "printf 'r%s\n' 1 2 3" | Out-String; Check 'run' 0 $LASTEXITCODE
           $r
           $line = (($r -split "`r?`n") | Where-Object { $_ -like 'read: *' }) -replace '^read: ', ''
@@ -141,6 +142,8 @@ jobs:
           echo read of the log through cmd's ^<: exit %ERRORLEVEL% (want 0)
           if not "%ERRORLEVEL%"=="0" set FAIL=1
           copy /y served.txt "%PLANS%\cmd-served.txt" >nul
+          copy /y f.txt "%PLANS%\cmd-f.txt" >nul
+          copy /y g.txt "%PLANS%\cmd-g.txt" >nul
           echo note: the printed read: line is the PowerShell form; cmd reads the log with its own ^<
           if "%FAIL%"=="1" (echo ::error::cmd: a check failed & exit /b 1)
           exit /b 0
@@ -152,3 +155,8 @@ jobs:
           grep -qF "$(tail -1 "$PLANS/expected.log")" "$PLANS/cmd-served.txt" \
             || { echo "::error::cmd: the log's non-ASCII line did not survive"; cat "$PLANS/cmd-served.txt"; exit 1; }
           echo "cmd served the non-ASCII line byte for byte"
+          cmp -s "$PLANS/cmd-f.txt" <(printf 'one\nTWO\n') \
+            || { echo "::error::cmd: the write did not land as written"; od -c "$PLANS/cmd-f.txt"; exit 1; }
+          cmp -s "$PLANS/cmd-g.txt" <(printf 'a\nb\n') \
+            || { echo "::error::cmd: the refused write changed g.txt"; od -c "$PLANS/cmd-g.txt"; exit 1; }
+          echo "cmd: the write landed and the refused write changed nothing"
