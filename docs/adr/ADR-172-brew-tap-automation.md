@@ -140,3 +140,8 @@ None outside the task's explicit post-merge integration sign-off.
   failed before their fixes. The twelve-test suite now passes, with paired
   scope-regression and diagnostic-suppression mutants killed. The original ten
   locked test bodies are unchanged; native relock added the two new bodies.
+- 2026-10-28: actual [Actions run 40718218358](https://github.com/atvirokodosprendimai/tool-multipathreadwrite/actions/runs/40718218358)
+  published v1.77.1 to tap commit `1ec84f0ac89658644b9f2e72059c7be75a82bca3`. An independent
+  readback matched the rendered formula byte for byte (sha256
+  `89679a5c283479316f76ebfc2ca6480fb3a878f46166b9dd4641f46c658ce7f7`) and all four
+  OS/CPU URL/checksum pairs. T1's integration sign-off is complete.
