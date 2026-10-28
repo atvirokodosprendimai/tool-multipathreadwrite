@@ -353,8 +353,11 @@ arrives as `internal\f.go;C:\…\Git\^func main\`, and the error names a line
 number you never typed. A one-letter pattern becomes a drive (`/x/` → `X:\`),
 and a `--grep` pattern that starts with `/` is rewritten into a false "no
 match". Quoting does not help; it happens in the process-spawn layer, after the
-shell. Export `MSYS_NO_PATHCONV=1` or `MSYS2_ARG_CONV_EXCL='*'`, or use
-PowerShell or WSL. Line-number and `$` addresses are unaffected.
+shell. Put the setting on the one mrw command, not in an export:
+`MSYS_NO_PATHCONV=1 mrw read 'f.go:/^func main/'` or `MSYS2_ARG_CONV_EXCL='*' mrw …`.
+An export reaches every later command in that shell, and another native tool then
+gets POSIX paths MSYS no longer converts for it. Or use PowerShell or WSL.
+Line-number and `$` addresses are unaffected.
 
 ⚠ **A shell glob and an address suffix do not mix.** `mrw read 'dir/*.go:1-3'`
 is served with the star taken literally, so it reports the path UNREADABLE; and
