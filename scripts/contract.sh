@@ -10730,6 +10730,23 @@ n313=$(grep '^-- note:' <<<"$u313")
   && ok "a served-as-bytes notice names five files and counts the rest" || bad "byte names: exit $urc313 [$n313]"
 python3 -I "$SRC/scripts/test_measure_repeat.py" > "$WORK/cost313" 2>&1; rc313=$?
 [ "$rc313" = 0 ] && ok "reference cost counts only the fully served referenced spans" || bad "reference cost: $(cat "$WORK/cost313")"
+ 
+# 314. mrw run records nothing in the ledger and serves nothing from it, so it
+# prints no ledger notice: three runs over a stale ledger printed the stale
+# notice three times (v1.77.1). The pair: a read over the same ledger still
+# prints it, and the newer-ledger notice likewise.
+fixture
+m read a.go >"$WORK/served314.out"
+sd314=$(m seen | head -1)
+for c314 in older newer; do
+  if [ "$c314" = older ]; then printf 'not a ledger\n' > "$sd314/seen"; else printf '#mrw-seen v999 v9.9.9\n' > "$sd314/seen"; fi
+  err314=$(m run true 2>&1 >/dev/null); rc314=$?
+  { [ "$rc314" = 0 ] && ! grep -q 'read ledger' <<<"$err314"; } \
+    && ok "mrw run over the $c314 ledger prints no ledger notice" || bad "run over $c314 ledger: exit $rc314 [$err314]"
+  err314=$(m read a.go 2>&1 >"$WORK/served314.out")
+  grep -q "written by an $c314 mrw\|written by a $c314 mrw" <<<"$err314" \
+    && ok "the pair: a read over the $c314 ledger still says so" || bad "read over $c314 ledger: $err314"
+done
 
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
