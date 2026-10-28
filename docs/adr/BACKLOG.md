@@ -868,9 +868,10 @@ change an exit code, a trust boundary, or any registered measurement window.
   refresh onto the held-pipe test fix; plugin, static, Go, race, contract and CI
   checks passed. #523's knip 6.43.0 fence fix and analyser self-test are prepared,
   but Zy retained ADR-147's two-week waiting period: do not merge before
-  2026-11-07 08:32:43 UTC (npm publication: 2026-10-24). #528 repairs the tag
-  trigger and adds a trusted, idempotent publisher; its post-merge Actions/tap
-  sign-off remains explicit in ADR-172 T1 until real publication succeeds.
+  2026-11-07 08:32:43 UTC (npm publication: 2026-10-24). #528 merged at
+  `3508dcb8`; Actions run 40718218358 published v1.77.1 to tap commit
+  `1ec84f0ac89658644b9f2e72059c7be75a82bca3`. Exact served bytes and all four
+  OS/CPU manifest pairs were verified; ADR-172 T1's integration sign-off is complete.
 - **Historical receipt routing (reader finding, not recertified):**
   `work-next` 3.8.59 reports historical done tasks as needing verification.
   For ADR-026 T4, current green receipt rows exist and `adr-lint` passes,
