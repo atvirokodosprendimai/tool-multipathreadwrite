@@ -19,7 +19,11 @@
 | File | Change | Why |
 |------|--------|-----|
 | `scripts/static.sh` | edit | four analyser steps, the self-test step, the pins and the missing-tool messages |
-| `cmd/opencode/mrw-plugin/package.json`, `cmd/opencode/mrw-plugin/package-lock.json` | edit | devDependency `knip` 6.38.0, exact (`npm install --save-dev --save-exact knip@6.38.0`) |
+| `cmd/opencode/mrw-plugin/package.json`, `cmd/opencode/mrw-plugin/package-lock.json` | edit | devDependency `knip` 6.43.0, exact (`npm install --save-dev --save-exact knip@6.43.0`) |
+
+The 6.43.0 maintenance update in PR #523 is held until 2026-11-07: npm published it
+on 2026-10-24 at 08:32:43 UTC. Zy retained ADR-147's two-week waiting period on
+2026-10-28. These checks prepare the update; they do not waive that policy.
 
 ## Ordered Steps
 
@@ -38,7 +42,7 @@ set -o pipefail
   && grep -q '^step actionlint ' scripts/static.sh \
   && grep -q '^step knip ' scripts/static.sh \
   && grep -q '^step self-test ' scripts/static.sh \
-  && grep -q '"knip": "6.38.0"' cmd/opencode/mrw-plugin/package.json \
+  && grep -q '"knip": "6.43.0"' cmd/opencode/mrw-plugin/package.json \
   && ./scripts/static.sh > /tmp/adr147-T2.out 2>&1 \
   && grep -q '^static analysis clean$' /tmp/adr147-T2.out \
   && for s in ruff shellcheck actionlint knip; do grep -qE "^$s: [1-9][0-9]* file" /tmp/adr147-T2.out || exit 1; done \
@@ -67,6 +71,7 @@ set -o pipefail
 - 2026-10-13 · b71db63* · mutant killed · exit 1 · `scripts/static.sh` · static.sh stops running ruff · acceptance-sha256:5497a575dfe7c744c801bc06fe77fe0945fae408ff7390f1c9c6ddaf3ceee1f3 · covers:static.sh runs every new analyser
 - 2026-10-13 · b71db63* · mutant killed · exit 1 · `scripts/static.sh` · the knip plant loses its unused file, so knip finds nothing · acceptance-sha256:5497a575dfe7c744c801bc06fe77fe0945fae408ff7390f1c9c6ddaf3ceee1f3 · covers:each analyser reports a planted defect
 - 2026-10-13 · b71db63* · mutant killed · exit 1 · `scripts/static.sh` · the ruff step selects no file · acceptance-sha256:5497a575dfe7c744c801bc06fe77fe0945fae408ff7390f1c9c6ddaf3ceee1f3 · covers:each step refuses zero files
+- 2026-10-28 · a6f03533* · mutant killed · exit 1 · `scripts/static.sh` · the knip plant loses its unused file so the analyser reports no defect · acceptance-sha256:65b41680dbb7710bfdd9b328f00c10d32d62b3ab13ae6dd9047495ff440d8c1d · covers:each analyser reports a planted defect
 
 ## Verification Log
 (empty until execute)
@@ -80,6 +85,7 @@ set -o pipefail
 - 2026-10-13 · b71db63* · exit 0 · `set -o pipefail …` · acceptance-sha256:5497a575dfe7c744c801bc06fe77fe0945fae408ff7390f1c9c6ddaf3ceee1f3 · ms:21900
 - 2026-10-13 · b71db63* · exit 0 · `set -o pipefail …` · acceptance-sha256:5497a575dfe7c744c801bc06fe77fe0945fae408ff7390f1c9c6ddaf3ceee1f3 · ms:22182
 - 2026-10-13 · human-observed · observed by the executor 2026-10-13: S4 'time ./scripts/static.sh' exit 0, 'static analysis clean', 20.728 s total warm at load 12.49 on 10 cores; written into the record's Consequences
+- 2026-10-28 · a6f03533* · exit 0 · `set -o pipefail …` · acceptance-sha256:65b41680dbb7710bfdd9b328f00c10d32d62b3ab13ae6dd9047495ff440d8c1d · ms:28567
 
 ## Invariants
 
