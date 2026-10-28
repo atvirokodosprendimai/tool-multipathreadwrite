@@ -174,9 +174,10 @@ func rootCommand() *cli.Command {
 				migrateLegacyState()
 			}
 			// version, instructions, skill and stats never read the ledger (ADR-136,
-			// ADR-168), and help — asked for by name, or a bare mrw — uses none (ADR-157).
+			// ADR-168), help — asked for by name, or a bare mrw — uses none (ADR-157),
+			// and run records nothing in it and serves nothing from it (ADR-177).
 			switch verb {
-			case "version", "instructions", "skill", "stats", "help", "h", "":
+			case "version", "instructions", "skill", "stats", "run", "help", "h", "":
 				return ctx, nil
 			}
 			// The seen subcommand's flags are parsed before this runs (urfave/cli
