@@ -242,7 +242,7 @@ func runReadLines(goos, exe, path string, lines int) []string {
 		from := strconv.Itoa(max(lines-lastReadLines+1, 1))
 		out = append(out, `read (cmd): "`+exe+`" read -- -:`+from+`-$ < "`+path+`"`)
 	}
-	return append(out, "read (Git Bash): "+runReadLine("unix", exe, path, lines))
+	return append(out, "read (Git Bash): "+line)
 }
 
 // runReadLine is a command that serves the last lastReadLines lines of a log
