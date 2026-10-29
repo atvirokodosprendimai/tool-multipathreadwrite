@@ -45,7 +45,7 @@
 
 | Surface | Change | Producer | Consumer(s) |
 |---------|--------|----------|-------------|
-| `mrw seen --forget` stdout | names the checkout, zero and nonzero | `cmd/mrw` | people, host hooks (which discard it) |
+| `mrw seen --forget` stdout | names the checkout, zero and nonzero | `cmd/mrw` | people, host hooks (which do not parse it) |
 | contract §300 | the two exact-equality rows take the new text | `scripts/contract.sh` | CI |
 | `AGENTS.md`, `docs/agents.md` | the printed form | docs | agents |
 
