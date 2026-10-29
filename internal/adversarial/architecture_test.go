@@ -1,7 +1,9 @@
 package adversarial
 
 import (
+	"os"
 	"os/exec"
+	"regexp"
 	"sort"
 	"strings"
 	"testing"
@@ -143,5 +145,37 @@ func TestStartsAProcessJudgesEveryModulePackage(t *testing.T) {
 	got := strings.Join(startsAProcess(g, "cmd/mrw"), " ")
 	if got != "internal/process.v1 pkg/process" {
 		t.Errorf("startsAProcess = %q, want the two unallowed module packages", got)
+	}
+}
+
+// The Module Map in docs/architecture.md claims every package: a package that
+// lands without a row is invisible to the doc's reader (cmd/nativebench did,
+// 2026-10-29), and a row for a package that is gone describes nothing.
+func TestEveryModulePackageIsInTheModuleMap(t *testing.T) {
+	doc, err := os.ReadFile("../../docs/architecture.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, after, ok := strings.Cut(string(doc), "\n## Module Map\n")
+	if !ok {
+		t.Fatal("docs/architecture.md has no \"## Module Map\" section")
+	}
+	section, _, _ := strings.Cut(after, "\n## ")
+	named := map[string]bool{}
+	for _, m := range regexp.MustCompile("`([a-z][a-z0-9/._-]*)`").FindAllStringSubmatch(section, -1) {
+		named[m[1]] = true
+	}
+	for pkg := range imports(t) {
+		if !named[pkg] {
+			t.Errorf("%s has no Module Map row in docs/architecture.md", pkg)
+		}
+	}
+	for name := range named {
+		if !strings.HasPrefix(name, "cmd/") && !strings.HasPrefix(name, "internal/") {
+			continue
+		}
+		if _, err := os.Stat("../../" + name); err != nil {
+			t.Errorf("the Module Map names %s, which is not in the tree", name)
+		}
 	}
 }
