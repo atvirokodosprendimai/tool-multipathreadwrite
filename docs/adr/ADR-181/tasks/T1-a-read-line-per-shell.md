@@ -11,7 +11,7 @@
 
 ## Goal
 
-Decisions 1-2: on Windows the receipt prints `read (PowerShell):`, `read (cmd):` and `read (Git Bash):` lines, the first byte-identical to ADR-177's; unix prints its one `read:` line unchanged; no Windows line when a path holds `"` or `%`.
+Decisions 1-2: on Windows the receipt prints `read (PowerShell):`, `read (cmd):` and `read (Git Bash):` lines, the first ADR-177's with `/d /v:off` added to its `cmd`; unix prints its one `read:` line unchanged; no Windows line when a path holds `"` or `%`.
 
 ## Affected Files
 
@@ -66,7 +66,7 @@ out=$(go test ./cmd/mrw/ -count=1 -v -run '^(TestTheWindowsRunReceiptLabelsARead
 
 ## Invariants
 
-- The PowerShell line is ADR-177's byte for byte; the unix line is unchanged.
+- The PowerShell line is ADR-177's with `/d /v:off` added to its `cmd`; the unix line is unchanged.
 - No line for a path holding `"` or `%`.
 - `--json` is unchanged.
 
@@ -90,3 +90,5 @@ The fence exits 0. A contract row is not possible here: `scripts/contract.sh` is
   ```
   ```
 - 2026-10-29 · 9611d43b* · exit 0 · `set -o pipefail …` · acceptance-sha256:e8a920860b373d4b5be607c800891759697e5dc7e2807caf32cfed587208c3a9 · ms:1546
+- 2026-10-29 · 822b2c25* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:e8a920860b373d4b5be607c800891759697e5dc7e2807caf32cfed587208c3a9 · ms:0 · test-lock-sha256:fa994521c7fd309213072be15ff5056188900da721a10daa2d08421f1cf1053f · test-lock-file:docs/adr/locks/fa994521c7fd309213072be15ff5056188900da721a10daa2d08421f1cf1053f.lock · test-lock-kind:replace
+- 2026-10-29 · 822b2c25* · exit 0 · `set -o pipefail …` · acceptance-sha256:e8a920860b373d4b5be607c800891759697e5dc7e2807caf32cfed587208c3a9 · ms:779

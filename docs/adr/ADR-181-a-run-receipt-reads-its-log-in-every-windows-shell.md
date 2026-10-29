@@ -1,7 +1,7 @@
 # ADR-181: A run receipt on Windows names a log-read line for each shell
 
 **Status:** Accepted
-**Accepted:** 2026-10-29 by Zy — *"accepted ADR-180 and ADR-181, implement them"*: the three labelled lines and no cmd line for a path holding `!`, as Decision 1 states.
+**Accepted:** 2026-10-29 by Zy — *"accepted ADR-180 and ADR-181, implement them"*: the three labelled lines and no cmd line for a path holding `!`, as Decision 1 states. Amended the same day on Zy's choice, *"Add /d /v:off"*, after the Windows peer found that the PowerShell line's `cmd /c` honours a registry `DelayedExpansion`: that line now starts `cmd /d /v:off /c`.
 **Date:** 2026-10-28
 **Amended:** 2026-10-28, before acceptance, from a Codex xhigh challenge (3 P2, 1 P3), each finding checked against the source: the Windows shards run `go test` without `-v`, so T2 adds a verbose step for its one test and names the shard (T2, `.github/workflows/ci.yml`); the guide's recipe 12, the generated `.claude/skills/mrw/SKILL.md` and `docs/agents.md` promise a four-line receipt and are in scope (T1, Governs, Invalidates); cmd expands `!NAME!` under delayed expansion even inside double quotes, so the cmd line is left out for a path holding `!` (Decision 1); the empty-log test rejects every read-line label, not just `read:` (T1).
 **Owner:** Zy
@@ -9,7 +9,7 @@
 **Cross-references:** ADR-082, ADR-142, ADR-177, README.md, AGENTS.md
 **Governs:** `cmd/mrw/run177.go`, `cmd/mrw/run177_test.go`, `cmd/mrw/runread181_windows_test.go`, `.github/workflows/ci.yml`, `internal/guide/guide.go`, `.claude/skills/mrw/SKILL.md`, `docs/agents.md`, `README.md`, `AGENTS.md`
 **Enforced-by:** `cmd/mrw/run177_test.go::TestTheWindowsRunReceiptLabelsAReadLineForEachShell`
-**Invalidates:** ADR-177 — Decision 5's single Windows `read:` line (the form typed at a PowerShell prompt), which becomes three labelled lines, and ADR-177 T2's "four-line receipt" wording in the guide's recipe 12, the generated skill and `docs/agents.md`, which on Windows is six lines; ADR-177's verification evidence stands as recorded. The unix `read:` line, the receipt's other lines, `--json` (which carries no read line, `docs/receipts.txt` `run` keys) and every exit code are unchanged. Checked: contract §313 drives the unix line only (Linux); ADR-142 is about piped plans, not this.
+**Invalidates:** ADR-177 — Decision 5's single Windows `read:` line (the form typed at a PowerShell prompt), which becomes three labelled lines, the PowerShell one starting `cmd /d /v:off /c` where ADR-177's started `cmd /c`, and ADR-177 T2's "four-line receipt" wording in the guide's recipe 12, the generated skill and `docs/agents.md`, which on Windows is six lines; ADR-177's verification evidence stands as recorded. The unix `read:` line, the receipt's other lines, `--json` (which carries no read line, `docs/receipts.txt` `run` keys) and every exit code are unchanged. Checked: contract §313 drives the unix line only (Linux); ADR-142 is about piped plans, not this.
 **Served-path change:** on Windows `mrw run` prints `read (PowerShell): …`, `read (cmd): …` and `read (Git Bash): …` in place of the one `read:` line, each a command that serves the log's last 40 lines when pasted into that shell; on unix the receipt is unchanged.
 
 ## Context
@@ -28,12 +28,12 @@ ADR-177 Decision 5 prints one Windows read line, `cmd /c "`"EXE`" read -- -:N-`$
 **1. Three labelled lines on Windows.** In place of `read: …`, the Windows receipt prints, in this order:
 
 ```
-read (PowerShell): cmd /c "`"EXE`" read -- -:N-`$ < `"LOG`""
+read (PowerShell): cmd /d /v:off /c "`"EXE`" read -- -:N-`$ < `"LOG`""
 read (cmd): "EXE" read -- -:N-$ < "LOG"
 read (Git Bash): 'EXE' read -- '-:N-$' < 'LOG'
 ```
 
-The PowerShell line is ADR-177's, byte for byte. The cmd line is the same command typed at a cmd prompt; the Git Bash line is the unix form with the Windows paths single-quoted (`'` written `'\''`). Each serves the last 40 lines (`-:1-$` when there are 40 or fewer), through standard input, licensing and recording nothing, as ADR-177 Decision 5 says. When a path holds `"` or `%`, none of the three is printed, as today; when a path holds `!`, the cmd line is left out and the other two are printed.
+The PowerShell line is ADR-177's with `/d /v:off` added to the `cmd` it starts: the cmd that line starts is mrw's to configure, so neither a user's AutoRun command nor a registry `DelayedExpansion` (which reads `!NAME!` in a path as a variable; found on a real Windows machine by the repository's Windows session, 2026-10-29) changes what it runs. The cmd line is the same command typed at a cmd prompt, whose settings are the caller's; the Git Bash line is the unix form with the Windows paths single-quoted (`'` written `'\''`). Each serves the last 40 lines (`-:1-$` when there are 40 or fewer), through standard input, licensing and recording nothing, as ADR-177 Decision 5 says. When a path holds `"` or `%`, none of the three is printed, as today; when a path holds `!`, the cmd line is left out and the other two are printed.
 
 **2. Unix is unchanged**: one `read:` line, the POSIX form.
 

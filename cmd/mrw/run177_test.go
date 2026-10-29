@@ -148,7 +148,7 @@ func TestTheReadLineIsQuotedForThePlatform(t *testing.T) {
 	// PowerShell 5.1): the typed form, a PowerShell double-quoted string, with
 	// ` and $ escaped and ' left alone; it is byte-exact where a pipe is not.
 	bt := "`"
-	want := `cmd /c "` + bt + `"C:\Program Files\mrw\mrw.exe` + bt + `" read -- -:61-` + bt + `$ < ` + bt + `"C:\u's\` + bt + `$x\b` + bt + bt + `c.log` + bt + `""`
+	want := `cmd /d /v:off /c "` + bt + `"C:\Program Files\mrw\mrw.exe` + bt + `" read -- -:61-` + bt + `$ < ` + bt + `"C:\u's\` + bt + `$x\b` + bt + bt + `c.log` + bt + `""`
 	if got := runReadLine("windows", `C:\Program Files\mrw\mrw.exe`, "C:\\u's\\$x\\b`c.log", 100); got != want {
 		t.Errorf("windows:\n got %s\nwant %s", got, want)
 	}
@@ -178,7 +178,7 @@ func TestTheWindowsRunReceiptLabelsAReadLineForEachShell(t *testing.T) {
 	bt := "`"
 	exe, log := `C:\Program Files\mrw\mrw.exe`, "C:\\u's\\$x\\b`c.log"
 	want := []string{
-		`read (PowerShell): cmd /c "` + bt + `"C:\Program Files\mrw\mrw.exe` + bt + `" read -- -:61-` + bt + `$ < ` + bt + `"C:\u's\` + bt + `$x\b` + bt + bt + `c.log` + bt + `""`,
+		`read (PowerShell): cmd /d /v:off /c "` + bt + `"C:\Program Files\mrw\mrw.exe` + bt + `" read -- -:61-` + bt + `$ < ` + bt + `"C:\u's\` + bt + `$x\b` + bt + bt + `c.log` + bt + `""`,
 		`read (cmd): "C:\Program Files\mrw\mrw.exe" read -- -:61-$ < "C:\u's\$x\b` + bt + `c.log"`,
 		`read (Git Bash): 'C:\Program Files\mrw\mrw.exe' read -- '-:61-$' < 'C:\u'\''s\$x\b` + bt + `c.log'`,
 	}

@@ -242,7 +242,7 @@ func runReadLines(goos, exe, path string, lines int) []string {
 		from := strconv.Itoa(max(lines-lastReadLines+1, 1))
 		out = append(out, `read (cmd): "`+exe+`" read -- -:`+from+`-$ < "`+path+`"`)
 	}
-	return append(out, "read (Git Bash): "+line)
+	return append(out, "read (Git Bash): "+runReadLine("unix", exe, path, lines))
 }
 
 // runReadLine is a command that serves the last lastReadLines lines of a log
@@ -252,8 +252,10 @@ func runReadLines(goos, exe, path string, lines int) []string {
 // cmd's redirection is the one path that keeps the log's bytes (a pipe turns
 // non-ASCII into ? and adds a BOM in Windows PowerShell 5.1), and the whole
 // command is a double-quoted string with ` and $ escaped, so an apostrophe in
-// a path survives (ADR-177 Decision 5). A Windows path cannot hold a double
-// quote; if one does, there is no line.
+// a path survives (ADR-177 Decision 5). The cmd it starts takes /d and /v:off,
+// so neither an AutoRun command nor a registry DelayedExpansion, which would
+// read !NAME! in a path as a variable, changes what it runs (ADR-181). A
+// Windows path cannot hold a double quote; if one does, there is no line.
 func runReadLine(goos, exe, path string, lines int) string {
 	from := max(lines-lastReadLines+1, 1)
 	if goos == "windows" {
@@ -264,7 +266,7 @@ func runReadLine(goos, exe, path string, lines int) string {
 			return ""
 		}
 		q := func(s string) string { return "`\"" + psEscaper.Replace(s) + "`\"" }
-		return `cmd /c "` + q(exe) + " read -- -:" + strconv.Itoa(from) + "-`$ < " + q(path) + `"`
+		return `cmd /d /v:off /c "` + q(exe) + " read -- -:" + strconv.Itoa(from) + "-`$ < " + q(path) + `"`
 	}
 	return posixQuote(exe) + " read -- '-:" + strconv.Itoa(from) + "-$' < " + posixQuote(path)
 }

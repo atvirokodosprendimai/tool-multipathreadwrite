@@ -687,7 +687,7 @@ read: '/usr/local/bin/mrw' read -- '-:2275-$' < '/Users/zy/.local/state/mrw-runs
 
 `last:` is the last non-empty line, cut to 200 characters; `read:` serves the log's last 40 lines with the running
 binary, not the `mrw` on PATH. On Windows there is one such line per shell, labelled, since the forms do not mix
-(ADR-181): `read (PowerShell): cmd /c "`"EXE`" read -- -:N-`$ < `"LOG`""` (cmd's redirection, since a pipe turns
+(ADR-181): `read (PowerShell): cmd /d /v:off /c "`"EXE`" read -- -:N-`$ < `"LOG`""` (cmd's redirection, since a pipe turns
 non-ASCII into `?` in Windows PowerShell 5.1), `read (cmd): "EXE" read -- -:N-$ < "LOG"` and
 `read (Git Bash): 'EXE' read -- '-:N-$' < 'LOG'`; a path holding `!` gets no cmd line, since cmd expands `!NAME!`
 under delayed expansion. `mrw read --grep P -C 3 - < LOG`

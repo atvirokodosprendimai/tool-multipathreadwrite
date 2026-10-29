@@ -693,7 +693,7 @@ and #73, one release apart.
   directory, never in it) and prints a receipt instead of the output: `exit N · lines · bytes · seconds`, the
   last non-empty line (cut to 200 characters), the log's path, and a `'EXE' read -- '-:N-$' < 'LOG'` command that
   serves the last 40 lines with the running binary (on Windows one line per shell, labelled, ADR-181:
-  `read (PowerShell): cmd /c "`"EXE`" read -- -:N-`$ < `"LOG`""`, `read (cmd): "EXE" read -- -:N-$ < "LOG"` and
+  `read (PowerShell): cmd /d /v:off /c "`"EXE`" read -- -:N-`$ < `"LOG`""`, `read (cmd): "EXE" read -- -:N-$ < "LOG"` and
   `read (Git Bash): 'EXE' read -- '-:N-$' < 'LOG'`, with no cmd line for a path holding `!`); `mrw read --grep P -C 3 - < LOG`
   searches it. The point is a long build or test output that costs the context four lines (six on Windows), with the exit code
   kept: it replaces `CMD | tail`, which returns tail's status. More than one argument is usage, exit 2 (in Windows PowerShell 5.1 a command holding `"` reaches mrw as several arguments: use single quotes inside the command, or pwsh 7); standard
