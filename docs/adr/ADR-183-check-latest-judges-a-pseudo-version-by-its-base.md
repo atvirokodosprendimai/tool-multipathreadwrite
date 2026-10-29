@@ -1,6 +1,7 @@
 # ADR-183: `mrw version --check-latest` judges a `go install` pseudo-version by its base release
 
-**Status:** Proposed
+**Status:** Accepted
+**Accepted:** 2026-10-29 by Zy — *"accepted"*
 **Date:** 2026-10-29
 **Amended:** 2026-10-29, before acceptance, from a Codex xhigh challenge (2 P2, 2 P3), each finding checked against the code: the `User-Agent` change had no case that told it from today's `mrw/dev`, so the seam test asserts `mrw/<reported version>` for the go-install cases and S3 gains the mutant that keeps `"mrw/"+version` (`cmd/mrw/latest149.go:72`); S7's README and AGENTS.md edits were in no fence clause, so the fence greps the phrase both must carry; the dependency clause named only `golang.org/x/mod`, so it holds `go.mod` and `go.sum` unchanged instead; the stamp sites are four commands, not three (Context). Codex found no fault in the base rule, the verdicts, the Invalidates line, the seam or §317's design.
 **Owner:** Zy

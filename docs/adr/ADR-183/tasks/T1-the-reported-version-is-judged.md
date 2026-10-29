@@ -8,7 +8,7 @@
 **Consumes:** none
 **Data dependency:** hermetic
 **Proof map:** v1
-**Rests-on:** `a pseudo-version behind the latest exits 1`, `an equal base is a commit after it`, `no base is no verdict`, `the reported version is judged`, `ADR-149 is otherwise unchanged`, `no new module requirement`, `no engine package changes`
+**Rests-on:** `a pseudo-version behind the latest exits 1`, `an equal base is a commit after it`, `no base is no verdict`, `the reported version is judged`
 
 ## Goal
 
@@ -77,6 +77,16 @@ out=$(go test ./cmd/mrw/ -count=1 -v -run '^(TestCheckLatestJudgesAPseudoVersion
 | 4 — it is used | no telemetry (ADR-009); the evidence for building it is the go-install report of 2026-10-27 quoted in `version_module_test.go`, whose build #561 made name its commit and `--check-latest` still could not judge |
 
 ## Mutation Log
+- 2026-10-29 · 7b4ebb2b* · mutant killed · exit 1 · `cmd/mrw/latest149.go` · S2: the base is vX.Y.Z, not the release before it · acceptance-sha256:55726b5b57842f2c7777ef884a8f1a5c9cc6b88a73e79c59232a30f16949be4b
+- 2026-10-29 · 7b4ebb2b* · mutant killed · exit 1 · `cmd/mrw/main.go` · S3: versionCmd judges the linker stamp, not the reported version · acceptance-sha256:55726b5b57842f2c7777ef884a8f1a5c9cc6b88a73e79c59232a30f16949be4b
+- 2026-10-29 · 7b4ebb2b* · mutant killed · exit 1 · `cmd/mrw/latest149.go` · S3: the User-Agent names the linker stamp, not the reported version · acceptance-sha256:55726b5b57842f2c7777ef884a8f1a5c9cc6b88a73e79c59232a30f16949be4b
+- 2026-10-29 · 7b4ebb2b* · mutant killed · exit 1 · `cmd/mrw/latest149.go` · S4: a patch-0 release-form pseudo-version gets a base · acceptance-sha256:55726b5b57842f2c7777ef884a8f1a5c9cc6b88a73e79c59232a30f16949be4b
+- 2026-10-29 · 7b4ebb2b* · mutant killed · exit 1 · `cmd/mrw/latest149.go` · S4: the pattern is unanchored, so build metadata gets a base · acceptance-sha256:55726b5b57842f2c7777ef884a8f1a5c9cc6b88a73e79c59232a30f16949be4b
+- 2026-10-29 · 7b4ebb2b* · mutant killed · exit 1 · `cmd/mrw/latest149.go` · S5: an equal base is reported older · acceptance-sha256:55726b5b57842f2c7777ef884a8f1a5c9cc6b88a73e79c59232a30f16949be4b
+- 2026-10-29 · 7b4ebb2b* · mutant killed · exit 1 · `cmd/mrw/latest149.go` · S2: the base is vX.Y.Z, not the release before it · acceptance-sha256:55726b5b57842f2c7777ef884a8f1a5c9cc6b88a73e79c59232a30f16949be4b · covers:a pseudo-version behind the latest exits 1
+- 2026-10-29 · 7b4ebb2b* · mutant killed · exit 1 · `cmd/mrw/latest149.go` · S5: an equal base is reported older · acceptance-sha256:55726b5b57842f2c7777ef884a8f1a5c9cc6b88a73e79c59232a30f16949be4b · covers:an equal base is a commit after it
+- 2026-10-29 · 7b4ebb2b* · mutant killed · exit 1 · `cmd/mrw/latest149.go` · S4: a patch-0 release-form pseudo-version gets a base · acceptance-sha256:55726b5b57842f2c7777ef884a8f1a5c9cc6b88a73e79c59232a30f16949be4b · covers:no base is no verdict
+- 2026-10-29 · 7b4ebb2b* · mutant killed · exit 1 · `cmd/mrw/main.go` · S3: versionCmd judges the linker stamp, not the reported version · acceptance-sha256:55726b5b57842f2c7777ef884a8f1a5c9cc6b88a73e79c59232a30f16949be4b · covers:the reported version is judged
 
 ## Invariants
 
@@ -98,3 +108,38 @@ The fence exits 0; or the base rule would need a form Decision 2 leaves without 
 - Changing ADR-149's lines for a strict version (permanent: boundary: ADR-149 Decision 1 owns them)
 
 ## Verification Log
+- 2026-10-29 · 7b4ebb2b* · exit 1 · `set -o pipefail …` · acceptance-sha256:55726b5b57842f2c7777ef884a8f1a5c9cc6b88a73e79c59232a30f16949be4b · ms:363 · test-lock-sha256:76cb0fab836f98d63d1dd1fa0a1c55d4e53648847369a6bfbdf783d1b7ef7425 · test-lock-file:docs/adr/locks/76cb0fab836f98d63d1dd1fa0a1c55d4e53648847369a6bfbdf783d1b7ef7425.lock
+  ```
+  ```
+- 2026-10-29 · 7b4ebb2b* · exit 1 · `set -o pipefail …` · acceptance-sha256:55726b5b57842f2c7777ef884a8f1a5c9cc6b88a73e79c59232a30f16949be4b · ms:1304
+  ```
+  ```
+- 2026-10-29 · 7b4ebb2b* · exit 1 · `set -o pipefail …` · acceptance-sha256:55726b5b57842f2c7777ef884a8f1a5c9cc6b88a73e79c59232a30f16949be4b · ms:1369
+  ```
+  ```
+- 2026-10-29 · 7b4ebb2b* · exit 1 · `set -o pipefail …` · acceptance-sha256:55726b5b57842f2c7777ef884a8f1a5c9cc6b88a73e79c59232a30f16949be4b · ms:1300
+  ```
+  ```
+- 2026-10-29 · 7b4ebb2b* · exit 1 · `set -o pipefail …` · acceptance-sha256:55726b5b57842f2c7777ef884a8f1a5c9cc6b88a73e79c59232a30f16949be4b · ms:1322
+  ```
+  ```
+- 2026-10-29 · 7b4ebb2b* · exit 1 · `set -o pipefail …` · acceptance-sha256:55726b5b57842f2c7777ef884a8f1a5c9cc6b88a73e79c59232a30f16949be4b · ms:1307
+  ```
+  ```
+- 2026-10-29 · 7b4ebb2b* · exit 1 · `set -o pipefail …` · acceptance-sha256:55726b5b57842f2c7777ef884a8f1a5c9cc6b88a73e79c59232a30f16949be4b · ms:1375
+  ```
+  ```
+- 2026-10-29 · 7b4ebb2b* · exit 1 · `set -o pipefail …` · acceptance-sha256:55726b5b57842f2c7777ef884a8f1a5c9cc6b88a73e79c59232a30f16949be4b · ms:1389
+  ```
+  ```
+- 2026-10-29 · 7b4ebb2b* · exit 0 · `set -o pipefail …` · acceptance-sha256:55726b5b57842f2c7777ef884a8f1a5c9cc6b88a73e79c59232a30f16949be4b · ms:86629
+- 2026-10-29 · 7b4ebb2b* · exit 0 · `set -o pipefail …` · acceptance-sha256:55726b5b57842f2c7777ef884a8f1a5c9cc6b88a73e79c59232a30f16949be4b · ms:86885
+- 2026-10-29 · 7b4ebb2b* · exit 0 · `set -o pipefail …` · acceptance-sha256:55726b5b57842f2c7777ef884a8f1a5c9cc6b88a73e79c59232a30f16949be4b · ms:81944
+- 2026-10-29 · 7b4ebb2b* · exit 0 · `set -o pipefail …` · acceptance-sha256:55726b5b57842f2c7777ef884a8f1a5c9cc6b88a73e79c59232a30f16949be4b · ms:81123
+- 2026-10-29 · 7b4ebb2b* · exit 0 · `set -o pipefail …` · acceptance-sha256:55726b5b57842f2c7777ef884a8f1a5c9cc6b88a73e79c59232a30f16949be4b · ms:81357
+- 2026-10-29 · 7b4ebb2b* · exit 0 · `set -o pipefail …` · acceptance-sha256:55726b5b57842f2c7777ef884a8f1a5c9cc6b88a73e79c59232a30f16949be4b · ms:80532
+- 2026-10-29 · 7b4ebb2b* · exit 0 · `set -o pipefail …` · acceptance-sha256:55726b5b57842f2c7777ef884a8f1a5c9cc6b88a73e79c59232a30f16949be4b · ms:79829
+- 2026-10-29 · 7b4ebb2b* · exit 0 · `set -o pipefail …` · acceptance-sha256:55726b5b57842f2c7777ef884a8f1a5c9cc6b88a73e79c59232a30f16949be4b · ms:80545
+- 2026-10-29 · 7b4ebb2b* · exit 0 · `set -o pipefail …` · acceptance-sha256:55726b5b57842f2c7777ef884a8f1a5c9cc6b88a73e79c59232a30f16949be4b · ms:81140
+- 2026-10-29 · 7b4ebb2b* · exit 0 · `set -o pipefail …` · acceptance-sha256:55726b5b57842f2c7777ef884a8f1a5c9cc6b88a73e79c59232a30f16949be4b · ms:89864
+- 2026-10-29 · 7b4ebb2b* · exit 0 · `set -o pipefail …` · acceptance-sha256:55726b5b57842f2c7777ef884a8f1a5c9cc6b88a73e79c59232a30f16949be4b · ms:91939

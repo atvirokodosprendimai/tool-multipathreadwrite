@@ -9098,6 +9098,47 @@ out=$("$WORK/mrw253" version --check-latest 2>&1); want 2 $? "a server that is g
 grep -q 'mrw: could not ask for the latest release: ' <<<"$out" && ok "saying it could not ask" || bad "gone: $out"
 rm -rf "$D253" "$WORK/srv253.py" "$WORK/port253" "$WORK/log253" "$WORK/out253" "$WORK/mrw253" "$WORK/mrw253dev"
 
+# 317. ADR-183: `--check-latest` judges a go install pseudo-version by the
+# release it follows. A binary stamped v1.78.1-0.<ts>-<rev> — a commit after
+# v1.78.0, which moduleVersion passes through as a go install build's module
+# version would be reported — against a local server: latest v1.78.0 is the
+# base, a commit after it (0); the pair, latest v1.78.1, makes it older (1). A
+# pseudo-version with no release before it names the latest with no verdict.
+D317=$(mktemp -d "$WORK/rel317-XXXXXX")
+mkdir -p "$D317/repos/atvirokodosprendimai/tool-multipathreadwrite/releases"
+L317="$D317/repos/atvirokodosprendimai/tool-multipathreadwrite/releases/latest"
+printf '{"tag_name":"v1.78.0"}' > "$L317"
+cat > "$WORK/srv317.py" <<'PY'
+import functools, http.server, os, sys
+d, portfile = sys.argv[1:3]
+class H(http.server.SimpleHTTPRequestHandler):
+    def log_message(self, fmt, *args):
+        pass
+srv = http.server.HTTPServer(("127.0.0.1", 0), functools.partial(H, directory=d))
+with open(portfile + ".tmp", "w") as f:
+    f.write(str(srv.server_address[1]))
+os.rename(portfile + ".tmp", portfile)
+srv.serve_forever()
+PY
+python3 "$WORK/srv317.py" "$D317" "$WORK/port317" < /dev/null > /dev/null 2>&1 & P317=$!
+for ((i = 0; i < 100; i++)); do [ -s "$WORK/port317" ] && break; sleep 0.1; done
+API317="http://127.0.0.1:$(cat "$WORK/port317")"
+P317V=v1.78.1-0.20261029000000-abcdefabcdef
+go build -o "$WORK/mrw317" -ldflags "-X main.version=$P317V -X main.releasesAPI=$API317" ./cmd/mrw
+go build -o "$WORK/mrw317nobase" -ldflags "-X main.version=v0.0.0-20261029000000-abcdefabcdef -X main.releasesAPI=$API317" ./cmd/mrw
+out=$("$WORK/mrw317" version --check-latest 2>&1); want 0 $? "a pseudo-version at its base release exits 0"
+grep -qF "latest release: v1.78.0 — this mrw ($P317V) is a commit after v1.78.0" <<<"$out" \
+  && ok "a pseudo-version whose base is the latest release is a commit after it" || bad "equal base: $out"
+printf '{"tag_name":"v1.78.1"}' > "$L317"
+out=$("$WORK/mrw317" version --check-latest 2>&1); want 1 $? "the pair: a pseudo-version behind the latest exits 1"
+{ grep -qF "this mrw ($P317V) is older; download" <<<"$out" && grep -qF 'mrw: a newer release exists: v1.78.1' <<<"$out"; } \
+  && ok "the pair: a release after its base makes it older" || bad "older: $out"
+out=$("$WORK/mrw317nobase" version --check-latest 2>&1); want 0 $? "a pseudo-version with no base exits 0"
+grep -qF 'latest release: v1.78.1 — this build (v0.0.0-20261029000000-abcdefabcdef) cannot be compared' <<<"$out" \
+  && ok "a pseudo-version with no base release names the latest with no verdict" || bad "no base: $out"
+kill "$P317" 2>/dev/null; wait "$P317" 2>/dev/null
+rm -rf "$D317" "$WORK/srv317.py" "$WORK/port317" "$WORK/mrw317" "$WORK/mrw317nobase"
+
 # 254. ADR-150: the ledger's first line names the mrw that wrote it, and a
 # ledger written by a newer mrw is left untouched: a read exits 0, records
 # nothing and names the newer writer once; a write its entry would license is
