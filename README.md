@@ -321,7 +321,7 @@ mrw write --json plan.mrw
 mrw write -
 ```
 
-A plan piped to `mrw write -` that ends with nothing in the tree (a refusal, a dry run, a commit that landed nothing) is kept in `<state home>/mrw-refused/`, the newest 16, beside mrw's state directory and not in it: stderr names the path (`refused_plan` under `--json`), and the caller edits that file and runs the same command with the path in place of `-` instead of sending the plan again (ADR-176).
+A plan piped to `mrw write -` that ends with nothing in the tree (a refusal once the plan is read, a dry run, a commit that landed nothing) is kept in `<state home>/mrw-refused/`, the newest 16, beside mrw's state directory and not in it: stderr names the path (`refused_plan` under `--json`), and the caller edits that file and runs the same command with the path in place of `-` instead of sending the plan again (ADR-176).
 
 Ops are `replace`, `insert-after`, `insert-before`, `delete`, `create`,
 `unlink`, `rename`. `@@ path - unlink` removes the path. `@@ old - rename`
