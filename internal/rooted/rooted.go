@@ -24,14 +24,6 @@ import (
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/state"
 )
 
-// Resolve returns the absolute file that path names under root, and an error if
-// it resolves outside it.
-//
-// Symlinks are resolved before the check, because following one out of the tree
-// is the same escape wearing a different hat. A path that does not exist yet is
-// checked lexically — `create` is entitled to name a file that is not there,
-// and filepath.Join has already cleaned it.
-
 // Abs is the root as the boundary compares it: absolute, and with symlinks
 // resolved so a root reached through one — /var on macOS — is the same string
 // as the paths it is compared against.
@@ -71,6 +63,14 @@ func Abs(root string) (string, error) {
 	}
 	return absRoot, nil
 }
+
+// Resolve returns the absolute file that path names under root, and an error if
+// it resolves outside it.
+//
+// Symlinks are resolved before the check, because following one out of the tree
+// is the same escape wearing a different hat. A path that does not exist yet is
+// checked lexically — `create` is entitled to name a file that is not there,
+// and filepath.Join has already cleaned it.
 func Resolve(root, path string) (string, error) {
 	if err := aliasRefusal(path); err != nil {
 		return "", err

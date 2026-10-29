@@ -11,15 +11,27 @@ linters:
     - errorlint
     - misspell
     - nilerr
+    - nolintlint
+    - revive
     - unconvert
     - unparam
     - usestdlibvars
     - wastedassign
   settings:
     staticcheck:
-      # QF* are refactoring suggestions, not defects; the ST checks listed are
-      # staticcheck's own defaults-off (package comments, naming).
-      checks: ["all", "-QF*", "-ST1000", "-ST1003", "-ST1016", "-ST1020", "-ST1021", "-ST1022"]
+      # QF* are refactoring suggestions, not defects. ST1000 and ST1020-ST1022
+      # enforce what CONTRIBUTING.md asks for: a package comment per package and
+      # doc comments that start with the name (two were found orphaned above
+      # another declaration when they were first enabled). ST1003 and ST1016
+      # (identifier spelling, receiver names) are style this repository does not state.
+      checks: ["all", "-QF*", "-ST1003", "-ST1016"]
+    revive:
+      # Only `exported`: a doc comment on every exported identifier, in the form
+      # the name starts (CONTRIBUTING.md, "What a change needs"). staticcheck's
+      # ST1020-ST1022 judge a comment that exists; this one also reports the
+      # comment that is missing, and a name that stutters with its package.
+      rules:
+        - name: exported
     errcheck:
       # A formatted write goes to a buffered writer whose error reaches a
       # checked Flush (ADR-088 T4), to an in-memory buffer that cannot fail, or

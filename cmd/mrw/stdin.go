@@ -68,7 +68,7 @@ func stdinRead(cmd *cli.Command, pattern string, grepSet bool, posArgs []string,
 	if stdinIsTerminal() {
 		return cli.Exit("- reads standard input, and it is a terminal here: pipe the input in (cmd | mrw read -)", exitUsage)
 	}
-	b, err := read.ReadStdin(os.Stdin)
+	b, err := read.Stdin(os.Stdin)
 	if err != nil {
 		return cli.Exit(fmt.Sprintf("standard input: %v", err), exitUsage)
 	}

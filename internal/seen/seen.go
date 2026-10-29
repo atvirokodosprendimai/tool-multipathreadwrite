@@ -633,18 +633,6 @@ func formatSpans(o Observation) string {
 // enter afterLoad while the first still holds LOCK_EX.
 var beforeLock func()
 
-// Record merges observations into the ledger on disk and saves it. Paths absent
-// from obs keep whatever was recorded for them: one command observing two files
-// must not erase what another observed about a third.
-//
-// Within one path the observations ACCUMULATE while the file is unchanged: two
-// reads of different ranges leave the caller having seen both. A different SHA
-// replaces the record outright, because spans counted in one version of a file
-// say nothing about another.
-//
-// ONE WRITER, EVEN ACROSS PROCESSES (ADR-038). The whole load-merge-save is
-// held under an exclusive lock on seen.lock, so N concurrent CLI processes
-// keep N entries. The format is unchanged.
 // Drop removes paths from the ledger. An unlinked file is gone; keeping its
 // observation would license a recreate against a SHA that no longer exists
 // on disk, or refuse a create because the ledger still names it.
@@ -697,6 +685,18 @@ func Forget(root string) (int, error) {
 	return n, err
 }
 
+// Record merges observations into the ledger on disk and saves it. Paths absent
+// from obs keep whatever was recorded for them: one command observing two files
+// must not erase what another observed about a third.
+//
+// Within one path the observations ACCUMULATE while the file is unchanged: two
+// reads of different ranges leave the caller having seen both. A different SHA
+// replaces the record outright, because spans counted in one version of a file
+// say nothing about another.
+//
+// ONE WRITER, EVEN ACROSS PROCESSES (ADR-038). The whole load-merge-save is
+// held under an exclusive lock on seen.lock, so N concurrent CLI processes
+// keep N entries. The format is unchanged.
 func Record(root string, obs map[string]Observation) error {
 	if len(obs) == 0 {
 		return nil
