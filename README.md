@@ -111,13 +111,14 @@ Two other ways in:
 
 - **Homebrew** (macOS and Linux, amd64 and arm64): `brew install atvirokodosprendimai/tap/mrw`. The
   tap's formula is generated and pushed by CI from the release's four archives and their checksums
-  (ADR-172), so it serves the published binary; `release-smoke-brew.yml` installs from the tap and
-  checks the binary against `SHA256SUMS.txt`, on dispatch after a release.
+  (ADR-172), so it serves the published binary; `release-smoke-brew.yml`, run by hand after a release,
+  installs from the tap and checks the binary against `SHA256SUMS.txt`.
 - **`go install`** (Go 1.26.10 or newer, `go.mod`):
   `go install github.com/atvirokodosprendimai/tool-multipathreadwrite/cmd/mrw@latest`, or `@<tag>`, or
   `@<commit>`. That build is compiled by your Go and carries no release stamp: `mrw version` reports
   the module version Go recorded for it, the tag or a pseudo-version ending in the commit
-  (`vX.Y.(Z+1)-0.<time>-<commit>`, the commit after vX.Y.Z), and `--check-latest` judges it by that.
+  (`vX.Y.(Z+1)-0.<time>-<commit>`, the commit after vX.Y.Z). `--check-latest` judges it by that from
+  the first release after v1.78.0 (ADR-183); v1.78.0's own binary answers `cannot be compared` for it.
 
 `mrw version` prints the same string `-v` / `--version` already print. Extra
 arguments are usage (exit 2). `mrw version --check-latest` also asks GitHub for
