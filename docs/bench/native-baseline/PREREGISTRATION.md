@@ -1,6 +1,6 @@
-# Native performance baseline — pre-registration (DRAFT, not yet agreed)
+# Native performance baseline — pre-registration (agreed 2026-10-29)
 
-**Status:** draft for Zy, 2026-10-28. Nothing below has been run. Once agreed, this file is merged BEFORE the
+**Status:** agreed by Zy on 2026-10-29, who chose "Proposed caps" (perf: a 15-minute wall budget, as drafted) and approved the plan that moved the binary under test to v1.78.0, the release current at agreement. Drafted 2026-10-28. Nothing below has been run. This file is merged BEFORE the
 first measurement, and no workload, metric, threshold or budget changes after the first number is seen; a
 change after that is a new pre-registration with its own date, and the earlier one is reported beside it.
 
@@ -10,7 +10,7 @@ benchmark of the binary. It says nothing about agent task cost, tokens or accura
 
 ## What is measured
 
-The released binary **v1.77.1 (926aaba)**, downloaded from the GitHub release (`mrw-darwin-arm64`, checked against the release's `SHA256SUMS.txt`), its sha256
+The released binary **v1.78.0 (06075f7)**, downloaded from the GitHub release (`mrw-darwin-arm64`, checked against the release's `SHA256SUMS.txt`), its sha256
 recorded, beside a source build of the head under test with the release flags (`CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=…"`, as `.github/workflows/ci.yml:297` builds the release).
 Every number names which binary it came from.
 
