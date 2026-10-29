@@ -464,8 +464,12 @@ func workloads(work, tree string) ([]workload, error) {
 						return fmt.Errorf("%v: %w", args, err)
 					}
 				}
-				if got, err := ledgerEntries(binOf(bin), dir, template(bin)); err != nil || got != e {
-					return fmt.Errorf("the template ledger holds %d entries, want %d (%v)", got, e, err)
+				got, err := ledgerEntries(binOf(bin), dir, template(bin))
+				if err != nil {
+					return fmt.Errorf("counting the template ledger: %w", err)
+				}
+				if got != e {
+					return fmt.Errorf("the template ledger holds %d entries, want %d", got, e)
 				}
 			}
 			if err := os.RemoveAll(state(bin)); err != nil {
