@@ -1,0 +1,9 @@
+#  load { 7.20 4.98 6.00 }
+goos: darwin
+goarch: arm64
+pkg: github.com/atvirokodosprendimai/tool-multipathreadwrite/cmd/nativebench
+cpu: Apple M5
+BenchmarkR3Repo-10    	      30	 151825543 ns/op
+PASS
+ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/cmd/nativebench	4.955s
+#  end load { 7.03 4.98 6.00 }

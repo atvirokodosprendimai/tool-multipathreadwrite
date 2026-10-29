@@ -81,6 +81,6 @@ func BenchmarkR3Repo(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
-		read.Run(io.Discard, root, specs, read.Options{Count: true, Counts: map[string]int{}, Numbers: true, NextLine: true})
+		read.Run(io.Discard, root, specs, read.Options{Numbers: true, NextLine: true})
 	}
 }

@@ -1,0 +1,48 @@
+#  load { 4.27 3.84 5.74 }
+goos: darwin
+goarch: arm64
+pkg: github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read
+cpu: Apple M5
+BenchmarkWalkDeep131-10    	      26	  68505809 ns/op	 9741512 B/op	   78714 allocs/op
+BenchmarkWalkDeep131-10    	      27	  74178756 ns/op	 9844117 B/op	   78716 allocs/op
+BenchmarkWalkDeep131-10    	      21	  57425744 ns/op	 9744438 B/op	   78706 allocs/op
+BenchmarkWalkDeep131-10    	      21	  83101982 ns/op	 9800867 B/op	   78713 allocs/op
+BenchmarkWalkDeep131-10    	      21	  59707258 ns/op	 9696963 B/op	   78703 allocs/op
+PASS
+ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read	13.042s
+#  load { 5.72 4.17 5.83 }
+goos: darwin
+goarch: arm64
+pkg: github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted
+cpu: Apple M5
+BenchmarkResolveADeepFile-10    	   33490	     37504 ns/op	   16784 B/op	     146 allocs/op
+BenchmarkResolveADeepFile-10    	   28639	     38889 ns/op	   16912 B/op	     146 allocs/op
+BenchmarkResolveADeepFile-10    	   31834	     37675 ns/op	   16912 B/op	     146 allocs/op
+BenchmarkResolveADeepFile-10    	   31933	     38039 ns/op	   16784 B/op	     146 allocs/op
+BenchmarkResolveADeepFile-10    	   31410	     37398 ns/op	   16912 B/op	     146 allocs/op
+PASS
+ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted	10.037s
+#  load { 6.55 4.41 5.90 }
+goos: darwin
+goarch: arm64
+pkg: github.com/atvirokodosprendimai/tool-multipathreadwrite/cmd/nativebench
+cpu: Apple M5
+BenchmarkR1-10    	    4416	    268487 ns/op	  889575 B/op	     239 allocs/op
+BenchmarkR1-10    	    4423	    273165 ns/op	  889570 B/op	     239 allocs/op
+BenchmarkR1-10    	    4650	    267820 ns/op	  889584 B/op	     239 allocs/op
+BenchmarkR1-10    	    4484	    267743 ns/op	  889566 B/op	     239 allocs/op
+BenchmarkR1-10    	    4480	    267811 ns/op	  889585 B/op	     239 allocs/op
+PASS
+ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/cmd/nativebench	6.209s
+#  load { 6.30 4.43 5.89 }
+goos: darwin
+goarch: arm64
+pkg: github.com/atvirokodosprendimai/tool-multipathreadwrite/cmd/nativebench
+cpu: Apple M5
+BenchmarkW1-10    	     343	   3569280 ns/op	 4057482 B/op	    6366 allocs/op
+BenchmarkW1-10    	     325	   3636004 ns/op	 4057120 B/op	    6366 allocs/op
+BenchmarkW1-10    	     320	   3656244 ns/op	 4053958 B/op	    6365 allocs/op
+BenchmarkW1-10    	     319	   3692018 ns/op	 4060993 B/op	    6366 allocs/op
+BenchmarkW1-10    	     333	   3675357 ns/op	 4060247 B/op	    6366 allocs/op
+PASS
+ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/cmd/nativebench	9.099s
