@@ -8,6 +8,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -52,14 +54,26 @@ func TestEveryPrintedReadLineServesTheLogInItsShell(t *testing.T) {
 		}
 	}
 
-	// served is the read of lines 6-45: the first and the non-ASCII last line
-	// there, line 5 not.
-	first, last, before := regexp.MustCompile(`(?m)^ *6\| line6\r?$`), regexp.MustCompile("(?m)^ *45\\| ä € ü\r?$"), regexp.MustCompile(`(?m)^ *5\| line5\r?$`)
+	// The served rows must be lines 6-45 of the log, every one, in order, with
+	// the non-ASCII last line intact: the only thing a shell may change is the
+	// line ending.
+	var want []string
+	for i := 6; i <= 44; i++ {
+		want = append(want, strconv.Itoa(i)+"| line"+strconv.Itoa(i))
+	}
+	want = append(want, "45| ä € ü")
+	row := regexp.MustCompile(`^ *([0-9]+\| .*)$`)
 	serves := func(shell string, c *exec.Cmd) {
 		t.Helper()
 		c.Env = env
 		out, err := c.CombinedOutput()
-		if err != nil || !first.Match(out) || !last.Match(out) || before.Match(out) {
+		var got []string
+		for _, l := range strings.Split(string(out), "\n") {
+			if m := row.FindStringSubmatch(strings.TrimSuffix(l, "\r")); m != nil {
+				got = append(got, m[1])
+			}
+		}
+		if err != nil || !slices.Equal(got, want) {
 			t.Errorf("%s: the printed line did not serve lines 6-45 byte for byte (err %v):\n%s", shell, err, out)
 		}
 	}
@@ -92,15 +106,26 @@ func TestEveryPrintedReadLineServesTheLogInItsShell(t *testing.T) {
 
 	// Why a path holding ! gets no cmd line: under delayed expansion cmd reads
 	// !b! inside double quotes as a variable, and the line names another file.
+	// The pair: the same command with expansion off serves the file.
 	bang := filepath.Join(weird, "a!b!.log")
 	if err := os.WriteFile(bang, []byte("only\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	c = exec.Command("cmd.exe")
-	c.SysProcAttr = &syscall.SysProcAttr{CmdLine: `cmd.exe /d /v:on /s /c ""` + exe + `" read -- -:1-$ < "` + bang + `""`}
-	c.Env = env
-	if out, err := c.CombinedOutput(); err == nil && strings.Contains(string(out), "1| only") {
-		t.Errorf("cmd /v:on served a path holding !; ADR-181 leaves its line out for a reason this run does not show:\n%s", out)
+	inCmd := func(v string) (string, error) {
+		c := exec.Command("cmd.exe")
+		c.SysProcAttr = &syscall.SysProcAttr{CmdLine: `cmd.exe /d /v:` + v + ` /s /c ""` + exe + `" read -- -:1-$ < "` + bang + `""`}
+		c.Env = env
+		out, err := c.CombinedOutput()
+		if _, exited := err.(*exec.ExitError); err != nil && !exited {
+			t.Fatalf("cmd.exe /v:%s did not start: %v", v, err)
+		}
+		return string(out), err
+	}
+	if out, err := inCmd("off"); err != nil || !strings.Contains(out, "1| only") {
+		t.Errorf("cmd /v:off did not serve a path holding ! (err %v):\n%s", err, out)
+	}
+	if out, err := inCmd("on"); err == nil || strings.Contains(out, "1| only") {
+		t.Errorf("cmd /v:on served a path holding !; ADR-181 leaves its line out for a reason this run does not show (err %v):\n%s", err, out)
 	}
 	if got := runReadLines("windows", exe, bang, 1); len(got) != 2 {
 		t.Errorf("a ! in the path: %q, want no cmd line", got)
