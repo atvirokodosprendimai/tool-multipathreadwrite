@@ -106,3 +106,5 @@ The fence exits 0; or a consumer that parses the old text is found, or a ledger 
   ```
   ```
 - 2026-10-29 · 41a53637* · exit 0 · `set -o pipefail …` · acceptance-sha256:96f6c2cee9de7aba6c9e6441bd5180daa9fdaed04bfa394970fac9688e143f59 · ms:95846
+- 2026-10-29 · 7d04e687* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:96f6c2cee9de7aba6c9e6441bd5180daa9fdaed04bfa394970fac9688e143f59 · ms:0 · test-lock-sha256:8617fe8bdd1dbc268b516230fd2b986cb1cc0b83a843bd77b39b9a6b21ca768d · test-lock-file:docs/adr/locks/8617fe8bdd1dbc268b516230fd2b986cb1cc0b83a843bd77b39b9a6b21ca768d.lock · test-lock-kind:replace
+- 2026-10-29 · 7d04e687* · exit 0 · `set -o pipefail …` · acceptance-sha256:96f6c2cee9de7aba6c9e6441bd5180daa9fdaed04bfa394970fac9688e143f59 · ms:101306

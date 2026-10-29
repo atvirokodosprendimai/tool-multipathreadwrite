@@ -10817,13 +10817,16 @@ printf '@@ f.txt 2 replace\nTWO\n' | (cd "$A315" && "$MRW" write --no-check - >/
 # --sub plan", a whole-file one is not "mrw wrote it". The pairs: the refusal
 # names the same licence, and a line inside it is still writable.
 A316=$(mktemp -d "$WORK/a316-XXXXXX"); git -C "$A316" init -q
-printf 'a\nb\nc\nd\ne\n' > "$A316/h.txt"; printf 'a\nb\n' > "$A316/g.txt"
+printf 'a\nb\nc\nd\ne\n' > "$A316/h.txt"; printf 'a\nb\n' > "$A316/g.txt"; printf 'a\nb\n' > "$A316/e.txt"
 (cd "$A316" && "$MRW" read --quiet h.txt:1-2 > "$A316/.out" 2>&1 && "$MRW" read --quiet g.txt > "$A316/.out" 2>&1)
+(cd "$A316" && "$MRW" read --quiet 'e.txt:/nomatch/' > "$A316/.out" 2>&1) || true   # exit 1 by design: nothing matched, so the licence is empty
 s316=$(cd "$A316" && "$MRW" seen 2>&1)
 { grep -qE '  no lines, and licensed lines 1-3  +h\.txt$' <<<"$s316" && ! grep -qF 'a --sub plan licensed' <<<"$s316"; } \
   && ok "mrw seen names a ranged --quiet licence by what the ledger holds" || bad "seen after --quiet h.txt:1-2: [$s316]"
 { grep -qE '  no lines, and licensed the whole file  +g\.txt$' <<<"$s316" && ! grep -qF 'since mrw wrote it' <<<"$s316"; } \
   && ok "mrw seen names a whole-file --quiet licence without claiming a write" || bad "seen after --quiet g.txt: [$s316]"
+{ grep -qE '  no lines, and licensed none  +e\.txt$' <<<"$s316" && ! grep -qE 'licensed lines  ' <<<"$s316"; } \
+  && ok "mrw seen names an empty licence none, not a dangling lines" || bad "seen after --quiet e.txt:/nomatch/: [$s316]"
 r316=$(printf '@@ h.txt 4 replace\nzzz\n' | (cd "$A316" && "$MRW" write --no-check - 2>&1)); rc316=$?
 { [ "$rc316" = 1 ] && grep -qF 'mrw served no lines, and licensed lines 1-3' <<<"$r316"; } \
   && ok "the pair: the refusal of an unlicensed line names the same licence" || bad "write to line 4: exit $rc316 [$r316]"

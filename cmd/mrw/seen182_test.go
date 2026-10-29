@@ -65,4 +65,8 @@ func TestSeenNamesNoProvenanceTheLedgerDoesNotHold(t *testing.T) {
 	if l := line(seen(), "h.txt"); !strings.Contains(l, "  no lines, and licensed the whole file ") {
 		t.Errorf("mrw seen after the write = %q", l)
 	}
+	run("", "read", "h.txt:2") // serves 2 and the line after it (ADR-161): shown lines beside a whole-file licence
+	if l := line(seen(), "h.txt"); !strings.Contains(l, "  lines 2-3, and licensed the whole file ") {
+		t.Errorf("mrw seen after a read of a written file = %q", l)
+	}
 }
