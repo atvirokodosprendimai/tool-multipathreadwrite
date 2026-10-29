@@ -27,16 +27,16 @@ Decisions 1–6: an ad-hoc shell command — a `--then-sh` step on `write` or `c
 | `cmd/mrw/testdata/outcomes113.golden` | regenerate only if its `--then-sh` outcomes change | they should not once `outcomes113_test.go` sets the variable |
 | `scripts/contract.sh` | edit | `export MRW_SHELL=on` in the prologue (beside the other exports, before `m()` at `:176`); §319 off and on |
 | `docs/break/check-json/stress.py` (`base_env`, `:58-61`), `docs/break/write-flags/stress.py` (`:142`) | edit | set `MRW_SHELL=on` in the environment they pass |
-| `.github/workflows/release-smoke-windows.yml` | edit | `MRW_SHELL: "on"` in the `env` of the job (or of the three steps at `:79`, `:113`, `:151`) |
+| `.github/workflows/release-smoke-windows.yml` | edit | `MRW_SHELL: "on"` in the `smoke` job's `env` (six spaces deep), which reaches all four shells that run `mrw run`: bash `:79`, pwsh 7 `:113`, Windows PowerShell 5.1 (`run: *ps`, `:124`) and cmd `:151` |
 | `README.md` (`:133`, `:157-162`, `:384-392`, `:528`, `:676-702`), `AGENTS.md` (`:105`, `:607-623`, `:691-717`), `docs/agents.md` (`:123`, §7 `:156-170`) | edit | the off rule beside each surface, and Decision 6's sentence in "What allowing mrw allows" and §7 |
 | `.claude/skills/mrw/SKILL.md` | regenerate | `mrw skill --dir .claude/skills` after the caveat changes |
 | `docs/adr/locks/*.lock` and the Verification Logs that hold them | relock | every record `adr-lint` names after the test edits |
 
 ## Ordered Steps
 
-1. [S1] Write `TestAdHocShellRunsOnlyWhenTheEnvironmentEnablesIt` and see it RED. With `t.Setenv("MRW_SHELL", "")`: `mrw write PLAN --then-sh 'touch marker'` exits 2, the target unchanged, no marker, the message naming `MRW_SHELL=on` and `--then NAME`; `mrw write PLAN --then declared --then-sh 'touch marker'` and `--then-sh 'touch marker' --then declared` the same, the declared step not run either; the same three on `mrw check`; `mrw check --json --then-sh …` prints one `{"error": …}` document; `mrw run 'touch marker'` exits 2, no marker, no new file under `<state home>/mrw-runs/`, the message naming `MRW_SHELL=on`; `mrw run --json 'touch marker'` prints one `{"error": …}` document; values `yes`, `ON`, ` on` and `on ` refused like unset, each message naming the value; at `MRW_STEP_DEPTH=8` the depth refusal answers, not the switch, on `write`, `check` and `run`; a placeholder command still names its token; `mrw run` with two arguments still answers its usage refusal. With `t.Setenv("MRW_SHELL", "on")` the step runs and `mrw run` runs, each marker exists. With the variable unset, `--then NAME` alone runs and a code write runs the declared check.
+1. [S1] Write `TestAdHocShellRunsOnlyWhenTheEnvironmentEnablesIt` and see it RED. With `t.Setenv("MRW_SHELL", "")`: `mrw write PLAN --then-sh 'touch marker'` exits 2, the target unchanged, no marker, the message naming `MRW_SHELL=on` and `--then NAME`; `mrw write PLAN --then declared --then-sh 'touch marker'` and `--then-sh 'touch marker' --then declared` the same, the declared step not run either; the same three on `mrw check`; `mrw check --json --then-sh …` prints one `{"error": …}` document; `mrw run 'touch marker'` exits 2, no marker, no `<state home>/mrw-runs/` directory when there was none before, the message naming `MRW_SHELL=on`; `mrw run --json 'touch marker'` prints one `{"error": …}` document; values `yes`, `ON`, ` on` and `on ` refused like unset, each message naming the value; at `MRW_STEP_DEPTH=8` the depth refusal answers, not the switch, on `write`, `check` and `run`; a placeholder command still names its token; `mrw run` with two arguments still answers its usage refusal. With `t.Setenv("MRW_SHELL", "on")` the step runs and `mrw run` runs, each marker exists. With the variable unset, `--then NAME` alone runs and a code write runs the declared check.
 2. [S2] The helper, and the refusals in `askedStepsError` and `runAction`. Mutant: the environment check dropped from `askedStepsError` — the write and check off cases go red. Mutant: dropped from `runAction` — the run off cases go red. [proof: mutation]
-3. [S3] Mutant: the switch looks only at the first requested step — the mixed-list case with `--then-sh` second must go red. Mutant: the value trimmed or case-folded — the ` on` and `ON` cases must go red. Mutant: in `runAction` the switch moved after `state.Base()` and `MkdirAll` — the no-new-log assertion must go red. [proof: mutation]
+3. [S3] Mutant: the switch looks only at the first requested step — the mixed-list case with `--then-sh` second must go red. Mutant: the value trimmed or case-folded — the ` on` and `ON` cases must go red. Mutant: in `runAction` the switch moved after `state.Base()` and `MkdirAll` — the no-log-directory assertion must go red. [proof: mutation]
 4. [S4] The variable in every consumer the record's Context lists: the cmd/mrw tests, `scripts/contract.sh`, both stress scripts, the Windows smoke; §319; the words; the skill regenerated; relock what `adr-lint` names. [proof: acceptance]
 
 ## Acceptance
@@ -49,8 +49,8 @@ out=$(go test ./cmd/mrw/ -count=1 -v 2>&1) \
   && grep -qE '^--- PASS: TestRunIsRefusedAtTheStepDepthLimit \(' <<<"$out" \
   && go test ./internal/guide/ -count=1 -run '^TestTheGuideTeachesMrwRun$' -v 2>&1 | grep -qE '^--- PASS: TestTheGuideTeachesMrwRun \(' \
   && go test ./internal/check/ -count=1 -run '^TestStepsRunInOrderAndStopAtTheFirstThatDoesNotPass$' \
-  && grep -qF 'MRW_SHELL' docs/break/check-json/stress.py && grep -qF 'MRW_SHELL' docs/break/write-flags/stress.py \
-  && grep -qF 'MRW_SHELL' .github/workflows/release-smoke-windows.yml \
+  && grep -qF 'env["MRW_SHELL"] = "on"' docs/break/check-json/stress.py && grep -qF 'env["MRW_SHELL"] = "on"' docs/break/write-flags/stress.py \
+  && grep -qE '^      MRW_SHELL: "?on"?$' .github/workflows/release-smoke-windows.yml \
   && c=$(./scripts/contract.sh 2>&1) \
   && grep -q '^# 319\.' scripts/contract.sh \
   && grep -qF 'PASS  --then-sh without MRW_SHELL=on is refused and runs nothing' <<<"$c" \
