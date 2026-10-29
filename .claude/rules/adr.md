@@ -7,7 +7,7 @@ paths:
 
 The template comes from `/quality-harness:adr-write`; `adr-lint` is the reader. This file is what
 its advice lines have actually caught here. Where it quotes the checker's vocabulary it was checked
-against quality-harness 3.8.49; when the checker disagrees with this file, the checker is right and this file is stale.
+against quality-harness 3.8.62; when the checker disagrees with this file, the checker is right and this file is stale.
 
 ## Headers that must point at something real
 

@@ -92,7 +92,7 @@ Hosts: any shell (the CLI), any MCP host (`mrw mcp`, [below](#mcp)), and [openco
 **Start with the recipes `mrw instructions` prints first** (ADR-161): the same change at many sites is one
 command with nothing in your context — `mrw write --grep '\bOld\b' --sub 'New' .` — and the others count
 before reading, rewrite by syntax, license without printing (`read --quiet`) and narrow any command's output
-(`cmd | mrw read --grep P -`). [AGENTS.md](AGENTS.md#using-mrw--read-this-before-you-edit-anything) lists all nine.
+(`cmd | mrw read --grep P -`). [AGENTS.md](AGENTS.md#using-mrw--read-this-before-you-edit-anything) lists them all.
 
 ## Install
 
