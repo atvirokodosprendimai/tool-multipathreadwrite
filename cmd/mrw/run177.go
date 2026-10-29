@@ -101,6 +101,9 @@ func runAction(ctx context.Context, cmd *cli.Command) error {
 	if cmd.Args().Len() != 1 {
 		return refuse(errors.New("mrw run takes exactly one argument, the command as one string: mrw run 'CMD', for example mrw run 'go test ./...'"))
 	}
+	if err := adHocShellRefusal("mrw run", ""); err != nil {
+		return refuse(err)
+	}
 	cmdline := cmd.Args().First()
 
 	base, err := state.Base()

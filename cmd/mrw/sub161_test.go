@@ -62,6 +62,8 @@ func subFile(t *testing.T, root, name string) string {
 // --dry-run writes nothing, a CRLF file keeps its endings, and the write's
 // own steps run.
 func TestASubWriteAppliesThePlanInOneCommand(t *testing.T) {
+	t.Setenv("MRW_SHELL", "on")
+	t.Setenv("MRW_SHELL", "on")
 	root, run := subRun(t)
 	files := map[string]string{
 		"a.go":     "Old\nOldX\nxOld\nkeep Old and Old\n",

@@ -50,6 +50,7 @@ func jsonDoc(t *testing.T, root string, argv ...string) (thenReceipt, int, strin
 // is one refused_apply; the ad-hoc one comes before the plan is read — a plan
 // path that does not exist is never reached — and is not counted (ADR-083).
 func TestAStepWithAPlaceholderIsRefusedBeforeAnythingIsWritten(t *testing.T) {
+	t.Setenv("MRW_SHELL", "on")
 	needShell(t)
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	root := placeholderTree(t, "{files}")
@@ -120,6 +121,7 @@ func TestAStepWithAPlaceholderIsRefusedBeforeAnythingIsWritten(t *testing.T) {
 // runs: the check touches checked, so a refusal moved below check.Run would
 // leave it. check counts nothing in the tally.
 func TestCheckRunsNoStepThatHoldsAPlaceholder(t *testing.T) {
+	t.Setenv("MRW_SHELL", "on")
 	needShell(t)
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	root := placeholderTree(t, "{files}")

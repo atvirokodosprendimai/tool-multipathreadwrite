@@ -42,6 +42,7 @@ func TestACheckStepRefusalIsOneJSONDocument(t *testing.T) {
 // log and returns an error: the write has landed, and the steps it asked for
 // are still named, not_run, in both receipts.
 func TestAWriteWhoseCheckCannotRunStillNamesItsSteps(t *testing.T) {
+	t.Setenv("MRW_SHELL", "on")
 	needShell(t)
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	root := stepsTree(t, "exit 0")

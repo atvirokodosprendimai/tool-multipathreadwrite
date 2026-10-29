@@ -141,6 +141,7 @@ def one(i, rng):
         fh.write(text)
     env = {k: v for k, v in os.environ.items() if k != "MRW_STEP_DEPTH"}
     env.update(XDG_STATE_HOME=state, TMPDIR=TMP)
+    env["MRW_SHELL"] = "on"  # ADR-174: --then-sh runs only with this set
     if shape != "unread":
         subprocess.run([MRW, "-C", d, "read", target], env=env, capture_output=True, timeout=20)
     before = snapshot(d)

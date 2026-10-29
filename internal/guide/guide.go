@@ -159,7 +159,7 @@ func Core() string {
 // ThenShCaveat is the one sentence every surface carries beside --then-sh
 // (ADR-092 Decision 8).
 func ThenShCaveat() string {
-	return "--then-sh and mrw run run any shell command they are given: a harness rule that allows mrw without reading its arguments allows arbitrary shell through --then-sh and mrw run."
+	return "--then-sh and mrw run run any shell command they are given, so both are off unless MRW_SHELL=on is in mrw's environment (a step the project declares in .quality-harness.json runs with --then NAME); with them off, allowing mrw still runs the project's declared check and steps and no ad-hoc shell, but that is not containment: mrw writes any file its user can, .quality-harness.json included."
 }
 
 // Skill is mrw's Agent Skills SKILL.md (ADR-168): YAML frontmatter a skill host

@@ -43,11 +43,11 @@ Decisions 1–6: an ad-hoc shell command — a `--then-sh` step on `write` or `c
 
 ```bash
 set -o pipefail
-out=$(go test ./cmd/mrw/ -count=1 -v 2>&1) \
+out=$(go test ./cmd/mrw/ -count=1 -v -run '^Test' 2>&1) \
   && grep -qE '^--- PASS: TestAdHocShellRunsOnlyWhenTheEnvironmentEnablesIt \(' <<<"$out" \
   && grep -qE '^--- PASS: TestAStepWithAPlaceholderIsRefusedBeforeAnythingIsWritten \(' <<<"$out" \
   && grep -qE '^--- PASS: TestRunIsRefusedAtTheStepDepthLimit \(' <<<"$out" \
-  && go test ./internal/guide/ -count=1 -run '^TestTheGuideTeachesMrwRun$' -v 2>&1 | grep -qE '^--- PASS: TestTheGuideTeachesMrwRun \(' \
+  && go test ./internal/guide/ -count=1 -run '^TestTheGuideTeachesMrwRun$' -v 2>&1 | grep -E '^--- PASS: TestTheGuideTeachesMrwRun \(' >/dev/null \
   && go test ./internal/check/ -count=1 -run '^TestStepsRunInOrderAndStopAtTheFirstThatDoesNotPass$' \
   && grep -qF 'env["MRW_SHELL"] = "on"' docs/break/check-json/stress.py && grep -qF 'env["MRW_SHELL"] = "on"' docs/break/write-flags/stress.py \
   && grep -qE '^      MRW_SHELL: "?on"?$' .github/workflows/release-smoke-windows.yml \
@@ -61,7 +61,7 @@ out=$(go test ./cmd/mrw/ -count=1 -v 2>&1) \
   && [ -z "$(git status --porcelain --untracked-files=all -- internal/read internal/apply internal/plan internal/seen internal/check internal/state)" ]
 ```
 
-The `go test ./internal/guide/ … | grep` clause runs under `set -o pipefail`, so a failing test fails the fence. Red at authoring, checked 2026-10-29 at `e8a6a3da`: `git grep -n -e TestAdHocShellRunsOnlyWhenTheEnvironmentEnablesIt -e MRW_SHELL -e shell174` returns nothing, `grep -c '^# 319\. ' scripts/contract.sh` is 0, and the three `PASS` strings appear nowhere in the tree.
+Two fence defects found by the first runs, 2026-10-29. The guide clause reads all of `go test`'s output before it ends (`grep` without `-q`, its match discarded): `go test … | grep -qE` under `set -o pipefail` exits 141, because `grep -q` closes the pipe while `go test` still writes (the same clause exits 141 on main). The `cmd/mrw` clause carries `-run '^Test'`, which selects the whole package as before: with no `-run`, `adr-lint` reported the three `cmd/mrw` rows of the Tests table as selected by no filter. Red at authoring, checked 2026-10-29 at `e8a6a3da`: `git grep -n -e TestAdHocShellRunsOnlyWhenTheEnvironmentEnablesIt -e MRW_SHELL -e shell174` returns nothing, `grep -c '^# 319\. ' scripts/contract.sh` is 0, and the three `PASS` strings appear nowhere in the tree.
 
 ## Tests
 
@@ -84,6 +84,18 @@ The `go test ./internal/guide/ … | grep` clause runs under `set -o pipefail`, 
 
 ## Mutation Log
 (empty until execute)
+- 2026-10-29 · 33aa28b7* · mutant killed · exit 1 · `cmd/mrw/main.go` · the switch accepts any non-empty value · acceptance-sha256:0bef2eec7378e3d2bec37d571fe101b0185aba173a37b47649bb1ff5089e2b00 · covers:the off test passed
+- 2026-10-29 · 33aa28b7* · mutant killed · exit 1 · `cmd/mrw/run177.go` · mrw run ignores the switch · acceptance-sha256:0bef2eec7378e3d2bec37d571fe101b0185aba173a37b47649bb1ff5089e2b00 · covers:the run off row passes
+- 2026-10-29 · 33aa28b7* · mutant killed · exit 1 · `cmd/mrw/run177.go` · mrw run refuses after the log directory is made · acceptance-sha256:0bef2eec7378e3d2bec37d571fe101b0185aba173a37b47649bb1ff5089e2b00 · covers:the run off row passes
+- 2026-10-29 · 33aa28b7* · mutant killed · exit 1 · `cmd/mrw/main.go` · --then-sh refusal after the write lands · acceptance-sha256:0bef2eec7378e3d2bec37d571fe101b0185aba173a37b47649bb1ff5089e2b00 · covers:the then-sh off row passes
+- 2026-10-29 · 33aa28b7* · mutant killed · exit 1 · `cmd/mrw/main.go` · the switch looks only at the first requested step · acceptance-sha256:0bef2eec7378e3d2bec37d571fe101b0185aba173a37b47649bb1ff5089e2b00 · covers:the then-sh off row passes
+- 2026-10-29 · 33aa28b7* · mutant killed · exit 1 · `cmd/mrw/main.go` · the value is trimmed and case-folded · acceptance-sha256:0bef2eec7378e3d2bec37d571fe101b0185aba173a37b47649bb1ff5089e2b00 · covers:the off test passed
+- 2026-10-29 · 33aa28b7* · mutant killed · exit 1 · `cmd/mrw/main.go` · the switch accepts any non-empty value · acceptance-sha256:c20156a53cf97103d42551d76b9fbeeebb2e276a58461373876d9a718c0c78bf · covers:the off test passed
+- 2026-10-29 · 33aa28b7* · mutant killed · exit 1 · `cmd/mrw/run177.go` · mrw run ignores the switch · acceptance-sha256:c20156a53cf97103d42551d76b9fbeeebb2e276a58461373876d9a718c0c78bf · covers:the run off row passes
+- 2026-10-29 · 33aa28b7* · mutant killed · exit 1 · `cmd/mrw/run177.go` · mrw run refuses after the log directory is made · acceptance-sha256:c20156a53cf97103d42551d76b9fbeeebb2e276a58461373876d9a718c0c78bf · covers:the run off row passes
+- 2026-10-29 · 33aa28b7* · mutant killed · exit 1 · `cmd/mrw/main.go` · --then-sh refusal after the write lands · acceptance-sha256:c20156a53cf97103d42551d76b9fbeeebb2e276a58461373876d9a718c0c78bf · covers:the then-sh off row passes
+- 2026-10-29 · 33aa28b7* · mutant killed · exit 1 · `cmd/mrw/main.go` · the switch looks only at the first requested step · acceptance-sha256:c20156a53cf97103d42551d76b9fbeeebb2e276a58461373876d9a718c0c78bf · covers:the then-sh off row passes
+- 2026-10-29 · 33aa28b7* · mutant killed · exit 1 · `cmd/mrw/main.go` · the value is trimmed and case-folded · acceptance-sha256:c20156a53cf97103d42551d76b9fbeeebb2e276a58461373876d9a718c0c78bf · covers:the off test passed
 
 ## Invariants
 
@@ -107,3 +119,30 @@ The fence exits 0 and `adr-lint` passes for every record. Stop if a caller outsi
 
 ## Verification Log
 (empty until execute)
+- 2026-10-29 · 33aa28b7* · exit 1 · `set -o pipefail …` · acceptance-sha256:a1dd1881637dd4aadc882ac023c1dddeb97f442250f16e71d30ef3cb166eee38 · ms:72603 · test-lock-sha256:ee50f817b18ade0336664454e61b58046c37bca9ad28ff2e5db366df61058fee · test-lock-file:docs/adr/locks/ee50f817b18ade0336664454e61b58046c37bca9ad28ff2e5db366df61058fee.lock
+  ```
+  ```
+- 2026-10-29 · 33aa28b7* · exit 141 · `set -o pipefail …` · acceptance-sha256:a1dd1881637dd4aadc882ac023c1dddeb97f442250f16e71d30ef3cb166eee38 · ms:64909
+  ```
+  ```
+- 2026-10-29 · 33aa28b7* · exit 141 · `set -o pipefail …` · acceptance-sha256:a1dd1881637dd4aadc882ac023c1dddeb97f442250f16e71d30ef3cb166eee38 · ms:63438
+  ```
+  ```
+- 2026-10-29 · 33aa28b7* · exit 0 · `set -o pipefail …` · acceptance-sha256:0bef2eec7378e3d2bec37d571fe101b0185aba173a37b47649bb1ff5089e2b00 · ms:142325
+- 2026-10-29 · 33aa28b7* · exit 0 · `set -o pipefail …` · acceptance-sha256:0bef2eec7378e3d2bec37d571fe101b0185aba173a37b47649bb1ff5089e2b00 · ms:145874
+- 2026-10-29 · 33aa28b7* · exit 0 · `set -o pipefail …` · acceptance-sha256:0bef2eec7378e3d2bec37d571fe101b0185aba173a37b47649bb1ff5089e2b00 · ms:144167
+- 2026-10-29 · 33aa28b7* · exit 0 · `set -o pipefail …` · acceptance-sha256:0bef2eec7378e3d2bec37d571fe101b0185aba173a37b47649bb1ff5089e2b00 · ms:144795
+- 2026-10-29 · 33aa28b7* · exit 0 · `set -o pipefail …` · acceptance-sha256:0bef2eec7378e3d2bec37d571fe101b0185aba173a37b47649bb1ff5089e2b00 · ms:143735
+- 2026-10-29 · 33aa28b7* · exit 0 · `set -o pipefail …` · acceptance-sha256:0bef2eec7378e3d2bec37d571fe101b0185aba173a37b47649bb1ff5089e2b00 · ms:144024
+- 2026-10-29 · 33aa28b7* · exit 0 · `set -o pipefail …` · acceptance-sha256:0bef2eec7378e3d2bec37d571fe101b0185aba173a37b47649bb1ff5089e2b00 · ms:143739
+- 2026-10-29 · 33aa28b7* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:0bef2eec7378e3d2bec37d571fe101b0185aba173a37b47649bb1ff5089e2b00 · ms:0 · test-lock-sha256:5c21252bffd6ab58eca61238667cc2a6f522ff003a11457375c7f98941792add · test-lock-file:docs/adr/locks/5c21252bffd6ab58eca61238667cc2a6f522ff003a11457375c7f98941792add.lock · test-lock-kind:replace
+- 2026-10-29 · 33aa28b7* · exit 0 · `set -o pipefail …` · acceptance-sha256:0bef2eec7378e3d2bec37d571fe101b0185aba173a37b47649bb1ff5089e2b00 · ms:142416
+- 2026-10-29 · 33aa28b7* · exit 0 · `set -o pipefail …` · acceptance-sha256:c20156a53cf97103d42551d76b9fbeeebb2e276a58461373876d9a718c0c78bf · ms:141114
+- 2026-10-29 · 33aa28b7* · exit 0 · `set -o pipefail …` · acceptance-sha256:c20156a53cf97103d42551d76b9fbeeebb2e276a58461373876d9a718c0c78bf · ms:144903
+- 2026-10-29 · 33aa28b7* · exit 0 · `set -o pipefail …` · acceptance-sha256:c20156a53cf97103d42551d76b9fbeeebb2e276a58461373876d9a718c0c78bf · ms:144035
+- 2026-10-29 · 33aa28b7* · exit 0 · `set -o pipefail …` · acceptance-sha256:c20156a53cf97103d42551d76b9fbeeebb2e276a58461373876d9a718c0c78bf · ms:143056
+- 2026-10-29 · 33aa28b7* · exit 0 · `set -o pipefail …` · acceptance-sha256:c20156a53cf97103d42551d76b9fbeeebb2e276a58461373876d9a718c0c78bf · ms:143548
+- 2026-10-29 · 33aa28b7* · exit 0 · `set -o pipefail …` · acceptance-sha256:c20156a53cf97103d42551d76b9fbeeebb2e276a58461373876d9a718c0c78bf · ms:143845
+- 2026-10-29 · 33aa28b7* · exit 0 · `set -o pipefail …` · acceptance-sha256:c20156a53cf97103d42551d76b9fbeeebb2e276a58461373876d9a718c0c78bf · ms:143721
+- 2026-10-29 · 33aa28b7* · exit 0 · `set -o pipefail …` · acceptance-sha256:c20156a53cf97103d42551d76b9fbeeebb2e276a58461373876d9a718c0c78bf · ms:143247
+- 2026-10-29 · be450928* · exit 0 · `set -o pipefail …` · acceptance-sha256:c20156a53cf97103d42551d76b9fbeeebb2e276a58461373876d9a718c0c78bf · ms:140982

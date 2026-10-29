@@ -33,6 +33,9 @@ env:
 jobs:
   smoke:
     runs-on: windows-latest
+    # ADR-174: mrw run is off unless this is set; the job's four shells run it.
+    env:
+      MRW_SHELL: "on"
     steps:
       - name: Download the release asset and check its sha256
         shell: bash

@@ -37,7 +37,7 @@ func TestEveryPrintedReadLineServesTheLogInItsShell(t *testing.T) {
 	if out, err := exec.Command("go", "build", "-o", exe, ".").CombinedOutput(); err != nil {
 		t.Fatalf("building mrw: %v\n%s", err, out)
 	}
-	env := append(os.Environ(), "XDG_STATE_HOME="+weird)
+	env := append(os.Environ(), "XDG_STATE_HOME="+weird, "MRW_SHELL=on")
 	if pathDir != "" {
 		env = append(env, "PATH="+pathDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	}

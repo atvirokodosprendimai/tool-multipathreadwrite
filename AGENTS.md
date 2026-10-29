@@ -619,7 +619,7 @@ whole list arrives as one argument and the regex swallows the rest of the line.
   both repeat and run in command-line order after a write that landed and whose check passed, on
   `write` and on `check`. The first step that does not pass stops the rest, which the receipt names
   not run; it exits 3, or 2 if it could not start. `--json` carries `then: {steps, pruned_logs}`. A
-  step is POSIX shell on every platform. --then-sh and mrw run run any shell command they are given: a harness rule that allows mrw without reading its arguments allows arbitrary shell through --then-sh and mrw run.
+  step is POSIX shell on every platform. --then-sh and mrw run run any shell command they are given, so both are off unless MRW_SHELL=on is in mrw's environment (a step the project declares in .quality-harness.json runs with --then NAME); with them off, allowing mrw still runs the project's declared check and steps and no ad-hoc shell, but that is not containment: mrw writes any file its user can, .quality-harness.json included.
   `could_not_start` means mrw could not start the shell; a command the shell cannot find is a step
   that ran and failed (exit 127). On Unix a step's background children are killed with it, and one
   that calls `setsid` leaves its process group and is not; on Windows they are killed with it too (a job object, ADR-120),
@@ -712,8 +712,8 @@ and #73, one release apart.
   command's group. Every log is kept, passing ones too; one older than 7 days, and all but the newest 64, are
   eligible for removal and a later completed run removes them. `--json` is one document (receipt type `run`,
   `docs/receipts.txt`); a refusal before anything runs is `{"error": …}`; at `MRW_STEP_DEPTH` 8 it is refused and
-  its command runs one level deeper. It runs any shell command it is given, as `--then-sh` does: allowing
-  mrw allows arbitrary shell. CLI only; MCP is for hosts with no shell (ADR-177).
+  its command runs one level deeper. It runs any shell command it is given, as `--then-sh` does, so it is off
+  unless `MRW_SHELL=on` is in mrw's environment (ADR-174). CLI only; MCP is for hosts with no shell (ADR-177).
 - **`mrw check`** runs the project's check on its own, scoped to the working
   set or to paths you name. A CLI `write` to a non-prose file runs the same
   runner by default (ADR-054); this is it without the write, for when you want the verdict again

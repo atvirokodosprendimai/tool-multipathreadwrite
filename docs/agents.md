@@ -120,7 +120,7 @@ standard error (ADR-179).
 
 ## 4. A host without a shell uses the MCP server
 
-With a shell, the CLI is the better surface: it has `--context`, `--then-sh` and every read flag, and one
+With a shell, the CLI is the better surface: it has `--context`, `--then-sh` (with `MRW_SHELL=on`, ADR-174) and every read flag, and one
 command reaches any checkout with `--root`. A host with no shell runs `mrw mcp --enable` and calls `mrw_read` and
 `mrw_write` (README, "MCP"); without `--enable` or `MRW_MCP=on` the server lists no tools (ADR-170). Register it only for the hosts that need it: a user-scope registration puts the
 two tools into every project on the machine, including those whose instructions say to use the shell.
@@ -162,7 +162,7 @@ elsewhere — allows:
   the root it was given, not to a root anyone chose.
   A host's per-path rules for its Edit and Write tools do not reach a shell command, so `deny Write(.env)`
   or `allow Edit(src/**)` does not stop `mrw write`.
-- **shell.** `--then-sh 'CMD'` and `mrw run 'CMD'` run any command; `mrw check` and `--then` run what the project declares.
+- **shell.** `mrw check` and `--then NAME` run what the project declares. `--then-sh 'CMD'` and `mrw run 'CMD'` run any command the caller writes and are off unless `MRW_SHELL=on` is in mrw's environment (ADR-174). With it unset, no command written on mrw's command line reaches a shell; that is not containment, since mrw writes any file its user can, `.quality-harness.json` and the test files a check runs included, so an agent allowed mrw can still change what the declared check runs and trigger it with a code write.
 
 mrw's own refusals — a write into `.git`, into its state directory, through a link that leaves the root, to
 a reserved Windows name — keep a plan honest, not an agent contained. The trigger and the skill move an

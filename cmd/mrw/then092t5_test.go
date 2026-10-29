@@ -37,6 +37,7 @@ func TestAPlainWriteIgnoresAMalformedStepsBlock(t *testing.T) {
 // on the then line and in the declared list, so it cannot clear or forge the
 // screen the caller reads.
 func TestAStepNameWithControlBytesIsQuoted(t *testing.T) {
+	t.Setenv("MRW_SHELL", "on")
 	needShell(t)
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	root := grepTree(t, map[string]string{
@@ -79,6 +80,7 @@ func TestACouldNotStartStepSaysSoOnce(t *testing.T) {
 // anything is written, on write and on check; one level shallower runs. A step
 // that re-runs mrw with steps therefore stops instead of recursing without end.
 func TestTheStepDepthGuardRefusesADeepSequence(t *testing.T) {
+	t.Setenv("MRW_SHELL", "on")
 	needShell(t)
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	root := stepsTree(t, "exit 0")

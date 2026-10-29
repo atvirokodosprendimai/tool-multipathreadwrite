@@ -43,6 +43,7 @@ func keptLog(t *testing.T, line string) string {
 // second fixture's trailing blank is what tells that count from the tail's
 // length less one.
 func TestAPassingStepShowsItsLastLine(t *testing.T) {
+	t.Setenv("MRW_SHELL", "on")
 	needShell(t)
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	root := grepTree(t, map[string]string{
@@ -108,6 +109,7 @@ func TestAPassingStepShowsItsLastLine(t *testing.T) {
 // tail of blank lines, whose pointer still names the log. then last: marks a
 // failure only.
 func TestASilentPassingStepPrintsOnlyItsHead(t *testing.T) {
+	t.Setenv("MRW_SHELL", "on")
 	needShell(t)
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	root := grepTree(t, map[string]string{
@@ -144,6 +146,7 @@ func TestASilentPassingStepPrintsOnlyItsHead(t *testing.T) {
 // ADR-094 T2. --quiet drops the ok hunk row and keeps every step verdict and
 // its last line, and its usage says so.
 func TestQuietKeepsEveryStepVerdictAndItsLastLine(t *testing.T) {
+	t.Setenv("MRW_SHELL", "on")
 	needShell(t)
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	root := grepTree(t, map[string]string{

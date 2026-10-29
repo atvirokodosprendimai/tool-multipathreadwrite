@@ -1,0 +1,15 @@
+check@2	1bb497e3e13a1105cf24e3359fa3ef75de08b66ff8a2839cd7f9ea97824d9eb3
+body	cmd/mrw/refused176_test.go	TestAPlanRefusedFromStandardInputIsKept	9f9ab765b6b55fa83fdb9132bbd01c261edda0ed5e2d1a370e4db091753e4a81
+body	cmd/mrw/refused176_test.go	TestAPlanTeeKeepsAPlanOfExactlyItsCap	2cbe5a9deeb77fbfc6d07593749c0d24b3618406f809fcdbfa7933cbcf9da525
+body	cmd/mrw/refused176_test.go	TestAWriteThatLandedKeepsNoPlan	029fb8aa0f0324977c468d614402442aae6381c430cb12d1d1595ba6de7c6eb1
+body	cmd/mrw/refused176_test.go	a commit that landed nothing keeps the plan	d473d6f9f421b40dbb19f1f6d27f7fb55f63b9371543a3fa3347c975b9d59e03
+body	cmd/mrw/refused176_test.go	a plan another run has just saved survives the trim	739da288e859b54b06baa3c9cced7cfcba17e6cc892b1614f9af38747b0bd9c0
+body	cmd/mrw/refused176_test.go	a plan over 16 MiB is parsed as today and not kept, and says why	71b8546e566f467cb6bd246e7fca28a6bd21ed002e642bb91bd6d033235af22d
+body	cmd/mrw/refused176_test.go	a refused plan runs again from its path	04e1049974fc0219b56bd536a07064b34954e4c98b5eef6bb50ae2ebf11072c3
+body	cmd/mrw/refused176_test.go	a run waits for the lock another run holds, then keeps its plan	7e54cf97a369e39ecd54318935981c11790e1af9c35924313372d4b8ba2d33f2
+body	cmd/mrw/refused176_test.go	a run with another state home that shares the kept directory waits for the same lock	2341292dbd1bf899c525d2a9cb20e6f10b3054455039e35c550ed154935e6662
+body	cmd/mrw/refused176_test.go	an apply_patch document is kept as sent and reruns with the same flag	21eb948ab3965ccc94ac0715b580b5a0af77b32fe1fee007d79cdd097f303bce
+body	cmd/mrw/refused176_test.go	an unwritable state home keeps nothing, says why, and changes nothing else	ccb718c213059684300f2795e66936b721a1c29f0922ff989d757d4b04a04e72
+body	cmd/mrw/refused176_test.go	only the newest 16 stay	1badca0ef0454bc922a8d469525e390631bc34455b059eb17291757d06480b9a
+body	cmd/mrw/refused176_test.go	the plan just kept survives the trim and its path exists	16dbed2b698269af0d41061a156eba4a6d92ed6b37b97bdcebdc51bd6e8587b1
+body	cmd/mrw/refused176_test.go	two refusals get two files, 0600 in a 0700 directory	ce80db09f8c1c8bca986b529829bb07899041f791b522819c40773193104f100
