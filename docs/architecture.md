@@ -80,6 +80,7 @@ The engine is the six packages AGENTS.md's drill names (`read`, `apply`, `plan`,
 | `cmd/mrw/main.go` `main` | the CLI command tree; the MCP server (`mcp.Serve`, with the `MaxResultChars` and `Version` globals set first) | `go test ./internal/adversarial/ -run 'TestEachSurfaceHasOneRoot$'` in `internal/adversarial/architecture_test.go` |
 | `cmd/bench/main.go` | the agent benchmark | `go test ./internal/adversarial/ -run 'TestEachSurfaceHasOneRoot$'` in `internal/adversarial/architecture_test.go` |
 | `cmd/curve/main.go` | the curve harness | `go test ./internal/adversarial/ -run 'TestEachSurfaceHasOneRoot$'` in `internal/adversarial/architecture_test.go` |
+| `cmd/nativebench/main.go` | the native baseline driver, which runs the two `mrw` binaries it is handed | D6 keeps its Module Map row; it imports no surface package, so D2 has nothing to say about it |
 
 ## Test Doubles
 

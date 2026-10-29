@@ -150,7 +150,9 @@ func TestStartsAProcessJudgesEveryModulePackage(t *testing.T) {
 
 // The Module Map in docs/architecture.md claims every package: a package that
 // lands without a row is invisible to the doc's reader (cmd/nativebench did,
-// 2026-10-29), and a row for a package that is gone describes nothing.
+// 2026-10-29), and a row for a package that is gone describes nothing. Only a
+// table row's Module cell counts: the section's prose names packages too, and
+// a mention there is not a row (Codex review of #571).
 func TestEveryModulePackageIsInTheModuleMap(t *testing.T) {
 	doc, err := os.ReadFile("../../docs/architecture.md")
 	if err != nil {
@@ -162,8 +164,15 @@ func TestEveryModulePackageIsInTheModuleMap(t *testing.T) {
 	}
 	section, _, _ := strings.Cut(after, "\n## ")
 	named := map[string]bool{}
-	for _, m := range regexp.MustCompile("`([a-z][a-z0-9/._-]*)`").FindAllStringSubmatch(section, -1) {
-		named[m[1]] = true
+	cell := regexp.MustCompile("`([a-z][a-z0-9/._-]*)`")
+	for _, line := range strings.Split(section, "\n") {
+		if !strings.HasPrefix(line, "| `") {
+			continue
+		}
+		module, _, _ := strings.Cut(line[2:], " |")
+		for _, m := range cell.FindAllStringSubmatch(module, -1) {
+			named[m[1]] = true
+		}
 	}
 	for pkg := range imports(t) {
 		if !named[pkg] {

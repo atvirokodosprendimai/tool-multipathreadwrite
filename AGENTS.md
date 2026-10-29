@@ -160,19 +160,27 @@ mrw read --quiet f.go:40-60
 mrw read --grep P --max-cols 200 f.jsonl
 # 9. narrow any command's output without leaving mrw
 cmd | mrw read --grep P --max-lines 20 -
-# 10. re-read a file you read earlier, its text only if it changed (the sha is the 8 hex digits its header printed)
+# 10. copy lines you have read without typing them again, or move them with a delete of the same range (a copy of lines you were not served is refused, --force or not)
+mrw read a.go:40-52 b.go:9 && printf '%s\n' '@@ b.go 9 insert-after from=a.go:40-52' '@@ a.go 40-52 delete' | mrw write -
+# 11. re-read a file you read earlier, its text only if it changed (the sha is the 8 hex digits its header printed)
 mrw read --if-changed f.go=8dc37337 f.go:40-60
-# 11. a long file's shape before its lines: a .go file's declarations or a .md or .markdown file's headings with their line ranges, licensing nothing
+# 12. a long command (a build, a test suite) with its output kept out of your context and its exit code kept: a receipt instead of cmd | tail, which returns tail's status
+mrw run 'go test ./...'
+# 13. a few fields out of a JSON document, one line each, instead of the lines that hold them (it licenses nothing: read the path address before editing the value)
+cmd | mrw read --json-path '$.a,$.b' -
+# 14. a long file's shape before its lines: a .go file's declarations or a .md or .markdown file's headings with their line ranges, licensing nothing
 mrw read --outline f.go docs.md
-# 12. matches across many files without the flood: count them, then the first N (the rest counted, exit 1)
+# 15. matches across many files without the flood: count them, then the first N (the rest counted, exit 1)
 mrw read --grep P --count . && mrw read --grep P --max-matches 40 .
-# 13. a log of near-identical lines, each run shown once (only its first line is licensed)
+# 16. a log of near-identical lines, each run shown once (only its first line is licensed)
 mrw read --fold f.log
-# 14. a Go file without its comment runs (the elided lines are not licensed)
+# 17. a Go file without its comment runs (the elided lines are not licensed)
 mrw read --no-comments f.go
-# 15. a write receipt of one line per file, every failure and advisory still printed
+# 18. a setup that reads long lines: MRW_MAX_COLS=200 in the environment is --max-cols 200 on every read that gives none
+mrw read --grep P .
+# 19. a write receipt of one line per file, every failure and advisory still printed
 mrw write --terse plan.txt
-# 16. by reference what you were already served: only in a session alone in its checkout whose host runs mrw seen --forget on start, resume, clear and compaction, with reads made under --max-chars below the host's limit
+# 20. by reference what you were already served: only in a session alone in its checkout whose host runs mrw seen --forget on start, resume, clear and compaction, with reads made under --max-chars below the host's limit
 mrw read --if-served f.go=8dc37337 f.go:40-60
 ```
 
