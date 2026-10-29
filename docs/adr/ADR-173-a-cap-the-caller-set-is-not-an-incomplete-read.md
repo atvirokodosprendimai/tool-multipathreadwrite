@@ -1,12 +1,14 @@
 # ADR-173: A cap the caller set is not an incomplete read
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-10-24
+**Accepted:** 2026-10-29 by Zy — "accept, add, merge all, push" (the three records #566, #567, #568 together; "add" is the `capped` receipt key ADR-173 left to Zy)
+**Amended at acceptance:** 2026-10-29, on Zy's "add": the receipt key the first draft left to Zy is taken — Decision 3 adds `capped` beside `problems` on the read receipt; the alternative, the Wiring row, T1 and its fence follow.
 **Amended:** 2026-10-24, before acceptance, from a Codex xhigh challenge (5 findings, each checked against the code): ADR-033's cap-to-exit-1 clause is named in Invalidates; the existing expectations of exit 1 migrate in T1; the receipt's `problems` count is asserted unchanged; core rule 5 changes unconditionally; a search that matched nothing keeps `no match:`. 2026-10-29, before acceptance, on Zy's direction of that day: `--max-matches` (ADR-179, shipped since) is covered as `--max-lines` is; ADR-179 (g)'s two exit clauses are named in Invalidates; the line numbers and the migration list are re-taken against main `e8a6a3da`; a cap-only read names what its cap withheld on standard error as `mrw: capped: …`; the cap's count travels in `read.Options`, so `read.Run`'s signature and its MCP callers do not change; `internal/read` is named as an engine package this record owns. Then from a Codex xhigh challenge of the amended text (1 finding, checked against the code and reproduced): `incompleteLine`'s `--max-matches` branch stays, because `--max-chars` can drop only the budget's own note, leaving the cap as the one problem while the read still exits 1; that case joins T1's paired cases. A first run of that challenge was killed at host-review's 600 s budget and returned nothing.
 **Owner:** Zy
 **Spec:** None — no spec stage
 **Cross-references:** ADR-033, ADR-111, ADR-117, ADR-146, ADR-165, ADR-166, ADR-179, README.md, AGENTS.md, docs/agents.md, internal/guide/guide.go
-**Governs:** `cmd/mrw/main.go`, `cmd/mrw/stdin.go`, `cmd/mrw/maxmatches179.go`, `internal/read/read.go`, `internal/guide/guide.go`, `scripts/contract.sh`
+**Governs:** `cmd/mrw/main.go`, `cmd/mrw/stdin.go`, `cmd/mrw/maxmatches179.go`, `internal/read/read.go`, `internal/guide/guide.go`, `internal/mcp/readreceipt.go`, `docs/receipts.txt`, `scripts/contract.sh`
 **Enforced-by:** None — until T1 lands, which adds `cmd/mrw/caps173_test.go::TestACapTheCallerSetIsNotAnIncompleteRead`
 **Invalidates:** ADR-033's clause that a capped read, a cap of zero included, "exits non-zero by the chain the CLI already had" (its contract §14 and §69 rows) — the cap's meaning and its licensing stand. ADR-179 (g)'s clause that a read whose matches were left unshown "exits 1 `incomplete:` (ADR-146), as `--max-lines` and `--max-chars` do when they withhold", and its clause that "when only the budget withheld the kind line names it (`incomplete: --max-matches N reached, M matching line(s) not shown`)": when only the caller's caps withheld, the read exits 0 and that sentence moves to a `mrw: capped:` line. ADR-146 Decision 4 ("the exit codes do not change") for this one case. ADR-146's two kinds, and every other exit 1 of `read`, stand; ADR-165's `--max-chars` exit 1 stands.
 **Served-path change:** `mrw read … --max-lines N` or `mrw read --grep P --max-matches N …` that served everything it was asked for except what those caps withheld exits 0 instead of 1, and its last stderr line is `mrw: capped: …` instead of `mrw: incomplete: …`; the withheld lines are still named in the answer and still unlicensed. A read that also missed a range, or reached `--max-chars`, exits 1 `incomplete:` as today.
@@ -43,7 +45,7 @@ Where the notices go today: the `@@ A-B  WITHHELD …`, `!! … withheld: --max-
 
 **2. `--max-chars` keeps exit 1.** It exists for a host whose output limit would cut the answer where it likes (ADR-165 Context): the caller does not choose the cut, cannot know in advance which files or ranges it drops, a walk can lose whole files to it, and ADR-165 Decision 1 made "a cut answer must never read as complete" its rule. `--max-lines` and `--max-matches` are counts the caller chose, whose cut point the caller can predict exactly, which is why `head` exits 0. A read with a cap and `--max-chars` reached is incomplete.
 
-**3. Receipts and MCP are unchanged.** `mrw read --json`'s `receipt.problems` and `mrw_read`'s `problems` keep their meaning — ranges not served, the caps' included (ADR-111: a key keeps its meaning) — and no key is added. So after this record a `--json` read can carry `problems > 0` and exit 0: the exit says whether anything the caller did not choose was missing, `problems` says how many ranges were not served. ADR-179 (b)'s "so `--json` agrees with the exit" is about an outline under `--max-chars`, which still exits 1, and stands. `mrw_read` has no exit code.
+**3. The receipt says how many problems were the caller's caps.** `mrw read --json`'s receipt and `mrw_read`'s `content[1]` (the same receipt, ADR-165) gain one key, `capped`: an integer, the number of `problems` that were the caller's own caps — a span `--max-lines` withheld whole, a span it cut, the one problem `--max-matches` adds — so `problems - capped` is what the caller did not choose. `problems` keeps its meaning — ranges not served, the caps' included (ADR-111: a key keeps its meaning) — and `capped` is appended to `docs/receipts.txt` as `mcp_read capped` in the change that adds it. So after this record a `--json` read can carry `problems > 0` and exit 0, and the receipt says why: `capped == problems`. `mrw_read` has no exit code and its `isError` does not follow `problems`; unchanged. ADR-179 (b)'s "so `--json` agrees with the exit" is about an outline under `--max-chars`, which still exits 1, and stands. Zy, 2026-10-29: "add".
 
 **4. Told where callers look, and released with a loud note.** README's `--max-lines` and `--max-matches` rows (`:237`, `:242`) and its exit-1 paragraph (`:596-600`, which lists `WITHHELD` among the exit-1 words); AGENTS.md's cap sentences (`:242-243`, `:286-287`) and its exit-code section (the `mrw read` that exits `1` paragraph); `docs/agents.md` (`:145`, `:153`); `mrw instructions` (recipe 15 at `guide.go:72`, the flag line at `:131`) and core rule 5 (`guide.go:152`, which `mrw skill` embeds through `Core()` at `:177`): "A read exits 1 when a range cannot be served" gains "— a range your own --max-lines or --max-matches withheld is not one; it exits 0 and says capped". A script that relied on exit 1 to learn that a cap was reached reads the `mrw: capped:` line or the withheld notice instead; the release notes lead with it.
 
@@ -59,7 +61,7 @@ Where the notices go today: the `@@ A-B  WITHHELD …`, `!! … withheld: --max-
 - **`--max-lines` only, `--max-matches` keeping exit 1.** Rejected by Zy on 2026-10-29: both are counts the caller set, and recipe 15 has the same `&&` problem as recipe 4.
 - **Also exit 0 on `--max-chars`.** Rejected (Decision 2; Zy, 2026-10-29).
 - **Exit 0 with nothing on stderr**, the withheld notice on stdout being the only mention. Rejected: Zy's direction says the withheld lines are "still named on stderr", and a caller that reads only stderr and the exit would lose the one line that said a cap was reached.
-- **A new receipt key counting the caps' problems.** Not taken: ADR-111 would allow it, but a CLI caller has the exit code and the `capped:` line, and `mrw_read` has no exit to explain. Zy's call if an adapter needs it.
+- **No receipt key, the exit code and the `capped:` line carrying it.** The first draft's choice, left to Zy; taken the other way on 2026-10-29 ("add"): an adapter reading the receipt has no exit code and no stderr to read the kind from, so `capped` (Decision 3) is the one place it can learn that `problems > 0` was the caller's own cap.
 - **Version: v1.79.0 with the change leading the notes (as ADR-170 shipped in v1.75.0), or v2.0.0.** Zy's call; the record recommends the minor with the loud note, released together with ADR-174 if both are accepted.
 
 ## Component / Boundary Impact
@@ -76,7 +78,7 @@ No module moves; `docs/architecture.md`'s map is unchanged.
 | last stderr line of a cap-only read | `mrw: capped: …` instead of `mrw: incomplete: …` | `cmd/mrw` | callers that read the kind (ADR-146) |
 | `read.Options.Capped` | new `*int` filled by `Run` | `internal/read` | `cmd/mrw` |
 | `mrw instructions`, `mrw skill`, README, AGENTS.md, `docs/agents.md` | the exit sentences | `internal/guide`, docs | agents |
-| `receipt.problems`, `mrw_read` `problems` | unchanged | — | adapters |
+| `receipt.problems`, `mrw_read` `problems` | unchanged; `capped` added beside them (`docs/receipts.txt`, `mcp_read capped`) | `internal/mcp` (the read receipt) | adapters |
 
 ## Inter-task Contracts
 
@@ -98,7 +100,6 @@ No module moves; `docs/architecture.md`'s map is unchanged.
 
 - A partial batch read (one missed address among served ones) exiting 0 — MRW-06 in the same report (permanent: boundary: a range the caller asked for and did not get is what exit 1 `incomplete:` means, ADR-146; the caller did not choose that cut)
 - `--max-chars` (permanent: boundary: Decision 2)
-- A receipt key for the caps' problems (permanent: boundary: Decision 3; the exit code and the `capped:` line carry it on the CLI)
 - `mrw_read` (permanent: boundary: no exit code; `problems` and `isError` unchanged)
 
 ## Risks

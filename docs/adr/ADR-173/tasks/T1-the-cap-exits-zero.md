@@ -20,6 +20,8 @@ Decisions 1–5: `mrw read … --max-lines N` and `mrw read --grep P --max-match
 |------|--------|-----|
 | `cmd/mrw/caps173_test.go` | new | the red test |
 | `internal/read/read.go` | edit | `Options.Capped *int` beside `Unshown` (`:205-215`); fill it at the three cap sites (`:1037-1043`, `:1158-1160`, `:1205-1214`) |
+| `internal/mcp/readreceipt.go` | edit | the read receipt gains `capped` from `Options.Capped` (Decision 3) |
+| `docs/receipts.txt` | edit | `mcp_read capped` appended (ADR-111; `TestNoShippedMCPReceiptFieldDisappears` holds the list) |
 | `cmd/mrw/main.go` | edit | the read action's exit (`:1666-1672`) and its `capped:` line |
 | `cmd/mrw/stdin.go` | edit | `mrw read -`'s exit (`:128-138`), the cap-only test before the no-match test |
 | `cmd/mrw/maxmatches179.go` | edit | `incompleteLine` (`:8-13`): the `--max-matches` sentence is reused for the `capped:` line; the exit-1 branch stays for a cap-only read that `--max-chars` cut (ADR Existing Primitives Audit) |
@@ -54,7 +56,7 @@ Read and left as they are: `cmd/mrw/quiet161_test.go:53-55` compares `--quiet`'s
 ## Ordered Steps
 
 1. [S1] Write `TestACapTheCallerSetIsNotAnIncompleteRead` in `cmd/mrw/caps173_test.go` and see it RED on today's code. Cap-only reads must exit 0 with the withheld notice on stdout and `mrw: capped:` as the last stderr line: a named spec under `--max-lines 3`, a spec of three ranges under `--max-lines 2` (a span withheld whole), a `--grep` walk under `--max-lines 1`, `mrw read -` under `--max-lines 1`, `--max-lines 0`, a `--grep` walk under `--max-matches 1` (stderr `mrw: capped: --max-matches 1 reached, 2 matching line(s) not shown`), and `--max-matches 0`. Paired cases must exit 1: a capped read with a missed `/nomatch/` address (`mrw: incomplete:` last), a capped read beside a REFUSED path (`mrw: incomplete:`), a capped read that reaches `--max-chars` (`mrw: incomplete:`, `--max-chars N reached`), `printf 'hit\nhit\nhit\n' | mrw read --grep hit --max-matches 0 --max-chars 1 -`, where the budget drops only the max-matches note (`mrw: incomplete: --max-matches 0 reached, 3 matching line(s) not shown; --max-chars 1 reached`), a capped `--grep` that matched no file (`mrw: no match:` last), and `mrw read --grep z --max-lines 0 -` over input with no `z` (`mrw: no match:`). A plan replacing a withheld line and one replacing an unshown match are refused. `mrw read --json` of one capped span carries `receipt.problems` 1, and of a capped span plus a missed address 2.
-2. [S2] `Options.Capped` filled at the three sites, and the exit decided from it in `main.go` and `stdin.go`. Mutant: the exit ignores the caps' count (today's behaviour) — the cap-only cases go red. [proof: mutation]
+2. [S2] `Options.Capped` filled at the three sites, the exit decided from it in `main.go` and `stdin.go`, and the read receipt's `capped` set from it (`mrw read --json` and `mrw_read` alike; `docs/receipts.txt` gains `mcp_read capped`). Mutant: the exit ignores the caps' count (today's behaviour) — the cap-only cases go red. Mutant: `capped` left at zero — the receipt assertion goes red. [proof: mutation]
 3. [S3] Mutant: every problem counted as a cap's, so a capped read with a missed pattern exits 0 — the paired case must go red. Mutant: the `--max-chars` test dropped from the cap-only condition — the `--max-chars` pairs must go red, the one where `--max-chars` drops only the max-matches note included, since there `--max-chars` adds no problem of its own. Mutant: `mrw read -` keeps today's exit while the named-spec path changes — the `mrw read -` cases must go red. [proof: mutation]
 4. [S4] Migrate the expectations in the table above, keeping each one's other assertions, and relock what `adr-lint` names. [proof: acceptance]
 5. [S5] Contract §318 and the words in `guide.go`, README, AGENTS.md, `docs/agents.md`; regenerate the skill. [proof: acceptance]
@@ -72,6 +74,7 @@ out=$(go test ./cmd/mrw/ -count=1 -v -run '^(TestACapTheCallerSetIsNotAnIncomple
   && grep -qF 'PASS  a read capped only by its own --max-matches exits 0 and says capped' <<<"$c" \
   && grep -qF 'PASS  the pair: a capped read that also missed a range exits 1 incomplete' <<<"$c" \
   && grep -qF 'PASS  the pair: a capped read that reached --max-chars exits 1 incomplete' <<<"$c" \
+  && grep -qx 'mcp_read capped' docs/receipts.txt \
   && go build -o bin/mrw ./cmd/mrw && core=$(./bin/mrw instructions --core) && grep -qF 'own --max-lines or --max-matches withheld is not one' <<<"$core" \
   && [ -z "$(gofmt -l internal cmd)" ] \
   && git diff --quiet "$(git merge-base HEAD origin/main)" -- internal/apply internal/plan internal/seen internal/check internal/state \
@@ -84,7 +87,7 @@ Red at authoring, checked 2026-10-29 at `e8a6a3da`: `git grep -n -e TestACapTheC
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `TestACapTheCallerSetIsNotAnIncompleteRead` | `cmd/mrw/caps173_test.go` | cap-only reads exit 0 with `capped:` on every read form, `--max-lines` and `--max-matches`; capped + missed, capped + refused and capped + `--max-chars` exit 1 `incomplete:`; capped searches with no match exit 1 `no match:`; withheld lines refuse a write; `receipt.problems` unchanged | none | S1, S2, S3 |
+| `TestACapTheCallerSetIsNotAnIncompleteRead` | `cmd/mrw/caps173_test.go` | cap-only reads exit 0 with `capped:` on every read form, `--max-lines` and `--max-matches`; capped + missed, capped + refused and capped + `--max-chars` exit 1 `incomplete:`; capped searches with no match exit 1 `no match:`; withheld lines refuse a write; `receipt.problems` unchanged and `receipt.capped` counts the caps' problems (`capped == problems` on a cap-only read, `capped < problems` on capped + missed) on `--json` and on `mrw_read` | none | S1, S2, S3 |
 | `TestAReadThatExitsOneSaysWhichKind` | `cmd/mrw/readexit146_test.go` | ADR-146's kind line still ends every exit-1 read | none | S2 |
 | `TestReadingStandardInputLicensesNothing` | `cmd/mrw/stdin161_test.go` | a capped stdin read exits 0 and still licenses nothing; a stdin search with no match still says `no match:` | none | S4 |
 | `TestMaxMatchesLicensesOnlyWhatWasShown` | `cmd/mrw/maxmatches179_test.go` | a `--max-matches` read exits 0 `capped:` and still licenses only what it showed | none | S4 |
