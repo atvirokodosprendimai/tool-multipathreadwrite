@@ -75,6 +75,9 @@ out=$(go test ./internal/seen/ ./cmd/mrw/ -count=1 -v -run '^(TestServedSaysWhat
 | 4 — it is used | issue #555, met while reproducing robustness-plan item 1(c) on 2026-10-28, is the evidence for building it |
 
 ## Mutation Log
+- 2026-10-29 · 41a53637* · mutant killed · exit 1 · `internal/seen/seen.go` · S2: restore the since-mrw-wrote-it text for a nil licence · acceptance-sha256:96f6c2cee9de7aba6c9e6441bd5180daa9fdaed04bfa394970fac9688e143f59
+- 2026-10-29 · 41a53637* · mutant killed · exit 1 · `internal/seen/seen.go` · S3: restore the --sub plan text for a non-nil licence · acceptance-sha256:96f6c2cee9de7aba6c9e6441bd5180daa9fdaed04bfa394970fac9688e143f59
+- 2026-10-29 · 41a53637* · mutant killed · exit 1 · `internal/seen/seen.go` · S4: drop the empty-licence branch so no spans print a dangling lines · acceptance-sha256:96f6c2cee9de7aba6c9e6441bd5180daa9fdaed04bfa394970fac9688e143f59
 
 ## Invariants
 
@@ -95,3 +98,11 @@ The fence exits 0; or a consumer that parses the old text is found, or a ledger 
 - Any change to what is licensed or recorded (permanent: boundary: ADR-118, ADR-161 and ADR-167 own it)
 
 ## Verification Log
+- 2026-10-29 · 41a53637* · exit 0 · `set -o pipefail …` · acceptance-sha256:96f6c2cee9de7aba6c9e6441bd5180daa9fdaed04bfa394970fac9688e143f59 · ms:143044
+- 2026-10-29 · 41a53637* · exit 0 · `set -o pipefail …` · acceptance-sha256:96f6c2cee9de7aba6c9e6441bd5180daa9fdaed04bfa394970fac9688e143f59 · ms:129056
+- 2026-10-29 · 41a53637* · exit 0 · `set -o pipefail …` · acceptance-sha256:96f6c2cee9de7aba6c9e6441bd5180daa9fdaed04bfa394970fac9688e143f59 · ms:95941
+- 2026-10-29 · 41a53637* · exit 0 · `set -o pipefail …` · acceptance-sha256:96f6c2cee9de7aba6c9e6441bd5180daa9fdaed04bfa394970fac9688e143f59 · ms:87818
+- 2026-10-29 · 41a53637* · exit 1 · `set -o pipefail …` · acceptance-sha256:96f6c2cee9de7aba6c9e6441bd5180daa9fdaed04bfa394970fac9688e143f59 · ms:3129 · test-lock-sha256:b3c26cbf77afdf5da8c3bd435ee6e4b95616f2e690d8579c6d4a261df9f9633d · test-lock-file:docs/adr/locks/b3c26cbf77afdf5da8c3bd435ee6e4b95616f2e690d8579c6d4a261df9f9633d.lock
+  ```
+  ```
+- 2026-10-29 · 41a53637* · exit 0 · `set -o pipefail …` · acceptance-sha256:96f6c2cee9de7aba6c9e6441bd5180daa9fdaed04bfa394970fac9688e143f59 · ms:95846

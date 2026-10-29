@@ -113,18 +113,24 @@ func (o Observation) coversLine(line int) bool {
 
 // Served renders the spans the way a diagnostic should quote them.
 func (o Observation) Served() string {
-	// A file mrw wrote is wholly licensed but was shown only what a read has
-	// served since (ADR-118); "the whole file" there contradicted a refusal
-	// naming unread lines, and hid in `mrw seen` why a write was refused.
+	// A written-shaped record (ADR-118, ADR-161, ADR-167) is licensed beyond
+	// what a read has shown. The ledger holds no source for the licence (a
+	// write, a --sub plan and a --quiet read record alike), so say what was
+	// shown and what is licensed, and nothing about who licensed it (ADR-182).
 	if o.Written {
-		since := " since mrw wrote it"
-		if o.Spans != nil { // ADR-161: licensed by a --sub plan, not written by mrw
-			since = ", and a --sub plan licensed " + quoteSpans(o.Spans)
+		shown := "no lines"
+		if len(o.Shown) > 0 {
+			shown = quoteSpans(o.Shown)
 		}
-		if len(o.Shown) == 0 {
-			return "no lines" + since
+		licence := "the whole file"
+		switch {
+		case o.Spans == nil:
+		case len(o.Spans) == 0:
+			licence = "none"
+		default:
+			licence = quoteSpans(o.Spans)
 		}
-		return quoteSpans(o.Shown) + since
+		return shown + ", and licensed " + licence
 	}
 	if o.Whole() {
 		return "the whole file"

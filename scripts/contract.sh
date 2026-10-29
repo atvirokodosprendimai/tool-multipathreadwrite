@@ -10811,6 +10811,24 @@ g315=$(cd "$A315" && "$MRW" --root "$B315" seen --forget 2>&1); rc315=$?
 printf '@@ f.txt 2 replace\nTWO\n' | (cd "$B315" && "$MRW" write --no-check - >/dev/null 2>&1); want 1 $? "and B's write needs a fresh read, exit 1"
 printf '@@ f.txt 2 replace\nTWO\n' | (cd "$A315" && "$MRW" write --no-check - >/dev/null 2>&1); want 0 $? "the pair: with --root B, A still licenses its write"
 
+# 316. ADR-182: mrw seen and the refusals that name what mrw served describe a
+# written-shaped observation by what was shown and what is licensed, not by a
+# command the ledger cannot name (issue #555). A ranged --quiet read is not "a
+# --sub plan", a whole-file one is not "mrw wrote it". The pairs: the refusal
+# names the same licence, and a line inside it is still writable.
+A316=$(mktemp -d "$WORK/a316-XXXXXX"); git -C "$A316" init -q
+printf 'a\nb\nc\nd\ne\n' > "$A316/h.txt"; printf 'a\nb\n' > "$A316/g.txt"
+(cd "$A316" && "$MRW" read --quiet h.txt:1-2 > "$A316/.out" 2>&1 && "$MRW" read --quiet g.txt > "$A316/.out" 2>&1)
+s316=$(cd "$A316" && "$MRW" seen 2>&1)
+{ grep -qE '  no lines, and licensed lines 1-3  +h\.txt$' <<<"$s316" && ! grep -qF 'a --sub plan licensed' <<<"$s316"; } \
+  && ok "mrw seen names a ranged --quiet licence by what the ledger holds" || bad "seen after --quiet h.txt:1-2: [$s316]"
+{ grep -qE '  no lines, and licensed the whole file  +g\.txt$' <<<"$s316" && ! grep -qF 'since mrw wrote it' <<<"$s316"; } \
+  && ok "mrw seen names a whole-file --quiet licence without claiming a write" || bad "seen after --quiet g.txt: [$s316]"
+r316=$(printf '@@ h.txt 4 replace\nzzz\n' | (cd "$A316" && "$MRW" write --no-check - 2>&1)); rc316=$?
+{ [ "$rc316" = 1 ] && grep -qF 'mrw served no lines, and licensed lines 1-3' <<<"$r316"; } \
+  && ok "the pair: the refusal of an unlicensed line names the same licence" || bad "write to line 4: exit $rc316 [$r316]"
+printf '@@ h.txt 2 replace\nzzz\n' | (cd "$A316" && "$MRW" write --no-check - >/dev/null 2>&1); want 0 $? "the pair: a licensed line is still writable"
+
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
 # killed process is a zombie until its adopter reaps it, and pgrep lists

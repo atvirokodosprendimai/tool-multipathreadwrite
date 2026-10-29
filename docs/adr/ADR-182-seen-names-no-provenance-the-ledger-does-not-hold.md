@@ -1,7 +1,8 @@
 # ADR-182: `mrw seen` names no provenance the ledger does not hold
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-10-29
+**Accepted:** 2026-10-29 by Zy — "accept, add, merge all, push" (the three records #566, #567, #568 together; "add" is the `capped` receipt key ADR-173 left to Zy)
 **Amended:** 2026-10-29, before acceptance, from a Codex xhigh challenge (2 P2, 2 P3). Each finding was checked against the code. (1) Both tests whose text changes are in active inline locks: six Verification Log receipts carry them as `test-lock-b64`, not under `docs/adr/locks/`, which was the only place the draft searched. T1 now refreshes those six receipts (Invalidates, T1 S5). (2) `parseLine` decodes `Shown` and `Spans` independently, so `w2-3|` is a shape too: it is added to the table and to the unit test, and the claim that `Shown` is a subset of `Spans` is limited to the records producers and `merge` write (Decision 1). (3) The fence no longer greps PASS lines that the existing regression tests print today; they still run inside it. (4) S1 carries its proof form.
 **Owner:** Zy
 **Spec:** None — no spec stage
