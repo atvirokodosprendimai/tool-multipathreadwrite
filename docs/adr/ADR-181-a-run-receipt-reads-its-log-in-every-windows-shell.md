@@ -21,7 +21,7 @@ ADR-177 Decision 5 prints one Windows read line, `cmd /c "`"EXE`" read -- -:N-`$
 - `runReadLine(goos, exe, path, lines)` (`cmd/mrw/run177.go:232`): the one producer; it gains the per-shell forms. Reuse.
 - `posixQuote` (the unix line's quoting) serves the Git Bash line: Git for Windows' bash opens a single-quoted `C:\…` path. Reuse.
 - `psEscaper` (`cmd/mrw/run177.go:250`): the PowerShell line, unchanged. Reuse.
-- The `"`/`%` refusal (`:238`): a Windows path cannot hold `"`, and cmd expands `%VAR%` inside double quotes; with either, no Windows line is printed, as now. cmd also expands `!NAME!` inside double quotes when delayed expansion is on (`cmd /v:on`, or the registry's `DelayedExpansion`; https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/cmd), which mrw cannot see, so a path holding `!` loses only the cmd line.
+- The `"`/`%` refusal (`:238`): a Windows path cannot hold `"`, and cmd expands `%VAR%` inside double quotes; with either, no Windows line is printed, as now. cmd also expands `!NAME!` inside double quotes when delayed expansion is on and NAME is a defined variable — an undefined one is left as written, measured 2026-10-29 in CI run 40822546802 on cmd 10.0.26100.33650 — (`cmd /v:on`, or the registry's `DelayedExpansion`; https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/cmd), which mrw cannot see, so a path holding `!` loses only the cmd line.
 
 ## Decision
 

@@ -105,16 +105,18 @@ func TestEveryPrintedReadLineServesTheLogInItsShell(t *testing.T) {
 	serves("Git Bash", exec.Command(sh, "-c", lines["Git Bash"]))
 
 	// Why a path holding ! gets no cmd line: under delayed expansion cmd reads
-	// !b! inside double quotes as a variable, and the line names another file.
-	// The pair: the same command with expansion off serves the file.
-	bang := filepath.Join(weird, "a!b!.log")
+	// !MRW181! inside double quotes as the variable when it is defined (an
+	// undefined one is left as written: CI run 40822546802), and the line names
+	// another file. The pair: the same command and environment with expansion
+	// off serves the file.
+	bang := filepath.Join(weird, "a!MRW181!.log")
 	if err := os.WriteFile(bang, []byte("only\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	inCmd := func(v string) (string, error) {
 		c := exec.Command("cmd.exe")
 		c.SysProcAttr = &syscall.SysProcAttr{CmdLine: `cmd.exe /d /v:` + v + ` /s /c ""` + exe + `" read -- -:1-$ < "` + bang + `""`}
-		c.Env = env
+		c.Env = append(env, "MRW181=x")
 		out, err := c.CombinedOutput()
 		if _, exited := err.(*exec.ExitError); err != nil && !exited {
 			t.Fatalf("cmd.exe /v:%s did not start: %v", v, err)

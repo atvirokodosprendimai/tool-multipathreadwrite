@@ -226,8 +226,9 @@ func printRunReceipt(w io.Writer, r runReceipt) {
 // read:. Windows has one per shell, labelled, since mrw cannot know which shell
 // the line will be pasted into and the forms do not mix: PowerShell's backtick
 // escapes are command substitution to Git Bash and literal to cmd (ADR-181). cmd
-// expands !NAME! inside double quotes under delayed expansion, a setting mrw
-// cannot read, so a path holding ! gets no cmd line.
+// expands !NAME! inside double quotes under delayed expansion when NAME is a
+// defined variable; neither the setting nor the caller's variables are mrw's to
+// read, so a path holding ! gets no cmd line.
 func runReadLines(goos, exe, path string, lines int) []string {
 	line := runReadLine(goos, exe, path, lines)
 	if line == "" {
