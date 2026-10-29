@@ -13,7 +13,7 @@ description: >-
 metadata:
   mrw-version: "v1.77.1 (926aaba)"
   generated-by: "mrw skill"
-  content-sha256: "677268adbd81f6e43cdbea266802d85e7eaabb72e1aac7a1d7c847f45fc33533"
+  content-sha256: "d0cd39e0c5e356b7cf0c8d846b8800c9341eb89b3dcc3596081009fd7cb7009c"
 ---
 
 # mrw
@@ -51,7 +51,7 @@ Recipes:
   mrw read a.go:40-52 b.go:9 && printf '%s\n' '@@ b.go 9 insert-after from=a.go:40-52' '@@ a.go 40-52 delete' | mrw write -
 11. re-read a file you read earlier, its text only if it changed (the sha is the 8 hex digits its header printed):
   mrw read --if-changed f.go=8dc37337 f.go:40-60
-12. run a long command (a build, a test suite, a gate) with its output kept out of your context, one string, instead of cmd | tail, which returns tail's status: a four-line receipt with the command's own exit code, the log's path and a read of it; read the log by pattern in a second call, so the exit code is not lost to it: mrw read --grep FAIL -C 3 - < 'LOG', LOG being the path the receipt printed (--then-sh and mrw run run any shell command they are given: a harness rule that allows mrw without reading its arguments allows arbitrary shell through --then-sh and mrw run.; in Windows PowerShell 5.1 a command holding " reaches mrw as several arguments, so use single quotes inside the command, or pwsh 7):
+12. run a long command (a build, a test suite, a gate) with its output kept out of your context, one string, instead of cmd | tail, which returns tail's status: a four-line receipt (on Windows a read line per shell, labelled) with the command's own exit code, the log's path and a read of it; read the log by pattern in a second call, so the exit code is not lost to it: mrw read --grep FAIL -C 3 - < 'LOG', LOG being the path the receipt printed (--then-sh and mrw run run any shell command they are given: a harness rule that allows mrw without reading its arguments allows arbitrary shell through --then-sh and mrw run.; in Windows PowerShell 5.1 a command holding " reaches mrw as several arguments, so use single quotes inside the command, or pwsh 7):
   mrw run 'go test ./...'
 13. a few fields out of a JSON document (cmd is any command that prints one), one line each instead of the lines that hold them (a path address of single-line JSON serves the whole line); the projection licenses nothing, so read the path address (mrw read f.json:$.a.b) before editing the value:
   cmd | mrw read --json-path '$.a,$.b' -

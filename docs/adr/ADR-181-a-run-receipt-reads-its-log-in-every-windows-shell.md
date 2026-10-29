@@ -1,6 +1,7 @@
 # ADR-181: A run receipt on Windows names a log-read line for each shell
 
-**Status:** Proposed
+**Status:** Accepted
+**Accepted:** 2026-10-29 by Zy — *"accepted ADR-180 and ADR-181, implement them"*: the three labelled lines and no cmd line for a path holding `!`, as Decision 1 states.
 **Date:** 2026-10-28
 **Amended:** 2026-10-28, before acceptance, from a Codex xhigh challenge (3 P2, 1 P3), each finding checked against the source: the Windows shards run `go test` without `-v`, so T2 adds a verbose step for its one test and names the shard (T2, `.github/workflows/ci.yml`); the guide's recipe 12, the generated `.claude/skills/mrw/SKILL.md` and `docs/agents.md` promise a four-line receipt and are in scope (T1, Governs, Invalidates); cmd expands `!NAME!` under delayed expansion even inside double quotes, so the cmd line is left out for a path holding `!` (Decision 1); the empty-log test rejects every read-line label, not just `read:` (T1).
 **Owner:** Zy
@@ -79,7 +80,8 @@ The PowerShell line is ADR-177's, byte for byte. The cmd line is the same comman
 
 - A read line in `--json` (permanent: boundary: the JSON receipt carries `output_file`, from which a program builds its own read; ADR-177 left the line out of it)
 - WSL's bash reading a Windows log path (permanent: boundary: WSL is a Linux process whose mrw is a Linux binary with its own state directory; it prints the unix line)
-- Paths holding `"` or `%` (permanent: boundary: ADR-177 Decision 5 prints no Windows line for them, unchanged here), and the cmd line for a path holding `!` (permanent: boundary: whether delayed expansion is on is the caller's cmd setting, which mrw cannot read)
+- Paths holding `"` or `%` (permanent: boundary: ADR-177 Decision 5 prints no Windows line for them, unchanged here)
+- The cmd line for a path holding `!` (permanent: boundary: whether delayed expansion is on is the caller's cmd setting, which mrw cannot read)
 
 ## Risks
 

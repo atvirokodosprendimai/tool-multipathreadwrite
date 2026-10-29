@@ -61,6 +61,8 @@ out=$(go test ./cmd/mrw/ -count=1 -v -run '^(TestTheWindowsRunReceiptLabelsARead
 | 4 — it is used | the v1.77.1 Windows validation pasted the line into Git Bash and cmd, where it failed (memoryd 73843a76) |
 
 ## Mutation Log
+- 2026-10-29 · 9611d43b* · mutant killed · exit 1 · `cmd/mrw/run177.go` · S3: the Git Bash line double-quotes the paths, so $x expands · acceptance-sha256:e8a920860b373d4b5be607c800891759697e5dc7e2807caf32cfed587208c3a9
+- 2026-10-29 · 9611d43b* · mutant killed · exit 1 · `cmd/mrw/run177.go` · S2: the cmd line keeps the PowerShell backtick escape on $ · acceptance-sha256:e8a920860b373d4b5be607c800891759697e5dc7e2807caf32cfed587208c3a9
 
 ## Invariants
 
@@ -81,3 +83,10 @@ The fence exits 0. A contract row is not possible here: `scripts/contract.sh` is
 - Running the lines in their shells (deferred: docs/adr/ADR-181/tasks/T2-each-line-runs-in-its-shell.md)
 
 ## Verification Log
+- 2026-10-29 · 9611d43b* · exit 0 · `set -o pipefail …` · acceptance-sha256:e8a920860b373d4b5be607c800891759697e5dc7e2807caf32cfed587208c3a9 · ms:3267
+- 2026-10-29 · 9611d43b* · exit 0 · `set -o pipefail …` · acceptance-sha256:e8a920860b373d4b5be607c800891759697e5dc7e2807caf32cfed587208c3a9 · ms:3635
+- 2026-10-29 · 9611d43b* · exit 0 · `set -o pipefail …` · acceptance-sha256:e8a920860b373d4b5be607c800891759697e5dc7e2807caf32cfed587208c3a9 · ms:3032
+- 2026-10-29 · 9611d43b* · exit 1 · `set -o pipefail …` · acceptance-sha256:e8a920860b373d4b5be607c800891759697e5dc7e2807caf32cfed587208c3a9 · ms:400 · test-lock-sha256:71ecd533c6396d31a395ed6d43b5985258e5fd9aed9af9de5153e6911676eedc · test-lock-file:docs/adr/locks/71ecd533c6396d31a395ed6d43b5985258e5fd9aed9af9de5153e6911676eedc.lock
+  ```
+  ```
+- 2026-10-29 · 9611d43b* · exit 0 · `set -o pipefail …` · acceptance-sha256:e8a920860b373d4b5be607c800891759697e5dc7e2807caf32cfed587208c3a9 · ms:1546

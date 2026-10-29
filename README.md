@@ -676,7 +676,7 @@ Linux. opencode itself is not run in CI.
 `mrw run 'CMD'` runs one command string with `sh -c` in the root and keeps its output out of your context: standard
 output and standard error, interleaved, go to a log in `<state home>/mrw-runs/` (mode 0600, beside mrw's state
 directory and never in it, so `mrw seen --prune` does not look at it), and mrw prints a receipt of four lines instead
-(ADR-177):
+(ADR-177; six on Windows, ADR-181):
 
 ```
 exit 1 · 2,314 lines · 187,902 bytes · 41.2 s
@@ -686,8 +686,11 @@ read: '/usr/local/bin/mrw' read -- '-:2275-$' < '/Users/zy/.local/state/mrw-runs
 ```
 
 `last:` is the last non-empty line, cut to 200 characters; `read:` serves the log's last 40 lines with the running
-binary, not the `mrw` on PATH (on Windows it is the form typed at a PowerShell prompt, `cmd /c "`"EXE`" read -- -:N-`$ < `"LOG`""`,
-since a pipe turns non-ASCII into `?` in Windows PowerShell 5.1), and `mrw read --grep P -C 3 - < LOG`
+binary, not the `mrw` on PATH. On Windows there is one such line per shell, labelled, since the forms do not mix
+(ADR-181): `read (PowerShell): cmd /c "`"EXE`" read -- -:N-`$ < `"LOG`""` (cmd's redirection, since a pipe turns
+non-ASCII into `?` in Windows PowerShell 5.1), `read (cmd): "EXE" read -- -:N-$ < "LOG"` and
+`read (Git Bash): 'EXE' read -- '-:N-$' < 'LOG'`; a path holding `!` gets no cmd line, since cmd expands `!NAME!`
+under delayed expansion. `mrw read --grep P -C 3 - < LOG`
 searches it. A log is not a tree file, so a named-path read of it is refused; standard input reaches it and
 records nothing. Its exit code is the command's (see "Exit status"), which `CMD | tail` loses. Standard input is the
 null device, the deadline is 24 hours, and an interrupt, terminate or hangup sent to mrw stops the command's group. In Windows PowerShell 5.1 a command holding `"` reaches mrw as several arguments (its legacy native-argument quoting): use single quotes inside the command, or pwsh 7.
