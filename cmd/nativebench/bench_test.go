@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"io"
 	"math/rand/v2"
+	"os"
 	"path/filepath"
+	"regexp"
 	"testing"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/apply"
@@ -60,5 +62,24 @@ func BenchmarkW1(b *testing.B) {
 		if res.Failed != 0 || !res.Applied {
 			b.Fatalf("%d hunk(s) failed, applied %v", res.Failed, res.Applied)
 		}
+	}
+}
+
+// BenchmarkR3Repo is R3 "repo" in process, for its profile: the walk --grep
+// makes and the --count read over it, on the tree NATIVEBENCH_TREE names (this
+// repository at the tagged tree). It is skipped without one.
+func BenchmarkR3Repo(b *testing.B) {
+	root := os.Getenv("NATIVEBENCH_TREE")
+	if root == "" {
+		b.Skip("NATIVEBENCH_TREE names no tree")
+	}
+	re := regexp.MustCompile("func Run")
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		specs, _, err := read.Walk(root, nil, read.WalkOptions{Pattern: re})
+		if err != nil {
+			b.Fatal(err)
+		}
+		read.Run(io.Discard, root, specs, read.Options{Count: true, Counts: map[string]int{}, Numbers: true, NextLine: true})
 	}
 }
