@@ -1319,9 +1319,9 @@ func load(w io.Writer, root string, sp *Spec) (b []byte, englishUnreadable, ok b
 	return b, false, true
 }
 
-// ReadStdin reads standard input whole for `mrw read -` (ADR-161), under the
+// Stdin reads standard input whole for `mrw read -` (ADR-161), under the
 // bound a file is read under (ADR-104).
-func ReadStdin(r io.Reader) ([]byte, error) {
+func Stdin(r io.Reader) ([]byte, error) {
 	b, err := io.ReadAll(io.LimitReader(r, maxFileBytes+1))
 	if err != nil {
 		return nil, err

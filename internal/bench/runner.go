@@ -58,9 +58,9 @@ var (
 	ErrDiskFloor   = errors.New("free disk is below the floor")
 )
 
-// The registered wall-time budget (BACKLOG, "Pre-registered for ADR-156"): an
-// attempt past it, or past the turn cap (DefaultMaxTurns), is unsolved, its
-// cost counted.
+// DefaultBudget is the registered wall-time budget (BACKLOG, "Pre-registered
+// for ADR-156"): an attempt past it, or past the turn cap (DefaultMaxTurns), is
+// unsolved, its cost counted.
 const DefaultBudget = 20 * time.Minute
 
 // Exclusions the registration admits; no other reason leaves an attempt out.

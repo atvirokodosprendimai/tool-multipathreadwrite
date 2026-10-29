@@ -2380,7 +2380,7 @@ func stageFile(tr *tree, path string, t text) (staged, error) {
 	// one place both cleans up and reports. The mode and, on Windows, the
 	// attributes are set through the open handle, never by name (ADR-106).
 	fail := func(err error) (staged, error) {
-		_ = tmp.Close() //nolint:errcheck // a step already failed; discard removes the file
+		_ = tmp.Close() // a step already failed; discard removes the file
 		return staged{tmp: name, dirs: missing}, err
 	}
 	if _, err := tmp.WriteString(t.join()); err != nil {
