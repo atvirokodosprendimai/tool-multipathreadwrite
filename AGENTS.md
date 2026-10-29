@@ -751,7 +751,8 @@ and #73, one release apart.
   (ADR-034). One machine had 22,836 of these directories, 242 MB of disk by `du`, on
   2026-09-07, 98.9% of them dead.
 - **`mrw seen --forget`** empties this checkout's read ledger under its lock, read and written
-  files alike, and prints `forgot N file(s)`; after it a write needs a fresh read of the lines it touches.
+  files alike, and prints `forgot N file(s) in <checkout>`, naming the checkout top whose ledger it emptied (ADR-180);
+  after it a write needs a fresh read of the lines it touches.
   It first empties the pending MCP acknowledgements of this root and of the checkout's top, which an `ack` would
   otherwise promote into the ledger. It exits 2, changing nothing, over a root that does not exist or is not a
   directory (checked first, so no state directory is made for it), over a newer mrw's ledger (ADR-150), and beside

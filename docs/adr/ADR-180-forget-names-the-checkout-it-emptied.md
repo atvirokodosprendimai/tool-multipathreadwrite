@@ -1,6 +1,7 @@
 # ADR-180: `mrw seen --forget` names the checkout whose ledger it emptied
 
-**Status:** Proposed
+**Status:** Accepted
+**Accepted:** 2026-10-29 by Zy — *"accepted ADR-180 and ADR-181, implement them"*.
 **Date:** 2026-10-28
 **Amended:** 2026-10-28, before acceptance, from a Codex xhigh challenge (2 P2, 2 P3), each finding checked against the code: the receipt and the ledger are resolved from the same root by two calls, so their identity holds while the root's links do not change during the call, which is stated rather than claimed unconditionally (Primitives Audit, Risks); the ADR-175 T1 relock needs `--replace-hashes`, and that task file is an affected file (T1); the documented hook does not parse stdout, rather than discarding it, and a second line would change §300's whole-output rows too (Decision 2, Alternatives); naming the top does not name the per-root pending store (Out of Scope).
 **Owner:** Zy
@@ -35,7 +36,6 @@
 - **A suffix, `… the lines it touches (in <top>)`.** Keeps every prefix match. Rejected: the checkout is the subject of the sentence, not an afterthought, and the zero case would read `forgot 0 file(s) (in <top>)`.
 - **`seen.Forget` returns the top it emptied, and the receipt prints that.** The identity would then hold even when a link is retargeted during the call. Rejected for this record: it widens an engine package's signature and moves ADR-175's unit-test lock to close a race that already splits ADR-175's own pending-store and ledger emptying; if that race is ever observed it is one change for both.
 - **Print the root as given.** Rejected: the plan asks for the checkout actually emptied; from `A/sub` the root is `A/sub` and the ledger is `A`'s, which is exactly the confusion being removed.
-- **Return the top from `seen.Forget`.** Rejected: an engine-package signature change to carry a value the caller already computes from the same input.
 
 ## Component / Boundary Impact
 

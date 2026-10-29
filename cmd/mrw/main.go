@@ -769,9 +769,10 @@ those, so it does not know what they are — nor the entry for the root you are
 running in. --prune --dry-run prints the same list and removes nothing.
 
 --forget empties the read ledger of this checkout, read and written files alike, so
-that a write needs a fresh read of the lines it touches. A host hook runs it after
-it compacts its context (docs/agents.md); it costs every session in the checkout a
-re-read, and it is refused, exit 2, over a ledger a newer mrw wrote.
+that a write needs a fresh read of the lines it touches, and names the checkout whose
+ledger it emptied. A host hook runs it after it compacts its context (docs/agents.md);
+it costs every session in the checkout a re-read, and it is refused, exit 2, over a
+ledger a newer mrw wrote.
 
 There is no automatic reaper and there will not be one: a path that is gone may
 be a deleted checkout or a volume that is not mounted, and only you can tell.`,
@@ -3294,7 +3295,8 @@ func forget(root string) error {
 		return exitWith(errors.New(strings.TrimPrefix(seen.NewerNotice(writer), "mrw: ")))
 	}
 	roots := []string{root}
-	if top, _ := state.Checkout(root); top != root {
+	top, _ := state.Checkout(root)
+	if top != root {
 		roots = append(roots, top)
 	}
 	for _, r := range roots {
@@ -3306,11 +3308,13 @@ func forget(root string) error {
 	if err != nil {
 		return exitWith(err)
 	}
+	// The checkout is named because the ledger is the checkout's, not the root's
+	// (ADR-180): from a subdirectory or a worktree it tells which one was emptied.
 	if n == 0 {
-		fmt.Println("forgot 0 file(s)")
+		fmt.Printf("forgot 0 file(s) in %s\n", top)
 		return nil
 	}
-	fmt.Printf("forgot %d file(s): a write now needs a fresh read of the lines it touches\n", n)
+	fmt.Printf("forgot %d file(s) in %s: a write now needs a fresh read of the lines it touches\n", n, top)
 	return nil
 }
 

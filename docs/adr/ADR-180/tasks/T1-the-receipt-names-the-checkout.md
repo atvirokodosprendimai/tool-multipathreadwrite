@@ -69,6 +69,8 @@ out=$(go test ./cmd/mrw/ -count=1 -v -run '^(TestSeenForgetNamesTheCheckoutItEmp
 | 4 — it is used | the ADR-175 hook runs it on every compaction; the reproduction of 2026-10-28 is the evidence for building it |
 
 ## Mutation Log
+- 2026-10-29 · 15a28a65* · mutant killed · exit 1 · `cmd/mrw/main.go` · S2: the receipt names the root it was given, not the checkout emptied · acceptance-sha256:b17bfb233dd1e4b8b86685718f5e87783cd3ac6e1776b6190ccd4f39d4d1e8c1
+- 2026-10-29 · 15a28a65* · mutant killed · exit 1 · `cmd/mrw/main.go` · S3: the zero-count line drops the checkout · acceptance-sha256:b17bfb233dd1e4b8b86685718f5e87783cd3ac6e1776b6190ccd4f39d4d1e8c1
 
 ## Invariants
 
@@ -89,3 +91,12 @@ The fence exits 0, or a consumer that parses the old exact line is found: stop a
 - Changing what is forgotten (permanent: boundary: ADR-175 owns it)
 
 ## Verification Log
+- 2026-10-29 · 15a28a65* · exit 1 · `set -o pipefail …` · acceptance-sha256:b17bfb233dd1e4b8b86685718f5e87783cd3ac6e1776b6190ccd4f39d4d1e8c1 · ms:94249 · test-lock-sha256:f1cb41ce0b3adc1b994b73f885e3cef693a19ba37b78492dbc452a5e6f8539ff · test-lock-file:docs/adr/locks/f1cb41ce0b3adc1b994b73f885e3cef693a19ba37b78492dbc452a5e6f8539ff.lock
+  ```
+  ```
+- 2026-10-29 · 15a28a65* · exit 1 · `set -o pipefail …` · acceptance-sha256:b17bfb233dd1e4b8b86685718f5e87783cd3ac6e1776b6190ccd4f39d4d1e8c1 · ms:88778
+  ```
+  ```
+- 2026-10-29 · 15a28a65* · exit 0 · `set -o pipefail …` · acceptance-sha256:b17bfb233dd1e4b8b86685718f5e87783cd3ac6e1776b6190ccd4f39d4d1e8c1 · ms:82687
+- 2026-10-29 · 15a28a65* · exit 0 · `set -o pipefail …` · acceptance-sha256:b17bfb233dd1e4b8b86685718f5e87783cd3ac6e1776b6190ccd4f39d4d1e8c1 · ms:82346
+- 2026-10-29 · 15a28a65* · exit 0 · `set -o pipefail …` · acceptance-sha256:b17bfb233dd1e4b8b86685718f5e87783cd3ac6e1776b6190ccd4f39d4d1e8c1 · ms:79882
