@@ -87,6 +87,7 @@ out=$(go test ./cmd/mrw/ -count=1 -v -run '^(TestCheckLatestJudgesAPseudoVersion
 - 2026-10-29 · 7b4ebb2b* · mutant killed · exit 1 · `cmd/mrw/latest149.go` · S5: an equal base is reported older · acceptance-sha256:55726b5b57842f2c7777ef884a8f1a5c9cc6b88a73e79c59232a30f16949be4b · covers:an equal base is a commit after it
 - 2026-10-29 · 7b4ebb2b* · mutant killed · exit 1 · `cmd/mrw/latest149.go` · S4: a patch-0 release-form pseudo-version gets a base · acceptance-sha256:55726b5b57842f2c7777ef884a8f1a5c9cc6b88a73e79c59232a30f16949be4b · covers:no base is no verdict
 - 2026-10-29 · 7b4ebb2b* · mutant killed · exit 1 · `cmd/mrw/main.go` · S3: versionCmd judges the linker stamp, not the reported version · acceptance-sha256:55726b5b57842f2c7777ef884a8f1a5c9cc6b88a73e79c59232a30f16949be4b · covers:the reported version is judged
+- 2026-10-29 · 6f059386* · mutant killed · exit 1 · `cmd/mrw/main.go` · S3: the version line prints the stamp while the verdict judges the reported version (Codex review) · acceptance-sha256:55726b5b57842f2c7777ef884a8f1a5c9cc6b88a73e79c59232a30f16949be4b · covers:the reported version is judged
 
 ## Invariants
 
@@ -143,3 +144,6 @@ The fence exits 0; or the base rule would need a form Decision 2 leaves without 
 - 2026-10-29 · 7b4ebb2b* · exit 0 · `set -o pipefail …` · acceptance-sha256:55726b5b57842f2c7777ef884a8f1a5c9cc6b88a73e79c59232a30f16949be4b · ms:81140
 - 2026-10-29 · 7b4ebb2b* · exit 0 · `set -o pipefail …` · acceptance-sha256:55726b5b57842f2c7777ef884a8f1a5c9cc6b88a73e79c59232a30f16949be4b · ms:89864
 - 2026-10-29 · 7b4ebb2b* · exit 0 · `set -o pipefail …` · acceptance-sha256:55726b5b57842f2c7777ef884a8f1a5c9cc6b88a73e79c59232a30f16949be4b · ms:91939
+- 2026-10-29 · 6f059386* · exit 0 · `set -o pipefail …` · acceptance-sha256:55726b5b57842f2c7777ef884a8f1a5c9cc6b88a73e79c59232a30f16949be4b · ms:90531
+- 2026-10-29 · 6f059386* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:55726b5b57842f2c7777ef884a8f1a5c9cc6b88a73e79c59232a30f16949be4b · ms:0 · test-lock-sha256:dcf5c040fe70d8cac32771f48575024647c2844d0b7ca0334d624c29610047d2 · test-lock-file:docs/adr/locks/dcf5c040fe70d8cac32771f48575024647c2844d0b7ca0334d624c29610047d2.lock · test-lock-kind:replace
+- 2026-10-29 · 6f059386* · exit 0 · `set -o pipefail …` · acceptance-sha256:55726b5b57842f2c7777ef884a8f1a5c9cc6b88a73e79c59232a30f16949be4b · ms:80914

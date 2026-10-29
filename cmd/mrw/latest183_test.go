@@ -30,9 +30,9 @@ type verdictCase struct {
 	stdout, err           string
 }
 
-// checkVerdict runs `mrw version --check-latest` and holds it to tc, with
-// the request's User-Agent naming the reported version.
-func checkVerdict(t *testing.T, tc verdictCase, tag, ua *atomic.Value) {
+// checkVerdict runs `mrw version --check-latest`, holds it to tc, with the
+// request's User-Agent naming the reported version, and returns its stdout.
+func checkVerdict(t *testing.T, tc verdictCase, tag, ua *atomic.Value) string {
 	t.Helper()
 	tag.Store(tc.latest)
 	ua.Store("")
@@ -49,6 +49,7 @@ func checkVerdict(t *testing.T, tc verdictCase, tag, ua *atomic.Value) {
 	if got := ua.Load().(string); got != "mrw/"+tc.running {
 		t.Errorf("User-Agent %q, want %q", got, "mrw/"+tc.running)
 	}
+	return stdout
 }
 
 // ADR-183 Decisions 2, 3 and 5. A pseudo-version of the release form,
@@ -135,7 +136,11 @@ func TestCheckLatestJudgesTheVersionAGoInstallBuildReports(t *testing.T) {
 			if got := versionString(); got != tc.line {
 				t.Fatalf("version line %q, want %q", got, tc.line)
 			}
-			checkVerdict(t, tc.verdictCase, tag, ua)
+			// The line the command prints, not only versionString: the verdict
+			// below it must judge the version the line names.
+			if stdout := checkVerdict(t, tc.verdictCase, tag, ua); !strings.HasPrefix(stdout, tc.line+"\n") {
+				t.Errorf("stdout %q does not start with the version line %q", stdout, tc.line)
+			}
 		})
 	}
 }
