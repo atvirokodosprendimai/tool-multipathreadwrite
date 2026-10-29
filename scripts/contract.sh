@@ -10255,11 +10255,11 @@ rm -f "$R/f297.txt" "$WORK/p297.plan" "$WORK/q297.plan"
 # refused after it and applies after a fresh read; an empty ledger is forgot 0;
 # --forget beside --prune or --dry-run is a usage error, exit 2, and forgets
 # nothing.
-R=$(mktemp -d "$WORK/r300-XXXXXX"); printf 'one\ntwo\nthree\n' > "$R/f.txt"
+R=$(mktemp -d "$WORK/r300-XXXXXX"); printf 'one\ntwo\nthree\n' > "$R/f.txt"; r300=$(cd "$R" && pwd -P)
 (cd "$R" && "$MRW" read f.txt > "$R/.out" 2>&1)
 f300=$(cd "$R" && "$MRW" seen --forget 2>&1); rc300=$?
 want 0 "$rc300" "mrw seen --forget exits 0"
-[ "$f300" = "forgot 1 file(s): a write now needs a fresh read of the lines it touches" ] \
+[ "$f300" = "forgot 1 file(s) in $r300: a write now needs a fresh read of the lines it touches" ] \
   && ok "mrw seen --forget says how many files the ledger held" || bad "forget: $f300"
 w300=$(printf '@@ f.txt 2 replace\nTWO\n' | (cd "$R" && "$MRW" write --no-check - 2>&1)); rc300=$?
 want 1 "$rc300" "a write to a line read before --forget is refused, exit 1"
@@ -10269,7 +10269,7 @@ want 1 "$rc300" "a write to a line read before --forget is refused, exit 1"
 printf '@@ f.txt 2 replace\nTWO\n' | (cd "$R" && "$MRW" write --no-check - >/dev/null 2>&1); want 0 $? "the pair: a fresh read licenses the same write again"
 { printf 'one\nTWO\nthree\n' | cmp -s - "$R/f.txt"; } && ok "and the write landed" || bad "the fresh-read write did not land: $(cat "$R/f.txt")"
 e300=$(cd "$R" && "$MRW" seen --forget >/dev/null 2>&1; "$MRW" seen --forget 2>&1)
-[ "$e300" = 'forgot 0 file(s)' ] && ok "the pair: an empty ledger is forgot 0 file(s)" || bad "empty ledger: $e300"
+[ "$e300" = "forgot 0 file(s) in $r300" ] && ok "the pair: an empty ledger is forgot 0 file(s)" || bad "empty ledger: $e300"
 (cd "$R" && "$MRW" read f.txt > "$R/.out" 2>&1)
 (cd "$R" && "$MRW" seen --forget --prune >/dev/null 2>&1); want 2 $? "the pair: --forget beside --prune exits 2"
 (cd "$R" && "$MRW" seen --forget --dry-run >/dev/null 2>&1); want 2 $? "the pair: --forget beside --dry-run exits 2"
@@ -10747,6 +10747,28 @@ for c314 in older newer; do
   grep -q "written by an $c314 mrw\|written by a $c314 mrw" <<<"$err314" \
     && ok "the pair: a read over the $c314 ledger still says so" || bad "read over $c314 ledger: $err314"
 done
+
+# 315. ADR-180: the receipt of mrw seen --forget names the checkout whose ledger
+# it emptied: from a subdirectory the checkout's top, with --root the checkout
+# --root names. The pairs: the other checkout's read still licenses its write,
+# and the emptied one's no longer does.
+A315=$(mktemp -d "$WORK/a315-XXXXXX"); B315=$(mktemp -d "$WORK/b315-XXXXXX"); mkdir "$A315/sub"
+for d315 in "$A315" "$B315"; do
+  git -C "$d315" init -q; printf 'one\ntwo\nthree\n' > "$d315/f.txt"
+  (cd "$d315" && "$MRW" read f.txt > "$d315/.out" 2>&1)
+done
+ra315=$(cd "$A315" && pwd -P); rb315=$(cd "$B315" && pwd -P)
+f315=$(cd "$A315/sub" && "$MRW" seen --forget 2>&1); rc315=$?
+{ [ "$rc315" = 0 ] && [ "$f315" = "forgot 1 file(s) in $ra315: a write now needs a fresh read of the lines it touches" ]; } \
+  && ok "mrw seen --forget from a subdirectory names the checkout it emptied" || bad "forget from A/sub: exit $rc315 [$f315]"
+printf '@@ f.txt 2 replace\nTWO\n' | (cd "$A315" && "$MRW" write --no-check - >/dev/null 2>&1); want 1 $? "and that checkout's write needs a fresh read, exit 1"
+printf '@@ f.txt 2 replace\nTWO\n' | (cd "$B315" && "$MRW" write --no-check - >/dev/null 2>&1); want 0 $? "the pair: the other checkout still licenses its write"
+(cd "$A315" && "$MRW" read f.txt > "$A315/.out" 2>&1); (cd "$B315" && "$MRW" read f.txt > "$B315/.out" 2>&1)
+g315=$(cd "$A315" && "$MRW" --root "$B315" seen --forget 2>&1); rc315=$?
+{ [ "$rc315" = 0 ] && [ "$g315" = "forgot 1 file(s) in $rb315: a write now needs a fresh read of the lines it touches" ]; } \
+  && ok "mrw --root B seen --forget from A names B" || bad "forget --root B: exit $rc315 [$g315]"
+printf '@@ f.txt 2 replace\nTWO\n' | (cd "$B315" && "$MRW" write --no-check - >/dev/null 2>&1); want 1 $? "and B's write needs a fresh read, exit 1"
+printf '@@ f.txt 2 replace\nTWO\n' | (cd "$A315" && "$MRW" write --no-check - >/dev/null 2>&1); want 0 $? "the pair: with --root B, A still licenses its write"
 
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
