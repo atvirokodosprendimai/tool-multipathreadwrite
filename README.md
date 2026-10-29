@@ -107,6 +107,18 @@ chmod +x mrw && ./mrw version
 Windows: `mrw-windows-amd64.exe`. Every release also carries archives
 (`mrw_<os>_<arch>.tar.gz` / `.zip`) and a `SHA256SUMS.txt`.
 
+Two other ways in:
+
+- **Homebrew** (macOS and Linux, amd64 and arm64): `brew install atvirokodosprendimai/tap/mrw`. The
+  tap's formula is generated and pushed by CI from the release's four archives and their checksums
+  (ADR-172), so it serves the published binary; `release-smoke-brew.yml` installs from the tap and
+  checks the binary against `SHA256SUMS.txt`, on dispatch after a release.
+- **`go install`** (Go 1.26.10 or newer, `go.mod`):
+  `go install github.com/atvirokodosprendimai/tool-multipathreadwrite/cmd/mrw@latest`, or `@<tag>`, or
+  `@<commit>`. That build is compiled by your Go and carries no release stamp: `mrw version` reports
+  the module version Go recorded for it, the tag or a pseudo-version ending in the commit
+  (`vX.Y.(Z+1)-0.<time>-<commit>`, the commit after vX.Y.Z), and `--check-latest` judges it by that.
+
 `mrw version` prints the same string `-v` / `--version` already print. Extra
 arguments are usage (exit 2). `mrw version --check-latest` also asks GitHub for
 the latest release and says whether this mrw is current, newer or older: exit 1
