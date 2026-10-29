@@ -1,7 +1,8 @@
 # ADR-174: Ad-hoc shell runs only when the environment enables it
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-10-24
+**Accepted:** 2026-10-29 by Zy — "accept, add, merge all, push" (the three records #566, #567, #568 together; "add" is the `capped` receipt key ADR-173 left to Zy)
 **Amended:** 2026-10-24, before acceptance, from a Codex xhigh challenge (5 findings, each checked against the code): the refusal comes before anything is written or run, not before anything is read (`check` loads its working set and harness first); the existing refusals keep their precedence (Decision 1); mixed step lists and raw values are tested; the fence runs the whole `cmd/mrw` package. 2026-10-29, before acceptance, on Zy's direction of that day: rewritten from "`--then-sh` runs only when `MRW_THEN_SH=on`" to one switch, `MRW_SHELL=on`, for both ad-hoc shell surfaces, `--then-sh` and `mrw run` (ADR-177, released since the first draft, which made the draft's safety claim false); ADR-177 Decision 9 is named in Invalidates; the safety claim is made exact and its limit stated (Decision 6); the consumers are enumerated by a recorded command (Context); the line numbers are re-taken against main `e8a6a3da`; renamed from `ADR-174-then-sh-runs-only-when-enabled.md`. Then from a Codex xhigh challenge of the rewrite (5 findings, each checked against the code): "before anything is written" is defined, since mrw's own state bookkeeping precedes every refusal (Decision 1); the Windows smoke enables the switch for the job, because a fourth step, Windows PowerShell 5.1 (`run: *ps`, `:124`), runs `mrw run` too; the log directory's absence is asserted; the consumer fence clauses check the assignment, not the spelling. The challenge ran once, with a prompt narrowed to four questions, after the broad first prompt for ADR-173 was killed at host-review's 600 s budget.
 **Owner:** Zy
 **Spec:** None — no spec stage
