@@ -21,10 +21,13 @@
 set -u
 cd "$(dirname "$0")/.." || exit 2
 
-# Every Go tool below runs under the toolchain go.mod names, the one every CI
-# job builds with (setup-go's go-version-file), whatever go is on PATH, so a
-# newer local go changes no finding and no export data. Printed, so a run says
-# which compiler judged it; the first run downloads it, later runs use the cache.
+# Every `go` command below, and every tool's Go subprocess (package loading,
+# export data), runs under the toolchain go.mod names, the one every CI job
+# builds with (setup-go's go-version-file), whatever go is on PATH; gofmt is
+# taken from that toolchain's GOROOT for the same reason. What it cannot pin is
+# the Go built INTO an installed binary: golangci-lint's own parser and
+# analysers are the ones its release embeds. Printed, so a run says which
+# compiler judged it; the first run downloads it, later runs use the cache.
 GOTOOLCHAIN="go$(go list -m -f '{{.GoVersion}}')"; export GOTOOLCHAIN
 echo "toolchain: $(go version)"
 
@@ -69,7 +72,7 @@ gofmt_seen() {
     || { echo "gofmt: git ls-files failed, so no Go file was checked"; rm -f "$list"; return 1; }
   while IFS= read -r -d '' f; do [ -e "$f" ] && files+=("$f"); done < "$list"
   rm -f "$list"
-  [ "${#files[@]}" -eq 0 ] || gofmt -l "${files[@]}"
+  [ "${#files[@]}" -eq 0 ] || "$(go env GOROOT)/bin/gofmt" -l "${files[@]}"
 }
 
 golangci() {

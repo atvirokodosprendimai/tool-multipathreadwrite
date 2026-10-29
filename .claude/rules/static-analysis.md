@@ -30,8 +30,9 @@ calls is deleted, not kept for later.
 **The tools.** Three binaries to install: golangci-lint v2.14.0 (`brew install golangci-lint`),
 ruff 0.15.6 (`brew install ruff`, or `pipx install ruff==0.15.6`) and shellcheck 0.11.0
 (`brew install shellcheck`); the script names each install when one is missing and notes a version
-other than CI's. deadcode, staticcheck, govulncheck and actionlint run pinned through `go run`, and every Go
-tool runs under the toolchain `go.mod` names (`GOTOOLCHAIN`, exported at the top of the script), the one CI
-builds with, so a newer local `go` changes no finding. knip is
+other than CI's. deadcode, staticcheck, govulncheck and actionlint run pinned through `go run`; every `go`
+command and every tool's Go subprocess runs under the toolchain `go.mod` names (`GOTOOLCHAIN`, exported at
+the top of the script, with `gofmt` taken from that toolchain's GOROOT), the one CI builds with. The Go built
+into the installed golangci-lint is its release's own, which is why the version note matters. knip is
 the plugin's exact devDependency: run `npm ci` in `cmd/opencode/mrw-plugin` once. The first run
 downloads the Go tools; later runs use the module cache.
