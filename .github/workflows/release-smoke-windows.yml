@@ -9,10 +9,11 @@ name: release-smoke-windows
 # tag with `gh workflow run release-smoke-windows.yml -f tag=vX.Y.Z`; it also
 # runs on a pull request that changes this file.
 #
-# The printed `read:` line of a v1.77.1 run receipt is the PowerShell form
-# (ADR-177 Decision 5): the PowerShell steps execute it; Git Bash and cmd read
-# the log with their own redirection and say the printed line is not theirs
-# (ADR-181, proposed).
+# From v1.78.0 a Windows run receipt prints a labelled read line per shell
+# (ADR-181): each step runs its own line, `read (Git Bash):`, `read
+# (PowerShell):` or `read (cmd):`. A release before it printed one `read:` line,
+# the PowerShell form (ADR-177 Decision 5): the PowerShell steps run that, and
+# Git Bash and cmd read the log with their own redirection only.
 on:
   workflow_dispatch:
     inputs:
@@ -27,7 +28,7 @@ permissions:
   contents: read
 
 env:
-  TAG: ${{ inputs.tag || 'v1.77.1' }}
+  TAG: ${{ inputs.tag || 'v1.78.0' }}
 
 jobs:
   smoke:
@@ -49,6 +50,9 @@ jobs:
           echo "mrw version: $ver"
           case "$ver" in "$TAG "*) ;; *) echo "::error::the asset says $ver, not $TAG"; exit 1 ;; esac
           echo "MRW=$D/mrw-windows-amd64.exe" >> "$GITHUB_ENV"
+          # A release before ADR-181 (v1.78.0) prints one read: line; from it on, a
+          # missing labelled line is a failure, never a fallback.
+          if [ "$(printf '%s\n' "$TAG" v1.78.0 | sort -V | head -1)" = v1.78.0 ]; then echo "LEGACY=0" >> "$GITHUB_ENV"; else echo "LEGACY=1" >> "$GITHUB_ENV"; fi
           P=$(cygpath -m "$RUNNER_TEMP/plans")
           mkdir -p "$P"
           printf '@@ f.txt 2 replace\nTWO\n' > "$P/write.plan"
@@ -77,7 +81,15 @@ jobs:
           log=$(sed -n 's/^log: //p' <<<"$r")
           "$MRW" read -N -- '-:1-$' < "$log" > served.txt; check "read of the log through bash's <" 0 $?
           grep -qxF "$(tail -1 "$PLANS/expected.log")" served.txt || { echo "::error::git bash: the log's non-ASCII line did not survive"; cat served.txt; fail=1; }
-          grep -q '^read: cmd /c ' <<<"$r" && echo "note: the printed read: line is the PowerShell form; Git Bash reads the log with its own <"
+          line=$(sed -n 's/^read (Git Bash): //p' <<<"$r")
+          if [ -n "$line" ]; then
+            bash -c "$line" > printed.txt; check "the printed read (Git Bash) line" 0 $?
+            grep -qxF "$(tail -1 "$PLANS/expected.log")" <(sed 's/^ *[0-9]*| //' printed.txt) || { echo "::error::git bash: the printed line did not serve the non-ASCII line"; cat printed.txt; fail=1; }
+          elif [ "$LEGACY" = 1 ]; then
+            echo "note: no read (Git Bash) line ($TAG is before ADR-181); Git Bash reads the log with its own <"
+          else
+            echo "::error::git bash: $TAG printed no read (Git Bash) line"; fail=1
+          fi
           exit $fail
 
       - name: pwsh 7
@@ -100,7 +112,10 @@ jobs:
           if ((Get-Content -Raw g.txt -ErrorAction SilentlyContinue) -cne "a`nb`n") { "::error::the refused write changed g.txt"; $fail = 1 }
           $r = & $env:MRW run "printf 'r%s\n' 1 2 3" | Out-String; Check 'run' 0 $LASTEXITCODE
           $r
-          $line = (($r -split "`r?`n") | Where-Object { $_ -like 'read: *' }) -replace '^read: ', ''
+          $lines = $r -split "`r?`n"
+          $line = @($lines | Where-Object { $_ -like 'read (PowerShell): *' }) -replace '^read \(PowerShell\): ', '' | Select-Object -First 1
+          if (-not $line -and $env:LEGACY -eq '1') { $line = @($lines | Where-Object { $_ -like 'read: *' }) -replace '^read: ', '' | Select-Object -First 1 }
+          if (-not $line) { "::error::no read line for this shell in the receipt"; $fail = 1 }
           "printed read line: $line"
           $served = Invoke-Expression $line | Out-String; Check 'the printed read: line' 0 $LASTEXITCODE
           if ($served -notmatch 'r3') { "::error::the printed read line served: $served"; $fail = 1 }
@@ -144,8 +159,23 @@ jobs:
           copy /y served.txt "%PLANS%\cmd-served.txt" >nul
           copy /y f.txt "%PLANS%\cmd-f.txt" >nul
           copy /y g.txt "%PLANS%\cmd-g.txt" >nul
-          echo note: the printed read: line is the PowerShell form; cmd reads the log with its own ^<
+          set CMDLINE=
+          for /f "tokens=2,*" %%a in ('findstr /b /c:"read (cmd): " receipt.txt') do set CMDLINE=%%b
+          if defined CMDLINE (
+            call :printed
+          ) else if "%LEGACY%"=="1" (
+            echo note: no read ^(cmd^) line ^(%TAG% is before ADR-181^); cmd reads the log with its own ^<
+          ) else (
+            echo ::error::cmd: %TAG% printed no read ^(cmd^) line
+            set FAIL=1
+          )
           if "%FAIL%"=="1" (echo ::error::cmd: a check failed & exit /b 1)
+          exit /b 0
+          :printed
+          echo ran > "%PLANS%\cmd-printed-ran"
+          %CMDLINE% > "%PLANS%\cmd-printed.txt"
+          echo the printed read (cmd) line: exit %ERRORLEVEL% (want 0)
+          if not "%ERRORLEVEL%"=="0" set FAIL=1
           exit /b 0
 
       - name: cmd kept the log's bytes
@@ -162,3 +192,8 @@ jobs:
           cmp -s "$PLANS/cmd-g.txt" <(printf 'a\nb\n') \
             || { echo "::error::cmd: the refused write changed g.txt"; od -c "$PLANS/cmd-g.txt"; exit 1; }
           echo "cmd: the write landed and the refused write changed nothing"
+          if [ -f "$PLANS/cmd-printed-ran" ]; then
+            sed 's/^ *[0-9]*| //' "$PLANS/cmd-printed.txt" | grep -qxF "$(tail -1 "$PLANS/expected.log")" \
+              || { echo "::error::cmd: the printed read (cmd) line did not serve the non-ASCII line"; cat "$PLANS/cmd-printed.txt"; exit 1; }
+            echo "cmd: the printed read (cmd) line served the non-ASCII line byte for byte"
+          fi
