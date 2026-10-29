@@ -47,6 +47,7 @@ func BenchmarkW1(b *testing.B) {
 			in = append(in, apply.Input{Path: name, Start: line, End: line, Op: "replace", Body: []string{fmt.Sprintf("edited %d", h)}, Lines: -1})
 		}
 	}
+	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		b.StopTimer()
 		for name, ls := range orig {

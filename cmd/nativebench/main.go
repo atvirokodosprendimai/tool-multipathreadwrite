@@ -63,6 +63,18 @@ type sample struct {
 	Load     float64 `json:"load_before"`
 }
 
+// cellRecord is one cell's boundaries: the load before and after it, its
+// start and end, and whether the budget cut it short.
+type cellRecord struct {
+	Workload   string    `json:"workload"`
+	Size       string    `json:"size"`
+	LoadBefore float64   `json:"load_before"`
+	LoadAfter  float64   `json:"load_after"`
+	Start      time.Time `json:"start"`
+	End        time.Time `json:"end"`
+	Cut        bool      `json:"cut_by_budget,omitempty"`
+}
+
 // workload is one (workload, size) cell: prepare runs untimed before each
 // timed run, cmd is what is timed, both in dir.
 type workload struct {
@@ -71,6 +83,9 @@ type workload struct {
 	prepare    func(bin int) error
 	args       func(bin int) []string
 	state      func(bin int) string
+	// largest marks a size the budget drops first (the pre-registration's
+	// 1,000,000 lines and 500 hunks): these cells run last.
+	largest bool
 }
 
 type runner struct {
@@ -82,9 +97,36 @@ type runner struct {
 	deadline time.Time
 	samples  []sample
 	stopped  string
+	// raw and cells take each sample and each cell as it ends, so a later
+	// failure loses nothing already measured.
+	raw, cells *json.Encoder
 }
 
-func (r *runner) all(tree, out string) error {
+func (r *runner) all(tree, out string) (err error) {
+	if err := os.MkdirAll(filepath.Join(out, "raw"), 0o755); err != nil {
+		return err
+	}
+	for _, f := range []struct {
+		name string
+		enc  **json.Encoder
+	}{{"samples.jsonl", &r.raw}, {"cells.jsonl", &r.cells}} {
+		fh, err := os.Create(filepath.Join(out, "raw", f.name))
+		if err != nil {
+			return err
+		}
+		defer func() {
+			if cerr := fh.Close(); err == nil {
+				err = cerr
+			}
+		}()
+		*f.enc = json.NewEncoder(fh)
+	}
+	// The summary is written on every way out, from whatever was measured.
+	defer func() {
+		if werr := r.write(out); err == nil {
+			err = werr
+		}
+	}()
 	work, err := os.MkdirTemp("", "nativebench-")
 	if err != nil {
 		return err
@@ -94,31 +136,44 @@ func (r *runner) all(tree, out string) error {
 	if err != nil {
 		return err
 	}
+	// The largest sizes run last, so a budget that runs out drops them first.
+	sort.SliceStable(ws, func(i, j int) bool { return !ws[i].largest && ws[j].largest })
 	for _, w := range ws {
 		if r.stopped != "" {
-			break
-		}
-		if time.Now().After(r.deadline) {
-			r.stopped = "budget"
 			break
 		}
 		if err := r.cell(w); err != nil {
 			return fmt.Errorf("%s %s: %w", w.name, w.size, err)
 		}
 	}
-	return r.write(out)
+	return nil
 }
 
 // cell runs one workload: the load gate, the warm-ups, then the timed runs
 // interleaved A, B, A, B so drift falls on both binaries.
 func (r *runner) cell(w workload) error {
+	if time.Now().After(r.deadline) {
+		r.stopped = fmt.Sprintf("budget, before %s %s", w.name, w.size)
+		return nil
+	}
 	load, ok := r.gate()
 	if !ok {
 		r.stopped = fmt.Sprintf("load %.2f at %s %s", load, w.name, w.size)
 		return nil
 	}
+	rec := cellRecord{Workload: w.name, Size: w.size, LoadBefore: load, Start: time.Now()}
+	defer func() {
+		rec.End, rec.LoadAfter = time.Now(), loadAvg()
+		_ = r.cells.Encode(rec)
+	}()
 	for i := -r.warm; i < r.runs; i++ {
 		for bin := 0; bin < 2; bin++ {
+			// The budget is checked before every process, not only between cells.
+			if time.Now().After(r.deadline) {
+				rec.Cut = true
+				r.stopped = fmt.Sprintf("budget, inside %s %s", w.name, w.size)
+				return nil
+			}
 			if err := w.prepare(bin); err != nil {
 				return err
 			}
@@ -129,6 +184,9 @@ func (r *runner) cell(w workload) error {
 			if i >= 0 {
 				s.Run, s.Load = i, load
 				r.samples = append(r.samples, s)
+				if err := r.raw.Encode(s); err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -194,26 +252,10 @@ type counter struct{ n int }
 
 func (c *counter) Write(p []byte) (int, error) { c.n += len(p); return len(p), nil }
 
-// write keeps every sample in raw/samples.jsonl and a summary per cell:
+// write makes the summary per cell from the samples already kept in
+// raw/samples.jsonl:
 // p25, p50, p75, p90 and max of wall time, the median CPU and the largest RSS.
 func (r *runner) write(out string) error {
-	if err := os.MkdirAll(filepath.Join(out, "raw"), 0o755); err != nil {
-		return err
-	}
-	f, err := os.Create(filepath.Join(out, "raw", "samples.jsonl"))
-	if err != nil {
-		return err
-	}
-	enc := json.NewEncoder(f)
-	for _, s := range r.samples {
-		if err := enc.Encode(s); err != nil {
-			_ = f.Close()
-			return err
-		}
-	}
-	if err := f.Close(); err != nil {
-		return err
-	}
 	type key struct{ w, size, bin string }
 	cells := map[key][]sample{}
 	var order []key
@@ -291,7 +333,7 @@ func workloads(work, tree string) ([]workload, error) {
 		}
 		from := max(1, n/2-20)
 		spec := fmt.Sprintf("f.txt:%d-%d", from, from+39)
-		ws = append(ws, workload{name: "R1", size: strconv.Itoa(n), dir: dir, prepare: none, state: stateOf(dir),
+		ws = append(ws, workload{name: "R1", size: strconv.Itoa(n), dir: dir, prepare: none, state: stateOf(dir), largest: n == 1_000_000,
 			args: func(int) []string { return []string{"read", spec} }})
 	}
 	// R2: W specs across W files of 1,000 lines.
@@ -311,7 +353,7 @@ func workloads(work, tree string) ([]workload, error) {
 	// R3: --grep over this repository at the tagged tree, and over a synthetic
 	// 3,000-file tree of BenchmarkWalkDeep131's shape.
 	ws = append(ws, workload{name: "R3", size: "repo", dir: tree, prepare: none, state: stateOf(work + "/r3-repo"),
-		args: func(int) []string { return []string{"read", "--grep", "func Run", "--count", "."} }})
+		args: func(int) []string { return []string{"read", "--grep", "func Run", "."} }})
 	deep := filepath.Join(work, "r3-deep")
 	for br := 0; br < 10; br++ {
 		d := deep
@@ -363,7 +405,7 @@ func workloads(work, tree string) ([]workload, error) {
 			c.Stdout = io.Discard
 			return c.Run()
 		}
-		ws = append(ws, workload{name: "W1", size: fmt.Sprintf("%dh/%df", h, f), dir: dir, prepare: prepare, state: state,
+		ws = append(ws, workload{name: "W1", size: fmt.Sprintf("%dh/%df", h, f), dir: dir, prepare: prepare, state: state, largest: h == 500,
 			args: func(int) []string { return []string{"write", "--no-check", planPath} }})
 	}
 	// W2: the same edit at 10 and 1,000 sites through --grep --sub.
@@ -382,8 +424,9 @@ func workloads(work, tree string) ([]workload, error) {
 				return []string{"write", "--grep", `\bOldName\b`, "--sub", "NewName", "--no-check", "."}
 			}})
 	}
-	// L1: R1 at 10,000 lines with a ledger of E entries, made by reading E
-	// other files once before the cell.
+	// L1: R1 at 10,000 lines with a ledger of exactly E entries before every
+	// run: E other files are read once into a template state home, which is
+	// copied in before each run, since the timed read itself adds f.txt.
 	for _, e := range []int{0, 1000, 10_000} {
 		dir := filepath.Join(work, fmt.Sprintf("l1-%d", e))
 		if err := writeLines(filepath.Join(dir, "f.txt"), lines(10_000, rng)); err != nil {
@@ -402,16 +445,33 @@ func workloads(work, tree string) ([]workload, error) {
 			return nil, err
 		}
 		state := stateOf(dir)
+		template := func(bin int) string { return filepath.Join(dir, fmt.Sprintf("template-%d", bin)) }
 		filled := [2]bool{}
 		prepare := func(bin int) error {
-			if filled[bin] || e == 0 {
-				return nil
+			if !filled[bin] {
+				filled[bin] = true
+				// A state directory and an empty ledger first, so E = 0 is a
+				// ledger of no entries and not a first use; then the E files.
+				steps := [][]string{{"read", "--quiet", "f.txt"}, {"seen", "--forget"}}
+				if e > 0 {
+					steps = append(steps, []string{"read", "--quiet", "--files-from", listPath})
+				}
+				for _, args := range steps {
+					c := exec.Command(binOf(bin), args...)
+					c.Dir, c.Env = dir, append(os.Environ(), "XDG_STATE_HOME="+template(bin))
+					c.Stdout = io.Discard
+					if err := c.Run(); err != nil {
+						return fmt.Errorf("%v: %w", args, err)
+					}
+				}
+				if got, err := ledgerEntries(binOf(bin), dir, template(bin)); err != nil || got != e {
+					return fmt.Errorf("the template ledger holds %d entries, want %d (%v)", got, e, err)
+				}
 			}
-			filled[bin] = true
-			c := exec.Command(binOf(bin), "read", "--quiet", "--files-from", listPath)
-			c.Dir, c.Env = dir, append(os.Environ(), "XDG_STATE_HOME="+state(bin))
-			c.Stdout = io.Discard
-			return c.Run()
+			if err := os.RemoveAll(state(bin)); err != nil {
+				return err
+			}
+			return copyDir(template(bin), state(bin))
 		}
 		ws = append(ws, workload{name: "L1", size: strconv.Itoa(e), dir: dir, prepare: prepare, state: state,
 			args: func(int) []string { return []string{"read", "f.txt:4981-5020"} }})
@@ -433,3 +493,43 @@ func workloads(work, tree string) ([]workload, error) {
 // binOf is set by main before the fixtures are built, so a prepare step reads
 // with the binary the timed run will write with.
 var binOf = func(int) string { return "mrw" }
+
+// ledgerEntries counts the files `mrw seen` lists in the state home: the
+// lines after its header that name a file of dir.
+func ledgerEntries(bin, dir, state string) (int, error) {
+	c := exec.Command(bin, "seen")
+	c.Dir, c.Env = dir, append(os.Environ(), "XDG_STATE_HOME="+state)
+	out, err := c.Output()
+	if err != nil {
+		return 0, err
+	}
+	n := 0
+	for _, l := range strings.Split(string(out), "\n") {
+		if strings.HasSuffix(l, ".txt") && strings.Contains(l, " e/") {
+			n++
+		}
+	}
+	return n, nil
+}
+
+// copyDir copies the tree at from to to, files and directories only.
+func copyDir(from, to string) error {
+	return filepath.WalkDir(from, func(p string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(from, p)
+		if err != nil {
+			return err
+		}
+		dst := filepath.Join(to, rel)
+		if d.IsDir() {
+			return os.MkdirAll(dst, 0o755)
+		}
+		b, err := os.ReadFile(p)
+		if err != nil {
+			return err
+		}
+		return os.WriteFile(dst, b, 0o600)
+	})
+}
