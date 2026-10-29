@@ -97,7 +97,7 @@ The engine is the six packages AGENTS.md's drill names (`read`, `apply`, `plan`,
 | mrw's state directory | nothing inside it, or hard-linked to it, is served or written | `go test ./internal/rooted/` and `./scripts/contract.sh` (ADR-077, ADR-134 rows) |
 | `.git` | a write through any `.git` component is refused; a read is served | `./scripts/contract.sh` (ADR-143 rows) |
 | Windows device names | a reserved name in any component is refused on every build | `go test ./internal/rooted/` (ADR-081) |
-| Shell execution | only the project's declared check and steps run, through `internal/check` with `sh -c`, and `--then-sh`, which runs what the caller gave it | D3, and `./scripts/contract.sh` (ADR-092, ADR-095 rows) |
+| Shell execution | only the project's declared check and steps run, through `internal/check` with `sh -c`, and `--then-sh` and `mrw run`, which run what the caller gave them and only when `MRW_SHELL=on` (ADR-174) | D3, and `./scripts/contract.sh` (ADR-092, ADR-095, ADR-174 rows) |
 | The network | none, except `version --check-latest` when asked | D4: `go test ./cmd/mrw/ -run 'TestOnlyTheCheckLatestFileImportsTheNetwork$'` in `cmd/mrw/latest149_test.go` |
 
 ## Superseded

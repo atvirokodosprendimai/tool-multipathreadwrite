@@ -131,3 +131,4 @@ The fence exits 0 and contract §174 passes.
 - 2026-09-28 · d8576c3* · exit 0 · `set -o pipefail …` · acceptance-sha256:0b5d98d680757148479f0afe836569df0994ec7f5ac75623a708dfb23a3f6f39 · ms:408
 - 2026-09-28 · d8576c3* · exit 0 · `set -o pipefail …` · acceptance-sha256:0b5d98d680757148479f0afe836569df0994ec7f5ac75623a708dfb23a3f6f39 · ms:400
 - 2026-09-29 · human-observed · S5 observed: PR #269 records './scripts/contract.sh exits 0, including §174's rows'; contract.sh exit 0 on main db39d42 on 2026-09-29 (this session)
+- 2026-10-29 · 33aa28b7* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:0b5d98d680757148479f0afe836569df0994ec7f5ac75623a708dfb23a3f6f39 · ms:0 · test-lock-sha256:d92a315a65e5e40d2abbe7abd2004851ac9fa017d86cbf941115775552a662db · test-lock-file:docs/adr/locks/d92a315a65e5e40d2abbe7abd2004851ac9fa017d86cbf941115775552a662db.lock · test-lock-kind:replace

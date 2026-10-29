@@ -100,6 +100,7 @@ func TestThenRunsDeclaredStepsInTheOrderGiven(t *testing.T) {
 // ADR-092. --then and --then-sh share one list in command-line order, and only
 // the ad-hoc step is marked adhoc.
 func TestThenShAndThenKeepTheirCommandLineOrder(t *testing.T) {
+	t.Setenv("MRW_SHELL", "on")
 	needShell(t)
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	root := stepsTree(t, "exit 0")
@@ -191,6 +192,7 @@ func TestAFailedStepExitsThreeAndNamesTheStepsNotRun(t *testing.T) {
 // ADR-092. A plan that did not land runs no step: a failed hunk (exit 1) and a
 // dry run (exit 0) both report every step not_run.
 func TestARefusedWriteRunsNoStep(t *testing.T) {
+	t.Setenv("MRW_SHELL", "on")
 	needShell(t)
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	root := stepsTree(t, "exit 0")
@@ -264,6 +266,7 @@ func TestCheckThenRunsStepsAfterAPassingCheck(t *testing.T) {
 // ADR-092 Decision 7. strict-balance pricing reads the check alone: a wrap-tail
 // write whose check passed and whose step failed is priced held, not broke.
 func TestAStepFailureIsPricedByTheCheckAlone(t *testing.T) {
+	t.Setenv("MRW_SHELL", "on")
 	needShell(t)
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	root := grepTree(t, map[string]string{
@@ -294,6 +297,7 @@ func TestAStepFailureIsPricedByTheCheckAlone(t *testing.T) {
 
 // ADR-092. A step's value is one step whatever it holds: a comma does not split it.
 func TestAValueWithACommaIsOneStep(t *testing.T) {
+	t.Setenv("MRW_SHELL", "on")
 	needShell(t)
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	root := stepsTree(t, "exit 0")
@@ -312,6 +316,7 @@ func TestAValueWithACommaIsOneStep(t *testing.T) {
 // ADR-092 with ADR-069. An attached --then-sh value ending in whitespace is
 // refused as every flag's is; the separate form is kept as typed and runs.
 func TestAPaddedThenValueFollowsTheArgumentGuard(t *testing.T) {
+	t.Setenv("MRW_SHELL", "on")
 	needShell(t)
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	root := stepsTree(t, "exit 0")

@@ -2639,7 +2639,29 @@ func askedStepsError(steps []check.Step) error {
 			return fmt.Errorf("--then-sh %q: its command holds %s, which mrw expands only in scoped_check; a step runs as written", s.Command, tok)
 		}
 	}
+	for _, s := range steps {
+		if s.AdHoc {
+			return adHocShellRefusal("--then-sh", "; a step the project declares in .quality-harness.json runs with --then NAME")
+		}
+	}
 	return nil
+}
+
+// adHocShellRefusal is ADR-174's switch: a command the caller wrote on mrw's
+// command line reaches a shell only when MRW_SHELL is exactly "on" (not "ON",
+// not " on"). what names the surface and hint closes its sentence; it comes
+// last among the refusals, so depth, an empty command, a placeholder and a
+// usage error keep their words.
+func adHocShellRefusal(what, hint string) error {
+	raw := os.Getenv("MRW_SHELL")
+	if raw == "on" {
+		return nil
+	}
+	msg := what + " runs any shell command, so it is off unless MRW_SHELL=on is in mrw's environment" + hint
+	if raw != "" {
+		msg += fmt.Sprintf(" (MRW_SHELL is %q; only the exact value on enables it)", raw)
+	}
+	return errors.New(msg)
 }
 
 // stepsExit is the exit a stopped sequence earns (ADR-092 Decision 6): 2 for a

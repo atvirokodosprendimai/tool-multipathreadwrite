@@ -92,6 +92,10 @@ trap 'trap "" TERM; rm -rf "$WORK"; kill -- -$$ 2>/dev/null' EXIT
 # holding only what it planted.
 export XDG_STATE_HOME="$WORK/state"
 mkdir -p "$XDG_STATE_HOME"
+# ADR-174: --then-sh and mrw run run a command the caller wrote only with this
+# set; every row that drives either keeps working, and §319 removes it to prove
+# the refusal.
+export MRW_SHELL=on
 
 # And pin TMPDIR into $WORK. mrw's check writes a `mrw-check-*.log` into the
 # system temp directory and keeps it whenever the check FAILS or is truncated
@@ -10858,6 +10862,35 @@ r316=$(printf '@@ h.txt 4 replace\nzzz\n' | (cd "$A316" && "$MRW" write --no-che
 { [ "$rc316" = 1 ] && grep -qF 'mrw served no lines, and licensed lines 1-3' <<<"$r316"; } \
   && ok "the pair: the refusal of an unlicensed line names the same licence" || bad "write to line 4: exit $rc316 [$r316]"
 printf '@@ h.txt 2 replace\nzzz\n' | (cd "$A316" && "$MRW" write --no-check - >/dev/null 2>&1); want 0 $? "the pair: a licensed line is still writable"
+
+# 319. ADR-174: --then-sh (write, check) and mrw run run a command the caller
+# wrote only when MRW_SHELL is exactly on. Without it, or with ON, each is
+# refused, exit 2, naming the variable, before the plan lands, a step or the
+# command runs, or mrw makes a run log directory or keeps a refused plan. The
+# pair: with MRW_SHELL=on the same calls run. The refused write is a plan that
+# would apply, so a refusal moved below the landing would change f.txt.
+S319=$(mktemp -d "$WORK/s319-XXXXXX"); R319=$(mktemp -d "$WORK/r319-XXXXXX")
+printf 'one\ntwo\n' > "$R319/f.txt"; printf '@@ f.txt 1 replace\nONE\n' > "$R319/p.mrw"
+e319() { env XDG_STATE_HOME="$S319" "$@"; }
+e319 "$MRW" -C "$R319" read f.txt > "$WORK/s319.out"
+w319=$(e319 env -u MRW_SHELL "$MRW" -C "$R319" write --no-check --then-sh 'touch marker' "$R319/p.mrw" 2>&1); rcw319=$?
+c319=$(e319 env -u MRW_SHELL "$MRW" -C "$R319" check --then-sh 'touch marker' f.txt 2>&1); rcc319=$?
+v319=$(e319 env MRW_SHELL=ON "$MRW" -C "$R319" write --no-check --then-sh 'touch marker' "$R319/p.mrw" 2>&1); rcv319=$?
+{ [ "$rcw319" = 2 ] && [ "$rcc319" = 2 ] && [ "$rcv319" = 2 ] \
+    && grep -qF "MRW_SHELL=on is in mrw's environment" <<<"$w319" && grep -qF -e '--then NAME' <<<"$w319" \
+    && grep -qF "MRW_SHELL=on is in mrw's environment" <<<"$c319" && grep -qF '(MRW_SHELL is "ON"; only the exact value on enables it)' <<<"$v319" \
+    && [ "$(cat "$R319/f.txt")" = "$(printf 'one\ntwo')" ] && [ ! -e "$R319/marker" ] && ! compgen -G "$S319/mrw-*" >/dev/null; } \
+  && ok "--then-sh without MRW_SHELL=on is refused and runs nothing" || bad "--then-sh off: write $rcw319 check $rcc319 ON $rcv319 [$w319] [$c319] [$v319]"
+n319=$(e319 env -u MRW_SHELL "$MRW" -C "$R319" run 'touch marker' 2>&1); rcn319=$?
+o319=$(e319 env MRW_SHELL=ON "$MRW" -C "$R319" run 'touch marker' 2>&1); rco319=$?
+{ [ "$rcn319" = 2 ] && [ "$rco319" = 2 ] && grep -qF "mrw run runs any shell command, so it is off unless MRW_SHELL=on is in mrw's environment" <<<"$n319" \
+    && grep -qF '(MRW_SHELL is "ON"; only the exact value on enables it)' <<<"$o319" \
+    && [ ! -e "$R319/marker" ] && [ ! -e "$S319/mrw-runs" ]; } \
+  && ok "mrw run without MRW_SHELL=on is refused and runs nothing" || bad "mrw run off: $rcn319 $rco319 [$n319] [$o319]"
+p319=$(e319 env MRW_SHELL=on "$MRW" -C "$R319" write --no-check --then-sh 'touch marker1' "$R319/p.mrw" 2>&1); rcp319=$?
+q319=$(e319 env MRW_SHELL=on "$MRW" -C "$R319" run 'touch marker2' 2>&1); rcq319=$?
+{ [ "$rcp319" = 0 ] && [ "$rcq319" = 0 ] && [ "$(head -1 "$R319/f.txt")" = ONE ] && [ -e "$R319/marker1" ] && [ -e "$R319/marker2" ] && [ -d "$S319/mrw-runs" ]; } \
+  && ok "the pair: with MRW_SHELL=on, --then-sh and mrw run run their command" || bad "enabled: write $rcp319 run $rcq319 [$p319] [$q319]"
 
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A

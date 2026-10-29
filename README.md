@@ -170,11 +170,16 @@ after upgrading mrw. Add it beside the trigger, not in its place: a host loads a
 relevant, and nothing measured says it does for a routine edit (ADR-168). `mrw --help` opens with this line.
 
 **What allowing mrw allows.** mrw runs as you. A harness rule that allows it (`Bash(mrw:*)` or its equivalent)
-allows writes to any file you can write, under any `--root` it is given, and shell through `--then-sh`, `mrw run`,
-`mrw check` and `--then`; a host's per-path rules for its Edit and Write tools do not reach it. mrw's own
+allows writes to any file you can write, under any `--root` it is given, and the shell the project declares
+(`mrw check`, the check after a code write, `--then NAME`); a host's
+per-path rules for its Edit and Write tools do not reach it. `--then-sh` and `mrw run` run a command the caller
+wrote and are off unless `MRW_SHELL=on` is in
+mrw's environment, so with it unset no command written on mrw's command line reaches a shell. That is not
+containment: mrw writes any file its user can, `.quality-harness.json` and the files a check runs included, so an
+agent allowed mrw can still change what the declared check runs and trigger it with a code write. mrw's own
 refusals — `.git`, its state, a link that leaves the root — keep a plan honest, not an agent contained.
 Contain an agent with the host's sandbox or the operating system's permissions, or allow mrw only where you
-would allow every write ([docs/agents.md](docs/agents.md) §7, ADR-168).
+would allow every write ([docs/agents.md](docs/agents.md) §7, ADR-168, ADR-174).
 
 ### From source
 
@@ -316,7 +321,7 @@ mrw write --json plan.mrw
 mrw write -
 ```
 
-A plan piped to `mrw write -` that ends with nothing in the tree (a refusal, a dry run, a commit that landed nothing) is kept in `<state home>/mrw-refused/`, the newest 16, beside mrw's state directory and not in it: stderr names the path (`refused_plan` under `--json`), and the caller edits that file and runs the same command with the path in place of `-` instead of sending the plan again (ADR-176).
+A plan piped to `mrw write -` that ends with nothing in the tree (a refusal once the plan is read, a dry run, a commit that landed nothing) is kept in `<state home>/mrw-refused/`, the newest 16, beside mrw's state directory and not in it: stderr names the path (`refused_plan` under `--json`), and the caller edits that file and runs the same command with the path in place of `-` instead of sending the plan again (ADR-176).
 
 Ops are `replace`, `insert-after`, `insert-before`, `delete`, `create`,
 `unlink`, `rename`. `@@ path - unlink` removes the path. `@@ old - rename`
@@ -399,7 +404,7 @@ These are gates, not a tour of the records behind them.
   `.quality-harness.json`, and `--then-sh 'CMD'` an ad-hoc shell step; both repeat and run in
   command-line order after a landed write whose check passed, on `write` and `check`. The first that
   does not pass stops the rest, named `NOT RUN`; exit 3 (2 if it could not start); `--json` carries
-  `then: {steps, pruned_logs}`. --then-sh and mrw run run any shell command they are given: a harness rule that allows mrw without reading its arguments allows arbitrary shell through --then-sh and mrw run.
+  `then: {steps, pruned_logs}`. --then-sh and mrw run run any shell command they are given, so both are off unless MRW_SHELL=on is in mrw's environment (a step the project declares in .quality-harness.json runs with --then NAME); with them off, allowing mrw still runs the project's declared check and steps and no ad-hoc shell, but that is not containment: mrw writes any file its user can, .quality-harness.json included.
   `could_not_start` means the shell could not start (a missing command inside it is a `fail`, exit
   127); a step runs with `MRW_STEP_DEPTH` one deeper, and `--then` is refused at depth 8, so a step
   that re-runs mrw with steps cannot recurse without end; `"steps"` is read only when a step is asked for.
@@ -716,7 +721,7 @@ is refused, and its command runs one level deeper. Every log is kept, passing on
 whatever the command printed**: logs older than 7 days, and all but the newest 64, are eligible for removal and a
 later completed `mrw run` removes them. When `XDG_STATE_HOME` is inside a checkout (or `--root "$HOME"`), `mrw-runs/`
 is inside it too and is an ordinary directory there: ignore it. It runs any shell command it is given, as
-`--then-sh` does, so allowing mrw allows arbitrary shell. CLI only: MCP is for hosts with no shell.
+`--then-sh` does, so it is off unless `MRW_SHELL=on` is in mrw's environment. CLI only: MCP is for hosts with no shell.
 
 `mrw check`, `mrw iter`, `mrw seen`, `mrw seen --prune`, `mrw seen --forget`, and `mrw stats` exist
 only on the CLI, and so through the opencode plugin, which runs it. `mrw check` is not read-only: it runs whatever the project

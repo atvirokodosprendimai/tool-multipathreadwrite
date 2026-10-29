@@ -141,3 +141,4 @@ Stop and ask if the line cannot be added without changing `--json` or a failing 
 - 2026-09-29 · cc8fa3b* · exit 0 · `set -o pipefail …` · acceptance-sha256:8ae0c0569cbb6a3643f84d6647d69ab69143d8bde31cb28883e9154558c68629 · ms:1177
 - 2026-09-29 · cc8fa3b* · exit 0 · `set -o pipefail …` · acceptance-sha256:8ae0c0569cbb6a3643f84d6647d69ab69143d8bde31cb28883e9154558c68629 · ms:1009
 - 2026-09-29 · human-observed · S4 observed: PR #278 records 'contract.sh holds'; contract.sh exit 0 with §179 on main db39d42 on 2026-09-29 (this session)
+- 2026-10-29 · 33aa28b7* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:8ae0c0569cbb6a3643f84d6647d69ab69143d8bde31cb28883e9154558c68629 · ms:0 · test-lock-sha256:4342990293426dfaa926f8052dd0151ecda7420ae9e8d65b0f6ddae378583767 · test-lock-file:docs/adr/locks/4342990293426dfaa926f8052dd0151ecda7420ae9e8d65b0f6ddae378583767.lock · test-lock-kind:replace

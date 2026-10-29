@@ -69,6 +69,7 @@ func decodeFirst(out string, v any) error {
 // none of its output; the log holds all of it; the read: line, run as printed
 // from a state home whose name holds a space and a quote, serves the last 40.
 func TestRunKeepsTheOutputAndPrintsOneReceipt(t *testing.T) {
+	t.Setenv("MRW_SHELL", "on")
 	needShell(t)
 	if runtime.GOOS == "windows" {
 		t.Skip("the read: line is PowerShell's there; its text is asserted by TestTheReadLineIsQuotedForThePlatform")
@@ -219,6 +220,7 @@ func TestTheReadLineNamesTheRunningBinary(t *testing.T) {
 }
 
 func TestRunKeepsTheLogOfAShortOrEmptySuccess(t *testing.T) {
+	t.Setenv("MRW_SHELL", "on")
 	needShell(t)
 	state := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", state)
@@ -260,6 +262,7 @@ func TestRunKeepsTheLogOfAShortOrEmptySuccess(t *testing.T) {
 }
 
 func TestRunExitsWithTheCommandsOwnCode(t *testing.T) {
+	t.Setenv("MRW_SHELL", "on")
 	needShell(t)
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	root := t.TempDir()
@@ -287,6 +290,7 @@ func TestRunExitsWithTheCommandsOwnCode(t *testing.T) {
 }
 
 func TestRunThatCannotStartSaysSoAndExitsTwo(t *testing.T) {
+	t.Setenv("MRW_SHELL", "on")
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	if runtime.GOOS == "windows" {
 		t.Skip("Git for Windows' sh may still be found")
@@ -308,6 +312,7 @@ func TestRunThatCannotStartSaysSoAndExitsTwo(t *testing.T) {
 }
 
 func TestRunTakesExactlyOneCommandString(t *testing.T) {
+	t.Setenv("MRW_SHELL", "on")
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	root := t.TempDir()
 	for _, args := range [][]string{{"run", "echo", "hi"}, {"run"}} {
@@ -328,6 +333,7 @@ func TestRunTakesExactlyOneCommandString(t *testing.T) {
 }
 
 func TestRunIsRefusedAtTheStepDepthLimit(t *testing.T) {
+	t.Setenv("MRW_SHELL", "on")
 	needShell(t)
 	state := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", state)
@@ -358,6 +364,7 @@ func TestRunIsRefusedAtTheStepDepthLimit(t *testing.T) {
 // An interrupt sent to mrw while the command runs stops the command's group,
 // and the run says so and exits 130.
 func TestRunStoppedByAnInterruptExits130(t *testing.T) {
+	t.Setenv("MRW_SHELL", "on")
 	needShell(t)
 	if runtime.GOOS == "windows" {
 		t.Skip("an interrupt cannot be sent to a process on Windows")
@@ -434,6 +441,7 @@ func runInCtx(ctx context.Context, t *testing.T, root string, argv ...string) (s
 // 130 or 124, not a configuration failure's 2 (ADR-177 Decision 6), and no
 // command ran and no log is left.
 func TestRunStoppedBeforeItStartsExits130Or124(t *testing.T) {
+	t.Setenv("MRW_SHELL", "on")
 	needShell(t)
 	state := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", state)
@@ -521,6 +529,7 @@ func TestRunUsageErrorUnderJSONIsOneRefusalDocument(t *testing.T) {
 
 // A line is blank or not by all of it, not by the first 4,096 bytes kept of it.
 func TestRunLastLineIsJudgedWholeNotByItsKeptPrefix(t *testing.T) {
+	t.Setenv("MRW_SHELL", "on")
 	needShell(t)
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	root := t.TempDir()
@@ -537,6 +546,7 @@ func TestRunLastLineIsJudgedWholeNotByItsKeptPrefix(t *testing.T) {
 // Names sort by when the command ENDED, so the newest 64 by name are the 64
 // that finished last and a long run's log is not the oldest name.
 func TestRunLogIsNamedWhenTheCommandEnds(t *testing.T) {
+	t.Setenv("MRW_SHELL", "on")
 	needShell(t)
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	before := time.Now()
@@ -598,6 +608,7 @@ func TestRunJSONFlagIsReadAsTheParserReadsIt(t *testing.T) {
 // A whitespace-only line is blank whole: a multi-byte space (U+2003) split
 // across the 64 KiB read boundary must not make it the last line.
 func TestRunLastLineBlankIsJudgedAcrossFragmentBoundaries(t *testing.T) {
+	t.Setenv("MRW_SHELL", "on")
 	needShell(t)
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	root := t.TempDir()

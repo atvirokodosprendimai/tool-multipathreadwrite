@@ -411,7 +411,7 @@ An unquoted `anchor=` that contains `"` is refused — write `anchor="…"`.
 declared vs extra. `body=<n>` goes ON the header — `@@ a.go 12-14 replace anchor="func A" body=3` —
 never on a line of its own: a hunk with no count whose first body line begins `body=` is refused
 (ADR-070), because in blind reading 04 that line was written into the file.
-A plan piped to `mrw write -` that ends with nothing in the tree (a refusal, a dry run, a commit that landed nothing) is kept in `<state home>/mrw-refused/`, the newest 16, beside mrw's state directory and not in it: stderr names the path (`refused_plan` under `--json`), and the caller edits that file and runs the same command with the path in place of `-` instead of sending the plan again (ADR-176).
+A plan piped to `mrw write -` that ends with nothing in the tree (a refusal once the plan is read, a dry run, a commit that landed nothing) is kept in `<state home>/mrw-refused/`, the newest 16, beside mrw's state directory and not in it: stderr names the path (`refused_plan` under `--json`), and the caller edits that file and runs the same command with the path in place of `-` instead of sending the plan again (ADR-176).
 
 ```
 @@ internal/apply/apply.go 42-58 replace anchor="func Apply" lines=17
@@ -619,7 +619,7 @@ whole list arrives as one argument and the regex swallows the rest of the line.
   both repeat and run in command-line order after a write that landed and whose check passed, on
   `write` and on `check`. The first step that does not pass stops the rest, which the receipt names
   not run; it exits 3, or 2 if it could not start. `--json` carries `then: {steps, pruned_logs}`. A
-  step is POSIX shell on every platform. --then-sh and mrw run run any shell command they are given: a harness rule that allows mrw without reading its arguments allows arbitrary shell through --then-sh and mrw run.
+  step is POSIX shell on every platform. --then-sh and mrw run run any shell command they are given, so both are off unless MRW_SHELL=on is in mrw's environment (a step the project declares in .quality-harness.json runs with --then NAME); with them off, allowing mrw still runs the project's declared check and steps and no ad-hoc shell, but that is not containment: mrw writes any file its user can, .quality-harness.json included.
   `could_not_start` means mrw could not start the shell; a command the shell cannot find is a step
   that ran and failed (exit 127). On Unix a step's background children are killed with it, and one
   that calls `setsid` leaves its process group and is not; on Windows they are killed with it too (a job object, ADR-120),
@@ -712,8 +712,8 @@ and #73, one release apart.
   command's group. Every log is kept, passing ones too; one older than 7 days, and all but the newest 64, are
   eligible for removal and a later completed run removes them. `--json` is one document (receipt type `run`,
   `docs/receipts.txt`); a refusal before anything runs is `{"error": …}`; at `MRW_STEP_DEPTH` 8 it is refused and
-  its command runs one level deeper. It runs any shell command it is given, as `--then-sh` does: allowing
-  mrw allows arbitrary shell. CLI only; MCP is for hosts with no shell (ADR-177).
+  its command runs one level deeper. It runs any shell command it is given, as `--then-sh` does, so it is off
+  unless `MRW_SHELL=on` is in mrw's environment (ADR-174). CLI only; MCP is for hosts with no shell (ADR-177).
 - **`mrw check`** runs the project's check on its own, scoped to the working
   set or to paths you name. A CLI `write` to a non-prose file runs the same
   runner by default (ADR-054); this is it without the write, for when you want the verdict again

@@ -17,6 +17,7 @@ import (
 // document with is driven here but stats, whose document holds none of the
 // three characters to look for.
 func TestJSONDocumentsCarryAngleBracketsAndAmpersandsLiterally(t *testing.T) {
+	t.Setenv("MRW_SHELL", "on")
 	root := t.TempDir()
 	if err := os.WriteFile(filepath.Join(root, "f.txt"), []byte("x<a>&\n"), 0o644); err != nil {
 		t.Fatal(err)

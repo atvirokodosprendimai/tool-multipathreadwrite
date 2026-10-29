@@ -58,6 +58,7 @@ def tree(kind):
 def base_env(state, extra=None):
     env = {k: v for k, v in os.environ.items() if k not in ("MRW_STEP_DEPTH",)}
     env["XDG_STATE_HOME"] = state
+    env["MRW_SHELL"] = "on"  # ADR-174: --then-sh runs only with this set
     env["TMPDIR"] = TMP
     env.update(extra or {})
     return env

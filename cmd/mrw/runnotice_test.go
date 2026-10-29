@@ -14,6 +14,8 @@ import (
 // three runs printed the stale notice three times. A read on the same ledger
 // still says so, which is where the notice helps.
 func TestRunPrintsNoLedgerNoticeWhileReadStillDoes(t *testing.T) {
+	t.Setenv("MRW_SHELL", "on")
+	t.Setenv("MRW_SHELL", "on")
 	root := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	if err := os.WriteFile(filepath.Join(root, "f.txt"), []byte("one\ntwo\n"), 0o644); err != nil {

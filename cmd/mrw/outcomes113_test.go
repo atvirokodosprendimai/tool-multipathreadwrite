@@ -111,6 +111,7 @@ var outcomeRows = []outcomeRow{
 // fails on stdout, whose order — rendered before Settle counts — is the
 // sequence's shape.
 func TestTheCLIWriteOutcomesAreUnchanged(t *testing.T) {
+	t.Setenv("MRW_SHELL", "on")
 	if runtime.GOOS == "windows" {
 		t.Skip("the rows drive POSIX checks, read-only modes and PATH; Linux and macOS cover the shared code")
 	}
