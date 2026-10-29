@@ -944,7 +944,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			},
 			&cli.IntFlag{
 				Name:  "max-matches",
-				Usage: "with --grep or --ast-grep, show matching lines across all the files in walk order until `N` have been shown (a match inside a span already shown counts as shown, so more than N can print) and count the rest: the answer ends `-- max-matches N reached: M more matching line(s) in K file(s) not shown` and the read exits 1 incomplete when some were left; a match inside a span already shown counts as shown, and only what was shown is licensed (ADR-179)",
+				Usage: "with --grep or --ast-grep, show matching lines across all the files in walk order until `N` have been shown (a match inside a span already shown counts as shown, so more than N can print) and count the rest: the answer ends `-- max-matches N reached: M more matching line(s) in K file(s) not shown` and the read exits 0 with `mrw: capped:` on standard error when some were left (ADR-173; --max-chars reached still exits 1); only what was shown is licensed (ADR-179)",
 			},
 			&cli.BoolFlag{
 				Name:  "no-comments",

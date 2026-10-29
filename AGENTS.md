@@ -172,7 +172,7 @@ mrw run 'go test ./...'
 cmd | mrw read --json-path '$.a,$.b' -
 # 14. a long file's shape before its lines: a .go file's declarations or a .md or .markdown file's headings with their line ranges, licensing nothing
 mrw read --outline f.go docs.md
-# 15. matches across many files without the flood: count them, then the first N (the rest counted, exit 1)
+# 15. matches across many files without the flood: count them, then the first N (the rest counted, exit 0 saying capped)
 mrw read --grep P --count . && mrw read --grep P --max-matches 40 .
 # 16. a log of near-identical lines, each run shown once (only its first line is licensed)
 mrw read --fold f.log
