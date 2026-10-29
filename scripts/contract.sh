@@ -385,13 +385,13 @@ out=$(m read 'big.txt:/nomatch/' 2>&1); rc=$?
 want 1 "$rc" "a pattern that matches nothing -> exit 1"
 grep -q 'no match for' <<<"$out" && ok "and prints no match for" || bad "wrong word: $out"
 out=$(m read --max-lines 5 big.txt 2>&1); rc=$?
-want 1 "$rc" "a --max-lines cap -> exit 1"
+want 0 "$rc" "a --max-lines cap -> exit 0 (ADR-173: the caller's own cap is not an incomplete read)"
 grep -q 'withheld' <<<"$out" && ok "and says what it withheld" || bad "wrong word: $out"
 # The row names two spellings and the case above reaches only the lowercase one:
 # a whole-file cap cuts a span in half, while WITHHELD needs a span dropped
 # entirely, which needs several ranges in one spec.
 out=$(m read --max-lines 2 'big.txt:1-2,10-12,30-32' 2>&1); rc=$?
-want 1 "$rc" "a span withheld whole -> exit 1"
+want 0 "$rc" "a span withheld whole -> exit 0 (ADR-173)"
 grep -q 'WITHHELD' <<<"$out" && ok "and prints WITHHELD" || bad "wrong word: $out"
 
 # 15. `mrw check <dir>` scopes to that package AND EVERYTHING UNDER IT. The
@@ -4369,7 +4369,7 @@ want 0 $? "every rendered checkpoint is promotable, not only the two ends"
 fixture
 printf 'alpha\nbravo\ncharlie\n' > "$R/cap.txt"   # DISTINCT lines: a count passes on duplicates
 out=$(m read --max-lines 0 cap.txt 2>&1); rc=$?
-want 1 "$rc" "a cap of zero serves nothing, and a read that served nothing is an error"
+want 0 "$rc" "a cap of zero serves nothing, says what it withheld, and is the caller's own cap: exit 0 (ADR-173)"
 grep -q 'WITHHELD 3 line(s)' <<<"$out" \
   && ok "a cap of zero reports what it withheld, with the count" \
   || bad "a cap of zero withheld silently: $out"
@@ -9139,6 +9139,33 @@ grep -qF 'latest release: v1.78.1 — this build (v0.0.0-20261029000000-abcdefab
 kill "$P317" 2>/dev/null; wait "$P317" 2>/dev/null
 rm -rf "$D317" "$WORK/srv317.py" "$WORK/port317" "$WORK/mrw317" "$WORK/mrw317nobase"
 
+# 318. ADR-173: a range the caller's own --max-lines or --max-matches withheld is
+# not one mrw could not serve, so the read exits 0 and its last stderr line is
+# `mrw: capped: …`. The pairs are the reads that must still exit 1 `incomplete:`:
+# a cap beside a missed range, and a cap that reached --max-chars, a cut the
+# caller does not choose. A search that matched nothing still says `no match:`.
+R=$(mktemp -d "$WORK/r318-XXXXXX")
+printf 'l1\nl2\nl3\nl4\nl5\n' > "$R/a.txt"; printf 'hit 1\nfill\nfill\nhit 2\nfill\n' > "$R/h.txt"
+o318=$(cd "$R" && "$MRW" read --max-lines 2 a.txt 2>"$WORK/e318"); rc318=$?
+{ [ "$rc318" = 0 ] && grep -qF 'withheld' <<<"$o318" && [ "$(tail -n 1 "$WORK/e318")" = 'mrw: capped: 1 range(s) withheld by --max-lines' ]; } \
+  && ok "a read capped only by its own --max-lines exits 0 and says capped" || bad "max-lines cap: exit $rc318 [$o318] [$(cat "$WORK/e318")]"
+o318=$(cd "$R" && "$MRW" read --grep hit --max-matches 1 h.txt 2>"$WORK/e318"); rc318=$?
+{ [ "$rc318" = 0 ] && grep -qF -- '-- max-matches 1 reached' <<<"$o318" && [ "$(tail -n 1 "$WORK/e318")" = 'mrw: capped: --max-matches 1 reached, 1 matching line(s) not shown' ]; } \
+  && ok "a read capped only by its own --max-matches exits 0 and says capped" || bad "max-matches cap: exit $rc318 [$o318] [$(cat "$WORK/e318")]"
+o318=$(cd "$R" && printf 'l1\nl2\n' | "$MRW" read --max-lines 1 - 2>"$WORK/e318"); rc318=$?
+{ [ "$rc318" = 0 ] && [ "$(tail -n 1 "$WORK/e318")" = 'mrw: capped: 1 range(s) withheld by --max-lines' ]; } \
+  && ok "a read of standard input capped only by its own --max-lines exits 0 and says capped" || bad "stdin cap: exit $rc318 [$o318] [$(cat "$WORK/e318")]"
+o318=$(cd "$R" && "$MRW" read --max-lines 2 a.txt 'a.txt:/nomatch/' 2>"$WORK/e318"); rc318=$?
+{ [ "$rc318" = 1 ] && [ "$(tail -n 1 "$WORK/e318")" = 'mrw: incomplete: 2 range(s) could not be served' ]; } \
+  && ok "the pair: a capped read that also missed a range exits 1 incomplete" || bad "cap beside a missed range: exit $rc318 [$o318] [$(cat "$WORK/e318")]"
+o318=$(cd "$R" && "$MRW" read --max-lines 2 --max-chars 60 a.txt 2>"$WORK/e318"); rc318=$?
+{ [ "$rc318" = 1 ] && tail -n 1 "$WORK/e318" | grep -q '^mrw: incomplete: .*--max-chars 60 reached'; } \
+  && ok "the pair: a capped read that reached --max-chars exits 1 incomplete" || bad "cap beside --max-chars: exit $rc318 [$o318] [$(cat "$WORK/e318")]"
+o318=$(cd "$R" && "$MRW" read --grep ABSENT --max-lines 0 . 2>"$WORK/e318"); rc318=$?
+{ [ "$rc318" = 1 ] && tail -n 1 "$WORK/e318" | grep -q '^mrw: no match: '; } \
+  && ok "the pair: a capped search that matched no file exits 1 no match" || bad "capped search with no match: exit $rc318 [$o318] [$(cat "$WORK/e318")]"
+rm -f "$WORK/e318"
+
 # 254. ADR-150: the ledger's first line names the mrw that wrote it, and a
 # ledger written by a newer mrw is left untouched: a read exits 0, records
 # nothing and names the newer writer once; a write its entry would license is
@@ -10607,7 +10634,7 @@ R=$(mktemp -d "$WORK/r311-XXXXXX")
 printf 'hit 1\nfill\nfill\nhit 2\nfill\n' > "$R/a.txt"; printf 'hit 1\nfill\nfill\nhit 2\nfill\n' > "$R/b.txt"
 o311=$(cd "$R" && "$MRW" read --grep hit --max-matches 3 . 2>&1); rc311=$?
 y311=$(cd "$R" && "$MRW" read --grep hit --max-matches 4 . 2>&1); yrc311=$?
-{ [ "$rc311" = 1 ] && [ "$(grep -c '^ *[0-9]*| hit' <<<"$o311")" = 3 ] && grep -qF -- '-- max-matches 3 reached: 1 more matching line(s) in 1 file(s) not shown' <<<"$o311" && [ "$yrc311" = 0 ] && ! grep -qF 'max-matches' <<<"$y311"; } \
+{ [ "$rc311" = 0 ] && [ "$(grep -c '^ *[0-9]*| hit' <<<"$o311")" = 3 ] && grep -qF -- '-- max-matches 3 reached: 1 more matching line(s) in 1 file(s) not shown' <<<"$o311" && [ "$yrc311" = 0 ] && ! grep -qF 'max-matches' <<<"$y311"; } \
   && ok "--max-matches shows N matches across files and counts the rest" || bad "max-matches: exit $rc311 [$o311], at the total exit $yrc311 [$y311]"
 R=$(mktemp -d "$WORK/r311b-XXXXXX")
 printf 'hit 1\nfill\nfill\nhit 2\nfill\n' > "$R/a.txt"; printf 'hit 1\nfill\nfill\nhit 2\nfill\n' > "$R/b.txt"

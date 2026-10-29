@@ -111,7 +111,9 @@ read would, its last stderr line beginning `mrw: nothing was recorded` (on exit 
 to license (`--quiet`, `--sub`, `--rewrite`, `ack`) and writes still exit 2 (ADR-166).
 A `mrw read` that exits `1` ends its stderr with the kind (ADR-146): `mrw: no match: …` when a search found no file and nothing it was
 asked for was refused, `mrw: incomplete: …` when a requested range or path was not served, a search that matched no file beside a refused
-path included. Read the first word after `mrw: `; every earlier phrase survives inside the line.
+path included. Read the first word after `mrw: `; every earlier phrase survives inside the line. A range the caller's own `--max-lines` or
+`--max-matches` withheld is not one (ADR-173): that read exits `0` and ends `mrw: capped: …`; beside a missed range, a refused path or
+`--max-chars` reached it exits `1` `incomplete:`, and `receipt.capped` counts the caps' share of `problems`.
 
 And a receipt's keys are only added (ADR-111): every key a `--json` or MCP receipt carries is listed in
 `docs/receipts.txt`, keeps its name, type and meaning, and a new one is appended there in the change that adds it.
@@ -170,7 +172,7 @@ mrw run 'go test ./...'
 cmd | mrw read --json-path '$.a,$.b' -
 # 14. a long file's shape before its lines: a .go file's declarations or a .md or .markdown file's headings with their line ranges, licensing nothing
 mrw read --outline f.go docs.md
-# 15. matches across many files without the flood: count them, then the first N (the rest counted, exit 1)
+# 15. matches across many files without the flood: count them, then the first N (the rest counted, exit 0 saying capped)
 mrw read --grep P --count . && mrw read --grep P --max-matches 40 .
 # 16. a log of near-identical lines, each run shown once (only its first line is licensed)
 mrw read --fold f.log
@@ -248,7 +250,7 @@ lines with no ack: nothing is shown, so the checkpoints, which certify lines a h
 too large for one answer is refused whole, never paged. `quiet` licenses what the read serves at once and returns no line,
 for the same reason (`mrw read --quiet`).
 Cap a read with `--max-lines N` instead of `| head`: `| head` loses mrw's exit code, while `--max-lines` names what it
-withheld and the read exits 1 `incomplete:`. A host with an output limit takes `--max-chars N`: standard output stays within N
+withheld and the read exits 0, its last stderr line `mrw: capped: …` (a range your own cap withheld is not one mrw could not serve; beside a missed range, a refused path or `--max-chars` reached it exits 1 `incomplete:`). A host with an output limit takes `--max-chars N`: standard output stays within N
 characters in whole lines, every range and file it kept back is listed on standard error, and only what was printed is
 licensed (ADR-165).
 An adapter that parses mrw's report reads `mrw read --json` instead: `{"content", "receipt"}`, the content byte for byte the
@@ -292,7 +294,7 @@ prints `NOT JSON`, and either exits 1. The same quoting applies to the expressio
 
 **Shorter reads (ADR-179).** `mrw read --outline f.go` prints a `.go` file's declarations or a `.md` or `.markdown` file's headings with the lines
 they span and licenses nothing; `--max-matches N` (with `--grep` or `--ast-grep`) shows matching lines across all the files until N
-have been shown and counts the rest, and exits 1 only when matches remain unshown; `--fold` shows a run of identical or digit-only-different lines once, and
+have been shown and counts the rest, and exits 0 with `mrw: capped: …` last when matches remain unshown (ADR-173); `--fold` shows a run of identical or digit-only-different lines once, and
 `--no-comments` shows a run of whole-line Go comments as one `-- … N comment line(s), A-B` line, each leaving the lines it hides
 unlicensed, so read them without the flag before editing them. `MRW_MAX_COLS=N` in the environment is `--max-cols N` where the
 flag is absent, and a read that serves a line over 400 columns whole, with no width chosen, says so once on standard error. `--if-served PATH=SHA`

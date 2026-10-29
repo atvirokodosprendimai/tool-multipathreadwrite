@@ -38,13 +38,13 @@ func TestMaxMatchesOfExactlyNSaysNothing(t *testing.T) {
 }
 
 // ADR-179 Decision (g). Only what was shown is licensed: a write to a match the
-// budget counted and did not show is refused as unread, the read exits 1
-// incomplete, and the shown match can be written.
+// budget counted and did not show is refused as unread, the read exits 0
+// capped (ADR-173), and the shown match can be written.
 func TestMaxMatchesLicensesOnlyWhatWasShown(t *testing.T) {
 	root := grepTree(t, map[string]string{"a.txt": maxMatches179Body})
 	out, code := runIn(t, root, "read", "--grep", "hit", "--max-matches", "1", "a.txt")
-	if code != 1 || !strings.Contains(out, "incomplete: --max-matches 1 reached, 2 matching line(s) not shown") || !strings.Contains(out, "-- max-matches 1 reached: 2 more matching line(s) in 1 file(s) not shown") || strings.Contains(out, "hit 2") {
-		t.Fatalf("the read exited %d, want 1 incomplete with the note and only the first match:\n%s", code, out)
+	if code != 0 || !strings.Contains(out, "capped: --max-matches 1 reached, 2 matching line(s) not shown") || !strings.Contains(out, "-- max-matches 1 reached: 2 more matching line(s) in 1 file(s) not shown") || strings.Contains(out, "hit 2") {
+		t.Fatalf("the read exited %d, want 0 capped with the note and only the first match:\n%s", code, out)
 	}
 	if out, code = runIn(t, root, "write", "--no-check", planFile(t, "@@ a.txt 7 replace\nz\n")); code != 1 || !strings.Contains(out, "has not been read") {
 		t.Errorf("a write to a counted, unshown match exited %d, want 1 refused as unread:\n%s", code, out)

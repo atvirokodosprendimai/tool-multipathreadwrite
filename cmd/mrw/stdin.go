@@ -94,7 +94,7 @@ func stdinRead(cmd *cli.Command, pattern string, grepSet bool, posArgs []string,
 	var withheld bytes.Buffer
 	cols, colsFixed := effectiveMaxCols(cmd)
 	var wholeNames []string
-	var matchesLeft int
+	var matchesLeft, capped int
 	var long read.LongLines
 	var wholeLong *read.LongLines
 	if !colsFixed {
@@ -108,6 +108,7 @@ func stdinRead(cmd *cli.Command, pattern string, grepSet bool, posArgs []string,
 		MaxMatches: maxMatches(cmd),
 		Fold:       cmd.Bool("fold"),
 		Unshown:    &matchesLeft,
+		Capped:     &capped,
 		NoComments: cmd.Bool("no-comments"),
 		WholeNames: &wholeNames,
 		NextLine:   true,
@@ -127,6 +128,9 @@ func stdinRead(cmd *cli.Command, pattern string, grepSet bool, posArgs []string,
 	}
 	if problems == 0 && !budget.Over() {
 		return nil
+	}
+	if problems == capped && !budget.Over() { // ADR-173: only the caller's own caps
+		return cli.Exit(cappedLine(capped, matchesLeft, maxMatches(cmd)), 0)
 	}
 	reached := ""
 	if budget.Over() {
