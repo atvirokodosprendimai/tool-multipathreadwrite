@@ -222,6 +222,12 @@ jobs:
           go vet $pkgs
           go test -count=1 $pkgs
           go test -race -count=1 $pkgs
+          # ADR-181 T2: the test whose job log is its evidence runs again with -v
+          # in the shard that holds cmd/mrw, so its PASS line and the shell
+          # versions it logs are in the log; the shards above run without -v.
+          if grep -qx 'github.com/atvirokodosprendimai/tool-multipathreadwrite/cmd/mrw' <<<"$pkgs"; then
+            go test -count=1 -v -run '^TestEveryPrintedReadLineServesTheLogInItsShell$' ./cmd/mrw/
+          fi
 
   # The name branch protection requires. It exists to collapse the six shards
   # into one context, and it must FAIL when any of them does.

@@ -212,12 +212,37 @@ func printRunReceipt(w io.Writer, r runReceipt) {
 		fmt.Fprintf(w, "last: %s\n", writer.Shown(r.Last))
 	}
 	fmt.Fprintf(w, "log: %s\n", r.OutputFile)
-	if line := runReadLine(runtime.GOOS, runningBinary(), r.OutputFile, r.Lines); r.Lines > 0 && line != "" {
-		fmt.Fprintf(w, "read: %s\n", line)
+	if r.Lines > 0 {
+		for _, line := range runReadLines(runtime.GOOS, runningBinary(), r.OutputFile, r.Lines) {
+			fmt.Fprintln(w, line)
+		}
 	}
 	if r.PrunedLogs > 0 {
 		fmt.Fprintf(w, "removed: %d old run log(s)\n", r.PrunedLogs)
 	}
+}
+
+// runReadLines is the receipt's read lines, each "label: command". Unix has one,
+// read:. Windows has one per shell, labelled, since mrw cannot know which shell
+// the line will be pasted into and the forms do not mix: PowerShell's backtick
+// escapes are command substitution to Git Bash and literal to cmd (ADR-181). cmd
+// expands !NAME! inside double quotes under delayed expansion when NAME is a
+// defined variable; neither the setting nor the caller's variables are mrw's to
+// read, so a path holding ! gets no cmd line.
+func runReadLines(goos, exe, path string, lines int) []string {
+	line := runReadLine(goos, exe, path, lines)
+	if line == "" {
+		return nil
+	}
+	if goos != "windows" {
+		return []string{"read: " + line}
+	}
+	out := []string{"read (PowerShell): " + line}
+	if !strings.Contains(exe+path, "!") {
+		from := strconv.Itoa(max(lines-lastReadLines+1, 1))
+		out = append(out, `read (cmd): "`+exe+`" read -- -:`+from+`-$ < "`+path+`"`)
+	}
+	return append(out, "read (Git Bash): "+runReadLine("unix", exe, path, lines))
 }
 
 // runReadLine is a command that serves the last lastReadLines lines of a log
@@ -227,8 +252,10 @@ func printRunReceipt(w io.Writer, r runReceipt) {
 // cmd's redirection is the one path that keeps the log's bytes (a pipe turns
 // non-ASCII into ? and adds a BOM in Windows PowerShell 5.1), and the whole
 // command is a double-quoted string with ` and $ escaped, so an apostrophe in
-// a path survives (ADR-177 Decision 5). A Windows path cannot hold a double
-// quote; if one does, there is no line.
+// a path survives (ADR-177 Decision 5). The cmd it starts takes /d and /v:off,
+// so neither an AutoRun command nor a registry DelayedExpansion, which would
+// read !NAME! in a path as a variable, changes what it runs (ADR-181). A
+// Windows path cannot hold a double quote; if one does, there is no line.
 func runReadLine(goos, exe, path string, lines int) string {
 	from := max(lines-lastReadLines+1, 1)
 	if goos == "windows" {
@@ -239,7 +266,7 @@ func runReadLine(goos, exe, path string, lines int) string {
 			return ""
 		}
 		q := func(s string) string { return "`\"" + psEscaper.Replace(s) + "`\"" }
-		return `cmd /c "` + q(exe) + " read -- -:" + strconv.Itoa(from) + "-`$ < " + q(path) + `"`
+		return `cmd /d /v:off /c "` + q(exe) + " read -- -:" + strconv.Itoa(from) + "-`$ < " + q(path) + `"`
 	}
 	return posixQuote(exe) + " read -- '-:" + strconv.Itoa(from) + "-$' < " + posixQuote(path)
 }
