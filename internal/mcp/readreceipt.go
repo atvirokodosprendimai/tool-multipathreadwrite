@@ -29,11 +29,13 @@ func ReadReceipt(observed map[string]seen.Observation, problems, capped int, ski
 }
 
 // NoMatchReceipt is the receipt of a walk that matched no file: nothing
-// observed, the walk's own problems, matches 0.
+// observed, the walk's own problems (never a cap's, so capped is 0 and the
+// key is still there for an adapter that reads it, ADR-173), matches 0.
 func NoMatchReceipt(problems int, skipped read.WalkSkipped) map[string]any {
 	return withSkipped(map[string]any{
 		"observed": map[string]seen.Observation{},
 		"problems": problems,
+		"capped":   0,
 		"matches":  0,
 	}, skipped)
 }
