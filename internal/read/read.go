@@ -213,6 +213,10 @@ type Options struct {
 	// Unshown, when not nil, receives the matching lines MaxMatches left
 	// unshown, so a caller can name the budget in the kind line of its exit.
 	Unshown *int
+	// Capped, when not nil, receives how many of the problems were the
+	// caller's own caps: a span --max-lines withheld whole or cut, and the one
+	// problem --max-matches adds (ADR-173).
+	Capped *int
 	// Fold prints a run of two or more non-blank lines that are identical, or
 	// identical once each run of digits is one placeholder, as its first line and
 	// `-- ×N: lines A-B like A`; the folded lines are not shown and so not
@@ -685,6 +689,7 @@ func parseRange(s string) (Range, error) {
 // ranges; a withheld span is not observed at all.
 func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[string]seen.Observation, problems int) {
 	observed = map[string]seen.Observation{}
+	callerCaps := 0
 	note := func(path, sha string, spans [][2]int) {
 		key := filepath.Clean(path)
 		// Keyed the same way apply keys its hunks, so "a.go" read and "./a.go"
@@ -1041,6 +1046,7 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 					reportOn(sp.Path, "@@ %d-%d  WITHHELD %d line(s): --max-lines reached\n", sn.start, sn.end, n)
 				}
 				problems++
+				callerCaps++
 				whole = false
 				continue
 			}
@@ -1158,6 +1164,7 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 			if cut > 0 {
 				reportOn(sp.Path, "!! %d more line(s) withheld: --max-lines reached\n", cut)
 				problems++
+				callerCaps++
 			}
 			budget -= n
 		}
@@ -1212,6 +1219,7 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 			*opt.Unshown = matchLeft
 		}
 		problems++
+		callerCaps++
 	}
 	if englishUnreadables >= 2 {
 		fmt.Fprint(w, hintSplitRegexAddress())
@@ -1222,6 +1230,9 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 		opt.Sub.Plan.Reset()
 		opt.Sub.Sites, opt.Sub.Files = 0, 0
 		observed = map[string]seen.Observation{}
+	}
+	if opt.Capped != nil {
+		*opt.Capped = callerCaps
 	}
 	return observed, problems
 }

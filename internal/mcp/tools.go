@@ -553,7 +553,8 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// NextLine only here: firstPage's pages are ranges whose continuation serves
 	// the line they end on, so a page must not add it (ADR-161 Decision 10).
 	var unchanged []read.Unchanged
-	observed, problems := read.Run(w, root, specs, read.Options{Numbers: true, Stat: a.Stat, MaxLines: a.MaxLines, MaxCols: a.MaxCols, Count: a.Count, Counts: counts, Stop: stop, Quiet: a.Quiet, NextLine: true, IfChanged: keyed, Unchanged: &unchanged})
+	var capped int
+	observed, problems := read.Run(w, root, specs, read.Options{Numbers: true, Stat: a.Stat, MaxLines: a.MaxLines, MaxCols: a.MaxCols, Count: a.Count, Counts: counts, Stop: stop, Quiet: a.Quiet, NextLine: true, IfChanged: keyed, Unchanged: &unchanged, Capped: &capped})
 	_ = w.Flush()
 
 	// A result over the declared limit is REFUSED, not truncated.
@@ -668,7 +669,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// ADR-024 removed the flag from answers that DELIVERED something; this restores
 	// it for the one case its enumeration missed, so :202 and this return agree
 	// rather than disagreeing on whether `grep` was passed.
-	served, rpcErr := readResult(ReadReceipt(observed, problems, skipped, counts, unchanged, nil), report, len(observed) == 0 && len(unchanged) == 0)
+	served, rpcErr := readResult(ReadReceipt(observed, problems, capped, skipped, counts, unchanged, nil), report, len(observed) == 0 && len(unchanged) == 0)
 	if rpcErr != nil {
 		return callToolResult{}, rpcErr
 	}
@@ -716,7 +717,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 			marked += newerLine(root)
 		}
 		if marked != report {
-			markedServed, markErr := readResult(ReadReceipt(observed, problems, skipped, counts, unchanged, nil), marked, false)
+			markedServed, markErr := readResult(ReadReceipt(observed, problems, capped, skipped, counts, unchanged, nil), marked, false)
 			if markErr != nil {
 				return callToolResult{}, markErr
 			}

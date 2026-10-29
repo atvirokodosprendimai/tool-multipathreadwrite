@@ -104,6 +104,16 @@ Red at authoring, checked 2026-10-29 at `e8a6a3da`: `git grep -n -e TestACapTheC
 
 ## Mutation Log
 (empty until execute)
+- 2026-10-29 · 821a88bb* · mutant killed · exit 1 · `cmd/mrw/main.go` · S2: the named-spec exit ignores the caps count (today behaviour) · acceptance-sha256:e0a92cb2b84062f2d73a1d9a22d261a686cccae3f7988104d469ddb142832d5c
+- 2026-10-29 · 821a88bb* · mutant killed · exit 1 · `internal/mcp/readreceipt.go` · S2: the receipt capped left at zero · acceptance-sha256:e0a92cb2b84062f2d73a1d9a22d261a686cccae3f7988104d469ddb142832d5c
+- 2026-10-29 · 821a88bb* · mutant killed · exit 1 · `cmd/mrw/main.go` · S3: every problem counted as a cap, so a capped read with a missed range exits 0 · acceptance-sha256:e0a92cb2b84062f2d73a1d9a22d261a686cccae3f7988104d469ddb142832d5c
+- 2026-10-29 · 821a88bb* · mutant survived · exit 0 · `cmd/mrw/main.go` · S3: the --max-chars test dropped from the named-spec cap-only condition · acceptance-sha256:e0a92cb2b84062f2d73a1d9a22d261a686cccae3f7988104d469ddb142832d5c
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
+- 2026-10-29 · 821a88bb* · mutant killed · exit 1 · `cmd/mrw/stdin.go` · S3: the --max-chars test dropped from the mrw read - cap-only condition (budget drops only the max-matches note) · acceptance-sha256:e0a92cb2b84062f2d73a1d9a22d261a686cccae3f7988104d469ddb142832d5c
+- 2026-10-29 · 821a88bb* · mutant killed · exit 1 · `cmd/mrw/stdin.go` · S3: mrw read - keeps the old exit while the named-spec path changes · acceptance-sha256:e0a92cb2b84062f2d73a1d9a22d261a686cccae3f7988104d469ddb142832d5c
+- 2026-10-29 · 821a88bb* · mutant killed · exit 1 · `cmd/mrw/main.go` · S3: the --max-chars test dropped from the named-spec cap-only condition (cut drops only the withheld note) · acceptance-sha256:e0a92cb2b84062f2d73a1d9a22d261a686cccae3f7988104d469ddb142832d5c
 
 ## Invariants
 
@@ -128,3 +138,16 @@ The fence exits 0 and `adr-lint` passes for every record. Stop and report if a c
 
 ## Verification Log
 (empty until execute)
+- 2026-10-29 · 821a88bb* · exit 1 · `set -o pipefail …` · acceptance-sha256:e0a92cb2b84062f2d73a1d9a22d261a686cccae3f7988104d469ddb142832d5c · ms:2365 · test-lock-sha256:bde19cb6ccb768ae91ca2c1b7bd48e20860f26f5ace688f9bcbb0636fcd94d97 · test-lock-file:docs/adr/locks/bde19cb6ccb768ae91ca2c1b7bd48e20860f26f5ace688f9bcbb0636fcd94d97.lock
+  ```
+  ```
+- 2026-10-29 · 821a88bb* · exit 0 · `set -o pipefail …` · acceptance-sha256:e0a92cb2b84062f2d73a1d9a22d261a686cccae3f7988104d469ddb142832d5c · ms:168478
+- 2026-10-29 · 821a88bb* · exit 0 · `set -o pipefail …` · acceptance-sha256:e0a92cb2b84062f2d73a1d9a22d261a686cccae3f7988104d469ddb142832d5c · ms:156254
+- 2026-10-29 · 821a88bb* · exit 0 · `set -o pipefail …` · acceptance-sha256:e0a92cb2b84062f2d73a1d9a22d261a686cccae3f7988104d469ddb142832d5c · ms:177884
+- 2026-10-29 · 821a88bb* · exit 0 · `set -o pipefail …` · acceptance-sha256:e0a92cb2b84062f2d73a1d9a22d261a686cccae3f7988104d469ddb142832d5c · ms:147967
+- 2026-10-29 · 821a88bb* · exit 0 · `set -o pipefail …` · acceptance-sha256:e0a92cb2b84062f2d73a1d9a22d261a686cccae3f7988104d469ddb142832d5c · ms:182207
+- 2026-10-29 · 821a88bb* · exit 0 · `set -o pipefail …` · acceptance-sha256:e0a92cb2b84062f2d73a1d9a22d261a686cccae3f7988104d469ddb142832d5c · ms:152832
+- 2026-10-29 · 821a88bb* · exit 0 · `set -o pipefail …` · acceptance-sha256:e0a92cb2b84062f2d73a1d9a22d261a686cccae3f7988104d469ddb142832d5c · ms:144011
+- 2026-10-29 · 821a88bb* · exit 0 · `set -o pipefail …` · acceptance-sha256:e0a92cb2b84062f2d73a1d9a22d261a686cccae3f7988104d469ddb142832d5c · ms:143838
+- 2026-10-29 · 821a88bb* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:e0a92cb2b84062f2d73a1d9a22d261a686cccae3f7988104d469ddb142832d5c · ms:0 · test-lock-sha256:ff76b39e56250bb67ab6aa3972ac0dfd3390ce5f573d78ec3251771df6bd028c · test-lock-file:docs/adr/locks/ff76b39e56250bb67ab6aa3972ac0dfd3390ce5f573d78ec3251771df6bd028c.lock · test-lock-kind:replace
+- 2026-10-29 · 821a88bb* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:e0a92cb2b84062f2d73a1d9a22d261a686cccae3f7988104d469ddb142832d5c · ms:0 · test-lock-sha256:af39c4c576fc5c2fe95774544073ab3d5671e738888d6af9d66049e9f5ef0af1 · test-lock-file:docs/adr/locks/af39c4c576fc5c2fe95774544073ab3d5671e738888d6af9d66049e9f5ef0af1.lock · test-lock-kind:replace

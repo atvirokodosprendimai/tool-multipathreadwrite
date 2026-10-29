@@ -1591,7 +1591,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			}
 			var unoutlined []string
 			var wholeNames []string
-			var matchesLeft int
+			var matchesLeft, capped int
 			var long read.LongLines
 			var wholeLong *read.LongLines
 			if !colsFixed {
@@ -1627,6 +1627,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				Project:      projections,
 				WholeLong:    wholeLong,
 				Unshown:      &matchesLeft,
+				Capped:       &capped,
 			})
 			skipNote()
 			// The answer reaches the caller BEFORE anything is recorded (ADR-088).
@@ -1647,7 +1648,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				fmt.Fprintln(os.Stderr, hint)
 			}
 			if cmd.Bool("json") {
-				if err := document(mcp.ReadReceipt(observed, problems+len(refusals), skipped, counts, unchanged, referred)); err != nil {
+				if err := document(mcp.ReadReceipt(observed, problems+len(refusals), capped, skipped, counts, unchanged, referred)); err != nil {
 					return err
 				}
 			}
@@ -1683,6 +1684,11 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			// A budget that dropped anything — a served line, or only the walk's
 			// own last line — leaves an answer that is not the whole one, and a
 			// cut answer must never read as complete (ADR-165).
+			// A range the caller's own --max-lines or --max-matches withheld is
+			// not one mrw could not serve (ADR-173); --max-chars reached still is.
+			if problems > 0 && problems == capped && !budget.Over() {
+				return cli.Exit(cappedLine(capped, matchesLeft, maxMatches(cmd)), 0)
+			}
 			if problems > 0 || budget.Over() {
 				return cli.Exit(incompleteLine(problems, matchesLeft, maxMatches(cmd), reached()), 1)
 			}

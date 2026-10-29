@@ -22,7 +22,7 @@ func TestReadingStandardInputLicensesNothing(t *testing.T) {
 		{[]string{"read", "-:2"}, 0, []string{"@@ 2-3", "    2| b", "    3| c"}, []string{"    1| a"}},
 		{[]string{"read", "--grep", "^c$", "-"}, 0, []string{"    3| c"}, []string{"    1| a"}},
 		{[]string{"read", "--grep", "^b$", "-C", "1", "-"}, 0, []string{"    1| a", "    3| c"}, []string{"    5| "}},
-		{[]string{"read", "--max-lines", "1", "-"}, 1, []string{"    1| a"}, []string{"    2| b"}},
+		{[]string{"read", "--max-lines", "1", "-"}, 0, []string{"    1| a"}, []string{"    2| b"}},
 		{[]string{"read", "--max-cols", "8", "-:5"}, 0, []string{"    5| "}, []string{strings.Repeat("x", 30)}},
 		{[]string{"read", "-", "--grep", "^b$"}, 0, []string{"    2| b"}, []string{"    1| a"}},
 	} {
@@ -51,12 +51,12 @@ func TestReadingStandardInputLicensesNothing(t *testing.T) {
 		t.Errorf("a grep of stdin matching nothing: exit %d, want 1 no match:\n%s", code, errOut)
 	}
 	// Lines are split as read.Run splits them: "a\n" has no empty line, and a
-	// CR-only match withheld by --max-lines is incomplete, not no match.
+	// CR-only match withheld by --max-lines is capped (ADR-173), not no match.
 	if _, errOut, code := run("a\n", "read", "--grep", "^$", "-"); code != 1 || !strings.Contains(errOut, "mrw: no match:") {
 		t.Errorf("^$ over a\\n: exit %d, want 1 no match:\n%s", code, errOut)
 	}
-	if _, errOut, code := run("a\rb\r", "read", "--grep", "^b$", "--max-lines", "0", "-"); code != 1 || !strings.Contains(errOut, "mrw: incomplete:") {
-		t.Errorf("a withheld CR-only match: exit %d, want 1 incomplete:\n%s", code, errOut)
+	if _, errOut, code := run("a\rb\r", "read", "--grep", "^b$", "--max-lines", "0", "-"); code != 0 || !strings.Contains(errOut, "mrw: capped:") {
+		t.Errorf("a withheld CR-only match: exit %d, want 0 capped:\n%s", code, errOut)
 	}
 
 	// A file named `-` is ./-, read from disk and recorded like any file.

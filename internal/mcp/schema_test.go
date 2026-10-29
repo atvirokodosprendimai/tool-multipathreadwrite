@@ -200,7 +200,7 @@ func TestTheReadReceiptMatchesItsSchema(t *testing.T) {
 
 	// ADR-169: a guarded read carries `unchanged`, built by the one composer the
 	// CLI's --json receipt shares.
-	js, err := json.Marshal(ReadReceipt(map[string]seen.Observation{}, 0, read.WalkSkipped{}, nil, []read.Unchanged{{Path: "a.txt", SHA: "8dc37337", Lines: 2, Bytes: 8}}, nil))
+	js, err := json.Marshal(ReadReceipt(map[string]seen.Observation{}, 0, 0, read.WalkSkipped{}, nil, []read.Unchanged{{Path: "a.txt", SHA: "8dc37337", Lines: 2, Bytes: 8}}, nil))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -210,7 +210,7 @@ func TestTheReadReceiptMatchesItsSchema(t *testing.T) {
 	}}
 	// ADR-179: a read that answered a spec by reference carries `same_as_served`,
 	// built by the same composer (the CLI's --if-served; mrw_read has no such flag).
-	js, err = json.Marshal(ReadReceipt(map[string]seen.Observation{}, 0, read.WalkSkipped{}, nil, nil, []read.SameAsServed{{Path: "a.txt", SHA: "8dc37337", Spans: [][2]int{{2, 5}}}}))
+	js, err = json.Marshal(ReadReceipt(map[string]seen.Observation{}, 0, 0, read.WalkSkipped{}, nil, nil, []read.SameAsServed{{Path: "a.txt", SHA: "8dc37337", Spans: [][2]int{{2, 5}}}}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -302,6 +302,7 @@ func readSchema() map[string]any {
 				"additionalProperties": mustSchema(seen.Observation{}),
 			},
 			"problems": map[string]any{"type": "integer"},
+			"capped":   map[string]any{"type": "integer"},
 			// Present only on a paged answer, so it is NOT in `required` — a
 			// caller's exit condition is precisely its absence.
 			"next_read": map[string]any{"type": "string"},
@@ -371,6 +372,7 @@ var readDescriptions = map[string]string{
 	"observed.SHA":         "The sha256 of the whole file as it was when served. A later write is refused if the file no longer hashes to this.",
 	"observed.Spans":       "The line spans this call rendered, as [start, end] pairs; null means the whole file. Authorisation is per LINE: a write to a line no read has served is refused, though a line served by an EARLIER read of the same sha is still licensed.",
 	"problems":             "How many requested ranges could not be served. Non-zero means part of what you asked for is missing from `observed` — the call itself still answered.",
+	"capped":               "How many of `problems` were the caller's own caps: a span `max_lines` (`mrw read --max-lines`) withheld whole or cut, or the one problem `--max-matches` adds. `problems - capped` is what the caller did not choose.",
 	"next_read":            "The spec to send next when this answer is only a PAGE of what you asked for. Absent when nothing remains, which is how you know you have the whole thing. A paged answer is NOT an error and carries no `isError`; it says so in its served text, with a `-- PARTIAL:` line naming the range and what remains. Stopping there leaves you holding part of a file, not the file.",
 	"matches":              "How many files matched a `grep`, counting the whole match set and not just this page. Present on an INDEX answer and on a grep that matched nothing (0); a grep whose matches fit is served instead, and its `observed` names the files.",
 	"index":                "The matching FILE PATHS, served instead of content when the matches are too large to return. No content came with them and nothing was recorded, so this licenses no write. Send one back as a spec WITH the same grep to read its matches.",
