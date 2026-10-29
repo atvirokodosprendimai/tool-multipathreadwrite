@@ -77,6 +77,22 @@ const (
 // stale one silently kept the read-before-modify bypass alive on this machine.
 var version = "dev"
 
+// readBuildInfo is debug.ReadBuildInfo, a variable so a test can give the
+// command a go install build's module version (ADR-183): a test binary's own
+// build info always says (devel).
+var readBuildInfo = debug.ReadBuildInfo
+
+// reportedVersion is the version mrw reports before versionFrom adds the
+// commit: the linker stamp, else the module version a go install build
+// recorded. It is what --check-latest judges (ADR-183 Decision 1).
+func reportedVersion() string {
+	info, ok := readBuildInfo()
+	if !ok {
+		return version
+	}
+	return moduleVersion(version, info.Main.Version, info.Settings)
+}
+
 // versionString reports the version plus the commit the binary was BUILT from.
 //
 // Go records vcs.revision, vcs.time and vcs.modified in every build made inside
@@ -89,11 +105,11 @@ var version = "dev"
 // built from a tarball, or with -buildvcs=false, is not a liar, it is just
 // unstamped.
 func versionString() string {
-	info, ok := debug.ReadBuildInfo()
+	info, ok := readBuildInfo()
 	if !ok {
 		return version
 	}
-	return versionFrom(moduleVersion(version, info.Main.Version, info.Settings), info.Settings)
+	return versionFrom(reportedVersion(), info.Settings)
 }
 
 // moduleVersion is the version to report when the linker stamped none: a
@@ -622,7 +638,7 @@ func versionCmd() *cli.Command {
 			if !cmd.Bool("check-latest") {
 				return nil
 			}
-			return checkLatest(ctx, out)
+			return checkLatest(ctx, out, reportedVersion())
 		},
 	}
 }

@@ -110,9 +110,11 @@ Windows: `mrw-windows-amd64.exe`. Every release also carries archives
 `mrw version` prints the same string `-v` / `--version` already print. Extra
 arguments are usage (exit 2). `mrw version --check-latest` also asks GitHub for
 the latest release and says whether this mrw is current, newer or older: exit 1
-when a newer release exists, 2 when it could not ask, and 0 for a local build,
-which it names without a verdict. It is the only network call mrw makes, and
-only that flag makes it (ADR-149).
+when a newer release exists, 2 when it could not ask. A `go install …@<commit>`
+build is judged by the release its commit follows, and is a commit after it
+(exit 0) unless a later release exists (ADR-183); a checkout build is named
+without a verdict, exit 0. It is the only network call mrw makes, and only that
+flag makes it (ADR-149).
 
 `mrw instructions` prints the contract from the binary: use mrw always and plan
 the activity, the two rules that produce most refusals, and the traps that make

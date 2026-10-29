@@ -667,7 +667,8 @@ and #73, one release apart.
   Extra arguments are usage (exit 2). A PATH binary that predates the
   subcommand still answers `-v`. `mrw version --check-latest` asks GitHub for
   the latest release and exits 1 when this mrw is older, 2 when it could not
-  ask: the only network call mrw makes, and only when asked (ADR-149).
+  ask: the only network call mrw makes, and only when asked (ADR-149). A
+  `go install …@<commit>` build is judged by the release its commit follows (ADR-183).
 - **`mrw instructions`** prints the contract from the binary: use mrw always
   and plan the activity, the two rules that produce most refusals, the traps
   that make a red run look green, the plan ops, and the read side — address
