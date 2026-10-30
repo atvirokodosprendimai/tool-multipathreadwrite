@@ -138,6 +138,7 @@ class Calls:
                 try:
                     os.killpg(child.pid, signal.SIGINT)
                 except ProcessLookupError:
+                    # The child may have exited between the timeout and this signal.
                     pass
                 try:
                     stdout, stderr = child.communicate(timeout=3)

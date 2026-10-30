@@ -4,7 +4,7 @@ import json
 import os
 import subprocess
 import time
-from unittest import mock
+import unittest.mock as mock
 from pathlib import Path
 import unittest
 
