@@ -80,7 +80,7 @@ Two fence defects found by the first runs, 2026-10-29. The guide clause reads al
 | 1 — exists | the test |
 | 2 — something selects it | `askedStepsError`, called by `write` and `check`; `runAction` |
 | 3 — the caller can discover it | the refusal names the variable; help, `mrw instructions`, README, AGENTS.md, `docs/agents.md` |
-| 4 — it is used | MRW-10 in the Rubie report shows `--then-sh` reached through an allowed `mrw`; `mrw run` reaches the same shell (ADR-177 Decision 9); no adoption is measured (ADR-009) |
+| 4 — it is used | MRW-10 in the external report shows `--then-sh` reached through an allowed `mrw`; `mrw run` reaches the same shell (ADR-177 Decision 9); no adoption is measured (ADR-009) |
 
 ## Mutation Log
 (empty until execute)

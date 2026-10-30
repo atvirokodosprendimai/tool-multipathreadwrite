@@ -34,7 +34,7 @@ sentence.
 in under 300 words (ADR-141), and `mrw instructions` adds the recipes. A survey of 14 adopting sessions
 (2026-10-09) found about 900 words of mrw guidance carried every session for about eight rules, and two
 paragraphs that eight and five sessions had acted on zero times; a copy also goes stale with the next
-release. A trigger of five short paragraphs that names the rule, the exception and where the contract lives
+release. A short trigger naming the rule, the exception and where the contract lives
 is enough. A working one:
 
 ```markdown
@@ -85,8 +85,8 @@ Every file you read to edit, and every edit, goes through mrw:
 - narrow command output: `cmd 2>&1 | mrw read --grep P --max-lines 40 -`
 - edit: one plan in a file (write it with the host's file tool in a temporary directory; a plan file is your input, not a repository edit), `mrw write "$TMPDIR/plan.txt"` (`@@ path N-M replace anchor="…"`; `body=` only when `mrw instructions` names your case), read first
 - new file: `mrw write --create path < content`; delete: `@@ path - unlink`
-- `--no-check` for a write to prose or shell only; a literal `$` in a `--sub` replacement is `$$`
-- never `>`, `cp`, `sed -i`, or the host's Edit/Write
+- `--no-check` may defer checks on intermediate code writes; run and verify the final check over every queued edit before reporting completion (see section 6). A literal `$` in a `--sub` replacement is `$$`
+- never `>`, `cp`, `sed -i`, or the host's Edit/Write on repository files; the temporary plan-file exception is above
 Your final report lists any command that broke this.
 ```
 
@@ -152,6 +152,31 @@ From that agent's own review of a day of use (2026-10-22). Its writes were sound
 | a whole-file read of a long Go or Markdown file to find one place | the whole file in context | `mrw read --outline f.go` first: the declarations or headings with their line ranges, licensing nothing; then the range you need (ADR-179) |
 | `--grep` over many files when the first few matches decide | every match in context | `--count` first, then `--max-matches N`: the first N, the rest counted, exit 0 saying `capped:` when some remain (ADR-173) |
 | a log of near-identical lines, or a Go file's comment runs | the repeats in context | `--fold` shows a run once, `--no-comments` shows a comment run as one line; both leave what they hide unlicensed, so read it without the flag before editing (ADR-179) |
+
+### Queue code edits, then check the final tree
+
+After reading the sites and preparing the plans, defer the automatic check on intermediate writes:
+
+```sh
+mrw write --no-check "$TMPDIR/first.plan" &&
+mrw write --no-check "$TMPDIR/second.plan" &&
+mrw check --full
+```
+
+Run these in the same checkout, with no intervening edits while the final check runs. `--no-check`
+skips verification; it keeps the read guard and whole-plan validation. The queued edits remain
+unverified until a check covering them passes. Fix a failed check and run it again after the last
+edit; an earlier passing check does not verify a later write.
+
+The example runs the whole-project check once. For a scoped check over existing edited paths,
+name every queued path in `mrw check PATH...` and verify the command and any paths it reports
+outside the scope. If the queue deletes or renames files, keep `--full`: a removed source path
+cannot be passed to `mrw check`. A checked last write alone may cover only that write's files.
+
+If the project declares no check and has no Go module, declare the project's checker or run its
+required checks explicitly; mrw does not infer a Ruby checker
+([README: Write, "Check by default"](../README.md#write)). Report the actual command, scope and
+exit status, or say that verification is still pending.
 
 ## 7. What allowing mrw allows
 

@@ -63,7 +63,7 @@ out=$(go test ./internal/guide/ ./cmd/mrw/ -count=1 -v -run '^(TestTheCoreTeache
 | 1 — exists | the text in `guide.go` and the write help |
 | 2 — something selects it | `mrw instructions`, `--core`, `mrw skill`, `mrw write --help` print it |
 | 3 — the caller can discover it | the standing trigger runs `--core`; the skill carries it |
-| 4 — it is used | the Rubie runs are the evidence it was read; no telemetry (ADR-009) |
+| 4 — it is used | the external runs are the evidence it was read; no telemetry (ADR-009) |
 
 ## Mutation Log
 (empty until execute)

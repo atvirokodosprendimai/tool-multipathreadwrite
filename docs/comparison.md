@@ -1,11 +1,10 @@
 # Comparison
 
-**Close = fewest missing of six file-edit guarantees, not brand size.**
-Nobody else ships the whole set. The nearest tools each hold two of six, and a
-different two.
+This is a dated comparison of six file-edit guarantees. It records the scan below;
+it is not a current product ranking or a measurement of task cost or speed.
 
-Scan dated **2026-09-12**, mrw **v1.13.0** (`d7e39bd`). Re-read against
-**v1.21.0** (`fb40ec1`): their engines did not move. Ours gained
+Scan dated **2026-09-12**, mrw **v1.13.0** (`d7e39bd`).
+The mrw side was re-read against **v1.21.0** (`fb40ec1`); at that point it had gained
 `--format=apply_patch` / `search_replace` ([ADR-051](adr/ADR-051-foreign-plan-grammars-compile-to-plan-hunks.md)),
 `--ast-grep` on read ([ADR-058](adr/ADR-058-structural-find-shells-out-to-ast-grep.md)),
 and a default project check on non-prose writes
@@ -15,7 +14,9 @@ A `{files}`- or `{dirs}`-only `scoped_check` still runs when `packages()` cannot
 still falls back. None of those add a seventh guarantee. The grid below is the
 scan's.
 
-Turns live in [measure.md](measure.md). This page is the contract comparison.
+Interface-call and byte measurements live in [measure.md](measure.md); agent turns, cost and
+task outcomes live in [bench/RESULTS.md](bench/RESULTS.md). For current mrw behavior, use
+the [README](../README.md) and `mrw instructions`.
 
 ## The six
 
@@ -69,9 +70,9 @@ state stays XDG ([ADR-050](adr/ADR-050-windows-state-stays-xdg-until-windows-is-
 
 Copying Instant Apply, a YAML/Blade checker, or a third MCP tool would make mrw
 *worse at the six* and is not in this list. Each row is an experiment: a metric,
-a baseline, and a reading that kills it. The unit stays **agent turns**. A
-wall-clock figure does not belong in `measure.sh`; ADR-049's size probe is a
-separate one-off, on purpose.
+a baseline, and a reading that kills it. Each row uses its stated metric; interface-call
+counts do not establish model turns, task cost or solving. ADR-049's wall-clock size probe
+is separate from the scripted call-and-byte measurements.
 
 | # | Experiment | Metric | Baseline | Goes red if | Cost |
 |---|---|---|---|---|---|

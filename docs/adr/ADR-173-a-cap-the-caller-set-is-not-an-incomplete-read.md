@@ -15,7 +15,7 @@
 
 ## Context
 
-An outside A/B on a large Rails monolith (Rubie tech summary v1, 2026-10-24, mrw v1.74.0, 17 paired Claude Code runs) filed this as MRW-05: 3 of the 11 failed `mrw read` calls were exit 1 from the caller's own `--max-lines`, and the commands chained after them with `&&` did not run.
+An outside A/B on a large Rails monolith (external tech summary v1, 2026-10-24, mrw v1.74.0, 17 paired Claude Code runs) filed this as MRW-05: 3 of the 11 failed `mrw read` calls were exit 1 from the caller's own `--max-lines`, and the commands chained after them with `&&` did not run.
 
 Reproduced on the installed v1.78.0 (`06075f7`), 2026-10-29, in a scratch directory:
 

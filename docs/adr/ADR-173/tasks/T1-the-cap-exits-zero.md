@@ -100,7 +100,7 @@ Red at authoring, checked 2026-10-29 at `e8a6a3da`: `git grep -n -e TestACapTheC
 | 1 — exists | the test |
 | 2 — something selects it | `--max-lines` on any read, `--max-matches` on a search |
 | 3 — the caller can discover it | the `capped:` line; README, AGENTS.md, `docs/agents.md`, `mrw instructions` |
-| 4 — it is used | recipes 4, 9 and 15 in `mrw instructions`; MRW-05 in the Rubie report is the evidence the cap is reached (3 of 11 failed reads); no adoption is measured (ADR-009) |
+| 4 — it is used | recipes 4, 9 and 15 in `mrw instructions`; MRW-05 in the external report is the evidence the cap is reached (3 of 11 failed reads); no adoption is measured (ADR-009) |
 
 ## Mutation Log
 (empty until execute)

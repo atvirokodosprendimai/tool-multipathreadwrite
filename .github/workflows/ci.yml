@@ -66,6 +66,9 @@ jobs:
       - name: Homebrew publisher checks
         run: python3 -m unittest discover -s scripts -p test_brew_tap.py -v
 
+      - name: Measurement and warning report checks
+        run: python3 -m unittest discover -s scripts -p test_mrw_observe.py -v
+
       - name: Vet
         run: go vet ./...
 

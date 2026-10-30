@@ -13,6 +13,10 @@ These shape measurements describe the engine's interface overhead. The
 [agent benchmark](bench/RESULTS.md), summarized in the [README](../README.md),
 measures model turns, cost and task outcomes on agent runs. The call and byte
 tables here do not establish those outcomes on their own.
+For native wall/CPU distributions, checker modes and warning evidence, see the
+[experimental observability tool and verification](bench/observability/RESULTS.md). It adds p95 and
+scaling descriptions to the existing native samples and keeps command costs separate from agent outcomes.
+
 
 Re-run the script rather than quoting the table. The ratios track how large
 this repository's own files are. Shape D's file list is `git ls-files '*.go'`,
@@ -117,9 +121,9 @@ Go files. `ast-grep` was not on PATH; that arm is skipped, not failed.
 | bytes vs rg+windowed | 15,019 | 21,979 | **1.5× MORE** |
 | calls, windowed (search+reads+edits) | 489 | 2 | **244.5× fewer** |
 
-Charging the search **does not flip the byte comparison**. The win is still
-turns. Re-run `./scripts/measure.sh` rather than quoting this table after the
-file list moves.
+Charging the search **does not flip the byte comparison**. The scripted comparison still
+uses fewer interface calls. Re-run `./scripts/measure.sh` rather than quoting this table
+after the file list moves.
 
 ## Shape E — the overhead, held still
 
@@ -140,13 +144,13 @@ it collapses as the span approaches the whole file.
 
 ## Shape G — edit, then verify (`--then`)
 
-A–F stop at the edit. The turns after it are the verification: the project's
-check, then whatever the agent runs after it. Since ADR-092, `mrw write --then
-NAME` (a step the project declares) and `--then-sh CMD` (an ad-hoc one) put them
-in the write's own call, each with its own verdict. Shape G builds a four-file Go
-module in its scratch directory, declares a check (`gofmt -l`) and two steps
-(`go vet ./...`, a `grep -c`), and does the same edit and verification three
-ways.
+A–F stop at the edit. Verification adds the project's check and any later commands.
+Since ADR-092, `mrw write --then NAME` (a step the project declares) and `--then-sh CMD`
+(an ad-hoc step) can run them in the write's own call, each with its own verdict.
+Current releases require `MRW_SHELL=on` for `--then-sh`; declared `--then` steps need no
+ad-hoc shell opt-in. Shape G uses named steps: it builds a four-file Go module in a scratch
+directory, declares a check (`gofmt -l`) and two steps (`go vet ./...`, a `grep -c`),
+and compares the same edit and verification three ways.
 
 Measured 2026-09-29 with the binary built from `9cf28ee`. The fixture does not
 read this tree, so these numbers move only when the receipt's shape does, and by

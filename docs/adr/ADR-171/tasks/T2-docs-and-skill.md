@@ -55,7 +55,7 @@ go build -o bin/mrw ./cmd/mrw \
 | 1 — exists | the sentences in the files |
 | 2 — something selects it | adopters copy the `docs/agents.md` trigger |
 | 3 — the caller can discover it | README and `docs/agents.md` |
-| 4 — it is used | not measured here: the Rubie team's re-run is the measure |
+| 4 — it is used | not measured here: the external team's re-run is the measure |
 
 ## Mutation Log
 (empty until execute)
