@@ -1,0 +1,325 @@
+{
+  "kind": "warnings",
+  "metadata": {
+    "binary": {
+      "name": "mrw",
+      "sha256": "5427ceaebc8d8c3514a62eb1bb102d304acacf203d3280914c9570b9eeee0abe",
+      "version": "v1.79.0"
+    },
+    "script_sha256": "555a36b8da865fdcf4597ef3a061b7e2644e8e2bb87f0abe97e019316e20fa10",
+    "source_revision": "d013e210dfb35ff8ab8f0347562276c7290e4b31",
+    "source_dirty": true,
+    "python": "3.15.2",
+    "os": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+    "arch": "arm64",
+    "cpus": 10,
+    "load_before": [
+      3.1591796875,
+      3.3017578125,
+      3.484375
+    ],
+    "quantile": "nearest-rank: ceil(p*n/100)-1",
+    "performance_verdict": "not_attempted"
+  },
+  "cases": [
+    {
+      "fixture": "sibling_spec.rb",
+      "span": [
+        3,
+        3
+      ],
+      "body": [
+        "    expect(A).to(",
+        "      receive(:call).",
+        "        and_call_original",
+        "    )"
+      ],
+      "expected_hint": false,
+      "write": {
+        "args": [
+          "write",
+          "--json",
+          "--no-check",
+          "-"
+        ],
+        "wall_ns": 11090416,
+        "cpu_ns": 5894000,
+        "stdout_bytes": 811,
+        "stderr_bytes": 0,
+        "exit": 0,
+        "timed_out": false
+      },
+      "actual_hint": true,
+      "closer": "line 10 repeats the body's last line: )",
+      "evidence": {
+        "rule": "ADR-119",
+        "status": "reported",
+        "body_last": ")",
+        "old_ended_in_body_last": false,
+        "matched_line": 10,
+        "following_nonblank_distance": 3
+      }
+    },
+    {
+      "fixture": "duplicate.md",
+      "span": [
+        3,
+        3
+      ],
+      "body": [
+        "changed",
+        "```"
+      ],
+      "expected_hint": true,
+      "write": {
+        "args": [
+          "write",
+          "--json",
+          "--no-check",
+          "-"
+        ],
+        "wall_ns": 10647875,
+        "cpu_ns": 5432000,
+        "stdout_bytes": 805,
+        "stderr_bytes": 0,
+        "exit": 0,
+        "timed_out": false
+      },
+      "actual_hint": true,
+      "closer": "line 5 repeats the body's last line: ```",
+      "evidence": {
+        "rule": "ADR-119",
+        "status": "reported",
+        "body_last": "```",
+        "old_ended_in_body_last": false,
+        "matched_line": 5,
+        "following_nonblank_distance": 1
+      }
+    },
+    {
+      "fixture": "statement.src",
+      "span": [
+        1,
+        1
+      ],
+      "body": [
+        "work()"
+      ],
+      "expected_hint": false,
+      "write": {
+        "args": [
+          "write",
+          "--json",
+          "--no-check",
+          "-"
+        ],
+        "wall_ns": 10981625,
+        "cpu_ns": 5705000,
+        "stdout_bytes": 733,
+        "stderr_bytes": 0,
+        "exit": 0,
+        "timed_out": false
+      },
+      "actual_hint": false,
+      "closer": "",
+      "evidence": {
+        "rule": "ADR-119",
+        "status": "not_reported",
+        "body_last": "work()",
+        "old_ended_in_body_last": false,
+        "matched_line": null,
+        "following_nonblank_distance": null
+      }
+    },
+    {
+      "fixture": "nested.go",
+      "span": [
+        2,
+        2
+      ],
+      "body": [
+        "  if ready {",
+        "    work()",
+        "  }"
+      ],
+      "expected_hint": false,
+      "write": {
+        "args": [
+          "write",
+          "--json",
+          "--no-check",
+          "-"
+        ],
+        "wall_ns": 10904625,
+        "cpu_ns": 6061000,
+        "stdout_bytes": 797,
+        "stderr_bytes": 0,
+        "exit": 0,
+        "timed_out": false
+      },
+      "actual_hint": true,
+      "closer": "line 5 repeats the body's last line: }",
+      "evidence": {
+        "rule": "ADR-119",
+        "status": "reported",
+        "body_last": "}",
+        "old_ended_in_body_last": false,
+        "matched_line": 5,
+        "following_nonblank_distance": 1
+      }
+    },
+    {
+      "fixture": "blanks.md",
+      "span": [
+        3,
+        3
+      ],
+      "body": [
+        "changed",
+        "```"
+      ],
+      "expected_hint": true,
+      "write": {
+        "args": [
+          "write",
+          "--json",
+          "--no-check",
+          "-"
+        ],
+        "wall_ns": 11050458,
+        "cpu_ns": 5613000,
+        "stdout_bytes": 800,
+        "stderr_bytes": 0,
+        "exit": 0,
+        "timed_out": false
+      },
+      "actual_hint": true,
+      "closer": "line 7 repeats the body's last line: ```",
+      "evidence": {
+        "rule": "ADR-119",
+        "status": "reported",
+        "body_last": "```",
+        "old_ended_in_body_last": false,
+        "matched_line": 7,
+        "following_nonblank_distance": 1
+      }
+    },
+    {
+      "fixture": "no_repeat.src",
+      "span": [
+        1,
+        1
+      ],
+      "body": [
+        "new",
+        ")"
+      ],
+      "expected_hint": false,
+      "write": {
+        "args": [
+          "write",
+          "--json",
+          "--no-check",
+          "-"
+        ],
+        "wall_ns": 10957833,
+        "cpu_ns": 5805000,
+        "stdout_bytes": 766,
+        "stderr_bytes": 0,
+        "exit": 0,
+        "timed_out": false
+      },
+      "actual_hint": false,
+      "closer": "",
+      "evidence": {
+        "rule": "ADR-119",
+        "status": "not_reported",
+        "body_last": ")",
+        "old_ended_in_body_last": false,
+        "matched_line": null,
+        "following_nonblank_distance": null
+      }
+    },
+    {
+      "fixture": "own_closer.src",
+      "span": [
+        1,
+        2
+      ],
+      "body": [
+        "new",
+        ")"
+      ],
+      "expected_hint": false,
+      "write": {
+        "args": [
+          "write",
+          "--json",
+          "--no-check",
+          "-"
+        ],
+        "wall_ns": 10909042,
+        "cpu_ns": 5950000,
+        "stdout_bytes": 738,
+        "stderr_bytes": 0,
+        "exit": 0,
+        "timed_out": false
+      },
+      "actual_hint": false,
+      "closer": "",
+      "evidence": {
+        "rule": "ADR-119",
+        "status": "not_reported",
+        "body_last": ")",
+        "old_ended_in_body_last": true,
+        "matched_line": null,
+        "following_nonblank_distance": null
+      }
+    },
+    {
+      "fixture": "outside_window.src",
+      "span": [
+        1,
+        1
+      ],
+      "body": [
+        "new",
+        ")"
+      ],
+      "expected_hint": false,
+      "write": {
+        "args": [
+          "write",
+          "--json",
+          "--no-check",
+          "-"
+        ],
+        "wall_ns": 10931208,
+        "cpu_ns": 5819000,
+        "stdout_bytes": 776,
+        "stderr_bytes": 0,
+        "exit": 0,
+        "timed_out": false
+      },
+      "actual_hint": false,
+      "closer": "",
+      "evidence": {
+        "rule": "ADR-119",
+        "status": "not_reported",
+        "body_last": ")",
+        "old_ended_in_body_last": false,
+        "matched_line": null,
+        "following_nonblank_distance": null
+      }
+    }
+  ],
+  "status": "complete",
+  "mismatches": 2,
+  "quality": "fail",
+  "confusion": {
+    "true_positive": 2,
+    "false_positive": 2,
+    "true_negative": 4,
+    "false_negative": 0
+  }
+}

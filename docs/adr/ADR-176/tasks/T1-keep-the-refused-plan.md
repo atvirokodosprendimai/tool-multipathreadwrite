@@ -67,7 +67,7 @@ out=$(go test ./cmd/mrw/ -count=1 -v -run '^(TestAPlanRefusedFromStandardInputIs
 | 1 — exists | `cmd/mrw/refused176.go` |
 | 2 — something selects it | the write command's nothing-written exits |
 | 3 — the caller can discover it | the stderr line names the path and the rerun; T2's text |
-| 4 — it is used | the Rubie field run's re-sends were the evidence for building it; nothing in this repository measures use (ADR-009) |
+| 4 — it is used | the external field run's re-sends were the evidence for building it; nothing in this repository measures use (ADR-009) |
 
 ## Mutation Log
 (empty until execute)

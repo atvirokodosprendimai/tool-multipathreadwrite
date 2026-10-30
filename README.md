@@ -1,98 +1,82 @@
 # mrw — multi-path read and write
 
-One call reads many ranges across many files; one call applies many edits across them, each with its own verdict. A plan that fails validation writes nothing, because a write that changed nothing is invisible.
+mrw is a command-line tool for reading and editing files in batches. It is designed for
+coding agents, and you can also use it directly in a terminal.
 
-## On SWE-bench Verified, Claude Code with mrw costs less and finishes sooner
+Read the parts you need, then put the changes in one plan. mrw validates the whole plan
+before changing any file, including checking that it has read the existing lines you want
+to edit. If validation fails, no files change. The output tells you what happened to each edit.
 
-191 bug-fixing tasks per model, each run once as A and once as B and paired by task (190 pairs counted on Opus, where one attempt was excluded by the registered rule), graded by the official SWE-bench harness, against a bar registered before the first run ([ADR-162](docs/adr/ADR-162-stage-5-runs-until-the-verdict-is-conclusive.md)). A is Claude Code alone; B is Claude Code with mrw.
+**Status: stable at v1.79.0 (2026-10-29), the tag cut from `7abe9665`.**
+See [updating mrw](UPDATE.md) and the [release validation](docs/break/campaign-v1.79.0.txt)
+when choosing or upgrading a binary. Keep a benchmark's chosen version pinned.
 
-| | Opus 5.5 | Sonnet 5.5 |
-|---|---|---|
-| **cost per task** | **−19.4%** [−25.5%, −12.7%] | **−7.0%** [−12.1%, −1.8%] |
-| turns per task | 14.6 → 11.5 (−21%) | 7.8 → 6.8 (−13%) |
-| wall time per task | 115 s → 68 s (−40%) | 36 s → 25 s (−30%) |
-| output tokens per task | 5,489 → 3,888 (−29%) | 2,274 → 1,721 (−24%) |
-| tasks solved | 167 → 166 of 191 | 134 → 129 of 191 |
+## Quick start
 
-The cost intervals are 99% and lie wholly below zero. Solving is unchanged within what 191 tasks can show: the registered bar asks for a solved-rate lower bound no worse than −5 points, and the intervals reach −6.7 on Opus and −8.7 on Sonnet, so the recorded verdict is INCONCLUSIVE rather than PAYS; Sonnet's −7.0% is also short of the 10% mean saving PAYS asks for. Wall time was measured on a shared machine and is descriptive only.
-
-### Every SWE-bench stage, per attempt
-
-Means per attempt at its final try. Tokens count input, output and cache tokens together. Every figure comes from the receipts under [docs/bench/](docs/bench/), and every registered verdict is in [docs/bench/RESULTS.md](docs/bench/RESULTS.md).
-
-| stage | model | config | attempts | solved | turns | wall s | $ per attempt | $ total | tokens (k) | output tokens |
-|---|---|---|---|---|---|---|---|---|---|---|
-| 5 | Opus 5.5 | A | 191 | 167 | 14.6 | 115 | 0.260 | 49.73 | 223 | 5,489 |
-| 5 | Opus 5.5 | B | 191 | 166 | 11.5 | 68 | 0.200 | 38.20 | 182 | 3,888 |
-| 5 | Sonnet 5.5 | A | 191 | 134 | 7.8 | 36 | 0.059 | 11.23 | 82 | 2,274 |
-| 5 | Sonnet 5.5 | B | 191 | 129 | 6.8 | 25 | 0.053 | 10.13 | 91 | 1,721 |
-| 4b | Opus 5.5 | A | 20 | 17 | 17.1 | 170 | 0.362 | 7.23 | 306 | 7,875 |
-| 4b | Opus 5.5 | B | 20 | 16 | 12.4 | 75 | 0.277 | 5.54 | 220 | 5,834 |
-| 4b | Sonnet 5.5 | A | 20 | 17 | 11.8 | 36 | 0.092 | 1.84 | 127 | 3,788 |
-| 4b | Sonnet 5.5 | B | 20 | 14 | 8.0 | 25 | 0.072 | 1.43 | 107 | 2,616 |
-| 3 | Opus 5.5 | A | 20 | 19 | 12.0 | 60 | 0.197 | 3.94 | 155 | 4,210 |
-| 3 | Opus 5.5 | B | 20 | 19 | 10.4 | 44 | 0.170 | 3.40 | 137 | 3,452 |
-| 3 | Sonnet 5.5 | A | 20 | 16 | 6.6 | 19 | 0.045 | 0.91 | 54 | 1,640 |
-| 3 | Sonnet 5.5 | B | 20 | 16 | 5.4 | 18 | 0.039 | 0.78 | 55 | 1,290 |
-
-### What the numbers say
-
-- **Fewer turns, less time.** With mrw the agent finished in fewer turns in every SWE-bench stage, on both models, and wall time fell with the turns. Folding many reads and edits into one call is what mrw is built for; the receipts count the turns, not which calls were folded.
-- **Lower cost, most on Opus.** The saving is largest where the agent works longest: Opus takes about twice Sonnet's turns per task, so there is more to fold. Stage 4b, 20 multi-hunk tasks on the same models, found the same: −20.9% [−32.3%, −8.6%] on Opus and −17.0% [−26.6%, −7.6%] on Sonnet.
-- **Fewer tokens written, not always fewer read.** Output tokens fell 29% on Opus and 24% on Sonnet. Total tokens fell 18% on Opus but rose 11% on Sonnet, and that rise is all cache reads (72k to 82k per attempt) while Sonnet's cache writes and output fell. Cost still fell on Sonnet, because cache reads are the cheapest tokens and the output that fell is priced far above them.
-- **The same solving, as far as 191 tasks can tell.** 166 against 167 on Opus, 129 against 134 on Sonnet. Neither difference is significant; neither interval is narrow enough to prove there is no loss.
-
-In short: on these bug-fixing tasks mrw made Claude Code faster and cheaper, by about a fifth on Opus, and no measurement showed it solving less, though none was precise enough to show it does not.
-
-### How mrw is judged
-
-Every stage is paired, pre-registered and graded against the bar in [ADR-156](docs/adr/ADR-156-whether-mrw-pays-for-itself-is-measured-on-agent-runs.md): PAYS needs the mean per-task cost down by 10% or more with its interval wholly below zero, **and** a solved-rate lower bound no worse than −5 points; LOSES is a cost interval wholly above zero or a solved-rate interval wholly below it; anything else is INCONCLUSIVE. Each verdict is recorded in [docs/bench/RESULTS.md](docs/bench/RESULTS.md) exactly as `bench analyze` printed it. Stage 5's two verdicts, both open when the stage ended at look 5 of 5: Sonnet 5.5 INCONCLUSIVE, cost −7.0% [−12.1%, −1.8%]; Opus 5.5 INCONCLUSIVE, cost −19.4% [−25.5%, −12.7%].
-
-Before SWE-bench, four stages ran mrw on this project's own tasks (Stages 1, 1b, 2 and 4b, 24 to 40 tasks each, Sonnet and Opus): all INCONCLUSIVE, cost within ±3%. One stage went against mrw: Stage 4, 24 tasks chosen where mrw's mechanism should matter, on mrw v1.66.0, LOSES at cost +17.1% [+9.6%, +24.7%]. [ADR-161](docs/adr/ADR-161-instructions-lead-with-recipes.md) changed what mrw teaches in reply, and the rerun on v1.68.0 as Stage 4b came out INCONCLUSIVE on both models.
-
-### Evidence, for anyone who wants to check
-
-- **Receipts.** One JSON per attempt under [docs/bench/stage-5/](docs/bench/stage-5/)`block-1` … `block-5`, named `<instance>.<config>.<model>.<repeat>[.rN].receipt.json`; a `.rN` file is a retry of a run that did not finish and supersedes its base. Each carries the model, configuration, `num_turns`, `wall_ms`, `total_cost_usd`, `usage` by token kind, the harness verdict (`oracle.harness_resolved`), the size of the diff the agent produced (files, insertions, deletions) and the number of tool calls. The patch text was not kept: the attempt's worktree was discarded after grading.
-- **Grader.** The official SWE-bench harness (swebench 5.0.2) on `SWE-bench/SWE-bench_Verified`, split `test`, dataset revision `78f471bf`. The 191 instance ids and the rule that picked them are in [bench/swe-bench/selection-adr-162.json](bench/swe-bench/selection-adr-162.json).
-- **Pre-registration.** The bar, the pool rule, the five looks and the stop rule were written in [docs/adr/BACKLOG.md](docs/adr/BACKLOG.md) ("Pre-registered for ADR-162") and in ADR-162, merged as [1fc00bad](https://github.com/atvirokodosprendimai/tool-multipathreadwrite/commit/1fc00bad) on 2026-10-17 at 08:42 UTC; the instance list was committed as [8b435f8f](https://github.com/atvirokodosprendimai/tool-multipathreadwrite/commit/8b435f8f) at 10:55 UTC; the first counted attempt started at 13:21 UTC the same day (`started` in its receipt).
-- **Run setup.** `run.json` in each block: Claude Code 2.1.302, mrw v1.68.0 (975c3ba), a 1,200 s budget per attempt, one repeat, the same prompt and tool set for A and B. `canary.json` per block proves each configuration's setup before the block; `exclusions.json` names the one excluded attempt.
-- **Verdicts.** [docs/bench/stage-5/looks/look-5.txt](docs/bench/stage-5/looks/look-5.txt), as `bench analyze` printed them, copied unchanged into [RESULTS.md](docs/bench/RESULTS.md); ADR-162's acceptance fence diffs the two.
-- **Independent scoring.** The paired rows were handed to the quality-harness project's own scorer, which reads them against its own pre-registration (its ADR-106).
-
-Reproduce the Stage 5 rows of the table with jq alone, from a checkout:
+On macOS or Linux with Homebrew:
 
 ```sh
-jq -s 'map(select(.stage=="stage5" and .config!="P"))
-  | group_by(.attempt|sub("\\.r[0-9]+$";"")) | map(max_by(.attempt))
-  | group_by([.model,.config]) | map({model:.[0].model, config:.[0].config, attempts:length,
-      solved:(map(select(.oracle.solved))|length), turns:((map(.num_turns)|add)/length),
-      wall_s:((map(.wall_ms)|add)/length/1000), cost_total:(map(.total_cost_usd)|add)})' \
-  docs/bench/stage-5/block-*/*.receipt.json
+brew install atvirokodosprendimai/tap/mrw
 ```
 
-`go run ./cmd/bench analyze --selection bench/swe-bench/selection-adr-160.json --selection bench/swe-bench/selection-adr-162.json docs/bench` recomputes every verdict and interval in RESULTS.md.
+For release downloads, Windows or `go install`, see [Install](#install).
+Once `mrw` is on PATH, try a two-file edit in a disposable directory. These commands use a POSIX shell:
 
-What this does not show:
+```sh
+demo_dir=$(mktemp -d)
+cd "$demo_dir"
+printf 'hello\n' | mrw write --no-check --create first.txt
+printf 'hello\n' | mrw write --no-check --create second.txt
+mrw read first.txt second.txt
+```
 
-- One agent, Claude Code 2.1.302, and two models. Nothing here says what mrw does for another agent or another model.
-- One kind of work: a one-shot bug fix from an issue text, with no human in the loop and a 1,200 s budget. Long sessions, refactors and greenfield work were not measured on SWE-bench.
-- The agent could not run the repository's tests in Stage 5: the checkouts carry the code but not the test dependencies, so every solve was graded afterwards by the harness, and neither A nor B could check its own work. [ADR-163](docs/adr/ADR-163-the-plugin-is-measured-in-checkouts-that-run-their-tests.md) is the next stage, in containers where the tests run.
-- Solving is not proven equal. 191 tasks per model put the solved-rate interval at about ±7 points; the registered bar wanted the lower bound at −5 or better, and it was not met.
-- Wall time is descriptive. The attempts ran on one shared Apple Silicon machine, with the SWE-bench images under amd64 emulation, beside other work.
-- Cost is what Claude Code reported per attempt (`total_cost_usd`), at the prices in force in October 2026.
+Save this as `change.plan` with your editor or the host's file tool. A plan file is input to mrw:
 
-Latency and shape numbers for the engine itself are in [docs/measure.md](docs/measure.md), the six-guarantee comparison in [docs/comparison.md](docs/comparison.md), and model × score readings in [docs/model-benches.md](docs/model-benches.md).
+```text
+@@ first.txt 1 replace
+hello, world
+@@ second.txt 1 replace
+hello, world
+```
 
-**Status: stable at v1.79.0 (2026-10-29), the tag cut from `7abe9665`.** Break campaign for it: [docs/break/campaign-v1.79.0.txt](docs/break/campaign-v1.79.0.txt), 59 probes, exit codes identical to v1.78.0. **Migration since v1.78.0:** `--then-sh` and `mrw run` are refused, exit 2, unless `MRW_SHELL=on` is in mrw's environment; a host or script that uses either exports it (ADR-174). A read capped only by your own `--max-lines` or `--max-matches` exits 0 with `mrw: capped: …` last, where it exited 1; `receipt.capped` counts the caps (ADR-173). Since v1.78.0: `mrw seen` names what was shown and what is licensed (ADR-182); `--check-latest` judges a `go install` pseudo-version by its base release (ADR-183). Since v1.77.1: `mrw seen --forget` names the checkout whose ledger it emptied (ADR-180); on Windows the `mrw run` receipt prints a labelled read line for PowerShell, cmd and Git Bash (ADR-181); `mrw run` prints no read-ledger notice; a `go install …@<version>` build reports its module version. **Migration since v1.77.1:** a script matching the old exact `seen --forget` receipt or the Windows `read:` line matches the new text. Since v1.77.0: `mrw run 'CMD'` keeps a command's output in a log and prints a short receipt (ADR-177); `mrw read --json-path` projects JSON values (ADR-178); `mrw read --outline`, `--fold`, `--no-comments`, `--max-matches N` and `--if-served PATH=SHA`, the long-line hint and `MRW_MAX_COLS`, and `mrw write --terse` say less (ADR-179). **Migration since v1.75.0:** `mrw mcp` now serves no tools until it is enabled — a registration that wants them adds `--enable` to its args (`mrw mcp --enable`) or sets `MRW_MCP=on`, then restarts the server; with a shell, use the CLI and leave it off (ADR-170). Since v1.76.0: `mrw seen --forget` empties the checkout's read ledger for a host's compaction hook (ADR-175, [docs/agents.md](docs/agents.md) §8).
+Apply the plan and read the result:
 
-Decisions: [docs/adr/](docs/adr/). How a change reaches `main`: [CONTRIBUTING.md](CONTRIBUTING.md). Driving it from a checkout: [AGENTS.md](AGENTS.md).
-Caller practices: [BESTPRACTICES.md](BESTPRACTICES.md). Updating the binary: [UPDATE.md](UPDATE.md).
-Hosts: any shell (the CLI), any MCP host (`mrw mcp`, [below](#mcp)), and [opencode](#opencode) through its plugin.
+```sh
+mrw write --no-check change.plan
+mrw read first.txt second.txt
+```
 
-**Start with the recipes `mrw instructions` prints first** (ADR-161): the same change at many sites is one
-command with nothing in your context — `mrw write --grep '\bOld\b' --sub 'New' .` — and the others count
-before reading, rewrite by syntax, license without printing (`read --quiet`) and narrow any command's output
-(`cmd | mrw read --grep P -`). [AGENTS.md](AGENTS.md#using-mrw--read-this-before-you-edit-anything) lists them all.
+Both files now contain `hello, world`. The write reports a result for each edit.
+This demo uses `--no-check` for disposable text files. For real code, configure your project's
+checker and [verify the final tree](docs/agents.md#queue-code-edits-then-check-the-final-tree).
+
+## What mrw checks
+
+- **The lines are known.** Existing text needs a current read licence; a file mrw just wrote is wholly known.
+- **The plan can apply.** A validation failure leaves every file unchanged. Filesystem failures during the actual write are reported separately under [Safety](#safety).
+- **The result is visible.** The receipt names the edits and files, with failures and any check results.
+
+mrw does not understand whether your code is correct. Your tests and linters still need to run;
+a successful write is not a substitute for them. Batching can reduce separate tool calls, but
+that alone does not establish lower task cost or faster completion. See the
+[benchmark results and limits](#swe-bench-verified-results-and-limits).
+
+## Find the right guide
+
+- [Command reference](#command-reference): expand the full read/write syntax, checks, exit codes and integrations below.
+- [Best practices](BESTPRACTICES.md): everyday use of an installed binary.
+- [Agent setup](docs/agents.md): host instructions, skills and compaction hooks. Start an agent session with `mrw instructions --core`.
+- [Updating](UPDATE.md): release assets, Homebrew, Go installations and version checks.
+- [Contributing](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md): changing this repository and running its checks.
+
+
+## Command reference
+
+Expand this section for installation options, command syntax, safety rules and integrations.
+The full reference stays here so existing links and recorded acceptance checks keep working.
+
+<details>
+<summary>Full command reference</summary>
 
 ## Install
 
@@ -703,8 +687,8 @@ directory and never in it, so `mrw seen --prune` does not look at it), and mrw p
 ```
 exit 1 · 2,314 lines · 187,902 bytes · 41.2 s
 last: FAIL	github.com/x/y/internal/read	3.112s
-log: /Users/zy/.local/state/mrw-runs/run-20261027T101500.123Z-4242.log
-read: '/usr/local/bin/mrw' read -- '-:2275-$' < '/Users/zy/.local/state/mrw-runs/run-20261027T101500.123Z-4242.log'
+log: /home/user/.local/state/mrw-runs/run-20261027T101500.123Z-4242.log
+read: '/usr/local/bin/mrw' read -- '-:2275-$' < '/home/user/.local/state/mrw-runs/run-20261027T101500.123Z-4242.log'
 ```
 
 `last:` is the last non-empty line, cut to 200 characters; `read:` serves the log's last 40 lines with the running
@@ -731,3 +715,24 @@ a host hook runs it after a compaction (ADR-175, [docs/agents.md](docs/agents.md
 Round trips are 2 for any N. Re-run `./scripts/measure.sh` rather than quoting
 a table — the ratios track this repository's own files. The contract is
 `./scripts/contract.sh`; it prints its own total.
+
+</details>
+
+<a id="on-swe-bench-verified-claude-code-with-mrw-costs-less-and-finishes-sooner"></a>
+
+## SWE-bench Verified results and limits
+
+The recorded MRW A/B runs do not establish a general cost or speed advantage. Some workloads cost more with mrw, and
+fewer tool calls alone do not establish cheaper or faster task completion. The recorded runs cover
+specific versions and environments; they do not establish the payoff of the current release in your repository.
+
+[Detailed MRW A/B tables, methods, verdicts and limitations](docs/bench/overview.md) preserve the evidence,
+including losing results. [Native performance results](docs/bench/native-baseline/RESULTS.md) measure
+binary overhead separately; [scripted shape measurements](docs/measure.md) count interface calls and bytes.
+
+<a id="every-swe-bench-stage-per-attempt"></a>
+<a id="what-the-numbers-say"></a>
+<a id="how-mrw-is-judged"></a>
+<a id="evidence-for-anyone-who-wants-to-check"></a>
+
+Follow the [benchmark overview](docs/bench/overview.md) for the detailed sections previously on this page.

@@ -14,7 +14,7 @@
 
 ## Context
 
-The read ledger is on disk, outside the tree, per checkout (`internal/seen/seen.go:1-24`, ADR-004, ADR-161 Decision 14). When a host compacts its context, the model keeps a summary, not the lines it was served, and the ledger still licenses them: a write to a line read before the compaction is allowed although the model no longer holds that line. An outside A/B filed it (Rubie tech summary v1, 2026-10-24, mrw v1.74.0, issue MRW-12): with a 100K window, 2 writes without a fresh read after a compaction with mrw (8 with the host's Edit tool, which has the same blind spot), none broke a test. mrw cannot see a compaction; a host hook can (Claude Code's `SessionStart` hook with matcher `compact`, or `PreCompact`). The report's ask: something a host hook can bump so that old licences need a fresh read.
+The read ledger is on disk, outside the tree, per checkout (`internal/seen/seen.go:1-24`, ADR-004, ADR-161 Decision 14). When a host compacts its context, the model keeps a summary, not the lines it was served, and the ledger still licenses them: a write to a line read before the compaction is allowed although the model no longer holds that line. An outside A/B filed it (external tech summary v1, 2026-10-24, mrw v1.74.0, issue MRW-12): with a 100K window, 2 writes without a fresh read after a compaction with mrw (8 with the host's Edit tool, which has the same blind spot), none broke a test. mrw cannot see a compaction; a host hook can (Claude Code's `SessionStart` hook with matcher `compact`, or `PreCompact`). The report's ask: something a host hook can bump so that old licences need a fresh read.
 
 Zy chose this record on 2026-10-24 — *"A. Guide cost (Recommended), B. Bounded fixes, C. Contract ADRs"*.
 

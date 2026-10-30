@@ -73,17 +73,15 @@ somewhere else, the header says that too. **Re-run it rather than quoting the
 table** — the ratios track how large this repository's own files are, and they
 have moved by a third within a day.
 
-**The unit is agent turns, not seconds.** It measures round trips and input
-bytes; nothing here is a wall-clock figure and there are no `go test -bench`
-benchmarks. Shape D — one site in every Go file, from `git ls-files` — is the
-row that carries the claim: M reads plus N edits versus 2 calls, for any N.
+**The units are interface calls and bytes.** `measure.sh` does not measure model turns,
+API requests, task cost or wall-clock performance. Shape D counts M reads plus N edits
+against one batched read and one write. A host may issue several tool calls in one model turn.
+Actual agent-task outcomes are recorded separately in [docs/bench/RESULTS.md](docs/bench/RESULTS.md).
 
-Model × score readings (stats 65/68, served-size 1–20) live in
-[docs/model-benches.md](docs/model-benches.md). The README is a scannable
-page, not the 1676-line essay. Caller practices for someone who installed
-the binary: [BESTPRACTICES.md](BESTPRACTICES.md). How to update it:
-[UPDATE.md](UPDATE.md). The Git Bash regex rewrite and the pipe-exit trap
-above still apply; they did not move with the README tidy.
+Earlier model × score readings live in [docs/model-benches.md](docs/model-benches.md).
+Caller practices are in [BESTPRACTICES.md](BESTPRACTICES.md), host setup in
+[docs/agents.md](docs/agents.md), and upgrades in [UPDATE.md](UPDATE.md).
+The authoritative repository check list remains [AGENTS.md](AGENTS.md).
 
 ## Releasing
 

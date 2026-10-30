@@ -271,8 +271,8 @@ Archived: [BACKLOG-archive.md](BACKLOG-archive.md)
     Not run 2026-09-16 — this session is Cursor, not a Claude Desktop MCP session. Still not the coder count. Pick A stands.
 
   **Desktop reading 0 — 2026-09-24, this Mac. NOT the analyst measure.** Claude
-  Desktop has `mrw` registered as `--root /Users/zy/GolandProjects/tool-multipathreadwrite
-  mcp`. `~/Library/Logs/Claude/mcp-server-mrw.log`, 2026-09-04 → 2026-09-24:
+  Desktop has `mrw` registered as `--root /path/to/tool-multipathreadwrite
+  mcp` (path anonymized). `~/Library/Logs/Claude/mcp-server-mrw.log`, 2026-09-04 → 2026-09-24:
   84 launches (`mrw mcp: serving` lines, all this one root), 34 `initialize`,
   1 `tools/call`, 0 `roots/list`, 0 `outside the root`. Population: one coder's
   machine, where the CLI is the tool of choice. It says Desktop reach is idle
@@ -466,6 +466,21 @@ so the result cannot move it:
   taught to write. The bar is unchanged and applies to EACH replay separately: under 5% in every bucket of 50 or
   more, and 3 of 3 closer fixtures. The third run uses seed 3119, 1,200 replaces a repository and 6,000 commits
   (`stress.py --seed 3119 --cap 1200 --max-commits 6000`).
+
+## From ADR-119 (sibling-closer false positive)
+
+- **A valid sibling expression triggers the closer hint.** A private field report described
+  a multi-line RSpec expectation whose closing `)` matches a second expectation's closing `)`
+  within four non-blank lines. Reproduced with the installed v1.79.0: the edit is correct and
+  exits 0, but the receipt warns about line 10. The standalone
+  [regression and duplicate-closer control](../break/shape-hints/sibling-closer.md) captures the case;
+  it currently exits 1. Owner: mrw's ADR-119 follow-up. Before changing the heuristic, use both
+  cases and remeasure false positives and true positives under ADR-119's bar. This entry records
+  the open warning-quality defect; it does not amend that bar or the shipped contract.
+  The [observable-costs and warning-evidence follow-up](../specs/2026-10-30-observable-costs-and-warnings.md)
+  implements an offline evidence report and controls; it adds no shipped MRW diagnostic command or receipt field.
+  The [eight-case verification](../bench/observability/RESULTS.md) also finds a valid nested closer warning
+  (line 5); both false positives remain open. Two real duplicate controls still warn. No shipping bar is met.
 
 ## Pre-registered for ADR-156 (does mrw pay for itself on agent runs) — the bar, written before any run
 

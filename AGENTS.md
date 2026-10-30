@@ -10,6 +10,9 @@ and applies many edits across many files, in **one** invocation — and it repor
 a verdict for **every** edit. Read `README.md` for the full interface; this file
 is only about changing the code.
 
+For installed-binary usage, see [BESTPRACTICES.md](BESTPRACTICES.md); for host setup, see
+[docs/agents.md](docs/agents.md). This file owns repository policy and the check list below.
+
 ## Build and check
 
 ```sh
@@ -126,6 +129,8 @@ And a receipt's keys are only added (ADR-111): every key a `--json` or MCP recei
   an ADR in `docs/adr/`, not just a commit message.
 - Exported identifiers carry doc comments starting with the name. Packages carry
   a package comment.
+- Keep private external project, customer and organization identities out of tracked files,
+  branch names, commit messages and pull requests. Use anonymized descriptions and synthetic fixtures.
 
 ## The drill — how a change reaches `main`
 
@@ -140,8 +145,10 @@ They are project policy, not tool documentation, which is why they are there and
 **Use mrw always: plan the activity as one read of every site, then one plan, then one write.**
 One edit in one file still goes through mrw: the cost is two calls, and the ledger is the point. Batch every site into that one read and one write — do not spend a turn per site.
 
-**Start with the recipes.** `mrw instructions` prints them first, and each keeps lines you do not
-need out of your context (ADR-161). Fill the placeholders (`P`, `f.go`, `NAME`, `$plan`):
+**Start with the recipes.** Read `mrw instructions --core` once at session start; after compaction,
+read the rules again only if they are no longer in context. The full `mrw instructions` supplies
+recipes and the exceptional cases a refusal names (ADR-161, ADR-171).
+The examples below mirror its recipes. Fill the placeholders (`P`, `f.go`, `NAME`, `$plan`):
 
 ```sh
 # 1. the same change at many sites, nothing in your context
@@ -188,6 +195,10 @@ mrw read --if-served f.go=8dc37337 f.go:40-60
 
 `./bin/mrw` after `go build`. Building and using it here is fine — it is the
 project.
+
+For intermediate `--no-check` writes, follow the
+[queue recipe](docs/agents.md#queue-code-edits-then-check-the-final-tree): verify the final tree
+with a check covering every queued edit, and report any pending verification.
 
 
 If you are reaching mrw over MCP (`mrw mcp --enable`; the tools are off, and every call refused, until `--enable` or
