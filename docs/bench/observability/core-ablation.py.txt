@@ -1,0 +1,132 @@
+#!/usr/bin/env python3
+"""Offline readout for CORE-PREREGISTRATION.md: reads the private round directories, prints JSON.
+
+Usage: core_ablation.py RUN_ROOT   (RUN_ROOT holds round1/ and round2/)
+It reads cells, canaries, adapter records and transcripts; it writes nothing.
+"""
+import hashlib
+import json
+import re
+import sys
+from pathlib import Path
+
+RATES = {"input_tokens": 2.0, "output_tokens": 10.0, "cache_read_input_tokens": 0.1,
+         "cache_creation_input_tokens": 4.0}
+FULL = re.compile(r"\bmrw\s+instructions\b(?!\s+--core)")
+CORE = re.compile(r"\bmrw\s+instructions\s+--core\b")
+WRITE = re.compile(r"\bmrw\s+(?:--root\s+\S+\s+)?write\b")
+REFUSED = re.compile(r"NOTHING WRITTEN|nothing was written|plan has \d+ error")
+
+
+def transcript_facts(raw):
+    requests, calls, results, order = {}, {}, {}, []
+    for line in raw.splitlines():
+        row = json.loads(line)
+        if row.get("type") == "assistant":
+            message = row["message"]
+            if message["id"] not in requests:
+                order.append(message["id"])
+                u = message.get("usage", {})
+                requests[message["id"]] = sum(u.get(k, 0) for k in
+                                              ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"))
+            for part in message.get("content", []):
+                if part.get("type") == "tool_use":
+                    calls[part["id"]] = part
+        elif row.get("type") == "user":
+            content = row.get("message", {}).get("content", [])
+            for part in content if isinstance(content, list) else []:
+                if part.get("type") == "tool_result":
+                    text = part.get("content")
+                    if isinstance(text, list):
+                        text = "\n".join(p.get("text", "") for p in text if isinstance(p, dict))
+                    results[part["tool_use_id"]] = (str(text or ""), bool(part.get("is_error")))
+    commands = {i: c.get("input", {}).get("command", "") for i, c in calls.items() if c["name"] == "Bash"}
+    writes = [i for i, c in commands.items() if WRITE.search(c)]
+    kinds = {}
+    for c in calls.values():
+        kinds[c["name"]] = kinds.get(c["name"], 0) + 1
+    return {"first_request_context": requests[order[0]] if order else None,
+            "messages": len(order), "tool_calls": len(calls), "by_kind": kinds,
+            "mrw_writes": len(writes),
+            "refused_writes": sum(1 for i in writes if REFUSED.search(results.get(i, ("", False))[0])),
+            "full_guide_calls": sum(1 for c in commands.values() if FULL.search(c)),
+            "core_calls": sum(1 for c in commands.values() if CORE.search(c)),
+            "tool_result_chars": sum(len(t) for t, _ in results.values())}
+
+
+def cell_facts(root, row):
+    identity = row["task"] + "." + row["arm"]
+    if row["record"].get("cost_usd") is None:
+        return {"task": row["task"], "arm": row["arm"], "unknown": True, "verdict": row["verdict"],
+                "outer_exit": row.get("outer_exit"), "claude_wall_ms": row["record"].get("claude_wall_ms")}
+    raw = (root / "transcripts" / (identity + ".jsonl")).read_text()
+    record = row["record"]
+    usage = {k: record["usage"][k] for k in RATES}
+    estimate = sum(usage[k] * RATES[k] / 1e6 for k in RATES)
+    facts = transcript_facts(raw)
+    facts.update(task=row["task"], arm=row["arm"], solved=row["verdict"].get("solved"), verdict=row["verdict"],
+                 turns=record.get("num_turns"), usage=usage, cost_usd=record["cost_usd"],
+                 cost_residual=estimate - record["cost_usd"], claude_wall_ms=record.get("claude_wall_ms"),
+                 observer_wall_ms=record.get("observer_wall_ms"), outer_wall_ms=row.get("outer_wall_ms"),
+                 appended_sha256=record.get("instruction_sha256", {}).get("appended_file"),
+                 transcript_sha256=hashlib.sha256(raw.encode()).hexdigest())
+    return facts
+
+
+def totals(cells, arm):
+    picked = [c for c in cells if c["arm"] == arm and c["task"] != "canary"]
+    out = {"cells": len(picked), "solved": sum(bool(c["solved"]) for c in picked),
+           "cost_usd": sum(c["cost_usd"] for c in picked),
+           "first_request_context": sum(c["first_request_context"] for c in picked),
+           "turns": sum(c["turns"] for c in picked), "messages": sum(c["messages"] for c in picked),
+           "output_tokens": sum(c["usage"]["output_tokens"] for c in picked),
+           "full_guide_calls": sum(c["full_guide_calls"] for c in picked),
+           "core_calls": sum(c["core_calls"] for c in picked),
+           "refused_writes": sum(c["refused_writes"] for c in picked),
+           "mrw_writes": sum(c["mrw_writes"] for c in picked)}
+    for k in RATES:
+        out[k] = sum(c["usage"][k] for c in picked)
+    return out
+
+
+def main():
+    run = Path(sys.argv[1])
+    report = {"rounds": {}}
+    for n in (1, 2):
+        root = run / f"round{n}"
+        path = root / "run-summary.json"
+        if not path.exists():
+            report["rounds"][str(n)] = {"not_run": True}
+            continue
+        summary = json.loads(path.read_text())
+        canaries = [cell_facts(root, c) for c in summary.get("canaries", [])]
+        cells = [cell_facts(root, c) for c in summary["cells"]]
+        evidence = Path(json.loads((root / "adapter.json").read_text())["out"])
+        spent = sum(json.loads(p.read_text())["cost_usd"] for p in evidence.glob("*.json"))
+        report["rounds"][str(n)] = {"stop_reason": summary["stop_reason"], "plan": summary["plan"],
+                                    "not_run": summary["not_run"], "all_in_usd": spent,
+                                    "canaries": canaries, "cells": cells,
+                                    "F": totals(cells, "F"), "C": totals(cells, "C")}
+    rounds = [r for r in report["rounds"].values() if not r.get("not_run")]
+    eligible = (len(rounds) == 2 and all(len(r["cells"]) == 10 and all(c["solved"] for c in r["cells"])
+                                         and not r["not_run"] for r in rounds))
+    report["eligible"] = eligible
+    if eligible:
+        verdicts = {}
+        for measure in ("cost_usd", "first_request_context", "turns", "output_tokens"):
+            f = [r["F"][measure] for r in rounds]
+            c = [r["C"][measure] for r in rounds]
+            spread = {"F": abs(f[0] - f[1]), "C": abs(c[0] - c[1])}
+            saving = [f[i] - c[i] for i in range(2)]
+            mean = sum(saving) / 2
+            counted = all(s > 0 for s in saving) and mean > max(spread.values())
+            verdicts[measure] = {"F": f, "C": c, "saving_per_round": saving, "mean_saving": mean,
+                                 "spread": spread,
+                                 "verdict": "C lower" if counted else "within repeat spread: no result"}
+        report["repeat_spread"] = verdicts
+    json.dump(report, sys.stdout, indent=1)
+    print()
+
+
+if __name__ == "__main__":
+    main()

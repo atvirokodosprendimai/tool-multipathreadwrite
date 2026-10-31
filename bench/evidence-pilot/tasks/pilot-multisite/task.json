@@ -1,0 +1,34 @@
+{
+  "id": "pilot-multisite",
+  "shape": "fixture",
+  "repo": "fixture",
+  "instruction": "Update the active queue status from queued to pending in producer.py, worker.py, router.py, reader.py, scheduler.py and config.json. Keep all legacy status values queued. Update only those active values. Do not edit the acceptance script or task/configuration instructions. Run the declared checker. Do not start background jobs.",
+  "exact": true,
+  "require": [
+    {
+      "file": "producer.py",
+      "match": "(?m)^ACTIVE_STATUS = \"pending\"$"
+    },
+    {
+      "file": "worker.py",
+      "match": "(?m)^ACTIVE_STATUS = \"pending\"$"
+    },
+    {
+      "file": "config.json",
+      "match": "\"active_status\": \"pending\""
+    },
+    {
+      "file": "router.py",
+      "match": "(?m)^ACTIVE_STATUS = \"pending\"$"
+    },
+    {
+      "file": "reader.py",
+      "match": "(?m)^ACTIVE_STATUS = \"pending\"$"
+    },
+    {
+      "file": "scheduler.py",
+      "match": "(?m)^ACTIVE_STATUS = \"pending\"$"
+    }
+  ],
+  "check_red_at_base": "The registered repair is absent; the fixed acceptance script requires the requested new value."
+}

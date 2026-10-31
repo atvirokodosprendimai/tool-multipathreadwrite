@@ -1,0 +1,14 @@
+{
+  "id": "pilot-singleline",
+  "shape": "fixture",
+  "repo": "fixture",
+  "instruction": "In settings.py change TIMEOUT_SECONDS from 30 to 45. Keep RETRY_SECONDS at 30 and everything else unchanged. Do not edit the acceptance script or task/configuration instructions. Run the declared checker. Do not start background jobs.",
+  "exact": true,
+  "require": [
+    {
+      "file": "settings.py",
+      "match": "(?m)^TIMEOUT_SECONDS = 45$"
+    }
+  ],
+  "check_red_at_base": "The registered repair is absent; the fixed acceptance script requires the requested new value."
+}
