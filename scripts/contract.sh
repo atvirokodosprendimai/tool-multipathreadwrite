@@ -10892,6 +10892,35 @@ q319=$(e319 env MRW_SHELL=on "$MRW" -C "$R319" run 'touch marker2' 2>&1); rcq319
 { [ "$rcp319" = 0 ] && [ "$rcq319" = 0 ] && [ "$(head -1 "$R319/f.txt")" = ONE ] && [ -e "$R319/marker1" ] && [ -e "$R319/marker2" ] && [ -d "$S319/mrw-runs" ]; } \
   && ok "the pair: with MRW_SHELL=on, --then-sh and mrw run run their command" || bad "enabled: write $rcp319 run $rcq319 [$p319] [$q319]"
 
+# 320. ADR-184: rule 4 of `mrw instructions --core` shows the hunk headers a plan
+# is made of. The row takes rule 4 from the built binary, fills the three forms
+# it prints (PATH, N, M, TEXT) for a five-line file and applies them as printed;
+# the pair, the same replace with its anchor taken from line N+1, is refused,
+# exit 1, and writes nothing.
+S320=$(mktemp -d "$WORK/s320-XXXXXX"); R320=$(mktemp -d "$WORK/r320-XXXXXX")
+e320() { env XDG_STATE_HOME="$S320" "$@"; }
+rule320=$("$MRW" instructions --core | grep -E '^4\. ')
+forms320=$(grep -oE '@@ PATH (N-M|N) [a-z-]+( anchor="TEXT")?' <<<"$rule320")
+h320r=$(sed -n 1p <<<"$forms320"); h320i=$(sed -n 2p <<<"$forms320"); h320d=$(sed -n 3p <<<"$forms320")
+[ "$forms320" = "$(printf '%s\n' '@@ PATH N-M replace anchor="TEXT"' '@@ PATH N insert-after' '@@ PATH N-M delete')" ] && ok "the core names the three hunk headers" || bad "core rule 4 forms: [$forms320] in $rule320"
+r320=${h320r/PATH/f.txt}; r320=${r320/N-M/2-3}; r320=${r320/TEXT/two}
+i320=${h320i/PATH/f.txt}; i320=${i320/N/4}
+d320=${h320d/PATH/f.txt}; d320=${d320/N-M/5-5}
+printf 'one\ntwo\nthree\nfour\nfive\n' > "$R320/f.txt"
+printf '%s\n' "$r320" TWO THREE "$i320" 'four-and-a-half' "$d320" > "$WORK/p320.plan"
+e320 "$MRW" -C "$R320" read --quiet f.txt > "$WORK/s320.out"
+out=$(e320 "$MRW" -C "$R320" write --no-check "$WORK/p320.plan" 2>&1); rc320=$?
+{ [ "$rc320" = 0 ] && [ "$(cat "$R320/f.txt")" = "$(printf 'one\nTWO\nTHREE\nfour\nfour-and-a-half')" ]; } \
+  && ok "a plan of the three forms as the core prints them applies" || bad "taught forms: exit $rc320 [$out] [$(cat "$WORK/p320.plan")] [$(cat "$R320/f.txt")]"
+printf 'a\nb\nc\nd\n' > "$R320/g.txt"
+q320=${h320r/PATH/g.txt}; q320=${q320/N-M/2-3}; q320=${q320/TEXT/c}
+printf '%s\n' "$q320" B C > "$WORK/q320.plan"
+e320 "$MRW" -C "$R320" read --quiet g.txt > "$WORK/s320.out"
+out=$(e320 "$MRW" -C "$R320" write --no-check "$WORK/q320.plan" 2>&1); rcq320=$?
+{ [ "$rcq320" = 1 ] && grep -qF 'not in line 2' <<<"$out" && [ "$(cat "$R320/g.txt")" = "$(printf 'a\nb\nc\nd')" ]; } \
+  && ok "the pair: an anchor not from line N is refused and writes nothing" || bad "wrong anchor: exit $rcq320 [$out] [$(cat "$R320/g.txt")]"
+rm -rf "$S320" "$R320" "$WORK/p320.plan" "$WORK/q320.plan" "$WORK/s320.out"
+
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
 # killed process is a zombie until its adopter reaps it, and pgrep lists

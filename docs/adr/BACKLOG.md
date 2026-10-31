@@ -821,6 +821,15 @@ Zy, 2026-10-27: *"yes, go, address these, measure, plan, implement verify, udupa
 - **The new read flags and `--terse` on `mrw_read` and `mrw_write`** (2026-10-27): CLI only. Arm when a shell-less host asks (ADR-179: these flags on the MCP tools).
 - **`TestAnExponentIsReducedExactlyAndInLinearTime` fails under a loaded full suite** (2026-10-28): at the v1.77.0 release, `go test ./...` on `a508f6a2` failed twice locally at load 15-21 on 10 cores, only this test (`internal/mcp/surface128_test.go:257`), with 1M-to-4M ratios 6.4/7.1/7.2 and 3.7/9.5/9.9 in one run; it passed alone three times at load 21, a third full run passed, and CI passed. The noise guard (skip when ratios disagree threefold) did not fire on the first run. Arm when it fails again in a full run on a tree that does not touch `internal/mcp` (no ADR; found at the v1.77.0 release).
 
+## From ADR-184
+
+- **Whether the core arm now costs less (deferred from ADR-184).** Re-run the CORE-PREREGISTRATION
+  design (two counterbalanced rounds, F versus C, the five grouped jobs) against a binary carrying
+  ADR-184's core, registered before its first call with predictions written from run 2 of
+  `docs/bench/observability/CORE-RESULTS.md`. Until it runs, nothing says core-first is cheaper.
+- **`docs/agents.md`'s core-first advice (deferred from ADR-184).** It says to load the core once and
+  the full guide on demand (lines 51-53). Change it, or keep it, only after the re-run above.
+
 ## Post-v1.77.1 cleanup and decisions (2026-10-28)
 
 Zy asked to fix and clean up the reproducible issues, re-examine the open work,
