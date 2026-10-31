@@ -36,6 +36,11 @@ def registered_guides(config):
     return dict(REGISTERED_GUIDES, **config.get("registered_guides", {}))
 
 
+def reversed_order(config):
+    """Whether this round runs each pair's arms reversed: round 2 does, unless the run says (Amendment 3)."""
+    return config.get("reverse", config.get("round") == 2)
+
+
 def paired_plan(names, arms="AB", reverse=False):
     ordered = sorted(names)
     random.Random(5030).shuffle(ordered)
@@ -229,7 +234,7 @@ def run(config):
     if (out / "run-summary.json").exists():
         raise ValueError("run already completed")
     arms_label = config.get("arms", "AB")
-    plan = paired_plan((p.name for p in corpus.iterdir() if p.is_dir()), arms_label, reverse=config.get("round") == 2)
+    plan = paired_plan((p.name for p in corpus.iterdir() if p.is_dir()), arms_label, reverse=reversed_order(config))
     cells, attempts, canaries, reason = [], [], [], "completed"
     deadline = time.monotonic() + 540
     try:

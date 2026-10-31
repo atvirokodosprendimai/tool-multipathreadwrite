@@ -178,6 +178,18 @@ class GuideAblation(unittest.TestCase):
         self.assertEqual([arms for _, arms in second], [arms[::-1] for _, arms in first])
         self.assertEqual(grouped.paired_plan(names), grouped.paired_plan(names, "AB"))
 
+    def test_a_configured_order_overrides_the_round_and_is_what_run_plans(self):
+        self.assertTrue(grouped.reversed_order({"round": 2}))
+        self.assertFalse(grouped.reversed_order({"round": 1}))
+        self.assertTrue(grouped.reversed_order({"round": 1, "reverse": True}))
+        self.assertFalse(grouped.reversed_order({"round": 2, "reverse": False}))
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "tasks/job").mkdir(parents=True)
+            config = {"root": d, "corpus": str(Path(d) / "tasks"), "arms": "FC", "round": 1, "reverse": True}
+            with mock.patch.object(grouped, "execute_cell", side_effect=ValueError("stop")):
+                summary = grouped.run(config)
+            self.assertEqual(summary["plan"], [("job", "CF")])
+
     def round_one(self, d, cost=.2, stop="completed", cell_ok=True, canary_ok=True):
         prior = Path(d) / "round1"
         (prior / "evidence").mkdir(parents=True)
