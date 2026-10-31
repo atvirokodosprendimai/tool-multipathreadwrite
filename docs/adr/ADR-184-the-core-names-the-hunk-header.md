@@ -1,6 +1,7 @@
 # ADR-184: `mrw instructions --core` names the hunk header a plan is made of
 
-**Status:** Proposed
+**Status:** Accepted
+**Accepted:** 2026-10-31 by Zy — answered *"Accept and merge (Recommended)"* to "Do you accept ADR-184 so I can merge #577?", after run 3 and the Codex reviews of #577
 **Date:** 2026-10-31
 **Owner:** Zy
 **Spec:** None — no spec stage
