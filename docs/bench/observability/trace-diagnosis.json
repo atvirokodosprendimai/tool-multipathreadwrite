@@ -1,0 +1,1497 @@
+{
+  "kind": "post-hoc offline trace diagnosis",
+  "analyst_sha256": "c7b0fe17f1caab5277037407f8eb2de3003b4c0d53c5f821d13c28139cb37723",
+  "scope": "14 task cells; setup costs stay in original reports, excluded here",
+  "empirical_usd_per_million_tokens": {
+    "input_tokens": 2.0,
+    "output_tokens": 10.0,
+    "cache_read_input_tokens": 0.1,
+    "cache_creation_input_tokens": 4.0
+  },
+  "rate_note": "Algebraically reconciles these receipts; not an independently verified current tariff.",
+  "phase_note": "Manual labels for these observed commands; mixed commands are not cost-separated.",
+  "output_note": "Final result output_tokens are authoritative; streamed frame counters are incomplete.",
+  "experiments": {
+    "grouped": {
+      "source_sha256": "32420dea48f298b76cf6f3775e372b4d3737ad13cdf70f14ff9b4245d6492bc0",
+      "cells": [
+        {
+          "task": "grouped-structural",
+          "arm": "A",
+          "transcript_sha256": "25e3e17d555f8673d21c95b7dc3884daf0efbfa1152bb8a836df466b411df32f",
+          "solved": true,
+          "turns": 4,
+          "usage": {
+            "input_tokens": 8,
+            "output_tokens": 771,
+            "cache_read_input_tokens": 28825,
+            "cache_creation_input_tokens": 2854
+          },
+          "cost_usd": 0.022024500000000002,
+          "cost_components_usd": {
+            "input_tokens": 1.6e-05,
+            "output_tokens": 0.00771,
+            "cache_read_input_tokens": 0.0028825,
+            "cache_creation_input_tokens": 0.011416
+          },
+          "requests": [
+            {
+              "inputs": {
+                "input_tokens": 2,
+                "cache_read_input_tokens": 5807,
+                "cache_creation_input_tokens": 1315
+              },
+              "context_tokens": 7124,
+              "frame_output_tokens": 16,
+              "text_chars": 0
+            },
+            {
+              "inputs": {
+                "input_tokens": 2,
+                "cache_read_input_tokens": 7122,
+                "cache_creation_input_tokens": 676
+              },
+              "context_tokens": 7800,
+              "frame_output_tokens": 33,
+              "text_chars": 44
+            },
+            {
+              "inputs": {
+                "input_tokens": 2,
+                "cache_read_input_tokens": 7798,
+                "cache_creation_input_tokens": 300
+              },
+              "context_tokens": 8100,
+              "frame_output_tokens": 29,
+              "text_chars": 38
+            },
+            {
+              "inputs": {
+                "input_tokens": 2,
+                "cache_read_input_tokens": 8098,
+                "cache_creation_input_tokens": 563
+              },
+              "context_tokens": 8663,
+              "frame_output_tokens": 269,
+              "text_chars": 697
+            }
+          ],
+          "tool_calls": [
+            {
+              "name": "Bash",
+              "phase": "inspect",
+              "argument_chars": 79,
+              "command_chars": 64,
+              "result_chars": 1505,
+              "arguments_sha256": "cb0ab19739ded211eafeb143171618ae337b0aa1be28ad69c2e3d2943e986a53",
+              "result_sha256": "843fb1f664406effb29b7c4285df7814789b4fb5f099bfa9caf9af7b4bc2e17b",
+              "is_error": false,
+              "mrw_write_mention": false,
+              "mrw_instructions_mention": false,
+              "declared_check_pass_mentions": 0
+            },
+            {
+              "name": "Bash",
+              "phase": "inspect",
+              "argument_chars": 83,
+              "command_chars": 68,
+              "result_chars": 419,
+              "arguments_sha256": "cbf99c5d810a3733b74ecca7770fa75334c9c0d1dc7d0dcf810895c3d6e07be2",
+              "result_sha256": "364854d1ce490c19a0f42fe3e5cfc7717d15347a8b7b54be91ddf23cc51b240e",
+              "is_error": true,
+              "mrw_write_mention": false,
+              "mrw_instructions_mention": false,
+              "declared_check_pass_mentions": 0
+            },
+            {
+              "name": "Bash",
+              "phase": "edit_and_check",
+              "argument_chars": 607,
+              "command_chars": 553,
+              "result_chars": 474,
+              "arguments_sha256": "c9b07585407d7406d379dbaa659ab080eda3e9560dd79d58691d7c53bdb29d2b",
+              "result_sha256": "d731da6b95614c92efcc758659ed269da06201f93aee59691f9a1e56b030f3da",
+              "is_error": false,
+              "mrw_write_mention": false,
+              "mrw_instructions_mention": false,
+              "declared_check_pass_mentions": 0
+            }
+          ],
+          "permission_denial_count": 0,
+          "stream_frame_output_sum": 347
+        },
+        {
+          "task": "grouped-structural",
+          "arm": "B",
+          "transcript_sha256": "f424b09e90fa0bcdc850b338bff425b5cffb3312312245caeea5a1b90cfad7c8",
+          "solved": true,
+          "turns": 3,
+          "usage": {
+            "input_tokens": 6,
+            "output_tokens": 617,
+            "cache_read_input_tokens": 38079,
+            "cache_creation_input_tokens": 3371
+          },
+          "cost_usd": 0.023473900000000002,
+          "cost_components_usd": {
+            "input_tokens": 1.2e-05,
+            "output_tokens": 0.00617,
+            "cache_read_input_tokens": 0.0038079,
+            "cache_creation_input_tokens": 0.013484
+          },
+          "requests": [
+            {
+              "inputs": {
+                "input_tokens": 2,
+                "cache_read_input_tokens": 11412,
+                "cache_creation_input_tokens": 1313
+              },
+              "context_tokens": 12727,
+              "frame_output_tokens": 16,
+              "text_chars": 0
+            },
+            {
+              "inputs": {
+                "input_tokens": 2,
+                "cache_read_input_tokens": 12725,
+                "cache_creation_input_tokens": 1217
+              },
+              "context_tokens": 13944,
+              "frame_output_tokens": 6,
+              "text_chars": 0
+            },
+            {
+              "inputs": {
+                "input_tokens": 2,
+                "cache_read_input_tokens": 13942,
+                "cache_creation_input_tokens": 841
+              },
+              "context_tokens": 14785,
+              "frame_output_tokens": 250,
+              "text_chars": 638
+            }
+          ],
+          "tool_calls": [
+            {
+              "name": "Bash",
+              "phase": "inspect",
+              "argument_chars": 150,
+              "command_chars": 135,
+              "result_chars": 2310,
+              "arguments_sha256": "df732ae1cfa79d5dc6d7818316bafcbeacc0303f0ef49c8204f24ee82a727796",
+              "result_sha256": "e9641f556caa2b8c3420c119fc4fdad7949e6afbaf2237adca525c0063194159",
+              "is_error": false,
+              "mrw_write_mention": false,
+              "mrw_instructions_mention": false,
+              "declared_check_pass_mentions": 0
+            },
+            {
+              "name": "Bash",
+              "phase": "edit_and_check",
+              "argument_chars": 304,
+              "command_chars": 264,
+              "result_chars": 972,
+              "arguments_sha256": "8216e63fff87405937429f421205718faf2f80f3bb06e6d36d83086e63d333b4",
+              "result_sha256": "59e2733d26abb11a15f421a4da5605a055090b669223db8d22a11dad25c80ed4",
+              "is_error": false,
+              "mrw_write_mention": true,
+              "mrw_instructions_mention": false,
+              "declared_check_pass_mentions": 1
+            }
+          ],
+          "permission_denial_count": 0,
+          "stream_frame_output_sum": 272
+        },
+        {
+          "task": "grouped-config",
+          "arm": "B",
+          "transcript_sha256": "0e6bd0faeb6b688f6c36e443677cfdcdc7293f45b37e0c39ab094ee0e057840a",
+          "solved": true,
+          "turns": 4,
+          "usage": {
+            "input_tokens": 8,
+            "output_tokens": 450,
+            "cache_read_input_tokens": 52122,
+            "cache_creation_input_tokens": 3864
+          },
+          "cost_usd": 0.0251842,
+          "cost_components_usd": {
+            "input_tokens": 1.6e-05,
+            "output_tokens": 0.0045,
+            "cache_read_input_tokens": 0.0052122,
+            "cache_creation_input_tokens": 0.015456
+          },
+          "requests": [
+            {
+              "inputs": {
+                "input_tokens": 2,
+                "cache_read_input_tokens": 11412,
+                "cache_creation_input_tokens": 1177
+              },
+              "context_tokens": 12591,
+              "frame_output_tokens": 16,
+              "text_chars": 0
+            },
+            {
+              "inputs": {
+                "input_tokens": 2,
+                "cache_read_input_tokens": 12589,
+                "cache_creation_input_tokens": 1179
+              },
+              "context_tokens": 13770,
+              "frame_output_tokens": 40,
+              "text_chars": 63
+            },
+            {
+              "inputs": {
+                "input_tokens": 2,
+                "cache_read_input_tokens": 13768,
+                "cache_creation_input_tokens": 585
+              },
+              "context_tokens": 14355,
+              "frame_output_tokens": 4,
+              "text_chars": 0
+            },
+            {
+              "inputs": {
+                "input_tokens": 2,
+                "cache_read_input_tokens": 14353,
+                "cache_creation_input_tokens": 923
+              },
+              "context_tokens": 15278,
+              "frame_output_tokens": 113,
+              "text_chars": 316
+            }
+          ],
+          "tool_calls": [
+            {
+              "name": "Bash",
+              "phase": "inspect",
+              "argument_chars": 79,
+              "command_chars": 62,
+              "result_chars": 1925,
+              "arguments_sha256": "55bf3f7586042f297663ce786a7d70121903a60ccf6ca95f999f0d79999d0991",
+              "result_sha256": "08df2a9ea43125ac64360009b501d1e1fcc49d320590b97b64470ef736789954",
+              "is_error": false,
+              "mrw_write_mention": false,
+              "mrw_instructions_mention": false,
+              "declared_check_pass_mentions": 0
+            },
+            {
+              "name": "Bash",
+              "phase": "inspect",
+              "argument_chars": 69,
+              "command_chars": 54,
+              "result_chars": 979,
+              "arguments_sha256": "255e97dfc04c0b8fd9e45a5654cd45be5a97cc5b168e092a7153ebf4c6a80d98",
+              "result_sha256": "c95d377b92b0314d172bf1a1e330498ed233ed44ba453a284a8224e092470858",
+              "is_error": false,
+              "mrw_write_mention": false,
+              "mrw_instructions_mention": false,
+              "declared_check_pass_mentions": 0
+            },
+            {
+              "name": "Bash",
+              "phase": "edit_and_check",
+              "argument_chars": 173,
+              "command_chars": 154,
+              "result_chars": 1438,
+              "arguments_sha256": "e7f59e71a4b324959a6f37f1c3cb8b3b44aa884a6b3c0265b7b3fb74b6bb7af6",
+              "result_sha256": "58bab16aec8df0446e20e36c5df3e1dfa90ff9cb54f63b82fe3b03ae25633b70",
+              "is_error": false,
+              "mrw_write_mention": true,
+              "mrw_instructions_mention": false,
+              "declared_check_pass_mentions": 1
+            }
+          ],
+          "permission_denial_count": 0,
+          "stream_frame_output_sum": 173
+        },
+        {
+          "task": "grouped-config",
+          "arm": "A",
+          "transcript_sha256": "fef3305ec64216698a2a90cc67adecb50dd2d6a7f838932bd85bfd3999002ad4",
+          "solved": true,
+          "turns": 3,
+          "usage": {
+            "input_tokens": 6,
+            "output_tokens": 461,
+            "cache_read_input_tokens": 21461,
+            "cache_creation_input_tokens": 3300
+          },
+          "cost_usd": 0.019968100000000003,
+          "cost_components_usd": {
+            "input_tokens": 1.2e-05,
+            "output_tokens": 0.00461,
+            "cache_read_input_tokens": 0.0021461,
+            "cache_creation_input_tokens": 0.0132
+          },
+          "requests": [
+            {
+              "inputs": {
+                "input_tokens": 2,
+                "cache_read_input_tokens": 5807,
+                "cache_creation_input_tokens": 1176
+              },
+              "context_tokens": 6985,
+              "frame_output_tokens": 16,
+              "text_chars": 0
+            },
+            {
+              "inputs": {
+                "input_tokens": 2,
+                "cache_read_input_tokens": 6983,
+                "cache_creation_input_tokens": 1688
+              },
+              "context_tokens": 8673,
+              "frame_output_tokens": 37,
+              "text_chars": 43
+            },
+            {
+              "inputs": {
+                "input_tokens": 2,
+                "cache_read_input_tokens": 8671,
+                "cache_creation_input_tokens": 436
+              },
+              "context_tokens": 9109,
+              "frame_output_tokens": 204,
+              "text_chars": 547
+            }
+          ],
+          "tool_calls": [
+            {
+              "name": "Bash",
+              "phase": "inspect",
+              "argument_chars": 129,
+              "command_chars": 114,
+              "result_chars": 3667,
+              "arguments_sha256": "b960b16c93ef14b8cf4b6723176331531e5dd99b4b2d15ceea3fd2049a02828e",
+              "result_sha256": "e26f15b99c0e24bd4a3a383758956f036e861bc1e35ecae17febc3d939434030",
+              "is_error": false,
+              "mrw_write_mention": false,
+              "mrw_instructions_mention": false,
+              "declared_check_pass_mentions": 0
+            },
+            {
+              "name": "Bash",
+              "phase": "edit_and_check",
+              "argument_chars": 198,
+              "command_chars": 181,
+              "result_chars": 485,
+              "arguments_sha256": "d06b3f67b9e89e32c20e96f44297547ae0921c10da6b5402c0f1f1dd935c3379",
+              "result_sha256": "179908a89ee0715829041a8fcc51ff4dc530e185383d6e0bfce735bdf6585149",
+              "is_error": false,
+              "mrw_write_mention": false,
+              "mrw_instructions_mention": false,
+              "declared_check_pass_mentions": 0
+            }
+          ],
+          "permission_denial_count": 0,
+          "stream_frame_output_sum": 257
+        },
+        {
+          "task": "grouped-source-tests",
+          "arm": "A",
+          "transcript_sha256": "64ea297ddd6fa5b9891673475afd62ed5ed5f249dbe5a6a46d165c55fb4bfd82",
+          "solved": true,
+          "turns": 3,
+          "usage": {
+            "input_tokens": 6,
+            "output_tokens": 472,
+            "cache_read_input_tokens": 21584,
+            "cache_creation_input_tokens": 3361
+          },
+          "cost_usd": 0.020334400000000002,
+          "cost_components_usd": {
+            "input_tokens": 1.2e-05,
+            "output_tokens": 0.00472,
+            "cache_read_input_tokens": 0.0021584,
+            "cache_creation_input_tokens": 0.013444
+          },
+          "requests": [
+            {
+              "inputs": {
+                "input_tokens": 2,
+                "cache_read_input_tokens": 5807,
+                "cache_creation_input_tokens": 1226
+              },
+              "context_tokens": 7035,
+              "frame_output_tokens": 16,
+              "text_chars": 0
+            },
+            {
+              "inputs": {
+                "input_tokens": 2,
+                "cache_read_input_tokens": 7033,
+                "cache_creation_input_tokens": 1711
+              },
+              "context_tokens": 8746,
+              "frame_output_tokens": 48,
+              "text_chars": 59
+            },
+            {
+              "inputs": {
+                "input_tokens": 2,
+                "cache_read_input_tokens": 8744,
+                "cache_creation_input_tokens": 424
+              },
+              "context_tokens": 9170,
+              "frame_output_tokens": 175,
+              "text_chars": 484
+            }
+          ],
+          "tool_calls": [
+            {
+              "name": "Bash",
+              "phase": "inspect",
+              "argument_chars": 135,
+              "command_chars": 117,
+              "result_chars": 2786,
+              "arguments_sha256": "7fb63f2579ea07145163c0c30f7f7dcdb973e8133c6affd6885ee912253d5f7f",
+              "result_sha256": "17dbcd7ae3e021be11c551c3a8748d9277b677290c7c23562168f317aefbc815",
+              "is_error": false,
+              "mrw_write_mention": false,
+              "mrw_instructions_mention": false,
+              "declared_check_pass_mentions": 0
+            },
+            {
+              "name": "Bash",
+              "phase": "edit_and_check",
+              "argument_chars": 222,
+              "command_chars": 187,
+              "result_chars": 340,
+              "arguments_sha256": "1a02e4694818543e0275d84729fc4589c334ec4d58579feeea055296cd9dbf40",
+              "result_sha256": "fd05a75af81d1e30a40a980c8edd58b0abf11f44d1134a4828399abaf9c34077",
+              "is_error": false,
+              "mrw_write_mention": false,
+              "mrw_instructions_mention": false,
+              "declared_check_pass_mentions": 0
+            }
+          ],
+          "permission_denial_count": 0,
+          "stream_frame_output_sum": 239
+        },
+        {
+          "task": "grouped-source-tests",
+          "arm": "B",
+          "transcript_sha256": "9876824004982bf0fd720dc236d08ae6530d6d1c26d1f3989be8d79299b245e6",
+          "solved": true,
+          "turns": 3,
+          "usage": {
+            "input_tokens": 6,
+            "output_tokens": 407,
+            "cache_read_input_tokens": 37962,
+            "cache_creation_input_tokens": 3298
+          },
+          "cost_usd": 0.021070199999999997,
+          "cost_components_usd": {
+            "input_tokens": 1.2e-05,
+            "output_tokens": 0.00407,
+            "cache_read_input_tokens": 0.0037962,
+            "cache_creation_input_tokens": 0.013192
+          },
+          "requests": [
+            {
+              "inputs": {
+                "input_tokens": 2,
+                "cache_read_input_tokens": 11412,
+                "cache_creation_input_tokens": 1223
+              },
+              "context_tokens": 12637,
+              "frame_output_tokens": 16,
+              "text_chars": 0
+            },
+            {
+              "inputs": {
+                "input_tokens": 2,
+                "cache_read_input_tokens": 12635,
+                "cache_creation_input_tokens": 1280
+              },
+              "context_tokens": 13917,
+              "frame_output_tokens": 17,
+              "text_chars": 0
+            },
+            {
+              "inputs": {
+                "input_tokens": 2,
+                "cache_read_input_tokens": 13915,
+                "cache_creation_input_tokens": 795
+              },
+              "context_tokens": 14712,
+              "frame_output_tokens": 123,
+              "text_chars": 321
+            }
+          ],
+          "tool_calls": [
+            {
+              "name": "Bash",
+              "phase": "inspect",
+              "argument_chars": 129,
+              "command_chars": 113,
+              "result_chars": 1986,
+              "arguments_sha256": "a301a004b0d1a6dc86e53dd413b0d30fbbef7d69ca523ffadaa105bea7ba082f",
+              "result_sha256": "40130a0e4829dd9e515c2402ec1248ecbeab2610e163023d0907ca4a2700eae4",
+              "is_error": false,
+              "mrw_write_mention": false,
+              "mrw_instructions_mention": false,
+              "declared_check_pass_mentions": 0
+            },
+            {
+              "name": "Bash",
+              "phase": "edit_and_check",
+              "argument_chars": 254,
+              "command_chars": 222,
+              "result_chars": 958,
+              "arguments_sha256": "cc552429299e4e04c2ddd36422d6295969ad73aa331285b137f4fe5e0809cb91",
+              "result_sha256": "23773ea2444464d3aa053ce6065dd2828b263634a6e0488afe14da51aab9c126",
+              "is_error": false,
+              "mrw_write_mention": true,
+              "mrw_instructions_mention": false,
+              "declared_check_pass_mentions": 1
+            }
+          ],
+          "permission_denial_count": 0,
+          "stream_frame_output_sum": 156
+        },
+        {
+          "task": "grouped-docs",
+          "arm": "B",
+          "transcript_sha256": "3ae2a9f1af267ff04a0fc834285b1af387a8038dbf25277bf9b9ad6d3eff4f7f",
+          "solved": true,
+          "turns": 4,
+          "usage": {
+            "input_tokens": 8,
+            "output_tokens": 729,
+            "cache_read_input_tokens": 52551,
+            "cache_creation_input_tokens": 3351
+          },
+          "cost_usd": 0.025965099999999998,
+          "cost_components_usd": {
+            "input_tokens": 1.6e-05,
+            "output_tokens": 0.00729,
+            "cache_read_input_tokens": 0.0052551,
+            "cache_creation_input_tokens": 0.013404
+          },
+          "requests": [
+            {
+              "inputs": {
+                "input_tokens": 2,
+                "cache_read_input_tokens": 11412,
+                "cache_creation_input_tokens": 1195
+              },
+              "context_tokens": 12609,
+              "frame_output_tokens": 16,
+              "text_chars": 0
+            },
+            {
+              "inputs": {
+                "input_tokens": 2,
+                "cache_read_input_tokens": 12607,
+                "cache_creation_input_tokens": 1303
+              },
+              "context_tokens": 13912,
+              "frame_output_tokens": 66,
+              "text_chars": 113
+            },
+            {
+              "inputs": {
+                "input_tokens": 2,
+                "cache_read_input_tokens": 13910,
+                "cache_creation_input_tokens": 712
+              },
+              "context_tokens": 14624,
+              "frame_output_tokens": 4,
+              "text_chars": 0
+            },
+            {
+              "inputs": {
+                "input_tokens": 2,
+                "cache_read_input_tokens": 14622,
+                "cache_creation_input_tokens": 141
+              },
+              "context_tokens": 14765,
+              "frame_output_tokens": 325,
+              "text_chars": 751
+            }
+          ],
+          "tool_calls": [
+            {
+              "name": "Bash",
+              "phase": "inspect",
+              "argument_chars": 150,
+              "command_chars": 135,
+              "result_chars": 2495,
+              "arguments_sha256": "ad4273c0ee189c34bef3e4ba0cfa5baf9a95efb695a8a8a184ae6558473cae54",
+              "result_sha256": "52a32fb172c57b5a0a6f432db7a3746b4978044867bcb0c14457d86d931b4ddd",
+              "is_error": false,
+              "mrw_write_mention": false,
+              "mrw_instructions_mention": false,
+              "declared_check_pass_mentions": 0
+            },
+            {
+              "name": "Bash",
+              "phase": "edit",
+              "argument_chars": 247,
+              "command_chars": 228,
+              "result_chars": 850,
+              "arguments_sha256": "fb183b87da46b8de2146d2f7cc49b5a71dbdb61a0d33884cbbdf3557718cd122",
+              "result_sha256": "f0787d0a8e1eb55d7ffec60ed923363ed52cef883eca0ee39803f73ea02a4d31",
+              "is_error": false,
+              "mrw_write_mention": true,
+              "mrw_instructions_mention": false,
+              "declared_check_pass_mentions": 0
+            },
+            {
+              "name": "Bash",
+              "phase": "check",
+              "argument_chars": 49,
+              "command_chars": 34,
+              "result_chars": 59,
+              "arguments_sha256": "01e6b1c62298f800361b192121d3d3566cfee564e0b920f3d6157769e7261a9a",
+              "result_sha256": "d131099a2369bf480c2b0f1865ba6ab8c7de5263926864266f03cf51c3efafbe",
+              "is_error": false,
+              "mrw_write_mention": false,
+              "mrw_instructions_mention": false,
+              "declared_check_pass_mentions": 0
+            }
+          ],
+          "permission_denial_count": 0,
+          "stream_frame_output_sum": 411
+        },
+        {
+          "task": "grouped-docs",
+          "arm": "A",
+          "transcript_sha256": "a5373ec9e48f04528ad80387516067ac1c4c1b05314a526cb050d1f07e7d8e09",
+          "solved": true,
+          "turns": 3,
+          "usage": {
+            "input_tokens": 6,
+            "output_tokens": 643,
+            "cache_read_input_tokens": 20382,
+            "cache_creation_input_tokens": 2325
+          },
+          "cost_usd": 0.0177802,
+          "cost_components_usd": {
+            "input_tokens": 1.2e-05,
+            "output_tokens": 0.00643,
+            "cache_read_input_tokens": 0.0020382,
+            "cache_creation_input_tokens": 0.0093
+          },
+          "requests": [
+            {
+              "inputs": {
+                "input_tokens": 2,
+                "cache_read_input_tokens": 5807,
+                "cache_creation_input_tokens": 1194
+              },
+              "context_tokens": 7003,
+              "frame_output_tokens": 16,
+              "text_chars": 0
+            },
+            {
+              "inputs": {
+                "input_tokens": 2,
+                "cache_read_input_tokens": 7001,
+                "cache_creation_input_tokens": 573
+              },
+              "context_tokens": 7576,
+              "frame_output_tokens": 39,
+              "text_chars": 64
+            },
+            {
+              "inputs": {
+                "input_tokens": 2,
+                "cache_read_input_tokens": 7574,
+                "cache_creation_input_tokens": 558
+              },
+              "context_tokens": 8134,
+              "frame_output_tokens": 354,
+              "text_chars": 846
+            }
+          ],
+          "tool_calls": [
+            {
+              "name": "Bash",
+              "phase": "inspect",
+              "argument_chars": 82,
+              "command_chars": 67,
+              "result_chars": 1149,
+              "arguments_sha256": "7147285741e6196eba07c7cfefa1ab298919e8203086987ab0a31a66f4b22495",
+              "result_sha256": "b6bd6f907b94623fd9b37bf834d47deb1d16e187f349f9cd90b6432d3559cb25",
+              "is_error": false,
+              "mrw_write_mention": false,
+              "mrw_instructions_mention": false,
+              "declared_check_pass_mentions": 0
+            },
+            {
+              "name": "Bash",
+              "phase": "edit_and_check",
+              "argument_chars": 296,
+              "command_chars": 279,
+              "result_chars": 630,
+              "arguments_sha256": "cd76a33a4bd05d245d25232a2d737144bcdd72596360b558c1077d5d59504bf9",
+              "result_sha256": "a070d6e442cd4c4c9bd4fef314402f6e3d988301af435e4a453d6f9f2cf64b7e",
+              "is_error": false,
+              "mrw_write_mention": false,
+              "mrw_instructions_mention": false,
+              "declared_check_pass_mentions": 0
+            }
+          ],
+          "permission_denial_count": 0,
+          "stream_frame_output_sum": 409
+        },
+        {
+          "task": "grouped-routing",
+          "arm": "A",
+          "transcript_sha256": "d0e98e7b6d4cad0eb1f470316d46c3ec687e1c790522eb4c7a7d4da54e8616ee",
+          "solved": true,
+          "turns": 3,
+          "usage": {
+            "input_tokens": 6,
+            "output_tokens": 488,
+            "cache_read_input_tokens": 20631,
+            "cache_creation_input_tokens": 2904
+          },
+          "cost_usd": 0.0185711,
+          "cost_components_usd": {
+            "input_tokens": 1.2e-05,
+            "output_tokens": 0.00488,
+            "cache_read_input_tokens": 0.0020631,
+            "cache_creation_input_tokens": 0.011616
+          },
+          "requests": [
+            {
+              "inputs": {
+                "input_tokens": 2,
+                "cache_read_input_tokens": 5807,
+                "cache_creation_input_tokens": 1260
+              },
+              "context_tokens": 7069,
+              "frame_output_tokens": 20,
+              "text_chars": 0
+            },
+            {
+              "inputs": {
+                "input_tokens": 2,
+                "cache_read_input_tokens": 7067,
+                "cache_creation_input_tokens": 690
+              },
+              "context_tokens": 7759,
+              "frame_output_tokens": 20,
+              "text_chars": 0
+            },
+            {
+              "inputs": {
+                "input_tokens": 2,
+                "cache_read_input_tokens": 7757,
+                "cache_creation_input_tokens": 954
+              },
+              "context_tokens": 8713,
+              "frame_output_tokens": 202,
+              "text_chars": 501
+            }
+          ],
+          "tool_calls": [
+            {
+              "name": "Bash",
+              "phase": "inspect",
+              "argument_chars": 79,
+              "command_chars": 64,
+              "result_chars": 1058,
+              "arguments_sha256": "d9a5b2a0651367e135c56f4b469a13cb120d95c11da48a9a42ffb95c09d7a306",
+              "result_sha256": "28931553dd4c317239214c59bea99513ad20da7a77a229541e01d83f2813eaa1",
+              "is_error": false,
+              "mrw_write_mention": false,
+              "mrw_instructions_mention": false,
+              "declared_check_pass_mentions": 0
+            },
+            {
+              "name": "Bash",
+              "phase": "edit_and_check",
+              "argument_chars": 266,
+              "command_chars": 245,
+              "result_chars": 1044,
+              "arguments_sha256": "21ed43d61d057df494d73a034b616209f18a42af84cc4aaf282cba8973336ae9",
+              "result_sha256": "cea3f67a1d88dd845dae5cad0e00407a864b05b54d919dfb3b7dcdaef27207b7",
+              "is_error": false,
+              "mrw_write_mention": false,
+              "mrw_instructions_mention": false,
+              "declared_check_pass_mentions": 0
+            }
+          ],
+          "permission_denial_count": 0,
+          "stream_frame_output_sum": 242
+        },
+        {
+          "task": "grouped-routing",
+          "arm": "B",
+          "transcript_sha256": "555bd8b45aba28be2f479e79843314e88fc6bac0eab15bcd7794dbf27006ad49",
+          "solved": true,
+          "turns": 3,
+          "usage": {
+            "input_tokens": 6,
+            "output_tokens": 703,
+            "cache_read_input_tokens": 37782,
+            "cache_creation_input_tokens": 3049
+          },
+          "cost_usd": 0.0230162,
+          "cost_components_usd": {
+            "input_tokens": 1.2e-05,
+            "output_tokens": 0.00703,
+            "cache_read_input_tokens": 0.0037782,
+            "cache_creation_input_tokens": 0.012196
+          },
+          "requests": [
+            {
+              "inputs": {
+                "input_tokens": 2,
+                "cache_read_input_tokens": 11412,
+                "cache_creation_input_tokens": 1261
+              },
+              "context_tokens": 12675,
+              "frame_output_tokens": 16,
+              "text_chars": 0
+            },
+            {
+              "inputs": {
+                "input_tokens": 2,
+                "cache_read_input_tokens": 12673,
+                "cache_creation_input_tokens": 1024
+              },
+              "context_tokens": 13699,
+              "frame_output_tokens": 10,
+              "text_chars": 0
+            },
+            {
+              "inputs": {
+                "input_tokens": 2,
+                "cache_read_input_tokens": 13697,
+                "cache_creation_input_tokens": 764
+              },
+              "context_tokens": 14463,
+              "frame_output_tokens": 368,
+              "text_chars": 729
+            }
+          ],
+          "tool_calls": [
+            {
+              "name": "Bash",
+              "phase": "inspect",
+              "argument_chars": 92,
+              "command_chars": 77,
+              "result_chars": 1280,
+              "arguments_sha256": "3c7e83ac39cbb7b18c5b599b2d5b512d9708fcc601f8c09c61fcf1e15c5378d9",
+              "result_sha256": "9a7abf6e67d15f825cff432b6a27db7258c56e1ec97d963e707da5bdd31b756c",
+              "is_error": false,
+              "mrw_write_mention": false,
+              "mrw_instructions_mention": false,
+              "declared_check_pass_mentions": 0
+            },
+            {
+              "name": "Bash",
+              "phase": "edit_and_check",
+              "argument_chars": 215,
+              "command_chars": 194,
+              "result_chars": 857,
+              "arguments_sha256": "848d5ba0c16ce21783420f9b2826a10b2cd2f0b7f6a82449a3501d0a25256c9f",
+              "result_sha256": "daf8e510dad985f6cb950ba98dd7f3cab071c9d171122dcde4f1fff03dcf20ae",
+              "is_error": false,
+              "mrw_write_mention": true,
+              "mrw_instructions_mention": false,
+              "declared_check_pass_mentions": 1
+            }
+          ],
+          "permission_denial_count": 0,
+          "stream_frame_output_sum": 394
+        }
+      ],
+      "totals": {
+        "A": {
+          "turns": 16,
+          "tool_calls": 11,
+          "usage": {
+            "input_tokens": 32,
+            "output_tokens": 2835,
+            "cache_read_input_tokens": 112883,
+            "cache_creation_input_tokens": 14744
+          },
+          "cost_usd": 0.09867830000000001,
+          "cost_components_usd": {
+            "input_tokens": 6.4e-05,
+            "output_tokens": 0.02835,
+            "cache_read_input_tokens": 0.0112883,
+            "cache_creation_input_tokens": 0.058976
+          },
+          "emitted_messages": 16,
+          "first_context_tokens": [
+            7124,
+            6985,
+            7035,
+            7003,
+            7069
+          ],
+          "tool_kinds": {
+            "Bash": 11
+          },
+          "command_chars": 1939,
+          "result_chars": 13557,
+          "results_by_phase": {
+            "edit_and_check": 2973,
+            "inspect": 10584
+          },
+          "explicit_tool_errors": 1,
+          "permission_denials": 0,
+          "mrw_write_mentions": 0,
+          "instructions_command_mentions": 0
+        },
+        "B": {
+          "turns": 17,
+          "tool_calls": 12,
+          "usage": {
+            "input_tokens": 34,
+            "output_tokens": 2906,
+            "cache_read_input_tokens": 218496,
+            "cache_creation_input_tokens": 16933
+          },
+          "cost_usd": 0.1187096,
+          "cost_components_usd": {
+            "input_tokens": 6.8e-05,
+            "output_tokens": 0.02906,
+            "cache_read_input_tokens": 0.0218496,
+            "cache_creation_input_tokens": 0.067732
+          },
+          "emitted_messages": 17,
+          "first_context_tokens": [
+            12727,
+            12591,
+            12637,
+            12609,
+            12675
+          ],
+          "tool_kinds": {
+            "Bash": 12
+          },
+          "command_chars": 1672,
+          "result_chars": 16109,
+          "results_by_phase": {
+            "check": 59,
+            "edit": 850,
+            "edit_and_check": 4225,
+            "inspect": 10975
+          },
+          "explicit_tool_errors": 0,
+          "permission_denials": 0,
+          "mrw_write_mentions": 5,
+          "instructions_command_mentions": 0
+        }
+      },
+      "B_minus_A_cost_components_usd": {
+        "input_tokens": 4.000000000000002e-06,
+        "output_tokens": 0.0007099999999999988,
+        "cache_read_input_tokens": 0.010561300000000001,
+        "cache_creation_input_tokens": 0.008756
+      }
+    },
+    "smoke": {
+      "source_sha256": "cd60d3d9e0fa74ab79deedfb1cf5d0dc5e90977e2804d6edd7934560a88a6a0a",
+      "cells": [
+        {
+          "task": "pilot-singleline",
+          "arm": "A",
+          "transcript_sha256": "15b82662720ec6b0e1a5deec85f2f79d4747d203272ae7d26def523c22ccd894",
+          "solved": true,
+          "turns": 6,
+          "usage": {
+            "input_tokens": 8,
+            "output_tokens": 645,
+            "cache_read_input_tokens": 28898,
+            "cache_creation_input_tokens": 2705
+          },
+          "cost_usd": 0.0201758,
+          "cost_components_usd": {
+            "input_tokens": 1.6e-05,
+            "output_tokens": 0.00645,
+            "cache_read_input_tokens": 0.0028898,
+            "cache_creation_input_tokens": 0.01082
+          },
+          "requests": [
+            {
+              "inputs": {
+                "input_tokens": 2,
+                "cache_read_input_tokens": 5807,
+                "cache_creation_input_tokens": 1023
+              },
+              "context_tokens": 6832,
+              "frame_output_tokens": 16,
+              "text_chars": 0
+            },
+            {
+              "inputs": {
+                "input_tokens": 2,
+                "cache_read_input_tokens": 6830,
+                "cache_creation_input_tokens": 1055
+              },
+              "context_tokens": 7887,
+              "frame_output_tokens": 17,
+              "text_chars": 0
+            },
+            {
+              "inputs": {
+                "input_tokens": 2,
+                "cache_read_input_tokens": 7885,
+                "cache_creation_input_tokens": 491
+              },
+              "context_tokens": 8378,
+              "frame_output_tokens": 16,
+              "text_chars": 0
+            },
+            {
+              "inputs": {
+                "input_tokens": 2,
+                "cache_read_input_tokens": 8376,
+                "cache_creation_input_tokens": 136
+              },
+              "context_tokens": 8514,
+              "frame_output_tokens": 116,
+              "text_chars": 258
+            }
+          ],
+          "tool_calls": [
+            {
+              "name": "Grep",
+              "phase": "inspect",
+              "argument_chars": 70,
+              "command_chars": 0,
+              "result_chars": 454,
+              "arguments_sha256": "786046576e984fe7ed9242b68876d5557c16756efc5d127f0811c1ab0607185a",
+              "result_sha256": "749b1a97ac291f3def41eb91c883d5bb40e62dc14c32502eaf4d8744c38bebc2",
+              "is_error": null,
+              "mrw_write_mention": false,
+              "mrw_instructions_mention": false,
+              "declared_check_pass_mentions": 0
+            },
+            {
+              "name": "Glob",
+              "phase": "inspect",
+              "argument_chars": 16,
+              "command_chars": 0,
+              "result_chars": 1049,
+              "arguments_sha256": "fa3cb8f8b1326f9226bbbfb379eb48509ae1bd07b12a412650d8fa6b58d5d4e2",
+              "result_sha256": "baf3106d520d6d399ef475eb2bf4ed61af7a6c9e438c0c48c4f3a34fc0c886ff",
+              "is_error": null,
+              "mrw_write_mention": false,
+              "mrw_instructions_mention": false,
+              "declared_check_pass_mentions": 0
+            },
+            {
+              "name": "Edit",
+              "phase": "edit",
+              "argument_chars": 226,
+              "command_chars": 0,
+              "result_chars": 151,
+              "arguments_sha256": "e355e4e03bed94d9e7ece7df65f94e525943ec9546e575f3f454cb6d0c426ff0",
+              "result_sha256": "cff766e3a6bab4ced86d5038e8947c0fe1aa8ff3b017461ec0375e3b9b19cb65",
+              "is_error": null,
+              "mrw_write_mention": false,
+              "mrw_instructions_mention": false,
+              "declared_check_pass_mentions": 0
+            },
+            {
+              "name": "Read",
+              "phase": "inspect",
+              "argument_chars": 138,
+              "command_chars": 0,
+              "result_chars": 57,
+              "arguments_sha256": "0155f2a006f1a8e14611ff63e1c5d55ba017fb966f740ba389a33f6265f4b10c",
+              "result_sha256": "2012085a1233746ead9d464671e2fe51da7a0868ba6efecfdc6b836b19b2a7fe",
+              "is_error": null,
+              "mrw_write_mention": false,
+              "mrw_instructions_mention": false,
+              "declared_check_pass_mentions": 0
+            },
+            {
+              "name": "Bash",
+              "phase": "check",
+              "argument_chars": 66,
+              "command_chars": 33,
+              "result_chars": 41,
+              "arguments_sha256": "a2b701927e2d7297a88986fd94a1a887811e8b949fe893b0919a07ec20526bac",
+              "result_sha256": "f62c1da77b3b303bce6e82d38c34e9c7f37c4bf6bf646834832bf66cbf62c57a",
+              "is_error": false,
+              "mrw_write_mention": false,
+              "mrw_instructions_mention": false,
+              "declared_check_pass_mentions": 0
+            }
+          ],
+          "permission_denial_count": 0,
+          "stream_frame_output_sum": 165
+        },
+        {
+          "task": "pilot-singleline",
+          "arm": "B",
+          "transcript_sha256": "954a87f8b25eb73cb746f46341521d7738c0d4e115c81de3fbf8941bbbd46e70",
+          "solved": true,
+          "turns": 3,
+          "usage": {
+            "input_tokens": 6,
+            "output_tokens": 331,
+            "cache_read_input_tokens": 36788,
+            "cache_creation_input_tokens": 1782
+          },
+          "cost_usd": 0.0141288,
+          "cost_components_usd": {
+            "input_tokens": 1.2e-05,
+            "output_tokens": 0.00331,
+            "cache_read_input_tokens": 0.0036788,
+            "cache_creation_input_tokens": 0.007128
+          },
+          "requests": [
+            {
+              "inputs": {
+                "input_tokens": 2,
+                "cache_read_input_tokens": 11412,
+                "cache_creation_input_tokens": 1024
+              },
+              "context_tokens": 12438,
+              "frame_output_tokens": 16,
+              "text_chars": 0
+            },
+            {
+              "inputs": {
+                "input_tokens": 2,
+                "cache_read_input_tokens": 12436,
+                "cache_creation_input_tokens": 504
+              },
+              "context_tokens": 12942,
+              "frame_output_tokens": 16,
+              "text_chars": 0
+            },
+            {
+              "inputs": {
+                "input_tokens": 2,
+                "cache_read_input_tokens": 12940,
+                "cache_creation_input_tokens": 254
+              },
+              "context_tokens": 13196,
+              "frame_output_tokens": 134,
+              "text_chars": 344
+            }
+          ],
+          "tool_calls": [
+            {
+              "name": "Bash",
+              "phase": "inspect",
+              "argument_chars": 99,
+              "command_chars": 84,
+              "result_chars": 742,
+              "arguments_sha256": "9f9e49fcaf7b486d4997c9c6620216d6cc4d44ec6b193e1f80a5680a0efe5951",
+              "result_sha256": "045febf83f1113e06ccf5356b2008520caf2584700a364ed82c89e830d51784d",
+              "is_error": false,
+              "mrw_write_mention": false,
+              "mrw_instructions_mention": false,
+              "declared_check_pass_mentions": 0
+            },
+            {
+              "name": "Bash",
+              "phase": "edit_and_check",
+              "argument_chars": 97,
+              "command_chars": 82,
+              "result_chars": 236,
+              "arguments_sha256": "ce700b2f1bc5c3013485f0701216afcb225e1a737ca806067ce9e3d61a54a5b7",
+              "result_sha256": "92fe29eb098b37c2437c8f81264bf260f15dd8350ccc6c7c0961ca0dc7f04f4d",
+              "is_error": false,
+              "mrw_write_mention": true,
+              "mrw_instructions_mention": false,
+              "declared_check_pass_mentions": 1
+            }
+          ],
+          "permission_denial_count": 0,
+          "stream_frame_output_sum": 166
+        },
+        {
+          "task": "pilot-multisite",
+          "arm": "A",
+          "transcript_sha256": "ce12a8d58418c413f8a0754826f0edde37f8cac3b1454ad307ec3396c140ef42",
+          "solved": true,
+          "turns": 5,
+          "usage": {
+            "input_tokens": 8,
+            "output_tokens": 438,
+            "cache_read_input_tokens": 29576,
+            "cache_creation_input_tokens": 2917
+          },
+          "cost_usd": 0.0190216,
+          "cost_components_usd": {
+            "input_tokens": 1.6e-05,
+            "output_tokens": 0.00438,
+            "cache_read_input_tokens": 0.0029576,
+            "cache_creation_input_tokens": 0.011668
+          },
+          "requests": [
+            {
+              "inputs": {
+                "input_tokens": 2,
+                "cache_read_input_tokens": 5807,
+                "cache_creation_input_tokens": 1033
+              },
+              "context_tokens": 6842,
+              "frame_output_tokens": 21,
+              "text_chars": 0
+            },
+            {
+              "inputs": {
+                "input_tokens": 2,
+                "cache_read_input_tokens": 6840,
+                "cache_creation_input_tokens": 1478
+              },
+              "context_tokens": 8320,
+              "frame_output_tokens": 17,
+              "text_chars": 0
+            },
+            {
+              "inputs": {
+                "input_tokens": 2,
+                "cache_read_input_tokens": 8318,
+                "cache_creation_input_tokens": 293
+              },
+              "context_tokens": 8613,
+              "frame_output_tokens": 16,
+              "text_chars": 0
+            },
+            {
+              "inputs": {
+                "input_tokens": 2,
+                "cache_read_input_tokens": 8611,
+                "cache_creation_input_tokens": 113
+              },
+              "context_tokens": 8726,
+              "frame_output_tokens": 127,
+              "text_chars": 348
+            }
+          ],
+          "tool_calls": [
+            {
+              "name": "Grep",
+              "phase": "inspect",
+              "argument_chars": 47,
+              "command_chars": 0,
+              "result_chars": 1163,
+              "arguments_sha256": "f52b4db4041d9825ba0a288ef5a48642bf9f7a5f1418f4f1bb96c294011fb808",
+              "result_sha256": "9249be0ec47ddc91b5b5149510f67399d0e1c5d8af6f1489dd98c010f6e12db2",
+              "is_error": null,
+              "mrw_write_mention": false,
+              "mrw_instructions_mention": false,
+              "declared_check_pass_mentions": 0
+            },
+            {
+              "name": "Glob",
+              "phase": "inspect",
+              "argument_chars": 16,
+              "command_chars": 0,
+              "result_chars": 1289,
+              "arguments_sha256": "fa3cb8f8b1326f9226bbbfb379eb48509ae1bd07b12a412650d8fa6b58d5d4e2",
+              "result_sha256": "1063fcdfd92efd0c7692ab4747c1e19bd3f7157040f6b918e23adf8163970db8",
+              "is_error": null,
+              "mrw_write_mention": false,
+              "mrw_instructions_mention": false,
+              "declared_check_pass_mentions": 0
+            },
+            {
+              "name": "Bash",
+              "phase": "edit",
+              "argument_chars": 208,
+              "command_chars": 185,
+              "result_chars": 228,
+              "arguments_sha256": "1778e2dfa17126985b5b737be7e43bce8608039d1a2d22db65b05c82c1a64464",
+              "result_sha256": "421e1e31c827ec4c6ae3c927456f6af3b2a0c0e5b3840d31be68f75dc5857726",
+              "is_error": false,
+              "mrw_write_mention": false,
+              "mrw_instructions_mention": false,
+              "declared_check_pass_mentions": 0
+            },
+            {
+              "name": "Bash",
+              "phase": "check",
+              "argument_chars": 46,
+              "command_chars": 31,
+              "result_chars": 56,
+              "arguments_sha256": "e40a6f59f44153c43c4a8c7112f4fe3a6dffb6dd5a6a9943ef956045e9d66606",
+              "result_sha256": "1ef1c2cc35acc2d00a1c0290e1dfec317028b3ec3a0d09a0a61be7e5072e382f",
+              "is_error": false,
+              "mrw_write_mention": false,
+              "mrw_instructions_mention": false,
+              "declared_check_pass_mentions": 0
+            }
+          ],
+          "permission_denial_count": 0,
+          "stream_frame_output_sum": 181
+        },
+        {
+          "task": "pilot-multisite",
+          "arm": "B",
+          "transcript_sha256": "1b0934e27b3f2045c1788d4ea6818c841318fb2bc57338ba430704dcc7655be8",
+          "solved": true,
+          "turns": 3,
+          "usage": {
+            "input_tokens": 6,
+            "output_tokens": 365,
+            "cache_read_input_tokens": 37342,
+            "cache_creation_input_tokens": 2569
+          },
+          "cost_usd": 0.0176722,
+          "cost_components_usd": {
+            "input_tokens": 1.2e-05,
+            "output_tokens": 0.00365,
+            "cache_read_input_tokens": 0.0037342,
+            "cache_creation_input_tokens": 0.010276
+          },
+          "requests": [
+            {
+              "inputs": {
+                "input_tokens": 2,
+                "cache_read_input_tokens": 11412,
+                "cache_creation_input_tokens": 1032
+              },
+              "context_tokens": 12446,
+              "frame_output_tokens": 20,
+              "text_chars": 0
+            },
+            {
+              "inputs": {
+                "input_tokens": 2,
+                "cache_read_input_tokens": 12444,
+                "cache_creation_input_tokens": 1042
+              },
+              "context_tokens": 13488,
+              "frame_output_tokens": 16,
+              "text_chars": 0
+            },
+            {
+              "inputs": {
+                "input_tokens": 2,
+                "cache_read_input_tokens": 13486,
+                "cache_creation_input_tokens": 495
+              },
+              "context_tokens": 13983,
+              "frame_output_tokens": 167,
+              "text_chars": 440
+            }
+          ],
+          "tool_calls": [
+            {
+              "name": "Bash",
+              "phase": "inspect",
+              "argument_chars": 80,
+              "command_chars": 65,
+              "result_chars": 1850,
+              "arguments_sha256": "01a9a2107e59df0b365c75e2f285d614ca3cc1beeb8e3fb6f83bf3eb8f65a83d",
+              "result_sha256": "28a256a98ad2b2a547cde275feaa582a48fa31f6e2e1ea76fe86eefc99352bfb",
+              "is_error": false,
+              "mrw_write_mention": false,
+              "mrw_instructions_mention": false,
+              "declared_check_pass_mentions": 0
+            },
+            {
+              "name": "Bash",
+              "phase": "edit_and_check",
+              "argument_chars": 178,
+              "command_chars": 156,
+              "result_chars": 623,
+              "arguments_sha256": "bd4c134e1c746876ad5d52d33137796a29608f7a1a2eb14161b1d0a6560c433c",
+              "result_sha256": "a5bbc434ca2963b02b25c72a1cf72d97369322f8b6facc32063de03079f264d0",
+              "is_error": false,
+              "mrw_write_mention": true,
+              "mrw_instructions_mention": false,
+              "declared_check_pass_mentions": 1
+            }
+          ],
+          "permission_denial_count": 0,
+          "stream_frame_output_sum": 203
+        }
+      ],
+      "totals": {
+        "A": {
+          "turns": 11,
+          "tool_calls": 9,
+          "usage": {
+            "input_tokens": 16,
+            "output_tokens": 1083,
+            "cache_read_input_tokens": 58474,
+            "cache_creation_input_tokens": 5622
+          },
+          "cost_usd": 0.0391974,
+          "cost_components_usd": {
+            "input_tokens": 3.2e-05,
+            "output_tokens": 0.01083,
+            "cache_read_input_tokens": 0.0058474,
+            "cache_creation_input_tokens": 0.022488
+          },
+          "emitted_messages": 8,
+          "first_context_tokens": [
+            6832,
+            6842
+          ],
+          "tool_kinds": {
+            "Grep": 2,
+            "Glob": 2,
+            "Edit": 1,
+            "Read": 1,
+            "Bash": 3
+          },
+          "command_chars": 249,
+          "result_chars": 4488,
+          "results_by_phase": {
+            "check": 97,
+            "edit": 379,
+            "inspect": 4012
+          },
+          "explicit_tool_errors": 0,
+          "permission_denials": 0,
+          "mrw_write_mentions": 0,
+          "instructions_command_mentions": 0
+        },
+        "B": {
+          "turns": 6,
+          "tool_calls": 4,
+          "usage": {
+            "input_tokens": 12,
+            "output_tokens": 696,
+            "cache_read_input_tokens": 74130,
+            "cache_creation_input_tokens": 4351
+          },
+          "cost_usd": 0.031800999999999996,
+          "cost_components_usd": {
+            "input_tokens": 2.4e-05,
+            "output_tokens": 0.00696,
+            "cache_read_input_tokens": 0.007413,
+            "cache_creation_input_tokens": 0.017404
+          },
+          "emitted_messages": 6,
+          "first_context_tokens": [
+            12438,
+            12446
+          ],
+          "tool_kinds": {
+            "Bash": 4
+          },
+          "command_chars": 387,
+          "result_chars": 3451,
+          "results_by_phase": {
+            "edit_and_check": 859,
+            "inspect": 2592
+          },
+          "explicit_tool_errors": 0,
+          "permission_denials": 0,
+          "mrw_write_mentions": 2,
+          "instructions_command_mentions": 0
+        }
+      },
+      "B_minus_A_cost_components_usd": {
+        "input_tokens": -7.999999999999998e-06,
+        "output_tokens": -0.0038699999999999993,
+        "cache_read_input_tokens": 0.0015656000000000003,
+        "cache_creation_input_tokens": -0.005084000000000002
+      }
+    }
+  }
+}

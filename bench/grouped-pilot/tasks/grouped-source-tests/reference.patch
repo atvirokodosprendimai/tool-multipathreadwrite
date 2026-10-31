@@ -1,0 +1,115 @@
+diff --git a/test_unit_0.py b/test_unit_0.py
+--- a/test_unit_0.py
++++ b/test_unit_0.py
+@@ -2,7 +2,7 @@
+ 
+ 
+ def test_active():
+-    assert unit_0.active_label() == "old_0"
++    assert unit_0.active_label() == "ready_0"
+ 
+ 
+ def test_legacy():
+diff --git a/test_unit_1.py b/test_unit_1.py
+--- a/test_unit_1.py
++++ b/test_unit_1.py
+@@ -2,7 +2,7 @@
+ 
+ 
+ def test_active():
+-    assert unit_1.active_label() == "old_1"
++    assert unit_1.active_label() == "ready_1"
+ 
+ 
+ def test_legacy():
+diff --git a/test_unit_2.py b/test_unit_2.py
+--- a/test_unit_2.py
++++ b/test_unit_2.py
+@@ -2,7 +2,7 @@
+ 
+ 
+ def test_active():
+-    assert unit_2.active_label() == "old_2"
++    assert unit_2.active_label() == "ready_2"
+ 
+ 
+ def test_legacy():
+diff --git a/test_unit_3.py b/test_unit_3.py
+--- a/test_unit_3.py
++++ b/test_unit_3.py
+@@ -2,7 +2,7 @@
+ 
+ 
+ def test_active():
+-    assert unit_3.active_label() == "old_3"
++    assert unit_3.active_label() == "ready_3"
+ 
+ 
+ def test_legacy():
+diff --git a/test_unit_4.py b/test_unit_4.py
+--- a/test_unit_4.py
++++ b/test_unit_4.py
+@@ -2,7 +2,7 @@
+ 
+ 
+ def test_active():
+-    assert unit_4.active_label() == "old_4"
++    assert unit_4.active_label() == "ready_4"
+ 
+ 
+ def test_legacy():
+diff --git a/unit_0.py b/unit_0.py
+--- a/unit_0.py
++++ b/unit_0.py
+@@ -1,6 +1,6 @@
+ """Active and legacy labels for unit 0."""
+ 
+-ACTIVE_LABEL = "old_0"
++ACTIVE_LABEL = "ready_0"
+ LEGACY_LABEL = "old_0"
+ 
+ 
+diff --git a/unit_1.py b/unit_1.py
+--- a/unit_1.py
++++ b/unit_1.py
+@@ -1,6 +1,6 @@
+ """Active and legacy labels for unit 1."""
+ 
+-ACTIVE_LABEL = "old_1"
++ACTIVE_LABEL = "ready_1"
+ LEGACY_LABEL = "old_1"
+ 
+ 
+diff --git a/unit_2.py b/unit_2.py
+--- a/unit_2.py
++++ b/unit_2.py
+@@ -1,6 +1,6 @@
+ """Active and legacy labels for unit 2."""
+ 
+-ACTIVE_LABEL = "old_2"
++ACTIVE_LABEL = "ready_2"
+ LEGACY_LABEL = "old_2"
+ 
+ 
+diff --git a/unit_3.py b/unit_3.py
+--- a/unit_3.py
++++ b/unit_3.py
+@@ -1,6 +1,6 @@
+ """Active and legacy labels for unit 3."""
+ 
+-ACTIVE_LABEL = "old_3"
++ACTIVE_LABEL = "ready_3"
+ LEGACY_LABEL = "old_3"
+ 
+ 
+diff --git a/unit_4.py b/unit_4.py
+--- a/unit_4.py
++++ b/unit_4.py
+@@ -1,6 +1,6 @@
+ """Active and legacy labels for unit 4."""
+ 
+-ACTIVE_LABEL = "old_4"
++ACTIVE_LABEL = "ready_4"
+ LEGACY_LABEL = "old_4"
+ 
+ 

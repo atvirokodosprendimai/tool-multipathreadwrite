@@ -157,6 +157,12 @@ func classify(cmd, tree string, depth int) (string, []string) {
 	for _, m := range redirect.FindAllStringSubmatch(bare, -1) {
 		target := strings.TrimPrefix(m[1], "&")
 		if m[1] != "/dev/null" && !dupFD.MatchString(m[1]) && !outsideTree(target, tree) {
+			// An expansion or a quote is judged inside, as it must be, but an
+			// agent building a plan in $(mktemp) cannot tell what would pass, and
+			// paid a round to find out in three of four MRW cells (CORE-RESULTS.md).
+			if strings.ContainsAny(target, "$`~*?[{\"'\\") {
+				return "a redirection writes " + target + ", a path the hook cannot resolve: put a plan file at a literal absolute path outside the task tree, or pipe the plan to mrw write -", reads
+			}
 			return "a redirection writes " + target, reads
 		}
 	}

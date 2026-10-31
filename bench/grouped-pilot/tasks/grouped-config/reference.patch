@@ -1,0 +1,120 @@
+diff --git a/configs/service_0.json b/configs/service_0.json
+--- a/configs/service_0.json
++++ b/configs/service_0.json
+@@ -2,7 +2,7 @@
+   "name": "service-0",
+   "active": {
+     "enabled": true,
+-    "timeout": 30
++    "timeout": 40
+   },
+   "legacy": {
+     "enabled": true,
+diff --git a/configs/service_1.json b/configs/service_1.json
+--- a/configs/service_1.json
++++ b/configs/service_1.json
+@@ -2,7 +2,7 @@
+   "name": "service-1",
+   "active": {
+     "enabled": true,
+-    "timeout": 30
++    "timeout": 41
+   },
+   "legacy": {
+     "enabled": true,
+diff --git a/configs/service_2.json b/configs/service_2.json
+--- a/configs/service_2.json
++++ b/configs/service_2.json
+@@ -2,7 +2,7 @@
+   "name": "service-2",
+   "active": {
+     "enabled": true,
+-    "timeout": 30
++    "timeout": 42
+   },
+   "legacy": {
+     "enabled": true,
+diff --git a/configs/service_3.json b/configs/service_3.json
+--- a/configs/service_3.json
++++ b/configs/service_3.json
+@@ -2,7 +2,7 @@
+   "name": "service-3",
+   "active": {
+     "enabled": true,
+-    "timeout": 30
++    "timeout": 43
+   },
+   "legacy": {
+     "enabled": true,
+diff --git a/configs/service_4.json b/configs/service_4.json
+--- a/configs/service_4.json
++++ b/configs/service_4.json
+@@ -2,7 +2,7 @@
+   "name": "service-4",
+   "active": {
+     "enabled": true,
+-    "timeout": 30
++    "timeout": 44
+   },
+   "legacy": {
+     "enabled": true,
+diff --git a/configs/service_5.json b/configs/service_5.json
+--- a/configs/service_5.json
++++ b/configs/service_5.json
+@@ -2,7 +2,7 @@
+   "name": "service-5",
+   "active": {
+     "enabled": true,
+-    "timeout": 30
++    "timeout": 45
+   },
+   "legacy": {
+     "enabled": true,
+diff --git a/configs/service_6.json b/configs/service_6.json
+--- a/configs/service_6.json
++++ b/configs/service_6.json
+@@ -2,7 +2,7 @@
+   "name": "service-6",
+   "active": {
+     "enabled": true,
+-    "timeout": 30
++    "timeout": 46
+   },
+   "legacy": {
+     "enabled": true,
+diff --git a/configs/service_7.json b/configs/service_7.json
+--- a/configs/service_7.json
++++ b/configs/service_7.json
+@@ -2,7 +2,7 @@
+   "name": "service-7",
+   "active": {
+     "enabled": true,
+-    "timeout": 30
++    "timeout": 47
+   },
+   "legacy": {
+     "enabled": true,
+diff --git a/configs/service_8.json b/configs/service_8.json
+--- a/configs/service_8.json
++++ b/configs/service_8.json
+@@ -2,7 +2,7 @@
+   "name": "service-8",
+   "active": {
+     "enabled": true,
+-    "timeout": 30
++    "timeout": 48
+   },
+   "legacy": {
+     "enabled": true,
+diff --git a/configs/service_9.json b/configs/service_9.json
+--- a/configs/service_9.json
++++ b/configs/service_9.json
+@@ -2,7 +2,7 @@
+   "name": "service-9",
+   "active": {
+     "enabled": true,
+-    "timeout": 30
++    "timeout": 49
+   },
+   "legacy": {
+     "enabled": true,

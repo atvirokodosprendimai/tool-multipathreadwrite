@@ -4,7 +4,9 @@ import json
 import os
 import subprocess
 import time
+import shutil
 import unittest.mock as mock
+import sys
 from pathlib import Path
 import unittest
 
@@ -122,6 +124,149 @@ class WarningEvidence(unittest.TestCase):
             with self.subTest(receipt=receipt), self.assertRaises(ValueError):
                 observe.warning_evidence(receipt, ["old"], ["new", ")"], ["new", ")", "tail"], 1)
 
+
+
+@unittest.skipUnless(os.name == "posix", "verification requires POSIX")
+class TrialVerification(unittest.TestCase):
+    def setUp(self):
+        import tempfile
+        self.temp = self.enterContext(tempfile.TemporaryDirectory(prefix="mrw-evidence-test-"))
+        self.root = Path(self.temp) / "repo"
+        subprocess.run(["git", "init", "-q", str(self.root)], check=True, capture_output=True, timeout=5)
+        self.enterContext(mock.patch.dict(os.environ, {"XDG_STATE_HOME": str(Path(self.temp) / "state")}))
+        self.git("config", "user.name", "Fixture")
+        self.git("config", "user.email", "fixture@example.invalid")
+        # Fixture source bytes are authored through mrw too.
+        files = {"task.src": "old\n", "instructions.md": "Use the checked baseline.\n",
+                 "checker.sh": "test \"$(cat task.src)\" = new\n",
+                 ".quality-harness.json": json.dumps({"check": "sh checker.sh", "timeout_seconds": 2}) + "\n"}
+        self.write(files, create=True)
+        self.git("add", ".")
+        self.git("commit", "-qm", "synthetic baseline")
+        self.baseline = self.git("rev-parse", "HEAD").decode().strip()
+        self.write({"task.src": "new\n"})
+
+    def git(self, *args):
+        return subprocess.run(["git", *args], cwd=self.root, check=True, capture_output=True, timeout=5).stdout
+
+    def write(self, files, create=False):
+        binary = shutil.which("mrw")
+        if not binary:
+            self.fail("mrw must be installed for the evidence integration controls")
+        if not create:
+            subprocess.run([binary, "--root", str(self.root), "read", "--quiet", *files],
+                           check=True, capture_output=True, timeout=5)
+        plan = "".join(f"@@ {name} {'0 create' if create else '1-$ replace'} body={len(text.splitlines())}\n{text}"
+                       for name, text in files.items())
+        subprocess.run([binary, "--root", str(self.root), "write", "--no-check", "-"],
+                       input=plan.encode(), check=True, capture_output=True, timeout=5)
+
+    def verify(self):
+        return observe.verify_trial("mrw", self.root, self.baseline, ["checker.sh"], ["instructions.md"], 5)
+
+    def test_clean_final_check_binds_the_actual_tree_and_instructions(self):
+        result = self.verify()
+        self.assertEqual(result["status"], "verified")
+        self.assertTrue(result["check"]["receipt"]["ran"])
+        self.assertEqual(result["check"]["receipt"]["exit_code"], 0)
+        self.assertEqual(result["before"]["tree_sha256"], result["after"]["tree_sha256"])
+        self.assertEqual(result["before"]["files"]["task.src"]["sha256"], observe.hashlib.sha256(b"new\n").hexdigest())
+        self.assertIn("sha256", result["instructions"]["instructions.md"])
+        self.assertEqual(result["performance_verdict"], "not_attempted")
+
+    def test_modified_committed_hidden_or_deleted_gate_never_runs(self):
+        for kind in ("working", "committed", "hidden", "deleted", "config"):
+            with self.subTest(kind=kind):
+                self.git("reset", "--hard", self.baseline)
+                self.write({"task.src": "new\n", "checker.sh": "exit 0\n"})
+                if kind == "committed":
+                    self.git("add", ".")
+                    self.git("commit", "-qm", "altered gate")
+                if kind == "hidden":
+                    self.git("update-index", "--assume-unchanged", "checker.sh")
+                if kind == "deleted":
+                    subprocess.run(["mrw", "--root", str(self.root), "write", "--no-check", "-"],
+                                   input=b"@@ checker.sh - unlink\n", capture_output=True, check=True, timeout=5)
+                if kind == "config":
+                    self.write({"checker.sh": "test \"$(cat task.src)\" = new\n",
+                                ".quality-harness.json": '{"check":"true"}\n'})
+                result = self.verify()
+                self.assertEqual(result["status"], "rejected")
+                self.assertIsNone(result["check"])
+                self.assertTrue(result["gate_changes"])
+                self.git("update-index", "--no-assume-unchanged", "checker.sh")
+
+    def test_failed_check_and_check_that_changes_source_are_rejected(self):
+        self.write({"task.src": "bad\n"})
+        result = self.verify()
+        self.assertEqual(result["status"], "rejected")
+        self.assertNotEqual(result["check"]["exit"], 0)
+        # A baseline gate may itself write; even an exit-zero check cannot attest a different tree.
+        self.write({"checker.sh": "printf 'drift\\n' | mrw write --no-check --create extra.src\n"})
+        self.git("add", "checker.sh")
+        self.git("commit", "-qm", "mutating gate control")
+        self.baseline = self.git("rev-parse", "HEAD").decode().strip()
+        result = self.verify()
+        self.assertEqual(result["check"]["exit"], 0)
+        self.assertEqual(result["status"], "rejected")
+        self.assertIn("tree changed during verification", result["problems"])
+
+    def test_untracked_files_affect_identity_and_symlinks_are_refused(self):
+        first = self.verify()
+        self.write({"extra.src": "extra\n"}, create=True)
+        second = self.verify()
+        self.assertNotEqual(first["before"]["tree_sha256"], second["before"]["tree_sha256"])
+        os.symlink("task.src", self.root / "link.src")
+        with self.assertRaisesRegex(ValueError, "symlink"):
+            self.verify()
+
+    def test_cli_records_success_and_gate_rejection_with_distinct_exits(self):
+        argv = [sys.executable, str(Path(observe.__file__)), "verify", "--root", str(self.root),
+                "--baseline", self.baseline, "--gate", "checker.sh", "--instruction", "instructions.md"]
+        for changed, code, status in [(False, 0, "verified"), (True, 1, "rejected")]:
+            if changed:
+                self.write({"checker.sh": "exit 0\n"})
+            run = subprocess.run(argv, capture_output=True, timeout=10)
+            self.assertEqual(run.returncode, code, run.stderr.decode())
+            self.assertEqual(json.loads(run.stdout)["status"], status)
+
+    def test_interrupted_or_malformed_check_receipt_remains_rejected_evidence(self):
+        for code, output in [(130, b"{"), (0, b"{"), (0, b"[]"),
+                             (0, b'{"ran":false,"exit_code":0}'),
+                             (0, b'{"ran":true,"exit_code":1}'),
+                             (0, b'{"ran":true,"exit_code":false}')]:
+            with self.subTest(code=code, output=output), mock.patch.object(observe.Calls, "call", return_value=(
+                    {"exit": code, "timed_out": False}, output)):
+                result = self.verify()
+                self.assertEqual(result["status"], "rejected")
+                self.assertEqual(result["check"]["exit"], code)
+                self.assertTrue(result["problems"])
+
+    def test_instruction_drift_is_detected_even_when_the_check_passes(self):
+        # Use an explicit read in the gate: verification gets its own fresh ledger.
+        self.write({"checker.sh": "mrw read --quiet instructions.md\nprintf '@@ instructions.md 1 replace\\nchanged\\n' | mrw write --no-check -\n"})
+        self.git("add", "checker.sh")
+        self.git("commit", "-qm", "instruction drift control")
+        self.baseline = self.git("rev-parse", "HEAD").decode().strip()
+        result = self.verify()
+        self.assertEqual(result["check"]["exit"], 0)
+        self.assertEqual(result["status"], "rejected")
+        self.assertIn("instructions changed during verification", result["problems"])
+
+
+
+    def test_gate_owner_execute_flag_matches_the_git_baseline(self):
+        (self.root / "checker.sh").chmod(0o755)
+        self.git("add", "checker.sh")
+        self.git("commit", "-qm", "executable gate baseline")
+        self.baseline = self.git("rev-parse", "HEAD").decode().strip()
+        self.assertEqual(self.verify()["status"], "verified")
+        # Filesystem metadata control: retain g+x while removing u+x.
+        (self.root / "checker.sh").chmod(0o654)
+        result = self.verify()
+        self.assertEqual(result["status"], "rejected")
+        self.assertIn("checker.sh", result["gate_changes"])
+        self.assertIsNone(result["check"])
 
 if __name__ == "__main__":
     unittest.main()

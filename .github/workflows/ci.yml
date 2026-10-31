@@ -67,7 +67,11 @@ jobs:
         run: python3 -m unittest discover -s scripts -p test_brew_tap.py -v
 
       - name: Measurement and warning report checks
-        run: python3 -m unittest discover -s scripts -p test_mrw_observe.py -v
+        run: |
+          go build -o "$RUNNER_TEMP/mrw" ./cmd/mrw
+          PATH="$RUNNER_TEMP:$PATH" python3 -m unittest discover -s scripts -p test_mrw_observe.py -v
+          PATH="$RUNNER_TEMP:$PATH" python3 -m unittest discover -s scripts -p test_claude_evidence.py -v
+          PATH="$RUNNER_TEMP:$PATH" python3 -m unittest discover -s scripts -p test_grouped_pilot.py -v
 
       - name: Vet
         run: go vet ./...

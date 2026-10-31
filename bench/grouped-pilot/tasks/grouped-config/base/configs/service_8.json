@@ -1,0 +1,19 @@
+{
+  "name": "service-8",
+  "active": {
+    "enabled": true,
+    "timeout": 30
+  },
+  "legacy": {
+    "enabled": true,
+    "timeout": 30
+  },
+  "canary": {
+    "enabled": false,
+    "timeout": 30
+  },
+  "notes": [
+    "Keep legacy timeout unchanged",
+    "The canary retains the old timeout"
+  ]
+}

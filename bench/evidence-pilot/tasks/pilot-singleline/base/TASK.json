@@ -1,0 +1,1 @@
+{"id":"pilot-singleline","instruction":"In settings.py change TIMEOUT_SECONDS from 30 to 45. Keep RETRY_SECONDS at 30 and everything else unchanged. Do not edit the acceptance script or task/configuration instructions. Run the declared checker. Do not start background jobs."}
