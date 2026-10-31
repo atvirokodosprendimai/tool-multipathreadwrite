@@ -180,3 +180,46 @@ What this does and does not support:
   leave the repeat spread, and this registration fixed two.
 - Same limits as run 2: synthetic jobs, uncontrolled cache and service state, a peer process, and
   wall-clock times reported as contended (49.0 s and 47.5 s for F, 50.1 s and 49.1 s for C).
+
+## Runs 4 and 5: four more rounds against v1.80.0, no cost result
+
+Amendment 3 registered these before their first call: two more runs of run 3's design against the
+released v1.80.0, run 5 starting from the reverse order, one $3 budget. Both canaries passed in all
+four rounds and all 40 counted cells were solved. All-in usage: run 4 $0.695588 ($0.412342 and
+$0.283246), run 5 $0.588872 ($0.288084 and $0.300788), $1.284460 together. One-minute load at the
+round starts: 3.23, 3.05, 2.73 and 1.81. Peer processes were not recorded at the round starts, which Amendment 3 promised; none was running when it was registered. Every cost reproduces from its
+tokens within 7e-18. Exported records: [core-pilot-run4.json](core-pilot-run4.json),
+[core-pilot-run5.json](core-pilot-run5.json).
+
+| Five-job total | Run 4 r1 | Run 4 r2 | Run 5 r1 | Run 5 r2 |
+|---|---:|---:|---:|---:|
+| Arm order of the first pair | FC | CF | CF | FC |
+| F cost | $0.175668 | $0.137651 | $0.135094 | $0.130993 |
+| C cost | $0.158240 | $0.126327 | $0.132058 | $0.150279 |
+| F minus C | $0.017428 | $0.011324 | $0.003036 | $-0.019286 |
+| F first-request context | 63,095 | 63,097 | 63,089 | 63,082 |
+| C first-request context | 25,182 | 25,178 | 25,176 | 25,180 |
+| F / C turns | 20 / 25 | 19 / 19 | 19 / 19 | 18 / 23 |
+| F / C output tokens | 3,968 / 4,953 | 3,886 / 3,366 | 3,525 / 3,646 | 3,412 / 4,442 |
+| C jobs that ran the full `mrw instructions` | 0 | 0 | 0 | 0 |
+
+### The registered verdicts
+
+- **Four-round cost rule: "no cost result".** C was cheaper in three rounds and dearer in one; the
+  mean saving, $0.003125 per round, is far inside both arms' ranges (F $0.044675, C $0.031913).
+- **First-request context: C lower** in all four rounds by 37,902–37,919 tokens, mean 37,911.75,
+  against ranges of 15 (F) and 6 (C) tokens.
+- **Turns and output tokens: no result.** C took five more turns in two rounds and the same in two.
+- **Prediction 1, no full-guide fetch: held** in all four rounds.
+- **Prediction 2, first-request context: held.** C 4,977–5,118 per cell, F 12,556–12,702.
+- **Prediction 3, "no cost result": held.**
+- **Prediction 4, every job solved: held.**
+
+### What it settles
+
+On these jobs, with ADR-184's core, handing an agent the core instead of the full guide costs the
+same within what four rounds can tell, while every request starts about 7,600 tokens smaller and
+no job needed the full text. As registered, `docs/agents.md` keeps its core-first advice and now
+says it was measured cost-neutral. What four rounds cannot rule out is a difference smaller than
+about $0.03 per five jobs, the spread between rounds of one arm. The usual limits hold: synthetic
+jobs, one model and CLI, uncontrolled cache and service state.
