@@ -232,3 +232,48 @@ Predictions for run 3, written before its first call, from run 2's numbers:
 4. **Quality.** Both arms solve all five jobs in both rounds.
 
 Run 3 is not pooled with runs 1 or 2. Its result informs ADR-184's acceptance; it does not accept it.
+
+## Amendment 3, 2026-10-31, before runs 4 and 5
+
+Run 3 removed the core arm's full-guide fetch and left the cost difference inside the repeat spread
+([results](CORE-RESULTS.md)). The owner asked for a longer measurement to settle whether core-first
+is cheaper, which decides `docs/agents.md`'s advice. Runs 4 and 5 each repeat run 3's design (two
+rounds, the round-2 gate, fresh canaries) against the released v1.80.0, so four more rounds in all.
+
+- **Binary.** The installed `mrw` v1.80.0, built from tag `v1.80.0` with CI's flags, recorded by hash.
+  Its full guide is SHA256 `a76dbd46…`, its core `11a023b1…`, both as in run 3.
+- **Order.** Run 4 uses round 1's FC/CF order then its reverse, as runs 2 and 3 did. Run 5 starts from
+  the reverse, so over the four rounds every job runs each arm first twice.
+- **One budget.** Run 5's round 1 is given $3 minus run 4's usage, and its round 2 $3 minus everything
+  before it; run 5 starts only if run 4's two rounds completed with every cell isolated and together
+  used under $1.50. Runs 4 and 5 together stay below $3 plus the last call's overshoot.
+- **Peer processes** are recorded at each round's start.
+
+**The four-round rule, fixed now.** Eligibility as before: every counted cell of both runs solved,
+every measure known; otherwise "no eligible comparison". Let s1…s4 be F's five-job cost minus C's in
+each round, and let each arm's range be its highest five-job total minus its lowest across the four
+rounds.
+
+- **Core-first is cheaper** when s1…s4 are all positive and their mean is larger than both ranges.
+- **The full guide is cheaper** when all four are negative and the mean's magnitude is larger than
+  both ranges.
+- Anything else is "no cost result": the two setups cost the same within what four rounds can tell.
+
+The same rule is reported for first-request context, turns and output tokens. Runs 4 and 5 are not
+pooled with runs 1 to 3.
+
+**Predictions, written before the first call, from run 3:**
+
+1. C fetches the full guide in no job in any of the four rounds.
+2. C's first-request context is 4,960–5,130 tokens per cell, F's 12,550–12,710.
+3. Cost: "no cost result". Run 3's two rounds disagreed in sign ($-0.004 and $+0.011), so four rounds
+   are expected to disagree too. Either "cheaper" verdict is a miss.
+4. Both arms solve every job in all four rounds.
+
+**What follows for `docs/agents.md` (lines 51-53),** decided now so the result cannot choose it:
+
+- Core-first cheaper: keep the advice as it is.
+- Full guide cheaper: propose advice that a host which caches its system prompt appends the full
+  guide, through a record, since it changes what agents are told.
+- No cost result: keep core-first, which costs about 38,000 fewer context tokens over the five jobs at
+  no measured extra cost, and say that it was measured cost-neutral.
