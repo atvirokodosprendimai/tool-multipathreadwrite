@@ -14,7 +14,7 @@
 
 The core is the text a host is told to hand an agent at session start (`docs/agents.md:51-53`). Rule 1 tells the agent to make every edit as one plan, `mrw write PLANFILE`; no rule says what a plan line looks like. The core shows `--grep … --sub` and `@@ path 0 create`, and rule 4's `anchor=` and `body=` are parameters of a header it never shows.
 
-The core-first ablation (`docs/bench/observability/CORE-RESULTS.md`, run 2, 2026-10-31) measured what that costs. **That evidence is not on `main`:** it lives, uncommitted, on the experiment branch `experiment/trial-evidence` with its registration (`CORE-PREREGISTRATION.md`), records and calculation, and this record should merge after it or with it. Five synthetic jobs, each solved by a hand-built plan, two counterbalanced rounds, 20 of 20 cells solved:
+The core-first ablation (`docs/bench/observability/CORE-RESULTS.md`, run 2, 2026-10-31) measured what that costs. The evidence, its registration (`CORE-PREREGISTRATION.md`), records and calculation merged in #576 (`f3ee1cf9`). Five synthetic jobs, each solved by a hand-built plan, two counterbalanced rounds, 20 of 20 cells solved:
 
 - The arm handed the core ran the full `mrw instructions` in 8 of its 10 cells, 9 calls, 48,905 and 71,803 characters of tool result per round.
 - That text arrives mid-conversation, so each job paid the cache-creation price for it. The arm handed the full guide in its system prompt read it at the cache-read price after the canary.
@@ -35,7 +35,7 @@ The results file reads the missing header as the likely cause, from accounting o
 | `--grep P --sub R` (a plan mrw writes) | yes (rule 1) | unchanged |
 | `insert-before`, `unlink`, `rename`, `from=`, pattern addresses | no | no: in the full text, which a refusal names (Out of Scope) |
 
-Every MRW write in the grouped pilot was a `replace` plan (`GROUPED-RESULTS.md`, "The five MRW writes are confirmed", on the same experiment branch), so only the replace form is what the measured jobs needed. `insert-after` and `delete` are shown because they share the header's shape and cost nine words; that they help is not measured.
+Every MRW write in the grouped pilot was a `replace` plan (`GROUPED-RESULTS.md`, "The five MRW writes are confirmed", merged in #576), so only the replace form is what the measured jobs needed. `insert-after` and `delete` are shown because they share the header's shape and cost nine words; that they help is not measured.
 
 ## Existing Primitives Audit
 
