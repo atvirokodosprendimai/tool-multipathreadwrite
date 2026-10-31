@@ -163,7 +163,7 @@ def wrap(argv, config):
                 try:
                     os.killpg(child.pid, signal.SIGKILL)
                 except ProcessLookupError:
-                    pass
+                    pass  # the group already exited; there is nothing left to stop
                 raw, _ = child.communicate()
             code = 130 if interrupted else (124 if timed_out else child.returncode)
     finally:

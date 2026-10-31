@@ -63,7 +63,7 @@ def canary_problems(row, transcript, claude_md):
         try:
             decoded.extend(strings_in(json.loads(line)))
         except ValueError:
-            pass
+            pass  # a line that is not JSON is still searched as raw text above
     text += "\n" + "\n".join(decoded)
     quoted = [line.strip() for line in claude_md.splitlines() if len(line.strip()) >= 40 and line.strip() in text]
     if quoted:
