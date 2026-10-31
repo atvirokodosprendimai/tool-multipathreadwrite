@@ -66,7 +66,7 @@ once at session start costs a few hundred input tokens; reading the full text af
 again after every compaction, cost an outside team 8% of its tool output (ADR-171).
 Measured against appending the full guide on five synthetic jobs (v1.80.0, four counterbalanced
 rounds, `docs/bench/observability/CORE-RESULTS.md`, runs 4 and 5): the core cost the same within what
-four rounds can tell, started each request about 7,600 tokens smaller, and needed the full text in no
+four rounds can tell, started each job's first request about 7,600 tokens smaller, and needed the full text in no
 job. Before ADR-184 the core arm fetched it in 8 of 10 cells and cost more.
 
 **Add the skill beside the trigger, not in its place.** `mrw --skill` prints mrw's Agent Skills `SKILL.md` — a

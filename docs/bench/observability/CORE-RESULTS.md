@@ -186,7 +186,7 @@ What this does and does not support:
 Amendment 3 registered these before their first call: two more runs of run 3's design against the
 released v1.80.0, run 5 starting from the reverse order, one $3 budget. Both canaries passed in all
 four rounds and all 40 counted cells were solved. All-in usage: run 4 $0.695588 ($0.412342 and
-$0.283246), run 5 $0.588872 ($0.288084 and $0.300788), $1.284460 together. One-minute load at the
+$0.283246), run 5 $0.588872 ($0.288084 and $0.300788), $1.284459 together. One-minute load at the
 round starts: 3.23, 3.05, 2.73 and 1.81. Peer processes were not recorded at the round starts, which Amendment 3 promised; none was running when it was registered. Every cost reproduces from its
 tokens within 7e-18. Exported records: [core-pilot-run4.json](core-pilot-run4.json),
 [core-pilot-run5.json](core-pilot-run5.json).
@@ -218,7 +218,7 @@ tokens within 7e-18. Exported records: [core-pilot-run4.json](core-pilot-run4.js
 ### What it settles
 
 On these jobs, with ADR-184's core, handing an agent the core instead of the full guide costs the
-same within what four rounds can tell, while every request starts about 7,600 tokens smaller and
+same within what four rounds can tell, while each job's first request starts about 7,600 tokens smaller and
 no job needed the full text. As registered, `docs/agents.md` keeps its core-first advice and now
 says it was measured cost-neutral. What four rounds cannot rule out is a difference smaller than
 about $0.03 per five jobs, the spread between rounds of one arm. The usual limits hold: synthetic
