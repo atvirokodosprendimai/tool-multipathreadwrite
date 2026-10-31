@@ -192,14 +192,14 @@ def execute_cell(task, arm, config):
                     try:
                         os.killpg(pid, signal.SIGINT)
                     except ProcessLookupError:
-                        pass
+                        pass  # the cell's group already exited before the interrupt reached it
                     try:
                         child.wait(timeout=5)
                     except subprocess.TimeoutExpired:
                         try:
                             os.killpg(pid, signal.SIGKILL)
                         except ProcessLookupError:
-                            pass
+                            pass  # it exited between the wait timing out and the kill
                         child.wait()
                     code = 130 if isinstance(error, KeyboardInterrupt) else 124
         wall = round((time.monotonic() - start) * 1000)

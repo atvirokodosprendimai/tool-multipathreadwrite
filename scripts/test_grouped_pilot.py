@@ -8,7 +8,9 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from unittest import mock
+import unittest.mock
+
+mock = unittest.mock
 
 import grouped_pilot as grouped
 
