@@ -823,12 +823,12 @@ Zy, 2026-10-27: *"yes, go, address these, measure, plan, implement verify, udupa
 
 ## From ADR-184
 
-- **Whether the core arm now costs less (deferred from ADR-184).** Re-run the CORE-PREREGISTRATION
-  design (two counterbalanced rounds, F versus C, the five grouped jobs) against a binary carrying
-  ADR-184's core, registered before its first call with predictions written from run 2 of
-  `docs/bench/observability/CORE-RESULTS.md`. Until it runs, nothing says core-first is cheaper.
-- **`docs/agents.md`'s core-first advice (deferred from ADR-184).** It says to load the core once and
-  the full guide on demand (lines 51-53). Change it, or keep it, only after the re-run above.
+- **Whether the core arm now costs less (deferred from ADR-184) — done 2026-10-31.** Runs 3, 4 and 5
+  of `docs/bench/observability/CORE-RESULTS.md`, each registered before its first call: with
+  ADR-184's core no core cell fetched the full guide, and over four rounds against v1.80.0 the cost
+  difference was "no cost result" (#579). A difference under about $0.03 per five jobs is not ruled out.
+- **`docs/agents.md`'s core-first advice (deferred from ADR-184) — done 2026-10-31.** Kept, as
+  Amendment 3 decided before the data, and it now says it was measured cost-neutral (#579).
 
 ## Post-v1.77.1 cleanup and decisions (2026-10-28)
 
