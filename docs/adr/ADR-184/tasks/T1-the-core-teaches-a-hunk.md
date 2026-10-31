@@ -99,3 +99,7 @@ The fence exits 0; or the new rule cannot fit under 300 words without dropping a
 - 2026-10-31 · 2c5a2abd* · exit 0 · `set -o pipefail …` · acceptance-sha256:14faf47d54df08768a6574f3206ce69dee09204b7f21cae993a9be83522eb35f · ms:84075
 - 2026-10-31 · 2c5a2abd* · exit 0 · `set -o pipefail …` · acceptance-sha256:14faf47d54df08768a6574f3206ce69dee09204b7f21cae993a9be83522eb35f · ms:83406
 - 2026-10-31 · 2c5a2abd* · exit 0 · `set -o pipefail …` · acceptance-sha256:14faf47d54df08768a6574f3206ce69dee09204b7f21cae993a9be83522eb35f · ms:81520
+- 2026-10-31 · f5e93f5f* · exit 1 · `set -o pipefail …` · acceptance-sha256:14faf47d54df08768a6574f3206ce69dee09204b7f21cae993a9be83522eb35f · ms:1199 · test-lock-sha256:0f939a8d39060806c2b0f1fc4e2e7c402a75cf880e971f39b64d13341c54a8ea · test-lock-file:docs/adr/locks/0f939a8d39060806c2b0f1fc4e2e7c402a75cf880e971f39b64d13341c54a8ea.lock
+  ```
+  ```
+- 2026-10-31 · f5e93f5f* · exit 0 · `set -o pipefail …` · acceptance-sha256:14faf47d54df08768a6574f3206ce69dee09204b7f21cae993a9be83522eb35f · ms:84138
