@@ -11,20 +11,20 @@ description: >-
   heredocs. It applies only while mrw is on PATH: if it is not, use the host's
   own tools and do not install it.
 metadata:
-  mrw-version: "v1.79.0"
+  mrw-version: "dev (2c5a2ab, dirty)"
   generated-by: "mrw skill"
-  content-sha256: "14394b1c3572e715641fb219b514e41883b3489e0173b8d4f2e3821addc3f240"
+  content-sha256: "c6bf4787b7982f197b612bf8e888272dc72f27b8b7a0517a97cff02bead4af5e"
 ---
 
 # mrw
 
 The eight rules that matter most; read them once a session, and after a compaction only if lost:
 1. Use mrw for every file read, edit and create: one read of every site, one plan, one write (mrw write PLANFILE); the same change at many sites: mrw write --grep P --sub R.
-2. Read before you write, per line: a write to a line mrw has not served you is refused, except in a file mrw just wrote. After a multi-line body, read on past your range until the enclosing structure closes.
-3. A plan that fails validation writes nothing: read the refusal, which names the file, the plan line and the reason, and do not reach for --force. A commit that fails reports what reached disk.
-4. A multi-line replace needs anchor= copied from the line your read printed; omit body= unless mrw instructions names your case.
-5. For a write: exit 0 fine, 1 a hunk failed and nothing was written, 2 usage or filesystem, 3 applied but the check did not pass (failed, timed out or interrupted). A read exits 1 when a range cannot be served; a range your own --max-lines or --max-matches withheld is not one: exits 0 (capped). Never read an exit code through a pipe: head's status replaces it.
-6. Find with mrw read --grep PATTERN [paths]; start it with (?i) to ignore case; --stat lists the matching files; --max-cols N cuts a long line, and a cut line is unread; --no-numbers drops the numbers.
+2. Read before you write, per line: writing a line mrw never served you is refused, except in a file mrw just wrote. After a multi-line body, read on past your range until the enclosing structure closes.
+3. A plan that fails validation writes nothing: read the refusal, which names file, plan line and reason; never --force. A commit that fails reports what reached disk.
+4. A hunk is @@ PATH N-M replace anchor="TEXT", @@ PATH N insert-after or @@ PATH N-M delete, then its lines; anchor=, required on a multi-line replace, is copied from line N as read; omit body= unless mrw instructions names your case.
+5. For a write: exit 0 fine, 1 a hunk failed and nothing was written, 2 usage or filesystem, 3 applied but the check did not pass. A read exits 1 when a range cannot be served; a range your own --max-lines or --max-matches withheld is not one: exits 0 (capped). Never read an exit code through a pipe: head's status replaces it.
+6. Find with mrw read --grep PATTERN; start it with (?i) to ignore case; --stat lists files; --max-cols N cuts long lines, leaving them unread; --no-numbers drops the numbers.
 7. A new file is mrw write --create PATH < content, or @@ path 0 create in a plan.
 8. -C DIR or --root DIR comes BEFORE the subcommand; after read, -C N is context lines. A path with a leading or trailing space goes after --.
 
@@ -70,6 +70,6 @@ Recipes:
 20. answer by reference what you were already served, with --if-served PATH=SHA — only in a session alone in its checkout, whose host runs mrw seen --forget on start, resume, clear and compaction, and whose reads were made under --max-chars below the host's output limit, since a line recorded as shown may never have reached you (anywhere else, recipe 11):
   mrw read --if-served f.go=8dc37337 f.go:40-60
 
-`mrw instructions` prints the whole contract. This file was printed by `mrw skill` from mrw v1.79.0; when `mrw version` prints another version, `mrw skill --dir <the directory holding this mrw folder>` replaces it.
+`mrw instructions` prints the whole contract. This file was printed by `mrw skill` from mrw dev (2c5a2ab, dirty); when `mrw version` prints another version, `mrw skill --dir <the directory holding this mrw folder>` replaces it.
 
 A host's per-path rules for its Edit and Write tools do not reach mrw, which writes wherever its user can: their absence is not permission, and mrw is not a way to reach a path the host refused you.
