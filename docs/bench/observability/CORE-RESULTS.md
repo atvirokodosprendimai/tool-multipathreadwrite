@@ -11,7 +11,8 @@ needs all 20 cells solved, so run 1 makes no F-versus-C claim.
 - **What stopped it.** The configuration job's F cell reached the 75-second CLI deadline. Its
   record therefore has no cost, and the adapter refused the next launch for unknown prior cost,
   exactly as the budget rule says. Five cells were not run.
-- **What it cost.** $0.262079 across six launches: two canaries and four counted cells.
+- **What it cost.** $0.262079 for the five launches that reported a cost: two canaries and three
+  counted cells. The sixth, the timed-out cell, has no cost record, so the run's total is unknown.
 - **The CLI changed.** Claude Code reported 2.1.316; the 2026-10-30 pilots ran 2.1.314.
 
 | Cell | Arm | First-request context | CLI turns | Cache read | Cache creation | Output | Cost | Full-guide calls |
@@ -88,7 +89,7 @@ execution manifest hashed it one entry earlier (`f6ce2b4d…`), before the peer-
   defined no verdict for that direction, so the next point is reported as observed, not as a
   registered result: the mean excess, $0.075409, is larger than either arm's spread (F $0.035192,
   C $0.056343).
-- **Repeat spread, first-request context: C lower.** 38,040 fewer tokens over five jobs in each round;
+- **Repeat spread, first-request context: C lower.** 38,040 and 38,041 fewer tokens over five jobs;
   the spreads are 1 and 2 tokens. That is about 7,608 tokens per request: what appending the full guide
   costs at the start of every request.
 - **Repeat spread, turns and output tokens: within repeat spread, no result.**
@@ -100,7 +101,7 @@ execution manifest hashed it one entry earlier (`f6ce2b4d…`), before the peer-
 
 ### Why the smaller start cost more
 
-The first-request saving is real and exactly as large in both rounds; the money went the other way.
+The first-request saving is real and about equal in both rounds; the money went the other way.
 The F arm's cache creation stayed at 3,338–4,184 tokens in nine of its ten cells, as on 2026-10-30:
 its guide sits in the system prompt, which the canary had already cached, so every later request
 read it at the cache-read price. The C arm loaded the guide in 8 of its 10 cells by running
