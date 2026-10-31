@@ -116,3 +116,8 @@ The tool writes JSON to stdout; keep that output rather than piping it to a trun
 These are experimental report shapes, not additions to MRW's public receipt contract. No Windows/Linux
 live collection, real-repository performance campaign, history replay, model task run or shipped warning
 fix is claimed. No private project names or source fixtures are included.
+
+For the subsequent final-check evidence pilot, see [VERIFICATION.md](VERIFICATION.md).
+The [Claude smoke pilot](CLAUDE-RESULTS.md) exercises that evidence path on two paired synthetic tasks.
+The [grouped Sonnet pilot](GROUPED-RESULTS.md) compares fifty edit sites per arm and retains its contrary result.
+The [trace diagnosis](TRACE-DIAGNOSIS.md) reconciles both pilots' token costs and distinguishes turns from messages.

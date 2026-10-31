@@ -142,6 +142,45 @@ func TestTheArmBHookRefusesAWriteByAnyMeansButMrwAndCountsReads(t *testing.T) {
 // target the hook cannot resolve: a relative path (the Bash tool keeps its own
 // working directory across calls), a quoted path, an expansion. With no tree
 // known, every target is inside.
+// TestARedirectionToAPathTheHookCannotResolveNamesTheTwoFormsThatPass is the
+// core-first pilot's finding (CORE-RESULTS.md, 2026-10-31): three of four MRW
+// cells built a plan in $(mktemp -d)/plan.txt, the hook refused the
+// redirection, as it must for a target it cannot resolve, and its refusal named
+// neither form that passes, so each cell paid a round to find one. The refusal
+// stays; it now says what to do instead. A literal path outside the tree still
+// passes, and a resolvable path inside the tree is refused without the hint.
+func TestARedirectionToAPathTheHookCannotResolveNamesTheTwoFormsThatPass(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("bench runs on the operator's macOS or Linux machine; Windows is out of ADR-156's scope")
+	}
+	scratch := t.TempDir()
+	tree := filepath.Join(scratch, "tree")
+	if err := os.Mkdir(tree, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, cmd := range []string{
+		`P=$(mktemp -d)/plan.txt; for i in 0 1; do printf '@@ f.json 5 replace\n' ; done > $P; mrw write $P`,
+		`printf x > "$TMPDIR/plan.txt"`,
+	} {
+		var stderr bytes.Buffer
+		if code := Hook(bytes.NewReader(hookInput(t, "Bash", cmd)), &stderr, filepath.Join(scratch, "log"), tree); code != 2 {
+			t.Fatalf("%q: exit %d, want 2 (refused)", cmd, code)
+		}
+		for _, want := range []string{"cannot resolve", "a literal absolute path outside the task tree", "mrw write -"} {
+			if !strings.Contains(stderr.String(), want) {
+				t.Errorf("%q: refusal %q does not name %q", cmd, stderr.String(), want)
+			}
+		}
+	}
+	var stderr bytes.Buffer
+	if code := Hook(bytes.NewReader(hookInput(t, "Bash", "printf x > "+filepath.Join(scratch, "plan.txt"))), &stderr, filepath.Join(scratch, "log"), tree); code != 0 {
+		t.Fatalf("a literal path outside the tree: exit %d %q, want 0", code, stderr.String())
+	}
+	if code := Hook(bytes.NewReader(hookInput(t, "Bash", "printf x > "+filepath.Join(tree, "f.txt"))), &stderr, filepath.Join(scratch, "log"), tree); code != 2 || strings.Contains(stderr.String(), "cannot resolve") {
+		t.Fatalf("a resolvable path inside the tree: exit %d %q, want 2 without the hint", code, stderr.String())
+	}
+}
+
 func TestAWriteOutsideTheTaskTreePassesTheHook(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("bench runs on the operator's macOS or Linux machine; Windows is out of ADR-156's scope")

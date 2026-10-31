@@ -2,7 +2,8 @@
 """Experimental, local-only MRW measurements; not a stable mrw receipt format.
 
 native reads existing JSONL without running commands. costs and warnings use
-synthetic temporary fixtures through mrw. JSON goes to stdout, failures included.
+synthetic temporary fixtures. verify records a real checkout's final full check.
+JSON goes to stdout, failures included. These reports are unsigned observations.
 """
 import argparse
 from collections import defaultdict
@@ -315,6 +316,111 @@ def collect_warnings(binary, timeout):
     return result
 
 
+
+def canonical_sha(value):
+    return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()).hexdigest()
+
+
+def git_output(root, *args):
+    return subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True, timeout=10).stdout
+
+
+def evidence_file(root, name):
+    """Fingerprint a regular root-relative file; reject links rather than attest their targets."""
+    path = Path(name)
+    if path.is_absolute() or not path.parts or ".." in path.parts:
+        raise ValueError("evidence paths must be root-relative without ..")
+    for parent in [path, *path.parents]:
+        if (root / parent).is_symlink():
+            raise ValueError(f"symlink is outside the evidence scope: {name}")
+    try:
+        with (root / path).open("rb") as stream:
+            digest = hashlib.file_digest(stream, "sha256").hexdigest()
+        mode = "100755" if (root / path).stat().st_mode & 0o100 else "100644"
+        return {"sha256": digest, "mode": mode}
+    except FileNotFoundError:
+        return None
+
+
+def tree_evidence(root, baseline_names):
+    names = set(baseline_names)
+    names.update(os.fsdecode(p) for p in git_output(root, "ls-files", "-z", "--cached", "--others", "--exclude-standard").split(b"\0") if p)
+    files = {name: evidence_file(root, name) for name in sorted(names)}
+    return {"files": files, "tree_sha256": canonical_sha(files)}
+
+
+def verify_trial(binary, root, baseline, gates, instructions, timeout):
+    """Observe one final full check. Evidence is local, unsigned and scoped to declared files."""
+    root = root.resolve(strict=True)
+    if Path(os.fsdecode(git_output(root, "rev-parse", "--show-toplevel")).strip()).resolve() != root:
+        raise ValueError("--root must be the Git checkout root")
+    revision = git_output(root, "rev-parse", "--verify", "--end-of-options", baseline + "^{commit}").decode().strip()
+    entries = git_output(root, "ls-tree", "-rz", "--full-tree", revision)
+    baseline_files = {}
+    for entry in entries.split(b"\0"):
+        if not entry:
+            continue
+        header, name = entry.split(b"\t", 1)
+        mode, kind, oid = header.decode().split()
+        if kind != "blob" or mode not in ("100644", "100755"):
+            raise ValueError("baseline symlinks and submodules are outside the evidence scope")
+        baseline_files[os.fsdecode(name)] = {"git_blob": oid, "mode": mode}
+    gates = sorted(set([".quality-harness.json", *gates]))
+    gate_baseline = {}
+    for name in gates:
+        if name not in baseline_files:
+            raise ValueError(f"gate missing from baseline: {name}")
+        content = git_output(root, "show", revision + ":" + name)
+        gate_baseline[name] = {"sha256": hashlib.sha256(content).hexdigest(), "mode": baseline_files[name]["mode"]}
+    binary, meta = metadata(binary)
+    core = subprocess.run([str(binary), "instructions", "--core"], check=True, capture_output=True, timeout=5).stdout
+    instruction_files = {name: evidence_file(root, name) for name in instructions}
+    if not instruction_files or any(value is None for value in instruction_files.values()):
+        raise ValueError("existing instruction files are required")
+    before = tree_evidence(root, baseline_files)
+    result = {"kind": "verification", "status": "rejected", "baseline_revision": revision,
+              "baseline_files": baseline_files, "metadata": meta, "instructions": instruction_files,
+              "core_instructions_sha256": hashlib.sha256(core).hexdigest(), "gate_baseline": gate_baseline,
+              "before": before, "after": None, "check": None, "problems": [],
+              "performance_verdict": "not_attempted"}
+    result["gate_changes"] = [name for name in gates if evidence_file(root, name) != gate_baseline[name]]
+    if result["gate_changes"]:
+        result["problems"].append("declared gates differ from baseline; checker not run")
+        return result
+    # Separate state keeps the observer from adding files to the tree it measures.
+    with tempfile.TemporaryDirectory(prefix="mrw-verification-state-") as state:
+        calls = Calls(binary, root, time.monotonic() + timeout, timeout)
+        calls.environment["XDG_STATE_HOME"] = state
+        record, stdout = calls.call(["check", "--json", "--full"])
+    result["check"] = record
+    record["stdout_sha256"] = hashlib.sha256(stdout).hexdigest()
+    try:
+        parsed = json.loads(stdout)
+        receipt = parsed.get("check", parsed) if isinstance(parsed, dict) else {}
+        if not isinstance(receipt, dict):
+            receipt = {}
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        receipt = {}
+    record["receipt"] = receipt
+    after = tree_evidence(root, baseline_files)
+    result["after"] = after
+    if (record["exit"] != 0 or receipt.get("ran") is not True
+            or type(receipt.get("exit_code")) is not int or receipt["exit_code"] != 0):
+        result["problems"].append("final full checker did not run and pass")
+    if before != after:
+        result["problems"].append("tree changed during verification")
+    result["gate_changes"] = [name for name in gates if evidence_file(root, name) != gate_baseline[name]]
+    if result["gate_changes"]:
+        result["problems"].append("declared gates changed during verification")
+    if any(evidence_file(root, name) != value for name, value in instruction_files.items()):
+        result["problems"].append("instructions changed during verification")
+    if hashlib.sha256(binary.read_bytes()).hexdigest() != meta["binary"]["sha256"]:
+        result["problems"].append("binary changed during verification")
+    if not result["problems"]:
+        result["status"] = "verified"
+    return result
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -330,6 +436,13 @@ def main(argv=None):
             child.add_argument("--sizes", type=int, nargs="+", default=[1, 10, 100])
             child.add_argument("--budget", type=float, default=120)
             child.add_argument("--max-load", type=float, default=4)
+    verify = sub.add_parser("verify", help="bind a final full check to baseline gates and file fingerprints")
+    verify.add_argument("--mrw", default="mrw")
+    verify.add_argument("--root", type=Path, required=True)
+    verify.add_argument("--baseline", required=True)
+    verify.add_argument("--gate", action="append", required=True)
+    verify.add_argument("--instruction", action="append", required=True)
+    verify.add_argument("--timeout", type=float, default=30)
     args = parser.parse_args(argv)
     try:
         if args.command == "native":
@@ -342,7 +455,11 @@ def main(argv=None):
                 raise ValueError("live collection currently requires POSIX")
             if not math.isfinite(args.timeout) or args.timeout <= 0:
                 raise ValueError("timeout must be positive and finite")
-            if args.command == "costs":
+            if args.command == "verify":
+                if args.timeout > 120:
+                    raise ValueError("verification timeout must be <= 120 seconds")
+                result = verify_trial(args.mrw, args.root, args.baseline, args.gate, args.instruction, args.timeout)
+            elif args.command == "costs":
                 if args.runs < 1 or args.warmups < 0 or not 0 < args.budget <= 120 or not 0 < args.max_load <= 4:
                     raise ValueError("runs >= 1, warmups >= 0, budget <= 120 and max-load <= 4 required")
                 if not args.sizes or any(n not in (1, 10, 100) for n in args.sizes) or len(set(args.sizes)) != len(args.sizes):
@@ -354,7 +471,7 @@ def main(argv=None):
         print(f"mrw-observe: {error}", file=sys.stderr)
         return 2
     print(json.dumps(result, indent=2, allow_nan=False))
-    return 1 if result.get("status") == "incomplete" or result.get("quality") == "fail" else 0
+    return 1 if result.get("status") in ("incomplete", "rejected") or result.get("quality") == "fail" else 0
 
 
 if __name__ == "__main__":
