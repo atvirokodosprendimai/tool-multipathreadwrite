@@ -4,7 +4,7 @@ Source of truth: the task files. This index is derived from them.
 
 | Task | Goal | Depends-on | Status |
 |------|------|------------|--------|
-| T1 | the guard resolves a plan file's path from `$TMPDIR`, `mktemp` and a once-assigned literal | none | pending |
+| T1 | the guard resolves a plan file's path from `$TMPDIR`, `mktemp` and a once-assigned literal | none | done |
 
 Execution order: T1. One pull request.
 

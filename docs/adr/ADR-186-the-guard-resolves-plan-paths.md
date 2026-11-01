@@ -1,6 +1,7 @@
 # ADR-186: the benchmark's write guard resolves a plan file's path from `$TMPDIR`, `mktemp` and a literal
 
-**Status:** Proposed
+**Status:** Accepted
+**Accepted:** 2026-11-01 by Zy — answered *"Accept and merge (Recommended)"* to "Accept and merge once CI is green?", after five Codex passes on #582
 **Date:** 2026-11-01
 **Owner:** Zy
 **Spec:** None — no spec stage
