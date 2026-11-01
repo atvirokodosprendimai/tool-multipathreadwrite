@@ -156,7 +156,7 @@ func TestAdHocShellRunsOnlyWhenTheEnvironmentEnablesIt(t *testing.T) {
 	t.Run("a declared step and the declared check need no switch", func(t *testing.T) {
 		t.Setenv("MRW_SHELL", "")
 		root, plan, _ := shell174Tree(t)
-		out, code := runIn(t, root, "write", "--then", "a", plan)
+		out, code := runIn(t, root, "write", "--check", "--then", "a", plan)
 		if code != 0 || logOf(t, root) != "a\n" {
 			t.Errorf("write --then a: exit %d, log %q:\n%s", code, logOf(t, root), out)
 		}

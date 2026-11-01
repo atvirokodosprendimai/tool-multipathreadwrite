@@ -51,7 +51,7 @@ func Recipes() string {
   mrw read --grep P --count . && mrw read 'f.go:/P/' -C 3 --max-lines 40
 5. different changes at several sites: one read of all of them, then the plan in a file — written with the host's file tool, in a temporary directory you may write — so no shell parser sees its text:
   mrw read 'a.go:/func A/,+12' b.go:40-60 && mrw write "$TMPDIR/plan.txt"
-6. a step after the write, in the same call (NAME is a step in .quality-harness.json; a code write already runs the project's check; ` + ThenShCaveat() + `):
+6. a step after the write, in the same call (NAME is a step in .quality-harness.json; a write runs no check unless --check asks for it; ` + ThenShCaveat() + `):
   mrw write - --then NAME
 7. license lines you already know, without them in your context (a read into /dev/null licenses nothing; a file mrw just wrote needs no re-read):
   mrw read --quiet f.go:40-60

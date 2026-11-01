@@ -46,7 +46,7 @@ func TestTheReceiptIsOnStdoutBeforeTheCheckStarts(t *testing.T) {
 	if _, err := run("read", "a.go"); err != nil {
 		t.Fatal(err)
 	}
-	out, err := run("write", planFile(t, goPlan))
+	out, err := run("write", "--check", planFile(t, goPlan))
 	if ee, ok := err.(*exec.ExitError); !ok || ee.ExitCode() != -1 {
 		t.Fatalf("want mrw killed by its own check, got %v:\n%s", err, out)
 	}
@@ -71,7 +71,7 @@ func TestAFailedCheckIsCountedOnceInStats(t *testing.T) {
 	if _, err := readIn(t, root, "a.go"); err != nil {
 		t.Fatal(err)
 	}
-	if out, code := writeIn(t, root, planFile(t, goPlan)); code != exitCheckFailed {
+	if out, code := writeIn(t, root, "--check", planFile(t, goPlan)); code != exitCheckFailed {
 		t.Fatalf("exit %d, want %d:\n%s", code, exitCheckFailed, out)
 	}
 	out, code := runIn(t, root, "stats", "--json")
@@ -142,7 +142,7 @@ func TestALedgerFailureWithACheckDueIsCountedAsCheckNotRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.Chmod(ledger, 0o600) })
-	if out, code := writeIn(t, root, planFile(t, goPlan)); code != exitUsage {
+	if out, code := writeIn(t, root, "--check", planFile(t, goPlan)); code != exitUsage {
 		t.Fatalf("exit %d, want %d for a landing whose ledger could not be written:\n%s", code, exitUsage, out)
 	}
 	out, code := runIn(t, root, "stats", "--json")
@@ -177,7 +177,7 @@ func TestACheckThatCannotRunIsCountedAsCheckNotRun(t *testing.T) {
 	for _, v := range []string{"TMPDIR", "TMP", "TEMP"} {
 		t.Setenv(v, missing)
 	}
-	if out, code := writeIn(t, root, plan); code != exitUsage {
+	if out, code := writeIn(t, root, "--check", plan); code != exitUsage {
 		t.Fatalf("exit %d, want %d for a check that could not run:\n%s", code, exitUsage, out)
 	}
 	out, code := runIn(t, root, "stats", "--json")

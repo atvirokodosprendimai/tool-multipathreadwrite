@@ -1770,12 +1770,12 @@ is not an apply_patch; --format=git is usage.
 visible. Default 0. It is not a checker: a closer in the pad does not fail
 the hunk. Negative is usage.
 
-After a successful apply the project's check runs by default when a written
-path is not prose (.md .markdown .txt .rst .adoc) and a check exists — declared
-in .quality-harness.json or inferred from go.mod. A markdown-only plan does
-not spawn it; a tree with no check stays exit 0. --no-check opts out. --check
-is a demand: it runs on prose too, and is exit 2 when nothing can run. A
-failing check is exit 3 and the tree is NOT reverted.
+After a successful apply no check runs unless --check asks for it (ADR-187).
+--check runs the project's check — declared in .quality-harness.json, or
+inferred from go.mod, narrowed by scoped_check when one is declared — on any
+plan, prose included, and is exit 2 when nothing can run. A failing check is
+exit 3 and the tree is NOT reverted. --no-check is accepted and changes
+nothing.
 
 A non-prose hunk whose {} () [] nets differ between the replaced lines and
 the body prints a balance row under ok. It does not fail the hunk and it is
@@ -1820,12 +1820,12 @@ held or went unchecked.`,
 			},
 			&cli.BoolFlag{
 				Name: "check",
-				Usage: "demand the project's check after a successful write, even on a prose-only plan " +
-					"(exit 2 if none can run)",
+				Usage: "run the project's check after a successful write, prose included " +
+					"(exit 3 if it fails, exit 2 if none can run); without it no check runs (ADR-187)",
 			},
 			&cli.BoolFlag{
 				Name:  "no-check",
-				Usage: "do not run the project's check after this write (the default runs it when a written path is not prose)",
+				Usage: "run no check after this write; the default since ADR-187, kept for scripts that pass it",
 			},
 			&cli.StringFlag{
 				Name:  "format",
@@ -2277,7 +2277,7 @@ held or went unchecked.`,
 			// the steps and the pricing are the shared sequence mrw_write runs
 			// too; this action renders what it returns. ADR-072: the harness
 			// is read BEFORE anything is written, inside Prepare.
-			mode := writer.CheckAuto
+			mode := writer.CheckOff // ADR-187: no check unless --check asks for it
 			switch {
 			case cmd.Bool("no-check"):
 				mode = writer.CheckOff

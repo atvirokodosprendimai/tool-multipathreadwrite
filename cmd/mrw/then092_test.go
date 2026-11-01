@@ -276,7 +276,7 @@ func TestAStepFailureIsPricedByTheCheckAlone(t *testing.T) {
 	if _, err := readIn(t, root, "f.go"); err != nil {
 		t.Fatal(err)
 	}
-	out, code := writeIn(t, root, "--then-sh", "exit 1", planFile(t, "@@ f.go 1 replace anchor=\"func A\"\nfunc A() { return }\n"))
+	out, code := writeIn(t, root, "--check", "--then-sh", "exit 1", planFile(t, "@@ f.go 1 replace anchor=\"func A\"\nfunc A() { return }\n"))
 	if code != exitCheckFailed {
 		t.Fatalf("exit %d, want %d:\n%s", code, exitCheckFailed, out)
 	}

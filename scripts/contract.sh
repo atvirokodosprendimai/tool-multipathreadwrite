@@ -5422,8 +5422,8 @@ printf '# notes\nline two\n' > "$R/notes.md"
 m read 'a.go:2' 'notes.md:2' >"$WORK/served.out"
 out=$(printf '%s\n' \
 	'@@ a.go 2 replace anchor="func A"' \
-	'func A() { _ = 1 }' | m write - 2>&1); rc=$?
-want 3 "$rc" "a .go write without --check runs the declared check (exit 3)"
+	'func A() { _ = 1 }' | m write --check - 2>&1); rc=$?
+want 3 "$rc" "a .go write with --check runs the declared check (exit 3)"
 grep -q 'check FAIL' <<<"$out" && ok "and the receipt shows the failing check" || bad "receipt: $out"
 
 out=$(printf '%s\n' \
@@ -5517,8 +5517,8 @@ grep -qE 'check_not_run +0 of 1' <<<"$out" && ok "check_not_run prints at zero" 
 grep -q 'landed writes: 1; failed_check 0 of those' <<<"$out" && ok "the landed line names its denominator" || bad "no landed line: $out"
 
 m read 'a.go:3' >"$WORK/served.out"
-printf '@@ a.go 3 replace\nfunc B() { _ = 1 }\n' | m write - >/dev/null 2>&1; rc=$?
-want 3 "$rc" "a default-check write against a failing check exits 3"
+printf '@@ a.go 3 replace\nfunc B() { _ = 1 }\n' | m write --check - >/dev/null 2>&1; rc=$?
+want 3 "$rc" "a --check write against a failing check exits 3"
 out=$(m stats 2>&1); rc=$?
 want 0 "$rc" "stats after the failed check exits 0"
 grep -q 'landed writes: 2; failed_check 1 of those (50.0%)' <<<"$out" && ok "landed counts the failed check as a landed write" || bad "landed line wrong: $out"
@@ -5706,7 +5706,7 @@ printf 'package a\nfunc A() {}\n' > "$R/a.go"
 m read 'a.go:2' >"$WORK/served.out"
 out=$(printf '%s\n' \
 	'@@ a.go 2 replace anchor="func A"' \
-	'func A() { _ = 1 }' | m write - 2>&1); rc=$?
+	'func A() { _ = 1 }' | m write --check - 2>&1); rc=$?
 want 3 "$rc" "fenceTimeout 1 times out the check (exit 3)"
 grep -q 'timed out' <<<"$out" && ok "receipt names the timeout" || bad "timeout text: $out"
 
@@ -5862,7 +5862,7 @@ printf 'package a\nfunc A() {}\n' > "$R/a.go"
 m read a.go >"$WORK/served.out"
 out=$(printf '%s\n' \
 	'@@ a.go 2 replace anchor="func A"' \
-	'func A() { _ = 1 }' | m write - 2>&1); rc=$?
+	'func A() { _ = 1 }' | m write --check - 2>&1); rc=$?
 want 3 "$rc" "failing check is exit 3"
 last=$(printf '%s\n' "$out" | grep -n 'check last: unique-last-error-line' | head -1 | cut -d: -f1)
 full=$(printf '%s\n' "$out" | grep -n 'full output:' | head -1 | cut -d: -f1)
@@ -6120,7 +6120,7 @@ assert not untaught, "instructions omit read flags: %r" % untaught
 # --dir is the skill flag ADR-168's closing sentence names for installing the skill, and
 # --terse is the write flag ADR-179 teaches for a one-line-per-file receipt, and
 # --forget the seen flag its --if-served paragraph names.
-unknown = set(re.findall(r"--([a-z][a-z-]*)", out)) - set(flags) - {"root", "help", "then", "then-sh", "no-check", "create", "core", "dry-run", "force", "dir", "terse", "forget"}
+unknown = set(re.findall(r"--([a-z][a-z-]*)", out)) - set(flags) - {"root", "help", "then", "then-sh", "check", "no-check", "create", "core", "dry-run", "force", "dir", "terse", "forget"}
 assert not unknown, "instructions teach flags read does not have: %r" % sorted(unknown)
 assert re.search(r"^\s+--ast-grep PATTERN\b", opts, re.M), "read --help does not show --ast-grep PATTERN"
 PY
@@ -6774,7 +6774,7 @@ fixture
 printf '{' > "$R/.quality-harness.json"
 printf '@@ a.go 3 replace anchor="func A"\nfunc A() int { return 9 }\n' > "$R/p142.mrw"
 before=$(cat "$R/a.go")
-out=$(m write "$R/p142.mrw" 2>&1); rc=$?
+out=$(m write --check "$R/p142.mrw" 2>&1); rc=$?
 want 2 "$rc" "a malformed harness refuses the write"
 grep -q 'quality-harness.json' <<<"$out" && grep -q 'nothing was written' <<<"$out" && ok "and names the harness and says nothing was written" || bad "refusal: $out"
 [ "$(cat "$R/a.go")" = "$before" ] && ok "and a.go is untouched" || bad "a.go changed under a refused write"
@@ -6788,7 +6788,7 @@ want 0 "$rc" "--no-check never reads the harness and applies"
 fixture
 printf '{"check":"echo $$ > gc.pid; exec sleep 30"}' > "$R/.quality-harness.json"
 printf '@@ a.go 3 replace anchor="func A"\nfunc A() int { return 7 }\n' > "$R/p143.mrw"
-"$MRW" -C "$R" write "$R/p143.mrw" > "$R/out143" 2>&1 & pid=$!
+"$MRW" -C "$R" write --check "$R/p143.mrw" > "$R/out143" 2>&1 & pid=$!
 for i in $(seq 1 50); do [ -s "$R/gc.pid" ] && break; sleep 0.1; done
 kill -9 "$pid"; wait "$pid"; rc=$?
 [ -f "$R/gc.pid" ] && kill -9 "$(cat "$R/gc.pid")" 2>/dev/null
@@ -6808,7 +6808,7 @@ jq -e '.applied == false and (.error | test("stdin")) and .hunks == [] and .file
 fixture
 printf '{"check":"sleep 30 & echo $! > gc.pid; wait","timeout_seconds":1}' > "$R/.quality-harness.json"
 printf '@@ a.go 3 replace anchor="func A"\nfunc A() int { return 5 }\n' > "$R/p145.mrw"
-out=$(m write "$R/p145.mrw" 2>&1); rc=$?
+out=$(m write --check "$R/p145.mrw" 2>&1); rc=$?
 want 3 "$rc" "a check that times out is exit 3"
 grep -q 'timed out' <<<"$out" && ok "and says it timed out" || bad "timeout: $out"
 gone=0; for i in 1 2 3 4 5 6 7 8 9 10; do kill -0 "$(cat "$R/gc.pid")" 2>/dev/null || { gone=1; break; }; sleep 0.3; done
@@ -6816,7 +6816,7 @@ gone=0; for i in 1 2 3 4 5 6 7 8 9 10; do kill -0 "$(cat "$R/gc.pid")" 2>/dev/nu
 fixture
 printf '{"check":"echo $$ > gc.pid; exec sleep 30"}' > "$R/.quality-harness.json"
 printf '@@ a.go 3 replace anchor="func A"\nfunc A() int { return 6 }\n' > "$R/p145b.mrw"
-"$MRW" -C "$R" write "$R/p145b.mrw" > "$R/out145" 2>&1 & pid=$!
+"$MRW" -C "$R" write --check "$R/p145b.mrw" > "$R/out145" 2>&1 & pid=$!
 for i in $(seq 1 50); do [ -s "$R/gc.pid" ] && break; sleep 0.1; done
 kill -TERM "$pid"; wait "$pid"; rc=$?
 want 3 "$rc" "a terminate during the check is exit 3"
@@ -6832,7 +6832,7 @@ gone=0; for i in 1 2 3 4 5 6 7 8 9 10; do kill -0 "$(cat "$R/gc.pid")" 2>/dev/nu
 fixture
 printf '{"check":"echo $$ > gc.pid; exec sleep 30"}' > "$R/.quality-harness.json"
 printf '@@ a.go 3 replace anchor="func A"\nfunc A() int { return 4 }\n' > "$R/p145c.mrw"
-perl -e '$SIG{HUP}="DEFAULT"; exec @ARGV' "$MRW" -C "$R" write "$R/p145c.mrw" > "$R/out145c" 2>&1 & pid=$!
+perl -e '$SIG{HUP}="DEFAULT"; exec @ARGV' "$MRW" -C "$R" write --check "$R/p145c.mrw" > "$R/out145c" 2>&1 & pid=$!
 for i in $(seq 1 50); do [ -s "$R/gc.pid" ] && break; sleep 0.1; done
 kill -HUP "$pid"; wait "$pid"; rc=$?
 want 3 "$rc" "a hangup during the check is exit 3"
@@ -6843,7 +6843,7 @@ gone=0; for i in 1 2 3 4 5 6 7 8 9 10; do kill -0 "$(cat "$R/gc.pid")" 2>/dev/nu
 fixture
 printf '{"check":"echo $$ > gc.pid; exec sleep 30"}' > "$R/.quality-harness.json"
 printf '@@ a.go 3 replace anchor="func A"\nfunc A() int { return 3 }\n' > "$R/p145d.mrw"
-nohup "$MRW" -C "$R" write "$R/p145d.mrw" > "$R/out145d" 2>&1 & pid=$!
+nohup "$MRW" -C "$R" write --check "$R/p145d.mrw" > "$R/out145d" 2>&1 & pid=$!
 for i in $(seq 1 50); do [ -s "$R/gc.pid" ] && break; sleep 0.1; done
 kill -HUP "$pid"; sleep 0.5
 kill -0 "$(cat "$R/gc.pid")" 2>/dev/null && ok "under nohup a hangup leaves the check running" || bad "under nohup a hangup stopped the check"
@@ -7466,7 +7466,7 @@ fixture
 printf '{"timeout_seconds":120,"steps":{"vet":"go vet ./...","one":"echo 1 >> order173","two":"echo 2 >> order173"}}\n' > "$R/.quality-harness.json"
 m read a.go >"$WORK/served.out"
 printf '@@ a.go 3 replace\nfunc A() int { return 0 + 1 }\n' > "$R/p173.mrw"
-m write --json --then vet --then-sh 'go build ./...' "$R/p173.mrw" > "$WORK/j173" 2> "$WORK/e173"; want 0 $? "a real check and two real Go steps pass: exit 0"
+m write --check --json --then vet --then-sh 'go build ./...' "$R/p173.mrw" > "$WORK/j173" 2> "$WORK/e173"; want 0 $? "a real check and two real Go steps pass: exit 0"
 python3 - "$WORK/j173" <<'PY' && ok "the receipt: the check ran and passed, then both steps pass, adhoc marks only --then-sh, pruned_logs present" || bad "the --json receipt: $(head -c 400 "$WORK/j173")"
 import json, sys
 r = json.load(open(sys.argv[1]))
@@ -7486,7 +7486,7 @@ m write --then-sh 'printf "%s" "a,b" > comma173' "$R/p173.mrw" > /dev/null 2>&1;
 m write --then-sh='echo x ' "$R/p173.mrw" > "$WORK/o173p" 2>&1; want 2 $? "an attached --then-sh value ending in whitespace is refused by the binary"
 grep -q "\-\-then-sh 'echo x '" "$WORK/o173p" && ok "and names the separate form" || bad "the padded refusal: $(head -c 300 "$WORK/o173p")"
 printf '@@ a.go 3 replace\nfunc A() int { return 5 }\n' > "$R/p173bad.mrw"
-m write --then-sh 'touch m173-afterfail' "$R/p173bad.mrw" > "$WORK/o173f" 2>&1; want 3 $? "a real go test that fails: exit 3"
+m write --check --then-sh 'touch m173-afterfail' "$R/p173bad.mrw" > "$WORK/o173f" 2>&1; want 3 $? "a real go test that fails: exit 3"
 { [ ! -e "$R/m173-afterfail" ] && grep -q 'NOT RUN' "$WORK/o173f"; } && ok "and the step after it never ran, named NOT RUN" || bad "after a failed check: $(head -c 400 "$WORK/o173f")"
 m write --no-check --then-sh 'exit 1' "$R/p173.mrw" > /dev/null 2>&1; want 3 $? "a failing step on a --no-check write exits 3"
 m stats --json > "$WORK/j173s" 2>&1
@@ -7685,7 +7685,7 @@ m check --then-sh 'echo sh {packages} >> m178-step' a.go > "$WORK/o178d" 2>&1; w
 { [ ! -e "$R/m178-check" ] && [ ! -e "$R/m178-step" ] && grep -q '{packages}' "$WORK/o178d"; } \
   && ok "before the check runs, naming the token" || bad "ad hoc, on check: $(head -c 300 "$WORK/o178d")"
 printf '{"check":"touch m178-check","steps":{"fmt":"echo fmt a.go >> m178-step"}}\n' > "$R/.quality-harness.json"
-m write --then fmt --then-sh 'echo sh a.go >> m178-step' "$R/p178.mrw" > "$WORK/o178e" 2>&1; want 0 $? "the pair: the same steps with a path in place of the token pass on write"
+m write --check --then fmt --then-sh 'echo sh a.go >> m178-step' "$R/p178.mrw" > "$WORK/o178e" 2>&1; want 0 $? "the pair: the same steps with a path in place of the token pass on write"
 { grep -q 'return 178' "$R/a.go" && [ -e "$R/m178-check" ] && [ "$(cat "$R/m178-step" 2>/dev/null)" = "$(printf 'fmt a.go\nsh a.go')" ]; } \
   && ok "the write landed, the check ran and both steps left their marker" || bad "the pair, on write: $(head -c 300 "$WORK/o178e")"
 rm -f "$R/m178-check" "$R/m178-step"
@@ -7733,7 +7733,7 @@ fixture
 printf '{"check":"echo x >> m181"}\n' > "$R/.quality-harness.json"
 m read a.go >"$WORK/served.out"
 printf '@@ a.go 3 replace\nfunc A() int { return 181 }\n' > "$R/p181.mrw"
-MRW_STEP_DEPTH=8 "$MRW" -C "$R" write "$R/p181.mrw" > "$WORK/o181w" 2>&1; want 2 $? "at depth 8 a .go write whose check is due is refused"
+MRW_STEP_DEPTH=8 "$MRW" -C "$R" write --check "$R/p181.mrw" > "$WORK/o181w" 2>&1; want 2 $? "at depth 8 a .go write whose check is due is refused"
 { ! grep -q 'return 181' "$R/a.go" && [ ! -e "$R/m181" ] && grep -q 'MRW_STEP_DEPTH=8' "$WORK/o181w" && grep -q -- '--no-check' "$WORK/o181w"; } \
   && ok "nothing is written, no check runs, and the refusal names the depth and --no-check" || bad "the refused write: $(head -c 300 "$WORK/o181w")"
 MRW_STEP_DEPTH=8 "$MRW" -C "$R" write --no-check "$R/p181.mrw" > /dev/null 2>&1; want 0 $? "the pair: at depth 8 the same write with --no-check lands"
@@ -8319,7 +8319,7 @@ m read a.go >"$WORK/served.out"
 req213() {
   python3 -c 'import json,sys; print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":json.loads(sys.argv[1])}}))' "$1"
 }
-out=$(req213 '{"plan":"@@ a.go 3 replace\nfunc A() int { return 213 }\n"}' | "$MRW" -C "$R" mcp --enable 2>/dev/null)
+out=$(req213 '{"plan":"@@ a.go 3 replace\nfunc A() int { return 213 }\n","check":true}' | "$MRW" -C "$R" mcp --enable 2>/dev/null)
 python3 - "$out" <<'PY' && ok "mrw_write runs the check: ran, exit 3, applied, not isError" || bad "mrw_write did not report its failed check: $(head -c 400 <<<"$out")"
 import json, sys
 r = json.loads(sys.argv[1])["result"]
@@ -8526,7 +8526,7 @@ w220='{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write"
 p220='{"jsonrpc":"2.0","id":2,"method":"ping"}'
 # A plain pipe, not bounded: bounded gives its command /dev/null for stdin. The
 # server ends at end of input once the 2 s check has answered.
-{ printf "$w220\n" ''; sleep 0.5; printf '%s\n' "$p220"; } | "$MRW" -C "$R" mcp --enable > "$WORK/out220" 2>/dev/null
+{ printf "$w220\n" ',"check":true'; sleep 0.5; printf '%s\n' "$p220"; } | "$MRW" -C "$R" mcp --enable > "$WORK/out220" 2>/dev/null
 order=$(grep -o '"id":[12]' "$WORK/out220" | tr -d '\n')
 [ "$order" = '"id":2"id":1' ] && ok "a ping sent during a write's check is answered first" || bad "answer order $order: $(cat "$WORK/out220")"
 printf 'package a\nfunc A() {}\n' > "$R/a220.go"; m read a220.go >"$WORK/served.out"
@@ -8594,7 +8594,7 @@ printf 'package x\n' > "$R/x225.go"; printf 'package y\n' > "$R/y225.go"
 printf '{"check":"touch %s/started; i=0; while [ ! -e %s/go ] && [ $i -lt 100 ]; do sleep 0.1; i=$((i+1)); done"}\n' "$g225" "$g225" > "$R/.quality-harness.json"
 m read x225.go y225.go >"$WORK/served.out"
 printf '@@ x225.go 1 replace\npackage x2\n' > "$WORK/p225a"; printf '@@ y225.go 1 replace\npackage y2\n' > "$WORK/p225b"
-bounded 30 "$WORK/o225" "$MRW" -C "$R" write --json "$WORK/p225a" &
+bounded 30 "$WORK/o225" "$MRW" -C "$R" write --json --check "$WORK/p225a" &
 p225=$!
 i=0; while [ ! -e "$g225/started" ] && [ $i -lt 100 ]; do sleep 0.1; i=$((i+1)); done
 [ -e "$g225/started" ] || bad "the first write's check never started"
@@ -8603,7 +8603,7 @@ touch "$g225/go"; wait "$p225"; want 0 $? "the first write's check passes"
 grep -q '"drift_writers": 1' "$WORK/o225" && ok "and its receipt counts the other write" || bad "drift_writers: $(head -c 400 "$WORK/o225")"
 rm -f "$g225/started" "$g225/go"; m read x225.go >"$WORK/served.out"
 printf '@@ x225.go 1 replace\npackage x3\n' > "$WORK/p225c"
-bounded 30 "$WORK/o225c" "$MRW" -C "$R" write --json "$WORK/p225c" &
+bounded 30 "$WORK/o225c" "$MRW" -C "$R" write --json --check "$WORK/p225c" &
 p225=$!
 i=0; while [ ! -e "$g225/started" ] && [ $i -lt 100 ]; do sleep 0.1; i=$((i+1)); done
 [ -e "$g225/started" ] || bad "the pair's check never started"
@@ -8634,7 +8634,7 @@ out=$(printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolV
 ! grep -q 'matched no checkpoint' <<<"$out" && ok "the pair: a read with no stale ack names none" || bad "no ack: $out"
 printf '{"check":"sleep 30"}\n' > "$R/.quality-harness.json"
 m read a.go >"$WORK/served.out"
-printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}\n{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ a.go 3 replace\\nfunc A() int { return 9 }\\n"}}}\n' > "$WORK/i226a"
+printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}\n{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ a.go 3 replace\\nfunc A() int { return 9 }\\n","check":true}}}\n' > "$WORK/i226a"
 printf '{"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":7}}\n' > "$WORK/i226b"
 # Under `bounded`, not an alarm: Go ignores SIGALRM, so only a kill bounds mrw
 # (contract.md; the in-process review of #343). sh execs mrw, so the pid bounded
@@ -9361,12 +9361,12 @@ fixture
 printf '{"check":"sleep 30","timeout_seconds":1}\n' > "$R/.quality-harness.json"
 m read a.go >"$WORK/served.out"
 printf '@@ a.go 3 replace\nfunc A() int { return 9 }\n' > "$WORK/p232"
-bounded 30 "$WORK/o232" "$MRW" -C "$R" write "$WORK/p232"; want 3 $? "a write whose check times out exits 3 (ADR-132)"
+bounded 30 "$WORK/o232" "$MRW" -C "$R" write --check "$WORK/p232"; want 3 $? "a write whose check times out exits 3 (ADR-132)"
 grep -q '^check TIMED OUT' "$WORK/o232" && ! grep -q '^check FAIL' "$WORK/o232" && ok "and its check is headed TIMED OUT" || bad "timeout headline: $(head -c 400 "$WORK/o232")"
 printf '{"check":"false"}\n' > "$R/.quality-harness.json"
 m read a.go >"$WORK/served.out"
 printf '@@ a.go 3 replace\nfunc A() int { return 10 }\n' > "$WORK/q232"
-m write "$WORK/q232" > "$WORK/r232" 2>&1; want 3 $? "the pair: a write whose check fails exits 3"
+m write --check "$WORK/q232" > "$WORK/r232" 2>&1; want 3 $? "the pair: a write whose check fails exits 3"
 grep -q '^check FAIL' "$WORK/r232" && ok "and is headed FAIL" || bad "failed headline: $(head -c 400 "$WORK/r232")"
 rm -f "$R/.quality-harness.json"
 
@@ -9417,7 +9417,7 @@ touch -t 202001010000 "$TMPDIR/mrw-check-old163.log"; : > "$TMPDIR/mrw-check-you
 printf '{"check":"echo started; sleep 30","timeout_seconds":1}\n' > "$R/.quality-harness.json"
 m read a.go >"$WORK/served.out"
 printf '@@ a.go 3 replace\nfunc A() int { return 8 }\n' > "$R/p163.mrw"
-out=$(m write "$R/p163.mrw" 2>&1); rc=$?
+out=$(m write --check "$R/p163.mrw" 2>&1); rc=$?
 want 3 "$rc" "a write whose check times out exits 3"
 log=$(grep -o 'timed out after [^—]*— full output: [^ ]*' <<<"$out" | head -1 | sed 's/.*full output: //')
 { [ -n "$log" ] && [ -f "$log" ]; } && ok "and the timed-out check names its log, which is there" || bad "no log named: $out"
@@ -9810,13 +9810,13 @@ out=$(cd "$R" && XDG_STATE_HOME="$WORK/s275ok" "$MRW" read --grep one --sub uno 
 R=$(mktemp -d "$WORK/r276-XXXXXX"); printf 'package a\n' > "$R/a.go"; printf 'true\n' > "$R/run.sh"
 printf '{"check":"echo WHOLE","scoped_check":"echo SCOPED {packages}"}\n' > "$R/.quality-harness.json"
 (cd "$R" && "$MRW" read a.go run.sh) >"$WORK/served.out" 2>&1
-out=$(cd "$R" && printf '@@ a.go 1 replace\npackage a // x\n@@ run.sh 1 replace\nfalse\n' | "$MRW" write - 2>&1); want 0 $? "a .go + .sh write with a {packages}-only scoped_check exits 0"
+out=$(cd "$R" && printf '@@ a.go 1 replace\npackage a // x\n@@ run.sh 1 replace\nfalse\n' | "$MRW" write --check - 2>&1); want 0 $? "a .go + .sh write with a {packages}-only scoped_check exits 0"
 { grep -q 'check (declared): echo SCOPED \.$' <<<"$out" && grep -q '^outside the scoped check: run.sh — scoped_check "echo SCOPED {packages}" runs {packages}, which names Go packages only$' <<<"$out"; } \
   && ok "and runs the scoped command and names run.sh" || bad "a .go + .sh write: $out"
 out=$(cd "$R" && "$MRW" check a.go run.sh 2>&1); want 0 $? "mrw check a.go run.sh exits 0"
 { grep -q 'echo SCOPED \.$' <<<"$out" && grep -q '^outside the scoped check: run.sh' <<<"$out"; } && ok "and names run.sh the same way" || bad "mrw check a.go run.sh: $out"
 (cd "$R" && "$MRW" read run.sh) >"$WORK/served.out" 2>&1
-out=$(cd "$R" && printf '@@ run.sh 1 replace\ntrue\n' | "$MRW" write - 2>&1); want 0 $? "the pair: a .sh-only write exits 0"
+out=$(cd "$R" && printf '@@ run.sh 1 replace\ntrue\n' | "$MRW" write --check - 2>&1); want 0 $? "the pair: a .sh-only write exits 0"
 { grep -q 'check (declared): echo WHOLE$' <<<"$out" && ! grep -q 'outside the scoped check' <<<"$out"; } && ok "and runs the whole check with no outside line" || bad "a .sh-only write: $out"
 
 
@@ -10616,10 +10616,10 @@ f310=$(cd "$R" && printf '@@ a.txt 99 replace\nz\n' | "$MRW" write --no-check --
 R=$(mktemp -d "$WORK/r310c-XXXXXX")
 printf 'package a\nfunc A() {}\n' > "$R/a.go"; printf '{"check":"exit 1"}\n' > "$R/.quality-harness.json"
 (cd "$R" && "$MRW" read a.go > "$WORK/rd" 2>&1)
-c310=$(cd "$R" && printf '@@ a.go 2 replace\nfunc A() { _ = 1 }\n' | "$MRW" write --terse - 2>&1); crc310=$?
+c310=$(cd "$R" && printf '@@ a.go 2 replace\nfunc A() { _ = 1 }\n' | "$MRW" write --terse --check - 2>&1); crc310=$?
 printf '{"check":"exit 0"}\n' > "$R/.quality-harness.json"
 (cd "$R" && "$MRW" read a.go > "$WORK/rd" 2>&1)
-p310=$(cd "$R" && printf '@@ a.go 2 replace\nfunc A() { _ = 2 }\n' | "$MRW" write --terse - 2>&1); prc310=$?
+p310=$(cd "$R" && printf '@@ a.go 2 replace\nfunc A() { _ = 2 }\n' | "$MRW" write --terse --check - 2>&1); prc310=$?
 { [ "$crc310" = 3 ] && grep -qF 'ok   a.go  1 hunk(s)' <<<"$c310" && grep -qF 'check FAIL' <<<"$c310" && [ "$prc310" = 0 ]; } \
   && ok "mrw write --terse keeps the exit 3 of a failing check" || bad "terse check: failing exit $crc310 [$c310], passing exit $prc310 [$p310]"
 R=$(mktemp -d "$WORK/r310d-XXXXXX")
@@ -10938,6 +10938,23 @@ out=$(e321 "$MRW" -C "$R321" read --stat 2>&1); rcb321=$?
 { [ "$rcb321" = 2 ] && grep -qF 'read needs a PATH' <<<"$out"; } \
   && ok "the pair: a bare --stat is refused, exit 2" || bad "bare --stat: exit $rcb321 [$out]"
 rm -rf "$S321" "$R321"
+
+# 322. ADR-187: a write runs no check unless --check asks for it. In a tree whose
+# declared check fails, a .go write with no flag lands, prints no check line and
+# exits 0; the pair, the same kind of write with --check, lands and exits 3 with
+# the failing check reported.
+S322=$(mktemp -d "$WORK/s322-XXXXXX"); R322=$(mktemp -d "$WORK/r322-XXXXXX")
+e322() { env XDG_STATE_HOME="$S322" "$@"; }
+printf 'package a\nfunc A() {}\n' > "$R322/a.go"; printf '{"check":"exit 3"}\n' > "$R322/.quality-harness.json"
+e322 "$MRW" -C "$R322" read a.go > "$WORK/served.out" 2>&1
+out=$(printf '@@ a.go 2 replace anchor="func A"\nfunc A() { _ = 1 }\n' | e322 "$MRW" -C "$R322" write - 2>&1); rc322=$?
+{ [ "$rc322" = 0 ] && ! grep -qF 'check' <<<"$out" && grep -qF '_ = 1' "$R322/a.go"; } \
+  && ok "a .go write with no flag runs no check and exits 0" || bad "no flag: exit $rc322 [$out]"
+out=$(printf '@@ a.go 2 replace anchor="func A"\nfunc A() { _ = 2 }\n' | e322 "$MRW" -C "$R322" write --check - 2>&1); rc322=$?
+want 3 "$rc322" "the pair: the same write with --check exits 3"
+{ grep -qF 'check FAIL' <<<"$out" && grep -qF '_ = 2' "$R322/a.go"; } \
+  && ok "and the write landed with the failing check reported" || bad "--check: exit $rc322 [$out]"
+rm -rf "$S322" "$R322"
 
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A

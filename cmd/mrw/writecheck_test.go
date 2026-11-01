@@ -60,9 +60,9 @@ func planFile(t *testing.T, doc string) string {
 const goPlan = "@@ a.go 2 replace anchor=\"func A\"\nfunc A() { _ = 1 }\n"
 const mdPlan = "@@ notes.md 2 replace anchor=\"line two\"\nline 2\n"
 
-// TestWriteRunsTheCheckByDefault is the record's Enforced-by: a write to a
-// .go file with no --check flag runs the declared check, and a failing check
-// is exit 3 — the tree is changed and unverified (ADR-003).
+// TestWriteRunsTheCheckByDefault is ADR-054 T1's Enforced-by; since ADR-187 the
+// check runs when asked, so it drives --check (the name stays: ADR-054 T1's table
+// names it). A failing check is exit 3 — the tree is changed and unverified (ADR-003).
 func TestWriteRunsTheCheckByDefault(t *testing.T) {
 	needShell(t)
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
@@ -70,9 +70,9 @@ func TestWriteRunsTheCheckByDefault(t *testing.T) {
 	if _, err := readIn(t, root, "a.go"); err != nil {
 		t.Fatal(err)
 	}
-	out, code := writeIn(t, root, planFile(t, goPlan))
+	out, code := writeIn(t, root, "--check", planFile(t, goPlan))
 	if code != exitCheckFailed {
-		t.Fatalf("a .go write without --check exited %d, want %d (the check ran and failed):\n%s", code, exitCheckFailed, out)
+		t.Fatalf("a .go write with --check exited %d, want %d (the check ran and failed):\n%s", code, exitCheckFailed, out)
 	}
 	if !strings.Contains(out, "check") || !strings.Contains(out, "FAIL") {
 		t.Errorf("the receipt does not show the failing check:\n%s", out)
@@ -180,7 +180,7 @@ func TestFailedCheckPrintsTheLastErrorLine(t *testing.T) {
 		if _, err := readIn(t, root, "a.go"); err != nil {
 			t.Fatal(err)
 		}
-		out, code := writeIn(t, root, planFile(t, goPlan))
+		out, code := writeIn(t, root, "--check", planFile(t, goPlan))
 		if code != exitCheckFailed {
 			t.Fatalf("exited %d, want %d:\n%s", code, exitCheckFailed, out)
 		}
@@ -198,7 +198,7 @@ func TestFailedCheckPrintsTheLastErrorLine(t *testing.T) {
 		if _, err := readIn(t, root, "a.go"); err != nil {
 			t.Fatal(err)
 		}
-		out, code := writeIn(t, root, planFile(t, goPlan))
+		out, code := writeIn(t, root, "--check", planFile(t, goPlan))
 		if code != 0 {
 			t.Fatalf("passing check exited %d:\n%s", code, out)
 		}

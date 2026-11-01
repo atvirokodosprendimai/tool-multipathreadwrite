@@ -11,9 +11,9 @@ description: >-
   heredocs. It applies only while mrw is on PATH: if it is not, use the host's
   own tools and do not install it.
 metadata:
-  mrw-version: "dev (891702e, dirty)"
+  mrw-version: "dev (de68a89, dirty)"
   generated-by: "mrw skill"
-  content-sha256: "a2bc32cc63f02609a850cc850e873e7f855546778e7793ec834a88afebcf54ef"
+  content-sha256: "b6d26219297127b50023d502b403d4d65e0fc79cffc32432c13b6b107f33440b"
 ---
 
 # mrw
@@ -39,7 +39,7 @@ Recipes:
   mrw read --grep P --count . && mrw read 'f.go:/P/' -C 3 --max-lines 40
 5. different changes at several sites: one read of all of them, then the plan in a file — written with the host's file tool, in a temporary directory you may write — so no shell parser sees its text:
   mrw read 'a.go:/func A/,+12' b.go:40-60 && mrw write "$TMPDIR/plan.txt"
-6. a step after the write, in the same call (NAME is a step in .quality-harness.json; a code write already runs the project's check; --then-sh and mrw run run any shell command they are given, so both are off unless MRW_SHELL=on is in mrw's environment (a step the project declares in .quality-harness.json runs with --then NAME); with them off, allowing mrw still runs the project's declared check and steps and no ad-hoc shell, but that is not containment: mrw writes any file its user can, .quality-harness.json included.):
+6. a step after the write, in the same call (NAME is a step in .quality-harness.json; a write runs no check unless --check asks for it; --then-sh and mrw run run any shell command they are given, so both are off unless MRW_SHELL=on is in mrw's environment (a step the project declares in .quality-harness.json runs with --then NAME); with them off, allowing mrw still runs the project's declared check and steps and no ad-hoc shell, but that is not containment: mrw writes any file its user can, .quality-harness.json included.):
   mrw write - --then NAME
 7. license lines you already know, without them in your context (a read into /dev/null licenses nothing; a file mrw just wrote needs no re-read):
   mrw read --quiet f.go:40-60
@@ -70,6 +70,6 @@ Recipes:
 20. answer by reference what you were already served, with --if-served PATH=SHA — only in a session alone in its checkout, whose host runs mrw seen --forget on start, resume, clear and compaction, and whose reads were made under --max-chars below the host's output limit, since a line recorded as shown may never have reached you (anywhere else, recipe 11):
   mrw read --if-served f.go=8dc37337 f.go:40-60
 
-`mrw instructions` prints the whole contract. This file was printed by `mrw skill` from mrw dev (891702e, dirty); when `mrw version` prints another version, `mrw skill --dir <the directory holding this mrw folder>` replaces it.
+`mrw instructions` prints the whole contract. This file was printed by `mrw skill` from mrw dev (de68a89, dirty); when `mrw version` prints another version, `mrw skill --dir <the directory holding this mrw folder>` replaces it.
 
 A host's per-path rules for its Edit and Write tools do not reach mrw, which writes wherever its user can: their absence is not permission, and mrw is not a way to reach a path the host refused you.

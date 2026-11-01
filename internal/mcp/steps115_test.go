@@ -83,7 +83,7 @@ func TestAnMCPWriteRunsItsSteps(t *testing.T) {
 	})
 	t.Run("a failed check leaves the steps not run", func(t *testing.T) {
 		root := checkTree113(t, `{"check":"exit 3","steps":{"ok":"echo fine"}}`)
-		st := steps(t, structured(t, call(t, root, "mrw_write", map[string]any{"plan": goEdit113, "then": []any{"ok"}})))
+		st := steps(t, structured(t, call(t, root, "mrw_write", map[string]any{"plan": goEdit113, "check": true, "then": []any{"ok"}})))
 		if len(st) != 1 || st[0]["status"] != "not_run" {
 			t.Fatalf("then %v, want the step not_run", st)
 		}

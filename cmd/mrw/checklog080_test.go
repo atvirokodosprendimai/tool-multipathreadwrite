@@ -22,7 +22,7 @@ func TestATimedOutCheckNamesItsLog(t *testing.T) {
 	if _, err := readIn(t, root, "a.go"); err != nil {
 		t.Fatal(err)
 	}
-	out, code := runIn(t, root, "write", planFile(t, "@@ a.go 2 replace\nfunc A() { _ = 1 }\n"))
+	out, code := runIn(t, root, "write", "--check", planFile(t, "@@ a.go 2 replace\nfunc A() { _ = 1 }\n"))
 	if code != exitCheckFailed {
 		t.Fatalf("exit %d, want %d:\n%s", code, exitCheckFailed, out)
 	}

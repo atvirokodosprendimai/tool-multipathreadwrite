@@ -50,10 +50,10 @@ applied body. The hunk stays `ok`; the pad is not a checker.
 
 ## Check the final tree
 
-A code write runs a check when the project declares one, or mrw can infer one for a
-Go module. Other stacks need an explicit project check; see [README: Write](README.md#write).
+A write runs no check unless `--check` asks for it (ADR-187). `--check` runs the check the project declares,
+or mrw infers for a Go module; other stacks need an explicit project check; see [README: Write](README.md#write).
 
-For a queue of code edits, `--no-check` can defer checks on intermediate writes. Verify a
+For a queue of code edits, put `--check` on the last write, or run `mrw check` after it. Verify a
 check covering every queued edit after the last write; a checked last write may have narrower
 scope. Follow the [queue recipe](docs/agents.md#queue-code-edits-then-check-the-final-tree),
 including its deletion/rename and checker-configuration guidance.

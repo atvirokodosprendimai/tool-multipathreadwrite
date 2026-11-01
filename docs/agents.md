@@ -159,7 +159,7 @@ From that agent's own review of a day of use (2026-10-22). Its writes were sound
 
 ### Queue code edits, then check the final tree
 
-After reading the sites and preparing the plans, defer the automatic check on intermediate writes:
+After reading the sites and preparing the plans, write without a check (none runs unless `--check` asks, ADR-187) and check the final tree once:
 
 ```sh
 mrw write --no-check "$TMPDIR/first.plan" &&
@@ -167,8 +167,8 @@ mrw write --no-check "$TMPDIR/second.plan" &&
 mrw check --full
 ```
 
-Run these in the same checkout, with no intervening edits while the final check runs. `--no-check`
-skips verification; it keeps the read guard and whole-plan validation. The queued edits remain
+Run these in the same checkout, with no intervening edits while the final check runs. `--no-check` is
+accepted and does nothing since ADR-187; a write keeps the read guard and whole-plan validation. The queued edits remain
 unverified until a check covering them passes. Fix a failed check and run it again after the last
 edit; an earlier passing check does not verify a later write.
 
@@ -179,7 +179,7 @@ cannot be passed to `mrw check`. A checked last write alone may cover only that 
 
 If the project declares no check and has no Go module, declare the project's checker or run its
 required checks explicitly; mrw does not infer a Ruby checker
-([README: Write, "Check by default"](../README.md#write)). Report the actual command, scope and
+([README: Write, "No check unless asked"](../README.md#write)). Report the actual command, scope and
 exit status, or say that verification is still pending.
 
 ## 7. What allowing mrw allows

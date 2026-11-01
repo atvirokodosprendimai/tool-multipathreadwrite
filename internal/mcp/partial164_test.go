@@ -23,7 +23,7 @@ func TestTheMCPTextKeepsTheCountOutsideTheScopedCheck(t *testing.T) {
 
 	t.Run("the text and the receipt name the file", func(t *testing.T) {
 		root := tree(t)
-		res := call(t, root, "mrw_write", map[string]any{"plan": plan})
+		res := call(t, root, "mrw_write", map[string]any{"plan": plan, "check": true})
 		chk, _ := structured(t, res)["check"].(map[string]any)
 		if chk == nil || chk["command"] != "echo ." {
 			t.Fatalf("check %v, want the scoped command over the placed package", chk)
@@ -39,7 +39,7 @@ func TestTheMCPTextKeepsTheCountOutsideTheScopedCheck(t *testing.T) {
 
 	t.Run("a write that places everything says nothing", func(t *testing.T) {
 		root := tree(t)
-		res := call(t, root, "mrw_write", map[string]any{"plan": goEdit113})
+		res := call(t, root, "mrw_write", map[string]any{"plan": goEdit113, "check": true})
 		if text := firstText(t, res); strings.Contains(text, "outside the scoped check") {
 			t.Errorf("nothing was outside, and the text says so:\n%s", text)
 		}
@@ -50,7 +50,7 @@ func TestTheMCPTextKeepsTheCountOutsideTheScopedCheck(t *testing.T) {
 		MaxResultChars = minWriteCeiling()
 		t.Cleanup(func() { MaxResultChars = restore })
 		root := tree(t)
-		res := call(t, root, "mrw_write", map[string]any{"plan": plan})
+		res := call(t, root, "mrw_write", map[string]any{"plan": plan, "check": true})
 		text := firstText(t, res)
 		if !strings.Contains(text, "Its check passed for the packages it could place; 1 file(s) were outside it") {
 			t.Fatalf("at ceiling %d the answer lost the count:\n%s", MaxResultChars, text)
@@ -66,7 +66,7 @@ func TestTheMCPTextKeepsTheCountOutsideTheScopedCheck(t *testing.T) {
 		t.Cleanup(func() { MaxResultChars = restore })
 		files := map[string]string{"a.go": "package a\nfunc A() {}\n", "run.sh": "true\n",
 			".quality-harness.json": `{"check":"echo WHOLE","scoped_check":"false {packages}"}`}
-		res := call(t, licensed(t, files), "mrw_write", map[string]any{"plan": plan})
+		res := call(t, licensed(t, files), "mrw_write", map[string]any{"plan": plan, "check": true})
 		text := firstText(t, res)
 		if !strings.Contains(text, "Its check did not pass") || !strings.Contains(text, "1 file(s) were outside the scoped check") {
 			t.Fatalf("at ceiling %d a failed check lost the count:\n%s", MaxResultChars, text)
