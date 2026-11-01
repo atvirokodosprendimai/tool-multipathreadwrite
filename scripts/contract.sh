@@ -10966,6 +10966,22 @@ want 3 "$rc322" "the pair: the same write with --check exits 3"
   && ok "and the write landed with the failing check reported" || bad "--check: exit $rc322 [$out]"
 rm -rf "$S322" "$R322"
 
+# 323. ADR-188: MRW_RECEIPT=quiet in mrw's environment gives every write the
+# --quiet receipt: a two-hunk write of the built binary prints its summary line
+# and no ok row. The pair: with MRW_RECEIPT unset the same write prints an ok row
+# per hunk.
+S323=$(mktemp -d "$WORK/s323-XXXXXX"); R323=$(mktemp -d "$WORK/r323-XXXXXX")
+e323() { env XDG_STATE_HOME="$S323" "$@"; }
+printf 'one\ntwo\n' > "$R323/a.txt"; printf 'one\ntwo\n' > "$R323/b.txt"
+e323 "$MRW" -C "$R323" read a.txt b.txt > "$WORK/served323.out" 2>&1
+out=$(printf '@@ a.txt 1 replace\nONE\n@@ b.txt 2 replace\nTWO\n' | e323 env MRW_RECEIPT=quiet "$MRW" -C "$R323" write - 2>&1); rc323=$?
+{ [ "$rc323" = 0 ] && ! grep -q '^ok ' <<<"$out" && grep -qF '2 hunk(s), 2 file(s), 0 failed' <<<"$out"; } \
+  && ok "MRW_RECEIPT=quiet prints the summary and no ok row" || bad "quiet: exit $rc323 [$out]"
+out=$(printf '@@ a.txt 1 replace\nUNO\n@@ b.txt 2 replace\nDOS\n' | e323 env -u MRW_RECEIPT "$MRW" -C "$R323" write - 2>&1); rc323=$?
+{ [ "$rc323" = 0 ] && [ "$(grep -c '^ok .* replace ' <<<"$out")" = 2 ]; } \
+  && ok "the pair: unset, the same write prints an ok row per hunk" || bad "unset: exit $rc323 [$out]"
+rm -rf "$S323" "$R323" "$WORK/served323.out"
+
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
 # killed process is a zombie until its adopter reaps it, and pgrep lists
