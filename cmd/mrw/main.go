@@ -1812,11 +1812,11 @@ held or went unchecked.`,
 			},
 			&cli.BoolFlag{
 				Name:  "quiet",
-				Usage: "print only failed hunks and the summary line, dropping ok and skip rows and file lines; the check's report and every step verdict still print",
+				Usage: "print only failed hunks and the summary line, dropping ok and skip rows and file lines; the check's report and every step verdict still print; MRW_RECEIPT=quiet in the environment does this for every write that gives neither flag (ADR-188)",
 			},
 			&cli.BoolFlag{
 				Name:  "terse",
-				Usage: "print one line per file (ok PATH N hunk(s) -A +B sha X; dry under --dry-run) and the summary instead of a row per hunk; every failed hunk, balance and closer row, the check's report and every step verdict still print, and --json is unchanged (ADR-179)",
+				Usage: "print one line per file (ok PATH N hunk(s) -A +B sha X; dry under --dry-run) and the summary instead of a row per hunk; every failed hunk, balance and closer row, the check's report and every step verdict still print, and --json is unchanged (ADR-179); MRW_RECEIPT=terse in the environment does this for every write that gives neither flag (ADR-188)",
 			},
 			&cli.BoolFlag{
 				Name: "check",
@@ -3113,13 +3113,27 @@ func report(w *os.File, res apply.Result, quiet bool) {
 }
 
 // reportAs prints the receipt the write's flags ask for: the default, --quiet's,
-// or --terse's one line per file (ADR-179).
+// or --terse's one line per file (ADR-179). With neither flag, MRW_RECEIPT
+// chooses: quiet, terse, or full as unset (ADR-188); a flag on the call wins,
+// and any other value is ignored with one note, as MRW_MAX_COLS's is.
 func reportAs(w *os.File, res apply.Result, cmd *cli.Command) {
-	if cmd.Bool("terse") {
+	quiet, terse := cmd.Bool("quiet"), cmd.Bool("terse")
+	if !quiet && !terse {
+		switch v := os.Getenv("MRW_RECEIPT"); v {
+		case "quiet":
+			quiet = true
+		case "terse":
+			terse = true
+		case "", "full":
+		default:
+			fmt.Fprintf(os.Stderr, "mrw: MRW_RECEIPT=%s is not quiet, terse or full; ignored\n", v)
+		}
+	}
+	if terse {
 		reportMode(w, res, false, true)
 		return
 	}
-	report(w, res, cmd.Bool("quiet"))
+	report(w, res, quiet)
 }
 
 func reportMode(w *os.File, res apply.Result, quiet, terse bool) {

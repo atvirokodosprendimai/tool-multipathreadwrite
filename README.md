@@ -301,6 +301,7 @@ mrw write plan.mrw
 mrw write --dry-run plan.mrw
 mrw write --no-check plan.mrw
 mrw write --terse plan.mrw
+MRW_RECEIPT=quiet mrw write plan.mrw   # every write prints as --quiet; terse, or full (the default) (ADR-188)
 mrw write --json plan.mrw
 mrw write -
 ```

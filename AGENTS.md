@@ -609,7 +609,7 @@ whole list arrives as one argument and the regex swallows the rest of the line.
   the human line prints.
   `mrw write --terse` prints one line per file (`ok PATH N hunk(s) -A +B sha X`, `dry` under `--dry-run`) and the summary
   line instead of a row per hunk; every failed hunk, balance and closer row, a delete's and a copy's rows, the check's
-  report and every step verdict still print, and the exit codes are the same (ADR-179). It is refused beside `--quiet`.
+  report and every step verdict still print, and the exit codes are the same (ADR-179). It is refused beside `--quiet`. `MRW_RECEIPT=quiet` or `terse` in mrw's environment gives every write that receipt when neither flag is on the call; `full`, or unset, the row per hunk; a flag wins, and any other value is ignored with a note (ADR-188).
   A replace whose body ends in a closer — a fence, `}`, `</div>`, `@endif`, `end`, `fi` — that the replaced range
   did not itself end in, and that one of the next four non-blank lines after it repeats, prints a `closer` row
   under `ok` and stays `ok` (ADR-119): likely the closer the file already had, left below a body that brought its
