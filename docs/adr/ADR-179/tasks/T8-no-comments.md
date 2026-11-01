@@ -123,3 +123,4 @@ S2's share is below its BACKLOG bar: stop before any code and take the numbers t
 - 2026-10-28 · 14bce654* · exit 0 · `set -o pipefail …` · acceptance-sha256:e38866d8057f7fa80f4f75c0349f84e4f133790ee2c58dd4284aaff14a4e0c40 · ms:135319
 - 2026-10-28 · 14bce654* · exit 0 · `set -o pipefail …` · acceptance-sha256:e38866d8057f7fa80f4f75c0349f84e4f133790ee2c58dd4284aaff14a4e0c40 · ms:133582
 - 2026-10-28 · 14bce654* · exit 0 · `set -o pipefail …` · acceptance-sha256:e38866d8057f7fa80f4f75c0349f84e4f133790ee2c58dd4284aaff14a4e0c40 · ms:238981
+- 2026-11-01 · 632e1948* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:e38866d8057f7fa80f4f75c0349f84e4f133790ee2c58dd4284aaff14a4e0c40 · ms:0 · test-lock-sha256:d78a209ad8c058b058e1a9641253b0370ab299ca50c2613d50d3c5136d760f63 · test-lock-file:docs/adr/locks/d78a209ad8c058b058e1a9641253b0370ab299ca50c2613d50d3c5136d760f63.lock · test-lock-kind:replace

@@ -39,7 +39,7 @@ func TestACapTheCallerSetIsNotAnIncompleteRead(t *testing.T) {
 		{"a span cut and a span withheld whole", "", []string{"read", "--grep", "hit", "--max-lines", "1", "e.txt"}, "WITHHELD 1 line(s)", "mrw: capped: 2 range(s) withheld by --max-lines"},
 		{"a grep walk under --max-lines", "", []string{"read", "--grep", "hit", "--max-lines", "1", "d"}, "more line(s) withheld", "mrw: capped: 1 range(s) withheld by --max-lines"},
 		{"--max-lines 0", "", []string{"read", "--max-lines", "0", "a.txt"}, "WITHHELD 5 line(s)", "mrw: capped: 1 range(s) withheld by --max-lines"},
-		{"standard input under --max-lines", "l1\nl2\n", []string{"read", "--max-lines", "1", "-"}, "    1| l1", "mrw: capped: 1 range(s) withheld by --max-lines"},
+		{"standard input under --max-lines", "l1\nl2\n", []string{"read", "--max-lines", "1", "-"}, " 1| l1", "mrw: capped: 1 range(s) withheld by --max-lines"},
 		{"standard input under --max-lines 0", "a\n", []string{"read", "--max-lines", "0", "-"}, "WITHHELD 1 line(s)", "mrw: capped: 1 range(s) withheld by --max-lines"},
 		{"a walk under --max-matches", "", []string{"read", "--grep", "hit", "--max-matches", "1", "d"}, "-- max-matches 1 reached: 2 more matching line(s) in 1 file(s) not shown", "mrw: capped: --max-matches 1 reached, 2 matching line(s) not shown"},
 		{"--max-matches 0", "", []string{"read", "--grep", "hit", "--max-matches", "0", "d"}, "-- max-matches 0 reached: 3 more", "mrw: capped: --max-matches 0 reached, 3 matching line(s) not shown"},

@@ -33,7 +33,7 @@ func TestAWholeReadOfACROnlyFileLicensesOnlyTheLinesItServed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out, "    1| one\n") || !strings.Contains(out, "    3| three\n") {
+	if !strings.Contains(out, " 1| one\n") || !strings.Contains(out, " 3| three\n") {
 		t.Fatalf("a whole read of a CR-only file did not serve its three lines:\n%q", out)
 	}
 	if _, code := writeIn(t, root, "--no-check", planFile(t, "@@ cr.txt 1 replace\nX\n")); code != 0 {

@@ -110,3 +110,4 @@ The fence exits 0.
 - 2026-10-28 · 14bce654* · exit 0 · `set -o pipefail …` · acceptance-sha256:260c2f1228f6c6b4f9ec3f769114996603eb23985010cba7f670d597a484a899 · ms:133924
 - 2026-10-28 · 14bce654* · exit 0 · `set -o pipefail …` · acceptance-sha256:260c2f1228f6c6b4f9ec3f769114996603eb23985010cba7f670d597a484a899 · ms:133830
 - 2026-10-28 · 14bce654* · exit 0 · `set -o pipefail …` · acceptance-sha256:260c2f1228f6c6b4f9ec3f769114996603eb23985010cba7f670d597a484a899 · ms:136078
+- 2026-11-01 · 632e1948* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:260c2f1228f6c6b4f9ec3f769114996603eb23985010cba7f670d597a484a899 · ms:0 · test-lock-sha256:47e29ec2b25f4fb8ffda34b1489dfe04fadc9a87f835ecaf42701119f3d3d50a · test-lock-file:docs/adr/locks/47e29ec2b25f4fb8ffda34b1489dfe04fadc9a87f835ecaf42701119f3d3d50a.lock · test-lock-kind:replace
