@@ -265,6 +265,22 @@ class GuideAblation(unittest.TestCase):
             self.assertIn("round 1", summary["stop_reason"])
             self.assertEqual(summary["not_run"], [{"task": "job", "arm": "C"}, {"task": "job", "arm": "F"}])
 
+    def test_a_native_and_mrw_run_opens_with_a_canary_for_each_arm(self):
+        # NATIVE-PREREGISTRATION.md: arms AC get the canary pair FC got.
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "tasks/job").mkdir(parents=True)
+            config = {"root": d, "corpus": str(Path(d) / "tasks"), "arms": "AC", "round": 1}
+            (Path(d) / "transcripts").mkdir()
+            for arm in "AC":
+                (Path(d) / "transcripts" / ("canary." + arm + ".jsonl")).write_text("")
+            ok = {"verdict": {"execution_ok": True, "isolation_ok": True, "exact_tree_ok": True}}
+            with mock.patch.object(grouped, "execute_cell", side_effect=ValueError("stop after canaries")) as launch, \
+                 mock.patch.object(grouped, "canary_problems", return_value=[]):
+                launch.side_effect = [dict(ok, task="canary", arm="A"), dict(ok, task="canary", arm="C"), ValueError("stop")]
+                summary = grouped.run(config)
+            self.assertEqual([(c.args[0].name, c.args[1]) for c in launch.call_args_list][:2], [("canary", "A"), ("canary", "C")])
+            self.assertEqual([r["arm"] for r in summary["canaries"]], ["A", "C"])
+
     def test_a_failed_canary_stops_before_any_counted_cell(self):
         with tempfile.TemporaryDirectory() as d:
             (Path(d) / "tasks/job").mkdir(parents=True)
