@@ -10921,6 +10921,24 @@ out=$(e320 "$MRW" -C "$R320" write --no-check "$WORK/q320.plan" 2>&1); rcq320=$?
   && ok "the pair: an anchor not from line N is refused and writes nothing" || bad "wrong anchor: exit $rcq320 [$out] [$(cat "$R320/g.txt")]"
 rm -rf "$S320" "$R320" "$WORK/p320.plan" "$WORK/q320.plan" "$WORK/s320.out"
 
+# 321. ADR-185: rule 6 of `mrw instructions --core` says `--stat` lists the
+# matching files, as v1.79.0 did, after ADR-184's "--stat lists files" was read
+# as a command of its own in five core cells. The row checks the built binary's core, that a grep
+# with --stat lists the one matching file of two, and the pair: a bare
+# `mrw read --stat` with no working set, the call seen with the short wording, is refused, exit 2.
+S321=$(mktemp -d "$WORK/s321-XXXXXX"); R321=$(mktemp -d "$WORK/r321-XXXXXX")
+e321() { env XDG_STATE_HOME="$S321" "$@"; }
+grep -E '^6\. ' <<<"$("$MRW" instructions --core)" | grep -qF -e '--stat lists the matching files' \
+  && ok "the core says --stat lists the matching files" || bad "core rule 6: $("$MRW" instructions --core | grep -E '^6\. ')"
+printf 'NEEDLE321\n' > "$R321/hit.txt"; printf 'nothing\n' > "$R321/miss.txt"
+out=$(e321 "$MRW" -C "$R321" read --grep NEEDLE321 --stat . 2>&1); rc321=$?
+{ [ "$rc321" = 0 ] && grep -qF '==> hit.txt' <<<"$out" && ! grep -qF 'miss.txt' <<<"$out"; } \
+  && ok "and a grep with --stat lists the one matching file" || bad "grep --stat: exit $rc321 [$out]"
+out=$(e321 "$MRW" -C "$R321" read --stat 2>&1); rcb321=$?
+{ [ "$rcb321" = 2 ] && grep -qF 'read needs a PATH' <<<"$out"; } \
+  && ok "the pair: a bare --stat is refused, exit 2" || bad "bare --stat: exit $rcb321 [$out]"
+rm -rf "$S321" "$R321"
+
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
 # killed process is a zombie until its adopter reaps it, and pgrep lists
