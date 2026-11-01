@@ -129,7 +129,7 @@ program, and a few tools make an agent's session shorter:
 | Tool | What uses it | Without it |
 |------|--------------|------------|
 | [`ast-grep`](https://ast-grep.github.io/) | `--ast-grep PATTERN` (read), `--ast-grep … --rewrite …` (write), `ast_grep` / `rewrite` on MCP | those flags exit 2: `ast-grep: not found on PATH`; everything else works |
-| a POSIX `sh` | the project's check after a code write, `mrw check`, `--then`, `--then-sh` | the check reports it could not start; on Windows mrw falls back to the `sh.exe` Git for Windows installs beside `git.exe` (ADR-082) |
+| a POSIX `sh` | the project's check (`write --check`), `mrw check`, `--then`, `--then-sh` | the check reports it could not start; on Windows mrw falls back to the `sh.exe` Git for Windows installs beside `git.exe` (ADR-082) |
 | `rg`, or any searcher | `--files-from -`, when your own index beats a walk | use `--grep`, which walks and serves in one call |
 | `jq` | nothing in mrw; reading a `--json` receipt or `mrw read --json` from a script | read the human receipt |
 
@@ -155,7 +155,7 @@ relevant, and nothing measured says it does for a routine edit (ADR-168). `mrw -
 
 **What allowing mrw allows.** mrw runs as you. A harness rule that allows it (`Bash(mrw:*)` or its equivalent)
 allows writes to any file you can write, under any `--root` it is given, and the shell the project declares
-(`mrw check`, the check after a code write, `--then NAME`); a host's
+(`mrw check`, `write --check`, `--then NAME`); a host's
 per-path rules for its Edit and Write tools do not reach it. `--then-sh` and `mrw run` run a command the caller
 wrote and are off unless `MRW_SHELL=on` is in
 mrw's environment, so with it unset no command written on mrw's command line reaches a shell. That is not
@@ -365,9 +365,9 @@ These are gates, not a tour of the records behind them.
   `--echo-pad N` (MCP `echo_pad`, default 0) prints N lines after an applied
   body so a surviving closer is visible; the hunk stays `ok`. The pad is not a
   checker.
-- **Check by default.** A CLI write to a non-prose path runs the project's
-  check when one exists; `--no-check` opts out; a markdown-only plan does not
-  spawn it. A `{files}`- or `{dirs}`-only `scoped_check` still runs on a `.rs` write when
+- **No check unless asked (ADR-187).** A CLI write runs no check; `--check` runs the project's
+  check, prose included (exit 2 when none can run); `--no-check` is accepted and does nothing.
+  With `--check`, a `{files}`- or `{dirs}`-only `scoped_check` still runs on a `.rs` write when
   `packages()` cannot map. A `{packages}`-only one that places some of the written files runs over
   those packages and names the rest on an `outside the scoped check:` line (`check.outside_scope`
   in `--json`); it runs the whole check when nothing places, or a `.go` path cannot be placed, a
@@ -523,9 +523,9 @@ when only one should.
 `format`, `echo_pad`, and `ack` sit on the existing write/read — not a third
 tool. `format` is `plan` (default), `apply_patch`, or `search_replace`.
 `echo_pad` is the same opt-in pad as `--echo-pad`. `ack` is how a served read
-becomes a licence. `mrw_write` runs the project's check after a write that touches
-code, by the rule `mrw write` uses (ADR-113), and returns the verdict as `check`
-(and `drift`); `check: false` turns it off. A check that ran and failed leaves the
+becomes a licence. `mrw_write` runs no check unless `check: true`, which runs the project's check after a write that touches
+code, by the rule `mrw write` used before ADR-187 (ADR-113), and returns the verdict as `check`
+(and `drift`); `check: false` is the default. A check that ran and failed leaves the
 write applied and the call not an error. The write lands before the check runs, so
 a lost answer means read the files before re-sending the plan. `then` names steps declared in
 `.quality-harness.json` to run after a passing check (ADR-115), their verdicts in the receipt's
@@ -632,8 +632,8 @@ every line it served by then, so the hidden tail would be writable unseen. Over
 `mrw mcp`, a read is a page under that limit, bracketed in `-- ck` checkpoints,
 and licenses nothing until acknowledged. Send an id in `ack` only when both of its
 markers and all its lines arrived; a cut page loses its tail's close markers, and
-those runs stay unwritable (see [MCP](#mcp)). `mrw_write` runs the check after a code
-write, as `mrw write` does; `check: false` turns it off, and `mrw_check` runs it on
+those runs stay unwritable (see [MCP](#mcp)). `mrw_write` runs a check only with
+`check: true`, as `mrw write` does only with `--check`, and `mrw_check` runs it on
 demand. The other six tools run the CLI and answer `exit: N` first, the CLI's
 exit code (see [Exit status](#exit-status)). An answer the server marks as an
 error starts `error:` — a write whose receipt says it applied still landed.

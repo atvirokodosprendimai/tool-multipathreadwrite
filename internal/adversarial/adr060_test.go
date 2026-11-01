@@ -521,7 +521,7 @@ func adr060CheckLast(t *testing.T, label, state string, iter int, fail bool) {
 	if err := os.WriteFile(planFile, []byte(doc), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	out, code := run(t, state, root, "write", planFile)
+	out, code := run(t, state, root, "write", "--check", planFile)
 	if fail {
 		if code != 3 {
 			t.Fatalf("%s failing check exit %d want 3\n%s", label, code, out)

@@ -102,6 +102,7 @@ go test ./cmd/mrw/ -count=1 -timeout 180s -run 'IsAJSONDocumentUnderJSON' -v 2>&
 - 2026-09-25 · d3f63be* · exit 0 · `set -o pipefail …` · acceptance-sha256:a8202ea885f6c3a88baf3dd07c581a17aade7842fcec58bbe25ed1abafd9f4ed · ms:303
 - 2026-09-25 · d3f63be* · exit 0 · `set -o pipefail …` · acceptance-sha256:a8202ea885f6c3a88baf3dd07c581a17aade7842fcec58bbe25ed1abafd9f4ed · ms:304
 - 2026-09-25 · d3f63be* · exit 0 · `set -o pipefail …` · acceptance-sha256:a8202ea885f6c3a88baf3dd07c581a17aade7842fcec58bbe25ed1abafd9f4ed · ms:337
+- 2026-11-01 · 5baa630e* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:a8202ea885f6c3a88baf3dd07c581a17aade7842fcec58bbe25ed1abafd9f4ed · ms:0 · test-lock-sha256:fed86e2e75fceac74645b25011112f2937541d01f2833724a26b8c5eaf000ad9 · test-lock-file:docs/adr/locks/fed86e2e75fceac74645b25011112f2937541d01f2833724a26b8c5eaf000ad9.lock · test-lock-kind:replace
 
 ## Mutation Log
 (empty until execute)

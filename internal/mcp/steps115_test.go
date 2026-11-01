@@ -33,13 +33,27 @@ func TestAnMCPWriteRunsItsSteps(t *testing.T) {
 	}
 	t.Run("a declared step runs after a passing check", func(t *testing.T) {
 		root := checkTree113(t, stepsHarness)
-		res := call(t, root, "mrw_write", map[string]any{"plan": goEdit113, "then": []any{"ok"}})
+		res := call(t, root, "mrw_write", map[string]any{"plan": goEdit113, "check": true, "then": []any{"ok"}})
+		if chk, _ := structured(t, res)["check"].(map[string]any); chk == nil || chk["ran"] != true || chk["exit_code"] != float64(0) {
+			t.Fatalf("check %v, want a passing check before the step", chk)
+		}
 		st := steps(t, structured(t, res))
 		if len(st) != 1 || st[0]["status"] != "pass" || res["isError"] == true {
 			t.Fatalf("then %v isError %v, want one passing step", st, res["isError"])
 		}
 		if got := tally113(t, root); got["applied"] != 1 || got.Plans() != 1 {
 			t.Errorf("tally %v, want applied 1", got)
+		}
+	})
+	t.Run("a declared step runs with no check asked", func(t *testing.T) {
+		root := checkTree113(t, stepsHarness)
+		res := call(t, root, "mrw_write", map[string]any{"plan": goEdit113, "then": []any{"ok"}})
+		sc := structured(t, res)
+		if st := steps(t, sc); len(st) != 1 || st[0]["status"] != "pass" || res["isError"] == true {
+			t.Fatalf("then %v isError %v, want one passing step", st, res["isError"])
+		}
+		if _, has := sc["check"]; has {
+			t.Errorf("a check ran though none was asked for: %v", sc["check"])
 		}
 	})
 	t.Run("a failing step is data and counted failed_check", func(t *testing.T) {
@@ -83,7 +97,7 @@ func TestAnMCPWriteRunsItsSteps(t *testing.T) {
 	})
 	t.Run("a failed check leaves the steps not run", func(t *testing.T) {
 		root := checkTree113(t, `{"check":"exit 3","steps":{"ok":"echo fine"}}`)
-		st := steps(t, structured(t, call(t, root, "mrw_write", map[string]any{"plan": goEdit113, "then": []any{"ok"}})))
+		st := steps(t, structured(t, call(t, root, "mrw_write", map[string]any{"plan": goEdit113, "check": true, "then": []any{"ok"}})))
 		if len(st) != 1 || st[0]["status"] != "not_run" {
 			t.Fatalf("then %v, want the step not_run", st)
 		}

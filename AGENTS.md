@@ -32,8 +32,8 @@ pipeline reports the *last* command's status, not the script's.
 
 `.quality-harness.json` also declares `scripts/static.sh` as the step `static` (ADR-092), so
 `mrw check --then static` runs the tests and then the static gate in one call, a verdict for each.
-`mrw write --then static` does the same after a code edit; after a prose-only write, or with
-`--no-check`, no check runs and the step runs alone.
+`mrw write --then static` runs the step after any write that lands; add `--check` and the tests run
+first, a failing check stopping the step (ADR-187).
 
 `./scripts/measure.sh` measures what mrw saves, shape by shape, including the shapes where it loses
 (`docs/measure.md` says which): quote the script, never a remembered number. A `bin/mrw` built from a
@@ -196,7 +196,7 @@ mrw read --if-served f.go=8dc37337 f.go:40-60
 `./bin/mrw` after `go build`. Building and using it here is fine — it is the
 project.
 
-For intermediate `--no-check` writes, follow the
+For a queue of code writes (none runs a check unless `--check` asks, ADR-187), follow the
 [queue recipe](docs/agents.md#queue-code-edits-then-check-the-final-tree): verify the final tree
 with a check covering every queued edit, and report any pending verification.
 
@@ -578,12 +578,12 @@ whole list arrives as one argument and the regex swallows the rest of the line.
   ⚠ **Loud is not the same as early.** A broken template may not fail until it is
   rendered — for a playbook, mid-run against a live host after earlier tasks have
   already applied; for a Blade view, a 500 on the page rather than a build failure.
-- **A write to a non-prose file runs the project's check by default** (ADR-054).
-  In a Go module, or any tree with `.quality-harness.json`, a `.go`/`.rs`/`.toml`
-  write pays the check and exits 3 when it fails. A markdown-only plan does not
-  spawn it. `--no-check` opts out; `--check` demands it even on prose. `mrw_write`
-  runs it by the same rule (ADR-113) and returns the verdict as `check`: `check: false`
-  opts out, and a check that ran and failed is not `isError` — the write applied, and
+- **A write runs no check unless `--check` asks for it** (ADR-187, which replaced ADR-054's default).
+  `--check` runs the project's check — declared in `.quality-harness.json`, or a Go module's `go test` —
+  on any plan, prose included, and exits 3 when it fails (2 when none can run). `--no-check` is accepted and
+  does nothing. `mrw_write` runs none unless `check: true`, which runs it by ADR-054's rule (a non-prose write,
+  a check declared or inferred; ADR-113) and returns the verdict as `check`;
+  a check that ran and failed is not `isError` — the write applied, and
   re-sending the plan would apply it again. `then` names steps declared in `.quality-harness.json`
   to run after a passing check, as `--then` does (ADR-115); `--then-sh` stays CLI-only. A
   `scoped_check` whose template contains `{files}` or `{dirs}` and not `{packages}` still
@@ -726,8 +726,8 @@ and #73, one release apart.
   its command runs one level deeper. It runs any shell command it is given, as `--then-sh` does, so it is off
   unless `MRW_SHELL=on` is in mrw's environment (ADR-174). CLI only; MCP is for hosts with no shell (ADR-177).
 - **`mrw check`** runs the project's check on its own, scoped to the working
-  set or to paths you name. A CLI `write` to a non-prose file runs the same
-  runner by default (ADR-054); this is it without the write, for when you want the verdict again
+  set or to paths you name. A CLI `write --check` runs the same
+  runner (ADR-187); this is it without the write, for when you want the verdict again
   without applying another plan. ⚠ It is NOT read-only: the declared command is
   whatever the project declared, run with `sh -c` in the checkout, so a check
   that generates code or writes fixtures does exactly that. On Windows with no `sh` on PATH — a plain

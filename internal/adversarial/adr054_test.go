@@ -13,8 +13,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-
-	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/apply"
 )
 
 // ── ADR-054 under stress, through the built binary ─────────────────────────
@@ -31,9 +29,8 @@ import (
 //   --no-check                        → 0, written, no check, tally applied
 //   --check   (a demand)              → no command 2 (check_not_run)
 //                                       / passing 0 (applied) / failing 3 (failed_check)
-//   default                           → runs only when some written path is
-//                                       not prose AND a command exists;
-//                                       otherwise 0, no check, applied
+//   default (ADR-187)                 → no check, whatever the paths and the harness:
+//                                       0, written, tally applied
 //
 // A seed is printed on failure and honoured from MRW_SEED for a replay.
 
@@ -196,11 +193,6 @@ func TestRandomisedWriteMatrixMatchesTheExitCodeOracle(t *testing.T) {
 
 		// ── the oracle ──
 		demand, optOut, dry := has(flags, "--check"), has(flags, "--no-check"), has(flags, "--dry-run")
-		code0 := false
-		for _, p := range touched {
-			code0 = code0 || !apply.IsProse(p)
-		}
-		hasCommand := h != harnessNone
 
 		var wantExit int
 		wantWritten, wantCheck := true, false
@@ -222,13 +214,6 @@ func TestRandomisedWriteMatrixMatchesTheExitCodeOracle(t *testing.T) {
 				wantExit = 0
 			case harnessFail:
 				wantExit, wantTally = 3, "failed_check"
-			}
-		default:
-			if code0 && hasCommand {
-				wantCheck = true
-				if h == harnessFail {
-					wantExit, wantTally = 3, "failed_check"
-				}
 			}
 		}
 
@@ -316,8 +301,8 @@ func TestStatsLandedLineIsTheArithmeticItClaims(t *testing.T) {
 			doc, flags, outcome = "@@ a.go 2 insert-after\nx\n", []string{"--no-check"}, "applied"
 		case 1: // prose skip → applied
 			doc, outcome = "@@ n.md 2 insert-after\nx\n", "applied"
-		case 2: // default on code, failing check → failed_check
-			doc, outcome = "@@ a.go 2 insert-after\nx\n", "failed_check"
+		case 2: // --check on code, failing check → failed_check
+			doc, flags, outcome = "@@ a.go 2 insert-after\nx\n", []string{"--check"}, "failed_check"
 		case 3: // demand on prose, failing check → failed_check
 			doc, flags, outcome = "@@ n.md 2 insert-after\nx\n", []string{"--check"}, "failed_check"
 		default: // a plan that does not parse → refused_parse (not landed)
@@ -392,7 +377,7 @@ func TestABalancedInsertInTheWrongPlaceIsCaughtByTheCheckNotTheBalance(t *testin
 	if err := os.WriteFile(plan, []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	out, code := run(t, state, root, "write", plan)
+	out, code := run(t, state, root, "write", "--check", plan)
 	if code != 3 {
 		t.Fatalf("a write that broke the build exited %d, want 3:\n%s", code, out)
 	}

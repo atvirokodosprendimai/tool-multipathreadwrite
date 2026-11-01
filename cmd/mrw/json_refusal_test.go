@@ -55,7 +55,7 @@ func TestAMalformedHarnessIsAJSONDocumentUnderJSON(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, ".quality-harness.json"), []byte("{"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	out, code := writeIn(t, root, "--json", planFile(t, goPlan))
+	out, code := writeIn(t, root, "--json", "--check", planFile(t, goPlan))
 	jsonRefusal(t, out, code, ".quality-harness.json")
 }
 

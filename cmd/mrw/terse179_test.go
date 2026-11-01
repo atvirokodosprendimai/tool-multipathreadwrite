@@ -112,7 +112,7 @@ func TestTerseKeepsTheCheckReportAndItsExit(t *testing.T) {
 	t.Setenv("MRW_SHELL", "on")
 	needShell(t)
 	root := stepsTree(t, "exit 3")
-	out, code := writeIn(t, root, "--terse", primed(t, root))
+	out, code := writeIn(t, root, "--terse", "--check", primed(t, root))
 	if code != exitCheckFailed || !strings.Contains(out, "ok   a.go  1 hunk(s)") || !strings.Contains(out, "check FAIL") {
 		t.Errorf("a failing check under --terse exited %d, want 3 with its report:\n%s", code, out)
 	}

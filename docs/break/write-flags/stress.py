@@ -10,8 +10,8 @@ Run: python3 docs/break/write-flags/stress.py            # the mrw on PATH
 Unix only. Exit 0 = no violation; 1 = violations, written to a JSON file in the system temp directory
 whose path is printed. Writes nothing into the checkout.
 
-Two targets, because mrw treats them differently: a.txt is prose (no default check, no balance rows)
-and x.go is code (the check runs by default, and a hunk that moves the delimiter balance prints a
+Two targets, because mrw treats them differently: a.txt is prose (no balance rows)
+and x.go is code (a hunk that moves the delimiter balance prints a
 balance row; under --strict-balance a single-line replace of the wrap-tail shape — the replaced line's
 delimiters do not balance and the body does not match them, ADR-055 — is refused).
 
@@ -31,8 +31,8 @@ Invariants, checked on every run:
   W8 --strict-balance refuses a wrap-tail single-line code replace (`func f() {` replaced by
      `func g()`): exit 1, tree unchanged; without it the hunk lands and the receipt counts a balance
      advisory
-  W9 a landed code write with a check configured and neither --check nor --no-check runs the check;
-     a landed prose write under the same flags does not
+  W9 a landed write with a check configured and neither --check nor --no-check runs no check (ADR-187);
+     with --check, a landed write of either target runs it
 """
 import json, os, random, shutil, subprocess, sys, tempfile
 
@@ -224,12 +224,12 @@ def one(i, rng):
                 st = hunks[0].get("status") if hunks and isinstance(hunks[0], dict) else None
                 if st != "ok" or not (doc.get("advisories", 0) >= 1):
                     bad("W8 a wrap-tail replace without --strict-balance did not pass with a balance advisory")
-    if landed and check != "none" and "--check" not in flags and "--no-check" not in flags and doc is not None:
+    if landed and check != "none" and "--no-check" not in flags and doc is not None:
         ran = isinstance(doc.get("check"), dict) and doc["check"].get("ran") is True
-        if target == "x.go" and not ran:
-            bad("W9 a landed code write with a check configured did not run it")
-        if target == "a.txt" and ran:
-            bad("W9 a landed prose write ran the check by default")
+        if "--check" not in flags and ran:
+            bad("W9 a landed write ran a check though neither --check nor --no-check asked for one")
+        if "--check" in flags and not ran:
+            bad("W9 a landed write with --check did not run the check")
 
 
 def main():

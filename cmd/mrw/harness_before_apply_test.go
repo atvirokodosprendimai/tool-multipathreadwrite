@@ -40,7 +40,7 @@ func fileIs(t *testing.T, root, name, want string) {
 // first, and it refuses before anything is written.
 func TestAMalformedHarnessRefusesTheWriteBeforeAnythingIsWritten(t *testing.T) {
 	root := badHarness(t)
-	out, code := runIn(t, root, "write", planFile(t, goPlan))
+	out, code := runIn(t, root, "write", "--check", planFile(t, goPlan))
 	if code != exitUsage || !strings.Contains(out, ".quality-harness.json") || !strings.Contains(out, "nothing was written") {
 		t.Errorf("exit %d, want %d naming the harness and saying nothing was written:\n%s", code, exitUsage, out)
 	}
@@ -51,7 +51,7 @@ func TestAMalformedHarnessRefusesTheWriteBeforeAnythingIsWritten(t *testing.T) {
 // gate. It is refused the same way, before the write.
 func TestAMarkdownOnlyPlanIsAlsoRefusedByABadHarness(t *testing.T) {
 	root := badHarness(t)
-	if out, code := runIn(t, root, "write", planFile(t, mdPlan)); code != exitUsage {
+	if out, code := runIn(t, root, "write", "--check", planFile(t, mdPlan)); code != exitUsage {
 		t.Errorf("exit %d, want %d:\n%s", code, exitUsage, out)
 	}
 	fileIs(t, root, "notes.md", "# notes\nline two\n")
@@ -66,11 +66,21 @@ func TestNoCheckSkipsTheHarnessEntirely(t *testing.T) {
 	fileIs(t, root, "a.go", "package a\nfunc A() { _ = 1 }\n")
 }
 
-// --dry-run writes nothing and checks nothing, so it never reads the harness.
+// --dry-run writes nothing and checks nothing, so it never reads the harness. The CLI
+// refuses --check beside --dry-run, so the check-asking arm is mrw_write's check: true.
 func TestDryRunDoesNotLoadTheHarness(t *testing.T) {
 	root := badHarness(t)
 	if out, code := runIn(t, root, "write", "--dry-run", planFile(t, goPlan)); code != 0 {
 		t.Fatalf("--dry-run exited %d with a bad harness:\n%s", code, out)
+	}
+	fileIs(t, root, "a.go", "package a\nfunc A() {}\n")
+}
+
+func TestAnMCPDryRunWithCheckDoesNotLoadTheHarness(t *testing.T) {
+	root := badHarness(t)
+	doc := mcpWrite(t, root, map[string]any{"plan": goPlan, "dry_run": true, "check": true})
+	if doc == nil || doc["dry_run"] != true || doc["applied"] == true {
+		t.Fatalf("check: true with dry_run read the bad harness or applied: %v", doc)
 	}
 	fileIs(t, root, "a.go", "package a\nfunc A() {}\n")
 }

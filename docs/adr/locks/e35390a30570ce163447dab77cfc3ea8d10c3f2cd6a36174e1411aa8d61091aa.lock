@@ -1,0 +1,11 @@
+check@2	1bb497e3e13a1105cf24e3359fa3ef75de08b66ff8a2839cd7f9ea97824d9eb3
+body	cmd/mrw/surfaces113_test.go	TestTheTwoSurfacesCountAWriteAlike	2b01cdaa27e313a58784bf74ab524536f092875102427657f97acbfa4a1d8017
+body	internal/mcp/check113_test.go	TestAnMCPWriteRunsTheCheck	db94191a2e63b92d07aba2027e61088c9fb13f514010926d035587ab90b03174
+body	internal/mcp/check113_test.go	a check that cannot run is isError with the receipt	2006d4570613a641d74ae45f4dd43daaf84f9196ebef0b3b078735e6031a0e1b
+body	internal/mcp/check113_test.go	a check that cannot start is isError with the receipt	9b57ded824ca6dda11b0b7ef37c8de089968c63f2d306a1f36ea79cbbf75d903
+body	internal/mcp/check113_test.go	a code write runs the check and reports its failure	646e95b1c84e19a1a0e0cb49bda7c49c3be61e5d38992a5bb830aa3c1b5d87ab
+body	internal/mcp/check113_test.go	a malformed harness refuses the write before anything lands	533c83dce02c4c6935fafb1e857c439249160bb88a2918ab455a5caf8e5ac6ea
+body	internal/mcp/check113_test.go	a passing check is reported and priced as held	a56073b3c078a677b903b6d20216d63e3e3596c9801da9d271e50d09dc8962ec
+body	internal/mcp/check113_test.go	a prose write runs none	a2390962b993de7b604431da899503c05099bc5d7b1b9f58bf40ea06e85605fe
+body	internal/mcp/check113_test.go	check false runs none	fa3345323c38674cc79a6a9850e125736ea40a1e6d28d3d13dc51c7654b0d703
+body	internal/mcp/check113_test.go	every verdict phrase fits the write floor	5007df958736c5fbfffa17a2a26ee5f07f8c504786be89ec8b2d03f06b805a03

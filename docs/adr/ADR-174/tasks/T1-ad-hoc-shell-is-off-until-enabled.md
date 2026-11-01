@@ -146,3 +146,4 @@ The fence exits 0 and `adr-lint` passes for every record. Stop if a caller outsi
 - 2026-10-29 · 33aa28b7* · exit 0 · `set -o pipefail …` · acceptance-sha256:c20156a53cf97103d42551d76b9fbeeebb2e276a58461373876d9a718c0c78bf · ms:143721
 - 2026-10-29 · 33aa28b7* · exit 0 · `set -o pipefail …` · acceptance-sha256:c20156a53cf97103d42551d76b9fbeeebb2e276a58461373876d9a718c0c78bf · ms:143247
 - 2026-10-29 · be450928* · exit 0 · `set -o pipefail …` · acceptance-sha256:c20156a53cf97103d42551d76b9fbeeebb2e276a58461373876d9a718c0c78bf · ms:140982
+- 2026-11-01 · 5baa630e* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:c20156a53cf97103d42551d76b9fbeeebb2e276a58461373876d9a718c0c78bf · ms:0 · test-lock-sha256:5a50adae6de6cc487830e7b3d8363e76c262341a94f6c4ad6ea610e058ffa323 · test-lock-file:docs/adr/locks/5a50adae6de6cc487830e7b3d8363e76c262341a94f6c4ad6ea610e058ffa323.lock · test-lock-kind:replace
