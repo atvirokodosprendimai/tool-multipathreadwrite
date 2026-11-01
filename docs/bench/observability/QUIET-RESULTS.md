@@ -4,7 +4,7 @@ Registered in [QUIET-PREREGISTRATION.md](QUIET-PREREGISTRATION.md), pushed in `a
 first call. Run 8, two rounds, 24 launches. Both canary pairs passed and all 20 counted cells were
 solved, with exact trees and verified final checks. All-in usage $0.234586 and $0.243554, $0.478140
 in all. One-minute load at the round starts 6.50 and 2.96; no peer build. Every cost reproduces within 3e-18.
-Exported records: [quiet-pilot.json](quiet-pilot.json).
+Exported records: [quiet-pilot.json](quiet-pilot.json); tool results by kind: [receipt-breakdown.json](receipt-breakdown.json).
 
 | Five-job total | Round 1 | Round 2 |
 |---|---:|---:|

@@ -1,0 +1,56 @@
+#!/usr/bin/env python3
+"""Tool-result characters by kind, per arm, for NATIVE-RESULTS.md and QUIET-RESULTS.md.
+
+Usage: python3 receipt-breakdown.py.txt RUN_ROOT [RUN_ROOT ...]   (each holds round1/ and round2/)
+It reads each counted cell's transcript and prints JSON; it writes nothing. A tool call is put in
+one kind by its command, checked in this order: `mrw write`, `cat >`, Edit or Write is "write";
+`mrw read`, `cat`, `sed -n`, `head`, Read or grep is "read"; anything else is "other". The rule is
+a heuristic over the command text, not a parser: a command that both reads and writes counts once,
+as a write.
+"""
+import json
+import re
+import sys
+from pathlib import Path
+
+WRITE = re.compile(r"\bmrw write\b|\bcat >|^Edit\b|^Write\b")
+READ = re.compile(r"\bmrw read\b|\bcat\b|\bsed -n\b|\bhead\b|^Read\b|grep")
+REFUSED = re.compile(r"FAIL |NOTHING WRITTEN|refused")
+
+
+def text(content):
+    if isinstance(content, list):
+        return "\n".join(part.get("text", "") for part in content if isinstance(part, dict))
+    return str(content or "")
+
+
+def main():
+    out = {}
+    for run in map(Path, sys.argv[1:]):
+        for n in (1, 2):
+            root = run / f"round{n}"
+            summary = json.loads((root / "run-summary.json").read_text())
+            for cell in summary["cells"]:
+                arm = out.setdefault(f"{run.name}/{cell['arm']}", {"calls": 0, "write": 0, "read": 0, "other": 0, "refusals": 0})
+                uses = {}
+                for line in (root / "transcripts" / f"{cell['task']}.{cell['arm']}.jsonl").read_text().splitlines():
+                    row = json.loads(line)
+                    if row.get("type") == "assistant":
+                        for part in row["message"]["content"]:
+                            if part.get("type") == "tool_use":
+                                uses[part["id"]] = part["name"] + " " + part["input"].get("command", "")
+                    if row.get("type") == "user" and isinstance(row["message"].get("content"), list):
+                        for part in row["message"]["content"]:
+                            if part.get("type") != "tool_result":
+                                continue
+                            t, cmd = text(part.get("content")), uses.get(part["tool_use_id"], "")
+                            kind = "write" if WRITE.search(cmd) else "read" if READ.search(cmd) else "other"
+                            arm["calls"] += 1
+                            arm[kind] += len(t)
+                            arm["refusals"] += bool(REFUSED.search(t))
+    json.dump(out, sys.stdout, indent=1)
+    print()
+
+
+if __name__ == "__main__":
+    main()

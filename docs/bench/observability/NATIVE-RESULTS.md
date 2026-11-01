@@ -37,7 +37,7 @@ Every cost reproduces from its tokens within 7e-18. Exported records: [native-pi
 
 Its requests start smaller, and it read less from cache, but what it put into the conversation was
 larger. Over the 40 cells, the tool results MRW's agent received came to 95,373 characters against
-native's 59,334:
+native's 59,334 ([by kind](receipt-breakdown.json), from [receipt-breakdown.py.txt](receipt-breakdown.py.txt)):
 
 - **write receipts, about 23,400 characters.** Native's `Edit` and `sed` edits print next to nothing;
   each `mrw write` prints a row per hunk, a summary, and the file's new sha.
