@@ -353,6 +353,12 @@ func TestAPlanFileAtAResolvablePathOutsideTheTreePassesTheHook(t *testing.T) {
 		"true || P=$TMPDIR/plan.txt; printf x > \"$P\"",
 		"if false; then :; P=$TMPDIR/plan.txt; fi; printf x > \"$P\"",
 		"cd tree\nP=$TMPDIR/plan.txt; printf x > \"$P\"",
+		// The fourth Codex pass on #582: a command that resolves nothing (it
+		// holds source, eval, a backslash or a backquote) must not let a
+		// substitution inside it trust TMPDIR either.
+		"source ./paths.sh; X=$(printf x > \"$TMPDIR/plan.txt\")",
+		"eval \"$SETUP\"; X=$(printf x > \"$TMPDIR/plan.txt\")",
+		"echo \\$x; X=$(printf x > \"$TMPDIR/plan.txt\")",
 	}
 	run := func(cmd string) int {
 		return Hook(bytes.NewReader(hookInput(t, "Bash", cmd)), new(bytes.Buffer), filepath.Join(t.TempDir(), "hook.log"), tree)

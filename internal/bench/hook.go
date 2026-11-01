@@ -138,7 +138,10 @@ func ClassifyBash(cmd, tree string) (string, []string) {
 // (the Codex re-review of #582).
 func classify(cmd, tree, tmp string, depth int) (string, []string) {
 	rest, expanded, bodies := splitHeredocs(cmd)
-	if countAssigned(rest, "TMPDIR") > 0 || rebound(rest, "TMPDIR") {
+	// A command that rebinds TMPDIR, or that resolveTargets reads not at all
+	// (source, eval, a backslash or backquote), hands its substitutions no
+	// TMPDIR (the Codex reviews of #582).
+	if countAssigned(rest, "TMPDIR") > 0 || rebound(rest, "TMPDIR") || anyWord.MatchString(rest) || topLevel(rest) == nil {
 		tmp = ""
 	}
 	rest = resolveTargets(rest, tmp)
