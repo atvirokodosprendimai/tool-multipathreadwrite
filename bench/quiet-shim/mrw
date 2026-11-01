@@ -1,0 +1,28 @@
+#!/bin/sh
+# The quiet-receipts shim (docs/bench/observability/QUIET-PREREGISTRATION.md): adds --quiet to an
+# mrw write that names neither --quiet, --terse nor --json, and passes every other call to the real
+# binary, MRW_REAL, unchanged. The write subcommand is found as the first argument, or after one
+# -C DIR / --root DIR pair.
+real=${MRW_REAL:?MRW_REAL names the real mrw}
+if [ "$1" = "-C" ] || [ "$1" = "--root" ]; then
+  flag=$1 dir=$2
+  shift 2
+  set -- "$flag" "$dir" "$@"
+  if [ "$3" = "write" ]; then
+    head1=$1 head2=$2
+    shift 3
+    case " $* " in
+      *" --quiet "*|*" --terse "*|*" --json "*) exec "$real" "$head1" "$head2" write "$@" ;;
+    esac
+    exec "$real" "$head1" "$head2" write --quiet "$@"
+  fi
+  exec "$real" "$@"
+fi
+if [ "$1" = "write" ]; then
+  shift
+  case " $* " in
+    *" --quiet "*|*" --terse "*|*" --json "*) exec "$real" write "$@" ;;
+  esac
+  exec "$real" write --quiet "$@"
+fi
+exec "$real" "$@"

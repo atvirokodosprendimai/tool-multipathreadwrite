@@ -1,0 +1,44 @@
+{
+ "native-20261101-r6/A": {
+  "calls": 24,
+  "write": 0,
+  "read": 27043,
+  "other": 1901,
+  "refusals": 0
+ },
+ "native-20261101-r6/C": {
+  "calls": 27,
+  "write": 8778,
+  "read": 36997,
+  "other": 0,
+  "refusals": 1
+ },
+ "native-20261101-r7/C": {
+  "calls": 30,
+  "write": 14618,
+  "read": 34980,
+  "other": 0,
+  "refusals": 3
+ },
+ "native-20261101-r7/A": {
+  "calls": 23,
+  "write": 0,
+  "read": 27693,
+  "other": 2697,
+  "refusals": 0
+ },
+ "quiet-20261101-r8/A": {
+  "calls": 22,
+  "write": 0,
+  "read": 26471,
+  "other": 2195,
+  "refusals": 0
+ },
+ "quiet-20261101-r8/C": {
+  "calls": 27,
+  "write": 3672,
+  "read": 33298,
+  "other": 0,
+  "refusals": 0
+ }
+}
