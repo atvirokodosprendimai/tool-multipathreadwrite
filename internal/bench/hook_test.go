@@ -307,6 +307,7 @@ func TestAPlanFileAtAResolvablePathOutsideTheTreePassesTheHook(t *testing.T) {
 		"p=" + filepath.Join(scratch, "plan.txt") + "; : > $p",
 		`export P=$TMPDIR/p; printf x > "$P"`,
 		"P=$TMPDIR/plan.txt\nfor i in 0 1; do printf x >> ${P}; done",
+		"printf start;\nP=$TMPDIR/plan.txt; printf x > \"$P\"",
 	}
 	refuse := []string{
 		"P=$TMPDIR/tree/f.txt; echo x > $P",
@@ -343,6 +344,15 @@ func TestAPlanFileAtAResolvablePathOutsideTheTreePassesTheHook(t *testing.T) {
 		"P=$TMPDIR/plan.txt; printf -v P '%s' tree/plan.txt; printf x > \"$P\"",
 		"P=$TMPDIR/plan.txt; mapfile -t P < p.txt; printf x > \"$P\"",
 		"TMPDIR=" + tree + "; X=$(printf x > \"$TMPDIR/plan.txt\")",
+		// The third Codex pass on #582: printf -vNAME attached, a conditional
+		// operator before a newline, and (found while fixing it) an assignment
+		// inside an if branch.
+		"P=$TMPDIR/plan.txt; printf -vP '%s' plan.txt; printf x > \"$P\"",
+		"false &&\nP=$TMPDIR/plan.txt; printf x > \"$P\"",
+		"true ||\nP=$TMPDIR/plan.txt; printf x > \"$P\"",
+		"true || P=$TMPDIR/plan.txt; printf x > \"$P\"",
+		"if false; then :; P=$TMPDIR/plan.txt; fi; printf x > \"$P\"",
+		"cd tree\nP=$TMPDIR/plan.txt; printf x > \"$P\"",
 	}
 	run := func(cmd string) int {
 		return Hook(bytes.NewReader(hookInput(t, "Bash", cmd)), new(bytes.Buffer), filepath.Join(t.TempDir(), "hook.log"), tree)

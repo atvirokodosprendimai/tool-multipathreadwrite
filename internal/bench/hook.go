@@ -231,6 +231,9 @@ var (
 	plainPath = regexp.MustCompile(`^/[A-Za-z0-9._/-]*$`)
 	rebinders = map[string]bool{"read": true, "for": true, "declare": true, "local": true, "typeset": true, "unset": true, "readonly": true, "mapfile": true, "readarray": true, "getopts": true}
 	anyWord   = regexp.MustCompile(`(?:^|[^A-Za-z0-9_-])(?:eval|source)(?:$|[^A-Za-z0-9_-])`)
+	// control is a shell keyword that may skip or repeat what follows it: an
+	// assignment after one is not certain to run once.
+	control = regexp.MustCompile(`(?:^|[\s;&|()])(?:if|then|else|elif|fi|case|esac|while|until|do|done|for|select|function)(?:$|[\s;&|()])`)
 )
 
 // binding is a value ADR-186 knows for a name, and where the statement that
@@ -349,13 +352,14 @@ func topLevel(s string) []bool {
 func statement(s string, start, end int) bool {
 	before := strings.TrimRight(s[:start], " \t")
 	before = strings.TrimSuffix(before, "export")
-	before = strings.TrimRight(before, " \t")
+	before = strings.TrimRight(before, " \t\n")
 	after := strings.TrimLeft(s[end:], " \t")
-	// Only a statement that runs, in this shell: after the start, a ; or a
-	// newline, never after && or || (it may not run) or | (a subshell), and
-	// followed by nothing, a ; or newline, or && — never | or & (the Codex
-	// re-review of #582).
-	first := before == "" || strings.HasSuffix(before, ";") && !strings.HasSuffix(before, ";;") || strings.HasSuffix(before, "\n")
+	// Only a statement that runs once, in this shell: the command's first, or
+	// one after a ;, with no control keyword before it, and followed by
+	// nothing, a ; or newline, or && — never | or &. A newline alone does not
+	// end what precedes it (false &&⏎P=x), so it is not a boundary here (the
+	// Codex reviews of #582).
+	first := before == "" || strings.HasSuffix(before, ";") && !strings.HasSuffix(before, ";;") && !control.MatchString(before)
 	last := after == "" || after[0] == ';' || after[0] == '\n' || strings.HasPrefix(after, "&&")
 	return first && last
 }
@@ -378,11 +382,12 @@ func rebound(s, name string) bool {
 		words := strings.FieldsFunc(line, func(r rune) bool { return strings.ContainsRune(" \t(){}<>\"'", r) })
 		binds := false
 		for i, w := range words {
-			binds = binds || rebinders[w] || w == "printf" && i+1 < len(words) && words[i+1] == "-v"
+			binds = binds || rebinders[w] || w == "printf" && i+1 < len(words) && strings.HasPrefix(words[i+1], "-v")
 		}
 		// Any mention of the name in such a segment counts, quoted or against a
-		// redirection: read -r "P" and read P<f bind it too.
-		if binds && mention.MatchString(line) {
+		// redirection, or glued to printf's -v: read -r "P", read P<f and
+		// printf -vP bind it too.
+		if binds && (mention.MatchString(line) || strings.Contains(line, "-v"+name)) {
 			return true
 		}
 	}

@@ -76,6 +76,17 @@ out=$(go test ./internal/bench/ -count=1 -v -run '^(TestAPlanFileAtAResolvablePa
 - 2026-11-01 · e7ee1a5a* · mutant killed · exit 1 · `internal/bench/hook.go` · S3: printf -v does not rebind (Codex re-review) · acceptance-sha256:6385262e88277f892b6f7c7117a81f709328004357c6ada092ce903ead33935c · covers:a rebindable name is not resolved
 - 2026-11-01 · e7ee1a5a* · mutant killed · exit 1 · `internal/bench/hook.go` · S3: a substitution trusts TMPDIR its command rebinds (Codex re-review) · acceptance-sha256:6385262e88277f892b6f7c7117a81f709328004357c6ada092ce903ead33935c · covers:a rebindable name is not resolved
 - 2026-11-01 · e7ee1a5a* · mutant killed · exit 1 · `internal/bench/hook.go` · S3: a quoted read destination does not count (Codex re-review) · acceptance-sha256:6385262e88277f892b6f7c7117a81f709328004357c6ada092ce903ead33935c · covers:a rebindable name is not resolved
+- 2026-11-01 · ca0127fe* · mutant killed · exit 1 · `internal/bench/hook.go` · S3: an assignment inside an if branch is a statement (third Codex pass) · acceptance-sha256:6385262e88277f892b6f7c7117a81f709328004357c6ada092ce903ead33935c · covers:a rebindable name is not resolved
+- 2026-11-01 · ca0127fe* · mutant survived · exit 0 · `internal/bench/hook.go` · S3: a newline hides false && before an assignment (third Codex pass) · acceptance-sha256:6385262e88277f892b6f7c7117a81f709328004357c6ada092ce903ead33935c · covers:a rebindable name is not resolved
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
+- 2026-11-01 · ca0127fe* · mutant killed · exit 1 · `internal/bench/hook.go` · S3: printf -vP does not rebind P (third Codex pass) · acceptance-sha256:6385262e88277f892b6f7c7117a81f709328004357c6ada092ce903ead33935c · covers:a rebindable name is not resolved
+- 2026-11-01 · ca0127fe* · mutant survived · exit 0 · `internal/bench/hook.go` · S3: a ; then a newline before an assignment is not a boundary (third Codex pass) · acceptance-sha256:6385262e88277f892b6f7c7117a81f709328004357c6ada092ce903ead33935c · covers:a resolvable plan path outside the tree passes
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
+- 2026-11-01 · ca0127fe* · mutant killed · exit 1 · `internal/bench/hook.go` · S3: a ; then a newline before an assignment is not a boundary (third Codex pass) · acceptance-sha256:6385262e88277f892b6f7c7117a81f709328004357c6ada092ce903ead33935c · covers:a resolvable plan path outside the tree passes
 
 ## Invariants
 
@@ -121,3 +132,15 @@ The fence exits 0; or a refused form from the ablation cannot be resolved withou
 - 2026-11-01 · e7ee1a5a* · exit 0 · `set -o pipefail …` · acceptance-sha256:6385262e88277f892b6f7c7117a81f709328004357c6ada092ce903ead33935c · ms:961
 - 2026-11-01 · e7ee1a5a* · exit 0 · `set -o pipefail …` · acceptance-sha256:6385262e88277f892b6f7c7117a81f709328004357c6ada092ce903ead33935c · ms:1031
 - 2026-11-01 · e7ee1a5a* · exit 0 · `set -o pipefail …` · acceptance-sha256:6385262e88277f892b6f7c7117a81f709328004357c6ada092ce903ead33935c · ms:333
+- 2026-11-01 · ca0127fe* · exit 1 · `set -o pipefail …` · acceptance-sha256:6385262e88277f892b6f7c7117a81f709328004357c6ada092ce903ead33935c · ms:594
+  ```
+  ```
+- 2026-11-01 · ca0127fe* · exit 0 · `set -o pipefail …` · acceptance-sha256:6385262e88277f892b6f7c7117a81f709328004357c6ada092ce903ead33935c · ms:956
+- 2026-11-01 · ca0127fe* · exit 0 · `set -o pipefail …` · acceptance-sha256:6385262e88277f892b6f7c7117a81f709328004357c6ada092ce903ead33935c · ms:975
+- 2026-11-01 · ca0127fe* · exit 0 · `set -o pipefail …` · acceptance-sha256:6385262e88277f892b6f7c7117a81f709328004357c6ada092ce903ead33935c · ms:921
+- 2026-11-01 · ca0127fe* · exit 1 · `set -o pipefail …` · acceptance-sha256:6385262e88277f892b6f7c7117a81f709328004357c6ada092ce903ead33935c · ms:608
+  ```
+  ```
+- 2026-11-01 · ca0127fe* · exit 0 · `set -o pipefail …` · acceptance-sha256:6385262e88277f892b6f7c7117a81f709328004357c6ada092ce903ead33935c · ms:941
+- 2026-11-01 · ca0127fe* · exit 0 · `set -o pipefail …` · acceptance-sha256:6385262e88277f892b6f7c7117a81f709328004357c6ada092ce903ead33935c · ms:1042
+- 2026-11-01 · ca0127fe* · exit 0 · `set -o pipefail …` · acceptance-sha256:6385262e88277f892b6f7c7117a81f709328004357c6ada092ce903ead33935c · ms:398
