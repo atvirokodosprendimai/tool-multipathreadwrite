@@ -5875,8 +5875,9 @@ printf 'package a\nfunc A() {}\n' > "$R/a.go"
 m read a.go >"$WORK/served.out"
 out=$(printf '%s\n' \
 	'@@ a.go 2 replace anchor="func A"' \
-	'func A() { _ = 1 }' | m write - 2>&1); rc=$?
+	'func A() { _ = 1 }' | m write --check - 2>&1); rc=$?
 want 0 "$rc" "passing check is exit 0"
+grep -qE '^check PASS' <<<"$out" && ok "and the receipt shows the passing check" || bad "passing check not shown: $out"
 echo "$out" | grep -q 'check last:' \
 	&& bad "PASS printed check last: $out" || ok "PASS has no check last:"
 
@@ -8405,6 +8406,15 @@ import json, sys
 r = json.loads(sys.argv[1])["result"]
 st = (r["structuredContent"].get("then") or {}).get("steps") or []
 sys.exit(0 if len(st) == 1 and st[0].get("status") == "pass" and not r.get("isError") else 1)
+PY
+out=$(req215 '{"plan":"@@ a.go 3 replace\nfunc A() int { return 2151 }\n","then":["ok215"],"check":true}' | "$MRW" -C "$R" mcp --enable 2>/dev/null)
+python3 - "$out" <<'PY' && ok "the pair: with check: true the check passes first, then the step" || bad "check then step: $(head -c 400 <<<"$out")"
+import json, sys
+r = json.loads(sys.argv[1])["result"]
+sc = r["structuredContent"]
+c = sc.get("check") or {}
+st = (sc.get("then") or {}).get("steps") or []
+sys.exit(0 if c.get("ran") is True and c.get("exit_code") == 0 and len(st) == 1 and st[0].get("status") == "pass" and not r.get("isError") else 1)
 PY
 before=$(cat "$R/a.go")
 out=$(req215 '{"plan":"@@ a.go 3 replace\nfunc A() int { return 2150 }\n","then":["nope215"]}' | "$MRW" -C "$R" mcp --enable 2>/dev/null)

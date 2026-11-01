@@ -66,11 +66,21 @@ func TestNoCheckSkipsTheHarnessEntirely(t *testing.T) {
 	fileIs(t, root, "a.go", "package a\nfunc A() { _ = 1 }\n")
 }
 
-// --dry-run writes nothing and checks nothing, so it never reads the harness.
+// --dry-run writes nothing and checks nothing, so it never reads the harness. The CLI
+// refuses --check beside --dry-run, so the check-asking arm is mrw_write's check: true.
 func TestDryRunDoesNotLoadTheHarness(t *testing.T) {
 	root := badHarness(t)
 	if out, code := runIn(t, root, "write", "--dry-run", planFile(t, goPlan)); code != 0 {
 		t.Fatalf("--dry-run exited %d with a bad harness:\n%s", code, out)
+	}
+	fileIs(t, root, "a.go", "package a\nfunc A() {}\n")
+}
+
+func TestAnMCPDryRunWithCheckDoesNotLoadTheHarness(t *testing.T) {
+	root := badHarness(t)
+	doc := mcpWrite(t, root, map[string]any{"plan": goPlan, "dry_run": true, "check": true})
+	if doc == nil || doc["dry_run"] != true || doc["applied"] == true {
+		t.Fatalf("check: true with dry_run read the bad harness or applied: %v", doc)
 	}
 	fileIs(t, root, "a.go", "package a\nfunc A() {}\n")
 }

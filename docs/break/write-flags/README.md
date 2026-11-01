@@ -17,8 +17,8 @@ included.
 
 ## What it varies
 
-Per run, seeded: the target (`a.txt`, prose — no default check, no balance rows; or `x.go`, code — the check runs
-by default and a delimiter move prints a balance row); the plan format (native, `--format=apply_patch`,
+Per run, seeded: the target (`a.txt`, prose — no balance rows; or `x.go`, code — a delimiter move prints a balance row);
+the plan format (native, `--format=apply_patch`,
 `--format=search_replace`); the plan shape (one that applies, one that cannot, one against a file that was never
 read, and on `x.go` the wrap-tail replace of `func f() {` by `func g()`); the check (none, passing, failing); and
 the flags — `--json`, `--dry-run`, `--strict-balance`, `--check` or `--no-check` or neither, `--then-sh` with a
@@ -31,7 +31,7 @@ whose every key path `docs/receipts.txt` lists for `write` (ADR-111); exit 1 and
 byte-identical; a landed write has exactly the planned effect; the receipt carries the plan's one hunk with a valid
 status, `ok` when it landed; exit 3 has a check that ran and failed, or a step that failed, as its evidence;
 `--strict-balance` refuses the wrap-tail replace and its absence lets it land with a balance advisory; and a landed
-code write runs a configured check by default while a prose write does not.
+code or prose write runs no check unless `--check` asks for it (ADR-187), and then it runs.
 
 One shape is allowed on purpose: `--check` beside `--dry-run` is a usage refusal, exit 2, made before the plan, and
 like a flag the parser rejects it prints nothing on stdout — ADR-072 makes every refusal *after a plan is named* one

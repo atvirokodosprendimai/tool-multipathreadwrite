@@ -9,8 +9,8 @@ import (
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/guide"
 )
 
-// ADR-092 T5. A malformed steps block in a tree whose writes ask for no step
-// changes nothing — the write lands and check runs, as on v1.30.0. Asking for
+// ADR-092 T5, ADR-187. A malformed steps block in a tree whose writes ask for no step
+// changes nothing — the write lands and the check it asked for runs, as on v1.30.0. Asking for
 // a step is what reads the block, and that is refused with nothing written.
 func TestAPlainWriteIgnoresAMalformedStepsBlock(t *testing.T) {
 	needShell(t)
@@ -19,7 +19,7 @@ func TestAPlainWriteIgnoresAMalformedStepsBlock(t *testing.T) {
 		"a.go":                  "package a\nfunc A() {}\n",
 		".quality-harness.json": `{"check":"exit 0","steps":{"my step":"true"}}`,
 	})
-	if out, code := writeIn(t, root, primed(t, root)); code != 0 {
+	if out, code := writeIn(t, root, "--check", primed(t, root)); code != 0 {
 		t.Fatalf("a write asking for no step: exit %d:\n%s", code, out)
 	}
 	if out, code := runIn(t, root, "check", "--full"); code != 0 {
@@ -30,6 +30,23 @@ func TestAPlainWriteIgnoresAMalformedStepsBlock(t *testing.T) {
 	after, _ := os.ReadFile(filepath.Join(root, "a.go"))
 	if code != exitUsage || string(before) != string(after) || !strings.Contains(out, `"my step"`) {
 		t.Errorf("asking for a step: exit %d, changed %v, want 2 naming \"my step\":\n%s", code, string(before) != string(after), out)
+	}
+}
+
+// The same promise through mrw_write, whose check: true is ADR-054's rule
+// (writer.CheckAuto): the malformed steps block is not read, and the check runs.
+func TestAnMCPWriteWithCheckIgnoresAMalformedStepsBlock(t *testing.T) {
+	needShell(t)
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	root := grepTree(t, map[string]string{
+		"a.go":                  "package a\nfunc A() {}\n",
+		".quality-harness.json": `{"check":"exit 0","steps":{"my step":"true"}}`,
+	})
+	primed(t, root)
+	doc := mcpWrite(t, root, map[string]any{"plan": goPlan, "check": true})
+	chk, _ := doc["check"].(map[string]any)
+	if doc["applied"] != true || chk == nil || chk["ran"] != true || chk["exit_code"] != float64(0) {
+		t.Errorf("a write asking for no step: applied %v, check %v, want applied and a passing check", doc["applied"], chk)
 	}
 }
 

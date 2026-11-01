@@ -21,7 +21,9 @@ type surfaceRow struct {
 	harness   string
 	files     map[string]string
 	plan      string
-	optOut    bool // --no-check / check: false
+	check     bool     // --check / check: true; without it neither surface checks (ADR-187)
+	want      []string // substrings the surfaces' common result must hold, proving the row reached its outcome
+	optOut    bool     // --no-check / check: false
 	dryRun    bool
 	noRead    bool
 	ledger    bool // the ledger made read-only after the read
@@ -32,18 +34,19 @@ type surfaceRow struct {
 var surfaceRows = []surfaceRow{
 	{name: "prose_no_check_due", harness: `{"check":"exit 3"}`, plan: mdPlan},
 	{name: "code_no_harness", plan: goPlan},
-	{name: "check_passed", harness: `{"check":"exit 0"}`, plan: goPlan},
-	{name: "check_failed", harness: `{"check":"exit 3"}`, plan: goPlan},
-	{name: "check_timed_out", harness: `{"check":"sleep 5","timeout_seconds":1}`, plan: goPlan},
-	{name: "check_could_not_start", harness: `{"check":"exit 0"}`, emptyPATH: true, plan: goPlan},
-	{name: "check_could_not_run", harness: `{"check":"exit 0"}`, badTMP: true, plan: goPlan},
-	{name: "check_drift", harness: `{"check":"printf x >> a.go"}`, plan: goPlan},
+	{name: "check_passed", check: true, want: []string{"applied=1", "ran=true exit=0"}, harness: `{"check":"exit 0"}`, plan: goPlan},
+	{name: "check_failed", check: true, want: []string{"failed_check=1", "ran=true exit=3"}, harness: `{"check":"exit 3"}`, plan: goPlan},
+	{name: "check_timed_out", check: true, want: []string{"failed_check=1", "ran=true"}, harness: `{"check":"sleep 5","timeout_seconds":1}`, plan: goPlan},
+	{name: "check_could_not_start", check: true, want: []string{"check_not_run=1", "ran=false"}, harness: `{"check":"exit 0"}`, emptyPATH: true, plan: goPlan},
+	{name: "check_could_not_run", check: true, want: []string{"check_not_run=1"}, harness: `{"check":"exit 0"}`, badTMP: true, plan: goPlan},
+	{name: "check_drift", check: true, want: []string{"applied=1", "ran=true", "drift [a.go]"}, harness: `{"check":"printf x >> a.go"}`, plan: goPlan},
 	{name: "opted_out", harness: `{"check":"exit 3"}`, optOut: true, plan: goPlan},
 	{name: "hunk_unread", harness: `{"check":"exit 0"}`, noRead: true, plan: goPlan},
 	{name: "dry_run", harness: `{"check":"exit 3"}`, dryRun: true, plan: goPlan},
-	{name: "harness_malformed", harness: `{`, plan: goPlan},
-	{name: "ledger_failed_check_due", harness: `{"check":"exit 0"}`, ledger: true, plan: goPlan},
-	{name: "pricing_would_refuse_broke", harness: `{"check":"exit 3"}`, files: map[string]string{"b.go": wrapTail}, plan: "@@ b.go 2 replace anchor=\"func B\"\nfunc B() {}\n"},
+	{name: "default_off", harness: `{"check":"exit 3"}`, plan: goPlan, want: []string{"check none", "failed_check=0"}},
+	{name: "harness_malformed", check: true, want: []string{"refused_apply=1", "applied false"}, harness: `{`, plan: goPlan},
+	{name: "ledger_failed_check_due", check: true, want: []string{"check_not_run=1"}, harness: `{"check":"exit 0"}`, ledger: true, plan: goPlan},
+	{name: "pricing_would_refuse_broke", check: true, want: []string{"strict_would_refuse_broke=1", "failed_check=1"}, harness: `{"check":"exit 3"}`, files: map[string]string{"b.go": wrapTail}, plan: "@@ b.go 2 replace anchor=\"func B\"\nfunc B() {}\n"},
 }
 
 // ADR-113 T2. The two surfaces decided the same outcome in two places, and the
@@ -59,6 +62,11 @@ func TestTheTwoSurfacesCountAWriteAlike(t *testing.T) {
 		srv := surfaceRun(t, row, true)
 		if cli != srv {
 			t.Errorf("%s: the surfaces disagree:\n cli: %s\n mcp: %s", row.name, cli, srv)
+		}
+		for _, w := range row.want {
+			if !strings.Contains(cli, w) {
+				t.Errorf("%s: the row did not reach its outcome, want %q in:\n %s", row.name, w, cli)
+			}
 		}
 	}
 }
@@ -106,6 +114,9 @@ func surfaceRun(t *testing.T, row surfaceRow, viaMCP bool) string {
 	var doc map[string]any
 	if viaMCP {
 		args := map[string]any{"plan": row.plan}
+		if row.check {
+			args["check"] = true
+		}
 		if row.optOut {
 			args["check"] = false
 		}
@@ -115,6 +126,9 @@ func surfaceRun(t *testing.T, row surfaceRow, viaMCP bool) string {
 		doc = mcpWrite(t, root, args)
 	} else {
 		argv := []string{"write", "--json"}
+		if row.check {
+			argv = append(argv, "--check")
+		}
 		if row.optOut {
 			argv = append(argv, "--no-check")
 		}

@@ -246,7 +246,7 @@ func jsonInner(s string) string {
 // else; and once more by ADR-169, whose instructions gained recipe 9 for it, with three phrases cut
 // to keep the 4096-byte bound; and once by ADR-173, whose read receipt gained `capped`: that key in the
 // transcript's one read answer, nothing else; and once by ADR-187, whose write description and `check` property
-// (its default and its text) no longer say the check runs by default: those three strings in tools/list, nothing
+// (its default and its text) no longer say the check runs by default: those three strings and the outputSchema `check` description in tools/list, nothing
 // else. Before that no answer to a call had changed: the transcript
 // held only initialize, tools/list and that read.
 func TestALegacyResultIsUnchangedByTheModernPath(t *testing.T) {
