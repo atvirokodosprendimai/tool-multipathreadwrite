@@ -1,6 +1,7 @@
 # ADR-185: the core says `--stat` lists the matching files
 
-**Status:** Proposed
+**Status:** Accepted
+**Accepted:** 2026-11-01 by Zy — answered *"Accept and merge (Recommended)"* to "Accept it and merge?", after the Codex reviews of #581
 **Date:** 2026-11-01
 **Owner:** Zy
 **Spec:** None — no spec stage
