@@ -88,6 +88,8 @@ out=$(go test ./internal/bench/ -count=1 -v -run '^(TestAPlanFileAtAResolvablePa
   ```
 - 2026-11-01 · ca0127fe* · mutant killed · exit 1 · `internal/bench/hook.go` · S3: a ; then a newline before an assignment is not a boundary (third Codex pass) · acceptance-sha256:6385262e88277f892b6f7c7117a81f709328004357c6ada092ce903ead33935c · covers:a resolvable plan path outside the tree passes
 - 2026-11-01 · 586d9da7* · mutant killed · exit 1 · `internal/bench/hook.go` · S3: a substitution inside an eval or source command trusts TMPDIR (fourth Codex pass) · acceptance-sha256:6385262e88277f892b6f7c7117a81f709328004357c6ada092ce903ead33935c · covers:a rebindable name is not resolved
+- 2026-11-01 · 484a0fba* · mutant killed · exit 1 · `internal/bench/hook.go` · S3: a substitution inside a backquote command trusts TMPDIR (the backquote regression) · acceptance-sha256:6385262e88277f892b6f7c7117a81f709328004357c6ada092ce903ead33935c · covers:a rebindable name is not resolved
+- 2026-11-01 · 484a0fba* · mutant killed · exit 1 · `internal/bench/hook.go` · S3: a backquote outside single quotes is read as top-level text (the backquote regression only) · acceptance-sha256:6385262e88277f892b6f7c7117a81f709328004357c6ada092ce903ead33935c · covers:a rebindable name is not resolved
 
 ## Invariants
 
@@ -151,3 +153,6 @@ The fence exits 0; or a refused form from the ablation cannot be resolved withou
 - 2026-11-01 · 586d9da7* · exit 0 · `set -o pipefail …` · acceptance-sha256:6385262e88277f892b6f7c7117a81f709328004357c6ada092ce903ead33935c · ms:1318
 - 2026-11-01 · 586d9da7* · exit 0 · `set -o pipefail …` · acceptance-sha256:6385262e88277f892b6f7c7117a81f709328004357c6ada092ce903ead33935c · ms:359
 - 2026-11-01 · d5d8b05f* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:6385262e88277f892b6f7c7117a81f709328004357c6ada092ce903ead33935c · ms:0 · test-lock-sha256:264618cd512a734f881ffa6619f89e5d20abd4302e8013f3fb839f99636af97a · test-lock-file:docs/adr/locks/264618cd512a734f881ffa6619f89e5d20abd4302e8013f3fb839f99636af97a.lock · test-lock-kind:replace
+- 2026-11-01 · 484a0fba* · exit 0 · `set -o pipefail …` · acceptance-sha256:6385262e88277f892b6f7c7117a81f709328004357c6ada092ce903ead33935c · ms:867
+- 2026-11-01 · 484a0fba* · exit 0 · `set -o pipefail …` · acceptance-sha256:6385262e88277f892b6f7c7117a81f709328004357c6ada092ce903ead33935c · ms:963
+- 2026-11-01 · 484a0fba* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:6385262e88277f892b6f7c7117a81f709328004357c6ada092ce903ead33935c · ms:0 · test-lock-sha256:7c6ab827704448512160ad15eb72f801034281444ef021a8e228e29ef828c4e9 · test-lock-file:docs/adr/locks/7c6ab827704448512160ad15eb72f801034281444ef021a8e228e29ef828c4e9.lock · test-lock-kind:replace
