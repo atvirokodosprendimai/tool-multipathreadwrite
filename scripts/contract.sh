@@ -10982,6 +10982,23 @@ out=$(printf '@@ a.txt 1 replace\nUNO\n@@ b.txt 2 replace\nDOS\n' | e323 env -u 
   && ok "the pair: unset, the same write prints an ok row per hunk" || bad "unset: exit $rc323 [$out]"
 rm -rf "$S323" "$R323" "$WORK/served323.out"
 
+# 324. ADR-028: an anchor= whose line holds double quotes, written with them
+# inside double quotes, reaches apply with the quotes gone; the refusal, exit 1
+# and nothing written, says the line holds the anchor without its quotes and
+# names single quotes and \". The pair: the single-quoted anchor applies.
+S324=$(mktemp -d "$WORK/s324-XXXXXX"); R324=$(mktemp -d "$WORK/r324-XXXXXX")
+e324() { env XDG_STATE_HOME="$S324" "$@"; }
+printf '{\n    "timeout": 30,\n    "retries": 2\n}\n' > "$R324/c.json"
+e324 "$MRW" -C "$R324" read c.json > "$WORK/served324.out" 2>&1
+out=$(printf '%s\n' '@@ c.json 2-3 replace anchor="    "timeout": 30,"' '    "timeout": 60,' '    "retries": 3' | e324 "$MRW" -C "$R324" write - 2>&1); rc324=$?
+{ [ "$rc324" = 1 ] && grep -qF "the line holds the anchor without its double quotes" <<<"$out" && grep -qF "write anchor='…' in single quotes" <<<"$out" \
+  && grep -q '^    "timeout": 30,$' "$R324/c.json"; } \
+  && ok "an anchor whose quotes the header ate says how to keep them, and writes nothing" || bad "eaten quotes: exit $rc324 [$out]"
+out=$(printf '%s\n' "@@ c.json 2-3 replace anchor='    \"timeout\": 30,'" '    "timeout": 60,' '    "retries": 3' | e324 "$MRW" -C "$R324" write - 2>&1); rc324=$?
+{ [ "$rc324" = 0 ] && grep -q '^    "timeout": 60,$' "$R324/c.json"; } \
+  && ok "the pair: the single-quoted anchor applies" || bad "single-quoted: exit $rc324 [$out]"
+rm -rf "$S324" "$R324" "$WORK/served324.out"
+
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
 # killed process is a zombie until its adopter reaps it, and pgrep lists

@@ -1688,7 +1688,7 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 				return false
 			}
 			if !strings.Contains(orig[at-1], h.Anchor) {
-				fail(h, "anchor %q not in line %d: %s", h.Anchor, at, trim(orig[at-1]))
+				fail(h, "%s", anchorMiss(h.Anchor, at, orig))
 				return false
 			}
 			return true
@@ -1748,7 +1748,7 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 			// "mrw does not tell you what it has not shown you", false on the
 			// one path that had this guard first (ADR-028).
 			if h.Anchor != "" && !strings.Contains(orig[start-1], h.Anchor) {
-				fail(h, "anchor %q not in line %d: %s", h.Anchor, start, trim(orig[start-1]))
+				fail(h, "%s", anchorMiss(h.Anchor, start, orig))
 				continue
 			}
 			// ADR-035. A replace addressing more than one line must say what it
@@ -2556,6 +2556,28 @@ func srcAddrOf(i Input) string {
 
 func trim(s string) string {
 	return clip(strings.TrimSpace(s))
+}
+
+// anchorMiss is the refusal of an anchor= not in line n of orig. When line n
+// holds the anchor once its double quotes are gone and no line holds it as
+// written, the likeliest cause is the header splitter taking a " inside
+// anchor="…" for quoting — `anchor="    "timeout": 30,"` arrives as
+// `    timeout: 30,` — so the refusal says what it saw and names the spellings
+// that keep a quote. An anchor some other line holds is a wrong range, and gets
+// no such advice: re-anchoring on the addressed line would edit the wrong one.
+// The line it quotes is the one the caller was served (ADR-028).
+func anchorMiss(anchor string, n int, orig []string) string {
+	line := orig[n-1]
+	msg := fmt.Sprintf("anchor %q not in line %d: %s", anchor, n, trim(line))
+	if !strings.Contains(strings.ReplaceAll(line, `"`, ""), anchor) {
+		return msg
+	}
+	for _, l := range orig {
+		if strings.Contains(l, anchor) {
+			return msg
+		}
+	}
+	return msg + `; the line holds the anchor without its double quotes, and a " inside anchor="…" is read as the header's quoting: write anchor='…' in single quotes, or each " as \" inside double quotes`
 }
 
 // clip bounds a line for a message WITHOUT trimming it. It is what trim is
