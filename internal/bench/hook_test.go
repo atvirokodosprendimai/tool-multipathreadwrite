@@ -159,8 +159,8 @@ func TestARedirectionToAPathTheHookCannotResolveNamesTheTwoFormsThatPass(t *test
 		t.Fatal(err)
 	}
 	for _, cmd := range []string{
-		`P=$(mktemp -d)/plan.txt; for i in 0 1; do printf '@@ f.json 5 replace\n' ; done > $P; mrw write $P`,
-		`printf x > "$TMPDIR/plan.txt"`,
+		`P=$HOME/plan.txt; for i in 0 1; do printf '@@ f.json 5 replace\n' ; done > $P; mrw write $P`,
+		`printf x > "$HOME/plan.txt"`,
 	} {
 		var stderr bytes.Buffer
 		if code := Hook(bytes.NewReader(hookInput(t, "Bash", cmd)), &stderr, filepath.Join(scratch, "log"), tree); code != 2 {
@@ -244,7 +244,6 @@ func TestAWriteOutsideTheTaskTreePassesTheHook(t *testing.T) {
 		"echo x > " + filepath.Join(into, "f.txt"),
 		"echo x > " + dangling,
 		"echo x > \"" + plan + "\"",
-		"echo x > $" + "TMPDIR/plan.txt",
 		"printf x | tee " + plan + " " + filepath.Join(tree, "f.txt"),
 		"printf x | tee f.txt",
 		"echo x > " + flink,
@@ -273,6 +272,121 @@ func TestAWriteOutsideTheTaskTreePassesTheHook(t *testing.T) {
 		if code := run(c, tree); code != 2 {
 			t.Errorf("a write into the tree, or to a target the hook cannot resolve, passed: %q (exit %d)", c, code)
 		}
+	}
+}
+
+// TestAPlanFileAtAResolvablePathOutsideTheTreePassesTheHook is ADR-186. In the
+// core-first ablation the guard refused a plan file at a variable path in about
+// one MRW cell in three, a round the native arm never pays. A target built from
+// $TMPDIR, from $(mktemp) or $(mktemp -d), or from a literal absolute path, held
+// in a variable assigned once in the same command, is resolved and judged by
+// outsideTree like any absolute target; anything the command could rebind, and
+// every other expansion, is still judged inside.
+func TestAPlanFileAtAResolvablePathOutsideTheTreePassesTheHook(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("bench runs on the operator's macOS or Linux machine; Windows is out of ADR-156's scope")
+	}
+	scratch := t.TempDir()
+	tree := filepath.Join(scratch, "tree")
+	if err := os.Mkdir(tree, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(tree, "f.txt"), []byte("x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("TMPDIR", scratch)
+	heredoc := " <" + "<'EOF'\n@@ a.go 1 replace\nx\nEOF"
+	pass := []string{
+		"P=$TMPDIR/plan.txt; : > $P",
+		"cat > $TMPDIR/plan.txt" + heredoc,
+		`cat > "$TMPDIR/plan.txt"` + heredoc,
+		"printf x > ${TMPDIR}/p.txt",
+		"p=$(mktemp -d); printf x > $p/plan.txt; mrw write $p/plan.txt",
+		"P=$(mktemp); cat >> $P" + heredoc,
+		"P=$(mktemp -d)/plan.txt; printf x > $P",
+		"p=" + filepath.Join(scratch, "plan.txt") + "; : > $p",
+		`export P=$TMPDIR/p; printf x > "$P"`,
+		"P=$TMPDIR/plan.txt\nfor i in 0 1; do printf x >> ${P}; done",
+		"printf start;\nP=$TMPDIR/plan.txt; printf x > \"$P\"",
+	}
+	refuse := []string{
+		"P=$TMPDIR/tree/f.txt; echo x > $P",
+		"P=$TMPDIR/../x; echo x > $P/tree/f",
+		"echo x > $Q",
+		"P=$TMPDIR/p; P=tree/f.txt; echo x > $P",
+		"P=$TMPDIR/p; P+=/../tree/f.txt; echo x > $P",
+		"P=$TMPDIR/p; read P; echo x > $P",
+		"P=$TMPDIR/p; eval true; echo x > $P",
+		"P=$TMPDIR/p; unset P; echo x > $P",
+		"P=$(mktemp -p tree); echo x > $P",
+		"TMPDIR=" + tree + "; echo x > $TMPDIR/f.txt",
+		"P=$TMPDIR/p; echo x > $P.txt$Q",
+		// The Codex review of ADR-186: bindings bash does not make where the
+		// redirection reads them, and names that only look like $TMPDIR.
+		"TMPDIR_TREE=$TMPDIR/tree; P=$TMPDIR_TREE/plan.txt; printf x > \"$P\"",
+		"P=$TMPDIR/x cat > $P",
+		"Q=$(P=$TMPDIR/x); cat > $P",
+		"(P=$TMPDIR/x); cat > $P",
+		"printf '@@ s.sh 1 replace\nexport P=$TMPDIR/x\n' > $P",
+		"P=$TMPDIR/x; IFS= read -r P < p.txt; printf x > \"$P\"",
+		"P=$TMPDIR/x; (read -r P < p.txt; printf x > $P)",
+		"cat > $P; P=$TMPDIR/x",
+		"P=$TMPDIR/x; printf x > \\$P",
+		"P=$TMPDIR/x; printf x > `echo $P`",
+		// The Codex re-review of #582: an assignment that may not run in this
+		// shell, a destination read quoted or against a redirection, printf -v,
+		// and a TMPDIR the outer command rebinds before a substitution reads it.
+		"false && P=$TMPDIR/plan.txt; printf x > \"$P\"",
+		"P=$TMPDIR/plan.txt | cat; printf x > \"$P\"",
+		"P=$TMPDIR/plan.txt & printf x > \"$P\"",
+		"P=$TMPDIR/plan.txt; IFS= read -r \"P\"; printf x > \"$P\"",
+		"P=$TMPDIR/plan.txt; read -r P<p.txt; printf x > \"$P\"",
+		"P=$TMPDIR/plan.txt; printf -v P '%s' tree/plan.txt; printf x > \"$P\"",
+		"P=$TMPDIR/plan.txt; mapfile -t P < p.txt; printf x > \"$P\"",
+		"TMPDIR=" + tree + "; X=$(printf x > \"$TMPDIR/plan.txt\")",
+		// The third Codex pass on #582: printf -vNAME attached, a conditional
+		// operator before a newline, and (found while fixing it) an assignment
+		// inside an if branch.
+		"P=$TMPDIR/plan.txt; printf -vP '%s' plan.txt; printf x > \"$P\"",
+		"false &&\nP=$TMPDIR/plan.txt; printf x > \"$P\"",
+		"true ||\nP=$TMPDIR/plan.txt; printf x > \"$P\"",
+		"true || P=$TMPDIR/plan.txt; printf x > \"$P\"",
+		"if false; then :; P=$TMPDIR/plan.txt; fi; printf x > \"$P\"",
+		"cd tree\nP=$TMPDIR/plan.txt; printf x > \"$P\"",
+		// The fourth Codex pass on #582: a command that resolves nothing (it
+		// holds source, eval, a backslash or a backquote) must not let a
+		// substitution inside it trust TMPDIR either.
+		"source ./paths.sh; X=$(printf x > \"$TMPDIR/plan.txt\")",
+		"eval \"$SETUP\"; X=$(printf x > \"$TMPDIR/plan.txt\")",
+		"echo \\$x; X=$(printf x > \"$TMPDIR/plan.txt\")",
+	}
+	run := func(cmd string) int {
+		return Hook(bytes.NewReader(hookInput(t, "Bash", cmd)), new(bytes.Buffer), filepath.Join(t.TempDir(), "hook.log"), tree)
+	}
+	for _, c := range pass {
+		if code := run(c); code != 0 {
+			t.Errorf("a plan path the hook can resolve outside the tree was refused: %q (exit %d)", c, code)
+		}
+	}
+	for _, c := range refuse {
+		if code := run(c); code != 2 {
+			t.Errorf("a target in the tree, or one the hook cannot resolve, passed: %q (exit %d)", c, code)
+		}
+	}
+	for _, env := range []string{"", "relative/dir"} {
+		t.Setenv("TMPDIR", env)
+		if code := run("echo x > $TMPDIR/plan.txt"); code != 2 {
+			t.Errorf("with TMPDIR %q, $TMPDIR/plan.txt passed (exit %d)", env, code)
+		}
+	}
+	// A TMPDIR spelled with a trailing slash is used as spelled: ${TMPDIR}tree
+	// is the tree, not a sibling of it.
+	t.Setenv("TMPDIR", scratch+"/")
+	if code := run(`printf x > "${TMPDIR}tree/plan.txt"`); code != 2 {
+		t.Errorf("with TMPDIR %q, ${TMPDIR}tree/plan.txt passed (exit %d)", scratch+"/", code)
+	}
+	if code := run("printf x > ${TMPDIR}plan.txt"); code != 0 {
+		t.Errorf("with TMPDIR %q, ${TMPDIR}plan.txt was refused (exit %d)", scratch+"/", code)
 	}
 }
 

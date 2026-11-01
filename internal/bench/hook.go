@@ -129,11 +129,22 @@ func realHeredoc(line string) []string {
 // since what the hook cannot see it cannot pass (the review of #411). A write
 // whose target lands outside tree is not one (outsideTree).
 func ClassifyBash(cmd, tree string) (string, []string) {
-	return classify(cmd, tree, 0)
+	return classify(cmd, tree, os.Getenv("TMPDIR"), 0)
 }
 
-func classify(cmd, tree string, depth int) (string, []string) {
+// classify judges one command. tmp is the TMPDIR its expansions may be read
+// against: the hook's own at the top, and none inside a substitution whose
+// enclosing command assigns or rebinds TMPDIR, which bash would inherit there
+// (the Codex re-review of #582).
+func classify(cmd, tree, tmp string, depth int) (string, []string) {
 	rest, expanded, bodies := splitHeredocs(cmd)
+	// A command that rebinds TMPDIR, or that resolveTargets reads not at all
+	// (source, eval, a backslash or backquote), hands its substitutions no
+	// TMPDIR (the Codex reviews of #582).
+	if countAssigned(rest, "TMPDIR") > 0 || rebound(rest, "TMPDIR") || anyWord.MatchString(rest) || topLevel(rest) == nil {
+		tmp = ""
+	}
+	rest = resolveTargets(rest, tmp)
 	bare, subs, ok := scanShell(rest, false)
 	for _, body := range expanded {
 		_, s, bodyOK := scanShell(body, true)
@@ -147,7 +158,7 @@ func classify(cmd, tree string, depth int) (string, []string) {
 		if depth >= 4 {
 			return "a command substitution nested too deep to inspect", reads
 		}
-		why, r := classify(inner, tree, depth+1)
+		why, r := classify(inner, tree, tmp, depth+1)
 		reads = append(reads, r...)
 		if why != "" {
 			return "a command substitution: " + why, reads
@@ -212,6 +223,178 @@ func classify(cmd, tree string, depth int) (string, []string) {
 		}
 	}
 	return "", reads
+}
+
+var (
+	// assigned is NAME=VALUE whose VALUE ADR-186 can know: $TMPDIR, a bare
+	// mktemp, or a literal absolute path, with a literal suffix, quoted whole or
+	// not at all. Where it may stand is checked by hand: Go has no lookaround.
+	assigned  = regexp.MustCompile(`([A-Za-z_][A-Za-z0-9_]*)=("?)(\$\{TMPDIR\}|\$TMPDIR|\$\(mktemp(?: -d)?\)|/)([A-Za-z0-9._/-]*)("?)`)
+	expansion = regexp.MustCompile(`("?)\$(?:\{([A-Za-z_][A-Za-z0-9_]*)\}|([A-Za-z_][A-Za-z0-9_]*))([A-Za-z0-9._/-]*)("?)`)
+	plainPath = regexp.MustCompile(`^/[A-Za-z0-9._/-]*$`)
+	rebinders = map[string]bool{"read": true, "for": true, "declare": true, "local": true, "typeset": true, "unset": true, "readonly": true, "mapfile": true, "readarray": true, "getopts": true}
+	anyWord   = regexp.MustCompile(`(?:^|[^A-Za-z0-9_-])(?:eval|source)(?:$|[^A-Za-z0-9_-])`)
+	// control is a shell keyword that may skip or repeat what follows it: an
+	// assignment after one is not certain to run once.
+	control = regexp.MustCompile(`(?:^|[\s;&|()])(?:if|then|else|elif|fi|case|esac|while|until|do|done|for|select|function)(?:$|[\s;&|()])`)
+)
+
+// binding is a value ADR-186 knows for a name, and where the statement that
+// binds it ends: only an expansion after that point reads it.
+type binding struct {
+	value string
+	from  int
+}
+
+// resolveTargets replaces each expansion ADR-186 can know with its value, so
+// that classify judges a plan file at $TMPDIR/plan.txt, in $(mktemp -d), or at
+// a literal path held in a variable, as it judges any absolute target: by
+// outsideTree. tmp is the hook's own TMPDIR, used as spelled. A name is known
+// only from a statement of its own at the top level — outside every quote and
+// parenthesis, not a prefix to a command — that is the command's one binding
+// of it, and only after that statement; a command holding eval, source, a
+// backquote or a backslash outside single quotes knows none, and TMPDIR is
+// known only when the command neither assigns nor rebinds it. Every other
+// expansion is left as written, so it stays judged inside (ADR-156). The
+// Codex review of ADR-186 found each of these limits as a way a resolved path
+// could differ from what bash writes.
+func resolveTargets(rest, tmp string) string {
+	top := topLevel(rest)
+	if top == nil || anyWord.MatchString(rest) {
+		return rest
+	}
+	known := map[string]binding{}
+	if tmp != "" && plainPath.MatchString(tmp) && !rebound(rest, "TMPDIR") && countAssigned(rest, "TMPDIR") == 0 {
+		known["TMPDIR"] = binding{tmp, 0}
+	}
+	for _, m := range assigned.FindAllStringSubmatchIndex(rest, -1) {
+		start, end := m[0], m[1]
+		name, open, base, suffix, closing := rest[m[2]:m[3]], rest[m[4]:m[5]], rest[m[6]:m[7]], rest[m[8]:m[9]], rest[m[10]:m[11]]
+		if open != closing || name == "TMPDIR" || !top[start] || !statement(rest, start, end) {
+			continue
+		}
+		if countAssigned(rest, name) != 1 || rebound(rest, name) {
+			continue
+		}
+		dir, ok := known["TMPDIR"]
+		var value string
+		switch {
+		case base == "/":
+			value = "/" + suffix
+		case !ok:
+			continue
+		case strings.HasPrefix(base, "$(mktemp"):
+			value = strings.TrimSuffix(dir.value, "/") + "/tmp.mktemp" + suffix
+		case base == "$TMPDIR" && suffix != "" && isNameByte(suffix[0]):
+			continue // $TMPDIR_X is the variable TMPDIR_X, not TMPDIR and _X
+		default:
+			value = dir.value + suffix
+		}
+		known[name] = binding{value, end}
+	}
+	return expansionsAfter(rest, known)
+}
+
+// expansionsAfter rewrites each expansion of a known name that stands after
+// the statement binding it, quoted whole or not at all.
+func expansionsAfter(rest string, known map[string]binding) string {
+	var b strings.Builder
+	last := 0
+	for _, m := range expansion.FindAllStringSubmatchIndex(rest, -1) {
+		s := rest[m[0]:m[1]]
+		sub := expansion.FindStringSubmatch(s)
+		bind, ok := known[sub[2]+sub[3]]
+		if !ok || sub[1] != sub[5] || m[0] < bind.from {
+			continue
+		}
+		b.WriteString(rest[last:m[0]])
+		b.WriteString(bind.value + sub[4])
+		last = m[1]
+	}
+	b.WriteString(rest[last:])
+	return b.String()
+}
+
+// topLevel reports, for each byte of s, whether it stands outside every quote
+// and every parenthesis, or nil when s holds a backslash or a backquote outside
+// single quotes, which this coarse reading does not follow.
+func topLevel(s string) []bool {
+	top := make([]bool, len(s)+1)
+	depth := 0
+	var quote byte
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		top[i] = depth == 0 && quote == 0
+		switch {
+		case quote == '\'':
+			if c == '\'' {
+				quote = 0
+			}
+		case c == '\\' || c == '`':
+			return nil
+		case quote == '"':
+			if c == '"' {
+				quote = 0
+			}
+		case c == '\'' || c == '"':
+			quote = c
+		case c == '(':
+			depth++
+		case c == ')' && depth > 0:
+			depth--
+		}
+	}
+	top[len(s)] = depth == 0 && quote == 0
+	return top
+}
+
+// statement says whether the assignment s[start:end] is a statement of its
+// own: after nothing, a separator or export, and followed by nothing or a
+// separator, so that P=x cmd, whose binding the command's own redirection does
+// not see, is not one.
+func statement(s string, start, end int) bool {
+	before := strings.TrimRight(s[:start], " \t")
+	before = strings.TrimSuffix(before, "export")
+	before = strings.TrimRight(before, " \t\n")
+	after := strings.TrimLeft(s[end:], " \t")
+	// Only a statement that runs once, in this shell: the command's first, or
+	// one after a ;, with no control keyword before it, and followed by
+	// nothing, a ; or newline, or && — never | or &. A newline alone does not
+	// end what precedes it (false &&⏎P=x), so it is not a boundary here (the
+	// Codex reviews of #582).
+	first := before == "" || strings.HasSuffix(before, ";") && !strings.HasSuffix(before, ";;") && !control.MatchString(before)
+	last := after == "" || after[0] == ';' || after[0] == '\n' || strings.HasPrefix(after, "&&")
+	return first && last
+}
+
+func isNameByte(c byte) bool {
+	return c == '_' || c >= '0' && c <= '9' || c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z'
+}
+
+// countAssigned counts NAME= and NAME+= in s, each a separate binding.
+func countAssigned(s, name string) int {
+	return len(regexp.MustCompile(`(?:^|[^A-Za-z0-9_$])`+regexp.QuoteMeta(name)+`\+?=`).FindAllStringIndex(s, -1))
+}
+
+// rebound says whether a segment that holds read, for, declare, local,
+// typeset, unset or readonly as a word also names NAME, so that IFS= read -r P
+// and (read P) count, as a binding no plain assignment makes.
+func rebound(s, name string) bool {
+	mention := regexp.MustCompile(`(?:^|[^A-Za-z0-9_])` + regexp.QuoteMeta(name) + `(?:$|[^A-Za-z0-9_])`)
+	for _, line := range strings.FieldsFunc(s, func(r rune) bool { return strings.ContainsRune(";&|\n", r) }) {
+		words := strings.FieldsFunc(line, func(r rune) bool { return strings.ContainsRune(" \t(){}<>\"'", r) })
+		binds := false
+		for i, w := range words {
+			binds = binds || rebinders[w] || w == "printf" && i+1 < len(words) && strings.HasPrefix(words[i+1], "-v")
+		}
+		// Any mention of the name in such a segment counts, quoted or against a
+		// redirection, or glued to printf's -v: read -r "P", read P<f and
+		// printf -vP bind it too.
+		if binds && (mention.MatchString(line) || strings.Contains(line, "-v"+name)) {
+			return true
+		}
+	}
+	return false
 }
 
 // outsideTree says whether a write's target is a path that lands outside the
