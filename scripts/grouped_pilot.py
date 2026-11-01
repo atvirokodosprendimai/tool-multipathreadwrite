@@ -86,7 +86,7 @@ def round_two_gate(config):
     rows = summary.get("canaries", []) + summary.get("cells", [])
     plan = summary.get("plan") or []
     # The whole registered population, canaries included: a missing row escapes every check below.
-    want = {("canary", "F"), ("canary", "C")} | {(name, arm) for name, arms in plan for arm in arms}
+    want = {("canary", arm) for _, arms in plan for arm in arms} | {(name, arm) for name, arms in plan for arm in arms}
     if not plan or summary.get("not_run") or {(row.get("task"), row.get("arm")) for row in rows} != want:
         raise ValueError("round 1 is missing a canary or a registered cell")
     if any(not row["verdict"].get("isolation_ok") for row in rows):
@@ -243,7 +243,7 @@ def run(config):
                 round_two_gate(config)
             except (ValueError, OSError) as error:
                 reason = "round 1 gate: " + str(error)
-        if reason == "completed" and arms_label == "FC":
+        if reason == "completed" and arms_label != "AB":
             claude_md_path = Path.home() / ".claude" / "CLAUDE.md"
             claude_md = claude_md_path.read_text() if claude_md_path.exists() else ""
             for arm in arms_label:
