@@ -26,18 +26,26 @@ Exported records: [quiet-pilot.json](quiet-pilot.json); tool results by kind: [r
 - **Prediction 1, every cell solved: held.**
 - **Prediction 2, C's write results under 4,000 characters: held** (3,672 over 10 cells, against
   about 11,700 per 10 cells in runs 6 and 7).
-- **Prediction 3, native's lead $0.015–$0.035 a round: held**, at its low edge ($0.015701).
+- **Prediction 3, native's lead $0.015–$0.035 a round: missed.** Round 1's lead, $0.013795, is under the
+  registered $0.015 floor; round 2's, $0.017607, is inside it. The cost verdict above is unaffected.
 - **Prediction 4, turns no result: missed.** MRW took 2.5 more turns a round, more than either spread.
 
 ## Against runs 6 and 7, descriptively
 
 Not pooled; same jobs, binaries and setup but for the shim. Native's five-job cost stayed in its
 band ($0.100–$0.110 then, $0.101–$0.103 now). MRW's fell from $0.122–$0.149 to $0.114–$0.121, and
-native's lead from a mean $0.031 to $0.016 a round. The receipts the shim removed are about 8,000
-characters per 10 cells, roughly 2,000 tokens over both rounds; that alone accounts for about $0.004 of cache
-creation a round at the diagnosis's rate, a quarter of the narrowing. The rest of the narrowing coincides with no refused writes
-in this run against three in run 7's second round, so it cannot all be credited to the shim.
+native's lead from a mean $0.031 to $0.016 a round. The write results here are about 8,000 characters
+per 10 cells shorter than in runs 6 and 7 (by the breakdown's command heuristic, which counts whole tool
+results). Assuming about 4 characters a token and every such token paid once at the cache-creation
+rate of $4 a million, that is near $0.004 a round: an illustrative estimate across different runs,
+not an isolated effect of the shim. This run also had no refused writes against three in run 7's
+second round, and other model behaviour differs between runs, so the narrowing cannot be divided
+between the shim and those differences.
 
 What is left of the gap is MRW's extra turns and output, and its numbered reads. On this evidence a
-switch that turns the receipts off is worth about $0.004 a round of a $0.031 gap by itself, more if
-fewer refusals follow from shorter output, which this run cannot separate; it would not close the gap.
+switch that turns the receipts off would narrow the gap, by an amount this design cannot isolate; it
+did not close it here.
+
+The shim as run joined `-C DIR` or `--root DIR` into one word before passing it on, which splits a
+directory holding a space (the Codex re-review of #586); no MRW cell in run 8 called mrw with `-C` or
+`--root` at all, so no call of this run went through that path. The shim is fixed after the run.
