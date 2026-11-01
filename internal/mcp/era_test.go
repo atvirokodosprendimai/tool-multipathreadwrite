@@ -148,7 +148,7 @@ func TestAModernResultCarriesResultTypeAndServerInfo(t *testing.T) {
 	if res["resultType"] != "complete" || !servesMrw(res) {
 		t.Errorf("a modern tools/call is not decorated: %v", res)
 	}
-	if !strings.Contains(served0(t, res), "    1| hello") {
+	if !strings.Contains(served0(t, res), " 1| hello") {
 		t.Errorf("content[0] is not the served text: %q", served0(t, res))
 	}
 }
@@ -247,7 +247,8 @@ func jsonInner(s string) string {
 // to keep the 4096-byte bound; and once by ADR-173, whose read receipt gained `capped`: that key in the
 // transcript's one read answer, nothing else; and once by ADR-187, whose write description and `check` property
 // (its default and its text) no longer say the check runs by default: those three strings and the outputSchema `check` description in tools/list, nothing
-// else. Before that no answer to a call had changed: the transcript
+// else; and once by ADR-189, whose read gutter is as wide as its block needs: the transcript's one read answer's served lines, nothing else;
+// before that no answer to a call had changed: the transcript
 // held only initialize, tools/list and that read.
 func TestALegacyResultIsUnchangedByTheModernPath(t *testing.T) {
 	got := legacyTranscript(t)

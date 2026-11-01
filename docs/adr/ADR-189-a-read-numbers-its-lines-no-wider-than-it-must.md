@@ -1,11 +1,12 @@
 # ADR-189: a read numbers its lines no wider than it must
 
-**Status:** Proposed
+**Status:** Accepted
+**Accepted:** 2026-11-01 by Zy — answered *"Accept and implement (Recommended)"* to "Accept it?", after two Codex xhigh challenges of the draft whose findings are addressed in it
 **Date:** 2026-11-01
 **Owner:** Zy
 **Spec:** None — no spec stage
 **Cross-references:** ADR-020, ADR-161, ADR-165, ADR-188, docs/bench/observability/QUIET-RESULTS.md, docs/bench/observability/receipt-breakdown.json
-**Governs:** `internal/read/read.go`, `internal/mcp/testdata/legacy_golden.jsonl`, `internal/mcp/era_test.go`, `scripts/contract.sh`
+**Governs:** `internal/read/read.go`, `internal/mcp/testdata/legacy_golden.jsonl`, `internal/mcp/era_test.go`, `internal/curve/cell_test.go`, `scripts/contract.sh`
 **Enforced-by:** `internal/read/gutter189_test.go::TestAReadNumbersLinesAsWideAsTheLargestItPlans`
 **Invalidates:** None — every served line still opens with a space, its number and `| `, so a parser of `^ *[0-9]+\|` or `^ +[0-9]+\|`, or one that splits on `|`, reads it as before; the `==>` header, every `@@` range line, every refusal, `--quiet` and `-N` are unchanged.
 **Served-path change:** a served line's number is right-aligned, after one space, to the width of the largest line number its file block's spans plan to serve (` 7| ` in a block planned up to line 9, `  7| ` up to 99), instead of to five columns (`    7| `). `mrw read --json` content and the `mrw_read` answer change with it.
@@ -24,7 +25,7 @@ The task files are short: the 720 served line numbers in run 8 averaged under tw
 
 Owner direction, 2026-11-01: *"Draft ADR, both changes (Recommended)"*, then, when the challenge below showed the second change saves 246 characters and breaks two consumers, *"Drop it, gutter only (Recommended)"*.
 
-**Audit of the class** — *every renderer that prints a line number beside a served or written line*. Enumerated with `rg -n 'd\| %s' internal cmd --glob '*.go' --glob '!*_test.go'` on 2026-11-01: five sites. `internal/read/read.go:1114` is the served read; `internal/apply/apply.go:2028` is the write receipt's `--echo-pad` echo; `internal/preview/preview.go:32,40,47` is the dry-run diff. This record changes the first only: the other four are write receipts, which ADR-188 lets a host quiet, and their gutter is not what a read costs.
+**Audit of the class** — *every renderer that prints a line number beside a served or written line*. Enumerated with `rg -n 'd\| %s' internal cmd --glob '*.go' --glob '!*_test.go'` on 2026-11-01: five sites. `internal/read/read.go:1114` (before T1) is the served read; `internal/apply/apply.go:2028` is the write receipt's `--echo-pad` echo; `internal/preview/preview.go:32,40,47` is the dry-run diff. This record changes the first only: the other four are write receipts, which ADR-188 lets a host quiet, and their gutter is not what a read costs.
 
 **Consumers of the served line's shape**, enumerated on 2026-11-01 by `rg -n '\[0-9\]\+\\?\||\\d\+\\\|'` over the tree outside tests and docs, by `rg -n '"\| "|NNNNN'` over `internal`, and by the Codex challenge of this draft:
 - `internal/mcp/ack.go:363` finds a served line's number by `|` and `TrimSpace`: any width reads.
@@ -33,6 +34,7 @@ Owner direction, 2026-11-01: *"Draft ADR, both changes (Recommended)"*, then, wh
 - `scripts/contract.sh` matches `^ +[0-9]+\|` at three rows, `^ *[0-9]+\|` at four and Python's `^ *\d+\|` at two, which is why one leading space stays; AGENTS.md's plan recipe matches `^ *[0-9]+\|`.
 - `.claude/hooks/rules-on-read.py` reads the `==>` header only.
 - `TestALegacyResultIsUnchangedByTheModernPath` (`internal/mcp/era_test.go`) freezes one read answer and lists every record that changed it; this record is added to that list.
+- `TestTheNamedFixtureMatchesItsGoldenBytes` (`internal/curve/cell_test.go`) pins the bytes of ADR-020's served-size fixture, which embeds `read.Run`'s rendering; found when T1 ran the suite, not by the sweep above. ADR-020's readings were collected against the five-column gutter, and its tasks are done; the digests are re-taken, and a re-run of one of its readings now serves different bytes from the ones it was collected against.
 - 27 lines in 13 Go test files and 15 lines of `scripts/contract.sh` assert the five-column gutter by its spaces (`rg -c ' {2,4}[0-9]+\| '`); they move with the format. Tests that budget `--max-chars` from the rendered text (`internal/read/maxchars165_test.go`, `cmd/mrw/maxchars165_test.go`) measure the output and follow it.
 
 ## Existing Primitives Audit
@@ -43,7 +45,7 @@ Owner direction, 2026-11-01: *"Draft ADR, both changes (Recommended)"*, then, wh
 ## Decision
 
 1. **A served line is `" "`, its number right-aligned to W, `"| "`, then the line**, where W is the number of digits of the largest line number the file block's spans plan to serve — ADR-161's line after a range included — fixed before `--max-lines`, `--max-chars`, `--fold` or `--no-comments` cut or elide anything. One file block, one width; the next file block computes its own.
-2. **Everything that renders the read follows it:** `mrw read`, `--json`'s `content`, `mrw_read`. Every `==>`, `@@`, `WITHHELD`, `!!`, `-- …` and checkpoint line keeps its format; where a character budget (`--max-chars`, an `mrw_read` page) decides what fits, the ranges and counts those lines name follow what now fits, which can be more lines than before (the Codex re-challenge: nine one-character lines under `--max-chars 63` serve 1-3 today, 1-4 with this gutter).
+2. **Everything that renders the read follows it:** `mrw read`, `--json`'s `content`, `mrw_read`. Every `==>`, `@@`, `WITHHELD`, `!!`, `-- …` and checkpoint line keeps its format; where a character budget (`--max-chars`, an `mrw_read` page) decides what fits, the ranges and counts those lines name follow what now fits, which can be more lines than before (the Codex re-challenge: a file named `f` of nine one-character lines under `--max-chars 63` serves lines 1-3 today and 1-4 with this gutter; a longer name leaves less of the budget).
 3. **Nothing else changes:** `-N`, `--quiet`, `--stat`, `--count`, `--outline`, `--json-path`, the write receipt's echo and the dry-run diff.
 
 **What would make this decision wrong:** a client that reads line numbers less accurately from a narrower gutter. ADR-020's reading 8 found that a client does not count rows when the only gutter it sees is mrw's; nothing has measured a narrower one. A run against native after T1 (Follow-ups) answers it; a rise in refused or misaddressed writes there reverses this record.

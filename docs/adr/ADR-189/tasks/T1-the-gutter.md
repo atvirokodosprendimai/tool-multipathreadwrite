@@ -22,6 +22,7 @@ Decisions 1-3 of the record.
 | `internal/read/read.go` | edit | the span loop: W from the block's planned spans, before any cut |
 | Go tests asserting the five-column gutter (`rg -l ' {2,4}[0-9]+\| ' --glob '*_test.go'`, 13 files on 2026-11-01) | edit | they move with the format |
 | `internal/mcp/testdata/legacy_golden.jsonl`, `internal/mcp/era_test.go` | edit | the one read answer, regenerated with `MRW_UPDATE_LEGACY_GOLDEN=1`, and the comment's list of records |
+| `internal/curve/cell_test.go` | edit | the three golden digests of ADR-020's served fixture, re-taken, and its comment saying why |
 | `scripts/contract.sh` | edit | §325, and the rows asserting five columns |
 
 ## Ordered Steps
@@ -70,8 +71,21 @@ out=$(go test ./internal/read/ -count=1 -v -run '^TestAReadNumbersLinesAsWideAsT
 | 4 — it is used | no telemetry (ADR-009); the follow-up run measures it |
 
 ## Mutation Log
+- 2026-11-01 · 632e1948* · mutant killed · exit 1 · `internal/read/read.go` · S2: back to the five-column gutter · acceptance-sha256:9e71cf9315c9b4a1c0d7cb9a8163cda7a99d546bc3ff70ac03d9fecc54fb8d83 · covers:the gutter is the planned block's width
+- 2026-11-01 · 632e1948* · mutant killed · exit 1 · `internal/read/read.go` · S2: W from the file length · acceptance-sha256:9e71cf9315c9b4a1c0d7cb9a8163cda7a99d546bc3ff70ac03d9fecc54fb8d83 · covers:the gutter is the planned block's width
+- 2026-11-01 · 632e1948* · mutant killed · exit 1 · `internal/read/read.go` · S2: W from the first span only, as if only the served lines counted · acceptance-sha256:9e71cf9315c9b4a1c0d7cb9a8163cda7a99d546bc3ff70ac03d9fecc54fb8d83 · covers:the gutter is the planned block's width
+- 2026-11-01 · 632e1948* · mutant killed · exit 1 · `internal/read/read.go` · S2: W shared across file blocks, only growing · acceptance-sha256:9e71cf9315c9b4a1c0d7cb9a8163cda7a99d546bc3ff70ac03d9fecc54fb8d83 · covers:the gutter is the planned block's width
 
 ## Verification Log
+- 2026-11-01 · 632e1948* · exit 1 · `set -o pipefail …` · acceptance-sha256:9e71cf9315c9b4a1c0d7cb9a8163cda7a99d546bc3ff70ac03d9fecc54fb8d83 · ms:455 · test-lock-sha256:e630e0645deb0a421ebc6a7310640e76ce19a77ec30705961f6692c1629adfae · test-lock-file:docs/adr/locks/e630e0645deb0a421ebc6a7310640e76ce19a77ec30705961f6692c1629adfae.lock
+  ```
+  ```
+- 2026-11-01 · 632e1948* · exit 0 · `set -o pipefail …` · acceptance-sha256:9e71cf9315c9b4a1c0d7cb9a8163cda7a99d546bc3ff70ac03d9fecc54fb8d83 · ms:79179
+- 2026-11-01 · 632e1948* · exit 0 · `set -o pipefail …` · acceptance-sha256:9e71cf9315c9b4a1c0d7cb9a8163cda7a99d546bc3ff70ac03d9fecc54fb8d83 · ms:79327
+- 2026-11-01 · 632e1948* · exit 0 · `set -o pipefail …` · acceptance-sha256:9e71cf9315c9b4a1c0d7cb9a8163cda7a99d546bc3ff70ac03d9fecc54fb8d83 · ms:79572
+- 2026-11-01 · 632e1948* · exit 0 · `set -o pipefail …` · acceptance-sha256:9e71cf9315c9b4a1c0d7cb9a8163cda7a99d546bc3ff70ac03d9fecc54fb8d83 · ms:78004
+- 2026-11-01 · 632e1948* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:9e71cf9315c9b4a1c0d7cb9a8163cda7a99d546bc3ff70ac03d9fecc54fb8d83 · ms:0 · test-lock-sha256:4fe2bf1c4141bce339e2d004fa499a30f1ec87a84047ae406c4e4a020efbbd9b · test-lock-file:docs/adr/locks/4fe2bf1c4141bce339e2d004fa499a30f1ec87a84047ae406c4e4a020efbbd9b.lock · test-lock-kind:replace
+- 2026-11-01 · 632e1948* · exit 0 · `set -o pipefail …` · acceptance-sha256:9e71cf9315c9b4a1c0d7cb9a8163cda7a99d546bc3ff70ac03d9fecc54fb8d83 · ms:80052
 
 ## Invariants
 

@@ -28,7 +28,7 @@ func TestACROnlyFileIsServedAsTheLinesAWriteAddresses(t *testing.T) {
 		t.Fatalf("a CR-only file of three lines is not served as 3L:\n%q", out)
 	}
 	out, problems := run(t, root, Options{Numbers: true}, "cr.txt:2")
-	if problems != 0 || !strings.Contains(out, "    2| two\n") || strings.Contains(out, "one") {
+	if problems != 0 || !strings.Contains(out, " 2| two\n") || strings.Contains(out, "one") {
 		t.Fatalf("cr.txt:2 does not serve exactly the line two (problems=%d):\n%q", problems, out)
 	}
 }
@@ -39,7 +39,7 @@ func TestACRLFLineIsServedWithoutItsTerminator(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, root, "crlf.txt", "one\r\ntwo\r\nthree\r\n")
 	out, problems := run(t, root, Options{Numbers: true}, "crlf.txt:/one$/")
-	if problems != 0 || !strings.Contains(out, "    1| one\n") {
+	if problems != 0 || !strings.Contains(out, " 1| one\n") {
 		t.Fatalf("/one$/ does not serve line 1 without its \\r (problems=%d):\n%q", problems, out)
 	}
 }
@@ -58,7 +58,7 @@ func TestGrepMatchesADollarAnchoredLineInACRLFFile(t *testing.T) {
 	}
 	var sb strings.Builder
 	Run(&sb, root, specs, Options{Numbers: true})
-	if !strings.Contains(sb.String(), "    2| two\n") {
+	if !strings.Contains(sb.String(), " 2| two\n") {
 		t.Fatalf("--grep 'two$' did not serve line 2:\n%q", sb.String())
 	}
 }
@@ -70,7 +70,7 @@ func TestAMixedEndingFileKeepsTheStrayCarriageReturnOnBothSides(t *testing.T) {
 	raw := "a\r\nb\n"
 	writeFile(t, root, "mixed.txt", raw)
 	out, _ := run(t, root, Options{Numbers: true}, "mixed.txt")
-	if !strings.Contains(out, "    1| a\r\n") {
+	if !strings.Contains(out, " 1| a\r\n") {
 		t.Fatalf("the stray \\r of a mixed file was not kept in line 1:\n%q", out)
 	}
 	sum := sha256.Sum256([]byte(raw))

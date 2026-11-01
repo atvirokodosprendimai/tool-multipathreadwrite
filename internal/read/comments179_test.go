@@ -32,9 +32,9 @@ func TestNoCommentsElidesGoCommentBlocks(t *testing.T) {
 	for _, want := range []string{
 		"-- … 2 comment line(s), 3-4\n",
 		"-- … 3 comment line(s), 10-12\n",
-		"    6| \tx := \"// not a comment\"\n",
-		"    7| \ty := 1 // trailing\n",
-		"    8| \t// single\n",
+		"  6| \tx := \"// not a comment\"\n",
+		"  7| \ty := 1 // trailing\n",
+		"  8| \t// single\n",
 	} {
 		if !strings.Contains(text, want) {
 			t.Errorf("the elision lacks %q:\n%s", want, text)

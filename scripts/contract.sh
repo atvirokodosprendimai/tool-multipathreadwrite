@@ -5809,7 +5809,7 @@ R=$(mktemp -d "$WORK/r101-XXXXXX")
 printf 'a\nb\nc\n' > "$R/f.txt"
 out=$(m read 'f.txt:1-2' 2>&1); rc=$?
 want 0 "$rc" "ranged multi-line read exits 0"
-{ grep -q '^    3| c$' <<<"$out" && ! grep -q 'needs a served line after' <<<"$out"; } \
+{ grep -q '^ 3| c$' <<<"$out" && ! grep -q 'needs a served line after' <<<"$out"; } \
 	&& ok "ranged multi-line read serves the neighbour line" || bad "hint: $out"
 out=$(m read f.txt 2>&1); rc=$?
 want 0 "$rc" "whole-file read exits 0"
@@ -6496,7 +6496,7 @@ import json,sys
 r=[json.loads(l) for l in open(sys.argv[1]) if l.strip()][0]
 assert "error" not in r, "a spaced file was refused: %s" % r
 t=r["result"]["content"][0]["text"]
-assert "    1| hello" in t and "-- ck " in t, "a spaced file was not served with checkpoints: %s" % t[:300]
+assert " 1| hello" in t and "-- ck " in t, "a spaced file was not served with checkpoints: %s" % t[:300]
 PY
 want 0 $? "an MCP read of a file with a space in its name is served"
 python3 - "$WORK/126.out" <<'PY'
@@ -8964,7 +8964,7 @@ printf 'l1\nl2\nl3\nl4\nl5\nl6\nl7\nl8\n' > "$R/q237.txt"
 out=$(m read q237.txt:2-3 q237.txt:5-6 2>&1); want 0 $? "a read of two multi-line ranges exits 0"
 [ "$(grep -c 'needs a served line after' <<<"$out")" = 0 ] && ok "and prints no neighbour note" || bad "note count: $out"
 out=$(m read q237.txt:2-3 2>&1)
-grep -q '^    4| l4$' <<<"$out" && ok "the pair: one range is served with the line after it" || bad "single range: $out"
+grep -q '^ 4| l4$' <<<"$out" && ok "the pair: one range is served with the line after it" || bad "single range: $out"
 SD237=$(m seen | head -1 | sed 's/.*: //')
 printf 'not a ledger\n' > "$SD237/seen"
 for sub in version instructions stats; do
@@ -9580,7 +9580,7 @@ R=$(mktemp -d "$WORK/r267-XXXXXX")
 printf '1\n2\n3\n4\n5\n6\n7\n8\n' > "$R/f.txt"
 out=$(m read 'f.txt:3-5' 2>&1); want 0 $? "a ranged read exits 0"
 good267=1
-{ grep -q '^@@ 3-6$' <<<"$out" && grep -q '^    6| 6$' <<<"$out" && ! grep -q 'needs a served line after' <<<"$out"; } \
+{ grep -q '^@@ 3-6$' <<<"$out" && grep -q '^ 6| 6$' <<<"$out" && ! grep -q 'needs a served line after' <<<"$out"; } \
   || { good267=0; bad "the read did not serve the line after 3-5, or printed the note: $out"; }
 out=$(printf '@@ f.txt 3-5 replace anchor="3" body=3\nC\nD\nE\n' | m write --no-check - 2>&1); want 0 $? "a replace of exactly the lines read applies"
 grep -qx D "$R/f.txt" || { good267=0; bad "the replace of 3-5 did not land: $out"; }
@@ -9601,7 +9601,7 @@ fixture
 printf 'a\nb\nc\n' > "$R/s268.txt"
 out=$(printf 'a\nb\nc\n' | m read --grep b - 2>&1); want 0 $? "a grep of standard input exits 0"
 good268=1
-{ grep -q '^==> -  3L' <<<"$out" && grep -q '^    2| b$' <<<"$out"; } || { good268=0; bad "the grep of stdin did not serve line 2: $out"; }
+{ grep -q '^==> -  3L' <<<"$out" && grep -q '^ 2| b$' <<<"$out"; } || { good268=0; bad "the grep of stdin did not serve line 2: $out"; }
 out=$(printf '@@ s268.txt 2 replace\nB\n' | m write --no-check - 2>&1); want 1 $? "a plan for a file only standard input held is refused"
 { grep -q 'has not been read' <<<"$out" && grep -qx b "$R/s268.txt"; } || { good268=0; bad "standard input licensed a file: $out"; }
 [ "$good268" = 1 ] && ok "a read of standard input serves it and licenses nothing"
@@ -10998,6 +10998,22 @@ out=$(printf '%s\n' "@@ c.json 2-3 replace anchor='    \"timeout\": 30,'" '    "
 { [ "$rc324" = 0 ] && grep -q '^    "timeout": 60,$' "$R324/c.json"; } \
   && ok "the pair: the single-quoted anchor applies" || bad "single-quoted: exit $rc324 [$out]"
 rm -rf "$S324" "$R324" "$WORK/served324.out"
+
+# 325. ADR-189: a read numbers its lines no wider than its block needs. A 9-line
+# file read whole serves ` 1| text` (one space, one digit) and no line in the old
+# five-column form. The pair: a block planned past line 99 (a 120-line file read at
+# 100-101, line 102 served after it) is numbered three wide.
+S325=$(mktemp -d "$WORK/s325-XXXXXX"); R325=$(mktemp -d "$WORK/r325-XXXXXX")
+e325() { env XDG_STATE_HOME="$S325" "$@"; }
+for i in 1 2 3 4 5 6 7 8 9; do printf 'short%s\n' "$i"; done > "$R325/short.txt"
+for i in $(seq 1 120); do printf 'long%s\n' "$i"; done > "$R325/long.txt"
+out=$(e325 "$MRW" -C "$R325" read short.txt 2>&1); rc325=$?
+{ [ "$rc325" = 0 ] && grep -q '^ 1| short1$' <<<"$out" && ! grep -q '^    1| ' <<<"$out"; } \
+  && ok "a short file is numbered one digit wide after one space" || bad "short gutter: exit $rc325 [$out]"
+out=$(e325 "$MRW" -C "$R325" read long.txt:100-101 2>&1); rc325=$?
+{ [ "$rc325" = 0 ] && grep -q '^ 100| long100$' <<<"$out"; } \
+  && ok "the pair: a block planned past line 99 is numbered three wide" || bad "long gutter: exit $rc325 [$out]"
+rm -rf "$S325" "$R325"
 
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
