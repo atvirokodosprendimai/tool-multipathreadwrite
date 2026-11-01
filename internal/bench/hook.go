@@ -129,12 +129,19 @@ func realHeredoc(line string) []string {
 // since what the hook cannot see it cannot pass (the review of #411). A write
 // whose target lands outside tree is not one (outsideTree).
 func ClassifyBash(cmd, tree string) (string, []string) {
-	return classify(cmd, tree, 0)
+	return classify(cmd, tree, os.Getenv("TMPDIR"), 0)
 }
 
-func classify(cmd, tree string, depth int) (string, []string) {
+// classify judges one command. tmp is the TMPDIR its expansions may be read
+// against: the hook's own at the top, and none inside a substitution whose
+// enclosing command assigns or rebinds TMPDIR, which bash would inherit there
+// (the Codex re-review of #582).
+func classify(cmd, tree, tmp string, depth int) (string, []string) {
 	rest, expanded, bodies := splitHeredocs(cmd)
-	rest = resolveTargets(rest, os.Getenv("TMPDIR"))
+	if countAssigned(rest, "TMPDIR") > 0 || rebound(rest, "TMPDIR") {
+		tmp = ""
+	}
+	rest = resolveTargets(rest, tmp)
 	bare, subs, ok := scanShell(rest, false)
 	for _, body := range expanded {
 		_, s, bodyOK := scanShell(body, true)
@@ -148,7 +155,7 @@ func classify(cmd, tree string, depth int) (string, []string) {
 		if depth >= 4 {
 			return "a command substitution nested too deep to inspect", reads
 		}
-		why, r := classify(inner, tree, depth+1)
+		why, r := classify(inner, tree, tmp, depth+1)
 		reads = append(reads, r...)
 		if why != "" {
 			return "a command substitution: " + why, reads
@@ -222,7 +229,7 @@ var (
 	assigned  = regexp.MustCompile(`([A-Za-z_][A-Za-z0-9_]*)=("?)(\$\{TMPDIR\}|\$TMPDIR|\$\(mktemp(?: -d)?\)|/)([A-Za-z0-9._/-]*)("?)`)
 	expansion = regexp.MustCompile(`("?)\$(?:\{([A-Za-z_][A-Za-z0-9_]*)\}|([A-Za-z_][A-Za-z0-9_]*))([A-Za-z0-9._/-]*)("?)`)
 	plainPath = regexp.MustCompile(`^/[A-Za-z0-9._/-]*$`)
-	rebinders = map[string]bool{"read": true, "for": true, "declare": true, "local": true, "typeset": true, "unset": true, "readonly": true}
+	rebinders = map[string]bool{"read": true, "for": true, "declare": true, "local": true, "typeset": true, "unset": true, "readonly": true, "mapfile": true, "readarray": true, "getopts": true}
 	anyWord   = regexp.MustCompile(`(?:^|[^A-Za-z0-9_-])(?:eval|source)(?:$|[^A-Za-z0-9_-])`)
 )
 
@@ -344,8 +351,13 @@ func statement(s string, start, end int) bool {
 	before = strings.TrimSuffix(before, "export")
 	before = strings.TrimRight(before, " \t")
 	after := strings.TrimLeft(s[end:], " \t")
-	return (before == "" || strings.ContainsRune(";&|\n", rune(before[len(before)-1]))) &&
-		(after == "" || strings.ContainsRune(";&|\n", rune(after[0])))
+	// Only a statement that runs, in this shell: after the start, a ; or a
+	// newline, never after && or || (it may not run) or | (a subshell), and
+	// followed by nothing, a ; or newline, or && — never | or & (the Codex
+	// re-review of #582).
+	first := before == "" || strings.HasSuffix(before, ";") && !strings.HasSuffix(before, ";;") || strings.HasSuffix(before, "\n")
+	last := after == "" || after[0] == ';' || after[0] == '\n' || strings.HasPrefix(after, "&&")
+	return first && last
 }
 
 func isNameByte(c byte) bool {
@@ -361,14 +373,16 @@ func countAssigned(s, name string) int {
 // typeset, unset or readonly as a word also names NAME, so that IFS= read -r P
 // and (read P) count, as a binding no plain assignment makes.
 func rebound(s, name string) bool {
+	mention := regexp.MustCompile(`(?:^|[^A-Za-z0-9_])` + regexp.QuoteMeta(name) + `(?:$|[^A-Za-z0-9_])`)
 	for _, line := range strings.FieldsFunc(s, func(r rune) bool { return strings.ContainsRune(";&|\n", r) }) {
-		words := strings.FieldsFunc(line, func(r rune) bool { return strings.ContainsRune(" \t(){}", r) })
-		binds, names := false, false
-		for _, w := range words {
-			binds = binds || rebinders[w]
-			names = names || w == name || strings.HasPrefix(w, name+"=")
+		words := strings.FieldsFunc(line, func(r rune) bool { return strings.ContainsRune(" \t(){}<>\"'", r) })
+		binds := false
+		for i, w := range words {
+			binds = binds || rebinders[w] || w == "printf" && i+1 < len(words) && words[i+1] == "-v"
 		}
-		if binds && names {
+		// Any mention of the name in such a segment counts, quoted or against a
+		// redirection: read -r "P" and read P<f bind it too.
+		if binds && mention.MatchString(line) {
 			return true
 		}
 	}

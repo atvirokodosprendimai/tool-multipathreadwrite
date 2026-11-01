@@ -71,6 +71,11 @@ out=$(go test ./internal/bench/ -count=1 -v -run '^(TestAPlanFileAtAResolvablePa
 - 2026-11-01 · de68a89a* · mutant killed · exit 1 · `internal/bench/hook.go` · S4: $TMPDIR resolves to the root, not its value · acceptance-sha256:6385262e88277f892b6f7c7117a81f709328004357c6ada092ce903ead33935c · covers:a resolvable plan path outside the tree passes
 - 2026-11-01 · de68a89a* · mutant killed · exit 1 · `internal/bench/hook.go` · S3: a command-prefix assignment is a statement (Codex review) · acceptance-sha256:6385262e88277f892b6f7c7117a81f709328004357c6ada092ce903ead33935c · covers:a rebindable name is not resolved
 - 2026-11-01 · de68a89a* · mutant killed · exit 1 · `internal/bench/hook.go` · S3: an expansion before its assignment reads it (Codex review) · acceptance-sha256:6385262e88277f892b6f7c7117a81f709328004357c6ada092ce903ead33935c · covers:a rebindable name is not resolved
+- 2026-11-01 · e7ee1a5a* · mutant killed · exit 1 · `internal/bench/hook.go` · S3: an assignment after && is a statement (Codex re-review) · acceptance-sha256:6385262e88277f892b6f7c7117a81f709328004357c6ada092ce903ead33935c · covers:a rebindable name is not resolved
+- 2026-11-01 · e7ee1a5a* · mutant killed · exit 1 · `internal/bench/hook.go` · S3: an assignment before | or & is a statement (Codex re-review) · acceptance-sha256:6385262e88277f892b6f7c7117a81f709328004357c6ada092ce903ead33935c · covers:a rebindable name is not resolved
+- 2026-11-01 · e7ee1a5a* · mutant killed · exit 1 · `internal/bench/hook.go` · S3: printf -v does not rebind (Codex re-review) · acceptance-sha256:6385262e88277f892b6f7c7117a81f709328004357c6ada092ce903ead33935c · covers:a rebindable name is not resolved
+- 2026-11-01 · e7ee1a5a* · mutant killed · exit 1 · `internal/bench/hook.go` · S3: a substitution trusts TMPDIR its command rebinds (Codex re-review) · acceptance-sha256:6385262e88277f892b6f7c7117a81f709328004357c6ada092ce903ead33935c · covers:a rebindable name is not resolved
+- 2026-11-01 · e7ee1a5a* · mutant killed · exit 1 · `internal/bench/hook.go` · S3: a quoted read destination does not count (Codex re-review) · acceptance-sha256:6385262e88277f892b6f7c7117a81f709328004357c6ada092ce903ead33935c · covers:a rebindable name is not resolved
 
 ## Invariants
 
@@ -107,3 +112,12 @@ The fence exits 0; or a refused form from the ablation cannot be resolved withou
 - 2026-11-01 · de68a89a* · exit 0 · `set -o pipefail …` · acceptance-sha256:6385262e88277f892b6f7c7117a81f709328004357c6ada092ce903ead33935c · ms:971
 - 2026-11-01 · de68a89a* · exit 0 · `set -o pipefail …` · acceptance-sha256:6385262e88277f892b6f7c7117a81f709328004357c6ada092ce903ead33935c · ms:1019
 - 2026-11-01 · de68a89a* · exit 0 · `set -o pipefail …` · acceptance-sha256:6385262e88277f892b6f7c7117a81f709328004357c6ada092ce903ead33935c · ms:336
+- 2026-11-01 · e7ee1a5a* · exit 1 · `set -o pipefail …` · acceptance-sha256:6385262e88277f892b6f7c7117a81f709328004357c6ada092ce903ead33935c · ms:650
+  ```
+  ```
+- 2026-11-01 · e7ee1a5a* · exit 0 · `set -o pipefail …` · acceptance-sha256:6385262e88277f892b6f7c7117a81f709328004357c6ada092ce903ead33935c · ms:1004
+- 2026-11-01 · e7ee1a5a* · exit 0 · `set -o pipefail …` · acceptance-sha256:6385262e88277f892b6f7c7117a81f709328004357c6ada092ce903ead33935c · ms:974
+- 2026-11-01 · e7ee1a5a* · exit 0 · `set -o pipefail …` · acceptance-sha256:6385262e88277f892b6f7c7117a81f709328004357c6ada092ce903ead33935c · ms:983
+- 2026-11-01 · e7ee1a5a* · exit 0 · `set -o pipefail …` · acceptance-sha256:6385262e88277f892b6f7c7117a81f709328004357c6ada092ce903ead33935c · ms:961
+- 2026-11-01 · e7ee1a5a* · exit 0 · `set -o pipefail …` · acceptance-sha256:6385262e88277f892b6f7c7117a81f709328004357c6ada092ce903ead33935c · ms:1031
+- 2026-11-01 · e7ee1a5a* · exit 0 · `set -o pipefail …` · acceptance-sha256:6385262e88277f892b6f7c7117a81f709328004357c6ada092ce903ead33935c · ms:333

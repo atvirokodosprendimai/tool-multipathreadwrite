@@ -332,6 +332,17 @@ func TestAPlanFileAtAResolvablePathOutsideTheTreePassesTheHook(t *testing.T) {
 		"cat > $P; P=$TMPDIR/x",
 		"P=$TMPDIR/x; printf x > \\$P",
 		"P=$TMPDIR/x; printf x > `echo $P`",
+		// The Codex re-review of #582: an assignment that may not run in this
+		// shell, a destination read quoted or against a redirection, printf -v,
+		// and a TMPDIR the outer command rebinds before a substitution reads it.
+		"false && P=$TMPDIR/plan.txt; printf x > \"$P\"",
+		"P=$TMPDIR/plan.txt | cat; printf x > \"$P\"",
+		"P=$TMPDIR/plan.txt & printf x > \"$P\"",
+		"P=$TMPDIR/plan.txt; IFS= read -r \"P\"; printf x > \"$P\"",
+		"P=$TMPDIR/plan.txt; read -r P<p.txt; printf x > \"$P\"",
+		"P=$TMPDIR/plan.txt; printf -v P '%s' tree/plan.txt; printf x > \"$P\"",
+		"P=$TMPDIR/plan.txt; mapfile -t P < p.txt; printf x > \"$P\"",
+		"TMPDIR=" + tree + "; X=$(printf x > \"$TMPDIR/plan.txt\")",
 	}
 	run := func(cmd string) int {
 		return Hook(bytes.NewReader(hookInput(t, "Bash", cmd)), new(bytes.Buffer), filepath.Join(t.TempDir(), "hook.log"), tree)
