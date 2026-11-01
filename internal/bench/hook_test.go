@@ -359,6 +359,7 @@ func TestAPlanFileAtAResolvablePathOutsideTheTreePassesTheHook(t *testing.T) {
 		"source ./paths.sh; X=$(printf x > \"$TMPDIR/plan.txt\")",
 		"eval \"$SETUP\"; X=$(printf x > \"$TMPDIR/plan.txt\")",
 		"echo \\$x; X=$(printf x > \"$TMPDIR/plan.txt\")",
+		"echo `date`; X=$(printf x > \"$TMPDIR/plan.txt\")",
 	}
 	run := func(cmd string) int {
 		return Hook(bytes.NewReader(hookInput(t, "Bash", cmd)), new(bytes.Buffer), filepath.Join(t.TempDir(), "hook.log"), tree)
