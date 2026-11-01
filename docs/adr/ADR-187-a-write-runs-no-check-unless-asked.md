@@ -1,6 +1,7 @@
 # ADR-187: a write runs no check unless it is asked for
 
-**Status:** Proposed
+**Status:** Accepted
+**Accepted:** 2026-11-01 by Zy — answered *"Default off everywhere"* to whether the post-write check's default changes, then *"Accept and merge (Recommended)"* to "Accept it and merge once CI is green?", after the Codex reviews of #583
 **Date:** 2026-11-01
 **Owner:** Zy
 **Spec:** None — no spec stage
