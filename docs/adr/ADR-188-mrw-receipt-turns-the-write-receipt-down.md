@@ -1,6 +1,7 @@
 # ADR-188: `MRW_RECEIPT` turns the write receipt down for a whole session
 
-**Status:** Proposed
+**Status:** Accepted
+**Accepted:** 2026-11-01 by Zy — answered *"Accept and merge (Recommended)"* to "Accept it and merge?", after the Codex xhigh review of #587 (APPROVE, no findings)
 **Date:** 2026-11-01
 **Owner:** Zy
 **Spec:** None — no spec stage
