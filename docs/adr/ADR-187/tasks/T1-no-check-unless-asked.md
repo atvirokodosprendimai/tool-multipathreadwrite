@@ -97,3 +97,4 @@ The fence exits 0; or a test cannot keep testing the check by asking for it: sto
 - 2026-11-01 · de68a89a* · exit 0 · `set -o pipefail …` · acceptance-sha256:2886d13bc86e5b0218c7cf88c36cba3f13c23e3ab139558badfa4ba40d89bc41 · ms:141974
 - 2026-11-01 · de68a89a* · exit 0 · `set -o pipefail …` · acceptance-sha256:2886d13bc86e5b0218c7cf88c36cba3f13c23e3ab139558badfa4ba40d89bc41 · ms:143270
 - 2026-11-01 · de68a89a* · exit 0 · `set -o pipefail …` · acceptance-sha256:2886d13bc86e5b0218c7cf88c36cba3f13c23e3ab139558badfa4ba40d89bc41 · ms:141234
+- 2026-11-01 · 5baa630e* · exit 0 · `set -o pipefail …` · acceptance-sha256:2886d13bc86e5b0218c7cf88c36cba3f13c23e3ab139558badfa4ba40d89bc41 · ms:150277

@@ -163,3 +163,4 @@ package other than `internal/check` has to change.
 - 2026-09-29 · 5794966* · exit 0 · `set -o pipefail …` · acceptance-sha256:661244bade99c8785f9a9afad14ce3a976ace10b217ded6f154522b4b49ac1eb · ms:1187
 - 2026-09-29 · 5794966* · exit 0 · `set -o pipefail …` · acceptance-sha256:661244bade99c8785f9a9afad14ce3a976ace10b217ded6f154522b4b49ac1eb · ms:1208
 - 2026-09-29 · human-observed · S6 observed: PR #279 records 'contract.sh holds' (rebased on 53e0e11); contract.sh exit 0 with §181 on main db39d42 on 2026-09-29 (this session)
+- 2026-11-01 · 5baa630e* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:661244bade99c8785f9a9afad14ce3a976ace10b217ded6f154522b4b49ac1eb · ms:0 · test-lock-sha256:17c3d2f55c868b055f858d2eb4a32e288301e65e07fda60d2c9961a18b1e486d · test-lock-file:docs/adr/locks/17c3d2f55c868b055f858d2eb4a32e288301e65e07fda60d2c9961a18b1e486d.lock · test-lock-kind:replace
