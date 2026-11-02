@@ -11160,6 +11160,25 @@ g329=$(printf 'not json' | "$MRW" hook read 2>&1); rc329=$?
 [ "$rc329" = 0 ] && [ -z "$g329" ] && ok "the pair: garbage on standard input exits 0 and prints nothing" || bad "garbage: exit $rc329 [$g329]"
 rm -rf "$R329"
 
+# 330. ADR-015: a refusal names the fix. In Git Bash an unquoted parsers\p.py
+# reaches mrw as parsersp.py. A missing path with no separator that a file under
+# the root spells without its separators is UNREADABLE, exit 1, and the line after
+# it names that file in prose, with no command line. The pair: a missing path no
+# file spells, and one a directory spells, get no such line.
+R330=$(mktemp -d "$WORK/r330-XXXXXX"); mkdir -p "$R330/parsers" "$R330/ab/c"; printf 'x\n' > "$R330/parsers/p.py"
+e330() { env XDG_STATE_HOME="$R330/state" "$MRW" -C "$R330" read "$@" 2>&1; }
+out=$(e330 parsersp.py); rc330=$?
+{ [ "$rc330" = 1 ] && grep -q '^==> parsersp.py  UNREADABLE' <<<"$out" \
+  && grep -qxF '    (a path separator may have been lost, as a shell eats an unquoted backslash: did you mean parsers/p.py? quote the path, or use /)' <<<"$out"; } \
+  && ok "a missing path a file spells without its separators names that file" || bad "eaten: exit $rc330 [$out]"
+out=$(e330 nope.py); rc330=$?
+{ [ "$rc330" = 1 ] && ! grep -q 'separator may have been lost' <<<"$out"; } \
+  && ok "the pair: a missing path no file spells gets no backslash hint" || bad "nope: exit $rc330 [$out]"
+out=$(e330 abc); rc330=$?
+{ [ "$rc330" = 1 ] && ! grep -q 'separator may have been lost' <<<"$out"; } \
+  && ok "the pair: a missing path only a directory spells gets no backslash hint" || bad "dir-spelled: exit $rc330 [$out]"
+rm -rf "$R330"
+
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
 # killed process is a zombie until its adopter reaps it, and pgrep lists
