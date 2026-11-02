@@ -59,17 +59,29 @@ func (e errOverFileCap) Error() string {
 	return fmt.Sprintf("more than %d bytes by the time it was read, over the limit mrw reads a file whole to (ADR-104): read a smaller file, or split this one", maxFileBytes)
 }
 
+// errIsDirectory is readCapped's refusal of a path whose OPEN DESCRIPTOR is a
+// directory. Its text is the same on every OS: reading a directory handle fails
+// on Windows with ERROR_INVALID_FUNCTION, "Incorrect function.", which names
+// nothing a reader can act on. A directory that cannot be opened at all keeps
+// the open's own error, permission denied included.
+var errIsDirectory = errors.New("is a directory")
+
 // readCapped reads path whole, up to maxFileBytes. It refuses by the file's
 // size first, and then reads through a limit of one byte more, because a size
 // taken before the read is outrun by a file that grows (the review of #295).
 // It opens through regular.Open (ADR-109): a file swapped for a FIFO after the
 // caller's path check is refused rather than blocking the read.
+// A directory is refused with errIsDirectory, judged by the descriptor rather
+// than the caller's earlier stat, so a path swapped in between is judged as it is.
 func readCapped(path string) ([]byte, error) {
 	f, fi, err := regular.Open(path)
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = f.Close() }()
+	if fi.IsDir() {
+		return nil, errIsDirectory
+	}
 	if fi.Mode().IsRegular() && fi.Size() > maxFileBytes {
 		return nil, errOverFileCap{size: fi.Size(), exact: true}
 	}
@@ -1320,7 +1332,7 @@ func load(w io.Writer, root string, sp *Spec) (b []byte, englishUnreadable, ok b
 	// ADR-074: opening a FIFO for reading blocks until something writes to
 	// it, and a device can stream without end. The walk has refused a
 	// non-regular candidate since ADR-007; a named spec is reported the
-	// same way. A directory says "is a directory" on every OS (below), and a
+	// same way. A directory readCapped could open is errIsDirectory, and a
 	// stat that fails falls through to the error ReadFile gives.
 	fi, statErr := os.Stat(full)
 	if statErr == nil && !fi.Mode().IsRegular() && !fi.IsDir() {
@@ -1335,15 +1347,13 @@ func load(w io.Writer, root string, sp *Spec) (b []byte, englishUnreadable, ok b
 		// Decided before the directory hint is added, so a directory name still counts
 		// toward the shell-split hint as it did (the Codex review of #591).
 		english := glob == "" && isEnglishWordToken(sp.Path)
-		reason := err.Error()
-		if statErr == nil && fi.IsDir() {
-			// The OS's own text for reading a directory names nothing a reader
-			// can act on — on Windows it is "Incorrect function." — so every
-			// OS says the same plain words, and the hint line carries the fix.
-			reason = "is a directory"
+		if errors.Is(err, errIsDirectory) {
+			// Only a directory readCapped opened gets the walk hint: one it
+			// could not open (permission denied) keeps its own error, since
+			// the walk the hint names would fail the same way.
 			glob = dirHint(root, sp.Path, full)
 		}
-		fmt.Fprintf(w, "==> %s  UNREADABLE  %s%s\n", sp.Path, reason, glob)
+		fmt.Fprintf(w, "==> %s  UNREADABLE  %v%s\n", sp.Path, err, glob)
 		return nil, english, false
 	}
 	return b, false, true

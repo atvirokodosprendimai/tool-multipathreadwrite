@@ -11045,6 +11045,13 @@ grep -qF 'a link to the directory sub, and a walk does not follow a link: give s
 out=$(e326 nope.txt); rc326=$?
 { [ "$rc326" = 1 ] && ! grep -q 'walked, not read' <<<"$out"; } \
   && ok "the pair: a missing file gets no walk hint" || bad "missing: exit $rc326 [$out]"
+if [ "$(id -u)" = 0 ]; then skip "a mode-000 directory keeps its own error (root opens it)"; else
+  mkdir "$R326/locked"; chmod 000 "$R326/locked"
+  out=$(e326 locked); rc326=$?
+  { [ "$rc326" = 1 ] && grep -q '^==> locked  UNREADABLE  .*permission denied' <<<"$out" && ! grep -q 'is a directory\|walked, not read' <<<"$out"; } \
+    && ok "the pair: a directory that cannot be opened keeps its own error and gets no walk hint" || bad "locked dir: exit $rc326 [$out]"
+  chmod 755 "$R326/locked"
+fi
 rm -rf "$R326"
 
 # Nothing this run started may outlive it. Checked after the last row, so every

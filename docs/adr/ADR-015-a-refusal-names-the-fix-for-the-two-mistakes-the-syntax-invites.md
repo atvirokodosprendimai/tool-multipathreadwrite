@@ -53,7 +53,7 @@ the caller needs and declines to say it. Neither is a grammar defect. Both are d
 - **`parseHeader`'s "unknown op" error (`internal/plan`):** already knows the line and the token it
   could not read. **Extended** with a hint, only when the line looks like a body line rather than a
   header.
-- **`internal/read`'s UNREADABLE report (ADR-007):** already names the path and the OS error.
+- **`internal/read`'s UNREADABLE report (ADR-007):** already names the path and the OS error — except for a directory it opened, which since #595 says only `is a directory` on every OS, because Windows' text for it ("Incorrect function.") named nothing.
   **Extended** with a hint when the path holds a glob metacharacter, because "no such file" is
   technically right and answers the wrong question.
 - **Detecting the shell before it runs:** not available and not attempted. mrw sees an argument, not
