@@ -1035,6 +1035,14 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 			}
 			whole = false
 		}
+		// ADR-189: the gutter is as wide as the largest line this block plans to
+		// serve, fixed here, before --max-lines, --max-chars, --fold or
+		// --no-comments cut anything, so a budget cannot change the width it is
+		// measured in.
+		width := 1
+		for _, s := range spans {
+			width = max(width, len(strconv.Itoa(s.end)))
+		}
 		stopped := false
 		var printed [][2]int // the lines of each span that reached the answer
 		for si, sn := range spans {
@@ -1111,7 +1119,7 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 				switch {
 				case opt.Quiet:
 				case opt.Numbers:
-					fmt.Fprintf(w, "%5d| %s\n", ln, text)
+					fmt.Fprintf(w, " %*d| %s\n", width, ln, text)
 				default:
 					fmt.Fprintln(w, text)
 				}
