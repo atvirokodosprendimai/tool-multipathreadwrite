@@ -11082,6 +11082,30 @@ if [ "$(id -u)" = 0 ]; then skip "a mode-000 directory keeps its own error (root
 fi
 rm -rf "$R326"
 
+# 331. Issue #599, ADR-007: under a root reached through a symlinked ancestor
+# (macOS /var -> /private/var), an absolute path inside the root whose leaf does
+# not resolve — missing, a dangling symlink, a name under a regular file — is
+# reported UNREADABLE with its own error, not refused as outside the root. The
+# pair: a missing absolute path that really is outside the root is still refused.
+B331=$(mktemp -d "$WORK/r331-XXXXXX"); mkdir -p "$B331/real/T" "$B331/elsewhere"; printf 'x\n' > "$B331/real/T/here.txt"; ln -s real "$B331/ln"; ln -s nowhere "$B331/real/T/dang"
+e331() { env XDG_STATE_HOME="$B331/state" "$MRW" --root "$B331/ln/T" read "$@" 2>&1; }
+out=$(e331 "$B331/ln/T/missing.py"); rc331=$?
+{ [ "$rc331" = 1 ] && grep -q '^==> missing.py  UNREADABLE' <<<"$out" && ! grep -q 'outside the root' <<<"$out"; } \
+  && ok "a missing file under a symlinked root is reported missing, not outside the root" || bad "missing under linked root: exit $rc331 [$out]"
+out=$(e331 "$B331/ln/T/here.txt"); rc331=$?
+{ [ "$rc331" = 0 ] && grep -q '^ 1| x$' <<<"$out"; } \
+  && ok "and an existing file under it is served" || bad "existing under linked root: exit $rc331 [$out]"
+out=$(e331 "$B331/ln/T/dang"); rc331=$?
+{ [ "$rc331" = 1 ] && grep -q '^==> dang  UNREADABLE' <<<"$out" && ! grep -q 'outside the root' <<<"$out"; } \
+  && ok "a dangling symlink under a symlinked root is UNREADABLE, not outside the root" || bad "dangling under linked root: exit $rc331 [$out]"
+out=$(e331 "$B331/ln/T/here.txt/x"); rc331=$?
+{ [ "$rc331" = 1 ] && grep -q '^==> here.txt/x  UNREADABLE' <<<"$out" && ! grep -q 'outside the root' <<<"$out"; } \
+  && ok "a name under a regular file under a symlinked root is UNREADABLE, not outside the root" || bad "name under file, linked root: exit $rc331 [$out]"
+out=$(e331 "$B331/elsewhere/missing.py"); rc331=$?
+{ [ "$rc331" = 1 ] && grep -q 'REFUSED.*is outside the root' <<<"$out"; } \
+  && ok "the pair: a missing path outside the root is still refused as outside it" || bad "outside: exit $rc331 [$out]"
+rm -rf "$B331"
+
 # 328. ADR-190: a SEARCH block that quotes every line it replaces, exactly and
 # matching once, is licensed for them with no read. The pair: a native plan of
 # the same lines is refused as unread. A block that matches twice is a compile
