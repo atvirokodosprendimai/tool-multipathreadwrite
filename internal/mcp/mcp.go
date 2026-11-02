@@ -747,7 +747,7 @@ func tools() []tool {
 						"type":        "string",
 						"enum":        []string{"plan", "apply_patch", "search_replace"},
 						"default":     "plan",
-						"description": "plan (default) is the native @@ document. apply_patch compiles a Codex *** Begin Patch document. search_replace compiles an Aider SEARCH/REPLACE document. Both use the same compile→Parse→Apply path as write --format. git is refused.",
+						"description": "plan (default) is the native @@ document. apply_patch compiles a Codex *** Begin Patch document. search_replace compiles an Aider SEARCH/REPLACE document; a block that quotes every line it replaces, exactly and matching once, needs no read first (end a multi-line block with the closer you keep, or read the line after it). Both use the same compile→Parse→Apply path as write --format. git is refused.",
 					},
 					"plan": map[string]any{
 						"type": "string",

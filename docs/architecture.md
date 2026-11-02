@@ -37,6 +37,7 @@ The engine is the six packages AGENTS.md's drill names (`read`, `apply`, `plan`,
 | `internal/addr` | domain | the address grammar shared by read specs and plan hunks | ADR-026 |
 | `internal/lines` | domain | line splitting and numbering for every surface | ADR-065, ADR-073 |
 | `internal/ingest` | adapter | compiling `apply_patch` and `search_replace` to a native plan | ADR-069 |
+| `internal/quote` | domain | the quote mark a `search_replace` block earns, and its check against the file under the write lock | ADR-190 |
 | `internal/iter` | domain | the working set | ADR-079 |
 | `internal/authoring` | domain | plan outcomes and the advisory pattern (`mrw stats`) | ADR-055, ADR-056, ADR-102 |
 | `internal/guide` | domain | the teaching sentences both surfaces print | ADR-037, ADR-063, ADR-141 |
