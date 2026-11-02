@@ -136,7 +136,7 @@ def closer_kind(token):
         # An opener may end the text (a <div whose attributes go on below), and a self-closing <tag ... />
         # opens nothing: the registration's "<tag against </tag>" (the cloud review of #593).
         return (r"<" + re.escape(m.group(1)) + r"(?=[\s>/]|$)", r"</" + re.escape(m.group(1)) + r">",
-                r"<" + re.escape(m.group(1)) + r"\b[^<>]*/>")
+                r"<" + re.escape(m.group(1)) + r"(?=[\s/])[^<>]*/>")
     m = re.match(r"^@end(\w+)$", token)
     if m:
         return (r"@" + re.escape(m.group(1)) + r"\b", r"@end" + re.escape(m.group(1)) + r"\b")

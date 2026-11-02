@@ -537,6 +537,9 @@ nothing beyond the bar.
   `<div` ending the replaced range counted 0. A self-closing `<x-foo />` counted as an opener. Both were fixed to match
   "`<tag` against `</tag>`", and both seeds re-run. The numbers below are from the fixed code. The verdict did not
   change.
+- **Self-closing tags, from the Codex review of #593.** The self-closing count put `\b` after the name, so `<x-foo-bar />`
+  counted against `x-foo`. It now needs a space or `/` after the name, as the opener does. Both seeds were re-run.
+  The replace counts moved a little because this repository gained commits between runs.
 
 Bar 1 held: the blade, html and markdown field fixtures all still fire.
 
@@ -547,8 +550,8 @@ Bar 3 missed. False fires on correct committed edits, from the `-U0` replay:
 
 | seed | replaces | `closer_k4_token_ne` (shipped) | `closer_k4_token_ne_net` | removed, by closer shape | `blade` shipped / net |
 |---|---:|---:|---:|---|---:|
-| 2119 | 11,749 | 140 | 11 | `}` 113, tag 9, `]` 4, `)` 2, fence 1 | 5.66% / 1.89% of 53 |
-| 3119 | 11,637 | 122 | 22 | `}` 83, tag 13, `]` 2, `)` 1, fence 1 | 9.28% / **6.19%** of 97 |
+| 2119 | 11,678 | 139 | 11 | `}` 112, tag 9, `]` 4, `)` 2, fence 1 | 5.66% / 1.89% of 53 |
+| 3119 | 11,631 | 122 | 22 | `}` 83, tag 13, `]` 2, `)` 1, fence 1 | 9.28% / **6.19%** of 97 |
 
 On seed 3119 the variant's `blade` bucket is over the 5% bar, so it does not ship. The six `blade` fires it keeps are
 10 to 18-line rewrites of nested templates. Their net tag count really does differ, because the hunk changes how much
