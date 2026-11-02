@@ -11022,6 +11022,22 @@ ran326=$(cd "$WORK" && env XDG_STATE_HOME="$R326/state" "$MRW" ${hint326#mrw } -
   && ok "a hint read under -C names the root, and its command runs from where the caller is" || bad "root hint: [$hint326] exit $rc326 [$out] [$ran326]"
 rm -rf "$R326"
 
+# 327. ADR-007: mrw says which path it looked for. A plan path that does not
+# exist, where a file the caller was served ends in it, names that file: read
+# parsers/p.py, plan p.py, and the refusal (exit 1, nothing written) says
+# "you were served parsers/p.py". The pair: a plan naming a path nothing served
+# ends in gets the bare refusal.
+R327=$(mktemp -d "$WORK/r327-XXXXXX"); mkdir "$R327/parsers"; printf 'a\nb\n' > "$R327/parsers/p.py"
+e327() { env XDG_STATE_HOME="$R327/state" "$@"; }
+e327 "$MRW" -C "$R327" read parsers/p.py > "$R327/served.out" 2>&1
+out=$(printf '@@ p.py 1 replace\nx\n' | e327 "$MRW" -C "$R327" write - 2>&1); rc327=$?
+{ [ "$rc327" = 1 ] && grep -qF 'p.py does not exist; you were served parsers/p.py' <<<"$out" && [ "$(head -1 "$R327/parsers/p.py")" = a ]; } \
+  && ok "a missing plan path names the served file it ends like" || bad "served suffix: exit $rc327 [$out]"
+out=$(printf '@@ q.py 1 replace\nx\n' | e327 "$MRW" -C "$R327" write - 2>&1); rc327=$?
+{ [ "$rc327" = 1 ] && grep -qF 'q.py does not exist' <<<"$out" && ! grep -q 'you were served' <<<"$out"; } \
+  && ok "the pair: a path nothing served ends in gets the bare refusal" || bad "bare: exit $rc327 [$out]"
+rm -rf "$R327"
+
 # 325. ADR-189: a read numbers its lines no wider than its block needs. A 9-line
 # file read whole serves ` 1| text` (one space, one digit) and no line in the old
 # five-column form. The pair: a block planned past line 99 (a 120-line file read at
