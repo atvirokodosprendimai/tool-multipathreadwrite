@@ -77,8 +77,43 @@ out=$(go test ./cmd/mrw/ -count=1 -v -run '^TestAHostReadLicensesOnlyTheLinesItS
 | 4 — it is used | no telemetry (ADR-009); the paid run measures it |
 
 ## Mutation Log
+- 2026-11-02 · 8bd3ea90* · mutant killed · exit 1 · `cmd/mrw/hookread191.go` · skip the comparison with the file on disk: a cut line and a line changed after the read are licensed · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · covers:a host read licenses only lines shown whole
+- 2026-11-02 · 8bd3ea90* · mutant killed · exit 1 · `cmd/mrw/hookread191.go` · license a requested range of 9 lines from startLine rather than the returned content, and skip the disk comparison it would have failed · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · covers:a host read licenses only lines shown whole
+- 2026-11-02 · 8bd3ea90* · mutant killed · exit 1 · `internal/seen/seen.go` · wait on the ledger lock without a deadline · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · covers:the hook never fails the host
+- 2026-11-02 · 8bd3ea90* · mutant killed · exit 1 · `cmd/mrw/main.go` · run the startup migration of a legacy ./.mrw for the hook · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · covers:the hook never fails the host
+- 2026-11-02 · ef6cbdda* · mutant killed · exit 1 · `cmd/mrw/hookread191.go` · let a null decode as an empty value · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · covers:a host read licenses only lines shown whole
+- 2026-11-02 · ef6cbdda* · mutant killed · exit 1 · `cmd/mrw/hookread191.go` · wait for standard input without the command deadline · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · covers:the hook never fails the host
+- 2026-11-02 · ef6cbdda* · mutant killed · exit 1 · `cmd/mrw/hookread191.go` · key an absolute path by its spelling, not by where a link leads · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · covers:a host read licenses only lines shown whole
+- 2026-11-02 · ef6cbdda* · mutant killed · exit 1 · `cmd/mrw/hookread191.go` · join the path instead of resolving it: a link out of the root, a state file and a hard link to it are read · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · covers:a host read licenses only lines shown whole
+- 2026-11-02 · ef6cbdda* · mutant killed · exit 1 · `cmd/mrw/hookread191.go` · ignore is_error on a response that still carries content · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · covers:a host read licenses only lines shown whole
+- 2026-11-02 · ef6cbdda* · mutant killed · exit 1 · `cmd/mrw/hookread191.go` · accept any response type that carries content · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · covers:a host read licenses only lines shown whole
+- 2026-11-02 · ef6cbdda* · mutant killed · exit 1 · `cmd/mrw/hookread191.go` · ignore a file path that disagrees with the input · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · covers:a host read licenses only lines shown whole
+- 2026-11-02 · ef6cbdda* · mutant killed · exit 1 · `cmd/mrw/hookread191.go` · a mistyped hook subcommand exits 3, the check-failed status · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · covers:the hook never fails the host
 
 ## Verification Log
+- 2026-11-02 · human-observed · S1: Zy-side capture by the lead, commit 8bd3ea90 "ADR-191 T1 S1: captured Read payloads from Claude Code 2.1.316": four PostToolUse payloads compared with the same calls in the session transcript; file.content from file.startLine equals the lines the model received, a 2,500-character line was not cut, a failed Read sent no payload, an image has base64 and no content · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484
+- 2026-11-02 · 8bd3ea90* · exit 1 · `set -o pipefail …` · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · ms:1544 · test-lock-sha256:e62d7d1b98b9eb98dc868238048c4b4ab8c4a44eed53e2a9ce99d5fab2ccfc7f · test-lock-file:docs/adr/locks/e62d7d1b98b9eb98dc868238048c4b4ab8c4a44eed53e2a9ce99d5fab2ccfc7f.lock
+  ```
+  ```
+- 2026-11-02 · 8bd3ea90* · exit 1 · `set -o pipefail …` · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · ms:190879
+  ```
+  ```
+- 2026-11-02 · 8bd3ea90* · exit 0 · `set -o pipefail …` · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · ms:106271
+- 2026-11-02 · 8bd3ea90* · exit 0 · `set -o pipefail …` · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · ms:123889
+- 2026-11-02 · 8bd3ea90* · exit 0 · `set -o pipefail …` · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · ms:134567
+- 2026-11-02 · 8bd3ea90* · exit 0 · `set -o pipefail …` · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · ms:84756
+- 2026-11-02 · 8bd3ea90* · exit 0 · `set -o pipefail …` · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · ms:95714
+- 2026-11-02 · ef6cbdda* · exit 0 · `set -o pipefail …` · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · ms:124057
+- 2026-11-02 · ef6cbdda* · exit 0 · `set -o pipefail …` · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · ms:94852
+- 2026-11-02 · ef6cbdda* · exit 0 · `set -o pipefail …` · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · ms:93763
+- 2026-11-02 · ef6cbdda* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · ms:0 · test-lock-sha256:59dac61be0dafc7b9e4c3443ba5772b69e5b68fcb9cf0c692d3421e1cbbd33cc · test-lock-file:docs/adr/locks/59dac61be0dafc7b9e4c3443ba5772b69e5b68fcb9cf0c692d3421e1cbbd33cc.lock · test-lock-kind:replace
+- 2026-11-02 · ef6cbdda* · exit 0 · `set -o pipefail …` · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · ms:106814
+- 2026-11-02 · ef6cbdda* · exit 0 · `set -o pipefail …` · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · ms:128561
+- 2026-11-02 · ef6cbdda* · exit 0 · `set -o pipefail …` · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · ms:132088
+- 2026-11-02 · ef6cbdda* · exit 0 · `set -o pipefail …` · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · ms:99403
+- 2026-11-02 · ef6cbdda* · exit 0 · `set -o pipefail …` · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · ms:95561
+- 2026-11-02 · ef6cbdda* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · ms:0 · test-lock-sha256:ed0e4fc487b2d6e841ed1999337372c411ea9b4405609bb400a33bf77c4f1319 · test-lock-file:docs/adr/locks/ed0e4fc487b2d6e841ed1999337372c411ea9b4405609bb400a33bf77c4f1319.lock · test-lock-kind:replace
+- 2026-11-02 · ef6cbdda* · exit 0 · `set -o pipefail …` · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · ms:83343
 
 ## Invariants
 
