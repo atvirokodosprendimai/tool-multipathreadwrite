@@ -26,6 +26,12 @@ TOOLS["F"] = TOOLS["C"] = TOOLS["B"]
 APPENDED = {"B": ["instructions"], "F": ["instructions"], "C": ["instructions", "--core"]}
 REGISTERED_GUIDES = {"F": "a76dbd46ae65184aae51853b372c174f845a99fac6e2ad45c3a632a9fb7830f7",
                      "C": "3b90f436e1519f5afc95fce16bdfd97d955611e3d361240fd4dc3b41ae2227f3"}
+# R is arm C with the host's Read (still no Edit or Write: edits go through mrw) and ADR-191's
+# PostToolUse read hook, so a host Read licenses the lines it showed. Its guide is C's, byte for byte.
+TOOLS["R"] = ["Bash", "Read", "Glob", "Grep"]
+APPENDED["R"] = APPENDED["C"]
+REGISTERED_GUIDES["R"] = REGISTERED_GUIDES["C"]
+READ_HOOKED = {"R"}
 CANARY = Path(__file__).resolve().parents[1] / "bench/tasks/canary"
 # Text that only reaches a transcript when the user's own hooks run in the attempt.
 HOOK_MARKERS = ("memoryd data", "branch-state:", "qh:standing", "[codebase-memory]")
@@ -136,6 +142,51 @@ def tool_metrics(raw):
             "parse_errors": errors}
 
 
+def cell_settings(arm, config, mrw, scratch, tree):
+    """The --settings an arm runs with: every MRW arm's bench hook, R's read hook on the run's own mrw, and, in
+    a compacting run, a hook that counts each compaction and, in an MRW arm, forgets the ledger (docs/agents.md §8)."""
+    settings = {}
+    if arm in APPENDED:
+        command = shlex.quote(config["bench"]) + " hook --log " + shlex.quote(str(scratch / "hook.log")) + " --tree " + shlex.quote(str(tree))
+        settings["hooks"] = {"PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "command", "command": command}]}]}
+        if arm in READ_HOOKED:
+            settings["hooks"]["PostToolUse"] = [{"matcher": "Read", "hooks": [{"type": "command", "command": shlex.quote(mrw) + " hook read"}]}]
+    if compact_pct(config) is not None:
+        command = "printf 'compacted\n' >> " + shlex.quote(str(scratch / "compacted.marker"))
+        if arm in APPENDED:
+            command += "; " + shlex.quote(mrw) + " --root " + shlex.quote(str(tree)) + " seen --forget"
+        settings.setdefault("hooks", {})["SessionStart"] = [{"matcher": "compact", "hooks": [{"type": "command", "command": command}]}]
+    return settings
+
+
+def compact_pct(config):
+    """The percent of a 100K window a compacting run compacts at, or None when the run does not compact."""
+    pct = config.get("compact_pct")
+    if pct is not None and (type(pct) is not int or not 1 <= pct <= 100):
+        raise ValueError("compact_pct must be an int from 1 to 100")
+    return pct
+
+
+def compaction_launch(config):
+    """The arguments and environment a compacting run adds to every cell of every arm."""
+    pct = compact_pct(config)
+    return ([], {}) if pct is None else (["--autocompact", "100000"], {"CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": str(pct)})
+
+
+def compactions(scratch):
+    """How many compactions a cell's SessionStart hook counted: one marker line each, 0 with no marker."""
+    marker = scratch / "compacted.marker"
+    return len(marker.read_text().splitlines()) if marker.exists() else 0
+
+
+def appended_guide(arm, mrw, config):
+    """The guide an arm appends, refused before launch unless it is the registered one."""
+    instructions = subprocess.run([mrw, *APPENDED[arm]], check=True, capture_output=True, timeout=5).stdout
+    if arm in REGISTERED_GUIDES and hashlib.sha256(instructions).hexdigest() != registered_guides(config)[arm]:
+        raise ValueError(f"arm {arm}'s guide is not the registered one")
+    return instructions
+
+
 def execute_cell(task, arm, config):
     out = Path(config["root"])
     spec = json.loads((task / "task.json").read_text())
@@ -160,6 +211,8 @@ def execute_cell(task, arm, config):
                "XDG_STATE_HOME": str(scratch / "state"), "GIT_CONFIG_GLOBAL": os.devnull, "PYTHONNOUSERSITE": "1"}
         if arm in REGISTERED_GUIDES:
             env["BENCH_ARM"] = arm
+        launch_args, launch_env = compaction_launch(config)
+        env.update(launch_env)
         for name in ("cctmp", "config", "state"):
             (scratch / name).mkdir()
         git = lambda *args: subprocess.run(["git", "-C", str(tree), *args], env=env, check=True, capture_output=True, timeout=10)
@@ -168,10 +221,7 @@ def execute_cell(task, arm, config):
         git("-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "-c", "commit.gpgsign=false",
             "-c", "core.hooksPath=/dev/null", "commit", "-qm", "frozen synthetic baseline")
         initial = mrw_observe.tree_evidence(tree, [])
-        settings = {}
-        if arm in APPENDED:
-            command = shlex.quote(config["bench"]) + " hook --log " + shlex.quote(str(scratch / "hook.log")) + " --tree " + shlex.quote(str(tree))
-            settings["hooks"] = {"PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "command", "command": command}]}]}
+        settings = cell_settings(arm, config, adapter["mrw"], scratch, tree)
         (scratch / "settings.json").write_text(json.dumps(settings))
         (scratch / "mcp.json").write_text('{"mcpServers":{}}')
         args = [sys.executable, str(Path(pilot.__file__).resolve()), config["adapter"], "-p", spec["instruction"],
@@ -179,11 +229,9 @@ def execute_cell(task, arm, config):
                 "--tools", ",".join(TOOLS[arm]), "--strict-mcp-config", "--mcp-config", str(scratch / "mcp.json"),
                 "--disable-slash-commands", "--no-session-persistence", "--no-chrome",
                 "--permission-mode", "bypassPermissions", "--exclude-dynamic-system-prompt-sections",
-                "--settings", str(scratch / "settings.json"), "--max-turns", "10"]
+                "--settings", str(scratch / "settings.json"), "--max-turns", "10", *launch_args]
         if arm in APPENDED:
-            instructions = subprocess.run([adapter["mrw"], *APPENDED[arm]], check=True, capture_output=True, timeout=5).stdout
-            if arm in REGISTERED_GUIDES and hashlib.sha256(instructions).hexdigest() != registered_guides(config)[arm]:
-                raise ValueError(f"arm {arm}'s guide is not the registered one")
+            instructions = appended_guide(arm, adapter["mrw"], config)
             (scratch / "instructions.txt").write_bytes(instructions)
             args.extend(["--append-system-prompt-file", str(scratch / "instructions.txt")])
         stdout_path, stderr_path = out / "transcripts" / (identity + ".jsonl"), out / "transcripts" / (identity + ".stderr")
@@ -222,7 +270,7 @@ def execute_cell(task, arm, config):
                                                               for name in set(initial["files"]) | set(observed)),
                "initial_tree": initial, "record": record, "grade": grade,
                "verdict": verdict(record, grade, code, arm, config["model"]), "outer_wall_ms": wall, "outer_exit": code,
-               "metrics": tool_metrics(stdout_path.read_bytes()), "supervisor_pid": pid,
+               "metrics": tool_metrics(stdout_path.read_bytes()), "compactions": compactions(scratch), "supervisor_pid": pid,
                "transcript_sha256": hashlib.sha256(stdout_path.read_bytes()).hexdigest(),
                "stderr_sha256": hashlib.sha256(stderr_path.read_bytes()).hexdigest()}
         pilot.save(out / "cells", identity, row)
