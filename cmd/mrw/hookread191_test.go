@@ -101,6 +101,12 @@ func runHook(t *testing.T, root string, payload []byte) (stdout, stderr string, 
 		t.Fatal(err)
 	}
 	defer func() { _ = f.Close() }()
+	return runHookOn(t, root, f)
+}
+
+// runHookOn is runHook with the file standard input is to be.
+func runHookOn(t *testing.T, root string, f *os.File) (stdout, stderr string, code int) {
+	t.Helper()
 	old := os.Stdin
 	os.Stdin = f
 	defer func() { os.Stdin = old }()
@@ -254,7 +260,6 @@ func TestAHostReadLicensesOnlyTheLinesItShowedAsTheyAre(t *testing.T) {
 		asError[`tool_response`] = `File does not exist.`
 		isErr := capturedPayloads(t, root)[0]
 		isErr[`tool_response`].(map[string]any)[`is_error`] = true
-		delete(file(isErr), `content`)
 		cases := map[string]map[string]any{
 			`an image`:                image,
 			`no startLine`:            noStart,
@@ -461,5 +466,139 @@ func TestAHostReadLicensesOnlyTheLinesItShowedAsTheyAre(t *testing.T) {
 		out, errOut, code := runHook(t, root, jsonOf(t, p))
 		quiet(t, `mixed`, out, errOut, code)
 		wantLines(t, `mixed`, root, `mixed.txt`, 4, 1, 3)
+	})
+
+	t.Run(`a null content licenses nothing, not a blank line`, func(t *testing.T) {
+		root := hookRoot(t)
+		if err := os.WriteFile(filepath.Join(root, `blank.txt`), []byte(nl+`second`+nl), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		p := capturedPayloads(t, root)[0]
+		path := filepath.Join(root, `blank.txt`)
+		p[`tool_input`].(map[string]any)[`file_path`] = path
+		f := file(p)
+		f[`filePath`] = path
+		f[`content`] = nil
+		out, errOut, code := runHook(t, root, jsonOf(t, p))
+		quiet(t, `null content`, out, errOut, code)
+		ledgerEmpty(t, root)
+	})
+
+	t.Run(`standard input held open returns within the deadline`, func(t *testing.T) {
+		root := hookRoot(t)
+		r, w, err := os.Pipe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = r.Close() }()
+		done := make(chan int, 1)
+		go func() {
+			_, _, code := runHookOn(t, root, r)
+			done <- code
+		}()
+		select {
+		case code := <-done:
+			if code != 0 {
+				t.Errorf(`exit %d, want 0`, code)
+			}
+		case <-time.After(10 * time.Second):
+			_ = w.Close()
+			<-done
+			t.Fatal(`the command was still reading standard input after 10 s`)
+		}
+		_ = w.Close()
+		ledgerEmpty(t, root)
+	})
+
+	t.Run(`an absolute path through a link is recorded as mrw read records it`, func(t *testing.T) {
+		root := hookRoot(t)
+		alias := filepath.Join(root, `alias.txt`)
+		if err := os.Symlink(`a.txt`, alias); err != nil {
+			t.Skip(err)
+		}
+		p := capturedPayloads(t, root)[1]
+		p[`tool_input`].(map[string]any)[`file_path`] = alias
+		file(p)[`filePath`] = alias
+		out, errOut, code := runHook(t, root, jsonOf(t, p))
+		quiet(t, `alias`, out, errOut, code)
+		wantLines(t, `alias`, root, `a.txt`, 12, 4, 5, 6)
+		plan := filepath.Join(t.TempDir(), `p.plan`)
+		if err := os.WriteFile(plan, []byte(`@@ a.txt 5 replace`+nl+`FIVE`+nl), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if o, c := runIn(t, root, `write`, `--no-check`, plan); c != 0 {
+			t.Errorf(`a plan naming the target of the link exited %d: %s`, c, o)
+		}
+	})
+
+	t.Run(`a notebook response with content records nothing`, func(t *testing.T) {
+		root := hookRoot(t)
+		p := capturedPayloads(t, root)[0]
+		p[`tool_response`].(map[string]any)[`type`] = `notebook`
+		out, errOut, code := runHook(t, root, jsonOf(t, p))
+		quiet(t, `notebook`, out, errOut, code)
+		ledgerEmpty(t, root)
+	})
+
+	t.Run(`a file path the host wrote differently from the input records nothing`, func(t *testing.T) {
+		root := hookRoot(t)
+		p := capturedPayloads(t, root)[0]
+		file(p)[`filePath`] = filepath.Join(root, `long.txt`)
+		out, errOut, code := runHook(t, root, jsonOf(t, p))
+		quiet(t, `disagree`, out, errOut, code)
+		ledgerEmpty(t, root)
+	})
+
+	t.Run(`a mistyped subcommand is a usage error, exit 2, not exit 3`, func(t *testing.T) {
+		root := hookRoot(t)
+		for _, verb := range []string{`nope`, `Read`} {
+			cmd := rootCommand()
+			var sink strings.Builder
+			cmd.Writer, cmd.ErrWriter = &sink, &sink
+			err := cmd.Run(t.Context(), []string{`mrw`, `-C`, root, `hook`, verb})
+			if err == nil {
+				err, _ = cmd.Metadata[`notFound`].(error)
+			}
+			if err == nil || exitCode(err) != 2 {
+				t.Errorf(`hook %s: %v (exit %d), want a usage error, exit 2`, verb, err, exitCode(err))
+			}
+		}
+	})
+
+	t.Run(`a link out of the root, a file in the state directory and a hard link to it record nothing`, func(t *testing.T) {
+		root := hookRoot(t)
+		outside := filepath.Join(t.TempDir(), `o.txt`)
+		if err := os.WriteFile(outside, []byte(`line 1 of a.txt`+nl), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		t.Setenv(`XDG_STATE_HOME`, filepath.Join(root, `st`))
+		dir, err := state.Dir(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		notes := filepath.Join(dir, `notes.txt`)
+		if err := os.WriteFile(notes, []byte(`line 1 of a.txt`+nl), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		paths := map[string]string{`state`: notes}
+		if err := os.Symlink(outside, filepath.Join(root, `esc.txt`)); err == nil {
+			paths[`link`] = `esc.txt`
+		}
+		if err := os.Link(notes, filepath.Join(root, `hl.txt`)); err == nil {
+			paths[`hardlink`] = filepath.Join(root, `hl.txt`)
+		}
+		for name, path := range paths {
+			p := capturedPayloads(t, root)[0]
+			p[`tool_input`].(map[string]any)[`file_path`] = path
+			f := file(p)
+			f[`filePath`] = path
+			f[`content`] = `line 1 of a.txt`
+			out, errOut, code := runHook(t, root, jsonOf(t, p))
+			quiet(t, name, out, errOut, code)
+		}
+		ledgerEmpty(t, root)
 	})
 }
