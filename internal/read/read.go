@@ -1353,6 +1353,11 @@ func load(w io.Writer, root string, sp *Spec) (b []byte, englishUnreadable, ok b
 			// the walk the hint names would fail the same way.
 			glob = dirHint(root, sp.Path, full)
 		}
+		if glob == "" && errors.Is(err, os.ErrNotExist) {
+			// argPath, as typed: an absolute path inside the root was made
+			// relative above, and its separators were the caller's own.
+			glob = eatenSeparatorHint(root, argPath)
+		}
 		fmt.Fprintf(w, "==> %s  UNREADABLE  %v%s\n", sp.Path, err, glob)
 		return nil, english, false
 	}
@@ -1774,6 +1779,67 @@ func dirHint(root, path, full string) string {
 		}
 	}
 	return "\n    (" + fix + " to mrw read --grep PATTERN for the lines that match, or --grep $ for every line.)"
+}
+
+// eatenSeparatorDepth and eatenSeparatorLists bound eatenSeparatorHint's search:
+// at most four directory levels below the root, and 32 directory listings in all.
+const (
+	eatenSeparatorDepth = 4
+	eatenSeparatorLists = 32
+)
+
+// eatenSeparatorHint is the line after a missing path's UNREADABLE refusal when a
+// file under the root spells that path once its separators are removed (ADR-015:
+// a refusal names the fix). In Git Bash an unquoted parsers\p.py reaches mrw as
+// parsersp.py, the shell having taken the backslash as an escape. It names the
+// file in prose and prints no command line, as dirHint does (#591). A path that
+// already holds a separator gets nothing.
+//
+// The search is prefix-guided, so it stays cheap: from the root it enters only a
+// directory whose name begins the text still unmatched, at most
+// eatenSeparatorDepth levels deep and eatenSeparatorLists listings in all. It
+// follows no link, as a walk does not (ADR-096), and answers only with a regular
+// file, the first in name order, that a read of it would not refuse.
+func eatenSeparatorHint(root, path string) string {
+	if path == "" || strings.ContainsAny(path, `/\`) {
+		return ""
+	}
+	lists := 0
+	var find func(dir, rel, rest string, depth int) string
+	find = func(dir, rel, rest string, depth int) string {
+		if depth > eatenSeparatorDepth || lists >= eatenSeparatorLists {
+			return ""
+		}
+		lists++
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			return ""
+		}
+		for _, e := range entries {
+			name := e.Name()
+			if !strings.HasPrefix(rest, name) {
+				continue
+			}
+			if name == rest {
+				if depth > 0 && e.Type().IsRegular() {
+					if _, err := rooted.Resolve(root, rel+name); err == nil {
+						return rel + name
+					}
+				}
+				continue
+			}
+			if e.Type().IsDir() {
+				if got := find(filepath.Join(dir, name), rel+name+"/", rest[len(name):], depth+1); got != "" {
+					return got
+				}
+			}
+		}
+		return ""
+	}
+	if got := find(root, "", path, 0); got != "" {
+		return "\n    (a shell may have eaten a backslash: did you mean " + got + "? quote the path, or use /)"
+	}
+	return ""
 }
 
 func hintUnexpandedGlob(path string) string {
