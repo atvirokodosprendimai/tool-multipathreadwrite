@@ -42,3 +42,28 @@ func TestAnAnchorThatLostItsQuotesSaysHowToKeepThem(t *testing.T) {
 		}
 	}
 }
+
+// The refusal quotes the file's line as it quotes the anchor: exactly, indent
+// and all. Trimmed, `    "timeout": 30,` was shown as `"timeout": 30,` beside an
+// anchor that kept its four spaces, which read as a whitespace mismatch that
+// was not there (the v1.82.0 Windows field test). A tab shows as \t, and a line
+// past clip's bound is still cut, inside the quotes.
+func TestAnAnchorRefusalQuotesTheLineWithItsIndent(t *testing.T) {
+	for _, c := range []struct{ line, want string }{
+		{`    "timeout": 30,`, `not in line 2: "    \"timeout\": 30,"`},
+		{"\tindented", `not in line 2: "\tindented"`},
+		{"\t" + strings.Repeat("x", 80), `not in line 2: "\t` + strings.Repeat("x", 56) + `..."`},
+	} {
+		root := t.TempDir()
+		write(t, root, "c.json", "{\n"+c.line+"\n}\n")
+		res, err := Apply(root, []Input{
+			{Path: "c.json", Start: 2, End: 2, Op: "replace", Body: []string{"x"}, Anchor: "nope", Lines: -1, Index: 0},
+		}, Options{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if r := res.Hunks[0].Reason; res.Failed != 1 || !strings.Contains(r, c.want) {
+			t.Errorf("line %q: failed=%d reason %q, want it to contain %s", c.line, res.Failed, r, c.want)
+		}
+	}
+}

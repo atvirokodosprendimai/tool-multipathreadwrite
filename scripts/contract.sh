@@ -10169,7 +10169,7 @@ esc291=$(printf '\\u003%s' e)
 mcp291=$(printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["f.txt:1"]}}}' | "$MRW" -C "$R" mcp --enable 2>/dev/null)
 grep -qF "$esc291" <<<"$mcp291" && ok "the pair: mrw_read over MCP still escapes > as in JSON's own spelling" || bad "mcp mrw_read: $mcp291"
 doc=$(cd "$R" && printf '@@ f.txt 1 replace anchor="q<z>&"\nx\n' | "$MRW" write --json --no-check - 2>&1)
-{ grep -qF 'anchor \"q<z>&\" not in line 1: x<a>&' <<<"$doc" && ! grep -q 'u003\|u0026' <<<"$doc"; } \
+{ grep -qF 'anchor \"q<z>&\" not in line 1: \"x<a>&\"' <<<"$doc" && ! grep -q 'u003\|u0026' <<<"$doc"; } \
   && ok "and so does a failed hunk's reason" || bad "write --json reason escapes: $doc"
 doc=$(cd "$R" && "$MRW" read --json f.txt:1 2>/dev/null)
 plain=$(cd "$R" && "$MRW" read f.txt:1 2>/dev/null)
