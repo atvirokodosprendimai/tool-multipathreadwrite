@@ -10999,6 +10999,18 @@ out=$(printf '%s\n' "@@ c.json 2-3 replace anchor='    \"timeout\": 30,'" '    "
   && ok "the pair: the single-quoted anchor applies" || bad "single-quoted: exit $rc324 [$out]"
 rm -rf "$S324" "$R324" "$WORK/served324.out"
 
+# 326. ADR-015: a refusal names the fix. A directory named to mrw read is
+# UNREADABLE, exit 1, and the line after it names the walk: --grep PATTERN DIR.
+# The pair: a missing file is UNREADABLE with no such line.
+R326=$(mktemp -d "$WORK/r326-XXXXXX"); mkdir "$R326/sub"; printf 'a\n' > "$R326/sub/a.txt"
+out=$(env XDG_STATE_HOME="$R326/state" "$MRW" -C "$R326" read sub 2>&1); rc326=$?
+{ [ "$rc326" = 1 ] && grep -q '^==> sub  UNREADABLE' <<<"$out" && grep -qF 'a directory you name is walked: mrw read --grep PATTERN sub' <<<"$out"; } \
+  && ok "a directory named to read says how to walk it" || bad "dir read: exit $rc326 [$out]"
+out=$(env XDG_STATE_HOME="$R326/state" "$MRW" -C "$R326" read nope.txt 2>&1); rc326=$?
+{ [ "$rc326" = 1 ] && grep -q 'UNREADABLE' <<<"$out" && ! grep -q 'a directory you name is walked' <<<"$out"; } \
+  && ok "the pair: a missing file gets no walk hint" || bad "missing file: exit $rc326 [$out]"
+rm -rf "$R326"
+
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
 # killed process is a zombie until its adopter reaps it, and pgrep lists

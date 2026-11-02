@@ -1324,6 +1324,11 @@ func load(w io.Writer, root string, sp *Spec) (b []byte, englishUnreadable, ok b
 	b, err = readCapped(full)
 	if err != nil {
 		glob := hintUnexpandedGlob(sp.Path)
+		if statErr == nil && fi.IsDir() {
+			// ADR-015: a refusal names the fix. A directory is read by walking it.
+			glob = "\n    (a directory you name is walked: mrw read --grep PATTERN " + sp.Path +
+				" serves the lines of its files that match, and --grep '' " + sp.Path + " every line.)"
+		}
 		fmt.Fprintf(w, "==> %s  UNREADABLE  %v%s\n", sp.Path, err, glob)
 		return nil, glob == "" && isEnglishWordToken(sp.Path), false
 	}
