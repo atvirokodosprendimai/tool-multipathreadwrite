@@ -22,10 +22,10 @@ func TestADirectoryNamedToReadSaysHowToWalkIt(t *testing.T) {
 		}
 		writeFile(t, root, d+"/a.txt", "a\n")
 	}
-	myDir, _ := hintWord("my dir", runtime.GOOS == "windows") // 'my dir' or, on Windows, "my dir"
+	myDir, _ := hintWord("./my dir", runtime.GOOS == "windows") // './my dir' or, on Windows, "./my dir"
 	cases := []struct{ spec, hint string }{
-		{"sub", "mrw read --grep PATTERN -- sub serves"},
-		{"sub:1-2", "mrw read --grep PATTERN -- sub serves"},
+		{"sub", "mrw read --grep PATTERN -- ./sub serves"},
+		{"sub:1-2", "mrw read --grep PATTERN -- ./sub serves"},
 		{"my dir", "mrw read --grep PATTERN -- " + myDir + " serves"},
 		{"@docs", "mrw read --grep PATTERN -- ./@docs serves"},
 		{"nope.txt", ""},
@@ -34,7 +34,7 @@ func TestADirectoryNamedToReadSaysHowToWalkIt(t *testing.T) {
 		if err := os.Symlink("sub", filepath.Join(root, "link")); err != nil {
 			t.Fatal(err)
 		}
-		cases = append(cases, struct{ spec, hint string }{"link", "mrw read --grep PATTERN -- sub serves"})
+		cases = append(cases, struct{ spec, hint string }{"link", "mrw read --grep PATTERN -- ./sub serves"})
 		if os.Geteuid() != 0 {
 			writeFile(t, root, "locked.txt", "x\n")
 			if err := os.Chmod(filepath.Join(root, "locked.txt"), 0); err != nil {
@@ -96,8 +96,8 @@ func TestTheWalkHintCarriesTheTypedRoot(t *testing.T) {
 	}
 	win := runtime.GOOS == "windows"
 	for _, c := range []struct{ hintRoot, want string }{
-		{"", "walked: mrw read --grep PATTERN -- sub serves"},
-		{"internal", "walked: mrw --root internal read --grep PATTERN -- sub serves"},
+		{"", "walked: mrw read --grep PATTERN -- ./sub serves"},
+		{"internal", "walked: mrw --root internal read --grep PATTERN -- ./sub serves"},
 	} {
 		if out, _ := run(t, root, Options{Numbers: true, HintRoot: c.hintRoot}, "sub"); !strings.Contains(out, c.want) {
 			t.Errorf("HintRoot %q: want %q in\n%s", c.hintRoot, c.want, out)
@@ -107,7 +107,28 @@ func TestTheWalkHintCarriesTheTypedRoot(t *testing.T) {
 		return
 	}
 	out, _ := run(t, root, Options{Numbers: true, HintRoot: "a$b c"}, "sub")
-	if !strings.Contains(out, "name it to mrw read --grep PATTERN") || strings.Contains(out, "-- sub") {
+	if !strings.Contains(out, "name it to mrw read --grep PATTERN") || strings.Contains(out, "-- ./sub") {
 		t.Errorf("an unprintable root printed a command:\n%s", out)
+	}
+}
+
+// A printed operand is ./name, and one that mrw would still read as its own syntax is not
+// printed: a directory named - (standard input) or holding a colon (an address) (the Codex
+// re-review of #591).
+func TestAWalkHintOperandIsNeverMrwSyntax(t *testing.T) {
+	root := t.TempDir()
+	for _, c := range []struct{ dir, want string }{
+		{"-", "-- ./- serves"},
+		{"logs:2026:1", "name it to mrw read --grep PATTERN"},
+	} {
+		if err := os.Mkdir(filepath.Join(root, c.dir), 0o755); err != nil {
+			if runtime.GOOS == "windows" {
+				continue // Windows keeps no colon in a name
+			}
+			t.Fatal(err)
+		}
+		if got := walkHint(root, c.dir, filepath.Join(root, c.dir), ""); !strings.Contains(got, c.want) {
+			t.Errorf("%q: want %q in %q", c.dir, c.want, got)
+		}
 	}
 }

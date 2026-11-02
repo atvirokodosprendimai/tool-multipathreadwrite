@@ -1764,10 +1764,19 @@ func walkHint(root, path, full, hintRoot string) string {
 	}
 	win := runtime.GOOS == "windows"
 	head := "mrw read"
-	if strings.HasPrefix(name, "@") {
-		name = "./" + name // a leading @ is a working-set pointer, even after -- (the Codex re-review of #591)
+	// A relative operand is printed as ./name, so mrw never reads it as its own
+	// syntax: - (standard input), @N (a working-set pointer), a name with a
+	// colon (an address). One that still does not parse back to this path, with no
+	// range, is not printed (the Codex re-reviews of #591; readElsewhere does the same).
+	if !rooted.IsRooted(name) {
+		name = "./" + strings.TrimPrefix(name, "./")
+	}
+	parses := false
+	if sp, err := ParseSpec(name); err == nil && sp.Path == name && len(sp.Ranges) == 0 {
+		parses = true
 	}
 	q, ok := hintWord(name, win)
+	ok = ok && parses
 	if hintRoot != "" {
 		r, rok := hintWord(hintRoot, win)
 		head, ok = "mrw --root "+r+" read", ok && rok
