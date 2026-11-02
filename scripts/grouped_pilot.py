@@ -152,7 +152,7 @@ def cell_settings(arm, config, mrw, scratch, tree):
         if arm in READ_HOOKED:
             settings["hooks"]["PostToolUse"] = [{"matcher": "Read", "hooks": [{"type": "command", "command": shlex.quote(mrw) + " hook read"}]}]
     if compact_pct(config) is not None:
-        command = "printf 'compacted\n' >> " + shlex.quote(str(scratch / "compacted.marker"))
+        command = "printf 'compacted\\n' >> " + shlex.quote(str(scratch / "compacted.marker"))
         if arm in APPENDED:
             command += "; " + shlex.quote(mrw) + " --root " + shlex.quote(str(tree)) + " seen --forget"
         settings.setdefault("hooks", {})["SessionStart"] = [{"matcher": "compact", "hooks": [{"type": "command", "command": command}]}]

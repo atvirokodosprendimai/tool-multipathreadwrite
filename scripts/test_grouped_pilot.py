@@ -367,7 +367,7 @@ class Compaction(unittest.TestCase):
     def test_compact_pct_sets_the_window_the_threshold_and_a_counting_hook(self):
         self.assertEqual(grouped.compaction_launch({"compact_pct": 50}),
                          (["--autocompact", "100000"], {"CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "50"}))
-        count = "printf 'compacted\n' >> /scratch/compacted.marker"
+        count = "printf 'compacted\\n' >> /scratch/compacted.marker"
         self.assertEqual(self.settings("A", compact_pct=50),
                          {"hooks": {"SessionStart": [{"matcher": "compact", "hooks": [{"type": "command", "command": count}]}]}})
         # An MRW arm also forgets the ledger, with the run's own mrw (docs/agents.md section 8).
@@ -392,6 +392,32 @@ class Compaction(unittest.TestCase):
             self.assertEqual(grouped.compactions(Path(d)), 2)
 
 
+def compacting_stub(root, task):
+    """A stand-in host for a compacting cell: it appends to the marker once, as the SessionStart hook would."""
+    return ("#!" + sys.executable + "\n"
+            "import json,os,subprocess,sys\n"
+            "open(" + repr(str(root / "seen.json")) + ",'w').write(json.dumps("
+            "{'pct':os.environ.get('CLAUDE_AUTOCOMPACT_PCT_OVERRIDE'),'argv':sys.argv}))\n"
+            "open(os.path.join('..','compacted.marker'),'a').write('compacted\\n')\n"
+            "subprocess.run(['git','apply'," + repr(str(task / "reference.patch")) + "],check=True)\n"
+            "tools=sys.argv[sys.argv.index('--tools')+1].split(',')\n"
+            "print(json.dumps({'type':'system','subtype':'init','model':'stub-model','tools':tools,'mcp_servers':[],'plugins':[]}))\n"
+            "print(json.dumps({'type':'result','is_error':False,'num_turns':1,'total_cost_usd':.01,'usage':{'input_tokens':1,'output_tokens':1}}))\n")
+
+
+class CompactingStub(unittest.TestCase):
+    # Runs on every platform, so a stub that does not compile is caught where the cell cannot run.
+    def test_the_compacting_stub_compiles_and_writes_one_marker_line_per_run(self):
+        root = Path(tempfile.gettempdir())
+        source = compacting_stub(root, root / "task")
+        compile(source, "stub", "exec")
+        marker = [line for line in source.splitlines() if "compacted.marker" in line]
+        self.assertEqual(marker, ["open(os.path.join('..','compacted.marker'),'a').write('compacted\\n')"])
+        # The pair: the defect this replaces, a real newline inside the literal, does not compile.
+        with self.assertRaises(SyntaxError):
+            compile(source.replace("compacted\\n", "compacted\n"), "stub", "exec")
+
+
 @unittest.skipUnless(os.name == "posix", "pilot execution requires POSIX")
 class CompactingCell(unittest.TestCase):
     def test_a_compacting_cell_launches_compacting_and_records_its_compactions(self):
@@ -399,16 +425,7 @@ class CompactingCell(unittest.TestCase):
             root = Path(d)
             task = Path(__file__).resolve().parents[1] / "bench/grouped-pilot/tasks/grouped-routing"
             stub = root / "stub"
-            # The stub stands in for the host: it appends to the marker as the SessionStart hook would, once.
-            stub.write_text("#!" + sys.executable + "\n"
-                            "import json,os,subprocess,sys\n"
-                            "open(" + repr(str(root / "seen.json")) + ",'w').write(json.dumps("
-                            "{'pct':os.environ.get('CLAUDE_AUTOCOMPACT_PCT_OVERRIDE'),'argv':sys.argv}))\n"
-                            "open(os.path.join('..','compacted.marker'),'a').write('compacted\n')\n"
-                            "subprocess.run(['git','apply'," + repr(str(task/"reference.patch")) + "],check=True)\n"
-                            "tools=sys.argv[sys.argv.index('--tools')+1].split(',')\n"
-                            "print(json.dumps({'type':'system','subtype':'init','model':'stub-model','tools':tools,'mcp_servers':[],'plugins':[]}))\n"
-                            "print(json.dumps({'type':'result','is_error':False,'num_turns':1,'total_cost_usd':.01,'usage':{'input_tokens':1,'output_tokens':1}}))\n")
+            stub.write_text(compacting_stub(root, task))
             stub.chmod(0o755)
             for folder in ("evidence", "cells", "transcripts"):
                 (root / folder).mkdir()
