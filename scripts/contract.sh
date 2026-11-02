@@ -11032,12 +11032,12 @@ out=$(e325 "$MRW" -C "$R325" read long.txt:100-101 2>&1); rc325=$?
 rm -rf "$S325" "$R325"
 
 # 326. ADR-015: a refusal names the fix. A directory named to mrw read is
-# UNREADABLE, exit 1, and the line after it says it is walked and names --grep;
+# UNREADABLE, exit 1, says "is a directory" on every OS, and the line after it says it is walked and names --grep;
 # a link names the directory it leads to. The pair: a missing file gets no such line.
 R326=$(mktemp -d "$WORK/r326-XXXXXX"); mkdir "$R326/sub"; printf 'a\n' > "$R326/sub/a.txt"; ln -s sub "$R326/link"
 e326() { env XDG_STATE_HOME="$R326/state" "$MRW" -C "$R326" read "$@" 2>&1; }
 out=$(e326 sub); rc326=$?
-{ [ "$rc326" = 1 ] && grep -q '^==> sub  UNREADABLE' <<<"$out" && grep -qF 'a directory is walked, not read: give it to mrw read --grep PATTERN' <<<"$out"; } \
+{ [ "$rc326" = 1 ] && grep -qx '==> sub  UNREADABLE  is a directory' <<<"$out" && grep -qF 'a directory is walked, not read: give it to mrw read --grep PATTERN' <<<"$out"; } \
   && ok "a directory named to read says it is walked and names --grep" || bad "dir read: exit $rc326 [$out]"
 out=$(e326 link)
 grep -qF 'a link to the directory sub, and a walk does not follow a link: give sub to' <<<"$out" \

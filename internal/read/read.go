@@ -1320,7 +1320,7 @@ func load(w io.Writer, root string, sp *Spec) (b []byte, englishUnreadable, ok b
 	// ADR-074: opening a FIFO for reading blocks until something writes to
 	// it, and a device can stream without end. The walk has refused a
 	// non-regular candidate since ADR-007; a named spec is reported the
-	// same way. A directory keeps ReadFile's own "is a directory", and a
+	// same way. A directory says "is a directory" on every OS (below), and a
 	// stat that fails falls through to the error ReadFile gives.
 	fi, statErr := os.Stat(full)
 	if statErr == nil && !fi.Mode().IsRegular() && !fi.IsDir() {
@@ -1335,10 +1335,15 @@ func load(w io.Writer, root string, sp *Spec) (b []byte, englishUnreadable, ok b
 		// Decided before the directory hint is added, so a directory name still counts
 		// toward the shell-split hint as it did (the Codex review of #591).
 		english := glob == "" && isEnglishWordToken(sp.Path)
+		reason := err.Error()
 		if statErr == nil && fi.IsDir() {
+			// The OS's own text for reading a directory names nothing a reader
+			// can act on — on Windows it is "Incorrect function." — so every
+			// OS says the same plain words, and the hint line carries the fix.
+			reason = "is a directory"
 			glob = dirHint(root, sp.Path, full)
 		}
-		fmt.Fprintf(w, "==> %s  UNREADABLE  %v%s\n", sp.Path, err, glob)
+		fmt.Fprintf(w, "==> %s  UNREADABLE  %s%s\n", sp.Path, reason, glob)
 		return nil, english, false
 	}
 	return b, false, true

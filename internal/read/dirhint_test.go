@@ -58,3 +58,27 @@ func TestADirectoryStillCountsTowardTheShellSplitHint(t *testing.T) {
 		t.Errorf("want both the walk hint and the shell-split hint:\n%s", out)
 	}
 }
+
+// A directory's UNREADABLE line says "is a directory" on every OS, never the
+// platform's text for reading a directory handle: on Windows that was
+// ERROR_INVALID_FUNCTION, "Incorrect function.", which tells a reader nothing
+// (the v1.82.0 Windows field test). The hint line under it is unchanged.
+func TestADirectoryNamedToReadSaysIsADirectoryOnEveryOS(t *testing.T) {
+	root := t.TempDir()
+	if err := os.Mkdir(filepath.Join(root, "sub"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	out, problems := run(t, root, Options{Numbers: true}, "sub")
+	var line string
+	for _, l := range strings.Split(out, "\n") {
+		if strings.HasPrefix(l, "==> sub  ") {
+			line = l
+		}
+	}
+	if problems != 1 || line != "==> sub  UNREADABLE  is a directory" || strings.Contains(out, "Incorrect function") {
+		t.Errorf("problems=%d, want the line %q:\n%s", problems, "==> sub  UNREADABLE  is a directory", out)
+	}
+	if !strings.Contains(out, "a directory is walked, not read") {
+		t.Errorf("the walk hint is gone:\n%s", out)
+	}
+}
