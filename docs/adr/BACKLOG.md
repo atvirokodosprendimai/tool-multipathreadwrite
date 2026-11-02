@@ -482,6 +482,86 @@ so the result cannot move it:
   The [eight-case verification](../bench/observability/RESULTS.md) also finds a valid nested closer warning
   (line 5); both false positives remain open. Two real duplicate controls still warn. No shipping bar is met.
 
+### Pre-registered 2026-11-02 for the sibling-closer false positive — written before any variant code or run
+
+**Variant `closer_k4_token_ne_net`.** The shipped `closer_k4_token_ne`, firing only when the body's net
+count for its closer's kind differs from the replaced range's. Net is openers minus closers, counted on raw
+text, strings and comments included, as ADR-055's balance row counts. The kinds:
+- `}`, `)`, `]`: their bracket pair.
+- `</tag>`: `<tag` against `</tag>`.
+- `@endX`: `@X` against `@endX`.
+- a fence: the parity of fence lines.
+- any other closer token (`end`, `fi`, …): no net is computed, and it fires as now.
+
+The hypothesis: in every true positive measured so far the replaced range opened a structure (net +1) and the body
+closed its own (net 0). The Blade, HTML and markdown field fixtures all have that shape. In the false positives
+both nets are 0: `sibling_spec.rb`, `nested.go`, and two replaces in this session's own work.
+
+**It ships only if every one of these holds, else it does not ship and this entry records why:**
+1. The three closer field fixtures in `docs/break/shape-hints/stress.py` (blade, html, markdown) still fire.
+2. In `scripts/mrw_observe.py`'s eight warning cases:
+   - `duplicate.md` and `blanks.md` still fire;
+   - `sibling_spec.rb` and `nested.go` no longer fire;
+   - the other four are unchanged.
+3. On the history replay with run 2's parameters (seed 2119, `--cap 1200`, `--max-commits 6000`, the same
+   directories), and again on a fresh seed 3119:
+   - the variant fires fewer times than `closer_k4_token_ne`;
+   - no fire is gained;
+   - every bucket of 50 or more replaces stays under ADR-119's 5% bar.
+
+   The variant only removes fires, so the bar cannot be newly missed. The result reports how many fires it removes,
+   and of what shape, so a removed true positive is visible. The replay's `through_closer` true-positive rows,
+   if any, are reported separately: losing one is a finding against the variant.
+4. Any fire it removes on the replay is read by hand from a 20-fire random sample (seed 4119). If any one of them is
+   a real orphaned closer, the variant does not ship.
+
+Owner: mrw's ADR-119 follow-up. Shipping needs an ADR amending ADR-119 and Zy's acceptance; this entry decides
+nothing beyond the bar.
+
+**Result, 2026-11-02: does not ship. Bar 3 missed on seed 3119.**
+- `docs/break/shape-hints/stress.py` gained the variant; no other change.
+- Each seed took about 33 s over 14 repositories and one worktree.
+
+**Corrections, from the cloud review of #593.** The registration above stands as committed.
+- **Seeds.** Neither seed was fresh: 2119 is ADR-119's second run and 3119 its third. Both samples were seen when
+  ADR-119 was tuned, so these figures are no held-out check.
+- **Corpus.** It is not ADR-119's: 14 repositories here against 16 on 2026-10-02. One rng is shared across
+  repositories in sorted order, so a changed corpus reshuffles every sample after it. "Run 2's parameters" did not
+  reproduce run 2's sample.
+- **Bar 3's true-positive half could not fail.** On every `through_closer` row, `ends_alike` holds by construction:
+  the range and the body end on the same line. So both `ne` variants fire 0 times on those rows (3,249 rows on seed
+  2119, 2,944 on 3119). And because the variant is the shipped hint ANDed with one more condition, "fewer fires, none
+  gained" is a tautology. Only the 5% bucket bar and bar 4 could fail, and bar 4 was not run. A next registration
+  needs a true-positive guard that can fail.
+- **The code differed from the registered definition.** The tag opener needed a character after the name, so a bare
+  `<div` ending the replaced range counted 0. A self-closing `<x-foo />` counted as an opener. Both were fixed to match
+  "`<tag` against `</tag>`", and both seeds re-run. The numbers below are from the fixed code. The verdict did not
+  change.
+- **Self-closing tags, from the Codex review of #593.** The self-closing count put `\b` after the name, so `<x-foo-bar />`
+  counted against `x-foo`. It now needs a space or `/` after the name, as the opener does. Both seeds were re-run.
+  The replace counts moved a little because this repository gained commits between runs.
+
+Bar 1 held: the blade, html and markdown field fixtures all still fire.
+
+Bar 2 held: all eight `scripts/mrw_observe.py` cases match their expected hint. `sibling_spec.rb` and `nested.go` no
+longer fire; `duplicate.md` and `blanks.md` still do.
+
+Bar 3 missed. False fires on correct committed edits, from the `-U0` replay:
+
+| seed | replaces | `closer_k4_token_ne` (shipped) | `closer_k4_token_ne_net` | removed, by closer shape | `blade` shipped / net |
+|---|---:|---:|---:|---|---:|
+| 2119 | 11,678 | 139 | 11 | `}` 112, tag 9, `]` 4, `)` 2, fence 1 | 5.66% / 1.89% of 53 |
+| 3119 | 11,631 | 122 | 22 | `}` 83, tag 13, `]` 2, `)` 1, fence 1 | 9.28% / **6.19%** of 97 |
+
+On seed 3119 the variant's `blade` bucket is over the 5% bar, so it does not ship. The six `blade` fires it keeps are
+10 to 18-line rewrites of nested templates. Their net tag count really does differ, because the hunk changes how much
+structure it encloses, so a closer-token rule cannot tell them from an orphan. No further variant is proposed.
+
+**About the shipped hint.** On this corpus the shipped `closer_k4_token_ne` is over ADR-119's bar in `blade`: 5.66% and
+9.28%. ADR-119's runs never had a `blade` bucket of 50 or more replaces, and its corpus differed, so this is a first
+measurement of that bucket, not a measured regression. It is an open question for Zy whether the hint should keep
+firing on `.blade.php`. Owner: as above.
+
 ## Pre-registered for ADR-156 (does mrw pay for itself on agent runs) — the bar, written before any run
 
 Zy, 2026-10-14: both Sonnet 5.5 and Opus 5.5; our own oracle-graded tasks and a SWE-bench Verified slice; configuration B with mrw forced; the subscription only. Registered here, in the record's first commit, before `bench`, any task or any run exists, so a result cannot move it:

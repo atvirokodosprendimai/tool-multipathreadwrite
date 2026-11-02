@@ -118,10 +118,48 @@ def hints(path, orig, start, end, body):
         "closer_k4_trim": closer(orig, end, body, k=4, trim=True),
         "closer_k4_token": closer(orig, end, body, k=4, trim=True, token=True),  # SHIPPED (amended bar)
         "closer_k4_token_ne": closer(orig, end, body, k=4, trim=True, token=True) and not ends_alike(replaced, body),  # SHIPPED (run 3)
+        "closer_k4_token_ne_net": closer(orig, end, body, k=4, trim=True, token=True) and not ends_alike(replaced, body)
+        and net_differs(replaced, body),  # PRE-REGISTERED 2026-11-02 (BACKLOG)
         "closer_k8_token": closer(orig, end, body, k=8, trim=True, token=True),
         "indent": indent(path, replaced, body),                 # REGISTERED
         "indent_first": indent(path, replaced, body, first_only=True),
     }
+
+
+def closer_kind(token):
+    """The opener and closer a closer-shaped token pairs with, as regexes, or None when no net is computed
+    (end, fi, done, esac). A fence is its own pair, counted by parity (BACKLOG, pre-registered 2026-11-02)."""
+    if re.match(r"^(`{3,}|~{3,})$", token):
+        return "fence"
+    m = re.match(r"^</([\w.-]+)>$", token)
+    if m:
+        # An opener may end the text (a <div whose attributes go on below), and a self-closing <tag ... />
+        # opens nothing: the registration's "<tag against </tag>" (the cloud review of #593).
+        return (r"<" + re.escape(m.group(1)) + r"(?=[\s>/]|$)", r"</" + re.escape(m.group(1)) + r">",
+                r"<" + re.escape(m.group(1)) + r"(?=[\s/])[^<>]*/>")
+    m = re.match(r"^@end(\w+)$", token)
+    if m:
+        return (r"@" + re.escape(m.group(1)) + r"\b", r"@end" + re.escape(m.group(1)) + r"\b")
+    pairs = {"}": (r"\{", r"\}"), ")": (r"\(", r"\)"), "]": (r"\[", r"\]")}
+    return pairs.get(token[0]) if token else None
+
+
+def net(lines, kind):
+    if kind == "fence":
+        return sum(1 for s in lines if re.match(r"^\s*(`{3,}|~{3,})", s)) % 2
+    text = "\n".join(lines)
+    selfclosed = len(re.findall(kind[2], text)) if len(kind) > 2 else 0
+    return len(re.findall(kind[0], text)) - selfclosed - len(re.findall(kind[1], text))
+
+
+def net_differs(replaced, body):
+    """True when the body's net for its last closer's kind differs from the replaced range's: the shape that
+    leaves the file's own closer orphaned. True, as now, for a closer with no computed net."""
+    nb = nonblank(body)
+    kind = closer_kind(nb[-1].strip()) if nb else None
+    if kind is None:
+        return True
+    return net(replaced, kind) != net(body, kind)
 
 
 def ends_alike(replaced, body):
@@ -151,8 +189,8 @@ REGISTERED = ("closer", "indent")
 # SHIPPED maps what the binary reports to the variant that ships (BACKLOG, "Amended after the first
 # measurement"): --mrw compares the binary's key against it, so the run proves they agree.
 SHIPPED = {"closer": "closer_k4_token_ne"}
-VARIANTS = ("closer", "closer_trim", "closer_k4_trim", "closer_k4_token", "closer_k4_token_ne", "closer_k8_token",
-            "indent", "indent_first")
+VARIANTS = ("closer", "closer_trim", "closer_k4_trim", "closer_k4_token", "closer_k4_token_ne", "closer_k4_token_ne_net",
+            "closer_k8_token", "indent", "indent_first")
 
 
 def fixtures():
