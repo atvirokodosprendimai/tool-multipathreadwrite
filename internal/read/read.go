@@ -1332,8 +1332,14 @@ func load(w io.Writer, root string, sp *Spec) (b []byte, englishUnreadable, ok b
 	b, err = readCapped(full)
 	if err != nil {
 		glob := hintUnexpandedGlob(sp.Path)
+		// Decided before the directory hint is added, so a directory name still counts
+		// toward the shell-split hint as it did (the Codex review of #591).
+		english := glob == "" && isEnglishWordToken(sp.Path)
+		if statErr == nil && fi.IsDir() {
+			glob = dirHint(root, sp.Path, full)
+		}
 		fmt.Fprintf(w, "==> %s  UNREADABLE  %v%s\n", sp.Path, err, glob)
-		return nil, glob == "" && isEnglishWordToken(sp.Path), false
+		return nil, english, false
 	}
 	return b, false, true
 }
@@ -1737,6 +1743,24 @@ func NamedFiles(names []string) string {
 // It fires only on a path that ALREADY failed to open, so it is advice about a
 // broken path rather than a claim about what the caller meant. A file whose
 // name really does contain a star is served normally and never sees this.
+// dirHint is the line after a directory's UNREADABLE refusal (ADR-015: a refusal
+// names the fix): a directory is walked, not read. It names the fix in prose and
+// prints no command line: no one quoting runs unchanged in sh, pwsh, cmd.exe and
+// Git Bash (six review rounds of #591 found a new shell each time). A link names
+// the directory it leads to, found as the walk finds it (Lstat that is not a
+// directory, then rooted.Real), since a walk follows no link (ADR-096).
+func dirHint(root, path, full string) string {
+	fix := "a directory is walked, not read: give it"
+	if li, err := os.Lstat(filepath.Join(root, path)); err == nil && !li.IsDir() {
+		if abs, err := filepath.Abs(root); err == nil {
+			if rel, err := filepath.Rel(rooted.Real(abs), rooted.Real(full)); err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+				fix = "a link to the directory " + filepath.ToSlash(rel) + ", and a walk does not follow a link: give " + filepath.ToSlash(rel)
+			}
+		}
+	}
+	return "\n    (" + fix + " to mrw read --grep PATTERN for the lines that match, or --grep $ for every line.)"
+}
+
 func hintUnexpandedGlob(path string) string {
 	if !strings.ContainsAny(path, "*?[") {
 		return ""
