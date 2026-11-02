@@ -1,0 +1,1133 @@
+{
+ "run": 9,
+ "registration": "HOOK-PREREGISTRATION.md",
+ "rounds": [
+  {
+   "round": 1,
+   "stop": "completed",
+   "plan": [
+    [
+     "grouped-structural",
+     "AR"
+    ],
+    [
+     "grouped-config",
+     "RA"
+    ],
+    [
+     "grouped-source-tests",
+     "AR"
+    ],
+    [
+     "grouped-docs",
+     "RA"
+    ],
+    [
+     "grouped-routing",
+     "AR"
+    ]
+   ],
+   "all_in_usd": 0.2792634,
+   "canaries": [
+    "pass",
+    "pass"
+   ],
+   "cells": [
+    {
+     "task": "grouped-structural",
+     "arm": "A",
+     "solved": true,
+     "verdict": {
+      "execution_ok": true,
+      "isolation_ok": true,
+      "exact_tree_ok": true,
+      "verification_ok": true,
+      "solved": true
+     },
+     "turns": 3,
+     "cost_usd": 0.0221266,
+     "usage": {
+      "input_tokens": 6,
+      "cache_creation_input_tokens": 3253,
+      "cache_read_input_tokens": 20126,
+      "output_tokens": 709,
+      "output_tokens_details": {
+       "thinking_tokens": 0
+      },
+      "server_tool_use": {
+       "web_search_requests": 0,
+       "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+       "ephemeral_1h_input_tokens": 3253,
+       "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "global",
+      "iterations": [
+       {
+        "input_tokens": 2,
+        "output_tokens": 280,
+        "cache_read_input_tokens": 7884,
+        "cache_creation_input_tokens": 517,
+        "cache_creation": {
+         "ephemeral_5m_input_tokens": 0,
+         "ephemeral_1h_input_tokens": 517
+        },
+        "type": "message"
+       }
+      ],
+      "speed": "standard",
+      "fallback_credit": null
+     },
+     "by_kind": {
+      "Bash": 2
+     },
+     "hook_stderr": "",
+     "transcript_sha256": "0860159f40928d909bb8da4052270446568f2ae23b09bbebcc9a086f7aa7e42d"
+    },
+    {
+     "task": "grouped-structural",
+     "arm": "R",
+     "solved": true,
+     "verdict": {
+      "execution_ok": true,
+      "isolation_ok": true,
+      "exact_tree_ok": true,
+      "verification_ok": true,
+      "solved": true
+     },
+     "turns": 4,
+     "cost_usd": 0.0302047,
+     "usage": {
+      "input_tokens": 8,
+      "cache_creation_input_tokens": 5140,
+      "cache_read_input_tokens": 29487,
+      "output_tokens": 668,
+      "output_tokens_details": {
+       "thinking_tokens": 0
+      },
+      "server_tool_use": {
+       "web_search_requests": 0,
+       "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+       "ephemeral_1h_input_tokens": 5140,
+       "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "global",
+      "iterations": [
+       {
+        "input_tokens": 2,
+        "output_tokens": 261,
+        "cache_read_input_tokens": 9356,
+        "cache_creation_input_tokens": 357,
+        "cache_creation": {
+         "ephemeral_5m_input_tokens": 0,
+         "ephemeral_1h_input_tokens": 357
+        },
+        "type": "message"
+       }
+      ],
+      "speed": "standard",
+      "fallback_credit": null
+     },
+     "by_kind": {
+      "Bash": 3
+     },
+     "hook_stderr": "",
+     "transcript_sha256": "84fc8a8fc01b0d5406cbe973f10ea3f3cee070ec27598c81a9188909c3429804"
+    },
+    {
+     "task": "grouped-config",
+     "arm": "R",
+     "solved": true,
+     "verdict": {
+      "execution_ok": true,
+      "isolation_ok": true,
+      "exact_tree_ok": true,
+      "verification_ok": true,
+      "solved": true
+     },
+     "turns": 4,
+     "cost_usd": 0.024215,
+     "usage": {
+      "input_tokens": 8,
+      "cache_creation_input_tokens": 3912,
+      "cache_read_input_tokens": 31010,
+      "output_tokens": 545,
+      "output_tokens_details": {
+       "thinking_tokens": 0
+      },
+      "server_tool_use": {
+       "web_search_requests": 0,
+       "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+       "ephemeral_1h_input_tokens": 3912,
+       "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "global",
+      "iterations": [
+       {
+        "input_tokens": 2,
+        "output_tokens": 203,
+        "cache_read_input_tokens": 9316,
+        "cache_creation_input_tokens": 385,
+        "cache_creation": {
+         "ephemeral_5m_input_tokens": 0,
+         "ephemeral_1h_input_tokens": 385
+        },
+        "type": "message"
+       }
+      ],
+      "speed": "standard",
+      "fallback_credit": null
+     },
+     "by_kind": {
+      "Bash": 3
+     },
+     "hook_stderr": "",
+     "transcript_sha256": "8bc17fd6fd9e2b77865eb9bd3409e2df46e4861f430e016a9c5c621b20346261"
+    },
+    {
+     "task": "grouped-config",
+     "arm": "A",
+     "solved": true,
+     "verdict": {
+      "execution_ok": true,
+      "isolation_ok": true,
+      "exact_tree_ok": true,
+      "verification_ok": true,
+      "solved": true
+     },
+     "turns": 3,
+     "cost_usd": 0.020049,
+     "usage": {
+      "input_tokens": 6,
+      "cache_creation_input_tokens": 3390,
+      "cache_read_input_tokens": 21370,
+      "output_tokens": 434,
+      "output_tokens_details": {
+       "thinking_tokens": 0
+      },
+      "server_tool_use": {
+       "web_search_requests": 0,
+       "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+       "ephemeral_1h_input_tokens": 3390,
+       "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "global",
+      "iterations": [
+       {
+        "input_tokens": 2,
+        "output_tokens": 200,
+        "cache_read_input_tokens": 8638,
+        "cache_creation_input_tokens": 530,
+        "cache_creation": {
+         "ephemeral_5m_input_tokens": 0,
+         "ephemeral_1h_input_tokens": 530
+        },
+        "type": "message"
+       }
+      ],
+      "speed": "standard",
+      "fallback_credit": null
+     },
+     "by_kind": {
+      "Bash": 2
+     },
+     "hook_stderr": "",
+     "transcript_sha256": "b0f71d07e2530883f14fad6e0b00218a75e3995c0d948a5c5f7d0d400b299bd0"
+    },
+    {
+     "task": "grouped-source-tests",
+     "arm": "A",
+     "solved": true,
+     "verdict": {
+      "execution_ok": true,
+      "isolation_ok": true,
+      "exact_tree_ok": true,
+      "verification_ok": true,
+      "solved": true
+     },
+     "turns": 3,
+     "cost_usd": 0.0203988,
+     "usage": {
+      "input_tokens": 6,
+      "cache_creation_input_tokens": 3264,
+      "cache_read_input_tokens": 21408,
+      "output_tokens": 519,
+      "output_tokens_details": {
+       "thinking_tokens": 0
+      },
+      "server_tool_use": {
+       "web_search_requests": 0,
+       "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+       "ephemeral_1h_input_tokens": 3264,
+       "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "global",
+      "iterations": [
+       {
+        "input_tokens": 2,
+        "output_tokens": 230,
+        "cache_read_input_tokens": 8630,
+        "cache_creation_input_tokens": 412,
+        "cache_creation": {
+         "ephemeral_5m_input_tokens": 0,
+         "ephemeral_1h_input_tokens": 412
+        },
+        "type": "message"
+       }
+      ],
+      "speed": "standard",
+      "fallback_credit": null
+     },
+     "by_kind": {
+      "Bash": 2
+     },
+     "hook_stderr": "",
+     "transcript_sha256": "da026c96947f61bda8de17f3feef2099b46f350f599bd899ea449b1656f74e08"
+    },
+    {
+     "task": "grouped-source-tests",
+     "arm": "R",
+     "solved": true,
+     "verdict": {
+      "execution_ok": true,
+      "isolation_ok": true,
+      "exact_tree_ok": true,
+      "verification_ok": true,
+      "solved": true
+     },
+     "turns": 4,
+     "cost_usd": 0.031444299999999994,
+     "usage": {
+      "input_tokens": 8,
+      "cache_creation_input_tokens": 4846,
+      "cache_read_input_tokens": 30843,
+      "output_tokens": 896,
+      "output_tokens_details": {
+       "thinking_tokens": 0
+      },
+      "server_tool_use": {
+       "web_search_requests": 0,
+       "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+       "ephemeral_1h_input_tokens": 4846,
+       "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "global",
+      "iterations": [
+       {
+        "input_tokens": 2,
+        "output_tokens": 207,
+        "cache_read_input_tokens": 9880,
+        "cache_creation_input_tokens": 755,
+        "cache_creation": {
+         "ephemeral_5m_input_tokens": 0,
+         "ephemeral_1h_input_tokens": 755
+        },
+        "type": "message"
+       }
+      ],
+      "speed": "standard",
+      "fallback_credit": null
+     },
+     "by_kind": {
+      "Bash": 3
+     },
+     "hook_stderr": "",
+     "transcript_sha256": "f94604124531295d4ef141d7e691a9f7924763a93baaf4e89ec323d5e71f2a48"
+    },
+    {
+     "task": "grouped-docs",
+     "arm": "R",
+     "solved": true,
+     "verdict": {
+      "execution_ok": true,
+      "isolation_ok": true,
+      "exact_tree_ok": true,
+      "verification_ok": true,
+      "solved": true
+     },
+     "turns": 7,
+     "cost_usd": 0.037095800000000005,
+     "usage": {
+      "input_tokens": 14,
+      "cache_creation_input_tokens": 4131,
+      "cache_read_input_tokens": 54338,
+      "output_tokens": 1511,
+      "output_tokens_details": {
+       "thinking_tokens": 19
+      },
+      "server_tool_use": {
+       "web_search_requests": 0,
+       "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+       "ephemeral_1h_input_tokens": 4131,
+       "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "global",
+      "iterations": [
+       {
+        "input_tokens": 2,
+        "output_tokens": 389,
+        "cache_read_input_tokens": 9314,
+        "cache_creation_input_tokens": 606,
+        "cache_creation": {
+         "ephemeral_5m_input_tokens": 0,
+         "ephemeral_1h_input_tokens": 606
+        },
+        "type": "message"
+       }
+      ],
+      "speed": "standard",
+      "fallback_credit": null
+     },
+     "by_kind": {
+      "Bash": 6
+     },
+     "hook_stderr": "",
+     "transcript_sha256": "61b65fe92754a4ff731fd780463e1b40a49f7d3c7a73bad7853b2137fbf63ae6"
+    },
+    {
+     "task": "grouped-docs",
+     "arm": "A",
+     "solved": true,
+     "verdict": {
+      "execution_ok": true,
+      "isolation_ok": true,
+      "exact_tree_ok": true,
+      "verification_ok": true,
+      "solved": true
+     },
+     "turns": 3,
+     "cost_usd": 0.018380800000000003,
+     "usage": {
+      "input_tokens": 6,
+      "cache_creation_input_tokens": 2233,
+      "cache_read_input_tokens": 20268,
+      "output_tokens": 741,
+      "output_tokens_details": {
+       "thinking_tokens": 0
+      },
+      "server_tool_use": {
+       "web_search_requests": 0,
+       "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+       "ephemeral_1h_input_tokens": 2233,
+       "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "global",
+      "iterations": [
+       {
+        "input_tokens": 2,
+        "output_tokens": 335,
+        "cache_read_input_tokens": 7518,
+        "cache_creation_input_tokens": 493,
+        "cache_creation": {
+         "ephemeral_5m_input_tokens": 0,
+         "ephemeral_1h_input_tokens": 493
+        },
+        "type": "message"
+       }
+      ],
+      "speed": "standard",
+      "fallback_credit": null
+     },
+     "by_kind": {
+      "Bash": 2
+     },
+     "hook_stderr": "",
+     "transcript_sha256": "5df95a165d694de323447d24f171822bc8fdbe4af3c1756bece04c7d8b6319f4"
+    },
+    {
+     "task": "grouped-routing",
+     "arm": "A",
+     "solved": true,
+     "verdict": {
+      "execution_ok": true,
+      "isolation_ok": true,
+      "exact_tree_ok": true,
+      "verification_ok": true,
+      "solved": true
+     },
+     "turns": 4,
+     "cost_usd": 0.0228042,
+     "usage": {
+      "input_tokens": 6,
+      "cache_creation_input_tokens": 3287,
+      "cache_read_input_tokens": 21242,
+      "output_tokens": 752,
+      "output_tokens_details": {
+       "thinking_tokens": 0
+      },
+      "server_tool_use": {
+       "web_search_requests": 0,
+       "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+       "ephemeral_1h_input_tokens": 3287,
+       "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "global",
+      "iterations": [
+       {
+        "input_tokens": 2,
+        "output_tokens": 398,
+        "cache_read_input_tokens": 8424,
+        "cache_creation_input_tokens": 641,
+        "cache_creation": {
+         "ephemeral_5m_input_tokens": 0,
+         "ephemeral_1h_input_tokens": 641
+        },
+        "type": "message"
+       }
+      ],
+      "speed": "standard",
+      "fallback_credit": null
+     },
+     "by_kind": {
+      "Bash": 2,
+      "Grep": 1
+     },
+     "hook_stderr": "",
+     "transcript_sha256": "d7075e7f7efcc83519a6e7c82e3f72d495051d3465ee19c8b4419d7a237f221e"
+    },
+    {
+     "task": "grouped-routing",
+     "arm": "R",
+     "solved": true,
+     "verdict": {
+      "execution_ok": true,
+      "isolation_ok": true,
+      "exact_tree_ok": true,
+      "verification_ok": true,
+      "solved": true
+     },
+     "turns": 3,
+     "cost_usd": 0.0254435,
+     "usage": {
+      "input_tokens": 6,
+      "cache_creation_input_tokens": 3824,
+      "cache_read_input_tokens": 21855,
+      "output_tokens": 795,
+      "output_tokens_details": {
+       "thinking_tokens": 0
+      },
+      "server_tool_use": {
+       "web_search_requests": 0,
+       "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+       "ephemeral_1h_input_tokens": 3824,
+       "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "global",
+      "iterations": [
+       {
+        "input_tokens": 2,
+        "output_tokens": 404,
+        "cache_read_input_tokens": 9015,
+        "cache_creation_input_tokens": 598,
+        "cache_creation": {
+         "ephemeral_5m_input_tokens": 0,
+         "ephemeral_1h_input_tokens": 598
+        },
+        "type": "message"
+       }
+      ],
+      "speed": "standard",
+      "fallback_credit": null
+     },
+     "by_kind": {
+      "Bash": 2
+     },
+     "hook_stderr": "",
+     "transcript_sha256": "e20a6e31c32de6d8e3220b2ae4a709d60d9abc699262d3d5237d85c4d0b347be"
+    }
+   ]
+  },
+  {
+   "round": 2,
+   "stop": "completed",
+   "plan": [
+    [
+     "grouped-structural",
+     "RA"
+    ],
+    [
+     "grouped-config",
+     "AR"
+    ],
+    [
+     "grouped-source-tests",
+     "RA"
+    ],
+    [
+     "grouped-docs",
+     "AR"
+    ],
+    [
+     "grouped-routing",
+     "RA"
+    ]
+   ],
+   "all_in_usd": 0.2640928,
+   "canaries": [
+    "pass",
+    "pass"
+   ],
+   "cells": [
+    {
+     "task": "grouped-structural",
+     "arm": "R",
+     "solved": true,
+     "verdict": {
+      "execution_ok": true,
+      "isolation_ok": true,
+      "exact_tree_ok": true,
+      "verification_ok": true,
+      "solved": true
+     },
+     "turns": 5,
+     "cost_usd": 0.0280218,
+     "usage": {
+      "input_tokens": 10,
+      "cache_creation_input_tokens": 3906,
+      "cache_read_input_tokens": 37978,
+      "output_tokens": 858,
+      "output_tokens_details": {
+       "thinking_tokens": 162
+      },
+      "server_tool_use": {
+       "web_search_requests": 0,
+       "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+       "ephemeral_1h_input_tokens": 3906,
+       "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "global",
+      "iterations": [
+       {
+        "input_tokens": 2,
+        "output_tokens": 219,
+        "cache_read_input_tokens": 9195,
+        "cache_creation_input_tokens": 500,
+        "cache_creation": {
+         "ephemeral_5m_input_tokens": 0,
+         "ephemeral_1h_input_tokens": 500
+        },
+        "type": "message"
+       }
+      ],
+      "speed": "standard",
+      "fallback_credit": null
+     },
+     "by_kind": {
+      "Bash": 4
+     },
+     "hook_stderr": "",
+     "transcript_sha256": "fa6c44f07d0753dc4c345a733ce46d3ba31191f4535ba807116a46b0afb10ed9"
+    },
+    {
+     "task": "grouped-structural",
+     "arm": "A",
+     "solved": true,
+     "verdict": {
+      "execution_ok": true,
+      "isolation_ok": true,
+      "exact_tree_ok": true,
+      "verification_ok": true,
+      "solved": true
+     },
+     "turns": 4,
+     "cost_usd": 0.021966,
+     "usage": {
+      "input_tokens": 8,
+      "cache_creation_input_tokens": 2867,
+      "cache_read_input_tokens": 28720,
+      "output_tokens": 761,
+      "output_tokens_details": {
+       "thinking_tokens": 0
+      },
+      "server_tool_use": {
+       "web_search_requests": 0,
+       "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+       "ephemeral_1h_input_tokens": 2867,
+       "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "global",
+      "iterations": [
+       {
+        "input_tokens": 2,
+        "output_tokens": 324,
+        "cache_read_input_tokens": 8081,
+        "cache_creation_input_tokens": 564,
+        "cache_creation": {
+         "ephemeral_5m_input_tokens": 0,
+         "ephemeral_1h_input_tokens": 564
+        },
+        "type": "message"
+       }
+      ],
+      "speed": "standard",
+      "fallback_credit": null
+     },
+     "by_kind": {
+      "Bash": 3
+     },
+     "hook_stderr": "",
+     "transcript_sha256": "fadaf470a4e6f0c05fe90264ed25d107b4a41225619f7d2d556d778b56d66496"
+    },
+    {
+     "task": "grouped-config",
+     "arm": "A",
+     "solved": true,
+     "verdict": {
+      "execution_ok": true,
+      "isolation_ok": true,
+      "exact_tree_ok": true,
+      "verification_ok": true,
+      "solved": true
+     },
+     "turns": 4,
+     "cost_usd": 0.0230208,
+     "usage": {
+      "input_tokens": 8,
+      "cache_creation_input_tokens": 3840,
+      "cache_read_input_tokens": 29948,
+      "output_tokens": 465,
+      "output_tokens_details": {
+       "thinking_tokens": 0
+      },
+      "server_tool_use": {
+       "web_search_requests": 0,
+       "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+       "ephemeral_1h_input_tokens": 3840,
+       "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "global",
+      "iterations": [
+       {
+        "input_tokens": 2,
+        "output_tokens": 175,
+        "cache_read_input_tokens": 8722,
+        "cache_creation_input_tokens": 896,
+        "cache_creation": {
+         "ephemeral_5m_input_tokens": 0,
+         "ephemeral_1h_input_tokens": 896
+        },
+        "type": "message"
+       }
+      ],
+      "speed": "standard",
+      "fallback_credit": null
+     },
+     "by_kind": {
+      "Bash": 3
+     },
+     "hook_stderr": "",
+     "transcript_sha256": "279d7235080c3959019434b5dc98784e656fd43edb6c89f8b4b799d98791d858"
+    },
+    {
+     "task": "grouped-config",
+     "arm": "R",
+     "solved": true,
+     "verdict": {
+      "execution_ok": true,
+      "isolation_ok": true,
+      "exact_tree_ok": true,
+      "verification_ok": true,
+      "solved": true
+     },
+     "turns": 4,
+     "cost_usd": 0.027986500000000004,
+     "usage": {
+      "input_tokens": 8,
+      "cache_creation_input_tokens": 4897,
+      "cache_read_input_tokens": 31725,
+      "output_tokens": 521,
+      "output_tokens_details": {
+       "thinking_tokens": 0
+      },
+      "server_tool_use": {
+       "web_search_requests": 0,
+       "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+       "ephemeral_1h_input_tokens": 4897,
+       "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "global",
+      "iterations": [
+       {
+        "input_tokens": 2,
+        "output_tokens": 177,
+        "cache_read_input_tokens": 10037,
+        "cache_creation_input_tokens": 649,
+        "cache_creation": {
+         "ephemeral_5m_input_tokens": 0,
+         "ephemeral_1h_input_tokens": 649
+        },
+        "type": "message"
+       }
+      ],
+      "speed": "standard",
+      "fallback_credit": null
+     },
+     "by_kind": {
+      "Bash": 3
+     },
+     "hook_stderr": "",
+     "transcript_sha256": "66eea26789c8f8ed7806f8927bc04ce4f5e9100773959b0fe3c070ecd84550e1"
+    },
+    {
+     "task": "grouped-source-tests",
+     "arm": "R",
+     "solved": true,
+     "verdict": {
+      "execution_ok": true,
+      "isolation_ok": true,
+      "exact_tree_ok": true,
+      "verification_ok": true,
+      "solved": true
+     },
+     "turns": 3,
+     "cost_usd": 0.0288525,
+     "usage": {
+      "input_tokens": 6,
+      "cache_creation_input_tokens": 4624,
+      "cache_read_input_tokens": 22545,
+      "output_tokens": 809,
+      "output_tokens_details": {
+       "thinking_tokens": 0
+      },
+      "server_tool_use": {
+       "web_search_requests": 0,
+       "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+       "ephemeral_1h_input_tokens": 4624,
+       "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "global",
+      "iterations": [
+       {
+        "input_tokens": 2,
+        "output_tokens": 208,
+        "cache_read_input_tokens": 9744,
+        "cache_creation_input_tokens": 669,
+        "cache_creation": {
+         "ephemeral_5m_input_tokens": 0,
+         "ephemeral_1h_input_tokens": 669
+        },
+        "type": "message"
+       }
+      ],
+      "speed": "standard",
+      "fallback_credit": null
+     },
+     "by_kind": {
+      "Bash": 2
+     },
+     "hook_stderr": "",
+     "transcript_sha256": "05effbd1e058962fd02e7e48c3908d71b6e8d71147375a1ae46ce8caff9c86f6"
+    },
+    {
+     "task": "grouped-source-tests",
+     "arm": "A",
+     "solved": true,
+     "verdict": {
+      "execution_ok": true,
+      "isolation_ok": true,
+      "exact_tree_ok": true,
+      "verification_ok": true,
+      "solved": true
+     },
+     "turns": 3,
+     "cost_usd": 0.0202494,
+     "usage": {
+      "input_tokens": 6,
+      "cache_creation_input_tokens": 3347,
+      "cache_read_input_tokens": 21494,
+      "output_tokens": 470,
+      "output_tokens_details": {
+       "thinking_tokens": 0
+      },
+      "server_tool_use": {
+       "web_search_requests": 0,
+       "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+       "ephemeral_1h_input_tokens": 3347,
+       "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "global",
+      "iterations": [
+       {
+        "input_tokens": 2,
+        "output_tokens": 184,
+        "cache_read_input_tokens": 8715,
+        "cache_creation_input_tokens": 410,
+        "cache_creation": {
+         "ephemeral_5m_input_tokens": 0,
+         "ephemeral_1h_input_tokens": 410
+        },
+        "type": "message"
+       }
+      ],
+      "speed": "standard",
+      "fallback_credit": null
+     },
+     "by_kind": {
+      "Bash": 2
+     },
+     "hook_stderr": "",
+     "transcript_sha256": "141c2cbb1e79095b426e1249741e339d2c3ee2a02455552ab4b3029872196116"
+    },
+    {
+     "task": "grouped-docs",
+     "arm": "A",
+     "solved": true,
+     "verdict": {
+      "execution_ok": true,
+      "isolation_ok": true,
+      "exact_tree_ok": true,
+      "verification_ok": true,
+      "solved": true
+     },
+     "turns": 4,
+     "cost_usd": 0.0244818,
+     "usage": {
+      "input_tokens": 8,
+      "cache_creation_input_tokens": 3120,
+      "cache_read_input_tokens": 28558,
+      "output_tokens": 913,
+      "output_tokens_details": {
+       "thinking_tokens": 0
+      },
+      "server_tool_use": {
+       "web_search_requests": 0,
+       "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+       "ephemeral_1h_input_tokens": 3120,
+       "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "global",
+      "iterations": [
+       {
+        "input_tokens": 2,
+        "output_tokens": 337,
+        "cache_read_input_tokens": 8149,
+        "cache_creation_input_tokens": 749,
+        "cache_creation": {
+         "ephemeral_5m_input_tokens": 0,
+         "ephemeral_1h_input_tokens": 749
+        },
+        "type": "message"
+       }
+      ],
+      "speed": "standard",
+      "fallback_credit": null
+     },
+     "by_kind": {
+      "Bash": 3
+     },
+     "hook_stderr": "",
+     "transcript_sha256": "f81f991934cd8201dffa3fb4776802c2dcd0faa7a1f5cfd1556a34ab1422514c"
+    },
+    {
+     "task": "grouped-docs",
+     "arm": "R",
+     "solved": true,
+     "verdict": {
+      "execution_ok": true,
+      "isolation_ok": true,
+      "exact_tree_ok": true,
+      "verification_ok": true,
+      "solved": true
+     },
+     "turns": 5,
+     "cost_usd": 0.027944,
+     "usage": {
+      "input_tokens": 10,
+      "cache_creation_input_tokens": 3967,
+      "cache_read_input_tokens": 37960,
+      "output_tokens": 826,
+      "output_tokens_details": {
+       "thinking_tokens": 0
+      },
+      "server_tool_use": {
+       "web_search_requests": 0,
+       "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+       "ephemeral_1h_input_tokens": 3967,
+       "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "global",
+      "iterations": [
+       {
+        "input_tokens": 2,
+        "output_tokens": 257,
+        "cache_read_input_tokens": 9423,
+        "cache_creation_input_tokens": 333,
+        "cache_creation": {
+         "ephemeral_5m_input_tokens": 0,
+         "ephemeral_1h_input_tokens": 333
+        },
+        "type": "message"
+       }
+      ],
+      "speed": "standard",
+      "fallback_credit": null
+     },
+     "by_kind": {
+      "Bash": 4
+     },
+     "hook_stderr": "",
+     "transcript_sha256": "4c96fe6b67e1c252be6f4993e8a3f32c3e9d27a69595e0c168eef5e876eefe00"
+    },
+    {
+     "task": "grouped-routing",
+     "arm": "R",
+     "solved": true,
+     "verdict": {
+      "execution_ok": true,
+      "isolation_ok": true,
+      "exact_tree_ok": true,
+      "verification_ok": true,
+      "solved": true
+     },
+     "turns": 3,
+     "cost_usd": 0.022093599999999998,
+     "usage": {
+      "input_tokens": 6,
+      "cache_creation_input_tokens": 3531,
+      "cache_read_input_tokens": 21776,
+      "output_tokens": 578,
+      "output_tokens_details": {
+       "thinking_tokens": 0
+      },
+      "server_tool_use": {
+       "web_search_requests": 0,
+       "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+       "ephemeral_1h_input_tokens": 3531,
+       "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "global",
+      "iterations": [
+       {
+        "input_tokens": 2,
+        "output_tokens": 258,
+        "cache_read_input_tokens": 8940,
+        "cache_creation_input_tokens": 380,
+        "cache_creation": {
+         "ephemeral_5m_input_tokens": 0,
+         "ephemeral_1h_input_tokens": 380
+        },
+        "type": "message"
+       }
+      ],
+      "speed": "standard",
+      "fallback_credit": null
+     },
+     "by_kind": {
+      "Bash": 2
+     },
+     "hook_stderr": "",
+     "transcript_sha256": "bfddde58c1a671a4e472589d52b4d3a5d720724a15a5230056c9dd6bfd6b6952"
+    },
+    {
+     "task": "grouped-routing",
+     "arm": "A",
+     "solved": true,
+     "verdict": {
+      "execution_ok": true,
+      "isolation_ok": true,
+      "exact_tree_ok": true,
+      "verification_ok": true,
+      "solved": true
+     },
+     "turns": 3,
+     "cost_usd": 0.019637,
+     "usage": {
+      "input_tokens": 6,
+      "cache_creation_input_tokens": 3093,
+      "cache_read_input_tokens": 21330,
+      "output_tokens": 512,
+      "output_tokens_details": {
+       "thinking_tokens": 0
+      },
+      "server_tool_use": {
+       "web_search_requests": 0,
+       "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+       "ephemeral_1h_input_tokens": 3093,
+       "ephemeral_5m_input_tokens": 0
+      },
+      "inference_geo": "global",
+      "iterations": [
+       {
+        "input_tokens": 2,
+        "output_tokens": 243,
+        "cache_read_input_tokens": 8511,
+        "cache_creation_input_tokens": 360,
+        "cache_creation": {
+         "ephemeral_5m_input_tokens": 0,
+         "ephemeral_1h_input_tokens": 360
+        },
+        "type": "message"
+       }
+      ],
+      "speed": "standard",
+      "fallback_credit": null
+     },
+     "by_kind": {
+      "Bash": 2
+     },
+     "hook_stderr": "",
+     "transcript_sha256": "aab5f87c1a168d80a1878f35bcdc1771a128a8e8cf35fc879d75cfcb39fd38e7"
+    }
+   ]
+  }
+ ]
+}
