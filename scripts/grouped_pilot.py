@@ -150,7 +150,7 @@ def cell_settings(arm, config, mrw, scratch, tree):
         command = shlex.quote(config["bench"]) + " hook --log " + shlex.quote(str(scratch / "hook.log")) + " --tree " + shlex.quote(str(tree))
         settings["hooks"] = {"PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "command", "command": command}]}]}
         if arm in READ_HOOKED:
-            settings["hooks"]["PostToolUse"] = [{"matcher": "Read", "hooks": [{"type": "command", "command": shlex.quote(mrw) + " hook read"}]}]
+            settings["hooks"]["PostToolUse"] = [{"matcher": "Read", "hooks": [{"type": "command", "command": shlex.quote(mrw) + " hook read 2>> " + shlex.quote(str(scratch / "hook.stderr"))}]}]
     if compact_pct(config) is not None:
         command = "printf 'compacted\\n' >> " + shlex.quote(str(scratch / "compacted.marker"))
         if arm in APPENDED:
@@ -171,6 +171,12 @@ def compaction_launch(config):
     """The arguments and environment a compacting run adds to every cell of every arm."""
     pct = compact_pct(config)
     return ([], {}) if pct is None else (["--autocompact", "100000"], {"CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": str(pct)})
+
+
+def hook_stderr(scratch):
+    """What a cell's read hook said on stderr, empty when it said nothing: the agent never sees it."""
+    path = scratch / "hook.stderr"
+    return path.read_text(errors="replace") if path.exists() else ""
 
 
 def compactions(scratch):
@@ -270,7 +276,7 @@ def execute_cell(task, arm, config):
                                                               for name in set(initial["files"]) | set(observed)),
                "initial_tree": initial, "record": record, "grade": grade,
                "verdict": verdict(record, grade, code, arm, config["model"]), "outer_wall_ms": wall, "outer_exit": code,
-               "metrics": tool_metrics(stdout_path.read_bytes()), "compactions": compactions(scratch), "supervisor_pid": pid,
+               "metrics": tool_metrics(stdout_path.read_bytes()), "compactions": compactions(scratch), "hook_stderr": hook_stderr(scratch), "supervisor_pid": pid,
                "transcript_sha256": hashlib.sha256(stdout_path.read_bytes()).hexdigest(),
                "stderr_sha256": hashlib.sha256(stderr_path.read_bytes()).hexdigest()}
         pilot.save(out / "cells", identity, row)

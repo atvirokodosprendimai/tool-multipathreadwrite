@@ -319,12 +319,19 @@ class HostReadArm(unittest.TestCase):
         settings = grouped.cell_settings("R", config, mrw, scratch, scratch / "tree")
         self.assertEqual(settings["hooks"]["PreToolUse"],
                          grouped.cell_settings("C", config, mrw, scratch, scratch / "tree")["hooks"]["PreToolUse"])
+        # The read hook's stderr (a missed lock deadline, a newer ledger) goes to a file the row keeps.
         self.assertEqual(settings["hooks"]["PostToolUse"],
-                         [{"matcher": "Read", "hooks": [{"type": "command", "command": "'/runs/own dir/mrw' hook read"}]}])
+                         [{"matcher": "Read", "hooks": [{"type": "command", "command": "'/runs/own dir/mrw' hook read 2>> /scratch/hook.stderr"}]}])
         # The pair: no other arm gets the read hook, and the native arm gets no hook at all.
         for arm in "BFC":
             self.assertEqual(list(grouped.cell_settings(arm, config, mrw, scratch, scratch / "tree")["hooks"]), ["PreToolUse"], arm)
         self.assertEqual(grouped.cell_settings("A", config, mrw, scratch, scratch / "tree"), {})
+
+    def test_a_cells_read_hook_stderr_is_kept_and_empty_without_one(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.assertEqual(grouped.hook_stderr(Path(d)), "")
+            (Path(d) / "hook.stderr").write_text("mrw: hook read: the ledger lock was not taken in 1s\n")
+            self.assertEqual(grouped.hook_stderr(Path(d)), "mrw: hook read: the ledger lock was not taken in 1s\n")
 
     def test_r_appends_c_guide_and_refuses_one_not_registered(self):
         self.assertEqual(grouped.REGISTERED_GUIDES["R"], grouped.REGISTERED_GUIDES["C"])
