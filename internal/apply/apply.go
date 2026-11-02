@@ -2649,10 +2649,11 @@ func trim(s string) string {
 // `    timeout: 30,` — so the refusal says what it saw and names the spellings
 // that keep a quote. An anchor some other line holds is a wrong range, and gets
 // no such advice: re-anchoring on the addressed line would edit the wrong one.
-// The line it quotes is the one the caller was served (ADR-028).
+// The line it quotes is the one the caller was served (ADR-028), quoted as the
+// anchor is: exactly, so an indent the anchor keeps is not shown trimmed away.
 func anchorMiss(anchor string, n int, orig []string) string {
 	line := orig[n-1]
-	msg := fmt.Sprintf("anchor %q not in line %d: %s", anchor, n, trim(line))
+	msg := fmt.Sprintf("anchor %q not in line %d: %q", anchor, n, clip(line))
 	if !strings.Contains(strings.ReplaceAll(line, `"`, ""), anchor) {
 		return msg
 	}
