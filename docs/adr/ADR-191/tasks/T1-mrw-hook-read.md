@@ -1,0 +1,133 @@
+# Task ADR-191-T1: `mrw hook read` records what a host Read showed
+
+**Depends-on:** none
+**Covers:** none — no spec
+**Estimated scope:** M
+**Owner:** unassigned
+**Produces:** `mrw hook read`; `TestAHostReadLicensesOnlyTheLinesItShowedAsTheyAre`; contract §329; the hook block in `docs/agents.md`
+**Consumes:** none
+**Data dependency:** a real Claude Code PostToolUse payload for Read, captured once (S1)
+**Proof map:** v1
+**Rests-on:** `a host read licenses only lines shown whole`, `the hook never fails the host`
+
+## Goal
+
+Decisions 1-4 of the record.
+
+## Affected Files
+
+| File | Change | Why |
+|------|--------|-----|
+| `cmd/mrw/hookread191_test.go` | new | the red test |
+| `cmd/mrw/hookread191.go` | new | the subcommand |
+| `cmd/mrw/main.go` | edit | register `hook` and its `read` command |
+| `internal/seen/seen.go` | edit only if `Record` needs a caller it lacks | reuse the read's record path |
+| `docs/agents.md` | edit | the PostToolUse block |
+| `scripts/contract.sh` | edit | §329 |
+
+## Ordered Steps
+
+1. [S1] For each case (a whole file, an offset and limit, a line over 2,000 characters, a file past Read's size limit, a non-text file), capture the PostToolUse payload together with the same call's tool result in the session transcript. Save both as test fixtures, with synthetic file content only, and record the Claude Code version. Choose the payload representation that equals the transcript's in every case. If none does, stop: the record's Decision 4. [proof: human: the payload and the transcript are the host's, not ours]
+2. [S2] Write the failing test `TestAHostReadLicensesOnlyTheLinesItShowedAsTheyAre` and see it RED. Cases, from the captured fixtures:
+   - the returned lines are licensed, and a line outside them is not;
+   - a returned line that differs from disk (cut, or changed after the read) is not licensed;
+   - an unrecognised response shape, or an error response, records nothing;
+   - a held ledger lock: the command returns within its deadline, records nothing, exits 0;
+   - a legacy `./.mrw` present with its destination lock held: the command still returns within its deadline;
+   - a path outside the root records nothing;
+   - a non-Read tool records nothing;
+   - a malformed payload records nothing and exits 0.
+3. [S3] The subcommand. Mutants, each killed:
+   - license the requested range rather than the returned content, so the outside-range case goes red;
+   - skip the comparison with disk, so the changed-line case goes red;
+   - wait on the lock without a deadline, so the held-lock case goes red;
+   - run the startup migration, so the legacy-state case goes red.
+   [proof: mutation]
+4. [S4] `docs/agents.md` gains the hook block, and contract §329 drives the built binary. A Read payload on stdin licenses its lines, and a plan to one of them applies, exit 0. The pair: a plan to a line outside its range is refused, exit 1. [proof: acceptance]
+
+## Acceptance
+
+```bash
+set -o pipefail
+out=$(go test ./cmd/mrw/ -count=1 -v -run '^TestAHostReadLicensesOnlyTheLinesItShowedAsTheyAre$' 2>&1) \
+  && grep -qE '^--- PASS: TestAHostReadLicensesOnlyTheLinesItShowedAsTheyAre \(' <<<"$out" \
+  && c=$(./scripts/contract.sh 2>&1) \
+  && grep -q '^# 329\. ' scripts/contract.sh \
+  && grep -qF 'PASS  a host Read payload licenses the lines it showed' <<<"$c" \
+  && grep -qF 'PASS  the pair: a line outside that read stays unlicensed' <<<"$c" \
+  && grep -qF 'mrw hook read' docs/agents.md \
+  && [ -z "$(gofmt -l internal cmd)" ] \
+  && git diff --quiet "$(git merge-base HEAD origin/main)" -- go.mod go.sum internal/read internal/apply internal/plan internal/check internal/state \
+  && [ -z "$(git status --porcelain --untracked-files=all -- internal/read internal/apply internal/plan internal/check internal/state)" ]
+```
+
+## Tests
+
+| Test name | File | Verifies | Covers | Steps |
+|-----------|------|----------|--------|-------|
+| `TestAHostReadLicensesOnlyTheLinesItShowedAsTheyAre` | `cmd/mrw/hookread191_test.go` | only lines shown whole are licensed; a bad or foreign payload records nothing and exits 0 | none | S2, S3 |
+
+## Reachability
+
+| Rung | How this task shows it |
+|------|------------------------|
+| 1 — exists | the test |
+| 2 — something selects it | a host's PostToolUse hook with matcher `Read` |
+| 3 — the caller can discover it | `docs/agents.md`, `mrw hook --help` |
+| 4 — it is used | no telemetry (ADR-009); the paid run measures it |
+
+## Mutation Log
+- 2026-11-02 · 8bd3ea90* · mutant killed · exit 1 · `cmd/mrw/hookread191.go` · skip the comparison with the file on disk: a cut line and a line changed after the read are licensed · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · covers:a host read licenses only lines shown whole
+- 2026-11-02 · 8bd3ea90* · mutant killed · exit 1 · `cmd/mrw/hookread191.go` · license a requested range of 9 lines from startLine rather than the returned content, and skip the disk comparison it would have failed · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · covers:a host read licenses only lines shown whole
+- 2026-11-02 · 8bd3ea90* · mutant killed · exit 1 · `internal/seen/seen.go` · wait on the ledger lock without a deadline · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · covers:the hook never fails the host
+- 2026-11-02 · 8bd3ea90* · mutant killed · exit 1 · `cmd/mrw/main.go` · run the startup migration of a legacy ./.mrw for the hook · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · covers:the hook never fails the host
+- 2026-11-02 · ef6cbdda* · mutant killed · exit 1 · `cmd/mrw/hookread191.go` · let a null decode as an empty value · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · covers:a host read licenses only lines shown whole
+- 2026-11-02 · ef6cbdda* · mutant killed · exit 1 · `cmd/mrw/hookread191.go` · wait for standard input without the command deadline · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · covers:the hook never fails the host
+- 2026-11-02 · ef6cbdda* · mutant killed · exit 1 · `cmd/mrw/hookread191.go` · key an absolute path by its spelling, not by where a link leads · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · covers:a host read licenses only lines shown whole
+- 2026-11-02 · ef6cbdda* · mutant killed · exit 1 · `cmd/mrw/hookread191.go` · join the path instead of resolving it: a link out of the root, a state file and a hard link to it are read · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · covers:a host read licenses only lines shown whole
+- 2026-11-02 · ef6cbdda* · mutant killed · exit 1 · `cmd/mrw/hookread191.go` · ignore is_error on a response that still carries content · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · covers:a host read licenses only lines shown whole
+- 2026-11-02 · ef6cbdda* · mutant killed · exit 1 · `cmd/mrw/hookread191.go` · accept any response type that carries content · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · covers:a host read licenses only lines shown whole
+- 2026-11-02 · ef6cbdda* · mutant killed · exit 1 · `cmd/mrw/hookread191.go` · ignore a file path that disagrees with the input · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · covers:a host read licenses only lines shown whole
+- 2026-11-02 · ef6cbdda* · mutant killed · exit 1 · `cmd/mrw/hookread191.go` · a mistyped hook subcommand exits 3, the check-failed status · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · covers:the hook never fails the host
+
+## Verification Log
+- 2026-11-02 · human-observed · S1: Zy-side capture by the lead, commit 8bd3ea90 "ADR-191 T1 S1: captured Read payloads from Claude Code 2.1.316": four PostToolUse payloads compared with the same calls in the session transcript; file.content from file.startLine equals the lines the model received, a 2,500-character line was not cut, a failed Read sent no payload, an image has base64 and no content · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484
+- 2026-11-02 · 8bd3ea90* · exit 1 · `set -o pipefail …` · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · ms:1544 · test-lock-sha256:e62d7d1b98b9eb98dc868238048c4b4ab8c4a44eed53e2a9ce99d5fab2ccfc7f · test-lock-file:docs/adr/locks/e62d7d1b98b9eb98dc868238048c4b4ab8c4a44eed53e2a9ce99d5fab2ccfc7f.lock
+  ```
+  ```
+- 2026-11-02 · 8bd3ea90* · exit 1 · `set -o pipefail …` · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · ms:190879
+  ```
+  ```
+- 2026-11-02 · 8bd3ea90* · exit 0 · `set -o pipefail …` · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · ms:106271
+- 2026-11-02 · 8bd3ea90* · exit 0 · `set -o pipefail …` · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · ms:123889
+- 2026-11-02 · 8bd3ea90* · exit 0 · `set -o pipefail …` · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · ms:134567
+- 2026-11-02 · 8bd3ea90* · exit 0 · `set -o pipefail …` · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · ms:84756
+- 2026-11-02 · 8bd3ea90* · exit 0 · `set -o pipefail …` · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · ms:95714
+- 2026-11-02 · ef6cbdda* · exit 0 · `set -o pipefail …` · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · ms:124057
+- 2026-11-02 · ef6cbdda* · exit 0 · `set -o pipefail …` · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · ms:94852
+- 2026-11-02 · ef6cbdda* · exit 0 · `set -o pipefail …` · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · ms:93763
+- 2026-11-02 · ef6cbdda* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · ms:0 · test-lock-sha256:59dac61be0dafc7b9e4c3443ba5772b69e5b68fcb9cf0c692d3421e1cbbd33cc · test-lock-file:docs/adr/locks/59dac61be0dafc7b9e4c3443ba5772b69e5b68fcb9cf0c692d3421e1cbbd33cc.lock · test-lock-kind:replace
+- 2026-11-02 · ef6cbdda* · exit 0 · `set -o pipefail …` · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · ms:106814
+- 2026-11-02 · ef6cbdda* · exit 0 · `set -o pipefail …` · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · ms:128561
+- 2026-11-02 · ef6cbdda* · exit 0 · `set -o pipefail …` · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · ms:132088
+- 2026-11-02 · ef6cbdda* · exit 0 · `set -o pipefail …` · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · ms:99403
+- 2026-11-02 · ef6cbdda* · exit 0 · `set -o pipefail …` · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · ms:95561
+- 2026-11-02 · ef6cbdda* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · ms:0 · test-lock-sha256:ed0e4fc487b2d6e841ed1999337372c411ea9b4405609bb400a33bf77c4f1319 · test-lock-file:docs/adr/locks/ed0e4fc487b2d6e841ed1999337372c411ea9b4405609bb400a33bf77c4f1319.lock · test-lock-kind:replace
+- 2026-11-02 · ef6cbdda* · exit 0 · `set -o pipefail …` · acceptance-sha256:1dd8749fb9a79dec64644b2e959fa59f3b417adc0917685f4279055989740484 · ms:83343
+
+## Invariants
+
+- Nothing outside the root, in `.git` or in mrw's state is recorded.
+- The hook exits 0 whatever it is given.
+
+## Risks
+
+- None beyond the record's.
+
+## Stop Condition
+
+The fence exits 0, or S1 finds the payload over-claims, which stops the task.
+
+## Out of Scope
+
+- Grep and Bash output (permanent: boundary: ADR-191 Out of Scope)

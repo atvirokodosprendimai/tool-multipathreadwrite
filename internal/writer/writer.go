@@ -98,7 +98,11 @@ func applyCounted(root string, in []apply.Input, opt apply.Options) (apply.Resul
 			gone = append(gone, f.Path)
 			continue
 		}
-		if f.Written {
+		if f.Written && f.QuotedOnly {
+			// ADR-190: a quote licensed these lines and the caller read nothing
+			// else, so the file is known only where it was written.
+			wrote[f.Path] = seen.Observation{SHA: f.SHAAfter, Spans: append([][2]int{}, f.Spans...)}
+		} else if f.Written {
 			wrote[f.Path] = seen.Observation{SHA: f.SHAAfter, Written: true}
 		}
 	}

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/lines"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/quote"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 )
 
@@ -17,8 +18,9 @@ const (
 
 // CompileSearchReplace turns an Aider SEARCH/REPLACE document into native plan
 // text. root is the checkout the paths are relative to. The function writes
-// nothing. A unique exact SEARCH match is location, not a license and not a
-// fuzzy apply.
+// nothing. A unique exact SEARCH match is a quote of the lines it replaces
+// (ADR-190): each hunk carries a mark apply checks, and a near miss is not
+// fuzzy applied.
 func CompileSearchReplace(root string, doc []byte) ([]byte, error) {
 	doc, _ = DropLeadingMarks(doc)
 	s := strings.ReplaceAll(string(doc), "\r\n", "\n")
@@ -115,11 +117,19 @@ func compileSearchHunk(root, path string, search, replace []string) (string, err
 	case 0:
 		return "", fmt.Errorf("search_replace: %s: SEARCH matched no lines", path)
 	case 1:
+		// The block quoted every line it replaces, so the hunk carries a mark
+		// apply can check against the file under the write lock (ADR-190). A
+		// closer SEARCH and REPLACE share is kept, not rewritten: it is the
+		// line after the range, and the quote is what licenses it (ADR-052).
+		tail := 0
+		if len(search) >= 2 && len(replace) >= 2 && search[len(search)-1] == replace[len(replace)-1] {
+			tail, end, replace = 1, end-1, replace[:len(replace)-1]
+		}
 		anchor := ""
 		if end > start {
 			anchor = search[0]
 		}
-		return emit("replace", path, start, end, replace, anchor), nil
+		return emitMarked("replace", path, start, end, replace, anchor, quote.Mark(path, start, end, tail, search)), nil
 	default:
 		return "", fmt.Errorf("search_replace: %s: SEARCH matched %d times; refuse rather than guess", path, n)
 	}

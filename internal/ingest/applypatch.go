@@ -368,6 +368,12 @@ func emitPath(op, path string, body []string) string {
 }
 
 func emit(op, path string, start, end int, body []string, anchor string) string {
+	return emitMarked(op, path, start, end, body, anchor, "")
+}
+
+// emitMarked is emit with the quote mark of a SEARCH block that quoted the
+// lines it replaces (ADR-190); apply_patch writes none.
+func emitMarked(op, path string, start, end int, body []string, anchor, mark string) string {
 	var b strings.Builder
 	addr := fmt.Sprintf("%d", start)
 	if op != "create" && end != start {
@@ -376,6 +382,9 @@ func emit(op, path string, start, end int, body []string, anchor string) string 
 	fmt.Fprintf(&b, "@@ %s %s %s", quotePlanPath(path), addr, op)
 	if anchor != "" {
 		fmt.Fprintf(&b, " %s", quoteAnchor(anchor))
+	}
+	if mark != "" {
+		fmt.Fprintf(&b, " quote=%s", mark)
 	}
 	// A body with an @@ line needs a count so the parser knows where it ends;
 	// one whose first line begins body= needs one so the parser does not refuse

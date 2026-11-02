@@ -710,7 +710,28 @@ func Record(root string, obs map[string]Observation) error {
 	if beforeLock != nil {
 		beforeLock()
 	}
-	return withLock(root, func() error {
+	return withLock(root, merged(root, obs))
+}
+
+// RecordWithin is Record for a caller that must not wait: the ledger lock is
+// tried for wait, and a *state.LockTimeoutError comes back with nothing recorded
+// (ADR-191, a host's hook runs once per host read).
+func RecordWithin(root string, obs map[string]Observation, wait time.Duration) error {
+	if len(obs) == 0 {
+		return nil
+	}
+	top, _ := state.Checkout(root)
+	release, err := state.HoldWithin(top, Name+".lock", wait)
+	if err != nil {
+		return err
+	}
+	defer release()
+	return merged(root, obs)()
+}
+
+// merged is the load-merge-save both Records run under the ledger lock.
+func merged(root string, obs map[string]Observation) func() error {
+	return func() error {
 		// ADR-150: a newer mrw's ledger is never written over, so this read
 		// records nothing.
 		if _, newer, err := Newer(root); err == nil && newer {
@@ -726,7 +747,7 @@ func Record(root string, obs map[string]Observation) error {
 			l[k] = merge(l[k], o)
 		}
 		return save(top, l)
-	})
+	}
 }
 
 func withLock(root string, fn func() error) error {
