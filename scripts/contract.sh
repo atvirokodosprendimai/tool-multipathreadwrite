@@ -11032,12 +11032,12 @@ out=$(e325 "$MRW" -C "$R325" read long.txt:100-101 2>&1); rc325=$?
 rm -rf "$S325" "$R325"
 
 # 326. ADR-015: a refusal names the fix. A directory named to mrw read is
-# UNREADABLE, exit 1, and the line after it says it is walked and names --grep;
+# UNREADABLE, exit 1, says "is a directory" on every OS, and the line after it says it is walked and names --grep;
 # a link names the directory it leads to. The pair: a missing file gets no such line.
 R326=$(mktemp -d "$WORK/r326-XXXXXX"); mkdir "$R326/sub"; printf 'a\n' > "$R326/sub/a.txt"; ln -s sub "$R326/link"
 e326() { env XDG_STATE_HOME="$R326/state" "$MRW" -C "$R326" read "$@" 2>&1; }
 out=$(e326 sub); rc326=$?
-{ [ "$rc326" = 1 ] && grep -q '^==> sub  UNREADABLE' <<<"$out" && grep -qF 'a directory is walked, not read: give it to mrw read --grep PATTERN' <<<"$out"; } \
+{ [ "$rc326" = 1 ] && grep -qx '==> sub  UNREADABLE  is a directory' <<<"$out" && grep -qF 'a directory is walked, not read: give it to mrw read --grep PATTERN' <<<"$out"; } \
   && ok "a directory named to read says it is walked and names --grep" || bad "dir read: exit $rc326 [$out]"
 out=$(e326 link)
 grep -qF 'a link to the directory sub, and a walk does not follow a link: give sub to' <<<"$out" \
@@ -11045,6 +11045,13 @@ grep -qF 'a link to the directory sub, and a walk does not follow a link: give s
 out=$(e326 nope.txt); rc326=$?
 { [ "$rc326" = 1 ] && ! grep -q 'walked, not read' <<<"$out"; } \
   && ok "the pair: a missing file gets no walk hint" || bad "missing: exit $rc326 [$out]"
+if [ "$(id -u)" = 0 ]; then skip "a mode-000 directory keeps its own error (root opens it)"; else
+  mkdir "$R326/locked"; chmod 000 "$R326/locked"
+  out=$(e326 locked); rc326=$?
+  { [ "$rc326" = 1 ] && grep -q '^==> locked  UNREADABLE  .*permission denied' <<<"$out" && ! grep -q 'is a directory\|walked, not read' <<<"$out"; } \
+    && ok "the pair: a directory that cannot be opened keeps its own error and gets no walk hint" || bad "locked dir: exit $rc326 [$out]"
+  chmod 755 "$R326/locked"
+fi
 rm -rf "$R326"
 
 # Nothing this run started may outlive it. Checked after the last row, so every
