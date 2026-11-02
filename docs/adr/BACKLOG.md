@@ -518,6 +518,33 @@ both nets are 0: `sibling_spec.rb`, `nested.go`, and two replaces in this sessio
 Owner: mrw's ADR-119 follow-up. Shipping needs an ADR amending ADR-119 and Zy's acceptance; this entry decides
 nothing beyond the bar.
 
+**Result, 2026-11-02: does not ship. Bar 3 missed on seed 3119.**
+- `docs/break/shape-hints/stress.py` gained the variant; no other change.
+- Each seed took about 33 s over 14 repositories and one worktree.
+
+Bar 1 held: the blade, html and markdown field fixtures all still fire.
+
+Bar 2 held: all eight `scripts/mrw_observe.py` cases match their expected hint. `sibling_spec.rb` and `nested.go` no
+longer fire; `duplicate.md` and `blanks.md` still do.
+
+Bar 3 missed. False fires on correct committed edits:
+
+| seed | replaces | `closer_k4_token_ne` (shipped) | `closer_k4_token_ne_net` | `blade` shipped / net |
+|---|---:|---:|---:|---:|
+| 2119 | 11,661 | 136 | 12 | 5.66% / 1.89% of 53 |
+| 3119 | 11,356 | 120 | 23 | 9.28% / **6.19%** of 97 |
+
+The variant removes 91% and 81% of false fires, and gains none. But on seed 3119 its `blade` bucket is over
+ADR-119's 5% bar, so it does not ship. Bar 4 (a hand read of removed fires) was not run: bar 3 already
+decides the outcome.
+
+A finding against the shipped hint: `closer_k4_token_ne` is now over ADR-119's own bar in `blade` on both seeds,
+5.66% and 9.28%. ADR-119 measured under 5% everywhere on 2026-10-02; the history has grown since. That is
+an open defect of the shipped receipt, not of this variant.
+
+A next variant needs its own pre-registration and a fresh seed. Where to look: the six `blade` fires the net
+variant still makes on seed 3119. Owner: as above.
+
 ## Pre-registered for ADR-156 (does mrw pay for itself on agent runs) — the bar, written before any run
 
 Zy, 2026-10-14: both Sonnet 5.5 and Opus 5.5; our own oracle-graded tasks and a SWE-bench Verified slice; configuration B with mrw forced; the subscription only. Registered here, in the record's first commit, before `bench`, any task or any run exists, so a result cannot move it:
