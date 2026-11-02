@@ -1804,7 +1804,9 @@ func hintWord(name string, windows bool) (string, bool) {
 	// cmd or pwsh read inside double quotes leave no form every shell takes.
 	if windows {
 		name = strings.ReplaceAll(name, `\`, "/")
-		if strings.ContainsAny(name, "\"$`%!") {
+		// MSYS rewrites an argument that starts with one / against Git's own root, so a
+		// drive-less rooted path (\repo) has no form Git Bash keeps; C:/, // and ./ it leaves.
+		if strings.ContainsAny(name, "\"$`%!") || (strings.HasPrefix(name, "/") && !strings.HasPrefix(name, "//")) {
 			return quoteWord(name, windows), false
 		}
 	}
