@@ -82,6 +82,7 @@ None — one task.
 
 - **Positive:** after a compaction, and for a file the agent saw with the host's tools, a quoted edit lands without a read: the shape of the 90 and 26 re-reads above.
 - **Negative:** one input no longer goes through ADR-002's ledger. The guarantee there becomes "the model quoted it exactly", not "mrw served it".
+- **Inherited, not changed here:** a later NATIVE write to a quoted file records it as written, and ADR-005 then licenses the whole file, as it does after any native write to a file only partly read. ADR-190 only adds a way to reach that partial state with no read. Whether ADR-005 should keep that rule is issue #602, for its own record.
 - **Neutral:** a native plan behaves exactly as before.
 
 ## Out of Scope
