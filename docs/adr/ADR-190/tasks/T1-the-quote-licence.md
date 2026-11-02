@@ -99,6 +99,7 @@ out=$(go test ./internal/ingest/ ./internal/apply/ ./internal/plan/ -count=1 -v 
 - 2026-11-02 · 0d6cd3af* · mutant killed · exit 1 · `internal/apply/apply.go` · a quoted hunk never needs the line after its range, so the block with no kept closer applies and the line-after cases must go red · acceptance-sha256:6c3d61bb9c3ae30dd5478f50453bdc843d00a68141de27714e1134f58e7b25aa · covers:nothing outside the quote is licensed by it
 - 2026-11-02 · 0d6cd3af* · mutant killed · exit 1 · `internal/apply/apply.go` · the quote is verified at compile time only and planFile trusts the mark, the compare-before-the-lock shape: a file changed while the landing waits for the write lock stays licensed and the lock-boundary case must go red · acceptance-sha256:6c3d61bb9c3ae30dd5478f50453bdc843d00a68141de27714e1134f58e7b25aa · covers:an exact unique quote licenses its lines
 - 2026-11-02 · 0d6cd3af* · mutant killed · exit 1 · `internal/apply/apply.go` · the quoted line-after check ignores whether the ledger entry still describes the file, so a stale entry covering the line after licenses it and the stale-ledger case must go red · acceptance-sha256:6c3d61bb9c3ae30dd5478f50453bdc843d00a68141de27714e1134f58e7b25aa · covers:nothing outside the quote is licensed by it
+- 2026-11-02 · 565cea7c* · mutant killed · exit 1 · `internal/apply/apply.go` · any matching ledger entry again clears the quoted-only mark, so a partial read followed by a quoted write leaves the whole-file licence and the partial-read case must go red · acceptance-sha256:6c3d61bb9c3ae30dd5478f50453bdc843d00a68141de27714e1134f58e7b25aa · covers:nothing outside the quote is licensed by it
 
 ## Verification Log
 - 2026-11-02 · 84267ed8* · exit 1 · `set -o pipefail …` · acceptance-sha256:6c3d61bb9c3ae30dd5478f50453bdc843d00a68141de27714e1134f58e7b25aa · ms:1430 · test-lock-sha256:7bf0ee472c41643df19fc13f3fb7547cfd5e5d15d633e02957a212fec6fa93e7 · test-lock-file:docs/adr/locks/7bf0ee472c41643df19fc13f3fb7547cfd5e5d15d633e02957a212fec6fa93e7.lock
@@ -120,6 +121,8 @@ out=$(go test ./internal/ingest/ ./internal/apply/ ./internal/plan/ -count=1 -v 
 - 2026-11-02 · 0d6cd3af* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:6c3d61bb9c3ae30dd5478f50453bdc843d00a68141de27714e1134f58e7b25aa · ms:0 · test-lock-sha256:921a342b4fa9643fc99bea0abf5b73e597882b16ca03713821a2cb14bccc2751 · test-lock-file:docs/adr/locks/921a342b4fa9643fc99bea0abf5b73e597882b16ca03713821a2cb14bccc2751.lock · test-lock-kind:replace
 - 2026-11-02 · 0d6cd3af* · exit 0 · `set -o pipefail …` · acceptance-sha256:6c3d61bb9c3ae30dd5478f50453bdc843d00a68141de27714e1134f58e7b25aa · ms:80567
 - 2026-11-02 · 22940adf · exit 0 · `set -o pipefail …` · acceptance-sha256:6c3d61bb9c3ae30dd5478f50453bdc843d00a68141de27714e1134f58e7b25aa · ms:92468
+- 2026-11-02 · 565cea7c · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:6c3d61bb9c3ae30dd5478f50453bdc843d00a68141de27714e1134f58e7b25aa · ms:0 · test-lock-sha256:a6c6cf6c2133ac63b8c56e8c6f315732ff6506f780d98def99973500bb9eb335 · test-lock-file:docs/adr/locks/a6c6cf6c2133ac63b8c56e8c6f315732ff6506f780d98def99973500bb9eb335.lock · test-lock-kind:replace
+- 2026-11-02 · 565cea7c* · exit 0 · `set -o pipefail …` · acceptance-sha256:6c3d61bb9c3ae30dd5478f50453bdc843d00a68141de27714e1134f58e7b25aa · ms:87164
 
 ## Invariants
 
