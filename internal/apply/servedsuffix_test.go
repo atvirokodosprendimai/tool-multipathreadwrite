@@ -63,3 +63,40 @@ func TestAMissingPlanPathNamesTheServedFileItEndsLike(t *testing.T) {
 		}
 	}
 }
+
+// The same hint on every refusal of a missing plan path: unlink, rename and a
+// sha= guard on a line op name the served file too (the gap #592 first left).
+// The pair: a path nothing served ends in gets the bare refusal.
+func TestEveryMissingPathRefusalNamesTheServedFile(t *testing.T) {
+	const hint = "; you were served parsers/parser_0.py — every path in a plan is relative to the root"
+	for _, c := range []struct {
+		name string
+		in   Input
+		bare string
+	}{
+		{"unlink", Input{Path: "parser_0.py", Op: "unlink", Lines: -1}, "parser_0.py does not exist"},
+		{"rename", Input{Path: "parser_0.py", Op: "rename", Body: []string{"q.py"}, Lines: -1}, "parser_0.py does not exist"},
+		{"sha= on a replace", Input{Path: "parser_0.py", Start: 1, End: 1, Op: "replace", Body: []string{"x"}, SHA: "abcd1234", Lines: -1},
+			"sha=abcd1234 given but parser_0.py does not exist"},
+	} {
+		for _, served := range []bool{true, false} {
+			root := t.TempDir()
+			write(t, root, "parsers/parser_0.py", "a\nb\n")
+			seen := map[string]Seen{}
+			if served {
+				seen[filepath.FromSlash("parsers/parser_0.py")] = Seen{}
+			}
+			res, err := Apply(root, []Input{c.in}, Options{Seen: seen})
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := c.bare
+			if served {
+				want += hint
+			}
+			if r := res.Hunks[0].Reason; res.Failed != 1 || r != want {
+				t.Errorf("%s served=%v: failed=%d reason\n %q, want\n %q", c.name, served, res.Failed, r, want)
+			}
+		}
+	}
+}
