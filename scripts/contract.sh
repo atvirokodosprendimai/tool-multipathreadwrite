@@ -11004,11 +11004,15 @@ rm -rf "$S324" "$R324" "$WORK/served324.out"
 # The pair: a missing file is UNREADABLE with no such line.
 R326=$(mktemp -d "$WORK/r326-XXXXXX"); mkdir "$R326/sub"; printf 'a\n' > "$R326/sub/a.txt"
 out=$(env XDG_STATE_HOME="$R326/state" "$MRW" -C "$R326" read sub 2>&1); rc326=$?
-{ [ "$rc326" = 1 ] && grep -q '^==> sub  UNREADABLE' <<<"$out" && grep -qF 'a directory you name is walked: mrw read --grep PATTERN sub' <<<"$out"; } \
+{ [ "$rc326" = 1 ] && grep -q '^==> sub  UNREADABLE' <<<"$out" && grep -qF 'a directory you name is walked: mrw read --grep PATTERN -- sub serves' <<<"$out" && grep -qF -- "--grep '^' -- sub every line" <<<"$out"; } \
   && ok "a directory named to read says how to walk it" || bad "dir read: exit $rc326 [$out]"
 out=$(env XDG_STATE_HOME="$R326/state" "$MRW" -C "$R326" read nope.txt 2>&1); rc326=$?
 { [ "$rc326" = 1 ] && grep -q 'UNREADABLE' <<<"$out" && ! grep -q 'a directory you name is walked' <<<"$out"; } \
   && ok "the pair: a missing file gets no walk hint" || bad "missing file: exit $rc326 [$out]"
+ln -s sub "$R326/link"
+out=$(cd "$R326" && env XDG_STATE_HOME="$R326/state" "$MRW" read link 2>&1); rc326=$?
+{ [ "$rc326" = 1 ] && grep -qF 'a directory you name is walked: mrw read --grep PATTERN -- sub serves' <<<"$out"; } \
+  && ok "a link to a directory, read from the root, names the directory it leads to" || bad "link read: exit $rc326 [$out]"
 rm -rf "$R326"
 
 # Nothing this run started may outlive it. Checked after the last row, so every

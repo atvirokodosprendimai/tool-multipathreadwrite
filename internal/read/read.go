@@ -1325,9 +1325,7 @@ func load(w io.Writer, root string, sp *Spec) (b []byte, englishUnreadable, ok b
 	if err != nil {
 		glob := hintUnexpandedGlob(sp.Path)
 		if statErr == nil && fi.IsDir() {
-			// ADR-015: a refusal names the fix. A directory is read by walking it.
-			glob = "\n    (a directory you name is walked: mrw read --grep PATTERN " + sp.Path +
-				" serves the lines of its files that match, and --grep '' " + sp.Path + " every line.)"
+			glob = walkHint(root, sp.Path, full)
 		}
 		fmt.Fprintf(w, "==> %s  UNREADABLE  %v%s\n", sp.Path, err, glob)
 		return nil, glob == "" && isEnglishWordToken(sp.Path), false
@@ -1734,6 +1732,50 @@ func NamedFiles(names []string) string {
 // It fires only on a path that ALREADY failed to open, so it is advice about a
 // broken path rather than a claim about what the caller meant. A file whose
 // name really does contain a star is served normally and never sees this.
+// walkHint is the line after a directory's UNREADABLE refusal (ADR-015: a
+// refusal names the fix): a directory is read by walking it. The command it
+// prints runs as printed — the path quoted and after --, '^' for "every line"
+// since mrw_read takes an empty grep as none — and a link names the directory
+// it leads to, since a walk does not follow one (ADR-096).
+func walkHint(root, path, full string) string {
+	name := path
+	if li, err := os.Lstat(filepath.Join(root, path)); err == nil && li.Mode()&os.ModeSymlink != 0 {
+		if rel, ok := linkTarget(root, full); ok {
+			name = rel
+		}
+	}
+	q := quoteWord(name, runtime.GOOS == "windows")
+	return "\n    (a directory you name is walked: mrw read --grep PATTERN -- " + q +
+		" serves the lines of its files that match, and --grep '^' -- " + q + " every line.)"
+}
+
+// linkTarget is where a link inside root leads, relative to root, or false when
+// that cannot be said or leaves root. Resolve keeps a link's own name, and the
+// root may be relative ("." by default), so both are made absolute first.
+func linkTarget(root, full string) (string, bool) {
+	absRoot, err := filepath.Abs(root)
+	if err != nil {
+		return "", false
+	}
+	absFull, err := filepath.Abs(full)
+	if err != nil {
+		return "", false
+	}
+	top, err := filepath.EvalSymlinks(absRoot)
+	if err != nil {
+		return "", false
+	}
+	dest, err := filepath.EvalSymlinks(absFull)
+	if err != nil {
+		return "", false
+	}
+	rel, err := filepath.Rel(top, dest)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", false
+	}
+	return filepath.ToSlash(rel), true
+}
+
 func hintUnexpandedGlob(path string) string {
 	if !strings.ContainsAny(path, "*?[") {
 		return ""

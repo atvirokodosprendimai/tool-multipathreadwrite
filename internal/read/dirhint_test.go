@@ -3,31 +3,55 @@ package read
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
 
 // ADR-015: a refusal names the fix. A directory named to read is UNREADABLE, as
-// before, and the line after it says how to read one: walk it with --grep. In
-// the benchmark's run 8 an agent's `mrw read .` cost a turn on "is a directory"
-// alone. The pair: a missing file gets no such line.
+// before, and the line after it says how to read one: walk it with --grep, in a
+// command that runs as printed. In the benchmark's run 8 an agent's `mrw read .`
+// cost a turn on "is a directory" alone. A missing file, or a file that exists
+// and cannot be read, gets no such line (the go-reviewer pass found the second
+// case untested).
 func TestADirectoryNamedToReadSaysHowToWalkIt(t *testing.T) {
 	root := t.TempDir()
-	if err := os.Mkdir(filepath.Join(root, "sub"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	writeFile(t, root, "sub/a.txt", "a\n")
-	for _, c := range []struct {
-		spec string
-		hint bool
-	}{{"sub", true}, {"sub:1-2", true}, {"nope.txt", false}} {
-		out, problems := run(t, root, Options{Numbers: true}, c.spec)
-		if problems != 1 || !strings.Contains(out, "UNREADABLE") {
-			t.Fatalf("%s: problems=%d, want the UNREADABLE refusal:\n%s", c.spec, problems, out)
+	for _, d := range []string{"sub", "my dir"} {
+		if err := os.Mkdir(filepath.Join(root, d), 0o755); err != nil {
+			t.Fatal(err)
 		}
-		got := strings.Contains(out, "a directory you name is walked: mrw read --grep PATTERN sub")
-		if got != c.hint {
-			t.Errorf("%s: hint present %v, want %v:\n%s", c.spec, got, c.hint, out)
+		writeFile(t, root, d+"/a.txt", "a\n")
+	}
+	cases := []struct{ spec, hint string }{
+		{"sub", "mrw read --grep PATTERN -- sub serves"},
+		{"sub:1-2", "mrw read --grep PATTERN -- sub serves"},
+		{"my dir", "mrw read --grep PATTERN -- 'my dir' serves"},
+		{"nope.txt", ""},
+	}
+	if runtime.GOOS != "windows" {
+		if err := os.Symlink("sub", filepath.Join(root, "link")); err != nil {
+			t.Fatal(err)
+		}
+		cases = append(cases, struct{ spec, hint string }{"link", "mrw read --grep PATTERN -- sub serves"})
+		if os.Geteuid() != 0 {
+			writeFile(t, root, "locked.txt", "x\n")
+			if err := os.Chmod(filepath.Join(root, "locked.txt"), 0); err != nil {
+				t.Fatal(err)
+			}
+			cases = append(cases, struct{ spec, hint string }{"locked.txt", ""})
+		}
+	}
+	for _, c := range cases {
+		out, problems := run(t, root, Options{Numbers: true}, c.spec)
+		if problems != 1 || !(strings.Contains(out, "UNREADABLE") || strings.Contains(out, "REFUSED")) {
+			t.Fatalf("%s: problems=%d, want a refusal:\n%s", c.spec, problems, out)
+		}
+		walk := strings.Contains(out, "a directory you name is walked")
+		if c.hint == "" && walk || c.hint != "" && !strings.Contains(out, c.hint) {
+			t.Errorf("%s: want hint %q:\n%s", c.spec, c.hint, out)
+		}
+		if c.hint != "" && !strings.Contains(out, "--grep '^' -- ") {
+			t.Errorf("%s: the every-line form is not --grep '^':\n%s", c.spec, out)
 		}
 	}
 }
