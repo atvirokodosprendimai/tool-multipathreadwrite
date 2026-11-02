@@ -18,13 +18,13 @@ func TestReadingStandardInputLicensesNothing(t *testing.T) {
 		want []string
 		not  []string
 	}{
-		{[]string{"read", "-"}, 0, []string{"==> -  5L", "    2| b"}, nil},
-		{[]string{"read", "-:2"}, 0, []string{"@@ 2-3", "    2| b", "    3| c"}, []string{"    1| a"}},
-		{[]string{"read", "--grep", "^c$", "-"}, 0, []string{"    3| c"}, []string{"    1| a"}},
-		{[]string{"read", "--grep", "^b$", "-C", "1", "-"}, 0, []string{"    1| a", "    3| c"}, []string{"    5| "}},
-		{[]string{"read", "--max-lines", "1", "-"}, 0, []string{"    1| a"}, []string{"    2| b"}},
-		{[]string{"read", "--max-cols", "8", "-:5"}, 0, []string{"    5| "}, []string{strings.Repeat("x", 30)}},
-		{[]string{"read", "-", "--grep", "^b$"}, 0, []string{"    2| b"}, []string{"    1| a"}},
+		{[]string{"read", "-"}, 0, []string{"==> -  5L", " 2| b"}, nil},
+		{[]string{"read", "-:2"}, 0, []string{"@@ 2-3", " 2| b", " 3| c"}, []string{" 1| a"}},
+		{[]string{"read", "--grep", "^c$", "-"}, 0, []string{" 3| c"}, []string{" 1| a"}},
+		{[]string{"read", "--grep", "^b$", "-C", "1", "-"}, 0, []string{" 1| a", " 3| c"}, []string{" 5| "}},
+		{[]string{"read", "--max-lines", "1", "-"}, 0, []string{" 1| a"}, []string{" 2| b"}},
+		{[]string{"read", "--max-cols", "8", "-:5"}, 0, []string{" 5| "}, []string{strings.Repeat("x", 30)}},
+		{[]string{"read", "-", "--grep", "^b$"}, 0, []string{" 2| b"}, []string{" 1| a"}},
 	} {
 		out, errOut, code := run(in, c.args...)
 		name := strings.Join(c.args, " ")
