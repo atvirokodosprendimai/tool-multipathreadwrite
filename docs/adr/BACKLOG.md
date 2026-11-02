@@ -482,6 +482,42 @@ so the result cannot move it:
   The [eight-case verification](../bench/observability/RESULTS.md) also finds a valid nested closer warning
   (line 5); both false positives remain open. Two real duplicate controls still warn. No shipping bar is met.
 
+### Pre-registered 2026-11-02 for the sibling-closer false positive — written before any variant code or run
+
+**Variant `closer_k4_token_ne_net`.** The shipped `closer_k4_token_ne`, firing only when the body's net
+count for its closer's kind differs from the replaced range's. Net is openers minus closers, counted on raw
+text, strings and comments included, as ADR-055's balance row counts. The kinds:
+- `}`, `)`, `]`: their bracket pair.
+- `</tag>`: `<tag` against `</tag>`.
+- `@endX`: `@X` against `@endX`.
+- a fence: the parity of fence lines.
+- any other closer token (`end`, `fi`, …): no net is computed, and it fires as now.
+
+The hypothesis: in every true positive measured so far the replaced range opened a structure (net +1) and the body
+closed its own (net 0). The Blade, HTML and markdown field fixtures all have that shape. In the false positives
+both nets are 0: `sibling_spec.rb`, `nested.go`, and two replaces in this session's own work.
+
+**It ships only if every one of these holds, else it does not ship and this entry records why:**
+1. The three closer field fixtures in `docs/break/shape-hints/stress.py` (blade, html, markdown) still fire.
+2. In `scripts/mrw_observe.py`'s eight warning cases:
+   - `duplicate.md` and `blanks.md` still fire;
+   - `sibling_spec.rb` and `nested.go` no longer fire;
+   - the other four are unchanged.
+3. On the history replay with run 2's parameters (seed 2119, `--cap 1200`, `--max-commits 6000`, the same
+   directories), and again on a fresh seed 3119:
+   - the variant fires fewer times than `closer_k4_token_ne`;
+   - no fire is gained;
+   - every bucket of 50 or more replaces stays under ADR-119's 5% bar.
+
+   The variant only removes fires, so the bar cannot be newly missed. The result reports how many fires it removes,
+   and of what shape, so a removed true positive is visible. The replay's `through_closer` true-positive rows,
+   if any, are reported separately: losing one is a finding against the variant.
+4. Any fire it removes on the replay is read by hand from a 20-fire random sample (seed 4119). If any one of them is
+   a real orphaned closer, the variant does not ship.
+
+Owner: mrw's ADR-119 follow-up. Shipping needs an ADR amending ADR-119 and Zy's acceptance; this entry decides
+nothing beyond the bar.
+
 ## Pre-registered for ADR-156 (does mrw pay for itself on agent runs) — the bar, written before any run
 
 Zy, 2026-10-14: both Sonnet 5.5 and Opus 5.5; our own oracle-graded tasks and a SWE-bench Verified slice; configuration B with mrw forced; the subscription only. Registered here, in the record's first commit, before `bench`, any task or any run exists, so a result cannot move it:
