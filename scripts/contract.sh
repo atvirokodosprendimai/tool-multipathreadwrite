@@ -11054,24 +11054,24 @@ if [ "$(id -u)" = 0 ]; then skip "a mode-000 directory keeps its own error (root
 fi
 rm -rf "$R326"
 
-# 328. ADR-015: a refusal names the fix. In Git Bash an unquoted parsers\p.py
+# 330. ADR-015: a refusal names the fix. In Git Bash an unquoted parsers\p.py
 # reaches mrw as parsersp.py. A missing path with no separator that a file under
 # the root spells without its separators is UNREADABLE, exit 1, and the line after
 # it names that file in prose, with no command line. The pair: a missing path no
 # file spells, and one a directory spells, get no such line.
-R328=$(mktemp -d "$WORK/r328-XXXXXX"); mkdir -p "$R328/parsers" "$R328/ab/c"; printf 'x\n' > "$R328/parsers/p.py"
-e328() { env XDG_STATE_HOME="$R328/state" "$MRW" -C "$R328" read "$@" 2>&1; }
-out=$(e328 parsersp.py); rc328=$?
-{ [ "$rc328" = 1 ] && grep -q '^==> parsersp.py  UNREADABLE' <<<"$out" \
+R330=$(mktemp -d "$WORK/r330-XXXXXX"); mkdir -p "$R330/parsers" "$R330/ab/c"; printf 'x\n' > "$R330/parsers/p.py"
+e330() { env XDG_STATE_HOME="$R330/state" "$MRW" -C "$R330" read "$@" 2>&1; }
+out=$(e330 parsersp.py); rc330=$?
+{ [ "$rc330" = 1 ] && grep -q '^==> parsersp.py  UNREADABLE' <<<"$out" \
   && grep -qxF '    (a shell may have eaten a backslash: did you mean parsers/p.py? quote the path, or use /)' <<<"$out"; } \
-  && ok "a missing path a file spells without its separators names that file" || bad "eaten: exit $rc328 [$out]"
-out=$(e328 nope.py); rc328=$?
-{ [ "$rc328" = 1 ] && ! grep -q 'eaten a backslash' <<<"$out"; } \
-  && ok "the pair: a missing path no file spells gets no backslash hint" || bad "nope: exit $rc328 [$out]"
-out=$(e328 abc); rc328=$?
-{ [ "$rc328" = 1 ] && ! grep -q 'eaten a backslash' <<<"$out"; } \
-  && ok "the pair: a missing path only a directory spells gets no backslash hint" || bad "dir-spelled: exit $rc328 [$out]"
-rm -rf "$R328"
+  && ok "a missing path a file spells without its separators names that file" || bad "eaten: exit $rc330 [$out]"
+out=$(e330 nope.py); rc330=$?
+{ [ "$rc330" = 1 ] && ! grep -q 'eaten a backslash' <<<"$out"; } \
+  && ok "the pair: a missing path no file spells gets no backslash hint" || bad "nope: exit $rc330 [$out]"
+out=$(e330 abc); rc330=$?
+{ [ "$rc330" = 1 ] && ! grep -q 'eaten a backslash' <<<"$out"; } \
+  && ok "the pair: a missing path only a directory spells gets no backslash hint" || bad "dir-spelled: exit $rc330 [$out]"
+rm -rf "$R330"
 
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
