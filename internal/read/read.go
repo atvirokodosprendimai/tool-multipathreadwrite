@@ -124,6 +124,10 @@ type Range struct {
 // Options control how much of the answer is rendered. They exist so a caller
 // can ask the cheapest question that still decides what to do next.
 type Options struct {
+	// HintRoot is the --root a caller typed, set by the CLI only when it was given, so a
+	// printed command (a directory's walk hint) runs from where the caller is; empty
+	// prints none, as for mrw_read, whose root is the server's (the Codex review of #591).
+	HintRoot string
 	// Numbers prefixes each line with its number. On by default because a line
 	// number read here is the address written back in a plan.
 	Numbers bool
@@ -761,7 +765,7 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 			b = sp.Data // ADR-161: standard input, one unnamed file
 		} else {
 			var englishUnreadable, ok bool
-			if b, englishUnreadable, ok = load(report, root, &sp); !ok {
+			if b, englishUnreadable, ok = load(report, root, &sp, opt.HintRoot); !ok {
 				if englishUnreadable {
 					englishUnreadables++
 				}
@@ -1241,7 +1245,7 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 // not; englishUnreadable says the failure was a path that reads as an English
 // word (hintSplitRegexAddress). It may rewrite sp.Path, an absolute path inside
 // the root becoming relative to it.
-func load(w io.Writer, root string, sp *Spec) (b []byte, englishUnreadable, ok bool) {
+func load(w io.Writer, root string, sp *Spec, hintRoot string) (b []byte, englishUnreadable, ok bool) {
 	// An ABSOLUTE path is honoured on this surface, not joined onto the
 	// root. A plan is a document whose paths are relative by design, and
 	// apply refuses an absolute one by name — but a command-line argument
@@ -1325,7 +1329,7 @@ func load(w io.Writer, root string, sp *Spec) (b []byte, englishUnreadable, ok b
 	if err != nil {
 		glob := hintUnexpandedGlob(sp.Path)
 		if statErr == nil && fi.IsDir() {
-			glob = walkHint(root, sp.Path, full)
+			glob = walkHint(root, sp.Path, full, hintRoot)
 		}
 		fmt.Fprintf(w, "==> %s  UNREADABLE  %v%s\n", sp.Path, err, glob)
 		return nil, glob == "" && isEnglishWordToken(sp.Path), false
@@ -1741,7 +1745,7 @@ func NamedFiles(names []string) string {
 // Lstat that is not a directory, then rooted.Real — so a Windows junction
 // (ModeIrregular since Go 1.23, ADR-071) is one too, since a walk follows no
 // link (ADR-096). Measured on Windows 11 by a peer session, 2026-11-02.
-func walkHint(root, path, full string) string {
+func walkHint(root, path, full, hintRoot string) string {
 	name := path
 	if li, err := os.Lstat(filepath.Join(root, path)); err == nil && !li.IsDir() {
 		if abs, err := filepath.Abs(root); err == nil {
@@ -1750,21 +1754,37 @@ func walkHint(root, path, full string) string {
 			}
 		}
 	}
-	q := hintWord(name, runtime.GOOS == "windows")
-	return "\n    (a directory you name is walked: mrw read --grep PATTERN -- " + q +
+	win := runtime.GOOS == "windows"
+	head := "mrw read"
+	q, ok := hintWord(name, win)
+	if hintRoot != "" {
+		r, rok := hintWord(hintRoot, win)
+		head, ok = "mrw --root "+r+" read", ok && rok
+	}
+	if !ok {
+		// No one quoting runs in every shell, so no command is printed that would not run.
+		return "\n    (a directory you name is walked: name it to mrw read --grep PATTERN, which serves the" +
+			" lines of its files that match, or to --grep $ for every line.)"
+	}
+	return "\n    (a directory you name is walked: " + head + " --grep PATTERN -- " + q +
 		" serves the lines of its files that match, and --grep $ -- " + q + " every line.)"
 }
 
-// hintWord quotes a path for a command a hint prints. On Windows a path that
-// needs quoting is double-quoted, which cmd.exe, pwsh and Git Bash all group,
-// unless it holds a character one of them would read inside double quotes;
-// then it takes quoteWord's form, as everywhere else.
-func hintWord(name string, windows bool) string {
+// hintWord quotes a path for a command a hint prints, and says whether that
+// command would run in every shell a caller has. On Windows a path that needs
+// quoting is double-quoted, which cmd.exe, pwsh and Git Bash all group; one that
+// also holds a character cmd or pwsh reads inside double quotes has no form all
+// three take, so it is reported as not printable (the Codex review of #591).
+// Elsewhere it is quoteWord's form.
+func hintWord(name string, windows bool) (string, bool) {
 	q := quoteWord(name, windows)
-	if windows && q != name && !strings.ContainsAny(name, "\"$`%!") {
-		return "\"" + name + "\""
+	if !windows || q == name {
+		return q, true
 	}
-	return q
+	if strings.ContainsAny(name, "\"$`%!") {
+		return q, false
+	}
+	return "\"" + name + "\"", true
 }
 
 func hintUnexpandedGlob(path string) string {
