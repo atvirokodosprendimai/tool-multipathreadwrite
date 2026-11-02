@@ -1797,10 +1797,16 @@ func walkHint(root, path, full, hintRoot string) string {
 // three take, so it is reported as not printable (the Codex review of #591).
 // Elsewhere it is quoteWord's form.
 func hintWord(name string, windows bool) (string, bool) {
-	// Checked first: quoteWord leaves % bare, which cmd.exe expands, and a trailing
-	// backslash escapes a closing double quote in Git Bash (the Codex re-review of #591).
-	if windows && (strings.ContainsAny(name, "\"$`%!") || strings.HasSuffix(name, `\`)) {
-		return quoteWord(name, windows), false
+	// On Windows a path is printed with forward slashes, which Go and mrw take and
+	// no shell rewrites: Git Bash eats a backslash, bare or doubled inside double
+	// quotes, which bent C:\repo and a UNC \\server\share into other paths (the
+	// Codex re-reviews of #591). Then % (cmd.exe expands it) and the characters
+	// cmd or pwsh read inside double quotes leave no form every shell takes.
+	if windows {
+		name = strings.ReplaceAll(name, `\`, "/")
+		if strings.ContainsAny(name, "\"$`%!") {
+			return quoteWord(name, windows), false
+		}
 	}
 	q := quoteWord(name, windows)
 	if !windows || q == name {

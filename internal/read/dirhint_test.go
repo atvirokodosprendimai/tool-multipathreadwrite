@@ -77,7 +77,9 @@ func TestAHintQuotesAPathForEveryShell(t *testing.T) {
 		{"a$b c", false, quoteWord("a$b c", false), true},
 		{"%USERNAME%", true, quoteWord("%USERNAME%", true), false},
 		{"%USERNAME%", false, quoteWord("%USERNAME%", false), true},
-		{`C:\repo\`, true, quoteWord(`C:\repo\`, true), false},
+		{`C:\repo\`, true, "C:/repo/", true},
+		{`\\server\share\repo`, true, "//server/share/repo", true},
+		{`C:\my dir`, true, "\"C:/my dir\"", true},
 	} {
 		if got, ok := hintWord(c.name, c.windows); got != c.want || ok != c.ok {
 			t.Errorf("hintWord(%q, %v) = %q, %v, want %q, %v", c.name, c.windows, got, ok, c.want, c.ok)
