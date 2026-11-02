@@ -3,7 +3,6 @@ package ingest
 import (
 	"bytes"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,7 +11,6 @@ import (
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/apply"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/plan"
-	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/writer"
 )
@@ -240,10 +238,11 @@ func movedOp190(t *testing.T) {
 
 func staleLedger190(t *testing.T) {
 	stateDir190(t)
-	root := tree190(t, text190(rows190(`a b c d e`)))
-	spec := []read.Spec{{Path: fileName190, Ranges: []read.Range{{Start: 1, End: 5}}}}
-	if _, problems := read.Run(io.Discard, root, spec, read.Options{}); problems != 0 {
-		t.Fatal(problems)
+	file := text190(rows190(`a b c d e`))
+	root := tree190(t, file)
+	known := map[string]seen.Observation{fileName190: {SHA: seen.SHA([]byte(file)), Spans: [][2]int{{1, 5}}}}
+	if err := seen.Record(root, known); err != nil {
+		t.Fatal(err)
 	}
 	changed := text190(rows190(`aa b c d e`))
 	rewrite190(t, root, changed)
