@@ -917,6 +917,16 @@ Zy, 2026-10-27: *"yes, go, address these, measure, plan, implement verify, udupa
   answers the record's "what would make this wrong": whether a narrower gutter costs refused or
   misaddressed writes. Running it is Zy's call (a paid run).
 
+## From ADR-190 and ADR-191
+
+- **apply_patch's `-` lines as a quote (deferred from ADR-190)** (2026-11-02): an apply_patch hunk interleaves the
+  lines it replaces with context lines, so "every line it replaces is quoted" needs its own rule before it can
+  license. Pick it up if SEARCH/REPLACE proves out.
+- **The measurement against native (deferred from ADR-190 and ADR-191)** (2026-11-02): a grouped run, native
+  against MRW, on the release that carries both records' T1, with predictions registered first. It must include
+  a compacting arm, since the 90 post-compaction re-reads that motivate ADR-190 come from small-context runs. Zy's
+  call: it is a paid run.
+
 ## Post-v1.77.1 cleanup and decisions (2026-10-28)
 
 Zy asked to fix and clean up the reproducible issues, re-examine the open work,
