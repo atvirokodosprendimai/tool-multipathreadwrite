@@ -1364,7 +1364,7 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 	}
 
 	if pathLevel && !lineLevel {
-		if !planPathOp(root, path, full, hs[0], orig, existed, shaBefore, unlinked, produced, destCount, covered, fail, out) {
+		if !planPathOp(root, path, full, hs[0], orig, existed, shaBefore, missingServed(existed, root, path, opt.Seen), unlinked, produced, destCount, covered, fail, out) {
 			return nil, false, ""
 		}
 		return nil, true, hs[0].Op
@@ -1383,7 +1383,7 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 						"so they do not move one file — send them as two plans", path)
 					return nil, false, ""
 				}
-				if !planPathOp(root, path, full, h, orig, existed, shaBefore, unlinked, produced, destCount, covered, fail, out) {
+				if !planPathOp(root, path, full, h, orig, existed, shaBefore, missingServed(existed, root, path, opt.Seen), unlinked, produced, destCount, covered, fail, out) {
 					return nil, false, ""
 				}
 				continue
@@ -1402,7 +1402,7 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 		if h.SHA != "" {
 			switch {
 			case !existed:
-				fail(h, "sha=%s given but %s does not exist", h.SHA, path)
+				fail(h, "sha=%s given but %s does not exist%s", h.SHA, path, servedAs(root, path, opt.Seen))
 				continue
 			case !strings.HasPrefix(shaBefore, h.SHA):
 				fail(h, "file changed: sha is %s, plan expected %s", shaShown(shaBefore, h.SHA), h.SHA)
@@ -1531,7 +1531,7 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 					"which does not exist", h.Path, full)
 				continue
 			}
-			fail(h, "%s does not exist", path)
+			fail(h, "%s does not exist%s", path, servedAs(root, path, opt.Seen))
 			continue
 		}
 
@@ -2644,6 +2644,48 @@ func resolve(root, path string) (string, error) {
 		return "", err
 	}
 	return full, nil
+}
+
+// missingServed is servedAs for a path that does not exist, and nothing for one
+// that does, so planPathOp's unlink and rename refusals name what the line ops'
+// do without a ledger scan on every path op.
+func missingServed(existed bool, root, path string, ledger map[string]Seen) string {
+	if existed {
+		return ""
+	}
+	return servedAs(root, path, ledger)
+}
+
+// servedAs names the files mrw served the caller whose path ends in a plan path
+// that does not exist (ADR-007: mrw says which path it looked for), so a plan
+// written from inside a directory — parser_0.py for parsers/parser_0.py — says
+// where the file is. Each is checked through resolve, the boundary a write
+// meets, so a ledger entry whose file is gone, or that now leads outside the
+// root, into .git or into mrw's state, names nothing (the go-reviewer pass).
+func servedAs(root, path string, ledger map[string]Seen) string {
+	p := filepath.ToSlash(path)
+	var found []string
+	for k := range ledger {
+		ks := filepath.ToSlash(k)
+		if !strings.HasSuffix(ks, "/"+p) {
+			continue
+		}
+		full, err := resolve(root, k)
+		if err != nil {
+			continue
+		}
+		if fi, err := os.Stat(full); err == nil && fi.Mode().IsRegular() {
+			found = append(found, ks)
+		}
+	}
+	if len(found) == 0 {
+		return ""
+	}
+	sort.Strings(found)
+	if len(found) > 3 {
+		found = append(found[:3], "…")
+	}
+	return "; you were served " + strings.Join(found, ", ") + " — every path in a plan is relative to the root"
 }
 
 // sameFileEntry finds a ledger entry that names the SAME FILE as full under a
