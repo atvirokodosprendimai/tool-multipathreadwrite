@@ -161,6 +161,10 @@ type Hunk struct {
 	// counted from 1 over the original file (ADR-118). 0 means absent: the start
 	// must then match exactly once.
 	Occurrence int
+	// Quote is the quote= mark the --format=search_replace compiler writes
+	// (ADR-190). Parse keeps it as given: only apply, holding the file under
+	// the write lock, can say whether it proves the lines it covers.
+	Quote string
 
 	// SrcLine is the plan's own line number, for diagnostics.
 	SrcLine int
@@ -538,6 +542,11 @@ func parseHeader(line string, srcLine int) (Hunk, int, error) {
 			if h.BodyFrom, h.BodyFromAddr, err = parseFrom(v); err != nil {
 				return Hunk{}, 0, err
 			}
+		case "quote":
+			if v == "" {
+				return Hunk{}, 0, fmt.Errorf("quote= needs a value")
+			}
+			h.Quote = v
 		default:
 			return Hunk{}, 0, fmt.Errorf("unknown option %q (want sha, lines, anchor, body, from, raw or occurrence)", k)
 		}

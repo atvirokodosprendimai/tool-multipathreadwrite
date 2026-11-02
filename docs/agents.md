@@ -254,3 +254,40 @@ What it costs and what it does not reach:
 
 mrw ships no hook and installs none: the host's configuration is the user's. Other hosts need their own
 equivalent (`docs/adr/BACKLOG.md` keeps the Codex and Cursor ones).
+
+## 9. License what the host's own Read showed
+
+An agent with mrw also reads with its host's tool, and those lines never reach the ledger, so a plan to them is
+refused until mrw serves them again (measured once: 26 re-reads of about 1,000 lines each in 17 runs, ADR-191).
+`mrw hook read` reads the host's PostToolUse payload for its Read tool on standard input and records in the ledger
+the lines the Read returned whose text equals the file on disk now, as a `mrw read` of them would. A line the host
+cut, a line that changed after the read, a file outside the root, in `.git` or in mrw's state, an image, an error
+and any payload it does not recognise record nothing. It prints nothing on standard output and always exits 0, so
+a hook never fails the host's tool; at most one line goes to standard error, for a ledger lock it could not take in
+one second or a newer mrw's ledger (ADR-150). The root is the payload's `cwd`, or `--root`. In
+`.claude/settings.json` (or the user's), beside the compaction block above:
+
+<!-- ADR-191 hook -->
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Read",
+        "hooks": [
+          { "type": "command", "command": "mrw hook read" }
+        ]
+      }
+    ]
+  }
+}
+```
+
+Captured from Claude Code 2.1.316: `tool_response.file.content` is the lines joined by a newline, with no line numbers
+and a CRLF file's CR gone, from `file.startLine`, exactly what the model received; a 2,500-character line is not cut;
+a Read that fails sends no payload. A host that sends a different shape records nothing. What it costs:
+
+- **One mrw process and one ledger write per host Read**, up to one second more when another command holds the ledger.
+- **The ledger holds what another tool showed.** Its truth rests on the host's payload. Run `mrw seen --forget` after a
+  compaction, as §8 says: a licence the hook recorded is forgotten with the rest.
+- **Only Read.** Grep output and shell `cat` are not licensed: what reached the model is not in the payload.

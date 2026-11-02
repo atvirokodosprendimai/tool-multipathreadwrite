@@ -785,6 +785,13 @@ and #73, one release apart.
   checkout a re-read, and it does not reach a command already in flight. A re-read after it must show the
   lines: `--if-changed` and `--quiet` do not put them back in front of the model; `--sub` and `--rewrite`
   plans need none.
+- **`mrw hook read`** is for a host's PostToolUse hook, not for typing (ADR-191, hidden from the root help). It reads the
+  payload of the host's own `Read` tool on standard input and records in the ledger the lines the Read returned whose
+  text equals the file on disk now, as a `mrw read` of them would, so a plan to them needs no second read. A line the
+  host cut, a changed line, a path outside the root, in `.git` or in mrw's state, an image, an error and any shape it
+  does not know record nothing. It prints nothing on standard output and always exits 0; at most one stderr line, for
+  a ledger lock it could not take in one second or a newer mrw's ledger. It skips the startup migration of `./.mrw`.
+  `docs/agents.md` §9 has the Claude Code block.
 
 mrw's OWN state lives outside the tree (ADR-004), so none of these commands
 writes to your checkout of its own accord — with two exceptions: `mrw check`
