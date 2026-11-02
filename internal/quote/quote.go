@@ -65,14 +65,19 @@ func Check(mark, path string, start, end int, file []string) (int, error) {
 	if !ok || err != nil || tail < 0 || tail > 1 {
 		return 0, fmt.Errorf("quote= is not a mark this mrw made")
 	}
-	if start < 1 || end < start || end+tail > len(file) {
-		return 0, fmt.Errorf("quote= names lines the file no longer has")
+	moved := fmt.Errorf("quote= no longer matches %d-%d: the quoted lines changed since the SEARCH block was compiled, or the mark was not made by this mrw", start, end)
+	// end is compared against len(file)-tail, never added to tail: a range near
+	// the integer limit overflowed the sum and panicked on the slice below.
+	// A range past the file reads exactly like a changed one, so a typed mark
+	// learns nothing of the file's length.
+	if start < 1 || end < start || end > len(file)-tail {
+		return 0, moved
 	}
 	block := file[start-1 : end+tail]
 	got, err := hex.DecodeString(mac)
 	want, _ := hex.DecodeString(sign(path, start, end, tail, block))
 	if err != nil || !hmac.Equal(got, want) {
-		return 0, fmt.Errorf("quote= no longer matches %d-%d: the quoted lines changed since the SEARCH block was compiled, or the mark was not made by this mrw", start, end+tail)
+		return 0, moved
 	}
 	if n := count(file, block); n != 1 {
 		return 0, fmt.Errorf("quote= matches %d times now; it must match once, at %d-%d", n, start, end+tail)

@@ -104,6 +104,7 @@ out=$(go test ./internal/ingest/ ./internal/apply/ ./internal/plan/ -count=1 -v 
 - 2026-11-02 · 2849a1d0* · exit 0 · `set -o pipefail …` · acceptance-sha256:6c3d61bb9c3ae30dd5478f50453bdc843d00a68141de27714e1134f58e7b25aa · ms:81310
 - 2026-11-02 · 2849a1d0* · exit 0 · `set -o pipefail …` · acceptance-sha256:6c3d61bb9c3ae30dd5478f50453bdc843d00a68141de27714e1134f58e7b25aa · ms:81257
 - 2026-11-02 · 2849a1d0* · exit 0 · `set -o pipefail …` · acceptance-sha256:6c3d61bb9c3ae30dd5478f50453bdc843d00a68141de27714e1134f58e7b25aa · ms:95034
+- 2026-11-02 · 66bde811* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:6c3d61bb9c3ae30dd5478f50453bdc843d00a68141de27714e1134f58e7b25aa · ms:4 · test-lock-sha256:921a342b4fa9643fc99bea0abf5b73e597882b16ca03713821a2cb14bccc2751 · test-lock-file:docs/adr/locks/921a342b4fa9643fc99bea0abf5b73e597882b16ca03713821a2cb14bccc2751.lock · test-lock-kind:replace
 
 ## Invariants
 

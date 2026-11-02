@@ -62,6 +62,12 @@ type HunkResult struct {
 	// --strict-balance would have refused it. Unexported: not receipt fields.
 	singleLineCode bool
 	wrapTail       bool
+	// newSpan is where a replace or insert put its body in the written file,
+	// and quotedFile says every hunk on the file was licensed by a quote with
+	// no fresh ledger entry behind it (ADR-190): the writer then records spans,
+	// not ADR-005's whole-file licence. Unexported: not receipt fields.
+	newSpan    [2]int
+	quotedFile bool
 
 	Path    string `json:"path"`
 	Addr    string `json:"addr"`
@@ -218,6 +224,11 @@ type FileResult struct {
 	// is not Path: ADR-005 §2 follows the link, and ADR-076 names where it led.
 	// Root-relative; absent otherwise.
 	Target string `json:"target,omitempty"`
+	// Spans and QuotedOnly carry what the writer records for a file whose
+	// hunks a quote alone licensed (ADR-190): the lines written, in the new
+	// file's numbering, in place of a whole-file licence. Not receipt fields.
+	Spans      [][2]int `json:"-"`
+	QuotedOnly bool     `json:"-"`
 }
 
 // Result is the whole run's receipt.
@@ -709,6 +720,14 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			// then under-reads how much the run was about to touch.
 			failed = append(failed, fr)
 			continue
+		}
+		for _, h := range hs {
+			if r := results[h.Index]; r.quotedFile {
+				fr.QuotedOnly = true
+				if r.newSpan[0] > 0 {
+					fr.Spans = append(fr.Spans, r.newSpan)
+				}
+			}
 		}
 		switch kind {
 		case "unlink":
@@ -1350,6 +1369,9 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 			unquoted++
 		}
 	}
+	// A file the quotes alone licensed is not one the caller read, so the
+	// writer must not give it ADR-005's whole-file licence (ADR-190).
+	quotedOnly := unquoted == 0 && !(known && recorded.SHA == shaBefore)
 
 	// READ BEFORE MODIFY. An existing file may only be edited if mrw has seen
 	// what it currently holds. Checked once per file, before any hunk, because
@@ -1859,8 +1881,12 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 				needAfter = tail == 0 && opt.Seen != nil && !(haveObs && recorded.SHA == shaBefore && obs.Covers(end+1, end+1))
 			}
 			if h.Op == "replace" && end > start && end < total && needAfter {
-				fail(h, "replace of %s needs a served line after %d: read line %d (the closer sits below the body)",
-					addrString(start, end), end, end+1)
+				hint := ""
+				if isQuoted {
+					hint = "; or end SEARCH and REPLACE in the same line, which keeps it and quotes it"
+				}
+				fail(h, "replace of %s needs a served line after %d: read line %d (the closer sits below the body)%s",
+					addrString(start, end), end, end+1, hint)
 				continue
 			}
 			// ADR-055 --strict-balance: the single-line sibling of the licence
@@ -1980,10 +2006,12 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 		switch h.Op {
 		case "insert":
 			res = append(res, h.Body...)
+			r.newSpan = [2]int{len(res) - len(h.Body) + 1, len(res)}
 			r.Added = len(h.Body)
 			written = h.Body
 		case "replace":
 			res = append(res, h.Body...)
+			r.newSpan = [2]int{len(res) - len(h.Body) + 1, len(res)}
 			r.Removed, r.Added = h.End-h.Start+1, len(h.Body)
 			consumed, written = orig[h.Start-1:h.End], h.Body
 			if opt.Preview {
@@ -2023,6 +2051,7 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 		if opt.EchoPad > 0 && (h.Op == "replace" || h.Op == "insert") {
 			padAfter = append(padAfter, struct{ index, after int }{h.Index, len(res)})
 		}
+		r.quotedFile = quotedOnly
 		out[h.Index] = r
 	}
 	if !ok {

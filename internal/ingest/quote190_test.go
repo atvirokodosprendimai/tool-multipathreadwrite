@@ -3,13 +3,17 @@ package ingest
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/apply"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/plan"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/writer"
 )
 
@@ -32,6 +36,15 @@ func block190(old, nu []string) string {
 
 func land190(t *testing.T, root string, planText []byte) apply.Result {
 	t.Helper()
+	landed, err := prepare190(t, root, planText).Land()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return landed.Res
+}
+
+func prepare190(t *testing.T, root string, planText []byte) *writer.Prepared {
+	t.Helper()
 	hunks, err := plan.Parse(bytes.NewReader(planText))
 	if err != nil {
 		t.Fatal(err, string(planText))
@@ -49,11 +62,7 @@ func land190(t *testing.T, root string, planText []byte) apply.Result {
 	if err != nil {
 		t.Fatal(err)
 	}
-	landed, err := prep.Land()
-	if err != nil {
-		t.Fatal(err)
-	}
-	return landed.Res
+	return prep
 }
 
 func reasons190(res apply.Result) string {
@@ -229,6 +238,74 @@ func movedOp190(t *testing.T) {
 	refused190(t, root, land190(t, root, []byte(edited)), `quote`, file)
 }
 
+func staleLedger190(t *testing.T) {
+	stateDir190(t)
+	root := tree190(t, text190(rows190(`a b c d e`)))
+	spec := []read.Spec{{Path: fileName190, Ranges: []read.Range{{Start: 1, End: 5}}}}
+	if _, problems := read.Run(io.Discard, root, spec, read.Options{}); problems != 0 {
+		t.Fatal(problems)
+	}
+	changed := text190(rows190(`aa b c d e`))
+	rewrite190(t, root, changed)
+	planText := compile190(t, root, block190(rows190(`b c`), rows190(`B`)))
+	refused190(t, root, land190(t, root, []byte(planText)), `needs a served line after`, changed)
+}
+
+func hintToKeepTheCloser190(t *testing.T) {
+	stateDir190(t)
+	file := text190(rows190(`a b c d e`))
+	root := tree190(t, file)
+	planText := compile190(t, root, block190(rows190(`b c`), rows190(`B`)))
+	refused190(t, root, land190(t, root, []byte(planText)), `end SEARCH and REPLACE in the same line`, file)
+}
+
+func noWholeFileLicence190(t *testing.T) {
+	stateDir190(t)
+	root := tree190(t, text190(rows190(`a b c d e f g h`)))
+	planText := compile190(t, root, block190(rows190(`c`), rows190(`C`)))
+	wrote := text190(rows190(`a b C d e f g h`))
+	applied190(t, root, land190(t, root, []byte(planText)), planText, wrote)
+	blind := text190([]string{`@@ fx 8 replace`, `H`})
+	refused190(t, root, land190(t, root, []byte(blind)), `has not been read`, wrote)
+	own := text190([]string{`@@ fx 3 replace`, `CC`})
+	applied190(t, root, land190(t, root, []byte(own)), own, text190(rows190(`a b CC d e f g h`)))
+}
+
+func changedBeforeTheLock190(t *testing.T) {
+	stateDir190(t)
+	root := tree190(t, text190(rows190(`a b c d`)))
+	planText := compile190(t, root, block190(rows190(`c d`), rows190(`C D`)))
+	prep := prepare190(t, root, []byte(planText))
+	release, err := seen.LockWrites(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	type landing struct {
+		res apply.Result
+		err error
+	}
+	done := make(chan landing, 1)
+	go func() {
+		landed, err := prep.Land()
+		if err != nil {
+			done <- landing{err: err}
+			return
+		}
+		done <- landing{res: landed.Res}
+	}()
+	// The landing is waiting for the lock the test holds; the file changes
+	// after the compile and before the lock is taken, and only then is it freed.
+	time.Sleep(300 * time.Millisecond)
+	changed := text190(rows190(`a b c dd`))
+	rewrite190(t, root, changed)
+	release()
+	got := <-done
+	if got.err != nil {
+		t.Fatal(got.err)
+	}
+	refused190(t, root, got.res, `quote`, changed)
+}
+
 func TestAnExactSearchBlockLicensesTheLinesItQuotes(t *testing.T) {
 	t.Run(`an exact block matching once applies with no read`, caseApplies190)
 	t.Run(`a quoted line changed after the compile is refused`, changedLine190)
@@ -240,4 +317,8 @@ func TestAnExactSearchBlockLicensesTheLinesItQuotes(t *testing.T) {
 	t.Run(`an unquoted sibling stays unread`, unquotedSibling190)
 	t.Run(`a quote typed into a native plan is refused`, typedQuote190)
 	t.Run(`a compiled mark moved to another op licenses nothing`, movedOp190)
+	t.Run(`a ledger that no longer describes the file does not cover the line after`, staleLedger190)
+	t.Run(`the refusal for the line after names the kept closer`, hintToKeepTheCloser190)
+	t.Run(`a file written only by quotes gets no whole-file licence`, noWholeFileLicence190)
+	t.Run(`a file changed while the landing waits for the lock is refused`, changedBeforeTheLock190)
 }
