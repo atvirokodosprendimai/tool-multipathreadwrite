@@ -102,3 +102,4 @@ Stop if the hint requires detecting the shell rather than argument shape.
   FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read	0.418s
   FAIL
   ```
+- 2026-11-01 · 632e1948* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:f8e2a04df6dba358fad26c69eb508c7e8e60b2105f9b2bd1f7b2d9ac7fd95f75 · ms:0 · test-lock-sha256:2a45cbf01c16627765f5f9782041b9d8ba7b0184256bf9da4640aa25473c99e0 · test-lock-file:docs/adr/locks/2a45cbf01c16627765f5f9782041b9d8ba7b0184256bf9da4640aa25473c99e0.lock · test-lock-kind:replace

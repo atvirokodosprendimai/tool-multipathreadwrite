@@ -830,6 +830,13 @@ Zy, 2026-10-27: *"yes, go, address these, measure, plan, implement verify, udupa
 - **`docs/agents.md`'s core-first advice (deferred from ADR-184) — done 2026-10-31.** Kept, as
   Amendment 3 decided before the data, and it now says it was measured cost-neutral (#579).
 
+## From ADR-189
+
+- **The measurement against native (deferred from ADR-189)** (2026-11-01): a grouped run, native against
+  MRW, on the release that carries ADR-189 T1, its predictions registered first as runs 6-8 were. It
+  answers the record's "what would make this wrong": whether a narrower gutter costs refused or
+  misaddressed writes. Running it is Zy's call (a paid run).
+
 ## Post-v1.77.1 cleanup and decisions (2026-10-28)
 
 Zy asked to fix and clean up the reproducible issues, re-examine the open work,

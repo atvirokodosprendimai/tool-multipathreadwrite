@@ -84,6 +84,7 @@ go test ./cmd/mrw/ ./internal/read/ ./internal/guide/ -count=1 -timeout 180s -ru
 - 2026-09-26 · da2fd0a* · exit 0 · `set -o pipefail …` · acceptance-sha256:ba35add1f68cbf6ae4ac2b845cf51eedb7f2611388cfd1fb3ef1f500a8f2d0de · ms:401
 - 2026-09-26 · da2fd0a* · exit 0 · `set -o pipefail …` · acceptance-sha256:ba35add1f68cbf6ae4ac2b845cf51eedb7f2611388cfd1fb3ef1f500a8f2d0de · ms:459
 - 2026-09-26 · da2fd0a* · exit 0 · `set -o pipefail …` · acceptance-sha256:ba35add1f68cbf6ae4ac2b845cf51eedb7f2611388cfd1fb3ef1f500a8f2d0de · ms:334
+- 2026-11-01 · 632e1948* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:ba35add1f68cbf6ae4ac2b845cf51eedb7f2611388cfd1fb3ef1f500a8f2d0de · ms:0 · test-lock-sha256:47e14d4e7c4b7d82a3a06da66884cf1c46551adaa24da598acb6457075364039 · test-lock-file:docs/adr/locks/47e14d4e7c4b7d82a3a06da66884cf1c46551adaa24da598acb6457075364039.lock · test-lock-kind:replace
 
 ## Mutation Log
 (empty until execute)
