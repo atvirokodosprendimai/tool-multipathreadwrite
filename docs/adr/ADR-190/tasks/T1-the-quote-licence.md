@@ -84,8 +84,26 @@ out=$(go test ./internal/ingest/ ./internal/apply/ ./internal/plan/ -count=1 -v 
 | 4 — it is used | no telemetry (ADR-009); the paid run measures it |
 
 ## Mutation Log
+- 2026-11-02 · 2849a1d0 · mutant killed · exit 1 · `internal/ingest/searchreplace.go` · the compiler carries no quote mark so the exact block is an unquoted hunk and the no-read case must go red · acceptance-sha256:6c3d61bb9c3ae30dd5478f50453bdc843d00a68141de27714e1134f58e7b25aa · covers:an exact unique quote licenses its lines
+- 2026-11-02 · 2849a1d0* · mutant killed · exit 1 · `internal/ingest/searchreplace.go` · the hunk range is widened one line past the quote, so the compiled range is not the quote and the kept-closer case must go red · acceptance-sha256:6c3d61bb9c3ae30dd5478f50453bdc843d00a68141de27714e1134f58e7b25aa · covers:nothing outside the quote is licensed by it
+- 2026-11-02 · 2849a1d0* · mutant killed · exit 1 · `internal/apply/apply.go` · the licence is lifted for the whole file as soon as any hunk is quoted, so an unquoted sibling must go unrefused and the sibling case must go red · acceptance-sha256:6c3d61bb9c3ae30dd5478f50453bdc843d00a68141de27714e1134f58e7b25aa · covers:nothing outside the quote is licensed by it
+- 2026-11-02 · 2849a1d0* · mutant killed · exit 1 · `internal/apply/apply.go` · apply skips the comparison of the quote with the file it holds, so a line changed after the compile stays licensed and the changed-line case must go red · acceptance-sha256:6c3d61bb9c3ae30dd5478f50453bdc843d00a68141de27714e1134f58e7b25aa · covers:an exact unique quote licenses its lines
+- 2026-11-02 · 2849a1d0* · mutant killed · exit 1 · `internal/quote/quote.go` · the quote is compared at the range but not for uniqueness, so a duplicate of the quoted lines elsewhere stays licensed and the duplicate case must go red · acceptance-sha256:6c3d61bb9c3ae30dd5478f50453bdc843d00a68141de27714e1134f58e7b25aa · covers:an exact unique quote licenses its lines
+- 2026-11-02 · 2849a1d0* · mutant killed · exit 1 · `internal/quote/quote.go` · any well formed quote mark is accepted without its MAC, so a quote typed into a native plan licenses its lines and the typed-quote case must go red · acceptance-sha256:6c3d61bb9c3ae30dd5478f50453bdc843d00a68141de27714e1134f58e7b25aa · covers:an exact unique quote licenses its lines
+- 2026-11-02 · 2849a1d0* · mutant killed · exit 1 · `internal/apply/apply.go` · apply accepts a quote mark on an op other than replace, so a compiled mark moved onto a delete licenses it and the moved-op case must go red · acceptance-sha256:6c3d61bb9c3ae30dd5478f50453bdc843d00a68141de27714e1134f58e7b25aa · covers:nothing outside the quote is licensed by it
 
 ## Verification Log
+- 2026-11-02 · 84267ed8* · exit 1 · `set -o pipefail …` · acceptance-sha256:6c3d61bb9c3ae30dd5478f50453bdc843d00a68141de27714e1134f58e7b25aa · ms:1430 · test-lock-sha256:7bf0ee472c41643df19fc13f3fb7547cfd5e5d15d633e02957a212fec6fa93e7 · test-lock-file:docs/adr/locks/7bf0ee472c41643df19fc13f3fb7547cfd5e5d15d633e02957a212fec6fa93e7.lock
+  ```
+  ```
+- 2026-11-02 · 2849a1d0 · exit 0 · `set -o pipefail …` · acceptance-sha256:6c3d61bb9c3ae30dd5478f50453bdc843d00a68141de27714e1134f58e7b25aa · ms:102044
+- 2026-11-02 · 2849a1d0* · exit 0 · `set -o pipefail …` · acceptance-sha256:6c3d61bb9c3ae30dd5478f50453bdc843d00a68141de27714e1134f58e7b25aa · ms:114448
+- 2026-11-02 · 2849a1d0* · exit 0 · `set -o pipefail …` · acceptance-sha256:6c3d61bb9c3ae30dd5478f50453bdc843d00a68141de27714e1134f58e7b25aa · ms:113734
+- 2026-11-02 · 2849a1d0* · exit 0 · `set -o pipefail …` · acceptance-sha256:6c3d61bb9c3ae30dd5478f50453bdc843d00a68141de27714e1134f58e7b25aa · ms:104819
+- 2026-11-02 · 2849a1d0* · exit 0 · `set -o pipefail …` · acceptance-sha256:6c3d61bb9c3ae30dd5478f50453bdc843d00a68141de27714e1134f58e7b25aa · ms:80528
+- 2026-11-02 · 2849a1d0* · exit 0 · `set -o pipefail …` · acceptance-sha256:6c3d61bb9c3ae30dd5478f50453bdc843d00a68141de27714e1134f58e7b25aa · ms:81310
+- 2026-11-02 · 2849a1d0* · exit 0 · `set -o pipefail …` · acceptance-sha256:6c3d61bb9c3ae30dd5478f50453bdc843d00a68141de27714e1134f58e7b25aa · ms:81257
+- 2026-11-02 · 2849a1d0* · exit 0 · `set -o pipefail …` · acceptance-sha256:6c3d61bb9c3ae30dd5478f50453bdc843d00a68141de27714e1134f58e7b25aa · ms:95034
 
 ## Invariants
 

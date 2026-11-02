@@ -5190,14 +5190,30 @@ sr84=$(printf '%s\n' \
 	'=======' \
 	'func C() int { return 30 }' \
 	'>>>>>>> REPLACE')
+# ADR-190: the blocks above quote every line they replace, so they apply with
+# line 5 unread. This one replaces two lines and keeps no closer, so its line
+# after the range is not quoted and still needs the ledger.
+unread84=$(printf '%s\n' \
+	'a.go' \
+	'<<<<<<< SEARCH' \
+	'func A() int { return 1 }' \
+	'func B() int { return 2 }' \
+	'=======' \
+	'func AB() int { return 12 }' \
+	'>>>>>>> REPLACE' \
+	'<<<<<<< SEARCH' \
+	'func C() int { return 3 }' \
+	'=======' \
+	'func C() int { return 30 }' \
+	'>>>>>>> REPLACE')
 R=$(mktemp -d "$WORK/r84-XXXXXX")
 printf 'package demo\n\nfunc A() int { return 1 }\nfunc B() int { return 2 }\nfunc C() int { return 3 }\n' > "$R/a.go"
 m read 'a.go:3' >"$WORK/served.out"
-out=$(printf '%s\n' "$sr84" | m write --format=search_replace - 2>&1); rc=$?
-want 1 "$rc" "two-hunk SEARCH/REPLACE, one unread line -> exit 1"
+out=$(printf '%s\n' "$unread84" | m write --format=search_replace - 2>&1); rc=$?
+want 1 "$rc" "two-hunk SEARCH/REPLACE, the line after a replaced range unread -> exit 1"
 grep -q 'FAIL' <<<"$out" && ok "unread SEARCH/REPLACE names FAIL" || bad "unread SEARCH/REPLACE names FAIL"
 grep -q '^skip' <<<"$out" && ok "unread SEARCH/REPLACE siblings skip" || bad "unread SEARCH/REPLACE siblings skip"
-grep -q 'has not been read' <<<"$out" && ok "unread SEARCH/REPLACE is the ledger refusal" || bad "unread SEARCH/REPLACE is the ledger refusal"
+grep -q 'needs a served line after' <<<"$out" && ok "unread SEARCH/REPLACE is the ledger refusal" || bad "unread SEARCH/REPLACE is the ledger refusal"
 grep -q 'return 1 }' "$R/a.go" && ok "unread SEARCH/REPLACE wrote nothing" || bad "unread SEARCH/REPLACE wrote"
 
 fixture
@@ -5205,6 +5221,14 @@ out=$(printf '%s\n' "$sr84" | m write --format=search_replace --no-check - 2>&1)
 want 0 "$rc" "served two-hunk SEARCH/REPLACE -> exit 0"
 grep -q 'return 10' "$R/a.go" && ok "served SEARCH/REPLACE rewrote A" || bad "served SEARCH/REPLACE rewrote A"
 grep -q 'return 30' "$R/a.go" && ok "served SEARCH/REPLACE rewrote C" || bad "served SEARCH/REPLACE rewrote C"
+
+# ADR-190: with only line 3 served, exact blocks need no read of line 5.
+R=$(mktemp -d "$WORK/r84q-XXXXXX")
+printf 'package demo\n\nfunc A() int { return 1 }\nfunc B() int { return 2 }\nfunc C() int { return 3 }\n' > "$R/a.go"
+m read 'a.go:3' >"$WORK/served.out"
+out=$(printf '%s\n' "$sr84" | m write --format=search_replace --no-check - 2>&1); rc=$?
+want 0 "$rc" "two-hunk SEARCH/REPLACE of exact blocks, one line served -> exit 0"
+grep -q 'return 10' "$R/a.go" && grep -q 'return 30' "$R/a.go" && ok "exact SEARCH/REPLACE blocks rewrote both lines" || bad "exact SEARCH/REPLACE blocks rewrote both lines"
 
 R=$(mktemp -d "$WORK/r84n-XXXXXX")
 printf 'package demo\n\nfunc A() int { return 1 }\nfunc B() int { return 2 }\nfunc C() int { return 3 }\n' > "$R/a.go"
@@ -5225,7 +5249,7 @@ out=$(printf '%s\n' "$near84" | m write --format=search_replace - 2>&1); rc=$?
 want 2 "$rc" "a near-miss SEARCH is a compile refusal, not fuzzy apply"
 grep -q 'return 1 }' "$R/a.go" && ok "near-miss SEARCH wrote nothing" || bad "near-miss SEARCH wrote"
 
-printf '%s\n' "$sr84" > "$WORK/p84.sr"
+printf '%s\n' "$unread84" > "$WORK/p84.sr"
 R=$(mktemp -d "$WORK/r84m-XXXXXX")
 printf 'package demo\n\nfunc A() int { return 1 }\nfunc B() int { return 2 }\nfunc C() int { return 3 }\n' > "$R/a.go"
 out=$(printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.go:3"]}}}\n' | m mcp --enable 2>/dev/null)
@@ -5257,7 +5281,7 @@ assert sc.get("failed") == 1, "unread SEARCH/REPLACE failed=%s want 1: %s" % (sc
 st=[h.get("status") for h in sc.get("hunks") or []]
 assert "failed" in st and "skipped" in st, "want failed+skipped, got %s" % st
 reason=" ".join((h.get("reason") or "") for h in sc.get("hunks") or [])
-assert "has not been read" in reason, "not the ledger refusal: %s" % reason
+assert "needs a served line after" in reason, "not the ledger refusal: %s" % reason
 assert "return 1 }" in open(sys.argv[2]).read(), "unread SEARCH/REPLACE wrote"
 PY
 want 0 $? "MCP format search_replace, one unread line writes nothing"
@@ -6120,8 +6144,9 @@ assert not untaught, "instructions omit read flags: %r" % untaught
 # --force is the write flag ADR-167's recipe 10 says a copy's source never honours, and
 # --dir is the skill flag ADR-168's closing sentence names for installing the skill, and
 # --terse is the write flag ADR-179 teaches for a one-line-per-file receipt, and
-# --forget the seen flag its --if-served paragraph names.
-unknown = set(re.findall(r"--([a-z][a-z-]*)", out)) - set(flags) - {"root", "help", "then", "then-sh", "check", "no-check", "create", "core", "dry-run", "force", "dir", "terse", "forget"}
+# --forget the seen flag its --if-served paragraph names, and
+# --format the write flag ADR-190's SEARCH/REPLACE sentence names.
+unknown = set(re.findall(r"--([a-z][a-z-]*)", out)) - set(flags) - {"root", "help", "then", "then-sh", "check", "no-check", "create", "core", "dry-run", "force", "dir", "terse", "forget", "format"}
 assert not unknown, "instructions teach flags read does not have: %r" % sorted(unknown)
 assert re.search(r"^\s+--ast-grep PATTERN\b", opts, re.M), "read --help does not show --ast-grep PATTERN"
 PY
@@ -8293,22 +8318,25 @@ jq -e 'has("drift") | not' "$WORK/k211" > /dev/null && ok "and its receipt carri
 
 # 212. B1 (BACKLOG "From ADR-108"): a foreign-format plan is held to the read it
 # was written against. The read ledger records the file's whole sha, and apply
-# refuses a file changed since, so --format=apply_patch and
-# --format=search_replace both refuse a file edited after its read, exit 1,
-# leaving it as it was. The pair: once the file is read again, the plan applies.
+# refuses a file changed since, so --format=apply_patch refuses a file edited
+# after its read, exit 1, leaving it as it was (a search_replace block quotes the
+# lines it replaces instead, ADR-190, and is the last rows). The pair: once the file is read again, the plan applies.
 fixture
 printf 'one\ntwo\nthree\n' > "$R/f212.txt"
 m read f212.txt >"$WORK/served.out"
 printf 'one\ntwo\nthree\nfour\n' > "$R/f212.txt"
 printf '*** Begin Patch\n*** Update File: f212.txt\n@@\n one\n-two\n+TWO\n three\n*** End Patch\n' > "$R/p212.patch"
-printf 'f212.txt\n<<<<<<< SEARCH\ntwo\n=======\nTWO\n>>>>>>> REPLACE\n' > "$R/p212.sr"
-for fmt in apply_patch:p212.patch search_replace:p212.sr; do
-  out=$(m write --no-check --format="${fmt%%:*}" "$R/${fmt#*:}" 2>&1); want 1 $? "${fmt%%:*} over a file changed after its read is refused"
-  grep -q 'changed since mrw last saw it' <<<"$out" && ok "and names why" || bad "${fmt%%:*}: $(head -c 300 <<<"$out")"
-done
+out=$(m write --no-check --format=apply_patch "$R/p212.patch" 2>&1); want 1 $? "apply_patch over a file changed after its read is refused"
+grep -q 'changed since mrw last saw it' <<<"$out" && ok "and names why" || bad "apply_patch: $(head -c 300 <<<"$out")"
 [ "$(cat "$R/f212.txt")" = "$(printf 'one\ntwo\nthree\nfour')" ] && ok "and the file is as it was" || bad "f212.txt changed: $(cat "$R/f212.txt")"
 m read f212.txt >"$WORK/served.out"
 m write --no-check --format=apply_patch "$R/p212.patch" > /dev/null 2>&1; want 0 $? "the pair: after a fresh read the apply_patch plan applies"
+# ADR-190: a search_replace block is not held to the read. It quotes the lines it
+# replaces, and mrw checks the quote against the file as it is when it writes.
+printf 'f212.txt\n<<<<<<< SEARCH\nfour\n=======\nFOUR\n>>>>>>> REPLACE\n' > "$R/p212b.sr"
+printf 'one\nTWO\nthree\nfour\nfive\n' > "$R/f212.txt"
+m write --no-check --format=search_replace "$R/p212b.sr" > /dev/null 2>&1; want 0 $? "search_replace over a file changed after its read applies, since it quotes the lines it replaces"
+grep -qx FOUR "$R/f212.txt" && ok "and the quoted line changed" || bad "f212.txt: $(cat "$R/f212.txt")"
 
 # 213. ADR-113: mrw_write runs the project's check after a write that touches
 # code and returns its verdict in the receipt, by the rule `mrw write` uses. A
@@ -11046,6 +11074,43 @@ out=$(e326 nope.txt); rc326=$?
 { [ "$rc326" = 1 ] && ! grep -q 'walked, not read' <<<"$out"; } \
   && ok "the pair: a missing file gets no walk hint" || bad "missing: exit $rc326 [$out]"
 rm -rf "$R326"
+
+# 328. ADR-190: a SEARCH block that quotes every line it replaces, exactly and
+# matching once, is licensed for them with no read. The pair: a native plan of
+# the same lines is refused as unread. A block that matches twice is a compile
+# refusal, a quote typed into a native plan licenses nothing, and the line after
+# a multi-line range that no kept closer quotes still needs the ledger.
+R328=$(mktemp -d "$WORK/r328-XXXXXX")
+printf 'a\nb\nc\nd\ne\n' > "$R328/g328"
+out=$(printf '%s\n' 'g328' '<<<<<<< SEARCH' 'c' '=======' 'C' '>>>>>>> REPLACE' | "$MRW" -C "$R328" write --format=search_replace --no-check - 2>&1); rc328=$?
+want 0 "$rc328" "an exact SEARCH block applies with no read before it"
+grep -qx C "$R328/g328" && ok "the exact block rewrote its line" || bad "the exact block rewrote nothing: $out"
+R328=$(mktemp -d "$WORK/r328-XXXXXX")
+printf 'a\nb\nc\nd\ne\n' > "$R328/g328"
+out=$(printf '@@ g328 3 replace\nC\n' | "$MRW" -C "$R328" write --no-check - 2>&1); rc328=$?
+want 1 "$rc328" "the pair: a native plan of the same lines is refused as unread"
+grep -q 'has not been read' <<<"$out" && grep -qx c "$R328/g328" && ok "the native pair names the ledger and wrote nothing" || bad "native pair: [$out]"
+R328=$(mktemp -d "$WORK/r328-XXXXXX")
+printf 'a\nb\nc\nd\ne\n' > "$R328/g328"
+out=$(printf '%s\n' 'g328' '<<<<<<< SEARCH' 'b' 'c' 'd' '=======' 'B' 'C' 'd' '>>>>>>> REPLACE' | "$MRW" -C "$R328" write --format=search_replace --no-check - 2>&1); rc328=$?
+want 0 "$rc328" "a block that ends in the closer it keeps applies with no read"
+grep -qx C "$R328/g328" && grep -qx e "$R328/g328" && ok "the kept closer stays and the lines before it change" || bad "kept closer: [$out]"
+R328=$(mktemp -d "$WORK/r328-XXXXXX")
+printf 'a\nb\nc\nd\ne\n' > "$R328/g328"
+out=$(printf '%s\n' 'g328' '<<<<<<< SEARCH' 'b' 'c' '=======' 'B' '>>>>>>> REPLACE' | "$MRW" -C "$R328" write --format=search_replace --no-check - 2>&1); rc328=$?
+want 1 "$rc328" "a multi-line block with no kept closer is refused for the line after"
+grep -q 'needs a served line after' <<<"$out" && grep -qx b "$R328/g328" && ok "the unkept closer names the line after and wrote nothing" || bad "unkept closer: [$out]"
+R328=$(mktemp -d "$WORK/r328-XXXXXX")
+printf 'x\nx\n' > "$R328/g328"
+out=$(printf '%s\n' 'g328' '<<<<<<< SEARCH' 'x' '=======' 'X' '>>>>>>> REPLACE' | "$MRW" -C "$R328" write --format=search_replace --no-check - 2>&1); rc328=$?
+want 2 "$rc328" "a SEARCH block that matches twice is refused"
+grep -q 'matched 2 times' <<<"$out" && ! grep -q X "$R328/g328" && ok "the repeated block names the count and wrote nothing" || bad "twice: [$out]"
+R328=$(mktemp -d "$WORK/r328-XXXXXX")
+printf 'a\nb\nc\nd\ne\n' > "$R328/g328"
+out=$(printf '@@ g328 3 replace quote=0.%064d\nC\n' 0 | "$MRW" -C "$R328" write --no-check - 2>&1); rc328=$?
+want 1 "$rc328" "a quote typed into a native plan is refused"
+grep -q 'quote' <<<"$out" && grep -qx c "$R328/g328" && ok "the typed quote names itself and wrote nothing" || bad "typed quote: [$out]"
+rm -rf "$R328"
 
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A

@@ -316,7 +316,7 @@ empty file is `@@ new.txt 0 create body=0`; a create's address is `-` or `0`. A 
 it is refused and leaves no file behind.
 
 `--format=apply_patch` compiles a Codex `*** Begin Patch` document to that same
-native plan. `--format=search_replace` compiles Aider SEARCH/REPLACE. Both still
+native plan. `--format=search_replace` compiles Aider SEARCH/REPLACE. A SEARCH block that quotes every line it replaces, exactly and matching once, needs no read (ADR-190). Other hunks still
 refuse an unread sibling and write nothing. A git patch is not an apply_patch;
 `--format=git` is usage. The flag is required — there is no auto-detect.
 Sequential apply_patch — one hunk, then another — is the leak, not the feature.

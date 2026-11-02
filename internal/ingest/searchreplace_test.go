@@ -34,6 +34,8 @@ func TestATwoHunkSearchReplaceWithOneUnreadLineWritesNothing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("compile refused a locatable two-hunk SEARCH/REPLACE: %v", err)
 	}
+	// The quoted hunks need no read (ADR-190); a native sibling does.
+	planText = append(planText, []byte(`@@ a.go 4 replace`+nl+`func B() int { return 20 }`+nl)...)
 	res := applyCompiled(t, root, planText, observed)
 	if res.Failed != 1 {
 		t.Fatalf("want 1 failed hunk, got failed=%d applied=%v: %+v", res.Failed, res.Applied, res.Hunks)

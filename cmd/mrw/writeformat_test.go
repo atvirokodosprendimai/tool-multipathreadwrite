@@ -65,17 +65,23 @@ func TestWriteFormatApplyPatchUnreadWritesNothing(t *testing.T) {
 	}
 }
 
-const twoHunkSearchReplace = "a.go\n" +
-	"<<<<<<< SEARCH\n" +
-	"func A() int { return 1 }\n" +
-	"=======\n" +
-	"func A() int { return 10 }\n" +
-	">>>>>>> REPLACE\n" +
-	"<<<<<<< SEARCH\n" +
-	"func C() int { return 3 }\n" +
-	"=======\n" +
-	"func C() int { return 30 }\n" +
-	">>>>>>> REPLACE\n"
+// unreadAfterSearchReplace quotes two lines of a.go whose line after, the
+// one a wrap-tail closer would sit on, no read has served (ADR-052, ADR-190).
+var unreadAfterSearchReplace = strings.Join([]string{
+	`a.go`,
+	`<<<<<<< SEARCH`,
+	`func A() int { return 1 }`,
+	`func B() int { return 2 }`,
+	`=======`,
+	`func AB() int { return 12 }`,
+	`>>>>>>> REPLACE`,
+	`<<<<<<< SEARCH`,
+	`func C() int { return 3 }`,
+	`=======`,
+	`func C() int { return 30 }`,
+	`>>>>>>> REPLACE`,
+	``,
+}, string(rune(10)))
 
 func TestWriteFormatSearchReplaceUnreadWritesNothing(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
@@ -84,7 +90,7 @@ func TestWriteFormatSearchReplaceUnreadWritesNothing(t *testing.T) {
 		t.Fatal(err)
 	}
 	patch := filepath.Join(root, "p.sr")
-	if err := os.WriteFile(patch, []byte(twoHunkSearchReplace), 0o644); err != nil {
+	if err := os.WriteFile(patch, []byte(unreadAfterSearchReplace), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -101,7 +107,7 @@ func TestWriteFormatSearchReplaceUnreadWritesNothing(t *testing.T) {
 	if got := exitCode(err); got != exitNotApplied {
 		t.Fatalf("want exit 1, got %d (%v)\n%s", got, err, out)
 	}
-	if !strings.Contains(out, "FAIL") || !strings.Contains(out, "skip") || !strings.Contains(out, "has not been read") {
+	if !strings.Contains(out, "FAIL") || !strings.Contains(out, "skip") || !strings.Contains(out, "needs a served line after") {
 		t.Errorf("not FAIL+skip ledger refusal:\n%s", out)
 	}
 	got, err := os.ReadFile(filepath.Join(root, "a.go"))

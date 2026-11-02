@@ -71,7 +71,7 @@ it is not required for ordinary reads, writes or declared checks.
 ## Foreign formats compile to one plan
 
 `--format=apply_patch` and `--format=search_replace` compile to a native plan.
-They keep the read guard and whole-plan validation; an unread sibling refuses the plan
+They keep whole-plan validation. A SEARCH block that quotes every line it replaces, exactly and matching once, needs no read (ADR-190); any other unread sibling refuses the plan
 before anything is written.
 
 ## MCP acknowledgements
