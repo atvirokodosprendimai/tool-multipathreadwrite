@@ -11054,6 +11054,23 @@ if [ "$(id -u)" = 0 ]; then skip "a mode-000 directory keeps its own error (root
 fi
 rm -rf "$R326"
 
+# 331. Issue #599, ADR-007: under a root reached through a symlinked ancestor
+# (macOS /var -> /private/var), an absolute path to a MISSING file inside the root
+# is reported missing, UNREADABLE, not refused as outside the root. The pair: a
+# missing absolute path that really is outside the root is still refused as such.
+B331=$(mktemp -d "$WORK/r331-XXXXXX"); mkdir -p "$B331/real/T" "$B331/elsewhere"; printf 'x\n' > "$B331/real/T/here.txt"; ln -s real "$B331/ln"
+e331() { env XDG_STATE_HOME="$B331/state" "$MRW" --root "$B331/ln/T" read "$@" 2>&1; }
+out=$(e331 "$B331/ln/T/missing.py"); rc331=$?
+{ [ "$rc331" = 1 ] && grep -q '^==> missing.py  UNREADABLE' <<<"$out" && ! grep -q 'outside the root' <<<"$out"; } \
+  && ok "a missing file under a symlinked root is reported missing, not outside the root" || bad "missing under linked root: exit $rc331 [$out]"
+out=$(e331 "$B331/ln/T/here.txt"); rc331=$?
+{ [ "$rc331" = 0 ] && grep -q '^ 1| x$' <<<"$out"; } \
+  && ok "and an existing file under it is served" || bad "existing under linked root: exit $rc331 [$out]"
+out=$(e331 "$B331/elsewhere/missing.py"); rc331=$?
+{ [ "$rc331" = 1 ] && grep -q 'REFUSED.*is outside the root' <<<"$out"; } \
+  && ok "the pair: a missing path outside the root is still refused as outside it" || bad "outside: exit $rc331 [$out]"
+rm -rf "$B331"
+
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
 # killed process is a zombie until its adopter reaps it, and pgrep lists

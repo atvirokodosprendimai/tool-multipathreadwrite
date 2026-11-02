@@ -196,8 +196,19 @@ func resolveIn(absRoot, path string) (string, error) {
 // — so an absolute argument and the root it is checked against are spelled the
 // same way. Resolving only with EvalSymlinks, which stops at a junction,
 // refused an absolute path inside a root reached through one (review of #228).
-// A path that cannot be resolved comes back cleaned; Resolve still judges it.
-func Real(p string) string { return links.Real(p) }
+// A path that does not exist is resolved as far as it does (RealAsFarAsItExists):
+// EvalSymlinks fails on a missing leaf, and the path as spelled then sat outside
+// a root reached through a linked ancestor — /var -> /private/var on macOS — so
+// a missing file inside the root was refused as outside it instead of reported
+// missing (issue #599, ADR-007). A path that exists but cannot be resolved comes
+// back cleaned, as before; Resolve still judges it.
+func Real(p string) string {
+	r := links.Real(p)
+	if _, err := os.Lstat(r); errors.Is(err, fs.ErrNotExist) {
+		return RealAsFarAsItExists(p)
+	}
+	return r
+}
 
 // Contains reports whether p is absRoot itself or something beneath it. The
 // separator matters: without it, "/repo-backup" counts as inside "/repo". A root
