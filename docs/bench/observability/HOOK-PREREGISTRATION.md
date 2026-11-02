@@ -20,9 +20,9 @@ showed, so an arm that keeps the host's `Read` no longer pays that second read. 
 
 ## Differences from run 8, all of them
 
-- The binary is `main` at the merge of #603, not v1.81.0: ADR-188 (`MRW_RECEIPT`, unset here),
+- The binary is built from `main` at a commit no older than `345157f2`, named in the results, not v1.81.0: ADR-188 (`MRW_RECEIPT`, unset here),
   ADR-189 (narrower gutter), ADR-190 (a quoted `search_replace` block licenses its lines) and
-  ADR-191 are in it. The driver is the one #603 merged.
+  ADR-191 are in it. The driver is `scripts/grouped_pilot.py` at `345157f2` (#603).
 - Arm R is new. Arms A and C are unchanged in setup.
 
 ## Runs
