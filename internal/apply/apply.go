@@ -1369,9 +1369,10 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 			unquoted++
 		}
 	}
-	// A file the quotes alone licensed is not one the caller read, so the
-	// writer must not give it ADR-005's whole-file licence (ADR-190).
-	quotedOnly := unquoted == 0 && !(known && recorded.SHA == shaBefore)
+	// A file whose every hunk a quote licensed records only the lines written,
+	// whatever the ledger held before: a partial read must not become ADR-005's
+	// whole-file licence through a quoted write (ADR-190).
+	quotedOnly := unquoted == 0
 
 	// READ BEFORE MODIFY. An existing file may only be edited if mrw has seen
 	// what it currently holds. Checked once per file, before any hunk, because

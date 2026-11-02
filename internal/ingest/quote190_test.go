@@ -258,6 +258,21 @@ func hintToKeepTheCloser190(t *testing.T) {
 	refused190(t, root, land190(t, root, []byte(planText)), `end SEARCH and REPLACE in the same line`, file)
 }
 
+func partialReadThenQuote190(t *testing.T) {
+	stateDir190(t)
+	file := text190(rows190(`a b c d e`))
+	root := tree190(t, file)
+	known := map[string]seen.Observation{fileName190: {SHA: seen.SHA([]byte(file)), Spans: [][2]int{{1, 1}}}}
+	if err := seen.Record(root, known); err != nil {
+		t.Fatal(err)
+	}
+	planText := compile190(t, root, block190(rows190(`c`), rows190(`C`)))
+	wrote := text190(rows190(`a b C d e`))
+	applied190(t, root, land190(t, root, []byte(planText)), planText, wrote)
+	blind := text190([]string{`@@ fx 5 replace`, `E`})
+	refused190(t, root, land190(t, root, []byte(blind)), `has not been read`, wrote)
+}
+
 func noWholeFileLicence190(t *testing.T) {
 	stateDir190(t)
 	root := tree190(t, text190(rows190(`a b c d e f g h`)))
@@ -319,5 +334,6 @@ func TestAnExactSearchBlockLicensesTheLinesItQuotes(t *testing.T) {
 	t.Run(`a ledger that no longer describes the file does not cover the line after`, staleLedger190)
 	t.Run(`the refusal for the line after names the kept closer`, hintToKeepTheCloser190)
 	t.Run(`a file written only by quotes gets no whole-file licence`, noWholeFileLicence190)
+	t.Run(`a partial read does not become a whole-file licence through a quoted write`, partialReadThenQuote190)
 	t.Run(`a file changed while the landing waits for the lock is refused`, changedBeforeTheLock190)
 }
