@@ -1603,7 +1603,6 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				counts = map[string]int{}
 			}
 			observed, problems := read.Run(stdout, root, specs, read.Options{
-				HintRoot:     typedRoot(cmd),
 				Numbers:      !cmd.Bool("no-numbers"),
 				Stat:         cmd.Bool("stat"),
 				Context:      cmd.Int("context"),
@@ -3778,15 +3777,6 @@ func specList(root, name string) ([]string, error) {
 // ⚠ IsSet is the whole point: without it an absent flag and `--max-lines 0` are
 // the same input, which is how zero came to mean unlimited — and why nothing was
 // reported withheld for a cap the tool never applied (ADR-033).
-// typedRoot is the --root (or -C) the caller gave, or "" when none was, for a
-// command a read prints back (read.Options.HintRoot).
-func typedRoot(cmd *cli.Command) string {
-	if cmd.Root().IsSet("root") {
-		return cmd.Root().String("root")
-	}
-	return ""
-}
-
 func maxLines(cmd *cli.Command) *int {
 	if !cmd.IsSet("max-lines") {
 		return nil

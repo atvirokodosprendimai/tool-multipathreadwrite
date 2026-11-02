@@ -10999,29 +10999,6 @@ out=$(printf '%s\n' "@@ c.json 2-3 replace anchor='    \"timeout\": 30,'" '    "
   && ok "the pair: the single-quoted anchor applies" || bad "single-quoted: exit $rc324 [$out]"
 rm -rf "$S324" "$R324" "$WORK/served324.out"
 
-# 326. ADR-015: a refusal names the fix. A directory named to mrw read is
-# UNREADABLE, exit 1, and the line after it names the walk: --grep PATTERN DIR.
-# The pair: a missing file is UNREADABLE with no such line.
-R326=$(mktemp -d "$WORK/r326-XXXXXX"); mkdir "$R326/sub"; printf 'a\n' > "$R326/sub/a.txt"
-out=$(env XDG_STATE_HOME="$R326/state" "$MRW" -C "$R326" read sub 2>&1); rc326=$?
-{ [ "$rc326" = 1 ] && grep -q '^==> sub  UNREADABLE' <<<"$out" && grep -qF "a directory you name is walked: mrw --root $R326 read --grep PATTERN -- ./sub serves" <<<"$out" && grep -qF -- '--grep $ -- ./sub every line' <<<"$out"; } \
-  && ok "a directory named to read says how to walk it" || bad "dir read: exit $rc326 [$out]"
-out=$(env XDG_STATE_HOME="$R326/state" "$MRW" -C "$R326" read nope.txt 2>&1); rc326=$?
-{ [ "$rc326" = 1 ] && grep -q 'UNREADABLE' <<<"$out" && ! grep -q 'a directory you name is walked' <<<"$out"; } \
-  && ok "the pair: a missing file gets no walk hint" || bad "missing file: exit $rc326 [$out]"
-ln -s sub "$R326/link"
-out=$(cd "$R326" && env XDG_STATE_HOME="$R326/state" "$MRW" read link 2>&1); rc326=$?
-{ [ "$rc326" = 1 ] && grep -qF 'a directory you name is walked: mrw read --grep PATTERN -- ./sub serves' <<<"$out"; } \
-  && ok "a link to a directory, read from the root, names the directory it leads to" || bad "link read: exit $rc326 [$out]"
-# The hint carries the --root the caller typed (the Codex review of #591): read with -C
-# from outside the root, its every-line command runs as printed from the same place.
-out=$(cd "$WORK" && env XDG_STATE_HOME="$R326/state" "$MRW" -C "$R326" read sub 2>&1)
-hint326=$(grep -o 'walked: mrw --root [^ ]* read' <<<"$out" | sed 's/^walked: //')
-ran326=$(cd "$WORK" && env XDG_STATE_HOME="$R326/state" "$MRW" ${hint326#mrw } --grep '$' -- ./sub 2>&1); rc326=$?
-{ [ "$hint326" = "mrw --root $R326 read" ] && [ "$rc326" = 0 ] && grep -q '^==> sub/a.txt' <<<"$ran326"; } \
-  && ok "a hint read under -C names the root, and its command runs from where the caller is" || bad "root hint: [$hint326] exit $rc326 [$out] [$ran326]"
-rm -rf "$R326"
-
 # 327. ADR-007: mrw says which path it looked for. A plan path that does not
 # exist, where a file the caller was served ends in it, names that file: read
 # parsers/p.py, plan p.py, and the refusal (exit 1, nothing written) says
@@ -11053,6 +11030,22 @@ out=$(e325 "$MRW" -C "$R325" read long.txt:100-101 2>&1); rc325=$?
 { [ "$rc325" = 0 ] && grep -q '^ 100| long100$' <<<"$out"; } \
   && ok "the pair: a block planned past line 99 is numbered three wide" || bad "long gutter: exit $rc325 [$out]"
 rm -rf "$S325" "$R325"
+
+# 326. ADR-015: a refusal names the fix. A directory named to mrw read is
+# UNREADABLE, exit 1, and the line after it says it is walked and names --grep;
+# a link names the directory it leads to. The pair: a missing file gets no such line.
+R326=$(mktemp -d "$WORK/r326-XXXXXX"); mkdir "$R326/sub"; printf 'a\n' > "$R326/sub/a.txt"; ln -s sub "$R326/link"
+e326() { env XDG_STATE_HOME="$R326/state" "$MRW" -C "$R326" read "$@" 2>&1; }
+out=$(e326 sub); rc326=$?
+{ [ "$rc326" = 1 ] && grep -q '^==> sub  UNREADABLE' <<<"$out" && grep -qF 'a directory is walked, not read: give it to mrw read --grep PATTERN' <<<"$out"; } \
+  && ok "a directory named to read says it is walked and names --grep" || bad "dir read: exit $rc326 [$out]"
+out=$(e326 link)
+grep -qF 'a link to the directory sub, and a walk does not follow a link: give sub to' <<<"$out" \
+  && ok "a link to a directory names the directory it leads to" || bad "link read: [$out]"
+out=$(e326 nope.txt); rc326=$?
+{ [ "$rc326" = 1 ] && ! grep -q 'walked, not read' <<<"$out"; } \
+  && ok "the pair: a missing file gets no walk hint" || bad "missing: exit $rc326 [$out]"
+rm -rf "$R326"
 
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
