@@ -1356,7 +1356,11 @@ func load(w io.Writer, root string, sp *Spec) (b []byte, englishUnreadable, ok b
 		if glob == "" && errors.Is(err, os.ErrNotExist) {
 			// argPath, as typed: an absolute path inside the root was made
 			// relative above, and its separators were the caller's own.
-			glob = eatenSeparatorHint(root, argPath)
+			if glob = eatenSeparatorHint(root, argPath); glob != "" {
+				// A path this hint names is not a shell-split word: counting it
+				// would print a hint that contradicts this one.
+				english = false
+			}
 		}
 		fmt.Fprintf(w, "==> %s  UNREADABLE  %v%s\n", sp.Path, err, glob)
 		return nil, english, false
@@ -1798,8 +1802,10 @@ const (
 // The search is prefix-guided, so it stays cheap: from the root it enters only a
 // directory whose name begins the text still unmatched, at most
 // eatenSeparatorDepth levels deep and eatenSeparatorLists listings in all. It
-// follows no link, as a walk does not (ADR-096), and answers only with a regular
-// file, the first in name order, that a read of it would not refuse.
+// follows no link, as a walk does not (ADR-096), enters no .git, as a walk does
+// not, and answers only with a regular file, the first in name order, that a
+// read of it would not refuse. The line blames no shell, since a --files-from
+// list or an MCP spec can lose a separator too.
 func eatenSeparatorHint(root, path string) string {
 	if path == "" || strings.ContainsAny(path, `/\`) {
 		return ""
@@ -1817,10 +1823,16 @@ func eatenSeparatorHint(root, path string) string {
 		}
 		for _, e := range entries {
 			name := e.Name()
+			if name == ".git" {
+				continue // the walk does not enter it either (walk.go)
+			}
 			if !strings.HasPrefix(rest, name) {
 				continue
 			}
 			if name == rest {
+				// depth > 0 is not reachable as false: a name equal to the whole
+				// path at the root means the path exists, and load gets here only
+				// when it does not. It is a guard, and no test can kill it.
 				if depth > 0 && e.Type().IsRegular() {
 					if _, err := rooted.Resolve(root, rel+name); err == nil {
 						return rel + name
@@ -1837,7 +1849,7 @@ func eatenSeparatorHint(root, path string) string {
 		return ""
 	}
 	if got := find(root, "", path, 0); got != "" {
-		return "\n    (a shell may have eaten a backslash: did you mean " + got + "? quote the path, or use /)"
+		return "\n    (a path separator may have been lost, as a shell eats an unquoted backslash: did you mean " + got + "? quote the path, or use /)"
 	}
 	return ""
 }
