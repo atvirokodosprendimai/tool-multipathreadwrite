@@ -133,7 +133,10 @@ def closer_kind(token):
         return "fence"
     m = re.match(r"^</([\w.-]+)>$", token)
     if m:
-        return (r"<" + re.escape(m.group(1)) + r"(?=[\s>/])", r"</" + re.escape(m.group(1)) + r">")
+        # An opener may end the text (a <div whose attributes go on below), and a self-closing <tag ... />
+        # opens nothing: the registration's "<tag against </tag>" (the cloud review of #593).
+        return (r"<" + re.escape(m.group(1)) + r"(?=[\s>/]|$)", r"</" + re.escape(m.group(1)) + r">",
+                r"<" + re.escape(m.group(1)) + r"\b[^<>]*/>")
     m = re.match(r"^@end(\w+)$", token)
     if m:
         return (r"@" + re.escape(m.group(1)) + r"\b", r"@end" + re.escape(m.group(1)) + r"\b")
@@ -145,7 +148,8 @@ def net(lines, kind):
     if kind == "fence":
         return sum(1 for s in lines if re.match(r"^\s*(`{3,}|~{3,})", s)) % 2
     text = "\n".join(lines)
-    return len(re.findall(kind[0], text)) - len(re.findall(kind[1], text))
+    selfclosed = len(re.findall(kind[2], text)) if len(kind) > 2 else 0
+    return len(re.findall(kind[0], text)) - selfclosed - len(re.findall(kind[1], text))
 
 
 def net_differs(replaced, body):

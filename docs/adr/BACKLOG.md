@@ -522,28 +522,42 @@ nothing beyond the bar.
 - `docs/break/shape-hints/stress.py` gained the variant; no other change.
 - Each seed took about 33 s over 14 repositories and one worktree.
 
+**Corrections, from the cloud review of #593.** The registration above stands as committed.
+- **Seeds.** Neither seed was fresh: 2119 is ADR-119's second run and 3119 its third. Both samples were seen when
+  ADR-119 was tuned, so these figures are no held-out check.
+- **Corpus.** It is not ADR-119's: 14 repositories here against 16 on 2026-10-02. One rng is shared across
+  repositories in sorted order, so a changed corpus reshuffles every sample after it. "Run 2's parameters" did not
+  reproduce run 2's sample.
+- **Bar 3's true-positive half could not fail.** On every `through_closer` row, `ends_alike` holds by construction:
+  the range and the body end on the same line. So both `ne` variants fire 0 times on those rows (3,249 rows on seed
+  2119, 2,944 on 3119). And because the variant is the shipped hint ANDed with one more condition, "fewer fires, none
+  gained" is a tautology. Only the 5% bucket bar and bar 4 could fail, and bar 4 was not run. A next registration
+  needs a true-positive guard that can fail.
+- **The code differed from the registered definition.** The tag opener needed a character after the name, so a bare
+  `<div` ending the replaced range counted 0. A self-closing `<x-foo />` counted as an opener. Both were fixed to match
+  "`<tag` against `</tag>`", and both seeds re-run. The numbers below are from the fixed code. The verdict did not
+  change.
+
 Bar 1 held: the blade, html and markdown field fixtures all still fire.
 
 Bar 2 held: all eight `scripts/mrw_observe.py` cases match their expected hint. `sibling_spec.rb` and `nested.go` no
 longer fire; `duplicate.md` and `blanks.md` still do.
 
-Bar 3 missed. False fires on correct committed edits:
+Bar 3 missed. False fires on correct committed edits, from the `-U0` replay:
 
-| seed | replaces | `closer_k4_token_ne` (shipped) | `closer_k4_token_ne_net` | `blade` shipped / net |
-|---|---:|---:|---:|---:|
-| 2119 | 11,661 | 136 | 12 | 5.66% / 1.89% of 53 |
-| 3119 | 11,356 | 120 | 23 | 9.28% / **6.19%** of 97 |
+| seed | replaces | `closer_k4_token_ne` (shipped) | `closer_k4_token_ne_net` | removed, by closer shape | `blade` shipped / net |
+|---|---:|---:|---:|---|---:|
+| 2119 | 11,749 | 140 | 11 | `}` 113, tag 9, `]` 4, `)` 2, fence 1 | 5.66% / 1.89% of 53 |
+| 3119 | 11,637 | 122 | 22 | `}` 83, tag 13, `]` 2, `)` 1, fence 1 | 9.28% / **6.19%** of 97 |
 
-The variant removes 91% and 81% of false fires, and gains none. But on seed 3119 its `blade` bucket is over
-ADR-119's 5% bar, so it does not ship. Bar 4 (a hand read of removed fires) was not run: bar 3 already
-decides the outcome.
+On seed 3119 the variant's `blade` bucket is over the 5% bar, so it does not ship. The six `blade` fires it keeps are
+10 to 18-line rewrites of nested templates. Their net tag count really does differ, because the hunk changes how much
+structure it encloses, so a closer-token rule cannot tell them from an orphan. No further variant is proposed.
 
-A finding against the shipped hint: `closer_k4_token_ne` is now over ADR-119's own bar in `blade` on both seeds,
-5.66% and 9.28%. ADR-119 measured under 5% everywhere on 2026-10-02; the history has grown since. That is
-an open defect of the shipped receipt, not of this variant.
-
-A next variant needs its own pre-registration and a fresh seed. Where to look: the six `blade` fires the net
-variant still makes on seed 3119. Owner: as above.
+**About the shipped hint.** On this corpus the shipped `closer_k4_token_ne` is over ADR-119's bar in `blade`: 5.66% and
+9.28%. ADR-119's runs never had a `blade` bucket of 50 or more replaces, and its corpus differed, so this is a first
+measurement of that bucket, not a measured regression. It is an open question for Zy whether the hint should keep
+firing on `.blade.php`. Owner: as above.
 
 ## Pre-registered for ADR-156 (does mrw pay for itself on agent runs) — the bar, written before any run
 
