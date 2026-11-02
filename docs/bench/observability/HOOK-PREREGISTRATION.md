@@ -55,8 +55,8 @@ for a measure, an arm is lower when the difference is the same sign in both roun
 larger than both arms' spreads; otherwise no result. Measures: cost, cache creation, turns, output
 tokens. Reported beside them: refused writes, and the mechanism count below.
 
-**Mechanism counts**, from each R cell's stream-json transcript. The classifier is committed, with a
-test on synthetic transcripts, before the first call. These rules are frozen with it:
+**Mechanism counts**, from each R cell's stream-json transcript by `scripts/bench_mechanism.py`, committed
+with a test on synthetic transcripts before the first call. These rules are frozen with it:
 
 - An *overlapping read* is a Bash call whose command runs `mrw read` naming a file F, made after a host
   `Read` of F and with no landed write to F in between. It is a proxy, not a measure of forced work:
