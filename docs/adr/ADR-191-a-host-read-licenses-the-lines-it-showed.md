@@ -1,6 +1,7 @@
 # ADR-191: a host's own Read licenses the lines it showed
 
-**Status:** Proposed
+**Status:** Accepted
+**Accepted:** 2026-11-02 by Zy — answered *"Accept and implement"* to "Accept it?", after two Codex high challenges whose findings are amended in
 **Date:** 2026-11-02
 **Amended:** 2026-11-02, before acceptance, from a Codex high challenge (4 findings, each checked against the code): the licence comes from the content the Read returned, compared with the file on disk, never from the requested range or the current version alone; a payload without that content records nothing; `.git` is refused by `rooted.GitDir`, not `Resolve`; the ledger lock is tried with a deadline; the hook skips the startup migration; S1 pairs each payload with what the model received (second challenge).
 **Owner:** Zy

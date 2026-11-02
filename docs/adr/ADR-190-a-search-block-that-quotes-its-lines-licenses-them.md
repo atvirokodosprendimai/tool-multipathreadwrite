@@ -1,6 +1,7 @@
 # ADR-190: a SEARCH block that quotes every line it replaces licenses them
 
-**Status:** Proposed
+**Status:** Accepted
+**Accepted:** 2026-11-02 by Zy — answered *"Accept and implement"* to "Accept it?", after two Codex high challenges whose findings are amended in
 **Date:** 2026-11-02
 **Amended:** 2026-11-02, before acceptance, from a Codex high challenge (5 findings, each checked against the code): the mark is a `quote=` option carrying a MAC under a key only the running process holds, so Parse stays the one door (ADR-030) and no caller can forge it; uniqueness is re-checked under the lock (second challenge); ADR-052's line after is met only by a quoted kept line; the assertions that pin today's refusal move in T1; native `delete` with an expected-removal body and apply_patch's compiled shape are named in the audit; the mutants cover range leakage, an unquoted sibling and a comparison outside the lock.
 **Owner:** Zy
