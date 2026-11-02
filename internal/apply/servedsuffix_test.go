@@ -64,20 +64,30 @@ func TestAMissingPlanPathNamesTheServedFileItEndsLike(t *testing.T) {
 	}
 }
 
-// The same hint on every refusal of a missing plan path: unlink, rename and a
-// sha= guard on a line op name the served file too (the gap #592 first left).
-// The pair: a path nothing served ends in gets the bare refusal.
+// The same hint on every refusal of a missing plan path: unlink, rename, a
+// replace planned beside a rename, and a sha= guard on a line op and on an
+// unlink name the served file too (the gap #592 first left; the go-reviewer
+// pass of 14ce08d found the last two untested). The pair: a path nothing
+// served ends in gets the bare refusal.
 func TestEveryMissingPathRefusalNamesTheServedFile(t *testing.T) {
 	const hint = "; you were served parsers/parser_0.py — every path in a plan is relative to the root"
+	const missing = "parser_0.py does not exist"
 	for _, c := range []struct {
 		name string
-		in   Input
+		plan []Input
+		at   int // the hunk whose reason carries the refusal
 		bare string
 	}{
-		{"unlink", Input{Path: "parser_0.py", Op: "unlink", Lines: -1}, "parser_0.py does not exist"},
-		{"rename", Input{Path: "parser_0.py", Op: "rename", Body: []string{"q.py"}, Lines: -1}, "parser_0.py does not exist"},
-		{"sha= on a replace", Input{Path: "parser_0.py", Start: 1, End: 1, Op: "replace", Body: []string{"x"}, SHA: "abcd1234", Lines: -1},
-			"sha=abcd1234 given but parser_0.py does not exist"},
+		{"unlink", []Input{{Path: "parser_0.py", Op: "unlink", Lines: -1}}, 0, missing},
+		{"rename", []Input{{Path: "parser_0.py", Op: "rename", Body: []string{"q.py"}, Lines: -1}}, 0, missing},
+		{"a replace beside a rename", []Input{
+			{Path: "parser_0.py", Start: 1, End: 1, Op: "replace", Body: []string{"x"}, Lines: -1, Index: 0},
+			{Path: "parser_0.py", Op: "rename", Body: []string{"q.py"}, Lines: -1, Index: 1},
+		}, 1, missing},
+		{"sha= on a replace", []Input{{Path: "parser_0.py", Start: 1, End: 1, Op: "replace", Body: []string{"x"}, SHA: "abcd1234", Lines: -1}},
+			0, "sha=abcd1234 given but parser_0.py does not exist"},
+		{"sha= on an unlink", []Input{{Path: "parser_0.py", Op: "unlink", SHA: "abcd1234", Lines: -1}},
+			0, "sha=abcd1234 given but parser_0.py does not exist"},
 	} {
 		for _, served := range []bool{true, false} {
 			root := t.TempDir()
@@ -86,7 +96,7 @@ func TestEveryMissingPathRefusalNamesTheServedFile(t *testing.T) {
 			if served {
 				seen[filepath.FromSlash("parsers/parser_0.py")] = Seen{}
 			}
-			res, err := Apply(root, []Input{c.in}, Options{Seen: seen})
+			res, err := Apply(root, c.plan, Options{Seen: seen})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -94,8 +104,8 @@ func TestEveryMissingPathRefusalNamesTheServedFile(t *testing.T) {
 			if served {
 				want += hint
 			}
-			if r := res.Hunks[0].Reason; res.Failed != 1 || r != want {
-				t.Errorf("%s served=%v: failed=%d reason\n %q, want\n %q", c.name, served, res.Failed, r, want)
+			if r := res.Hunks[c.at].Reason; res.Failed < 1 || r != want {
+				t.Errorf("%s served=%v: failed=%d reason\n %q, want\n %q\n all: %+v", c.name, served, res.Failed, r, want, res.Hunks)
 			}
 		}
 	}
