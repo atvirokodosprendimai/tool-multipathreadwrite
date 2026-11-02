@@ -1332,11 +1332,14 @@ func load(w io.Writer, root string, sp *Spec) (b []byte, englishUnreadable, ok b
 	b, err = readCapped(full)
 	if err != nil {
 		glob := hintUnexpandedGlob(sp.Path)
+		// Decided before the directory hint is added, so a directory name still counts
+		// toward the shell-split hint as it did (the Codex review of #591).
+		english := glob == "" && isEnglishWordToken(sp.Path)
 		if statErr == nil && fi.IsDir() {
 			glob = dirHint(root, sp.Path, full)
 		}
 		fmt.Fprintf(w, "==> %s  UNREADABLE  %v%s\n", sp.Path, err, glob)
-		return nil, glob == "" && isEnglishWordToken(sp.Path), false
+		return nil, english, false
 	}
 	return b, false, true
 }

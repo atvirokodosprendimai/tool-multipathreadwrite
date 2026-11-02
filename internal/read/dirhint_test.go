@@ -45,3 +45,16 @@ func TestADirectoryNamedToReadSaysHowToWalkIt(t *testing.T) {
 		}
 	}
 }
+
+// The directory hint leaves the shell-split hint as it was: a directory name still
+// counts toward it beside an English-word miss (the Codex review of #591).
+func TestADirectoryStillCountsTowardTheShellSplitHint(t *testing.T) {
+	root := t.TempDir()
+	if err := os.Mkdir(filepath.Join(root, "internal"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	out, _ := run(t, root, Options{Numbers: true}, "internal", "missingword")
+	if !strings.Contains(out, "walked, not read") || !strings.Contains(out, "shell-split regex address") {
+		t.Errorf("want both the walk hint and the shell-split hint:\n%s", out)
+	}
+}
