@@ -155,5 +155,15 @@ class ArmNames(unittest.TestCase):
         for name, argv in (("F", ["-p", "x"]), ("C", ["-p", "x"]), ("B", appended), ("X", appended), ("", appended)):
             with self.subTest(name=name), self.assertRaises(ValueError):
                 pilot.arm_for(argv, name)
+
+    def test_named_host_read_arm_r_is_an_arm_with_an_appended_file(self):
+        appended = ["-p", "x", "--append-system-prompt-file", "f"]
+        self.assertEqual(pilot.arm_for(appended, "R"), "R")
+        with self.assertRaises(ValueError):
+            pilot.arm_for(["-p", "x"], "R")
+        for identity, safe in (("job.R", True), ("canary.R", True), ("job.X", False), ("job.r", False), ("../job.R", False)):
+            with self.subTest(identity=identity):
+                self.assertEqual(bool(pilot.SAFE_IDENTITY.fullmatch(identity)), safe)
+
 if __name__ == "__main__":
     unittest.main()

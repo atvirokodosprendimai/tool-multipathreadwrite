@@ -69,13 +69,17 @@ def cost_guard(root, max_launches=8, max_usd=3):
         raise ValueError("pilot budget exhausted")
 
 
+NAMED_ARMS = ("F", "C", "R")
+SAFE_IDENTITY = re.compile(r"[a-z0-9-]+\.[ABFCR]")
+
+
 def arm_for(argv, named):
-    """The cell's arm: inferred A/B when unnamed; a named F or C must carry an appended guide."""
+    """The cell's arm: inferred A/B when unnamed; a named F, C or R must carry an appended guide."""
     appended = "--append-system-prompt-file" in argv
     if named is None:
         return "B" if appended else "A"
-    if named not in ("F", "C"):
-        raise ValueError("arm name must be F or C")
+    if named not in NAMED_ARMS:
+        raise ValueError("arm name must be F, C or R")
     if not appended:
         raise ValueError("arm " + named + " needs an appended guide")
     return named
@@ -121,7 +125,7 @@ def wrap(argv, config):
     arm = arm_for(argv, os.environ.get("BENCH_ARM"))
     task = json.loads((root / "TASK.json").read_text())["id"] if (root / "TASK.json").exists() else "canary"
     identity = task + "." + arm
-    if not re.fullmatch(r"[a-z0-9-]+\.[ABFC]", identity):
+    if not SAFE_IDENTITY.fullmatch(identity):
         raise ValueError("unsafe task identity")
     if (out / (identity + ".json")).exists():
         raise ValueError("started cell is never rerun")
