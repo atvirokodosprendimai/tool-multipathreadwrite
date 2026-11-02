@@ -1764,6 +1764,9 @@ func walkHint(root, path, full, hintRoot string) string {
 	}
 	win := runtime.GOOS == "windows"
 	head := "mrw read"
+	if strings.HasPrefix(name, "@") {
+		name = "./" + name // a leading @ is a working-set pointer, even after -- (the Codex re-review of #591)
+	}
 	q, ok := hintWord(name, win)
 	if hintRoot != "" {
 		r, rok := hintWord(hintRoot, win)
@@ -1785,12 +1788,14 @@ func walkHint(root, path, full, hintRoot string) string {
 // three take, so it is reported as not printable (the Codex review of #591).
 // Elsewhere it is quoteWord's form.
 func hintWord(name string, windows bool) (string, bool) {
+	// Checked first: quoteWord leaves % bare, which cmd.exe expands, and a trailing
+	// backslash escapes a closing double quote in Git Bash (the Codex re-review of #591).
+	if windows && (strings.ContainsAny(name, "\"$`%!") || strings.HasSuffix(name, `\`)) {
+		return quoteWord(name, windows), false
+	}
 	q := quoteWord(name, windows)
 	if !windows || q == name {
 		return q, true
-	}
-	if strings.ContainsAny(name, "\"$`%!") {
-		return q, false
 	}
 	return "\"" + name + "\"", true
 }

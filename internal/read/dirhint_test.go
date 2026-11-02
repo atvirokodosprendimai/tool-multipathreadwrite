@@ -16,7 +16,7 @@ import (
 // case untested).
 func TestADirectoryNamedToReadSaysHowToWalkIt(t *testing.T) {
 	root := t.TempDir()
-	for _, d := range []string{"sub", "my dir"} {
+	for _, d := range []string{"sub", "my dir", "@docs"} {
 		if err := os.Mkdir(filepath.Join(root, d), 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -27,6 +27,7 @@ func TestADirectoryNamedToReadSaysHowToWalkIt(t *testing.T) {
 		{"sub", "mrw read --grep PATTERN -- sub serves"},
 		{"sub:1-2", "mrw read --grep PATTERN -- sub serves"},
 		{"my dir", "mrw read --grep PATTERN -- " + myDir + " serves"},
+		{"@docs", "mrw read --grep PATTERN -- ./@docs serves"},
 		{"nope.txt", ""},
 	}
 	if runtime.GOOS != "windows" {
@@ -74,6 +75,9 @@ func TestAHintQuotesAPathForEveryShell(t *testing.T) {
 		{"a$b c", true, quoteWord("a$b c", true), false},
 		{"my dir", false, quoteWord("my dir", false), true},
 		{"a$b c", false, quoteWord("a$b c", false), true},
+		{"%USERNAME%", true, quoteWord("%USERNAME%", true), false},
+		{"%USERNAME%", false, quoteWord("%USERNAME%", false), true},
+		{`C:\repo\`, true, quoteWord(`C:\repo\`, true), false},
 	} {
 		if got, ok := hintWord(c.name, c.windows); got != c.want || ok != c.ok {
 			t.Errorf("hintWord(%q, %v) = %q, %v, want %q, %v", c.name, c.windows, got, ok, c.want, c.ok)
