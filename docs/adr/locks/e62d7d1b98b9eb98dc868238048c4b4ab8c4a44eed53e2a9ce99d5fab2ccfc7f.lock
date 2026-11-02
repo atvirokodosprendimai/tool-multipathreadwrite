@@ -1,0 +1,14 @@
+check@2	1bb497e3e13a1105cf24e3359fa3ef75de08b66ff8a2839cd7f9ea97824d9eb3
+body	cmd/mrw/hookread191_test.go	TestAHostReadLicensesOnlyTheLinesItShowedAsTheyAre	cba85519dc87ef687efb3510743e7f69530e63e8b2a3f59f64cea98d060c6ad3
+body	cmd/mrw/hookread191_test.go	a 2,500-character line the host showed whole is licensed	484433db9b861cb057cf50559b6510cb180ace3849d493fabbd2626a13383d36
+body	cmd/mrw/hookread191_test.go	a held ledger lock returns within the deadline and records nothing	5d1bc8105d8cdb836b58e0db822cd4278d815e8c637feba07c00b8ab6b9540a1
+body	cmd/mrw/hookread191_test.go	a legacy ./.mrw whose destination lock is held does not hold the command	b57ad8d76f7182b809a1e0ffb6a731492903f8faf6278aa0525520f8f39c8ebb
+body	cmd/mrw/hookread191_test.go	a line that changed after the read is not licensed	c171f832907a9dc7954d1b60532bd1dfe93c10f7d12c011609356db2c9fd68d4
+body	cmd/mrw/hookread191_test.go	a line the host cut is not licensed	c36e33c8c4c1715b7e93953f11ed82432b5860b95c930fcc6fded2368996b2ca
+body	cmd/mrw/hookread191_test.go	a malformed payload records nothing and exits 0	3e05265195c31a3e9cce393b0ec54ef9c8612c5328c17c663e6ba1946bf62f98
+body	cmd/mrw/hookread191_test.go	a payload with no returned lines records nothing	a27ccb1b6ee04e29f3a369d9f628382e65c33ec148f043d342be457f976bf053
+body	cmd/mrw/hookread191_test.go	a stray CR the host did not show keeps its line unlicensed	76f2c842674d2fb62e51643660add2e401ce8b0ce63e46230093480cc8656b0c
+body	cmd/mrw/hookread191_test.go	a whole file licenses its lines and not the empty one after the last newline	614264dd65b85a0ac35a3e285a0fe660446b40dac586d7175fe6d688f38290bf
+body	cmd/mrw/hookread191_test.go	an offset and limit license those lines, and a plan to one of them applies	3e1b7a52d2e1d3ec362c7faaa0189b8ce7c1fd1d13d1381a252b32f37df1f5f3
+body	cmd/mrw/hookread191_test.go	another tool records nothing	f1ff221cb2012b6b64bf9a7f56c69104b1bea4e817666e263cf45a7a489d7330
+body	cmd/mrw/hookread191_test.go	the lines returned are licensed, not the lines asked for	ae9db6ca986637bd661cebc35f84b82d5e4dac20ef8de15f34a8c753eddc2fd1

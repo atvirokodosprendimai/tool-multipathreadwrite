@@ -29,6 +29,7 @@ import (
 	"unicode"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/lines"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/quote"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/refusal"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/regular"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
@@ -61,6 +62,12 @@ type HunkResult struct {
 	// --strict-balance would have refused it. Unexported: not receipt fields.
 	singleLineCode bool
 	wrapTail       bool
+	// newSpan is where a replace or insert put its body in the written file,
+	// and quotedFile says every hunk on the file was licensed by a quote with
+	// no fresh ledger entry behind it (ADR-190): the writer then records spans,
+	// not ADR-005's whole-file licence. Unexported: not receipt fields.
+	newSpan    [2]int
+	quotedFile bool
 
 	Path    string `json:"path"`
 	Addr    string `json:"addr"`
@@ -217,6 +224,11 @@ type FileResult struct {
 	// is not Path: ADR-005 §2 follows the link, and ADR-076 names where it led.
 	// Root-relative; absent otherwise.
 	Target string `json:"target,omitempty"`
+	// Spans and QuotedOnly carry what the writer records for a file whose
+	// hunks a quote alone licensed (ADR-190): the lines written, in the new
+	// file's numbering, in place of a whole-file licence. Not receipt fields.
+	Spans      [][2]int `json:"-"`
+	QuotedOnly bool     `json:"-"`
 }
 
 // Result is the whole run's receipt.
@@ -290,6 +302,9 @@ type hunk struct {
 	// Occurrence carries plan.Hunk.Occurrence (ADR-118): pick the Nth match of
 	// StartPat, every match before it served.
 	Occurrence int
+	// Quote carries plan.Hunk.Quote (ADR-190): the mark that says the SEARCH
+	// block quoted the lines this replace covers. planFile verifies it.
+	Quote string
 
 	// StartPat and EndPat are ADR-013's pattern address, carried through
 	// unresolved. Resolution happens in the loop below, against the ORIGINAL
@@ -338,6 +353,7 @@ type Input struct {
 	RelEnd      int
 	CountedBody bool
 	Occurrence  int
+	Quote       string
 	SrcLine     int
 	Index       int
 	// From, if set, makes the body the lines FromStart..FromEnd of that file as
@@ -465,7 +481,7 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 		byPath[p] = append(byPath[p], hunk{
 			Path: p, Start: i.Start, End: i.End, Op: i.Op, Body: body,
 			SHA: i.SHA, Lines: i.Lines, Anchor: i.Anchor,
-			StartPat: i.StartPat, EndPat: i.EndPat, RelEnd: i.RelEnd, Occurrence: i.Occurrence, CountedBody: i.CountedBody,
+			StartPat: i.StartPat, EndPat: i.EndPat, RelEnd: i.RelEnd, Occurrence: i.Occurrence, CountedBody: i.CountedBody, Quote: i.Quote,
 			SrcOp: i.Op, SrcAddr: srcAddrOf(i), SrcLine: i.SrcLine, Index: n,
 		})
 	}
@@ -704,6 +720,14 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			// then under-reads how much the run was about to touch.
 			failed = append(failed, fr)
 			continue
+		}
+		for _, h := range hs {
+			if r := results[h.Index]; r.quotedFile {
+				fr.QuotedOnly = true
+				if r.newSpan[0] > 0 {
+					fr.Spans = append(fr.Spans, r.newSpan)
+				}
+			}
 		}
 		switch kind {
 		case "unlink":
@@ -1305,12 +1329,57 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 		return nil, false, ""
 	}
 
+	// ADR-190. A hunk that carries quote= is licensed for the lines it quotes,
+	// and only those, when the mark verifies against orig, the file as this
+	// run holds it under the write lock: this process made the mark for exactly
+	// these bytes at exactly this range, and they occur once. The kept tail is
+	// the number of lines after the range the quote covers (ADR-052). The mark
+	// proves a quote of a replace, so any other op carrying one is refused, and
+	// a mark that fails is refused, Force or not.
+	quoted := map[int]int{}
+	for _, h := range hs {
+		if len(h.Quote) == 0 {
+			continue
+		}
+		if h.Op != "replace" || h.StartPat != nil || h.RelEnd > 0 || h.Start < 1 || h.End < h.Start {
+			fail(h, "a quote mark belongs to a replace of numbered lines made by --format search_replace, and %s is not one", h.SrcOp)
+			continue
+		}
+		if !existed {
+			continue
+		}
+		tail, err := quote.Check(h.Quote, path, h.Start, h.End, orig)
+		if err != nil {
+			fail(h, "%s", err.Error())
+			continue
+		}
+		quoted[h.Index] = tail
+	}
+	if !ok {
+		return nil, false, ""
+	}
+	// lead is the hunk a file-level refusal travels through: the first one the
+	// quote does not license, so a quoted sibling is never blamed for it.
+	lead, unquoted := hs[0], 0
+	for _, h := range hs {
+		if _, q := quoted[h.Index]; !q {
+			if unquoted == 0 {
+				lead = h
+			}
+			unquoted++
+		}
+	}
+	// A file whose every hunk a quote licensed records only the lines written,
+	// whatever the ledger held before: a partial read must not become ADR-005's
+	// whole-file licence through a quoted write (ADR-190).
+	quotedOnly := unquoted == 0
+
 	// READ BEFORE MODIFY. An existing file may only be edited if mrw has seen
 	// what it currently holds. Checked once per file, before any hunk, because
 	// it is a fact about the file rather than about a hunk — but reported
 	// THROUGH the first hunk so it travels in the same receipt as every other
 	// verdict, and still aborts the whole run.
-	if existed && opt.Seen != nil && !opt.Force {
+	if existed && opt.Seen != nil && !opt.Force && unquoted > 0 {
 		switch {
 		case !known && len(hs) == 1 && hs[0].Op == "create":
 			// A create never overwrites, so the read the generic refusal asks for
@@ -1318,10 +1387,10 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 			fail(hs[0], "create: %s already exists — a create never overwrites; read it and use replace or delete, or unlink it first", path)
 		case !known:
 			if pathLevel && !lineLevel {
-				failK(hs[0], refusal.NotRead, "%s has not been read: mrw does not know what it currently holds. %s "+
+				failK(lead, refusal.NotRead, "%s has not been read: mrw does not know what it currently holds. %s "+
 					"takes no line address — read the path, or pass --force", path, hs[0].Op)
 			} else {
-				failK(hs[0], refusal.NotRead, "%s has not been read: mrw does not know what it currently holds, and a "+
+				failK(lead, refusal.NotRead, "%s has not been read: mrw does not know what it currently holds, and a "+
 					"line address means nothing without that. Run `mrw read %s` first, or pass --force", path, path)
 			}
 		case recorded.SHA != shaBefore:
@@ -1329,7 +1398,7 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 			// as well as on read: mrw produced or read this file, something else
 			// changed it since, and the caller's line numbers now point
 			// somewhere else in a file they have not seen.
-			fail(hs[0], "%s changed since mrw last saw it (recorded %s, now %s): re-read it before "+
+			fail(lead, "%s changed since mrw last saw it (recorded %s, now %s): re-read it before "+
 				"editing, or pass --force to overwrite blind", path, short(recorded.SHA), short(shaBefore))
 		}
 		if !ok {
@@ -1737,7 +1806,8 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 				fail(h, "lines=%d but range %s covers %d line(s)", h.Lines, addrString(start, end), end-start+1)
 				continue
 			}
-			if !covered(h, start, end) {
+			tail, isQuoted := quoted[h.Index]
+			if !isQuoted && !covered(h, start, end) {
 				continue
 			}
 			// Checked BELOW covered() for the reason ADR-008 gives three lines
@@ -1803,9 +1873,21 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 			// The refusal names the line number, not the closer's text:
 			// quoting End+1 would read back a line nobody was served
 			// (ADR-028).
-			if h.Op == "replace" && end > start && end < total && haveObs && !obs.Covers(end+1, end+1) {
-				fail(h, "replace of %s needs a served line after %d: read line %d (the closer sits below the body)",
-					addrString(start, end), end, end+1)
+			// ADR-190: a quote licenses the line after the range only as its kept
+			// tail. Any other quoted hunk needs that line from a ledger entry that
+			// still describes this file, and a file with none is refused, where
+			// covered() would wave it through.
+			needAfter := haveObs && !obs.Covers(end+1, end+1)
+			if isQuoted {
+				needAfter = tail == 0 && opt.Seen != nil && !(haveObs && recorded.SHA == shaBefore && obs.Covers(end+1, end+1))
+			}
+			if h.Op == "replace" && end > start && end < total && needAfter {
+				hint := ""
+				if isQuoted {
+					hint = "; or end SEARCH and REPLACE in the same line, which keeps it and quotes it"
+				}
+				fail(h, "replace of %s needs a served line after %d: read line %d (the closer sits below the body)%s",
+					addrString(start, end), end, end+1, hint)
 				continue
 			}
 			// ADR-055 --strict-balance: the single-line sibling of the licence
@@ -1925,10 +2007,12 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 		switch h.Op {
 		case "insert":
 			res = append(res, h.Body...)
+			r.newSpan = [2]int{len(res) - len(h.Body) + 1, len(res)}
 			r.Added = len(h.Body)
 			written = h.Body
 		case "replace":
 			res = append(res, h.Body...)
+			r.newSpan = [2]int{len(res) - len(h.Body) + 1, len(res)}
 			r.Removed, r.Added = h.End-h.Start+1, len(h.Body)
 			consumed, written = orig[h.Start-1:h.End], h.Body
 			if opt.Preview {
@@ -1968,6 +2052,7 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 		if opt.EchoPad > 0 && (h.Op == "replace" || h.Op == "insert") {
 			padAfter = append(padAfter, struct{ index, after int }{h.Index, len(res)})
 		}
+		r.quotedFile = quotedOnly
 		out[h.Index] = r
 	}
 	if !ok {
