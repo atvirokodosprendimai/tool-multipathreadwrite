@@ -76,7 +76,7 @@ func TestNumericRangesAndHeader(t *testing.T) {
 	if !strings.Contains(out, "==> a.go  9L") {
 		t.Errorf("header missing the line count:\n%s", out)
 	}
-	if !strings.Contains(out, "@@ 3-5") || !strings.Contains(out, "    3| func Foo() {") {
+	if !strings.Contains(out, "@@ 3-5") || !strings.Contains(out, " 3| func Foo() {") {
 		t.Errorf("range not rendered:\n%s", out)
 	}
 	if strings.Contains(out, "package p") {
@@ -173,7 +173,7 @@ func TestManyFilesOneCall(t *testing.T) {
 			t.Errorf("missing %q:\n%s", want, out)
 		}
 	}
-	if !strings.Contains(out, "    2| two") {
+	if !strings.Contains(out, " 2| two") {
 		t.Errorf("second file's range missing:\n%s", out)
 	}
 }

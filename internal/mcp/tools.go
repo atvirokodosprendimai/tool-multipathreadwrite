@@ -2075,7 +2075,7 @@ func overflowMessage(specs []string, cw *capped) string {
 	unterminated := countLines(&cw.buf) <= headerLines
 	// ⚠ ONLY LINES THAT ENDED COUNT. Splitting on newline leaves the last
 	// element unterminated, and the PREFIX of a giant line arrives — with its
-	// "NNNNN| " gutter — so counting every element containing "| " counts the
+	// gutter (" N| ", ADR-189) — so counting every element containing "| " counts the
 	// very line that did not fit and hides the case.
 	lines := bytes.Split(cw.buf.Bytes(), []byte{'\n'})
 	tail := lines[len(lines)-1]
