@@ -2646,30 +2646,25 @@ func resolve(root, path string) (string, error) {
 	return full, nil
 }
 
-// sameFileEntry finds a ledger entry that names the SAME FILE as full under a
-// different spelling, which happens on any case-insensitive filesystem.
-//
-// The ledger is keyed by root-relative path, and root is recovered from full by
-// removing the relative part — full is built by joining the two, so this is
-// exact rather than a guess.
-//
-// os.SameFile is deliberate: it asks the filesystem instead of encoding a
-// belief about it. A caller on ext4 who genuinely has both a.txt and A.TXT gets
-// false and keeps two independent entries, which is correct there and would not
-// be if this folded case.
 // servedAs names the files mrw served the caller whose path ends in a plan path
 // that does not exist (ADR-007: mrw says which path it looked for), so a plan
 // written from inside a directory — parser_0.py for parsers/parser_0.py — says
-// where the file is. A ledger entry whose file is gone names nothing.
+// where the file is. Each is checked through resolve, the boundary a write
+// meets, so a ledger entry whose file is gone, or that now leads outside the
+// root, into .git or into mrw's state, names nothing (the go-reviewer pass).
 func servedAs(root, path string, ledger map[string]Seen) string {
 	p := filepath.ToSlash(path)
 	var found []string
 	for k := range ledger {
 		ks := filepath.ToSlash(k)
-		if ks == p || !strings.HasSuffix(ks, "/"+p) {
+		if !strings.HasSuffix(ks, "/"+p) {
 			continue
 		}
-		if fi, err := os.Stat(filepath.Join(root, k)); err == nil && fi.Mode().IsRegular() {
+		full, err := resolve(root, k)
+		if err != nil {
+			continue
+		}
+		if fi, err := os.Stat(full); err == nil && fi.Mode().IsRegular() {
 			found = append(found, ks)
 		}
 	}
@@ -2683,6 +2678,17 @@ func servedAs(root, path string, ledger map[string]Seen) string {
 	return "; you were served " + strings.Join(found, ", ") + " — every path in a plan is relative to the root"
 }
 
+// sameFileEntry finds a ledger entry that names the SAME FILE as full under a
+// different spelling, which happens on any case-insensitive filesystem.
+//
+// The ledger is keyed by root-relative path, and root is recovered from full by
+// removing the relative part — full is built by joining the two, so this is
+// exact rather than a guess.
+//
+// os.SameFile is deliberate: it asks the filesystem instead of encoding a
+// belief about it. A caller on ext4 who genuinely has both a.txt and A.TXT gets
+// false and keeps two independent entries, which is correct there and would not
+// be if this folded case.
 func sameFileEntry(full, path string, ledger map[string]Seen) (Seen, bool) {
 	want, err := os.Stat(full)
 	if err != nil {

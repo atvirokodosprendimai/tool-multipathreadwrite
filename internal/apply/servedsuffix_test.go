@@ -1,6 +1,9 @@
 package apply
 
 import (
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -9,32 +12,54 @@ import (
 // where a file mrw served the caller ends in that path, names the served file:
 // in the native-versus-MRW run 7 an agent's plan said parser_0.py for
 // parsers/parser_0.py, which it had read, and two turns went on "does not
-// exist". The pairs: an empty ledger, and a ledger entry whose file is gone,
-// name nothing.
+// exist". Names are whole path components, sorted, at most three; an entry whose
+// file is gone, or that a write would refuse (.git, a link out of the root),
+// names nothing (the go-reviewer pass of #592).
 func TestAMissingPlanPathNamesTheServedFileItEndsLike(t *testing.T) {
-	for _, c := range []struct {
-		name string
-		seen map[string]Seen
-		want string
-	}{
-		{"served under a directory", map[string]Seen{"parsers/parser_0.py": {}}, "you were served parsers/parser_0.py"},
-		{"nothing served", map[string]Seen{}, ""},
-		{"served, since removed", map[string]Seen{"old/parser_0.py": {}}, ""},
-	} {
+	const tail = " — every path in a plan is relative to the root"
+	type tc struct {
+		name  string
+		files []string
+		seen  []string
+		want  string // the reason after "parser_0.py does not exist", exactly
+	}
+	cases := []tc{
+		{"served under a directory", []string{"parsers/parser_0.py", "parsers/xparser_0.py"},
+			[]string{"parsers/parser_0.py", "parsers/xparser_0.py"}, "; you were served parsers/parser_0.py" + tail},
+		{"four, sorted, three named", []string{"d/parser_0.py", "a/parser_0.py", "c/parser_0.py", "b/parser_0.py"},
+			[]string{"d/parser_0.py", "a/parser_0.py", "c/parser_0.py", "b/parser_0.py"},
+			"; you were served a/parser_0.py, b/parser_0.py, c/parser_0.py, …" + tail},
+		{"nothing served", []string{"parsers/parser_0.py"}, nil, ""},
+		{"served, since removed", []string{"parsers/parser_0.py"}, []string{"old/parser_0.py"}, ""},
+		{"served from .git", []string{".git/parser_0.py"}, []string{".git/parser_0.py"}, ""},
+	}
+	if runtime.GOOS != "windows" {
+		cases = append(cases, tc{"served through a link that now leaves the root", nil, []string{"lnk/parser_0.py"}, ""})
+	}
+	for _, c := range cases {
 		root := t.TempDir()
-		write(t, root, "parsers/parser_0.py", "a\nb\n")
+		for _, f := range c.files {
+			write(t, root, f, "a\nb\n")
+		}
+		if strings.HasPrefix(c.name, "served through a link") {
+			out := t.TempDir()
+			write(t, out, "parser_0.py", "a\n")
+			if err := os.Symlink(out, filepath.Join(root, "lnk")); err != nil {
+				t.Fatal(err)
+			}
+		}
+		seen := map[string]Seen{}
+		for _, s := range c.seen {
+			seen[filepath.FromSlash(s)] = Seen{}
+		}
 		res, err := Apply(root, []Input{
 			{Path: "parser_0.py", Start: 1, End: 1, Op: "replace", Body: []string{"x"}, Lines: -1, Index: 0},
-		}, Options{Seen: c.seen})
+		}, Options{Seen: seen})
 		if err != nil {
 			t.Fatal(err)
 		}
-		r := res.Hunks[0].Reason
-		if res.Failed != 1 || !strings.Contains(r, "parser_0.py does not exist") {
-			t.Fatalf("%s: failed=%d reason %q", c.name, res.Failed, r)
-		}
-		if got := strings.Contains(r, "you were served"); got != (c.want != "") || c.want != "" && !strings.Contains(r, c.want) {
-			t.Errorf("%s: reason %q, want %q", c.name, r, c.want)
+		if r, want := res.Hunks[0].Reason, "parser_0.py does not exist"+c.want; res.Failed != 1 || r != want {
+			t.Errorf("%s: failed=%d reason\n %q, want\n %q", c.name, res.Failed, r, want)
 		}
 	}
 }
