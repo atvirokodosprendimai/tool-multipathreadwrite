@@ -1531,7 +1531,7 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 					"which does not exist", h.Path, full)
 				continue
 			}
-			fail(h, "%s does not exist", path)
+			fail(h, "%s does not exist%s", path, servedAs(root, path, opt.Seen))
 			continue
 		}
 
@@ -2657,6 +2657,32 @@ func resolve(root, path string) (string, error) {
 // belief about it. A caller on ext4 who genuinely has both a.txt and A.TXT gets
 // false and keeps two independent entries, which is correct there and would not
 // be if this folded case.
+// servedAs names the files mrw served the caller whose path ends in a plan path
+// that does not exist (ADR-007: mrw says which path it looked for), so a plan
+// written from inside a directory — parser_0.py for parsers/parser_0.py — says
+// where the file is. A ledger entry whose file is gone names nothing.
+func servedAs(root, path string, ledger map[string]Seen) string {
+	p := filepath.ToSlash(path)
+	var found []string
+	for k := range ledger {
+		ks := filepath.ToSlash(k)
+		if ks == p || !strings.HasSuffix(ks, "/"+p) {
+			continue
+		}
+		if fi, err := os.Stat(filepath.Join(root, k)); err == nil && fi.Mode().IsRegular() {
+			found = append(found, ks)
+		}
+	}
+	if len(found) == 0 {
+		return ""
+	}
+	sort.Strings(found)
+	if len(found) > 3 {
+		found = append(found[:3], "…")
+	}
+	return "; you were served " + strings.Join(found, ", ") + " — every path in a plan is relative to the root"
+}
+
 func sameFileEntry(full, path string, ledger map[string]Seen) (Seen, bool) {
 	want, err := os.Stat(full)
 	if err != nil {

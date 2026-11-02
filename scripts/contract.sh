@@ -10999,6 +10999,22 @@ out=$(printf '%s\n' "@@ c.json 2-3 replace anchor='    \"timeout\": 30,'" '    "
   && ok "the pair: the single-quoted anchor applies" || bad "single-quoted: exit $rc324 [$out]"
 rm -rf "$S324" "$R324" "$WORK/served324.out"
 
+# 327. ADR-007: mrw says which path it looked for. A plan path that does not
+# exist, where a file the caller was served ends in it, names that file: read
+# parsers/p.py, plan p.py, and the refusal (exit 1, nothing written) says
+# "you were served parsers/p.py". The pair: a plan naming a path nothing served
+# ends in gets the bare refusal.
+R327=$(mktemp -d "$WORK/r327-XXXXXX"); mkdir "$R327/parsers"; printf 'a\nb\n' > "$R327/parsers/p.py"
+e327() { env XDG_STATE_HOME="$R327/state" "$@"; }
+e327 "$MRW" -C "$R327" read parsers/p.py > "$R327/served.out" 2>&1
+out=$(printf '@@ p.py 1 replace\nx\n' | e327 "$MRW" -C "$R327" write - 2>&1); rc327=$?
+{ [ "$rc327" = 1 ] && grep -qF 'p.py does not exist; you were served parsers/p.py' <<<"$out" && [ "$(head -1 "$R327/parsers/p.py")" = a ]; } \
+  && ok "a missing plan path names the served file it ends like" || bad "served suffix: exit $rc327 [$out]"
+out=$(printf '@@ q.py 1 replace\nx\n' | e327 "$MRW" -C "$R327" write - 2>&1); rc327=$?
+{ [ "$rc327" = 1 ] && grep -qF 'q.py does not exist' <<<"$out" && ! grep -q 'you were served' <<<"$out"; } \
+  && ok "the pair: a path nothing served ends in gets the bare refusal" || bad "bare: exit $rc327 [$out]"
+rm -rf "$R327"
+
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
 # killed process is a zombie until its adopter reaps it, and pgrep lists
