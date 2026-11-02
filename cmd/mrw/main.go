@@ -202,16 +202,18 @@ func rootCommand() *cli.Command {
 			// The ledger names the mrw that writes it (ADR-150).
 			seen.SetWriter(versionString())
 			// version, instructions and skill touch no state at all (ADR-145,
-			// ADR-168); the legacy migration runs for every other command, stats included.
+			// ADR-168); hook skips the migration, whose lock would wait without a deadline
+			// (ADR-191); the legacy migration runs for every other command, stats included.
 			verb := cmd.Args().First()
-			if verb != "version" && verb != "instructions" && verb != "skill" {
+			if verb != "version" && verb != "instructions" && verb != "skill" && verb != "hook" {
 				migrateLegacyState()
 			}
 			// version, instructions, skill and stats never read the ledger (ADR-136,
 			// ADR-168), help — asked for by name, or a bare mrw — uses none (ADR-157),
-			// and run records nothing in it and serves nothing from it (ADR-177).
+			// and run records nothing in it and serves nothing from it (ADR-177). hook
+			// tells the person of a lock or a newer ledger itself, once (ADR-191).
 			switch verb {
-			case "version", "instructions", "skill", "stats", "run", "help", "h", "":
+			case "version", "instructions", "skill", "stats", "run", "help", "h", "", "hook":
 				return ctx, nil
 			}
 			// The seen subcommand's flags are parsed before this runs (urfave/cli
@@ -256,7 +258,7 @@ func rootCommand() *cli.Command {
 			cmd.Metadata = map[string]any{"notFound": cli.Exit(
 				fmt.Sprintf("unknown command %q (want %s)", name, strings.Join(names, ", ")), exitUsage)}
 		},
-		Commands: []*cli.Command{readCmd(), writeCmd(), checkCmd(), runCmd(), iterCmd(), seenCmd(), statsCmd(), mcpCmd(), instructionsCmd(), skillCmd(), versionCmd()},
+		Commands: []*cli.Command{readCmd(), writeCmd(), checkCmd(), runCmd(), iterCmd(), seenCmd(), statsCmd(), mcpCmd(), instructionsCmd(), skillCmd(), versionCmd(), hookCmd()},
 	}
 	installUsageErrors(cmd)
 	return cmd

@@ -11047,6 +11047,23 @@ out=$(e326 nope.txt); rc326=$?
   && ok "the pair: a missing file gets no walk hint" || bad "missing: exit $rc326 [$out]"
 rm -rf "$R326"
 
+# 329. ADR-191: `mrw hook read` takes a host's PostToolUse payload for its own Read
+# on standard input and records the lines that Read returned, as a `mrw read` of
+# them would, so a plan to one of them applies without a second read. The pairs:
+# a plan to a line outside what the Read returned is refused, exit 1, though the
+# file has it; and garbage on standard input exits 0 and prints nothing.
+R329=$(mktemp -d "$WORK/r329-XXXXXX"); printf 'a\nb\nc\nd\ne\n' > "$R329/f.txt"; r329=$(cd "$R329" && pwd -P)
+p329=$(printf '{"hook_event_name":"PostToolUse","tool_name":"Read","tool_input":{"file_path":"%s/f.txt","offset":2,"limit":2},"tool_response":{"type":"text","file":{"filePath":"%s/f.txt","content":"b\\nc","numLines":2,"startLine":2,"totalLines":6}},"cwd":"%s"}' "$r329" "$r329" "$r329")
+h329=$(printf '%s' "$p329" | "$MRW" hook read 2>&1); rc329=$?
+[ "$rc329" = 0 ] && [ -z "$h329" ] && ok "mrw hook read exits 0 and prints nothing" || bad "hook: exit $rc329 [$h329]"
+printf '@@ f.txt 4 replace\nD\n' | "$MRW" --root "$R329" write --no-check - >/dev/null 2>&1; rc329=$?
+[ "$rc329" = 1 ] && [ "$(sed -n 4p "$R329/f.txt")" = d ] && ok "the pair: a line outside that read stays unlicensed" || bad "outside plan: exit $rc329"
+printf '@@ f.txt 2 replace\nB\n' | "$MRW" --root "$R329" write --no-check - >/dev/null 2>&1; rc329=$?
+[ "$rc329" = 0 ] && [ "$(sed -n 2p "$R329/f.txt")" = B ] && ok "a host Read payload licenses the lines it showed" || bad "licensed plan: exit $rc329"
+g329=$(printf 'not json' | "$MRW" hook read 2>&1); rc329=$?
+[ "$rc329" = 0 ] && [ -z "$g329" ] && ok "the pair: garbage on standard input exits 0 and prints nothing" || bad "garbage: exit $rc329 [$g329]"
+rm -rf "$R329"
+
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
 # killed process is a zombie until its adopter reaps it, and pgrep lists
