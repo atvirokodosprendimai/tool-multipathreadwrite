@@ -50,8 +50,29 @@ func TestADirectoryNamedToReadSaysHowToWalkIt(t *testing.T) {
 		if c.hint == "" && walk || c.hint != "" && !strings.Contains(out, c.hint) {
 			t.Errorf("%s: want hint %q:\n%s", c.spec, c.hint, out)
 		}
-		if c.hint != "" && !strings.Contains(out, "--grep '^' -- ") {
-			t.Errorf("%s: the every-line form is not --grep '^':\n%s", c.spec, out)
+		if c.hint != "" && !strings.Contains(out, "--grep $ -- ") {
+			t.Errorf("%s: the every-line form is not --grep $:\n%s", c.spec, out)
+		}
+	}
+}
+
+// hintWord quotes for the caller's shell: on Windows a path that needs quoting is
+// double-quoted, which cmd.exe groups and single quotes are not (measured on
+// Windows 11 by a peer session, 2026-11-02); one holding a character cmd or pwsh
+// reads inside double quotes keeps quoteWord's form; elsewhere it is quoteWord's.
+func TestAHintQuotesAPathForEveryShell(t *testing.T) {
+	for _, c := range []struct {
+		name    string
+		windows bool
+		want    string
+	}{
+		{"sub", true, "sub"},
+		{"my dir", true, "\"my dir\""},
+		{"a$b c", true, quoteWord("a$b c", true)},
+		{"my dir", false, quoteWord("my dir", false)},
+	} {
+		if got := hintWord(c.name, c.windows); got != c.want {
+			t.Errorf("hintWord(%q, %v) = %q, want %q", c.name, c.windows, got, c.want)
 		}
 	}
 }

@@ -11004,7 +11004,7 @@ rm -rf "$S324" "$R324" "$WORK/served324.out"
 # The pair: a missing file is UNREADABLE with no such line.
 R326=$(mktemp -d "$WORK/r326-XXXXXX"); mkdir "$R326/sub"; printf 'a\n' > "$R326/sub/a.txt"
 out=$(env XDG_STATE_HOME="$R326/state" "$MRW" -C "$R326" read sub 2>&1); rc326=$?
-{ [ "$rc326" = 1 ] && grep -q '^==> sub  UNREADABLE' <<<"$out" && grep -qF 'a directory you name is walked: mrw read --grep PATTERN -- sub serves' <<<"$out" && grep -qF -- "--grep '^' -- sub every line" <<<"$out"; } \
+{ [ "$rc326" = 1 ] && grep -q '^==> sub  UNREADABLE' <<<"$out" && grep -qF 'a directory you name is walked: mrw read --grep PATTERN -- sub serves' <<<"$out" && grep -qF -- '--grep $ -- sub every line' <<<"$out"; } \
   && ok "a directory named to read says how to walk it" || bad "dir read: exit $rc326 [$out]"
 out=$(env XDG_STATE_HOME="$R326/state" "$MRW" -C "$R326" read nope.txt 2>&1); rc326=$?
 { [ "$rc326" = 1 ] && grep -q 'UNREADABLE' <<<"$out" && ! grep -q 'a directory you name is walked' <<<"$out"; } \

@@ -1734,46 +1734,37 @@ func NamedFiles(names []string) string {
 // name really does contain a star is served normally and never sees this.
 // walkHint is the line after a directory's UNREADABLE refusal (ADR-015: a
 // refusal names the fix): a directory is read by walking it. The command it
-// prints runs as printed — the path quoted and after --, '^' for "every line"
-// since mrw_read takes an empty grep as none — and a link names the directory
-// it leads to, since a walk does not follow one (ADR-096).
+// prints runs as printed in sh, pwsh and cmd.exe — the path after --, quoted in a
+// form the caller's shell groups, and $ for "every line", a pattern no shell
+// rewrites (cmd.exe takes ^ as its escape, and mrw_read takes an empty grep as
+// none). A link names the directory it leads to, found as the walk finds it —
+// Lstat that is not a directory, then rooted.Real — so a Windows junction
+// (ModeIrregular since Go 1.23, ADR-071) is one too, since a walk follows no
+// link (ADR-096). Measured on Windows 11 by a peer session, 2026-11-02.
 func walkHint(root, path, full string) string {
 	name := path
-	if li, err := os.Lstat(filepath.Join(root, path)); err == nil && li.Mode()&os.ModeSymlink != 0 {
-		if rel, ok := linkTarget(root, full); ok {
-			name = rel
+	if li, err := os.Lstat(filepath.Join(root, path)); err == nil && !li.IsDir() {
+		if abs, err := filepath.Abs(root); err == nil {
+			if rel, err := filepath.Rel(rooted.Real(abs), rooted.Real(full)); err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+				name = filepath.ToSlash(rel)
+			}
 		}
 	}
-	q := quoteWord(name, runtime.GOOS == "windows")
+	q := hintWord(name, runtime.GOOS == "windows")
 	return "\n    (a directory you name is walked: mrw read --grep PATTERN -- " + q +
-		" serves the lines of its files that match, and --grep '^' -- " + q + " every line.)"
+		" serves the lines of its files that match, and --grep $ -- " + q + " every line.)"
 }
 
-// linkTarget is where a link inside root leads, relative to root, or false when
-// that cannot be said or leaves root. Resolve keeps a link's own name, and the
-// root may be relative ("." by default), so both are made absolute first.
-func linkTarget(root, full string) (string, bool) {
-	absRoot, err := filepath.Abs(root)
-	if err != nil {
-		return "", false
+// hintWord quotes a path for a command a hint prints. On Windows a path that
+// needs quoting is double-quoted, which cmd.exe, pwsh and Git Bash all group,
+// unless it holds a character one of them would read inside double quotes;
+// then it takes quoteWord's form, as everywhere else.
+func hintWord(name string, windows bool) string {
+	q := quoteWord(name, windows)
+	if windows && q != name && !strings.ContainsAny(name, "\"$`%!") {
+		return "\"" + name + "\""
 	}
-	absFull, err := filepath.Abs(full)
-	if err != nil {
-		return "", false
-	}
-	top, err := filepath.EvalSymlinks(absRoot)
-	if err != nil {
-		return "", false
-	}
-	dest, err := filepath.EvalSymlinks(absFull)
-	if err != nil {
-		return "", false
-	}
-	rel, err := filepath.Rel(top, dest)
-	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return "", false
-	}
-	return filepath.ToSlash(rel), true
+	return q
 }
 
 func hintUnexpandedGlob(path string) string {
