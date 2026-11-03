@@ -61,9 +61,12 @@ The cost: once T5 is done, fence-prose no longer guards these two prose greps.
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `TestInstructionsForClaudeIsTheTextConfigurationSMeasured` | `cmd/mrw/instructions_test.go` | `--host claude` prints `guide.CLI()`, a newline and `bench.EditParagraph`; without `--host`, `instructions` and `--core` print what the same build's `CLI()` and `Core()` are | none | S2 |
-| `TestInstructionsRefusesAHostItDoesNotKnow` | `cmd/mrw/instructions_test.go` | `--host codex` and `--host ''` exit 2 naming `claude`, printing nothing on standard output | none | S3 |
-| `TestInstructionsRefusesCoreWithAHost` | `cmd/mrw/instructions_test.go` | `--core --host claude` exits 2 saying the core has no host form, printing nothing on standard output | none | S3 |
+| — | — | T5 runs only on SHIP (Decision 5), so its tests do not exist until it starts and are not named in this table before then (`internal/adversarial/record_test.go` holds every named test to existing). The list below is what S1 writes; each enters this table, in this row's place, in the commit that starts T5 | none | — |
+
+The tests S1 writes, in `cmd/mrw/instructions_test.go`:
+- TestInstructionsForClaudeIsTheTextConfigurationSMeasured: `--host claude` prints `guide.CLI()`, a newline and `bench.EditParagraph`; without `--host`, `instructions` and `--core` print what the same build's `CLI()` and `Core()` are (S2).
+- TestInstructionsRefusesAHostItDoesNotKnow: `--host codex` and `--host ''` exit 2 naming `claude`, printing nothing on standard output (S3).
+- TestInstructionsRefusesCoreWithAHost: `--core --host claude` exits 2 saying the core has no host form, printing nothing on standard output (S3).
 
 ## Reachability
 
