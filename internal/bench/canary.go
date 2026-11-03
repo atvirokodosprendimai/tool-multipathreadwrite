@@ -86,6 +86,19 @@ type CanaryReceipt struct {
 	Costs            map[string]*float64 `json:"total_cost_usd"`
 }
 
+// canaryReadFirst is what the canary adds to H's instruction: a Read before
+// any change, so the PostToolUse hook has a call to fire on (ADR-192 T1).
+const canaryReadFirst = "Before you change anything, read notes.txt with the Read tool."
+
+// CanaryBase is the configurations a canary runs besides the plugin's and the
+// side arms': A and B, and H under stage7.
+func CanaryBase(profile string) []string {
+	if profile == ProfileStage7 {
+		return []string{"A", "B", "H"}
+	}
+	return []string{"A", "B"}
+}
+
 // RunCanary runs the task once in each configuration and writes canary.json
 // into o.Out. It needs the same gates as a stage, except a canary.
 func RunCanary(o RunOptions, task Task, claudeMD string) (CanaryReceipt, error) {
@@ -242,6 +255,22 @@ func CheckProfileCanary(transcript []byte, c Config, claudeMD, configDir, plugin
 	case c.Plugin:
 		if !slices.ContainsFunc(t.HookEvents, func(e string) bool { return e == "SessionStart" || e == "UserPromptSubmit" || e == "Stop" }) {
 			problems = append(problems, "no session hook of the plugin fired: the plugin is not engaged")
+		}
+	case c.ReadHook:
+		// H fires bench's Bash hook and ADR-191's read hook, and the read
+		// hook must have run: a Read that fires no event proves nothing.
+		ran := false
+		for _, h := range t.HookNames {
+			switch h {
+			case "PreToolUse:Bash":
+			case "PostToolUse:Read":
+				ran = true
+			default:
+				problems = append(problems, fmt.Sprintf("a hook other than bench's own or the read hook fired: %s", h))
+			}
+		}
+		if !ran {
+			problems = append(problems, "configuration H: no PostToolUse:Read hook event fired, so the read hook did not run")
 		}
 	case c.Mrw:
 		for _, h := range t.HookNames {

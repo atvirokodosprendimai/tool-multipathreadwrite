@@ -2,13 +2,17 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/bench"
 )
 
 // TestTheMineFloorIsAFlag: ADR-160 Decision 2 raises the wide-rename floor to
@@ -138,4 +142,81 @@ func TestAnalyzeRefusesAStage5Block(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "bench look") {
 		t.Errorf("analyze over a Stage 5 block: %v, want a refusal naming bench look", err)
 	}
+}
+
+// TestAnalyzeNamesEachRowsBaseline: bench analyze prints every Stage 5 row
+// against the configuration it was read against: a stage7 directory has H
+// against B beside B and H against A, the cost column naming its baseline, and
+// a Stage 5 directory prints what it always printed.
+func TestAnalyzeNamesEachRowsBaseline(t *testing.T) {
+	stage := func(profile string, cost map[string]float64) string {
+		dir := t.TempDir()
+		block := filepath.Join(dir, "block-1")
+		if err := os.MkdirAll(block, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		put := func(name string, v any) {
+			b, err := json.Marshal(v)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(block, name), b, 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+		var tasks, configs []string
+		for i := range 10 {
+			tasks = append(tasks, fmt.Sprintf("t%02d", i))
+		}
+		for _, c := range []string{"A", "B", "H"} {
+			if _, ok := cost[c]; ok {
+				configs = append(configs, c)
+			}
+		}
+		run := map[string]any{"stage": profile, "tasks": tasks, "models": []string{"m"}, "configs": configs, "repeats": 1, "seed": 156,
+			"cli_version": "9.9.9", "containment": "bypass", "profile": profile, "block": 1, "looks": 5}
+		if profile == bench.ProfileStage7 {
+			run["h_sentence_sha256"] = strings.Repeat("a", 64)
+		}
+		put("run.json", run)
+		for _, task := range tasks {
+			for _, c := range configs {
+				cost := cost[c]
+				put(task+"."+c+".m.1.receipt.json", bench.Receipt{Attempt: task + "." + c + ".m.1", Stage: profile, Task: task, Source: "swe-bench",
+					Model: "m", Config: c, Repeat: 1, CostUSD: &cost, Oracle: bench.Verdict{Solved: true}, HostReads: 1})
+			}
+		}
+		return dir
+	}
+	analyzed := func(dir string) string {
+		var out bytes.Buffer
+		if err := analyze([]string{"--tasks-dir", filepath.Join("..", "..", "bench", "tasks"), dir}, &out); err != nil {
+			t.Fatal(err)
+		}
+		return out.String()
+	}
+
+	seven := analyzed(stage(bench.ProfileStage7, map[string]float64{"A": 1, "B": 1.4, "H": 1.2}))
+	for _, want := range []string{"swe-bench, B against A", "swe-bench, H against A", "swe-bench, H against B", "cost (X−A)/A [99%]", "cost (X−B)/B [99%]", "solved X−B [99%, Tango]"} {
+		if !strings.Contains(seven, want) {
+			t.Errorf("a stage7 analysis does not say %q:\n%s", want, seven)
+		}
+	}
+	if h := rowLine(seven, "H against B"); !strings.Contains(h, "-0.143") {
+		t.Errorf("H against B reads H's cost against B's, (1.2−1.4)/1.4 = −0.143: %q", h)
+	}
+	five := analyzed(stage(bench.ProfileStage5, map[string]float64{"A": 1, "B": 1.4}))
+	if !strings.Contains(five, "swe-bench, B against A") || !strings.Contains(five, "cost (X−A)/A [99%]") || strings.Contains(five, "(X−B)/B") || strings.Contains(five, "H against") {
+		t.Errorf("a Stage 5 analysis changed:\n%s", five)
+	}
+}
+
+// rowLine is the table row of out that holds substr.
+func rowLine(out, substr string) string {
+	for _, l := range strings.Split(out, "\n") {
+		if strings.HasPrefix(l, "|") && strings.Contains(l, substr) {
+			return l
+		}
+	}
+	return ""
 }

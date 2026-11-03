@@ -64,6 +64,10 @@ out=$(go test ./internal/bench/ ./cmd/bench/ -count=1 -v -run '^(TestLookReadsHA
 | 4 — it is used | T4's looks |
 
 ## Mutation Log
+- 2026-11-03 · 3d8c806f* · mutant killed · exit 1 · `internal/bench/look.go` · S2: every comparison is judged against A whatever baseline it names · acceptance-sha256:cbf93a268b715a03ee37473f1faf13cb96f8673cf641242e5351df24539f89a0
+- 2026-11-03 · 3d8c806f* · mutant killed · exit 1 · `internal/bench/look.go` · S3: an open comparison always schedules A instead of its own baseline · acceptance-sha256:cbf93a268b715a03ee37473f1faf13cb96f8673cf641242e5351df24539f89a0
+- 2026-11-03 · 3d8c806f* · mutant killed · exit 1 · `internal/bench/look.go` · S4: the uptake gate fails at exactly half instead of below half · acceptance-sha256:cbf93a268b715a03ee37473f1faf13cb96f8673cf641242e5351df24539f89a0
+- 2026-11-03 · 3d8c806f* · mutant killed · exit 1 · `cmd/bench/main.go` · S5: every analysis table is headed against A · acceptance-sha256:cbf93a268b715a03ee37473f1faf13cb96f8673cf641242e5351df24539f89a0
 
 ## Invariants
 
@@ -82,3 +86,12 @@ Reading against B needs a change to the bar itself (ADR-156) rather than to its 
 - The mechanism counts (T5's job).
 
 ## Verification Log
+- 2026-11-03 · 3d8c806f* · exit 0 · `set -o pipefail …` · acceptance-sha256:cbf93a268b715a03ee37473f1faf13cb96f8673cf641242e5351df24539f89a0 · ms:231044
+- 2026-11-03 · 3d8c806f* · exit 0 · `set -o pipefail …` · acceptance-sha256:cbf93a268b715a03ee37473f1faf13cb96f8673cf641242e5351df24539f89a0 · ms:336673
+- 2026-11-03 · 3d8c806f* · exit 0 · `set -o pipefail …` · acceptance-sha256:cbf93a268b715a03ee37473f1faf13cb96f8673cf641242e5351df24539f89a0 · ms:164290
+- 2026-11-03 · 3d8c806f* · exit 0 · `set -o pipefail …` · acceptance-sha256:cbf93a268b715a03ee37473f1faf13cb96f8673cf641242e5351df24539f89a0 · ms:160959
+- 2026-11-03 · 3d8c806f* · exit 0 · `set -o pipefail …` · acceptance-sha256:cbf93a268b715a03ee37473f1faf13cb96f8673cf641242e5351df24539f89a0 · ms:162423
+- 2026-11-03 · no-git · exit 1 · `set -o pipefail …` · acceptance-sha256:cbf93a268b715a03ee37473f1faf13cb96f8673cf641242e5351df24539f89a0 · ms:312 · test-lock-sha256:963d69dee3beeafbce0fa9d14bf19a52c78640686bf4fd3fb386cf517bdb396b · test-lock-file:docs/adr/locks/963d69dee3beeafbce0fa9d14bf19a52c78640686bf4fd3fb386cf517bdb396b.lock
+  ```
+  ```
+- 2026-11-03 · 3d8c806f* · exit 0 · `set -o pipefail …` · acceptance-sha256:cbf93a268b715a03ee37473f1faf13cb96f8673cf641242e5351df24539f89a0 · ms:170488

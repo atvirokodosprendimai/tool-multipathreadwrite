@@ -25,6 +25,16 @@ import (
 // outside it passes (outsideTree; Zy, 2026-10-14, after the pilot). With tree
 // empty, every target is inside.
 func Hook(stdin io.Reader, stderr io.Writer, log, tree string) int {
+	return runHook(stdin, stderr, log, tree, "mrw read")
+}
+
+// ReadToolHook is Hook for configuration H, which is offered the host's Read
+// tool beside mrw read (ADR-192 Decision 1): its refusal says either reads.
+func ReadToolHook(stdin io.Reader, stderr io.Writer, log, tree string) int {
+	return runHook(stdin, stderr, log, tree, "mrw read or the Read tool")
+}
+
+func runHook(stdin io.Reader, stderr io.Writer, log, tree, readWith string) int {
 	var ev struct {
 		Tool  string `json:"tool_name"`
 		Input struct {
@@ -49,7 +59,7 @@ func Hook(stdin io.Reader, stderr io.Writer, log, tree string) int {
 		}
 	}
 	if refusal != "" {
-		_, _ = fmt.Fprintf(stderr, "refused: %s. In this run files are changed only with mrw (mrw write); read them with mrw read.\n", refusal)
+		_, _ = fmt.Fprintf(stderr, "refused: %s. In this run files are changed only with mrw (mrw write); read them with %s.\n", refusal, readWith)
 		return 2
 	}
 	return 0

@@ -67,6 +67,9 @@ out=$(go test ./internal/bench/ -count=1 -v -run '^(TestConfigurationHIsBPlusRea
 | 4 — it is used | T3's canary and pilot, T4's blocks |
 
 ## Mutation Log
+- 2026-11-03 · 3d8c806f* · mutant killed · exit 1 · `internal/bench/runner.go` · S2: H's PostToolUse hook is attached to Glob, not Read; the settings test must see no hook on Read · acceptance-sha256:ed1c8cd1246b0dea18c82dd11cba066a3f599fb72f4944395e32617e385e12ca
+- 2026-11-03 · 3d8c806f* · mutant killed · exit 1 · `internal/bench/runner.go` · S3: mrw_version recorded only when B runs; H alone in a stage with no blocks must still name its mrw · acceptance-sha256:ed1c8cd1246b0dea18c82dd11cba066a3f599fb72f4944395e32617e385e12ca
+- 2026-11-03 · 3d8c806f* · mutant killed · exit 1 · `internal/bench/canary.go` · S4: the canary no longer demands a PostToolUse:Read event of H · acceptance-sha256:ed1c8cd1246b0dea18c82dd11cba066a3f599fb72f4944395e32617e385e12ca
 
 ## Invariants
 
@@ -86,3 +89,11 @@ The pinned Claude Code shows no `PostToolUse:Read` hook event for a Read under `
 - The comparison against B in `bench look` (T2's job).
 
 ## Verification Log
+- 2026-11-03 · 3d8c806f* · exit 0 · `set -o pipefail …` · acceptance-sha256:ed1c8cd1246b0dea18c82dd11cba066a3f599fb72f4944395e32617e385e12ca · ms:220023
+- 2026-11-03 · 3d8c806f* · exit 0 · `set -o pipefail …` · acceptance-sha256:ed1c8cd1246b0dea18c82dd11cba066a3f599fb72f4944395e32617e385e12ca · ms:173942
+- 2026-11-03 · 3d8c806f* · exit 0 · `set -o pipefail …` · acceptance-sha256:ed1c8cd1246b0dea18c82dd11cba066a3f599fb72f4944395e32617e385e12ca · ms:212936
+- 2026-11-03 · 3d8c806f* · exit 0 · `set -o pipefail …` · acceptance-sha256:ed1c8cd1246b0dea18c82dd11cba066a3f599fb72f4944395e32617e385e12ca · ms:157516
+- 2026-11-03 · no-git · exit 1 · `set -o pipefail …` · acceptance-sha256:ed1c8cd1246b0dea18c82dd11cba066a3f599fb72f4944395e32617e385e12ca · ms:194 · test-lock-sha256:8dc043bee046c6849b570feabd83a53240edc37ccd0364900ff8ee8bcb8330de · test-lock-file:docs/adr/locks/8dc043bee046c6849b570feabd83a53240edc37ccd0364900ff8ee8bcb8330de.lock
+  ```
+  ```
+- 2026-11-03 · 3d8c806f* · exit 0 · `set -o pipefail …` · acceptance-sha256:ed1c8cd1246b0dea18c82dd11cba066a3f599fb72f4944395e32617e385e12ca · ms:166665
