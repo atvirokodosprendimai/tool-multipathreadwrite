@@ -1,6 +1,9 @@
 """Tests for bench_mechanism.py: each frozen rule of HOOK-PREREGISTRATION.md, on synthetic transcripts."""
+import contextlib
+import io
 import json
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -78,6 +81,22 @@ class Counts(unittest.TestCase):
     def test_a_create_names_its_file(self):
         c = mech.classify(transcript(host_read("a.go"), bash("mrw write --create a.go <<'EOF'\nx\nEOF", APPLIED)))
         self.assertEqual(c["hook_licensed_writes"], 1)
+
+
+class Main(unittest.TestCase):
+    def test_two_rounds_with_the_same_file_names_keep_every_cell(self):
+        with tempfile.TemporaryDirectory() as d:
+            paths = []
+            for rnd in ("round1", "round2"):
+                p = Path(d, rnd, "cell.jsonl")
+                p.parent.mkdir()
+                p.write_text(transcript(host_read("a.go")))
+                paths.append(str(p))
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                mech.main(paths)
+            got = json.loads(out.getvalue())
+        self.assertEqual((len(got["cells"]), got["total"]["host_reads"]), (2, 2))
 
 
 if __name__ == "__main__":

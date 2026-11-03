@@ -166,7 +166,7 @@ def classify(raw):
 
 
 def main(paths):
-    cells = {os.path.basename(p): classify(open(p, encoding="utf-8", errors="replace").read()) for p in paths}
+    cells = {p: classify(open(p, encoding="utf-8", errors="replace").read()) for p in paths}
     total = {key: sum(cell[key] for cell in cells.values()) for key in next(iter(cells.values()), {})}
     total["cells_with_host_read"] = sum(1 for cell in cells.values() if cell["host_reads"])
     print(json.dumps({"cells": cells, "total": total}, indent=1, sort_keys=True))
