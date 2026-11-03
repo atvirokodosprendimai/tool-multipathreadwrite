@@ -4,7 +4,7 @@ Counted 2026-11-03 over Stage 5's stored B transcripts, the rule of ADR-193 Deci
 both in `scripts/bench_edits.py`. Stage 5 ran mrw v1.68.0 (before ADR-171 made `body=` optional) on Claude Code 2.1.302;
 no B attempt used `--format=search_replace` or `--format=apply_patch`, so the attributed columns are zero.
 
-script sha256: 1066d7324d5b30c470bab371cfe121f29e00cb676111d0c0bae99d409dafdd3d
+script sha256: 16e62d90339b7159e1cf74fa7cbc3197b6afabbd1075edd264b8c45754f31487
 helper sha256: 49001558d004aec635965ec4a53c7628ff5aaffcd80a91aec1f44255f1fcc1ac
 
 transcripts: ~/.local/share/mrw-bench/runs/2026-10-17-s5/stage-5 (382 B transcripts, 191 per model, in `block-1` to `block-5`; no B receipt there is excluded or replaced)

@@ -114,7 +114,7 @@ def classify(raw):
             counts["undecided"] += 1
         else:
             counts[what] += 1
-            if len(writes) == 1 and is_search_replace(writes[0]) and what in ("landed", "refused"):
+            if len(calls) == 1 and len(writes) == 1 and is_search_replace(writes[0]) and what in ("landed", "refused"):
                 counts["attributed"] += 1
                 counts["attributed_landed"] += what == "landed"
     counts["decided"] = counts["landed"] + counts["refused"]
@@ -260,7 +260,8 @@ def record(entry, rec):
     usage = rec.get("usage") or {}
     cost = rec.get("total_cost_usd")
     present = entry["has_result"]
-    return dict(entry, solved=bool((rec.get("oracle") or {}).get("solved")), turns=rec.get("num_turns") or 0,
+    solved = (rec.get("oracle") or {}).get("solved") and not rec.get("over_budget") and not rec.get("is_error")  # bench's predicate (analyze.go)
+    return dict(entry, solved=bool(solved), turns=rec.get("num_turns") or 0,
                 out=usage.get("output_tokens") if present and usage.get("output_tokens") is not None else None,
                 cost=round(cost * 10 ** 9) if present and cost is not None else None)
 

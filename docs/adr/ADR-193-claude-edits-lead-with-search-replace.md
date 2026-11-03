@@ -176,12 +176,16 @@ start: observed 2026-11-03 in this session's environment. Nothing in this reposi
      **landed** when it holds `— applied` or `PARTIALLY APPLIED`; else **refused** when it holds a line beginning
      `mrw: `; else **undecided**. Untokenized calls are undecided. Blocked calls are left out of every measure;
      undecided ones count against coverage.
-   - **An attributed SEARCH/REPLACE write call** holds exactly one write, that write carries `--format=search_replace`
-     or `--format search_replace`, and its outcome is landed or refused: mrw's own verdict is in the result. A call
-     whose write never ran (`false && mrw write --format=search_replace F`) prints no verdict and is not attributed;
-     a call holding two writes is not attributed to either. Landed attributed calls are reported beside the gate.
+   - **An attributed SEARCH/REPLACE write call** holds exactly one mrw invocation of any kind; that invocation is a write
+     carrying `--format=search_replace` or `--format search_replace`; and its outcome is landed or refused. With no other
+     mrw invocation in the call, mrw's own verdict in the result is that write's. A call whose write never ran
+     (`false && mrw write --format=search_replace F`) prints no verdict and is not attributed; a call holding two writes, or
+     a read or any other mrw call beside the write (`mrw read absent-file; false && mrw write --format=search_replace F`,
+     whose `mrw: incomplete:` error is the read's), is attributed to none, and is classified as above for the other measures.
+     Landed attributed calls are reported beside the gate.
    - Output tokens and cost come from the receipt (`usage.output_tokens`, `total_cost_usd`); an attempt whose
-     transcript has no final `result` line has those measures **missing**, never zero. Solved is bench's rule.
+     transcript has no final `result` line has those measures **missing**, never zero. Solved is bench's rule
+     (`Oracle.Solved`, not over budget, not an agent error: `internal/bench/analyze.go`).
    - Each counted transcript's SHA-256 is recorded beside its counts.
 5. **The pilot, pre-registered here, before any code or run.**
    - **Fixed:** Claude Code 2.1.317 (`~/.local/share/mrw-bench/claude-2.1.317`), mrw v1.83.0's release asset (as ADR-192

@@ -25,6 +25,10 @@ def transcript(*steps, result=True):
     return "\n".join(json.dumps(r) for r in rows)
 
 
+TRAP = "mrw read absent-file; false && mrw write --format=search_replace F; mrw write plan.txt"
+TRAP_RESULT = "mrw: incomplete: absent-file\n" + APPLIED
+
+
 def counted(command, text):
     return edits.classify(transcript((command, text)))
 
@@ -48,9 +52,9 @@ def judged(b=None, s=None, **kw):
     return edits.decide(edits.evaluate(arm(**dict(base_b, **(b or {}))), arm(**dict(base_s, **(s or {})))), **kw)
 
 
-def receipt(task, config, model, solved=True, cost=0.1, out=100, exclusion=""):
+def receipt(task, config, model, solved=True, cost=0.1, out=100, exclusion="", is_error=False):
     rec = {"task": task, "config": config, "model": model, "repeat": 1, "num_turns": 5, "total_cost_usd": cost,
-           "usage": {"output_tokens": out}, "oracle": {"solved": solved}}
+           "usage": {"output_tokens": out}, "oracle": {"solved": solved}, "is_error": is_error}
     if exclusion:
         rec["exclusion"] = exclusion
     return rec
@@ -78,9 +82,9 @@ def build_pilot(root, attempt=default_attempt, run_edit=None, excl=None):
                     stem = f"{task}.{name}.{model}.1" + (f".r{k}" if k else "")
                     a = attempt(model, name, i)
                     (root / "receipts" / model / (stem + ".receipt.json")).write_text(
-                        json.dumps(receipt(task, name, model, a["solved"], a["cost"], a["out"], reason)))
+                        json.dumps(receipt(task, name, model, a["solved"], a["cost"], a["out"], reason, a.get("is_error", False))))
                     if not reason:
-                        steps = [(("mrw write --format=search_replace f.go" if j < a["attributed"] else "mrw write plan.txt"), APPLIED) for j in range(a["landed"])]
+                        steps = [(TRAP if j < a.get("trap", 0) else "mrw write --format=search_replace f.go" if j < a["attributed"] else "mrw write plan.txt", TRAP_RESULT if j < a.get("trap", 0) else APPLIED) for j in range(a["landed"])]
                         steps += [("mrw write bad.txt", "mrw: nothing was written") for _ in range(a["refused"])]
                         (root / "transcripts" / model / (stem + ".transcript.jsonl")).write_text(transcript(*steps, result=a.get("result", True)))
     return root / "receipts", root / "transcripts"
@@ -136,6 +140,20 @@ class BenchEditsTest(unittest.TestCase):
         self.assertEqual((c["attributed"], c["landed"]), (0, 1))
         for command in ("mrw write P", "mrw write - <<'EOF'\n@@ f.go 1 replace\nx\nEOF", "mrw write --format=apply_patch F"):
             self.assertEqual(counted(command, APPLIED)["attributed"], 0, command)
+        # a read error earlier in the call is not a SEARCH/REPLACE write's verdict (Codex on #612)
+        c = counted("mrw read absent-file; false && mrw write --format=search_replace F", "mrw: incomplete: absent-file")
+        self.assertEqual((c["attributed"], c["refused"]), (0, 1))
+        c = counted(TRAP, TRAP_RESULT)
+        self.assertEqual((c["attributed"], c["landed"]), (0, 1))
+        c = counted("mrw read F && mrw write --format=search_replace F2", APPLIED)
+        self.assertEqual((c["attributed"], c["landed"]), (0, 1))
+
+        def trap(model, name, i):
+            a = default_attempt(model, name, i)
+            return dict(a, attributed=0, trap=1) if name == "S" and i < 9 else dict(a, attributed=0) if name == "S" else a
+        lines = run_verdict(self.tmp(), attempt=trap)
+        self.assertIn("0 of 18", [r for r in lines if "(U)" in r][0])
+        self.assertEqual(lines[-1], "verdict: NO SHIP")
 
     def test_a_search_replace_heredoc_is_one_write_call(self):
         filed = "cat > $TMPDIR/sr.txt <<'EOF'\n" + SR_DOC + "\nEOF\nmrw write --format=search_replace $TMPDIR/sr.txt"
@@ -188,6 +206,15 @@ class BenchEditsTest(unittest.TestCase):
         # (c) at 1.10 and above it
         self.assertEqual(judged(s=dict(cost=1.1))["result"], "PASS")
         self.assertEqual(judged(s=dict(cost=1.11))["result"], "FAIL")
+        # solved is bench's predicate: Oracle.Solved, not over budget, not an agent error (Codex on #612)
+        self.assertEqual(edits.record(dict(has_result=True), dict(oracle={"solved": True}))["solved"], True)
+        for flag in ("is_error", "over_budget"):
+            self.assertEqual(edits.record(dict(has_result=True), {"oracle": {"solved": True}, flag: True})["solved"], False, flag)
+
+        def errors(model, name, i):
+            a = default_attempt(model, name, i)
+            return dict(a, is_error=True) if name == "S" and i < 3 else a
+        self.assertEqual(run_verdict(self.tmp(), attempt=errors)[-1], "verdict: NO SHIP")
 
     def test_undefined_measures_fail_conservatively(self):
         self.assertEqual(judged(b=dict(landed=0))["result"], "UNTESTED")
