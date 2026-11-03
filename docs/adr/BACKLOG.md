@@ -952,8 +952,13 @@ verdict), written with the record on 2026-11-03, before any code or run.
 - **A safety and long-session benchmark (deferred from ADR-193)** (2026-11-03): what the guarantee layer prevents
   (silent mis-edits, partial writes, edits after compaction) over long sessions, which SWE-bench's short attempts do
   not exercise. Its own record.
-- **`mrw skill --host` (deferred from ADR-193)** (2026-11-03): the skill embeds `Core()`; give it the host form only
-  after ADR-193 T5 ships one.
+- **`mrw instructions --core --host claude` (deferred from ADR-193)** (2026-11-03): Zy's surface decision ships only
+  the measured full form on SHIP. The core form needs its own measurement, against B on `--core`, and must settle its
+  clash with the core's rule 2 ("writing a line mrw never served you is refused") first.
+- **Wiring the paragraph into the triggers and the skill (deferred from ADR-193)** (2026-11-03): after a SHIP, whether
+  the standing trigger (`docs/agents.md` §1), `mrw skill` and `.claude/skills/mrw/SKILL.md`, BESTPRACTICES.md and the
+  owner's global instructions point Claude hosts at `mrw instructions --host claude`. Zy's decision; ADR-193 T5 does
+  not touch them.
 - **A larger confirmation run (deferred from ADR-193)** (2026-11-03): after a mixed pilot, or before any README claim
   from a SHIP, run S against B on more instances (the 20 of `selection-adr-160.json`, or a pool), with its own bar.
 

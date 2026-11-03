@@ -1,15 +1,14 @@
 # Task ADR-193-T4: the counted pilot and its verdict
 
 **Depends-on:** T3
-**Awaiting-decision:** run the counted pilot before, after, or between the blocks of ADR-192's Stage 7 (ADR-192 T4), which is pending and paid on the same machine — Zy's call
 **Covers:** none — no spec
 **Estimated scope:** M (multi-file)
 **Owner:** Zy
-**Produces:** `docs/bench/stage-8/pilot/` receipts, `counts.json`, `verdict.txt`, `RESULTS.md`
-**Consumes:** the frozen paragraph and its sha (T3), `bench_edits.py count` and `verdict` (T2)
-**Data dependency:** needs the release asset, Claude Code 2.1.317, both models and the 18 instances ADR-193 Decision 5 lists; about $9 and an hour of attempt time
+**Produces:** `docs/bench/stage-8/pilot/<model>/` receipts and `run.json`, `counts.json`, `verdict.txt`, `RESULTS.md`
+**Consumes:** the frozen paragraph and its sha (T3), `bench_edits.py count` and `verdict` with both scripts' hashes (T2)
+**Data dependency:** needs the release asset, Claude Code 2.1.317, both models and the 18 instances ADR-193 Decision 5 lists; about $9 and an hour of attempt time; the fence re-counts the transcripts, which stay on this Mac at the path `RESULTS.md` names
 **Proof map:** v1
-**Rests-on:** `the script that judged is unchanged`, `the reference row was counted by the same script`, `every counted attempt has a receipt`, `every counted receipt ran the pinned CLI and mrw`, `every counted run carried the frozen paragraph`, `the verdict reproduces from the counts and receipts`, `the verdict line is SHIP or NO SHIP`, `RESULTS.md quotes the verdict`
+**Rests-on:** `both scripts are the ones that counted the reference row`, `the run carried the frozen paragraph`, `each model ran the registered matrix`, `every planned receipt and owed replacement exists`, `the counts are the transcripts' and name the final receipts`, `the verdict reproduces from the counts and receipts`, `the verdict line is SHIP or NO SHIP`, `RESULTS.md quotes the verdict`
 
 ## Goal
 
@@ -20,30 +19,32 @@ registered, with one verdict line: SHIP or NO SHIP.
 
 | File | Change | Why |
 |------|--------|-----|
-| `docs/bench/stage-8/pilot/` | add | the receipts and `run.json` per model; transcripts stay on this Mac, as every stage's do |
-| `docs/bench/stage-8/counts.json` | add | `bench_edits.py count` over every counted transcript |
+| `docs/bench/stage-8/pilot/<model>/` | add | per model: `run.json` and the receipts; transcripts stay on this Mac, as every stage's do |
+| `docs/bench/stage-8/counts.json` | add | `bench_edits.py count` over every final receipt's transcript, with its sha256 |
 | `docs/bench/stage-8/verdict.txt` | add | `bench_edits.py verdict` output |
-| `docs/bench/stage-8/RESULTS.md` | add | the measures and verdict per model, the secondaries, the transcripts' path, and a `script sha256: ` line |
+| `docs/bench/stage-8/RESULTS.md` | add | the measures and verdict per model, the descriptive rows, the prediction beside the outcome, a `transcripts: ` line, and `script sha256: ` and `helper sha256: ` lines |
 | `docs/bench/README.md` | edit | a row for the pilot and its verdict, stating no more than it |
 
 ## Ordered Steps
 
 1. [S1] The red state: `docs/bench/stage-8/RESULTS.md` does not exist, so the fence fails. [proof: acceptance]
-2. [S2] Load the costly-runs skill. `bench run --profile stage8 --configs B,S` on the 18 instances, one model at a time, one attempt each; re-run each setup exclusion once, as Decision 5 says. Stop at $15 spent. [proof: human: the receipts, their count and the spend]
-3. [S3] `bench_edits.py count` over every counted transcript into `counts.json`; `bench_edits.py verdict` into `verdict.txt`. [proof: acceptance]
-4. [S4] Write `RESULTS.md`: every measure beside its threshold, the prediction beside the outcome, what the pilot cannot tell (Decision 5), and no claim beyond the verdict. [proof: human: the record against Decision 5]
+2. [S2] Load the costly-runs skill. Per model, `bench run --stage pilot-8 --profile stage8 --configs B,S --repeats 1` on the 18 instances in Decision 5's order, into `docs/bench/stage-8/pilot/<model>/`; bench owes and runs the replacements Decision 5's walk names. Stop at $15 spent, on an unsupported exclusion, or at a third dropped instance on a model. [proof: human: the receipts, their count and the spend]
+3. [S3] `bench_edits.py count` into `counts.json`; `bench_edits.py verdict` into `verdict.txt`. [proof: acceptance]
+4. [S4] Write `RESULTS.md`: every measure beside its threshold, the prediction beside the outcome, what the pilot cannot tell (Decision 5), the false-SHIP rate the rule carries, and no claim beyond the verdict. [proof: human: the record against Decision 5]
 
 ## Acceptance
 
 ```bash
 set -o pipefail
 R=docs/bench/stage-8
-test "$(sed -n 's/^script sha256: //p' $R/RESULTS.md)" = "$(shasum -a 256 scripts/bench_edits.py | cut -d' ' -f1)" \
-  && test "$(sed -n 's/^script sha256: //p' docs/bench/stage-8/reference.md)" = "$(sed -n 's/^script sha256: //p' $R/RESULTS.md)" \
-  && test "$(ls $R/pilot/*.receipt.json | wc -l | tr -d ' ')" -ge 72 \
-  && jq -s -e 'all(.[]; .cli_version == "2.1.317 (Claude Code)" and (.mrw_version | startswith("v1.83.0 ")) and (.config == "B" or .config == "S"))' $R/pilot/*.receipt.json > /dev/null \
-  && s=$(sed -n 's/^paragraph sha256: //p' docs/bench/stage-8/pilot.md) && test -n "$s" \
-  && jq -s -e --arg s "$s" 'length >= 2 and all(.[]; .edit_paragraph_sha256 == $s)' $R/pilot/run-*.json > /dev/null \
+h1=$(shasum -a 256 scripts/bench_edits.py | cut -d' ' -f1) && h2=$(shasum -a 256 scripts/bench_mechanism.py | cut -d' ' -f1) \
+  && for f in $R/reference.md $R/RESULTS.md; do test "$(sed -n 's/^script sha256: //p' "$f")" = "$h1" && test "$(sed -n 's/^helper sha256: //p' "$f")" = "$h2" || exit 1; done \
+  && s=$(sed -n 's/^paragraph sha256: //p' $R/pilot.md) && test -n "$s" \
+  && want=$(jq -c '.selected[2:]' bench/swe-bench/selection.json) && test "$(jq 'length' <<<"$want")" = 18 \
+  && for m in claude-opus-5-5 claude-sonnet-5-5; do jq -e --arg m "$m" --arg s "$s" --argjson want "$want" '.stage == "pilot-8" and .models == [$m] and (.configs | sort) == ["B","S"] and .repeats == 1 and .profile == "stage8" and .budget_seconds == 1200 and .cli_version == "2.1.317 (Claude Code)" and (.mrw_version | startswith("v1.83.0 ")) and .edit_paragraph_sha256 == $s and .tasks == $want' "$R/pilot/$m/run.json" > /dev/null && go run ./cmd/bench verify --stage pilot-8 --tasks 18 --repeats 1 "$R/pilot/$m" || exit 1; done \
+  && T=$(sed -n 's/^transcripts: //p' $R/RESULTS.md) && test -d "$T" \
+  && python3 -B scripts/bench_edits.py count --receipts $R/pilot --transcripts "$T" > /tmp/adr193-counts.json \
+  && diff /tmp/adr193-counts.json $R/counts.json \
   && python3 -B scripts/bench_edits.py verdict --receipts $R/pilot --counts $R/counts.json > /tmp/adr193-verdict.txt \
   && diff /tmp/adr193-verdict.txt $R/verdict.txt \
   && grep -qE '^verdict: (SHIP|NO SHIP)$' $R/verdict.txt \
@@ -54,14 +55,14 @@ test "$(sed -n 's/^script sha256: //p' $R/RESULTS.md)" = "$(shasum -a 256 script
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| — | — | the fence: the script that judged is the one that counted the reference row, unchanged; every receipt ran the pinned CLI and mrw; the verdict reproduces from the committed counts and receipts and is quoted | none | — |
+| — | — | the fence: both scripts are the ones that counted the reference row; each model's `run.json` is the registered matrix (instances in order, one model, B and S, repeat 1, stage8, the budget, CLI, mrw and paragraph); `bench verify` finds every planned receipt and owed replacement; a recount of the transcripts reproduces `counts.json`, digests included; `verdict` (which refuses an omitted, duplicated or foreign instance, T2) reproduces `verdict.txt`, and it is quoted | none | — |
 
 ## Reachability
 
 | Rung | How this task shows it |
 |------|------------------------|
 | 1 — exists | the receipts, counts and verdict |
-| 2 — something selects it | T5 is blocked on its verdict line |
+| 2 — something selects it | T5 runs only on its verdict line |
 | 3 — the caller can discover it | `docs/bench/README.md`'s row |
 | 4 — it is used | T5 on SHIP; the BACKLOG follow-ups either way |
 
@@ -69,16 +70,17 @@ test "$(sed -n 's/^script sha256: //p' $R/RESULTS.md)" = "$(shasum -a 256 script
 
 ## Invariants
 
-- No instance is added, dropped or reordered for an outcome; the only drop is Decision 5's double setup exclusion.
-- The script, thresholds and paragraph are the ones committed before the first counted call.
+- No instance is added, dropped or reordered for an outcome; the only drop is Decision 5's terminal exclusion.
+- The scripts, thresholds and paragraph are the ones committed before the first counted call.
 
 ## Risks
 
 - Shared-machine load skews wall time; wall time is descriptive only.
+- The fence's recount needs this Mac's transcripts; elsewhere it fails at `test -d`, which says so.
 
 ## Stop Condition
 
-Spend passes $15, a canary-shaped failure (S's init tools, a prompt sha that differs) appears in a counted receipt, or more than 2 instances drop on a model: stop to Zy.
+Spend passes $15, an unsupported exclusion or a third dropped instance on a model appears, or a counted receipt shows S's init tools or prompt sha other than T3's: stop to Zy.
 
 ## Out of Scope
 

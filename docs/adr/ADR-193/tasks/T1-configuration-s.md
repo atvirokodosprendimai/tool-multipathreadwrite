@@ -30,7 +30,7 @@ ADR-193 Decision 1's paragraph after `mrw instructions`, and nothing else differ
 
 ## Ordered Steps
 
-1. [S1] Write the four failing tests and see them red. [proof: acceptance]
+1. [S1] Write the five failing tests and see them red. [proof: acceptance]
 2. [S2] `Configs["S"]` and its invocation: B's tools, B's hook and refusal text, the prompt file `mrw instructions`, a newline, then `EditParagraph` byte for byte as ADR-193 Decision 1 gives it. [proof: mutation]
 3. [S3] `edit_paragraph_sha256` in `run.json`, refused when block 2 or later names another; `stage8Problem`; S outside stage8 refused. [proof: mutation]
 4. [S4] The canary under stage8 runs B and S; S's init tools are B's. [proof: mutation]
@@ -60,7 +60,7 @@ out=$(go test ./internal/bench/ ./cmd/bench/ -count=1 -v -run '^(TestConfigurati
 
 | Rung | How this task shows it |
 |------|------------------------|
-| 1 — exists | the four tests |
+| 1 — exists | the five tests |
 | 2 — something selects it | `Configs["S"]` read by `--configs` and by the canary's list; deleting either fails a named test |
 | 3 — the caller can discover it | the usage text names `stage8`, the fence's last clause |
 | 4 — it is used | T3's canary and smoke, T4's pilot |

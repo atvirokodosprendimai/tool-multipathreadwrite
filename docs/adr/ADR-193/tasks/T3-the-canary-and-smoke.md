@@ -29,8 +29,8 @@ paragraph moves the agent to SEARCH/REPLACE writes (ADR-193 Decisions 1 and 6).
 
 1. [S1] The red state: `docs/bench/stage-8/pilot.md` does not exist, so the fence fails. [proof: acceptance]
 2. [S2] The stage8 canary for B and S on each model. A failed canary stops here. [proof: acceptance]
-3. [S3] A preflight in a scratch git checkout through the stage's settings and bench's Bash hook: S writes a SEARCH/REPLACE document to `$TMPDIR` by heredoc and runs `mrw write --format=search_replace` on it with no `mrw read` of the file; the write applies, the hook does not refuse it, and `bench_edits.py count` counts one landed SEARCH/REPLACE write call. [proof: human: the receipt and the count]
-4. [S4] B and S, uncounted, on `matplotlib__matplotlib-22719` and `astropy__astropy-13033` (the first 2 of `bench/swe-bench/selection.json`, outside the pool), both models; `bench_edits.py count` over the 8 transcripts. With no SEARCH/REPLACE write call from S on either model, change the paragraph once (code, test and record together, still directive), run again, and record both rounds. [proof: human: the smoke's counts and the paragraph it froze]
+3. [S3] A preflight in a scratch git checkout through the stage's settings and bench's Bash hook: S writes a SEARCH/REPLACE document to `$TMPDIR` by heredoc and runs `mrw write --format=search_replace` on it with no `mrw read` of the file; the write applies, the hook does not refuse it, and `bench_edits.py count` counts one landed, attributed SEARCH/REPLACE write call. [proof: human: the receipt and the count]
+4. [S4] B and S, uncounted, on `matplotlib__matplotlib-22719` and `astropy__astropy-13033` (the first 2 of `bench/swe-bench/selection.json`, outside the pool), both models; `bench_edits.py count` over the 8 transcripts. When S makes no attributed SEARCH/REPLACE write call on at least one of the two models, change the paragraph once (code, test and record together, still directive), run again, and record both rounds. [proof: human: the smoke's counts and the paragraph it froze]
 5. [S5] Write `pilot.md` with a `cli: ` line holding the CLI's version as receipts record it, a `paragraph: ` line holding the frozen paragraph and a `paragraph sha256: ` line; commit before T4. [proof: acceptance]
 
 ## Acceptance
@@ -72,7 +72,7 @@ p=$(sed -n 's/^paragraph: //p' $R/pilot.md) && test -n "$p" \
 
 ## Stop Condition
 
-The preflight's write is refused by bench's hook or counted as anything but a landed SEARCH/REPLACE write, or the paragraph moves no SEARCH/REPLACE write on either model after one change: stop to Zy before T4.
+The preflight's write is refused by bench's hook or counted as anything but a landed, attributed SEARCH/REPLACE write, or after one change S still makes no attributed SEARCH/REPLACE write call on at least one model: stop to Zy before T4.
 
 ## Out of Scope
 
