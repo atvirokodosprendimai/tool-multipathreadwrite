@@ -63,6 +63,7 @@ the definitions from other variance.
 
 ## The classifier, as run
 
-`scripts/bench_mechanism.py` keys cells by file basename, so one call over both rounds' transcripts
-keeps only the second round's cells; each round was therefore classified on its own. Every host
-`Read` count above also comes from the driver's own `by_kind` metrics, which agree: 0 in each round.
+`scripts/bench_mechanism.py` keyed cells by file basename when this ran, so one call over both rounds'
+transcripts kept only the second round's cells; each round was therefore classified on its own. It now
+keys them by path. Every host `Read` count above also comes from the driver's own `by_kind` metrics,
+which agree: 0 in each round.
