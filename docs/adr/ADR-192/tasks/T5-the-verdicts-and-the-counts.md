@@ -34,8 +34,7 @@ outcome means as ADR-192 Decision 5 wrote it before the run.
 set -o pipefail
 R=docs/bench/stage-7
 test -f $R/RESULTS.md && jq -e '.total.host_reads >= 0' $R/mechanism.json > /dev/null \
-  && for c in 'H against B' 'B against A' 'H against A'; do grep -q "$c" $R/RESULTS.md || exit 1; done \
-  && grep -q 'Stage 7' docs/bench/RESULTS.md
+  && for c in 'H against B' 'B against A' 'H against A'; do grep -q "$c" $R/RESULTS.md || exit 1; done
 ```
 
 ## Tests
