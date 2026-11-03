@@ -20,10 +20,10 @@ This README is a derived index — when it disagrees with a task file, the task 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
 | T1 | configuration H and the stage7 profile | pending | — | `go test ./internal/bench/ -run TestConfigurationHIsBPlusReadAndTheReadHook…` |
-| T2 | bench look reads H against B and A, with the uptake gate | pending | — | `go test ./internal/bench/ -run TestLookReadsHAgainstBAndA…` |
-| T3 | the release, the canary and an uncounted uptake pilot freeze the sentence | blocked | — | `docs/bench/stage-7/pilot.md` with the sha and a passing canary |
+| T2 | bench look and analyze read H against B and A, with the uptake gate | pending | — | `go test ./internal/bench/ ./cmd/bench/ -run TestLookReadsHAgainstBAndA…` |
+| T3 | the release, the re-probe, the canary, a preflight and an uncounted pilot freeze the sentence | blocked | — | the recorded sentence hashes to its sha and is in the code; both canaries passed with H |
 | T4 | Stage 7, block by block | pending | — | `bench look docs/bench/stage-7` reproduces the last look and says complete |
-| T5 | the verdicts, the mechanism counts and the README rows | pending | — | `docs/bench/stage-7/RESULTS.md` names every comparison |
+| T5 | the verdicts, the mechanism counts and the README rows | pending | — | the six verdict lines of the last look are quoted; the counts cover every H transcript |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 
@@ -39,4 +39,4 @@ Status: `pending` | `partial` | `blocked` | `done`.
 ## Notes
 
 - T3 is blocked until a release carries ADR-191 (`1f01dcdc`); cutting it is Zy's call.
-- T4 is the paid run: about 38 hours at most on a shared machine; load the costly-runs skill first.
+- T4 is the paid run: at most about 21 hours of attempt time on a shared machine, over days; load the costly-runs skill first.
