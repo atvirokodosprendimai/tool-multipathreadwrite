@@ -64,6 +64,7 @@ s=$(sed -n 's/^sentence: //p' $R/pilot.md) && test -n "$s" \
 | 4 — it is used | T4 |
 
 ## Mutation Log
+- 2026-11-03 · 76a2208d* · mutant killed · exit 1 · `docs/bench/stage-7/pilot.md` · S6: the recorded sha no longer hashes the recorded sentence · acceptance-sha256:6cb44f50e237e21f297671e14e48cb1f667d37957e1d92e842389d5d070e5523
 
 ## Invariants
 
@@ -82,3 +83,11 @@ The preflight's edit is refused with the hook in place, or the sentence moves no
 - Any counted attempt (T4's job).
 
 ## Verification Log
+- 2026-11-03 · 76a2208d* · exit 0 · `set -o pipefail …` · acceptance-sha256:6cb44f50e237e21f297671e14e48cb1f667d37957e1d92e842389d5d070e5523 · ms:56
+- 2026-11-03 · 76a2208d* · exit 1 · `set -o pipefail …` · acceptance-sha256:6cb44f50e237e21f297671e14e48cb1f667d37957e1d92e842389d5d070e5523 · ms:36 · test-lock-sha256:deeb36e69eee92091337010c87f199c96273cf4f30607b345e4a41e96cc4ff11 · test-lock-file:docs/adr/locks/deeb36e69eee92091337010c87f199c96273cf4f30607b345e4a41e96cc4ff11.lock
+  ```
+  --- last 1 line(s) of stderr
+  sed: docs/bench/stage-7/pilot.md: No such file or directory
+  ```
+- 2026-11-03 · 76a2208d* · exit 0 · `set -o pipefail …` · acceptance-sha256:6cb44f50e237e21f297671e14e48cb1f667d37957e1d92e842389d5d070e5523 · ms:55
+- 2026-11-03 · 76a2208d* · exit 0 · `set -o pipefail …` · acceptance-sha256:6cb44f50e237e21f297671e14e48cb1f667d37957e1d92e842389d5d070e5523 · ms:103

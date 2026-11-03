@@ -21,7 +21,7 @@ This README is a derived index — when it disagrees with a task file, the task 
 |----|-------|--------|--------|------------|
 | T1 | configuration H and the stage7 profile | done | — | `go test ./internal/bench/ -run TestConfigurationHIsBPlusReadAndTheReadHook…` |
 | T2 | bench look and analyze read H against B and A, with the uptake gate | done | — | `go test ./internal/bench/ ./cmd/bench/ -run TestLookReadsHAgainstBAndA…` |
-| T3 | the release, the re-probe, the canary, a preflight and an uncounted pilot freeze the sentence | blocked | — | the recorded sentence hashes to its sha and is in the code; both canaries passed with H |
+| T3 | the release, the re-probe, the canary, a preflight and an uncounted pilot freeze the sentence | done | — | the recorded sentence hashes to its sha and is in the code; both canaries passed with H |
 | T4 | Stage 7, block by block | pending | — | `bench look docs/bench/stage-7` reproduces the last look and says complete |
 | T5 | the verdicts, the mechanism counts and the README rows | pending | — | the six verdict lines of the last look are quoted; the counts cover every H transcript |
 
@@ -38,5 +38,5 @@ Status: `pending` | `partial` | `blocked` | `done`.
 
 ## Notes
 
-- T3 is blocked until a release carries ADR-191 (`1f01dcdc`); cutting it is Zy's call.
+- T3 ran on 2026-11-03 against v1.83.0, which carries ADR-191 (`1f01dcdc`): `docs/bench/stage-7/pilot.md`.
 - T4 is the paid run: about 21 hours of attempt time projected, on a shared machine, over days; load the costly-runs skill first.

@@ -1,0 +1,47 @@
+{
+  "attempt": "matplotlib__matplotlib-22719.H.claude-sonnet-5-5.1",
+  "stage": "pilot-7b",
+  "task": "matplotlib__matplotlib-22719",
+  "shape": "swe-bench",
+  "source": "swe-bench",
+  "model": "claude-sonnet-5-5",
+  "config": "H",
+  "repeat": 1,
+  "order": 0,
+  "started": "2026-11-03T15:52:20Z",
+  "wall_ms": 13902,
+  "cli_version": "2.1.317 (Claude Code)",
+  "mrw_version": "v1.83.0 (3a97083)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 5,
+  "tool_calls": 4,
+  "total_cost_usd": 0.0503369,
+  "usage": {
+    "input_tokens": 10,
+    "output_tokens": 1092,
+    "cache_read_input_tokens": 91129,
+    "cache_creation_input_tokens": 7571
+  },
+  "init_tools": [
+    "Bash",
+    "Glob",
+    "Read",
+    "Skill"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": true,
+    "harness_resolved": true,
+    "broke_tests": false
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 1,
+    "insertions": 1,
+    "deletions": 1
+  },
+  "status": "done",
+  "host_reads": 2,
+  "hook_runs": 2
+}
