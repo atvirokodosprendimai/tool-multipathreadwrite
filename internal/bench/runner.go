@@ -555,10 +555,10 @@ func gates(o RunOptions) (string, error) {
 }
 
 // stage7Problem is what keeps a stage7 stage to the three configurations
-// ADR-192 compares: every list names only A, B and H, and in the block that
-// plans the comparisons (block 1, or a stage without blocks) a model that
-// runs H runs B, whose cost H:B is read against. A later block may drop B
-// once its comparisons have closed.
+// ADR-192 compares: every list names only A, B and H, and in block 1, which
+// plans the comparisons, a model that runs H runs B, whose cost H:B is read
+// against. A later block may drop B once its comparisons have closed, and a
+// stage without blocks (T3's uncounted pilot) is judged by no look.
 func stage7Problem(o RunOptions) string {
 	for _, cs := range append([][]string{o.Configs}, mapValues(o.ConfigsFor)...) {
 		for _, c := range cs {
@@ -567,7 +567,7 @@ func stage7Problem(o RunOptions) string {
 			}
 		}
 	}
-	if o.Block <= 1 {
+	if o.Block == 1 {
 		for _, m := range o.Models {
 			cs := o.Configs
 			if own, ok := o.ConfigsFor[m]; ok {
@@ -950,6 +950,14 @@ func runAttempt(o RunOptions, a attempt, order int, cli, mrwVersion string) (r R
 	if errText, _ := os.ReadFile(base + ".stderr"); startFailed(t, r, string(errText)) {
 		r.Exclusion = ExclusionStart
 	}
+	// H's evidence is taken before grading, which can end the attempt early:
+	// a failed grading is an exclusion, and its hook files are still kept.
+	if a.Config.ReadHook {
+		r.HostReads = t.HostReads
+		if r.HookRuns, r.HookStderrBytes, err = keepHookFiles(scratch, base); err != nil {
+			r.Exclusion, r.Note = ExclusionSetup, "hook files: "+err.Error()
+		}
+	}
 	var v Verdict
 	if a.Task.swe != nil {
 		v, err = o.SWE.grade(a.Task, tree, scratch, a.ID)
@@ -980,12 +988,6 @@ func runAttempt(o RunOptions, a attempt, order int, cli, mrwVersion string) (r R
 		// attempt is a setup exclusion (the final review of #411).
 		if r.SlippedWrites, err = SlippedWrites(tree, filepath.Join(scratch, "state")); err != nil {
 			r.Exclusion, r.Note = ExclusionSetup, "slipped writes: "+err.Error()
-		}
-	}
-	if a.Config.ReadHook {
-		r.HostReads = t.HostReads
-		if r.HookRuns, r.HookStderrBytes, err = keepHookFiles(scratch, base); err != nil {
-			r.Exclusion, r.Note = ExclusionSetup, "hook files: "+err.Error()
 		}
 	}
 	return r

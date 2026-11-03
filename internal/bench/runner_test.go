@@ -1356,9 +1356,10 @@ func TestConfigurationHIsBPlusReadAndTheReadHook(t *testing.T) {
 		t.Errorf("block 2 with block 1's sentence: %v", err)
 	}
 
-	// A stage with no blocks still names its mrw.
+	// A stage with no blocks, T3's pilot among them, may run H without B
+	// and still names its mrw.
 	plain := opts
-	plain.Block, plain.Out = 0, filepath.Join(work, "plain")
+	plain.Block, plain.Out, plain.Configs = 0, filepath.Join(work, "plain"), []string{"A", "H"}
 	if err := Run(plain); err != nil {
 		t.Fatal(err)
 	}
@@ -1377,9 +1378,10 @@ func TestConfigurationHIsBPlusReadAndTheReadHook(t *testing.T) {
 }
 
 // TestStage7RunsOnlyAThroughHAndHNeedsBInBlockOne: a stage7 model runs a
-// subset of A, B and H, and H only beside B in the block that plans the
-// comparisons (block 1, or a stage without blocks); a later block may drop B
-// once its comparisons have closed (ADR-192 Decision 1, Decision 3).
+// subset of A, B and H, and H only beside B in block 1, which plans the
+// comparisons; a later block may drop B once its comparisons have closed,
+// and a stage without blocks (T3's uncounted pilot) is judged by no look
+// (ADR-192 Decision 1, Decision 3).
 func TestStage7RunsOnlyAThroughHAndHNeedsBInBlockOne(t *testing.T) {
 	for _, c := range []struct {
 		name    string
@@ -1392,7 +1394,8 @@ func TestStage7RunsOnlyAThroughHAndHNeedsBInBlockOne(t *testing.T) {
 		{"B and H", []string{"B", "H"}, 1, nil, false},
 		{"A and B alone", []string{"A", "B"}, 0, nil, false},
 		{"A and H in block 1", []string{"A", "H"}, 1, nil, true},
-		{"A and H in a stage with no blocks", []string{"A", "H"}, 0, nil, true},
+		{"A and H in a stage with no blocks", []string{"A", "H"}, 0, nil, false},
+		{"H alone in a stage with no blocks, T3's pilot", []string{"H"}, 0, nil, false},
 		{"A and H in block 2, B's comparisons closed", []string{"A", "H"}, 2, nil, false},
 		{"A, B, H and P", []string{"A", "B", "H", "P"}, 1, nil, true},
 		{"H alone for one model in block 1", []string{"A", "B", "H"}, 1, map[string][]string{"stub-model": {"A", "H"}}, true},
@@ -1403,6 +1406,44 @@ func TestStage7RunsOnlyAThroughHAndHNeedsBInBlockOne(t *testing.T) {
 		if (err != nil) != c.refused || (err != nil && !strings.Contains(err.Error(), "ADR-192")) {
 			t.Errorf("%s: gates said %v, want refused %v naming ADR-192", c.name, err, c.refused)
 		}
+	}
+}
+
+// TestHKeepsItsHookEvidenceWhenGradingFails: an H attempt whose grading
+// fails is a setup exclusion that still counts its Reads and its hook runs
+// and keeps both hook files beside its receipt (ADR-192 Decision 1).
+func TestHKeepsItsHookEvidenceWhenGradingFails(t *testing.T) {
+	opts := stage7Options(t, "A", "B", "H")
+	work := t.TempDir()
+	reads := stubClaudeWithReads(t, work, filepath.Join(opts.Tasks[0].Dir, "reference.patch"))
+	// The session ends by removing its tree's .git, so the oracle cannot list the changes.
+	opts.Claude = filepath.Join(work, "claude-no-git")
+	script := "#!/bin/sh\n\"" + reads + "\" \"$@\"; s=$?\n[ \"$1\" = --version ] || rm -rf .git\nexit $s\n"
+	if err := os.WriteFile(opts.Claude, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeStage7Canary(t, opts, `["A","B","H"]`)
+	opts.Block, opts.Out = 1, filepath.Join(work, "stage", "block-1")
+	if err := Run(opts); err != nil {
+		t.Fatal(err)
+	}
+	base := filepath.Join(opts.Out, opts.Tasks[0].ID+".H.stub-model.1")
+	var h Receipt
+	raw, err := os.ReadFile(base + ".receipt.json")
+	if err != nil || json.Unmarshal(raw, &h) != nil {
+		t.Fatalf("H's receipt: %v", err)
+	}
+	if h.Exclusion != ExclusionSetup || !strings.Contains(h.Note, "oracle") {
+		t.Fatalf("H's grading did not fail: exclusion %q, note %q", h.Exclusion, h.Note)
+	}
+	if h.HostReads != 2 || h.HookRuns != 2 || h.HookStderrBytes != len("oops\n") {
+		t.Errorf("H's receipt counts %d reads, %d runs, %d bytes after a failed grading; want 2, 2, 5", h.HostReads, h.HookRuns, h.HookStderrBytes)
+	}
+	if got, _ := os.ReadFile(base + ".hook.fired"); string(got) != "fired\nfired\n" {
+		t.Errorf("the kept hook.fired holds %q after a failed grading", got)
+	}
+	if got, _ := os.ReadFile(base + ".hook.stderr"); string(got) != "oops\n" {
+		t.Errorf("the kept hook.stderr holds %q after a failed grading", got)
 	}
 }
 
