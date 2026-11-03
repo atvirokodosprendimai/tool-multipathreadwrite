@@ -9103,13 +9103,18 @@ mkdir -p "$D253/repos/atvirokodosprendimai/tool-multipathreadwrite/releases"
 L253="$D253/repos/atvirokodosprendimai/tool-multipathreadwrite/releases/latest"
 printf '{"tag_name":"v1.65.0"}' > "$L253"
 cat > "$WORK/srv253.py" <<'PY'
-import functools, http.server, os, sys
+import functools, http.server, os, socketserver, sys
 d, portfile, logfile = sys.argv[1:4]
 class H(http.server.SimpleHTTPRequestHandler):
     def log_message(self, fmt, *args):
         with open(logfile, "a") as f:
             f.write(self.path + "\n")
-srv = http.server.HTTPServer(("127.0.0.1", 0), functools.partial(H, directory=d))
+# HTTPServer's own server_bind asks socket.getfqdn, which waited 35 s on one Mac's resolver (2026-11-03).
+class S(http.server.HTTPServer):
+    def server_bind(self):
+        socketserver.TCPServer.server_bind(self)
+        self.server_name, self.server_port = "127.0.0.1", self.server_address[1]
+srv = S(("127.0.0.1", 0), functools.partial(H, directory=d))
 with open(portfile + ".tmp", "w") as f:
     f.write(str(srv.server_address[1]))
 os.rename(portfile + ".tmp", portfile)
@@ -9151,12 +9156,16 @@ mkdir -p "$D317/repos/atvirokodosprendimai/tool-multipathreadwrite/releases"
 L317="$D317/repos/atvirokodosprendimai/tool-multipathreadwrite/releases/latest"
 printf '{"tag_name":"v1.78.0"}' > "$L317"
 cat > "$WORK/srv317.py" <<'PY'
-import functools, http.server, os, sys
+import functools, http.server, os, socketserver, sys
 d, portfile = sys.argv[1:3]
 class H(http.server.SimpleHTTPRequestHandler):
     def log_message(self, fmt, *args):
         pass
-srv = http.server.HTTPServer(("127.0.0.1", 0), functools.partial(H, directory=d))
+class S(http.server.HTTPServer):  # no socket.getfqdn, as srv253.py
+    def server_bind(self):
+        socketserver.TCPServer.server_bind(self)
+        self.server_name, self.server_port = "127.0.0.1", self.server_address[1]
+srv = S(("127.0.0.1", 0), functools.partial(H, directory=d))
 with open(portfile + ".tmp", "w") as f:
     f.write(str(srv.server_address[1]))
 os.rename(portfile + ".tmp", portfile)
