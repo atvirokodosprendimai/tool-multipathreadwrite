@@ -1215,7 +1215,7 @@ func writeStage7Canary(t *testing.T, opts RunOptions, configs string) {
 // run.json names the sentence's SHA-256 and a later block naming another is
 // refused; H outside stage7 is refused (ADR-192 Decision 1).
 func TestConfigurationHIsBPlusReadAndTheReadHook(t *testing.T) {
-	const sentence = "In this session you may also read files with the Read tool: the lines a Read shows you count as read for mrw, so a plan may edit them without reading them again with mrw. Edit and create files only with mrw write."
+	const sentence = "In this session, read files with the Read tool, not with mrw read, cat or grep: the lines a Read shows you count as read for mrw, so a plan may then edit them with no mrw read. Edit and create files only with mrw write."
 	if HSentence != sentence {
 		t.Fatalf("the sentence is %q, want ADR-192 Decision 1's", HSentence)
 	}
