@@ -1,6 +1,7 @@
 # ADR-192: The read hook is measured on SWE-bench, as a configuration H read against B and A
 
-**Status:** Proposed
+**Status:** Accepted
+**Accepted:** 2026-11-03 by Zy — answered *"solve em"* to "Accept ADR-192?" and "Cut v1.83.0?", after an adr-challenger review (15 findings), a Codex xhigh challenge (7), a Codex xhigh re-check (5) and a Codex high confirmation (APPROVE, none), every finding that held taken in
 **Date:** 2026-11-03
 **Owner:** Zy
 **Spec:** None — no spec stage
