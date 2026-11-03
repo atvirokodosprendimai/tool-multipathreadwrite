@@ -39,9 +39,10 @@ rounds, and all 20 counted cells were solved with exact trees and verified final
 
   By the registration, predictions 3–5 are therefore **untested, not refuted**.
 - **Prediction 3, mechanism: untested.**
-- **Prediction 4, native's lead $0.000–$0.015 a round: missed.** The lead was $0.044644 and
-  $0.025543. Because R never used `Read`, this measures R's unused `Read` and `Grep` definitions and
-  run-to-run variance, not the hook.
+- **Prediction 4, native's lead $0.000–$0.015 a round: untested.** The lead was $0.044644 and
+  $0.025543, outside the predicted range, but because R never used `Read` it measures R's unused
+  `Read` and `Grep` definitions and run-to-run variance, not the hook. It is reported here as a
+  description, not as a miss.
 - **Run 10 (C vs R): held for the owner's decision.** The registration runs it after run 9. Its
   question is what the host-Read bundle buys, and run 9 shows the agent does not take the bundle up
   under the core guide, so as registered it could only price unused tool definitions.
@@ -56,8 +57,8 @@ because that setup's guide said nothing against it. This one does.
 ## Against run 8, descriptively
 
 These runs are not pooled. Native's five-job cost stayed in its band: $0.101–$0.103 in run 8,
-$0.104–$0.109 here. Run 8's C cost $0.114–$0.121; R here cost $0.135–$0.148. R's cache creation runs
-about 3,000–4,000 tokens a round above run 8's C. That is consistent with R's extra tool definitions
+$0.104–$0.109 here. Run 8's C cost $0.114–$0.121; R here cost $0.135–$0.148. R's cache creation ran
+4,004 and 2,186 tokens above run 8's C in rounds 1 and 2. That is consistent with R's extra tool definitions
 (`Read`, `Grep`) on every request, but runs 8 and 9 are different runs, so this does not separate
 the definitions from other variance.
 
