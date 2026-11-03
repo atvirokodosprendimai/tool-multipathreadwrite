@@ -167,7 +167,7 @@ not one computed from token prices (ADR-156 Decision 4). The transcripts are not
 kept in the tree: they hold this machine's absolute scratch and home paths.
 
 The init line also lists the CLI's own built-in plugins (`cc-plugin-agents-md`,
-`cc-plugin-telemetry`, `cc-plugin-plugin-authoring`) and agents (`claude`,
+`cc-plugin-telemetry`, `cc-plugin-plugin-authoring`, and from 2.1.317 `cc-plugin-privacy`) and agents (`claude`,
 `Explore`, `general-purpose`, `Plan`, `statusline-setup`) in both
 configurations. They ship with the CLI, not from the user's setup, so they are
 not a leak; the canary does not check them. What they could carry in is what

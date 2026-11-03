@@ -48,9 +48,10 @@ const pluginName = "quality-harness"
 // The canary holds A and B to exactly these, and P to these and the plugin's.
 var builtinSkills = []string{"design", "doctor"}
 
-// builtinPlugins are the plugins Claude Code 2.1.302 loads on its own; the
-// probe saw all three switched off by enabledPlugins.
-var builtinPlugins = []string{"cc-plugin-agents-md@builtin", "cc-plugin-telemetry@builtin", "cc-plugin-plugin-authoring@builtin"}
+// builtinPlugins are the plugins Claude Code loads on its own; the probe saw
+// 2.1.302's three switched off by enabledPlugins, and 2.1.317's stage7 canary
+// (2026-11-03) listed cc-plugin-privacy beside them (ADR-192 T3 S2).
+var builtinPlugins = []string{"cc-plugin-agents-md@builtin", "cc-plugin-telemetry@builtin", "cc-plugin-plugin-authoring@builtin", "cc-plugin-privacy@builtin"}
 
 // PluginRef names the plugin P ran: the tag its checkout is at, and the commit.
 type PluginRef struct {
