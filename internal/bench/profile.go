@@ -31,8 +31,10 @@ const ProfileStage7 = "stage7"
 
 // HSentence is the one sentence configuration H's prompt carries after mrw's
 // instructions (ADR-192 Decision 1). run.json holds its SHA-256, and a block
-// that names another is refused.
-const HSentence = "In this session you may also read files with the Read tool: the lines a Read shows you count as read for mrw, so a plan may edit them without reading them again with mrw. Edit and create files only with mrw write."
+// that names another is refused. T3's pilot (2026-11-03) changed it once: the
+// first, "you may also read files with the Read tool", moved no host Read on
+// either model, which read with mrw read as the instructions' first rule says.
+const HSentence = "In this session, read files with the Read tool, not with mrw read, cat or grep: the lines a Read shows you count as read for mrw, so a plan may then edit them with no mrw read. Edit and create files only with mrw write."
 
 // hSentenceSHA256 is the digest run.json records for HSentence.
 func hSentenceSHA256() string {
@@ -48,9 +50,10 @@ const pluginName = "quality-harness"
 // The canary holds A and B to exactly these, and P to these and the plugin's.
 var builtinSkills = []string{"design", "doctor"}
 
-// builtinPlugins are the plugins Claude Code 2.1.302 loads on its own; the
-// probe saw all three switched off by enabledPlugins.
-var builtinPlugins = []string{"cc-plugin-agents-md@builtin", "cc-plugin-telemetry@builtin", "cc-plugin-plugin-authoring@builtin"}
+// builtinPlugins are the plugins Claude Code loads on its own; the probe saw
+// 2.1.302's three switched off by enabledPlugins, and 2.1.317's stage7 canary
+// (2026-11-03) listed cc-plugin-privacy beside them (ADR-192 T3 S2).
+var builtinPlugins = []string{"cc-plugin-agents-md@builtin", "cc-plugin-telemetry@builtin", "cc-plugin-plugin-authoring@builtin", "cc-plugin-privacy@builtin"}
 
 // PluginRef names the plugin P ran: the tag its checkout is at, and the commit.
 type PluginRef struct {

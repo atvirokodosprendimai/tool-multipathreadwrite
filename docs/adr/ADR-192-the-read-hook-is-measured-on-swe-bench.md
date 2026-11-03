@@ -64,10 +64,12 @@ compacting half stays deferred there.
      the attempt's `hook.stderr`, and appends one line to `hook.fired`. Both files are copied beside the receipt
      before the scratch is removed; the receipt counts `hook_runs` (lines of `hook.fired`) and `hook_stderr_bytes`.
    - **Prompt.** `mrw instructions` exactly as B gets it, then one fixed sentence:
-     *"In this session you may also read files with the Read tool: the lines a Read shows you count as read for
-     mrw, so a plan may edit them without reading them again with mrw. Edit and create files only with mrw
+     *"In this session, read files with the Read tool, not with mrw read, cat or grep: the lines a Read shows you
+     count as read for mrw, so a plan may then edit them with no mrw read. Edit and create files only with mrw
      write."* Its SHA-256 is in `run.json` and is refused if it changes between blocks. T3 may change the sentence
-     once, before any counted attempt, and not after.
+     once, before any counted attempt, and not after. T3 changed it on 2026-11-03: the first sentence, *"In this
+     session you may also read files with the Read tool: …"*, moved no host Read in the uncounted pilot (0 of 4
+     attempts on both models, which read with `mrw read` as the instructions' first rule says).
    - **Bench's own refusal text.** bench's Bash hook tells an agent "read them with mrw read"
      (`internal/bench/hook.go:52`); under stage7 H's says "with mrw read or the Read tool", so the arm is not told
      two things.

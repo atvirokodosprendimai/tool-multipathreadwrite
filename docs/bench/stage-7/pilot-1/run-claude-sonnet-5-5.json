@@ -1,0 +1,23 @@
+{
+  "stage": "pilot-7",
+  "tasks": [
+    "matplotlib__matplotlib-22719",
+    "astropy__astropy-13033"
+  ],
+  "models": [
+    "claude-sonnet-5-5"
+  ],
+  "configs": [
+    "H"
+  ],
+  "repeats": 1,
+  "seed": 156,
+  "cli_version": "2.1.317 (Claude Code)",
+  "mrw_version": "v1.83.0 (3a97083)",
+  "containment": "bypass",
+  "profile": "stage7",
+  "status_line_sha256": "171a9b5ce5b38cea2dc5d8eaab69fd5efa977d020394cc0a2b0645b32189bf47",
+  "budget_seconds": 1200,
+  "prompt_sha256": "4ab9117eb27510a1d2e6151a579aa66a1c5ae175f4e2797c087084db527cb333",
+  "h_sentence_sha256": "8736663de28b532d9a751171f038cf19921247b9ad79200fba2d61b4c394d062"
+}
