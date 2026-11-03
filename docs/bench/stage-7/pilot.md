@@ -41,8 +41,11 @@ H alone on the first 2 instances of `bench/swe-bench/selection.json` (`matplotli
 
 | Round | Sentence | Attempts with a host Read | host_reads | hook_runs | hook stderr bytes | solved | cost |
 |---|---|---|---|---|---|---|---|
-| 1 (`pilot-1/`) | "In this session you may also read files with the Read tool: …" (ADR-192 as accepted) | 0 of 4 | 0 | 0 | 0 | 3 of 4 | $0.33 |
+| 1 (`pilot-1/`) | "In this session you may also read files with the Read tool: …" (ADR-192 as accepted) | 0 of 4 | 0 | 0 | 0 | 2 of 4 | $0.33 |
 | 2 (`pilot-2/`) | the frozen sentence above | 4 of 4 | 9 | 9 | 0 | 3 of 4 | $0.47 |
+
+Solved is `bench analyze`'s rule: the oracle passed, within budget, with no agent error. Round 1's Opus attempt on
+`astropy__astropy-13033` passed the oracle but ended with `is_error` (exit 1), so it is not counted solved.
 
 In round 1 every read was `mrw read` through Bash, as the first rule of `mrw instructions` says ("Use mrw for every
 file read"), which "you may also" did not override. Round 2's sentence tells the agent to read with the Read tool; both
