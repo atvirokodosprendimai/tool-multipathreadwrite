@@ -11115,6 +11115,31 @@ out=$(e331 "$B331/elsewhere/missing.py"); rc331=$?
   && ok "the pair: a missing path outside the root is still refused as outside it" || bad "outside: exit $rc331 [$out]"
 rm -rf "$B331"
 
+# 332. Issue #597: the ledger is keyed by spelling, so a write under one spelling
+# of a file left the entry kept under another at the old sha, and a write through
+# that spelling was refused as changed since mrw saw it. A landed write drops every
+# other ledger entry that os.SameFile's the written file. This row carries the
+# symlink half; the case-only half needs a case-insensitive filesystem, so it is
+# TestAWriteUnderOneSpellingDropsTheEntryKeptUnderAnother on the Windows CI job.
+# The pair: where a.txt and A.TXT are two files, a write to one keeps the other's
+# entry, so a write to the other still lands — a case-folding fix would drop it.
+R332=$(mktemp -d "$WORK/r332-XXXXXX"); printf '1\n2\n3\n4\n5\n6\n' > "$R332/a.txt"; ln -s a.txt "$R332/link.txt"
+e332() { env XDG_STATE_HOME="$R332/state" "$MRW" --root "$R332" "$@" 2>&1; }
+e332 read 'link.txt:5-6' >"$R332/served.out" # not /dev/null: a read sent there records nothing (ADR-133)
+out=$(printf '@@ a.txt 5 replace\nfive\n' | e332 write --no-check -); rc332=$?
+want 0 "$rc332" "a write to the target of a link that was read lands"
+out=$(printf '@@ link.txt 6 replace\nsix\n' | e332 write --no-check -); rc332=$?
+{ [ "$rc332" = 0 ] && [ "$(sed -n 6p "$R332/a.txt")" = six ]; } \
+  && ok "a write through the link after mrw wrote its target lands" || bad "link after target write: exit $rc332 [$out]"
+R332=$(mktemp -d "$WORK/r332-XXXXXX"); printf '1\n2\n3\n4\n5\n6\n' > "$R332/a.txt"; printf '1\n2\n3\n4\n5\n6\n' > "$R332/A.TXT"
+e332 read 'a.txt:5' 'A.TXT:5' >"$R332/served.out"
+out=$(printf '@@ a.txt 5 replace\nfive\n' | e332 write --no-check -); rc332=$?
+want 0 "$rc332" "a write to a.txt beside a distinct A.TXT lands"
+out=$(printf '@@ A.TXT 5 replace\nFIVE\n' | e332 write --no-check -); rc332=$?
+{ [ "$rc332" = 0 ] && [ "$(sed -n 5p "$R332/A.TXT")" = FIVE ] && [ "$(sed -n 5p "$R332/a.txt")" = five ]; } \
+  && ok "the pair: the distinct file A.TXT keeps its entry and its write lands" || bad "distinct case file: exit $rc332 [$out]"
+rm -rf "$R332"
+
 # 328. ADR-190: a SEARCH block that quotes every line it replaces, exactly and
 # matching once, is licensed for them with no read. The pair: a native plan of
 # the same lines is refused as unread. A block that matches twice is a compile
