@@ -275,6 +275,53 @@ func TestAWriteOutsideTheTaskTreePassesTheHook(t *testing.T) {
 	}
 }
 
+// TestTheBashHookPassesASearchReplaceHeredoc: configuration S applies a
+// SEARCH/REPLACE document with mrw write --format=search_replace, whose
+// document is a heredoc to a file outside the tree or to mrw's standard
+// input; the hook passes both, quoted and unquoted, and still refuses the
+// same document redirected into the tree (ADR-193 Decision 1).
+func TestTheBashHookPassesASearchReplaceHeredoc(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("bench runs on the operator's macOS or Linux machine; Windows is out of ADR-156's scope")
+	}
+	scratch := t.TempDir()
+	tree := filepath.Join(scratch, "tree")
+	if err := os.Mkdir(tree, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("TMPDIR", scratch)
+	doc := "f.go\n<<<<<<< SEARCH\nold := 1\nkeep\n=======\nnew := 2\nkeep\n>>>>>>> REPLACE"
+	heredoc := func(quote, redirect string) string {
+		return redirect + " <<" + quote + "EOF" + quote + "\n" + doc + "\nEOF"
+	}
+	pass := []string{
+		"cat > $TMPDIR/sr.txt" + heredoc("'", "") + "\nmrw write --format=search_replace $TMPDIR/sr.txt",
+		"cat > $TMPDIR/sr.txt" + heredoc("", "") + "\nmrw write --format=search_replace $TMPDIR/sr.txt",
+		"mrw write --format=search_replace -" + heredoc("'", ""),
+		"mrw write --format=search_replace -" + heredoc("", ""),
+		"mrw write --format search_replace - --check" + heredoc("'", ""),
+	}
+	refuse := []string{
+		"cat > f.go" + heredoc("'", ""),
+		"cat >> f.go" + heredoc("", ""),
+		"cat > " + filepath.Join(tree, "f.go") + heredoc("'", ""),
+		"tee f.go" + heredoc("'", ""),
+	}
+	run := func(cmd string) int {
+		return Hook(bytes.NewReader(hookInput(t, "Bash", cmd)), new(bytes.Buffer), filepath.Join(t.TempDir(), "hook.log"), tree)
+	}
+	for _, c := range pass {
+		if code := run(c); code != 0 {
+			t.Errorf("a SEARCH/REPLACE document applied through mrw was refused (exit %d): %q", code, c)
+		}
+	}
+	for _, c := range refuse {
+		if code := run(c); code != 2 {
+			t.Errorf("the document redirected into the tree passed (exit %d): %q", code, c)
+		}
+	}
+}
+
 // TestAPlanFileAtAResolvablePathOutsideTheTreePassesTheHook is ADR-186. In the
 // core-first ablation the guard refused a plan file at a variable path in about
 // one MRW cell in three, a round the native arm never pays. A target built from

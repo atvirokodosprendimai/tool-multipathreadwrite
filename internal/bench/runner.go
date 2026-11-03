@@ -21,14 +21,15 @@ import (
 // Config is one of the configurations ADR-156 Decision 1 compares, and
 // ADR-162's third.
 type Config struct {
-	Name     string
-	Tools    []string
-	Mrw      bool // a pinned mrw on PATH, its instructions appended, the hook installed
-	Plugin   bool // the quality-harness plugin loaded with --plugin-dir (ADR-162)
-	Work     bool // W: the instruction carries the pre-registered work line (ADR-163)
-	GoHooks  bool // G: P with its hooks run by the qh binary instead of Node (ADR-163 Decision 9)
-	Quiet    bool // C: P with the setting that ends a turn without continuing it (ADR-163 Decision 9)
-	ReadHook bool // H: B with the host's Read tool, ADR-191's read hook and HSentence (ADR-192)
+	Name       string
+	Tools      []string
+	Mrw        bool // a pinned mrw on PATH, its instructions appended, the hook installed
+	Plugin     bool // the quality-harness plugin loaded with --plugin-dir (ADR-162)
+	Work       bool // W: the instruction carries the pre-registered work line (ADR-163)
+	GoHooks    bool // G: P with its hooks run by the qh binary instead of Node (ADR-163 Decision 9)
+	Quiet      bool // C: P with the setting that ends a turn without continuing it (ADR-163 Decision 9)
+	ReadHook   bool // H: B with the host's Read tool, ADR-191's read hook and HSentence (ADR-192)
+	EditFormat bool // S: B with EditParagraph after the instructions (ADR-193)
 }
 
 // Configs are A (the baseline), B (mrw forced), P (A with the
@@ -37,12 +38,14 @@ type Config struct {
 // with its hooks run by the qh binary) and C (P with the turn-end setting that
 // ends a turn without continuing it), run only under stage6 and read against P
 // alone (ADR-163 Decision 9). H is B with the host's Read tool, ADR-191's read
-// hook and one sentence, run only under stage7 (ADR-192). Task, Agent, WebFetch
-// and WebSearch are offered to none.
+// hook and one sentence, run only under stage7 (ADR-192). S is B with one
+// paragraph more in its prompt, run only under stage8 (ADR-193). Task, Agent,
+// WebFetch and WebSearch are offered to none.
 var Configs = map[string]Config{
 	"A": {Name: "A", Tools: []string{"Bash", "Read", "Edit", "Write", "Glob", "Grep"}},
 	"B": {Name: "B", Tools: []string{"Bash", "Glob"}, Mrw: true},
 	"H": {Name: "H", Tools: []string{"Bash", "Glob", "Read"}, Mrw: true, ReadHook: true},
+	"S": {Name: "S", Tools: []string{"Bash", "Glob"}, Mrw: true, EditFormat: true},
 	"P": {Name: "P", Tools: []string{"Bash", "Read", "Edit", "Write", "Glob", "Grep"}, Plugin: true},
 	"W": {Name: "W", Tools: []string{"Bash", "Read", "Edit", "Write", "Glob", "Grep"}, Plugin: true, Work: true},
 	"G": {Name: "G", Tools: []string{"Bash", "Read", "Edit", "Write", "Glob", "Grep"}, Plugin: true, GoHooks: true},
@@ -207,6 +210,7 @@ type plan struct {
 	SideConfigsFor   map[string][]string `json:"side_configs_for,omitempty"`
 	Side             map[string]SideMeta `json:"side,omitempty"`
 	HSentenceSHA256  string              `json:"h_sentence_sha256,omitempty"`
+	EditParagraphSHA string              `json:"edit_paragraph_sha256,omitempty"`
 }
 
 // attempt is one run of one task in one configuration on one model.
@@ -310,6 +314,9 @@ func Run(o RunOptions) (err error) {
 	if o.Profile == ProfileStage7 {
 		p.HSentenceSHA256 = hSentenceSHA256()
 	}
+	if o.Profile == ProfileStage8 {
+		p.EditParagraphSHA = editParagraphSHA256()
+	}
 	if o.checks != nil {
 		p.ChecksSHA256 = o.checks.SHA256
 	}
@@ -347,6 +354,9 @@ func Run(o RunOptions) (err error) {
 		}
 		if first.HSentenceSHA256 != p.HSentenceSHA256 {
 			return fmt.Errorf("block 1 ran H's sentence %q and this one %q: a stage keeps one sentence (ADR-192 Decision 1)", first.HSentenceSHA256, p.HSentenceSHA256)
+		}
+		if first.EditParagraphSHA != p.EditParagraphSHA {
+			return fmt.Errorf("block 1 ran the edit paragraph %q and this one %q: a stage keeps one paragraph (ADR-193 Decision 1)", first.EditParagraphSHA, p.EditParagraphSHA)
 		}
 	}
 	if err := claimOut(o.Out, p); err != nil {
@@ -512,11 +522,18 @@ func gates(o RunOptions) (string, error) {
 			return "", fmt.Errorf("--profile %s: %s (ADR-192 Decision 1)", ProfileStage7, msg)
 		}
 	}
+	if o.Profile == ProfileStage8 {
+		if msg := stage8Problem(o); msg != "" {
+			return "", fmt.Errorf("--profile %s: %s (ADR-193 Decision 2)", ProfileStage8, msg)
+		}
+	}
 	switch {
-	case o.Profile != "" && o.Profile != ProfileStage5 && o.Profile != ProfileStage6 && o.Profile != ProfileStage7:
-		return "", fmt.Errorf("--profile %q: want %s, %s or %s (ADR-162, ADR-163, ADR-192)", o.Profile, ProfileStage5, ProfileStage6, ProfileStage7)
+	case o.Profile != "" && o.Profile != ProfileStage5 && o.Profile != ProfileStage6 && o.Profile != ProfileStage7 && o.Profile != ProfileStage8:
+		return "", fmt.Errorf("--profile %q: want %s, %s, %s or %s (ADR-162, ADR-163, ADR-192, ADR-193)", o.Profile, ProfileStage5, ProfileStage6, ProfileStage7, ProfileStage8)
 	case hasConfig(o, "H") && o.Profile != ProfileStage7:
 		return "", fmt.Errorf("configuration H runs only under --profile %s (ADR-192 Decision 1)", ProfileStage7)
+	case hasConfig(o, "S") && o.Profile != ProfileStage8:
+		return "", fmt.Errorf("configuration S runs only under --profile %s (ADR-193 Decision 2)", ProfileStage8)
 	case o.Profile == ProfileStage6 && !settled && !o.canary:
 		return "", errors.New("the stage6 profile is not settled: ADR-163 T1 S1 has not recorded the inspection of a real image, so bench run refuses it; bench canary may run")
 	case o.Profile == ProfileStage6 && o.CanaryImage == "" && slices.ContainsFunc(o.Tasks, func(t Task) bool { return t.swe == nil }):
@@ -577,6 +594,28 @@ func stage7Problem(o RunOptions) string {
 				return fmt.Sprintf("%s runs H without B, which H is read against", m)
 			}
 		}
+	}
+	return ""
+}
+
+// stage8Problem is what keeps a stage8 stage to the two configurations
+// ADR-193 compares: every list names only B and S, and a model that runs S
+// runs B, which S is read against.
+func stage8Problem(o RunOptions) string {
+	for _, cs := range append([][]string{o.Configs}, mapValues(o.ConfigsFor)...) {
+		for _, c := range cs {
+			if c != "B" && c != "S" {
+				return fmt.Sprintf("configuration %s is not one of B and S", c)
+			}
+		}
+	}
+	for _, m := range o.Models {
+		if cs := configsFor(o, m); slices.Contains(cs, "S") && !slices.Contains(cs, "B") {
+			return fmt.Sprintf("%s runs S without B, which S is read against", m)
+		}
+	}
+	if !o.StatusLine && !o.canary {
+		return "needs --status-line: B under stage8 is Stage 5's B, whose instruction carried the STATUS sentence"
 	}
 	return ""
 }
@@ -1164,6 +1203,9 @@ func invocation(o RunOptions, a attempt, scratch string) ([]string, []string, er
 		}
 		if a.Config.ReadHook {
 			text = append(append(text, '\n'), HSentence...)
+		}
+		if a.Config.EditFormat {
+			text = append(append(text, '\n'), EditParagraph...)
 		}
 		prompt := filepath.Join(scratch, "mrw-instructions.txt")
 		if err := os.WriteFile(prompt, text, 0o644); err != nil {

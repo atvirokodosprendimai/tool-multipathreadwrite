@@ -1505,3 +1505,216 @@ func TestAAndBCarryNoReadHookInStage7(t *testing.T) {
 		}
 	}
 }
+
+// editParagraph is ADR-193 Decision 1's paragraph as the record gives it.
+const editParagraph = "In this session, make every edit to an existing file as a SEARCH/REPLACE block and apply it with mrw write --format=search_replace FILE. A block is the file's path on its own line, then <<<<<<< SEARCH, the file's current lines exactly as they are, =======, the lines that replace them, and >>>>>>> REPLACE; one FILE may hold many blocks for many files. SEARCH must match exactly once. End SEARCH and REPLACE with the same unchanged line, and the block needs no mrw read of the lines it quotes. Use a native @@ hunk only for an edit by line number, and mrw write --grep P --sub R for one change at many sites."
+
+// stage8Options are stage7Options under the stage8 profile.
+func stage8Options(t *testing.T, configs ...string) RunOptions {
+	t.Helper()
+	opts := stage7Options(t, configs...)
+	opts.Profile = ProfileStage8
+	opts.StatusLine = true
+	return opts
+}
+
+func writeStage8Canary(t *testing.T, opts RunOptions, configs string) {
+	t.Helper()
+	if err := os.WriteFile(opts.Canary, []byte(`{"pass":true,"cli_version":"9.9.9 (Claude Code)","profile":"stage8","configs":`+configs+`}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// rendered is what invocation gives an attempt: its arguments and environment,
+// the settings file and the prompt file, with the scratch directory's path
+// taken out so two attempts compare.
+type rendered struct{ args, env, settings, prompt string }
+
+func renderInvocation(t *testing.T, opts RunOptions, name string) rendered {
+	t.Helper()
+	scratch := t.TempDir()
+	args, env, err := invocation(opts, attempt{ID: "x", Task: opts.Tasks[0], Model: "m", Config: Configs[name], Repeat: 1}, scratch)
+	if err != nil {
+		t.Fatal(err)
+	}
+	read := func(f string) string {
+		b, err := os.ReadFile(filepath.Join(scratch, f))
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			t.Fatal(err)
+		}
+		return string(b)
+	}
+	fix := func(s string) string { return strings.ReplaceAll(s, scratch, "<scratch>") }
+	return rendered{fix(strings.Join(args, "\x00")), fix(strings.Join(env, "\x00")), fix(read("settings.json")), read("mrw-instructions.txt")}
+}
+
+// TestConfigurationSIsBPlusTheEditParagraph: S is offered B's tools and has B's
+// arguments, environment, settings and refusal text; its prompt is mrw's
+// instructions, a newline and the registered paragraph; run.json names the
+// paragraph's SHA-256 and a later block naming another is refused; S outside
+// stage8 is refused (ADR-193 Decisions 1 and 2).
+func TestConfigurationSIsBPlusTheEditParagraph(t *testing.T) {
+	if EditParagraph != editParagraph {
+		t.Fatalf("the paragraph is %q, want ADR-193 Decision 1's", EditParagraph)
+	}
+	opts := stage8Options(t, "B", "S")
+	work := filepath.Dir(opts.Out)
+	if _, err := gates(opts); err != nil {
+		t.Fatalf("S under stage8 was refused: %v", err)
+	}
+	for _, profile := range []string{"", ProfileStage5, ProfileStage6, ProfileStage7} {
+		bad := opts
+		bad.Profile = profile
+		if _, err := gates(bad); err == nil {
+			t.Errorf("configuration S ran under profile %q", profile)
+		}
+	}
+	if err := resolveProfile(&opts); err != nil {
+		t.Fatal(err)
+	}
+
+	b, s := renderInvocation(t, opts, "B"), renderInvocation(t, opts, "S")
+	if s.args != b.args || s.env != b.env || s.settings != b.settings {
+		t.Errorf("S differs from B beyond its prompt:\nB %+v\nS %+v", b, s)
+	}
+	if tools := strings.Split(s.args, "\x00"); tools[slices.Index(tools, "--tools")+1] != "Bash,Glob,Skill" {
+		t.Errorf("S is offered %q, want Bash,Glob,Skill", tools[slices.Index(tools, "--tools")+1])
+	}
+	if b.prompt != "use it\n" || s.prompt != "use it\n\n"+editParagraph {
+		t.Errorf("B's prompt is %q and S's %q, want mrw's instructions, and those, a newline and the paragraph", b.prompt, s.prompt)
+	}
+	if strings.Contains(s.settings, "--read-tool") || strings.Contains(s.settings, "PostToolUse") {
+		t.Errorf("S's settings carry H's hook: %s", s.settings)
+	}
+
+	// A stage: run.json names the paragraph, and block 2 names the same or is refused.
+	writeStage8Canary(t, opts, `["B","S"]`)
+	stage := filepath.Join(work, "stage")
+	opts.Block, opts.Out = 1, filepath.Join(stage, "block-1")
+	if err := Run(opts); err != nil {
+		t.Fatal(err)
+	}
+	first := filepath.Join(opts.Out, "run.json")
+	runJSON, err := os.ReadFile(first)
+	sum := sha256.Sum256([]byte(editParagraph))
+	var p struct {
+		SHA string `json:"edit_paragraph_sha256"`
+	}
+	if err != nil || json.Unmarshal(runJSON, &p) != nil || p.SHA != hex.EncodeToString(sum[:]) {
+		t.Fatalf("run.json names paragraph sha %q (%v), want the paragraph's", p.SHA, err)
+	}
+	opts.Block, opts.Out = 2, filepath.Join(stage, "block-2")
+	if err := os.WriteFile(first, bytes.Replace(runJSON, []byte(p.SHA), []byte(strings.Repeat("0", 64)), 1), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := Run(opts); err == nil || !strings.Contains(err.Error(), "paragraph") {
+		t.Errorf("block 2 after a block 1 with another paragraph: %v", err)
+	}
+	if err := os.WriteFile(first, runJSON, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := Run(opts); err != nil {
+		t.Errorf("block 2 with block 1's paragraph: %v", err)
+	}
+}
+
+// TestBUnderStage8IsStage5sB: B's arguments, tools, prompt, settings,
+// environment and refusal text under stage8 are what stage5 gives it, and
+// its run.json names no paragraph (ADR-193 Decision 2).
+func TestBUnderStage8IsStage5sB(t *testing.T) {
+	shared := stage8Options(t, "B", "S")
+	at := func(profile string) rendered {
+		o := shared
+		o.Profile = profile
+		return renderInvocation(t, o, "B")
+	}
+	if s5, s8 := at(ProfileStage5), at(ProfileStage8); s5 != s8 {
+		t.Errorf("configuration B under stage8 differs from stage5:\nstage5 %+v\nstage8 %+v", s5, s8)
+	}
+	if got := at(ProfileStage8); got.prompt != "use it\n" || strings.Contains(got.settings, "read-tool") {
+		t.Errorf("B under stage8 has prompt %q and settings %s", got.prompt, got.settings)
+	}
+}
+
+// TestRunJSONNamesAConfigurationsTextOnlyUnderItsProfile: run.json carries H's
+// sentence digest under stage7 alone and the edit paragraph's under stage8
+// alone, so a Stage 5 run.json keeps its bytes (ADR-192 and ADR-193 Decision 1).
+func TestRunJSONNamesAConfigurationsTextOnlyUnderItsProfile(t *testing.T) {
+	for _, c := range []struct {
+		profile        string
+		sentence, edit bool
+	}{{ProfileStage5, false, false}, {ProfileStage7, true, false}, {ProfileStage8, false, true}} {
+		opts := stage7Options(t, "B")
+		opts.Profile, opts.StatusLine = c.profile, true
+		if err := os.WriteFile(opts.Canary, []byte(`{"pass":true,"cli_version":"9.9.9 (Claude Code)","profile":"`+c.profile+`","configs":["B"]}`), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		opts.Block, opts.Out = 1, filepath.Join(filepath.Dir(opts.Out), "stage", "block-1")
+		if err := Run(opts); err != nil {
+			t.Fatalf("%s: %v", c.profile, err)
+		}
+		b, err := os.ReadFile(filepath.Join(opts.Out, "run.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := strings.Contains(string(b), `"h_sentence_sha256"`); got != c.sentence {
+			t.Errorf("%s run.json names H's sentence: %v, want %v", c.profile, got, c.sentence)
+		}
+		if got := strings.Contains(string(b), `"edit_paragraph_sha256"`); got != c.edit {
+			t.Errorf("%s run.json names the edit paragraph: %v, want %v", c.profile, got, c.edit)
+		}
+	}
+}
+
+// TestStage8RunsOnlyBAndS: a stage8 list names only B and S, and a model that
+// runs S runs B; S under any other profile is refused (ADR-193 Decision 2).
+func TestStage8RunsOnlyBAndS(t *testing.T) {
+	for _, c := range []struct {
+		name    string
+		configs []string
+		block   int
+		perM    map[string][]string
+		refused bool
+	}{
+		{"B and S", []string{"B", "S"}, 1, nil, false},
+		{"B and S in block 2", []string{"B", "S"}, 2, nil, false},
+		{"B and S in a stage with no blocks", []string{"B", "S"}, 0, nil, false},
+		{"B alone", []string{"B"}, 0, nil, false},
+		{"S alone", []string{"S"}, 1, nil, true},
+		{"S alone in a stage with no blocks", []string{"S"}, 0, nil, true},
+		{"A and B", []string{"A", "B"}, 1, nil, true},
+		{"B, S and A", []string{"B", "S", "A"}, 1, nil, true},
+		{"B, S and H", []string{"B", "S", "H"}, 1, nil, true},
+		{"B, S and P", []string{"B", "S", "P"}, 1, nil, true},
+		{"S alone for one model", []string{"B", "S"}, 1, map[string][]string{"stub-model": {"S"}}, true},
+		{"A for one model", []string{"B", "S"}, 1, map[string][]string{"stub-model": {"B", "A"}}, true},
+	} {
+		opts := stage8Options(t, c.configs...)
+		opts.Block, opts.ConfigsFor = c.block, c.perM
+		_, err := gates(opts)
+		if (err != nil) != c.refused || (err != nil && !strings.Contains(err.Error(), "ADR-193")) {
+			t.Errorf("%s: gates said %v, want refused %v naming ADR-193", c.name, err, c.refused)
+		}
+	}
+	for _, profile := range []string{"", ProfileStage5, ProfileStage7} {
+		opts := stage8Options(t, "B", "S")
+		opts.Profile = profile
+		if profile == ProfileStage5 || profile == "" {
+			if _, err := gates(opts); err == nil || !strings.Contains(err.Error(), "ADR-193") {
+				t.Errorf("S under profile %q: gates said %v, want a refusal naming ADR-193", profile, err)
+			}
+		} else if _, err := gates(opts); err == nil {
+			t.Errorf("S under profile %q was not refused", profile)
+		}
+	}
+	// B under stage8 is Stage 5's B, which ran with --status-line; a canary has no such flag.
+	opts := stage8Options(t, "B", "S")
+	opts.StatusLine = false
+	if _, err := gates(opts); err == nil || !strings.Contains(err.Error(), "ADR-193") || !strings.Contains(err.Error(), "status-line") {
+		t.Errorf("a stage8 run without --status-line: gates said %v, want a refusal naming it and ADR-193", err)
+	}
+	opts.canary = true
+	if _, err := gates(opts); err != nil {
+		t.Errorf("a stage8 canary was refused for --status-line: %v", err)
+	}
+}
