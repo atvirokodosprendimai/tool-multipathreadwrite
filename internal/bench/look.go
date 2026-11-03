@@ -92,8 +92,8 @@ func Look(stageDir string) (LookReport, error) {
 		}
 		if len(blocks) > 0 {
 			f := blocks[0].plan
-			if p.Stage != f.Stage || p.CLIVersion != f.CLIVersion || p.MrwVersion != f.MrwVersion || p.Profile != f.Profile || !samePlugin(p.Plugin, f.Plugin) || p.HSentenceSHA256 != f.HSentenceSHA256 {
-				return rep, fmt.Errorf("%s ran another stage, CLI, mrw, profile, plugin or H sentence than block 1", dir)
+			if p.Stage != f.Stage || p.CLIVersion != f.CLIVersion || p.MrwVersion != f.MrwVersion || p.Profile != f.Profile || !samePlugin(p.Plugin, f.Plugin) || p.HSentenceSHA256 != f.HSentenceSHA256 || p.EditParagraphSHA != f.EditParagraphSHA {
+				return rep, fmt.Errorf("%s ran another stage, CLI, mrw, profile, plugin, H sentence or edit paragraph than block 1", dir)
 			}
 		}
 		paths, err := filepath.Glob(filepath.Join(dir, "*.receipt.json"))

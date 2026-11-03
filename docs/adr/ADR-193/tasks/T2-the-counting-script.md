@@ -47,7 +47,7 @@ out=$(python3 -B -m unittest discover -s scripts -p test_bench_edits.py -v 2>&1)
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `test_a_write_call_is_refused_only_on_an_mrw_refusal` | `scripts/test_bench_edits.py` | `— applied` lands; each refusal marker of Decision 4 refuses; a result with an `mrw: ` line and no landed marker is refused; a result with neither is undecided; a `--dry-run` write is no write call | none | S2 |
+| `test_a_write_call_is_refused_only_on_an_mrw_refusal` | `scripts/test_bench_edits.py` | `— applied` lands; each refusal marker of Decision 4 refuses; a result with an `mrw: ` line and no landed marker is refused; a result with neither is undecided, an `mrw: ` line after other lines included; a `--dry-run` write is no write call | none | S2 |
 | `test_a_bench_hook_block_is_not_a_write` | `scripts/test_bench_edits.py` | a result holding `PreToolUse:Bash hook error` is blocked and out of every measure, even when it also holds a refusal marker | none | S2 |
 | `test_uptake_needs_one_attributed_search_replace_write` | `scripts/test_bench_edits.py` | `--format=search_replace` and `--format search_replace` with a landed or refused verdict are attributed; `false && mrw write --format=search_replace F` with no verdict is not; `false && mrw write --format=search_replace F; mrw write P` is not (two writes); a native plan and `--format=apply_patch` are not | none | S2 |
 | `test_a_search_replace_heredoc_is_one_write_call` | `scripts/test_bench_edits.py` | a quoted heredoc to `$TMPDIR` then `mrw write --format=search_replace FILE`, and a document piped to `-`, each count as one attributed SEARCH/REPLACE write call | none | S2 |
@@ -55,9 +55,9 @@ out=$(python3 -B -m unittest discover -s scripts -p test_bench_edits.py -v 2>&1)
 | `test_a_mixed_call_counts_as_refused` | `scripts/test_bench_edits.py` | the Opus `sphinx-doc__sphinx-7748` shape: one call whose first write's plan does not parse (`plan has 1 error(s)`) and whose second lands is refused, not landed | none | S2 |
 | `test_global_flags_before_write_are_counted` | `scripts/test_bench_edits.py` | `mrw -C DIR write P`, `mrw --root DIR write P` and `mrw --root=DIR write P` are write calls; `mrw -C DIR read F` is not | none | S2 |
 | `test_the_verdict_follows_the_registered_rule` | `scripts/test_bench_edits.py` | synthetic receipts and counts: 8 of 18 attributed is UNTESTED and 9 is not, 7 of 16 is and 8 is not; coverage 89% is UNTESTED and 90% is not; solved minus 3 FAILs and minus 2 does not; (i) at two thirds passes with B at 3 refusals and not at 2; (ii) at 0.85 passes and above it does not; (g) at 1.2 passes and above it FAILs; (c) at 1.10 passes and above it FAILs; one model short of PASS gives `verdict: NO SHIP` | none | S3 |
-| `test_undefined_measures_fail_conservatively` | `scripts/test_bench_edits.py` | zero decided calls on an arm is UNTESTED; zero landed calls FAILs (g); B and S at zero refusals leave (b) its second branch only; zero solved on either arm FAILs (c); an empty both-solved subset prints no interval and changes nothing; an S attempt with no final result takes the model's largest output and cost, a B attempt the smallest, never zero | none | S3 |
-| `test_the_exclusion_walk_takes_the_final_receipt` | `scripts/test_bench_edits.py` | a setup failure replaced by a good `.r1` counts `.r1`; a start error replaced twice counts `.r2`; a setup failure whose `.r1` is excluded, and a start error whose `.r2` is, drop the instance from both arms for that model; an infrastructure exclusion, a missing replacement and three dropped instances are refused | none | S3 |
-| `test_the_verdict_refuses_another_instance_list` | `scripts/test_bench_edits.py` | an omitted instance, a duplicated one, a foreign one, the list out of order, a third arm or a second repeat are refused; retries are not counted toward the 72 | none | S3 |
+| `test_undefined_measures_fail_conservatively` | `scripts/test_bench_edits.py` | zero decided calls on an arm is UNTESTED; zero landed calls FAILs (g); B and S at zero refusals leave (b) its second branch only; zero solved on either arm FAILs (c); an empty both-solved subset prints no interval and changes nothing; an S attempt with no final result takes the model's largest output and cost, a B attempt the smallest, never zero, through `count` and `verdict` | none | S3 |
+| `test_the_exclusion_walk_takes_the_final_receipt` | `scripts/test_bench_edits.py` | a setup failure replaced by a good `.r1` counts `.r1`; a start error replaced twice counts `.r2`; a setup failure whose `.r1` is excluded, and a start error whose `.r2` is, drop the instance from both arms for that model; an infrastructure exclusion, a missing replacement and three dropped instances are refused; a `.started` file with no receipt is refused| none | S3 |
+| `test_the_verdict_refuses_another_instance_list` | `scripts/test_bench_edits.py` | an omitted instance, a duplicated one, a foreign one, the list out of order, a third arm or a second repeat are refused, in the receipts and in run.json (models, configs, repeats), and so is a receipt that is not the attempt its file name says; retries are not counted toward the 72 | none | S3 |
 | `test_counts_must_match_the_final_receipts_and_digests` | `scripts/test_bench_edits.py` | counts naming an attempt that is not a final receipt, missing one, or recording another transcript sha256 than `count` computes are refused | none | S2, S3 |
 
 ## Reachability
@@ -82,6 +82,12 @@ out=$(python3 -B -m unittest discover -s scripts -p test_bench_edits.py -v 2>&1)
 - 2026-11-03 · 5c2a308b* · mutant killed · exit 1 · `scripts/bench_edits.py` · S3: a start error is replaced once, not twice · acceptance-sha256:0a55a766b9af6e47fb037f30ced4d4ac0c6513a2cd955e535b60828fc90a2164 · covers:the exclusion walk takes the final receipt
 - 2026-11-03 · 5c2a308b* · mutant killed · exit 1 · `scripts/bench_edits.py` · S3: the instance order is not checked · acceptance-sha256:0a55a766b9af6e47fb037f30ced4d4ac0c6513a2cd955e535b60828fc90a2164 · covers:another instance list is refused
 - 2026-11-03 · 5c2a308b* · mutant killed · exit 1 · `scripts/bench_edits.py` · S3: a recomputed digest is not compared · acceptance-sha256:0a55a766b9af6e47fb037f30ced4d4ac0c6513a2cd955e535b60828fc90a2164 · covers:counts match receipts and digests
+- 2026-11-03 · 8a9f8005* · mutant killed · exit 1 · `scripts/bench_edits.py` · S3: a missing result is read as the receipt's zero tokens, not imputed · acceptance-sha256:0a55a766b9af6e47fb037f30ced4d4ac0c6513a2cd955e535b60828fc90a2164 · covers:undefined measures fail
+- 2026-11-03 · 8a9f8005* · mutant killed · exit 1 · `scripts/bench_edits.py` · S2: every transcript is taken to have a final result · acceptance-sha256:0a55a766b9af6e47fb037f30ced4d4ac0c6513a2cd955e535b60828fc90a2164 · covers:undefined measures fail
+- 2026-11-03 · 8a9f8005* · mutant killed · exit 1 · `scripts/bench_edits.py` · S2: a started attempt with no receipt is not refused · acceptance-sha256:0a55a766b9af6e47fb037f30ced4d4ac0c6513a2cd955e535b60828fc90a2164 · covers:the exclusion walk takes the final receipt
+- 2026-11-03 · 8a9f8005* · mutant killed · exit 1 · `scripts/bench_edits.py` · S3: run.json naming another model is accepted · acceptance-sha256:0a55a766b9af6e47fb037f30ced4d4ac0c6513a2cd955e535b60828fc90a2164 · covers:another instance list is refused
+- 2026-11-03 · 8a9f8005* · mutant killed · exit 1 · `scripts/bench_edits.py` · S3: a receipt that is not its file's attempt is accepted · acceptance-sha256:0a55a766b9af6e47fb037f30ced4d4ac0c6513a2cd955e535b60828fc90a2164 · covers:counts match receipts and digests
+- 2026-11-03 · 8a9f8005* · mutant killed · exit 1 · `scripts/bench_edits.py` · S2: an mrw: line after other lines is not seen · acceptance-sha256:0a55a766b9af6e47fb037f30ced4d4ac0c6513a2cd955e535b60828fc90a2164 · covers:a write call is classified by its result
 
 ## Invariants
 
@@ -91,6 +97,9 @@ out=$(python3 -B -m unittest discover -s scripts -p test_bench_edits.py -v 2>&1)
 ## Risks
 
 - A receipt the agent hid (`> /dev/null`, `--quiet`) is undecided and counts against coverage.
+- `--json` and `--quiet` write receipts print no `— applied` line, so those calls are undecided and count against coverage.
+- `bash -c 'mrw write …'` and other shells that wrap the command in a string are not tokenized as an mrw call and are not counted.
+- The descriptive bootstrap drops a pair whose cost is missing; the rule's measures impute it instead.
 
 ## Stop Condition
 
@@ -117,3 +126,10 @@ The reference row or the null rate differs from the Context's and the difference
 - 2026-11-03 · 5c2a308b* · exit 0 · `set -o pipefail …` · acceptance-sha256:0a55a766b9af6e47fb037f30ced4d4ac0c6513a2cd955e535b60828fc90a2164 · ms:695
 - 2026-11-03 · 5c2a308b* · exit 0 · `set -o pipefail …` · acceptance-sha256:0a55a766b9af6e47fb037f30ced4d4ac0c6513a2cd955e535b60828fc90a2164 · ms:761
 - 2026-11-03 · 5c2a308b* · exit 0 · `set -o pipefail …` · acceptance-sha256:0a55a766b9af6e47fb037f30ced4d4ac0c6513a2cd955e535b60828fc90a2164 · ms:729
+- 2026-11-03 · 8a9f8005* · exit 0 · `set -o pipefail …` · acceptance-sha256:0a55a766b9af6e47fb037f30ced4d4ac0c6513a2cd955e535b60828fc90a2164 · ms:781
+- 2026-11-03 · 8a9f8005* · exit 0 · `set -o pipefail …` · acceptance-sha256:0a55a766b9af6e47fb037f30ced4d4ac0c6513a2cd955e535b60828fc90a2164 · ms:809
+- 2026-11-03 · 8a9f8005* · exit 0 · `set -o pipefail …` · acceptance-sha256:0a55a766b9af6e47fb037f30ced4d4ac0c6513a2cd955e535b60828fc90a2164 · ms:812
+- 2026-11-03 · 8a9f8005* · exit 0 · `set -o pipefail …` · acceptance-sha256:0a55a766b9af6e47fb037f30ced4d4ac0c6513a2cd955e535b60828fc90a2164 · ms:830
+- 2026-11-03 · 8a9f8005* · exit 0 · `set -o pipefail …` · acceptance-sha256:0a55a766b9af6e47fb037f30ced4d4ac0c6513a2cd955e535b60828fc90a2164 · ms:827
+- 2026-11-03 · 8a9f8005* · exit 0 · `set -o pipefail …` · acceptance-sha256:0a55a766b9af6e47fb037f30ced4d4ac0c6513a2cd955e535b60828fc90a2164 · ms:813
+- 2026-11-03 · 8a9f8005* · exit 0 · `set -o pipefail …` · acceptance-sha256:0a55a766b9af6e47fb037f30ced4d4ac0c6513a2cd955e535b60828fc90a2164 · ms:822

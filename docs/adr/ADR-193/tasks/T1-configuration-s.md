@@ -23,6 +23,7 @@ ADR-193 Decision 1's paragraph after `mrw instructions`, and nothing else differ
 | `internal/bench/runner.go` | edit | `Configs["S"]` (`Bash, Glob`, `Mrw: true`, `EditFormat: true`); `invocation` appends a newline and `EditParagraph` after `mrw instructions` for S (`:1166`, beside H's); `run.json` `edit_paragraph_sha256`, refused when a later block names another (`:348`); a `stage8Problem` beside `stage7Problem` (`:562`): only B and S, a model that runs S runs B; S outside stage8 refused (`:518`); the profile list in the `--profile` refusal |
 | `internal/bench/canary.go` | edit | S's init tools equal B's; one canary per model runs B and S under stage8 |
 | `cmd/bench/main.go` | edit | `stage8` in `--profile`, `S` in `--configs`, the canary's configurations under stage8 (`canaryConfigs`, `:271`), the usage text |
+| `internal/bench/look.go` | edit | `bench look` refuses a block whose `edit_paragraph_sha256` is not block 1's, beside the H sentence (`Look`, the cross-block comparison) |
 | `internal/bench/runner_test.go` | edit | the runner tests |
 | `internal/bench/hook_test.go` | edit | the hook test: S's commands are not refused by bench |
 | `cmd/bench/main_test.go` | edit | the canary configurations test |
@@ -55,6 +56,8 @@ out=$(go test ./internal/bench/ ./cmd/bench/ -count=1 -v -run '^(TestConfigurati
 | `TestStage8RunsOnlyBAndS` | `internal/bench/runner_test.go` | under stage8 every list is a subset of B and S, and a model that runs S runs B; S under stage5 or stage7 refused | none | S3 |
 | `TestTheStage8CanaryRunsBAndS` | `cmd/bench/main_test.go` | the canary command's configurations under stage8 are B and S, and under every other profile they are what they were | none | S4, S5 |
 | `TestTheBashHookPassesASearchReplaceHeredoc` | `internal/bench/hook_test.go` | a SEARCH/REPLACE document by quoted and unquoted heredoc to `$TMPDIR` and to `mrw write --format=search_replace -` passes `ClassifyBash`, and the same document redirected into the tree is refused | none | S2 |
+| `TestRunJSONNamesAConfigurationsTextOnlyUnderItsProfile` | `internal/bench/runner_test.go` | a Stage 5 run.json has neither `h_sentence_sha256` nor `edit_paragraph_sha256`; stage7 names the first alone, stage8 the second alone | none | S3 |
+| `TestALookRefusesABlockThatRanAnotherEditParagraph` | `internal/bench/look_test.go` | a block whose run.json names another edit paragraph than block 1's is refused by name | none | S3 |
 
 ## Reachability
 
@@ -75,6 +78,10 @@ out=$(go test ./internal/bench/ ./cmd/bench/ -count=1 -v -run '^(TestConfigurati
 - 2026-11-03 · 5c2a308b* · mutant killed · exit 1 · `internal/bench/profile.go` · S2: the paragraph is not ADR-193 Decision 1's, byte for byte · acceptance-sha256:dbd71c3e371a98a9c79c45866a0c1ed15cdaa984744e1dc3a8e7398412e0e6b7 · covers:S is B plus the paragraph
 - 2026-11-03 · 5c2a308b* · mutant killed · exit 1 · `internal/bench/runner.go` · S3: a block 2 naming another paragraph than block 1 is no longer refused · acceptance-sha256:dbd71c3e371a98a9c79c45866a0c1ed15cdaa984744e1dc3a8e7398412e0e6b7 · covers:the paragraph cannot change between blocks
 - 2026-11-03 · 5c2a308b* · mutant killed · exit 1 · `internal/bench/hook.go` · S2: heredoc bodies are read as shell, so a SEARCH/REPLACE document is mistaken for a redirection and the hook refuses it · acceptance-sha256:dbd71c3e371a98a9c79c45866a0c1ed15cdaa984744e1dc3a8e7398412e0e6b7 · covers:the hook passes a SEARCH/REPLACE heredoc
+- 2026-11-03 · 8a9f8005* · mutant killed · exit 1 · `internal/bench/runner.go` · S3: every run.json names the edit paragraph, Stage 5's included · acceptance-sha256:dbd71c3e371a98a9c79c45866a0c1ed15cdaa984744e1dc3a8e7398412e0e6b7 · covers:the paragraph cannot change between blocks
+- 2026-11-03 · 8a9f8005* · mutant killed · exit 1 · `internal/bench/runner.go` · S3: every run.json names H's sentence, Stage 5's included · acceptance-sha256:dbd71c3e371a98a9c79c45866a0c1ed15cdaa984744e1dc3a8e7398412e0e6b7 · covers:B under stage8 is stage5's B
+- 2026-11-03 · 8a9f8005* · mutant killed · exit 1 · `internal/bench/runner.go` · S3: a stage8 run without --status-line is accepted, so its B is not Stage 5's B · acceptance-sha256:dbd71c3e371a98a9c79c45866a0c1ed15cdaa984744e1dc3a8e7398412e0e6b7 · covers:stage8 runs only B and S
+- 2026-11-03 · 8a9f8005* · mutant killed · exit 1 · `internal/bench/look.go` · S3: bench look accepts a block that ran another edit paragraph · acceptance-sha256:dbd71c3e371a98a9c79c45866a0c1ed15cdaa984744e1dc3a8e7398412e0e6b7 · covers:the paragraph cannot change between blocks
 
 ## Invariants
 
@@ -84,6 +91,8 @@ out=$(go test ./internal/bench/ ./cmd/bench/ -count=1 -v -run '^(TestConfigurati
 ## Risks
 
 - The tests stand in for Claude Code's init line; T3's canary meets the real CLI.
+- S's prompt ends without a final newline: `EditParagraph` is appended to `mrw instructions` byte for byte and has none. T5's `--host claude` output must end the same way.
+- Stage8 refuses a `bench run` without `--status-line` so that B is Stage 5's B (its instruction carried the STATUS sentence); a canary has no such flag and is exempt.
 
 ## Stop Condition
 
@@ -107,3 +116,8 @@ The pinned Claude Code does not read `--append-system-prompt-file` for S as it d
 - 2026-11-03 · 5c2a308b* · exit 0 · `set -o pipefail …` · acceptance-sha256:dbd71c3e371a98a9c79c45866a0c1ed15cdaa984744e1dc3a8e7398412e0e6b7 · ms:156333
 - 2026-11-03 · 5c2a308b* · exit 0 · `set -o pipefail …` · acceptance-sha256:dbd71c3e371a98a9c79c45866a0c1ed15cdaa984744e1dc3a8e7398412e0e6b7 · ms:176426
 - 2026-11-03 · 5c2a308b* · exit 0 · `set -o pipefail …` · acceptance-sha256:dbd71c3e371a98a9c79c45866a0c1ed15cdaa984744e1dc3a8e7398412e0e6b7 · ms:161615
+- 2026-11-03 · 8a9f8005* · exit 0 · `set -o pipefail …` · acceptance-sha256:dbd71c3e371a98a9c79c45866a0c1ed15cdaa984744e1dc3a8e7398412e0e6b7 · ms:158719
+- 2026-11-03 · 8a9f8005* · exit 0 · `set -o pipefail …` · acceptance-sha256:dbd71c3e371a98a9c79c45866a0c1ed15cdaa984744e1dc3a8e7398412e0e6b7 · ms:166888
+- 2026-11-03 · 8a9f8005* · exit 0 · `set -o pipefail …` · acceptance-sha256:dbd71c3e371a98a9c79c45866a0c1ed15cdaa984744e1dc3a8e7398412e0e6b7 · ms:172328
+- 2026-11-03 · 8a9f8005* · exit 0 · `set -o pipefail …` · acceptance-sha256:dbd71c3e371a98a9c79c45866a0c1ed15cdaa984744e1dc3a8e7398412e0e6b7 · ms:163452
+- 2026-11-03 · 8a9f8005* · exit 0 · `set -o pipefail …` · acceptance-sha256:dbd71c3e371a98a9c79c45866a0c1ed15cdaa984744e1dc3a8e7398412e0e6b7 · ms:159605

@@ -227,8 +227,9 @@ start: observed 2026-11-03 in this session's environment. Nothing in this reposi
      taken to hold. The frozen script (T2's `null`, `random.Random(193)`, `sample(range(191), 36)` per model, first 18
      as B and last 18 as S; `docs/bench/stage-8/reference.md`) gives PASS 22.4% on Opus and 24.9% on Sonnet, so a false
      SHIP (both) is 5.6%; with (i) unavailable (B refusing fewer than 3), 4.0%; seeds 1 to 6 give 5.4–6.0% and 3.8–4.2%.
-     The draft's own simulation gave 24.8%, 24.5%, 6.1% and 4.1%: it read the two Opus B attempts with no result line
-     (`sympy__sympy-16597`, `django__django-16032`) as zero, where this Decision's imputation treats them as missing.
+     The draft's own simulation gave 24.8%, 24.5%, 6.1% and 4.1%. No single reading of the rule reproduces all four: the
+     frozen rule (a missing output or cost imputed, as this Decision says) gives 22.4%, 24.9%, 5.6% and 4.0%, and reading a
+     missing value as the receipt holds it (zero tokens, no cost) gives 25.1%, 24.9%, 6.2% and 4.5%; the draft's sampler is not recorded.
      The rule is unchanged; the frozen script's figures are the record's. The first draft's rule passed (b) 30% and 36%
      of the time (the challenger's resampling); dropping (ii) to output per attempt, adding (g), and gating cost over all
      paired instances brought it here. Under that null one model's PASS means little; SHIP needs both.

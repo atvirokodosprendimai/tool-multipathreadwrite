@@ -87,6 +87,7 @@ The tests S1 writes, in `cmd/mrw/instructions_test.go`:
 ## Risks
 
 - A Claude host that keeps running `--core` sees no change; wiring the paragraph into the triggers is Zy's decision after SHIP (BACKLOG).
+- S's prompt ends without a final newline (`EditParagraph` has none, T1); `--host claude` prints the same bytes, so a test that expects a trailing newline measures other text than S ran.
 
 ## Stop Condition
 

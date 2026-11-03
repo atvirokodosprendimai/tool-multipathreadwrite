@@ -601,6 +601,31 @@ func TestALookRefusesABlockThatRanAnotherHSentence(t *testing.T) {
 	}
 }
 
+// TestALookRefusesABlockThatRanAnotherEditParagraph: the same refusal for the
+// edit paragraph of ADR-193 Decision 1.
+func TestALookRefusesABlockThatRanAnotherEditParagraph(t *testing.T) {
+	stage := t.TempDir()
+	same := func(id, m, c string) outcome { return outcome{cost: 1, solved: true, reads: 1} }
+	writeBlockUnder(t, ProfileStage7, stage, 1, ids(1, 40), []string{"m"}, stage7All, same)
+	writeBlockUnder(t, ProfileStage7, stage, 2, ids(2, 40), []string{"m"}, stage7All, same)
+	path := filepath.Join(stage, "block-2", "run.json")
+	var p plan
+	if err := readJSON(path, &p); err != nil {
+		t.Fatal(err)
+	}
+	p.EditParagraphSHA = strings.Repeat("c", 64)
+	b, err := json.Marshal(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, b, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Look(stage); err == nil || !strings.Contains(err.Error(), "edit paragraph") {
+		t.Errorf("a block 2 with another edit paragraph: %v, want a refusal naming it", err)
+	}
+}
+
 // TestADescriptiveRowOfAnUntestedComparisonSaysUntested: the descriptive rows
 // of a comparison the uptake gate closed UNTESTED read (UNTESTED), not the
 // interval's verdict, which the gate overrode; B against A keeps its own.

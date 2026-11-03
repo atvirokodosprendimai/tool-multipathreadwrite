@@ -1514,6 +1514,7 @@ func stage8Options(t *testing.T, configs ...string) RunOptions {
 	t.Helper()
 	opts := stage7Options(t, configs...)
 	opts.Profile = ProfileStage8
+	opts.StatusLine = true
 	return opts
 }
 
@@ -1635,6 +1636,36 @@ func TestBUnderStage8IsStage5sB(t *testing.T) {
 	}
 }
 
+// TestRunJSONNamesAConfigurationsTextOnlyUnderItsProfile: run.json carries H's
+// sentence digest under stage7 alone and the edit paragraph's under stage8
+// alone, so a Stage 5 run.json keeps its bytes (ADR-192 and ADR-193 Decision 1).
+func TestRunJSONNamesAConfigurationsTextOnlyUnderItsProfile(t *testing.T) {
+	for _, c := range []struct {
+		profile        string
+		sentence, edit bool
+	}{{ProfileStage5, false, false}, {ProfileStage7, true, false}, {ProfileStage8, false, true}} {
+		opts := stage7Options(t, "B")
+		opts.Profile, opts.StatusLine = c.profile, true
+		if err := os.WriteFile(opts.Canary, []byte(`{"pass":true,"cli_version":"9.9.9 (Claude Code)","profile":"`+c.profile+`","configs":["B"]}`), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		opts.Block, opts.Out = 1, filepath.Join(filepath.Dir(opts.Out), "stage", "block-1")
+		if err := Run(opts); err != nil {
+			t.Fatalf("%s: %v", c.profile, err)
+		}
+		b, err := os.ReadFile(filepath.Join(opts.Out, "run.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := strings.Contains(string(b), `"h_sentence_sha256"`); got != c.sentence {
+			t.Errorf("%s run.json names H's sentence: %v, want %v", c.profile, got, c.sentence)
+		}
+		if got := strings.Contains(string(b), `"edit_paragraph_sha256"`); got != c.edit {
+			t.Errorf("%s run.json names the edit paragraph: %v, want %v", c.profile, got, c.edit)
+		}
+	}
+}
+
 // TestStage8RunsOnlyBAndS: a stage8 list names only B and S, and a model that
 // runs S runs B; S under any other profile is refused (ADR-193 Decision 2).
 func TestStage8RunsOnlyBAndS(t *testing.T) {
@@ -1675,5 +1706,15 @@ func TestStage8RunsOnlyBAndS(t *testing.T) {
 		} else if _, err := gates(opts); err == nil {
 			t.Errorf("S under profile %q was not refused", profile)
 		}
+	}
+	// B under stage8 is Stage 5's B, which ran with --status-line; a canary has no such flag.
+	opts := stage8Options(t, "B", "S")
+	opts.StatusLine = false
+	if _, err := gates(opts); err == nil || !strings.Contains(err.Error(), "ADR-193") || !strings.Contains(err.Error(), "status-line") {
+		t.Errorf("a stage8 run without --status-line: gates said %v, want a refusal naming it and ADR-193", err)
+	}
+	opts.canary = true
+	if _, err := gates(opts); err != nil {
+		t.Errorf("a stage8 canary was refused for --status-line: %v", err)
 	}
 }

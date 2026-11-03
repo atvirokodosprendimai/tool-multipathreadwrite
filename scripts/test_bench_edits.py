@@ -82,7 +82,7 @@ def build_pilot(root, attempt=default_attempt, run_edit=None, excl=None):
                     if not reason:
                         steps = [(("mrw write --format=search_replace f.go" if j < a["attributed"] else "mrw write plan.txt"), APPLIED) for j in range(a["landed"])]
                         steps += [("mrw write bad.txt", "mrw: nothing was written") for _ in range(a["refused"])]
-                        (root / "transcripts" / model / (stem + ".transcript.jsonl")).write_text(transcript(*steps))
+                        (root / "transcripts" / model / (stem + ".transcript.jsonl")).write_text(transcript(*steps, result=a.get("result", True)))
     return root / "receipts", root / "transcripts"
 
 
@@ -92,7 +92,8 @@ def run_verdict(root, extra=(), **kw):
     counts = Path(root) / "counts.json"
     counts.write_text(json.dumps(edits.count(receipts, transcripts, edits.ARMS)))
     for model, stem, rec in extra:
-        (receipts / model / (stem + ".receipt.json")).write_text(json.dumps(rec))
+        # a receipt, or with None a .started file that has none
+        (receipts / model / (stem + (".started" if rec is None else ".receipt.json"))).write_text("" if rec is None else json.dumps(rec))
     return edits.verdict(receipts, counts, transcripts)
 
 
@@ -111,6 +112,7 @@ class BenchEditsTest(unittest.TestCase):
             self.assertEqual((c["refused"], c["landed"], c["undecided"]), (1, 0, 0), text)
         c = counted("mrw write P", "mrw: something else went wrong")
         self.assertEqual((c["refused"], c["landed"]), (1, 0))
+        self.assertEqual(counted("mrw write P", "ok\nmrw: boom")["refused"], 1)  # the line is not the first
         self.assertEqual(counted("mrw write P", APPLIED + "\nmrw: nothing recorded")["landed"], 1)
         c = counted("mrw write P", "bash: line 3: unexpected EOF")
         self.assertEqual((c["undecided"], c["refused"], c["landed"], c["decided"]), (1, 0, 0, 0))
@@ -216,6 +218,18 @@ class BenchEditsTest(unittest.TestCase):
         for r in alone:
             r.update(out=None, cost=None)
         self.assertIsNone(edits.evaluate(alone, alone)["S"]["out"])
+        # an S attempt whose transcript has no result takes the model's largest output and cost, through count and verdict
+        def lost(model, name, i):
+            a = default_attempt(model, name, i)
+            return dict(a, result=False, out=0, cost=None) if (model, name, i) == (edits.MODELS[0], "S", 0) else a
+        root = self.tmp()
+        receipts, transcripts = build_pilot(root, attempt=lost)
+        counts = edits.count(receipts, transcripts, edits.ARMS)
+        self.assertEqual([a["has_result"] for a in counts["attempts"] if a["id"] == f"{INSTANCES[0]}.S.{edits.MODELS[0]}.1"], [False])
+        (Path(root) / "counts.json").write_text(json.dumps(counts))
+        row = [r for r in edits.verdict(receipts, Path(root) / "counts.json") if r.startswith("  S:")][0]
+        self.assertIn("(ii) output per attempt 105.6", row)  # (17 * 100 + the largest, 200) / 18, not 94.4
+        self.assertIn("(iii) spend per success 0.0717", row)  # (17 * 0.07 + the largest, 0.1) / 18, not 0.0661
 
     def test_the_exclusion_walk_takes_the_final_receipt(self):
         def recs(*reasons):
@@ -247,6 +261,8 @@ class BenchEditsTest(unittest.TestCase):
             run_verdict(self.tmp(), excl={(edits.MODELS[0], task, "B"): ["infrastructure"]})
         with self.assertRaises(edits.Refusal):
             run_verdict(self.tmp(), excl={(edits.MODELS[0], task, "B"): ["setup"]})  # the replacement it is owed is missing
+        with self.assertRaises(edits.Refusal):
+            run_verdict(self.tmp(), extra=[(edits.MODELS[0], f"{task}.B.{edits.MODELS[0]}.1.r1", None)])  # started, no receipt
 
     def test_the_verdict_refuses_another_instance_list(self):
         def swap(model, run):
@@ -260,14 +276,24 @@ class BenchEditsTest(unittest.TestCase):
 
         def foreign(model, run):
             run["tasks"][-1] = "django__django-1"
-        for edit in (swap, omit, duplicate, foreign):
+
+        def another_model(model, run):
+            run["models"] = ["claude-haiku"]
+
+        def third_arm(model, run):
+            run["configs"] = ["B", "S", "A"]
+
+        def second_repeat(model, run):
+            run["repeats"] = 2
+        for edit in (swap, omit, duplicate, foreign, another_model, third_arm, second_repeat):
             with self.assertRaises(edits.Refusal, msg=edit.__name__):
                 run_verdict(self.tmp(), run_edit=edit)
         model, task = edits.MODELS[0], INSTANCES[0]
         for extra in ((model, f"{task}.A.{model}.1", receipt(task, "A", model)),
                       (model, f"{task}.B.{model}.2", dict(receipt(task, "B", model), repeat=2)),
                       (model, f"django__django-1.B.{model}.1", receipt("django__django-1", "B", model)),
-                      (model, f"{task}.B.other-model.1", receipt(task, "B", "other-model"))):
+                      (model, f"{task}.B.other-model.1", receipt(task, "B", "other-model")),
+                      (model, f"{task}.B.{model}.1.r1", receipt(task, "S", model))):  # a receipt that is not its file's attempt
             with self.assertRaises(edits.Refusal, msg=extra[1]):
                 run_verdict(self.tmp(), extra=[extra])
         lines = run_verdict(self.tmp(), excl={(model, INSTANCES[3], "S"): ["setup", ""]})  # retries are not counted toward the 72

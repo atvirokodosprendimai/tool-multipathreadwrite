@@ -614,6 +614,9 @@ func stage8Problem(o RunOptions) string {
 			return fmt.Sprintf("%s runs S without B, which S is read against", m)
 		}
 	}
+	if !o.StatusLine && !o.canary {
+		return "needs --status-line: B under stage8 is Stage 5's B, whose instruction carried the STATUS sentence"
+	}
 	return ""
 }
 

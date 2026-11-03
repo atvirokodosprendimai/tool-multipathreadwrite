@@ -19,7 +19,7 @@ registered, with one verdict line: SHIP or NO SHIP.
 
 | File | Change | Why |
 |------|--------|-----|
-| `docs/bench/stage-8/pilot/<model>/` | add | per model: `run.json` and the receipts; transcripts stay on this Mac, as every stage's do |
+| `docs/bench/stage-8/pilot/<model>/` | add | per model: `run.json`, the receipts and the `.started` files, copied unrenamed from `~/.local/share/mrw-bench/runs/stage8/pilot/<model>/`, where bench ran; the transcripts stay there, outside the tree, as every stage's do, and `counts.json` carries their digests |
 | `docs/bench/stage-8/counts.json` | add | `bench_edits.py count` over every final receipt's transcript, with its sha256 |
 | `docs/bench/stage-8/verdict.txt` | add | `bench_edits.py verdict` output |
 | `docs/bench/stage-8/RESULTS.md` | add | the measures and verdict per model, the descriptive rows, the prediction beside the outcome, a `transcripts: ` line, and `script sha256: ` and `helper sha256: ` lines |
@@ -28,7 +28,7 @@ registered, with one verdict line: SHIP or NO SHIP.
 ## Ordered Steps
 
 1. [S1] The red state: `docs/bench/stage-8/RESULTS.md` does not exist, so the fence fails. [proof: acceptance]
-2. [S2] Load the costly-runs skill. Per model, `bench run --stage pilot-8 --profile stage8 --configs B,S --repeats 1` on the 18 instances in Decision 5's order, into `docs/bench/stage-8/pilot/<model>/`; bench owes and runs the replacements Decision 5's walk names. Stop at $15 spent, on an unsupported exclusion, or at a third dropped instance on a model. [proof: human: the receipts, their count and the spend]
+2. [S2] Load the costly-runs skill. Per model, `bench run --stage pilot-8 --profile stage8 --status-line --configs B,S --repeats 1` on the 18 instances in Decision 5's order, into `~/.local/share/mrw-bench/runs/stage8/pilot/<model>/` (`--status-line` because Stage 5's B ran with it and stage8 refuses a run without it); bench owes and runs the replacements Decision 5's walk names. Then copy each `*.receipt.json`, each `*.started` file and `run.json`, unrenamed, into `docs/bench/stage-8/pilot/<model>/`; transcripts stay out of the tree, and `RESULTS.md`'s `transcripts: ` line names `~/.local/share/mrw-bench/runs/stage8/pilot`, which `count` searches recursively by `<attempt>.transcript.jsonl`. `verdict` reads `<receipts>/<model>/run.json` and every receipt below it, so the layout above is the one it and the fence's `$R/pilot/$m/run.json` take. Stop at $15 spent, on an unsupported exclusion, or at a third dropped instance on a model. [proof: human: the receipts, their count and the spend]
 3. [S3] `bench_edits.py count` into `counts.json`; `bench_edits.py verdict` into `verdict.txt`. [proof: acceptance]
 4. [S4] Write `RESULTS.md`: every measure beside its threshold, the prediction beside the outcome, what the pilot cannot tell (Decision 5), the false-SHIP rate the rule carries, and no claim beyond the verdict. [proof: human: the record against Decision 5]
 

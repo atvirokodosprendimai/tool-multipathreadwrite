@@ -2,7 +2,7 @@
 
   bench_edits.py count --receipts DIR --transcripts DIR [--configs B,S]
   bench_edits.py verdict --receipts DIR --counts FILE [--transcripts DIR]
-  bench_edits.py null --transcripts DIR
+  bench_edits.py null --transcripts DIR [--seed N]
 
 count walks the final receipts under --receipts (every *.receipt.json below it, recursively) and prints, per
 counted attempt, what its transcript holds, as JSON; the transcript <attempt>.transcript.jsonl is found by name
@@ -417,12 +417,12 @@ def as_recorded(r, rec):
     return dict(r, out=(rec.get("usage") or {}).get("output_tokens") or 0, cost=round((cost or 0) * 10 ** 9))
 
 
-def null(transcripts):
+def null(transcripts, seed=SEED):
     """Decision 5's resampling: per iteration, per model, 36 of its B attempts drawn without replacement, the first
     18 taken as B and the last 18 as S; uptake and coverage taken to hold. The models are drawn in the order of
-    their names, one rng seeded 193, 20,000 iterations. Each draw is judged twice: with a missing output or cost
-    imputed against S (the frozen rule), and with it as the receipt holds it, which is how the Context's figures
-    were drawn (the attempts with no result record zero tokens and no cost)."""
+    their names, one rng seeded `seed` (193), 20,000 iterations. Each draw is judged twice: with a missing output or
+    cost imputed against S (the frozen rule, whose figures the record quotes), and with it as the receipt holds it
+    (the attempts with no result record zero tokens and no cost), for comparison with the draft's figures."""
     pools = {}
     for path in sorted(Path(transcripts).rglob("*.receipt.json")):
         rec = json.loads(path.read_text(encoding="utf-8"))
@@ -434,7 +434,7 @@ def null(transcripts):
         pools.setdefault(rec["model"], []).append((r, as_recorded(r, rec)))
     if not pools or any(len(p) < 36 for p in pools.values()):
         raise Refusal(f"fewer than 36 B attempts with a transcript for a model under {transcripts}")
-    rng, models = random.Random(SEED), sorted(pools)
+    rng, models = random.Random(seed), sorted(pools)
     readings = ("imputed", "as recorded")
     tally = {(m, k, first): 0 for m in models for k in range(2) for first in (True, False)}
     both = {(k, first): 0 for k in range(2) for first in (True, False)}
@@ -450,7 +450,7 @@ def null(transcripts):
                     passed[k, first].append(ok)
         for key, oks in passed.items():
             both[key] += all(oks)
-    lines = [f"null: {RESAMPLES} resamples, seed {SEED}, per model 36 of its B attempts without replacement, 18 as B and 18 as S"]
+    lines = [f"null: {RESAMPLES} resamples, seed {seed}, per model 36 of its B attempts without replacement, 18 as B and 18 as S"]
     for k, reading in enumerate(readings):
         lines.append(f"{reading}{' (the frozen rule)' if k == 0 else ''}:")
         for m in models:
@@ -473,6 +473,7 @@ def main(argv):
     v.add_argument("--transcripts")
     n = sub.add_parser("null")
     n.add_argument("--transcripts", required=True)
+    n.add_argument("--seed", type=int, default=SEED)
     args = ap.parse_args(argv)
     try:
         if args.mode == "count":
@@ -480,7 +481,7 @@ def main(argv):
         elif args.mode == "verdict":
             print("\n".join(verdict(args.receipts, args.counts, args.transcripts)))
         else:
-            print("\n".join(null(args.transcripts)))
+            print("\n".join(null(args.transcripts, args.seed)))
     except Refusal as err:
         print(f"bench_edits: refused: {err}", file=sys.stderr)
         return 1
