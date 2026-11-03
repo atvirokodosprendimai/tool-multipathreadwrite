@@ -926,6 +926,16 @@ Zy, 2026-10-27: *"yes, go, address these, measure, plan, implement verify, udupa
   against MRW, on the release that carries both records' T1, with predictions registered first. It must include
   a compacting arm, since the 90 post-compaction re-reads that motivate ADR-190 come from small-context runs. Zy's
   call: it is a paid run.
+  The grouped run was run 9 (docs/bench/observability/HOOK-RESULTS.md): the agent never used the host Read, so the
+  hook went unexercised. ADR-192 takes ADR-191's half to SWE-bench; ADR-190's compacting half stays here.
+
+## From ADR-192
+
+- **Rule 1 of mrw's guide (deferred from ADR-192)** (2026-11-03): `internal/guide/guide.go` tells agents to read with
+  mrw, which kept the host Read and its hook unused in run 9. Change it only if ADR-192's H against B PAYS on a
+  model, through its own record.
+- **Configuration N, B plus the Read with no hook (deferred from ADR-192)** (2026-11-03): separates the hook from the
+  Read that H bundles. Run it only if H against B PAYS; about 13 more hours at Stage 5's pace.
 
 ## Post-v1.77.1 cleanup and decisions (2026-10-28)
 

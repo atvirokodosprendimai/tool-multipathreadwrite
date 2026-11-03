@@ -35,6 +35,7 @@ type transcript struct {
 	HookNames   []string
 	ToolCalls   int
 	Commands    []string // the Bash commands the agent ran
+	HostReads   int      // the Read tool calls: ADR-192's measure of H's uptake
 	Result      bool
 	IsError     bool
 	Subtype     string
@@ -93,6 +94,9 @@ func parseTranscript(b []byte) transcript {
 			for _, c := range m.Message.Content {
 				if c.Type == "tool_use" {
 					t.ToolCalls++
+					if c.Name == "Read" {
+						t.HostReads++
+					}
 					if c.Name == "Bash" {
 						var in struct {
 							Command string `json:"command"`

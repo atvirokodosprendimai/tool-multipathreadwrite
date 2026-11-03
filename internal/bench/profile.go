@@ -1,6 +1,8 @@
 package bench
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -21,6 +23,22 @@ const ProfileStage5 = "stage5"
 // configuration runs its python, python3, pytest and py.test inside a
 // container of the instance own image, through shims, one command at a time.
 const ProfileStage6 = "stage6"
+
+// ProfileStage7 is ADR-192's profile: everything stage5 does, and configuration
+// H may run. Without it H is refused, and every other configuration's
+// arguments are the ones stage5 gives it.
+const ProfileStage7 = "stage7"
+
+// HSentence is the one sentence configuration H's prompt carries after mrw's
+// instructions (ADR-192 Decision 1). run.json holds its SHA-256, and a block
+// that names another is refused.
+const HSentence = "In this session you may also read files with the Read tool: the lines a Read shows you count as read for mrw, so a plan may edit them without reading them again with mrw. Edit and create files only with mrw write."
+
+// hSentenceSHA256 is the digest run.json records for HSentence.
+func hSentenceSHA256() string {
+	sum := sha256.Sum256([]byte(HSentence))
+	return hex.EncodeToString(sum[:])
+}
 
 // pluginName is the plugin configuration P loads (quality-harness ADR-106).
 const pluginName = "quality-harness"
