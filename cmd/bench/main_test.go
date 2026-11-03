@@ -183,7 +183,7 @@ func TestAnalyzeNamesEachRowsBaseline(t *testing.T) {
 			for _, c := range configs {
 				cost := cost[c]
 				put(task+"."+c+".m.1.receipt.json", bench.Receipt{Attempt: task + "." + c + ".m.1", Stage: profile, Task: task, Source: "swe-bench",
-					Model: "m", Config: c, Repeat: 1, CostUSD: &cost, Oracle: bench.Verdict{Solved: true}, HostReads: 1})
+					Model: "m", Config: c, Repeat: 1, CostUSD: &cost, Oracle: bench.Verdict{Solved: true}, HostReads: 1, HookReads: map[string]int{"B": 7, "H": 3}[c]})
 			}
 		}
 		return dir
@@ -205,8 +205,18 @@ func TestAnalyzeNamesEachRowsBaseline(t *testing.T) {
 	if h := rowLine(seven, "H against B"); !strings.Contains(h, "-0.143") {
 		t.Errorf("H against B reads H's cost against B's, (1.2−1.4)/1.4 = −0.143: %q", h)
 	}
+	// The last column counts the compared configuration's reads alone: B's 7
+	// or H's 3 over ten tasks, never the baseline's.
+	for row, want := range map[string]string{"B against A": "70", "H against A": "30", "H against B": "30"} {
+		if got := lastCell(rowLine(seven, row)); got != want {
+			t.Errorf("%s: shell reads %q, want %s", row, got, want)
+		}
+	}
+	if !strings.Contains(seven, "| X shell reads |") || strings.Contains(seven, "B or H shell reads") {
+		t.Errorf("a table with H rows does not name the compared configuration's reads as X:\n%s", seven)
+	}
 	five := analyzed(stage(bench.ProfileStage5, map[string]float64{"A": 1, "B": 1.4}))
-	if !strings.Contains(five, "swe-bench, B against A") || !strings.Contains(five, "cost (X−A)/A [99%]") || strings.Contains(five, "(X−B)/B") || strings.Contains(five, "H against") {
+	if !strings.Contains(five, "swe-bench, B against A") || !strings.Contains(five, "cost (X−A)/A [99%]") || !strings.Contains(five, "| B shell reads |") || strings.Contains(five, "(X−B)/B") || strings.Contains(five, "H against") {
 		t.Errorf("a Stage 5 analysis changed:\n%s", five)
 	}
 }
@@ -219,4 +229,48 @@ func rowLine(out, substr string) string {
 		}
 	}
 	return ""
+}
+
+// lastCell is the last cell of a table row.
+func lastCell(row string) string {
+	cells := strings.Split(strings.TrimSuffix(strings.TrimSpace(row), "|"), "|")
+	return strings.TrimSpace(cells[len(cells)-1])
+}
+
+// TestTheCanaryRunsHOnlyUnderStage7: the canary's configurations are A and B,
+// with H under stage7 and the plugin's, the work line's after them, chosen
+// by the command and not only by bench.CanaryBase (ADR-192 Decision 1).
+func TestTheCanaryRunsHOnlyUnderStage7(t *testing.T) {
+	for _, c := range []struct {
+		o    bench.RunOptions
+		want string
+	}{
+		{bench.RunOptions{Profile: bench.ProfileStage7}, "A,B,H"},
+		{bench.RunOptions{Profile: bench.ProfileStage5}, "A,B"},
+		{bench.RunOptions{}, "A,B"},
+		{bench.RunOptions{Profile: bench.ProfileStage5, PluginDir: "/p", WorkLine: "w"}, "A,B,P,W"},
+	} {
+		got, err := canaryConfigs(c.o)
+		if err != nil || strings.Join(got, ",") != c.want {
+			t.Errorf("the canary under profile %q runs %v (%v), want %s", c.o.Profile, got, err, c.want)
+		}
+	}
+}
+
+// TestBenchHookReadToolFlagNamesTheReadTool: bench hook refuses a shell write
+// either way, and says the Read tool reads only with --read-tool, the flag
+// configuration H's Bash hook carries.
+func TestBenchHookReadToolFlagNamesTheReadTool(t *testing.T) {
+	payload := `{"tool_name":"Bash","tool_input":{"command":"rm x"}}`
+	log := filepath.Join(t.TempDir(), "hook.log")
+	for _, c := range []struct {
+		args     []string
+		readTool bool
+	}{{[]string{"--log", log}, false}, {[]string{"--read-tool", "--log", log}, true}} {
+		var stderr bytes.Buffer
+		code := hookCmd(c.args, strings.NewReader(payload), &stderr)
+		if code != 2 || strings.Contains(stderr.String(), "the Read tool") != c.readTool || !strings.Contains(stderr.String(), "mrw read") {
+			t.Errorf("bench hook %v: exit %d %q; want a refusal naming the Read tool: %v", c.args, code, stderr.String(), c.readTool)
+		}
+	}
 }

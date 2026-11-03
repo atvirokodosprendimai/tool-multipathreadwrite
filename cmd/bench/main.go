@@ -81,16 +81,7 @@ func main() {
 	case "look":
 		os.Exit(look(os.Args[2:], os.Stdout, os.Stderr))
 	case "hook":
-		fs := flag.NewFlagSet("hook", flag.ExitOnError)
-		log := fs.String("log", "", "where refusals and counted reads are appended")
-		tree := fs.String("tree", "", "the attempt's task tree: a write whose target lands outside it passes")
-		readTool := fs.Bool("read-tool", false, "configuration H: the refusal says the Read tool reads as well as mrw read (ADR-192)")
-		_ = fs.Parse(os.Args[2:])
-		hook := bench.Hook
-		if *readTool {
-			hook = bench.ReadToolHook
-		}
-		os.Exit(hook(os.Stdin, os.Stderr, *log, *tree))
+		os.Exit(hookCmd(os.Args[2:], os.Stdin, os.Stderr))
 	case "shim":
 		cwd, _ := os.Getwd()
 		os.Exit(bench.Shim(os.Args[2:], cwd, os.Stdin, os.Stdout, os.Stderr))
@@ -113,6 +104,27 @@ func main() {
 		}
 		os.Exit(1)
 	}
+}
+
+// hookCmd is bench hook: the Bash hook of configurations B and H, H's with
+// --read-tool (ADR-192). It returns the hook's exit code.
+func hookCmd(args []string, stdin io.Reader, stderr io.Writer) int {
+	fs := flag.NewFlagSet("hook", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	log := fs.String("log", "", "where refusals and counted reads are appended")
+	tree := fs.String("tree", "", "the attempt's task tree: a write whose target lands outside it passes")
+	readTool := fs.Bool("read-tool", false, "configuration H: the refusal says the Read tool reads as well as mrw read (ADR-192)")
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
+		return 2
+	}
+	hook := bench.Hook
+	if *readTool {
+		hook = bench.ReadToolHook
+	}
+	return hook(stdin, stderr, *log, *tree)
 }
 
 type multi []string
@@ -256,24 +268,35 @@ func baseline(args []string) error {
 	return bench.Baseline(o)
 }
 
+// canaryConfigs are the configurations a canary runs: A and B, H under
+// stage7, then the plugin's, the work line's and the side arms'.
+func canaryConfigs(o bench.RunOptions) ([]string, error) {
+	configs := bench.CanaryBase(o.Profile)
+	if o.PluginDir != "" {
+		configs = append(configs, "P")
+	}
+	if o.WorkLine != "" {
+		configs = append(configs, "W")
+	}
+	if o.SideArms != "" {
+		arms, err := bench.SideNamed(o.SideArms)
+		if err != nil {
+			return nil, err
+		}
+		configs = append(configs, arms...)
+	}
+	return configs, nil
+}
+
 func canary(args []string) error {
 	fs, o, models, tasksDir := stageFlags("canary")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	o.Models, o.Stage, o.Repeats, o.Configs = *models, "canary", 1, bench.CanaryBase(o.Profile)
-	if o.PluginDir != "" {
-		o.Configs = append(o.Configs, "P")
-	}
-	if o.WorkLine != "" {
-		o.Configs = append(o.Configs, "W")
-	}
-	if o.SideArms != "" {
-		arms, err := bench.SideNamed(o.SideArms)
-		if err != nil {
-			return err
-		}
-		o.Configs = append(o.Configs, arms...)
+	o.Models, o.Stage, o.Repeats = *models, "canary", 1
+	var err error
+	if o.Configs, err = canaryConfigs(*o); err != nil {
+		return err
 	}
 	task, err := bench.LoadTask(filepath.Join(*tasksDir, "canary"))
 	if err != nil {
@@ -465,7 +488,7 @@ func analyze(args []string, w io.Writer) error {
 			reads := "B shell reads"
 			for _, row := range rep.Rows {
 				if row.Baseline == base && row.Comparison == "H" {
-					reads = "B or H shell reads"
+					reads = "X shell reads"
 				}
 			}
 			fmt.Fprintln(w)

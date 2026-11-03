@@ -276,3 +276,27 @@ func TestTheStage7CanaryRefusesAnHWithoutItsHook(t *testing.T) {
 		}
 	}
 }
+
+// TestTheReadHookMustHaveRunQuietlyForEveryRead: an H attempt whose hook wrote
+// to standard error, or ran fewer times than the host Read, is a canary
+// problem; a quiet hook that ran for every Read, and a configuration with no
+// read hook, are not (ADR-192 Decision 1).
+func TestTheReadHookMustHaveRunQuietlyForEveryRead(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		r    Receipt
+		bad  bool
+	}{
+		{"quiet and ran for both Reads", Receipt{HostReads: 2, HookRuns: 2}, false},
+		{"no Reads, no runs", Receipt{}, false},
+		{"standard error", Receipt{HostReads: 2, HookRuns: 2, HookStderrBytes: 5}, true},
+		{"one run for two Reads", Receipt{HostReads: 2, HookRuns: 1}, true},
+	} {
+		if p := readHookProblems(Configs["H"], c.r); (len(p) > 0) != c.bad {
+			t.Errorf("H, %s: %v, want a problem: %v", c.name, p, c.bad)
+		}
+	}
+	if p := readHookProblems(Configs["B"], Receipt{HostReads: 2, HookStderrBytes: 5}); len(p) != 0 {
+		t.Errorf("B has no read hook and is blamed for one: %v", p)
+	}
+}

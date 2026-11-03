@@ -438,6 +438,11 @@ func LookDescriptive(stageDir string, rep LookReport, subsets []Subset) ([]Resul
 				return nil, err
 			}
 			res.Descriptive, res.Look = s.Label, upTo
+			// The gate closed the row UNTESTED over the interval's reading,
+			// which is not the verdict to print beside it.
+			if row.Verdict == "UNTESTED" {
+				res.Verdict = "UNTESTED"
+			}
 			out = append(out, res)
 		}
 	}

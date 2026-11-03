@@ -174,6 +174,7 @@ func RunCanary(o RunOptions, task Task, claudeMD string) (CanaryReceipt, error) 
 		if o.Profile == ProfileStage6 && Configs[name].Plugin {
 			problems = append(problems, CheckPluginData(o, Configs[name])...)
 		}
+		problems = append(problems, readHookProblems(Configs[name], r)...)
 		if len(problems) > 0 {
 			c.Pass = false
 			c.Problems[name] = problems
@@ -196,6 +197,23 @@ func RunCanary(o RunOptions, task Task, claudeMD string) (CanaryReceipt, error) 
 		return c, err
 	}
 	return c, writeOnce(filepath.Join(o.Out, "canary.json"), append(b, '\n'))
+}
+
+// readHookProblems is what an H attempt's receipt must show of its read hook:
+// no bytes on standard error and a run for every host Read. A hook that spoke
+// or skipped a Read proves nothing about the Reads the stage counts.
+func readHookProblems(c Config, r Receipt) []string {
+	if !c.ReadHook {
+		return nil
+	}
+	var problems []string
+	if r.HookStderrBytes > 0 {
+		problems = append(problems, fmt.Sprintf("configuration H: the read hook wrote %d bytes to standard error", r.HookStderrBytes))
+	}
+	if r.HookRuns < r.HostReads {
+		problems = append(problems, fmt.Sprintf("configuration H: the read hook ran %d times for %d Reads", r.HookRuns, r.HostReads))
+	}
+	return problems
 }
 
 // CheckProfileCanary is the canary under ADR-162's stage5 profile (Decision 2):

@@ -53,9 +53,14 @@ out=$(go test ./internal/bench/ -count=1 -v -run '^(TestConfigurationHIsBPlusRea
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `TestConfigurationHIsBPlusReadAndTheReadHook` | `internal/bench/runner_test.go` | H's `--tools`; its PostToolUse Read hook writing `hook.stderr` and `hook.fired`; the prompt ending in the sentence; H's refusal text; `h_sentence_sha256` in `run.json` and a block 2 naming another sha refused; `host_reads` 2 and `hook_runs` 2 from a transcript and fired file with two Reads; both files kept beside the receipt; `mrw_version` recorded for H alone; H outside stage7 refused | none | S2, S3 |
+| `TestConfigurationHIsBPlusReadAndTheReadHook` | `internal/bench/runner_test.go` | H's `--tools`; its PostToolUse Read hook writing `hook.stderr` and `hook.fired`; the prompt ending in the sentence; H's refusal text; `h_sentence_sha256` in `run.json` and a block 2 naming another sha refused; `host_reads` 2 and `hook_runs` 2 from a transcript and fired file with two Reads; both files kept beside the receipt; `mrw_version` recorded for H; H outside stage7 refused | none | S2, S3 |
 | `TestAAndBCarryNoReadHookInStage7` | `internal/bench/runner_test.go` | under stage7, A's and B's arguments, tools, prompt, settings and refusal text equal stage5's | none | S2 |
 | `TestTheStage7CanaryRefusesAnHWithoutItsHook` | `internal/bench/canary_test.go` | an H transcript without `Read` in its init tools, or with no `PostToolUse:Read` event, fails the canary; a B with that event fails it; the stage7 canary's configurations are A, B and H | none | S4 |
+| `TestStage7RunsOnlyAThroughHAndHNeedsBInBlockOne` | `internal/bench/runner_test.go` | under stage7 every list is a subset of A, B and H, and a model that runs H runs B in block 1 or a stage without blocks (A,H and A,B,H,P refused); a later block may drop B | none | S3 |
+| `TestRunCanaryFailsAnHWhoseReadHookSpoke` | `internal/bench/runner_test.go` | `RunCanary` records, for H alone, a problem when its hook wrote to standard error | none | S4 |
+| `TestTheReadHookMustHaveRunQuietlyForEveryRead` | `internal/bench/canary_test.go` | an H receipt with hook standard error bytes, or fewer hook runs than host Reads, is a canary problem; a quiet hook that ran for every Read, and B, are not | none | S4 |
+| `TestTheCanaryRunsHOnlyUnderStage7` | `cmd/bench/main_test.go` | the canary command's configurations are A and B, with H under stage7, then P and W | none | S4, S5 |
+| `TestBenchHookReadToolFlagNamesTheReadTool` | `cmd/bench/main_test.go` | `bench hook` refuses `rm x` naming the Read tool with `--read-tool` and not without | none | S2, S5 |
 
 ## Reachability
 
@@ -70,6 +75,9 @@ out=$(go test ./internal/bench/ -count=1 -v -run '^(TestConfigurationHIsBPlusRea
 - 2026-11-03 · 3d8c806f* · mutant killed · exit 1 · `internal/bench/runner.go` · S2: H's PostToolUse hook is attached to Glob, not Read; the settings test must see no hook on Read · acceptance-sha256:ed1c8cd1246b0dea18c82dd11cba066a3f599fb72f4944395e32617e385e12ca
 - 2026-11-03 · 3d8c806f* · mutant killed · exit 1 · `internal/bench/runner.go` · S3: mrw_version recorded only when B runs; H alone in a stage with no blocks must still name its mrw · acceptance-sha256:ed1c8cd1246b0dea18c82dd11cba066a3f599fb72f4944395e32617e385e12ca
 - 2026-11-03 · 3d8c806f* · mutant killed · exit 1 · `internal/bench/canary.go` · S4: the canary no longer demands a PostToolUse:Read event of H · acceptance-sha256:ed1c8cd1246b0dea18c82dd11cba066a3f599fb72f4944395e32617e385e12ca
+- 2026-11-03 · 551c2544* · mutant killed · exit 1 · `internal/bench/look.go` · S3: the look no longer refuses a block that ran another H sentence than block 1 · acceptance-sha256:ed1c8cd1246b0dea18c82dd11cba066a3f599fb72f4944395e32617e385e12ca
+- 2026-11-03 · 551c2544* · mutant killed · exit 1 · `cmd/bench/main.go` · S5: the canary command takes A and B whatever the profile, never H · acceptance-sha256:ed1c8cd1246b0dea18c82dd11cba066a3f599fb72f4944395e32617e385e12ca
+- 2026-11-03 · 551c2544* · mutant killed · exit 1 · `cmd/bench/main.go` · S5: bench hook --read-tool is dead, H refusals never name the Read tool · acceptance-sha256:ed1c8cd1246b0dea18c82dd11cba066a3f599fb72f4944395e32617e385e12ca
 
 ## Invariants
 
@@ -97,3 +105,8 @@ The pinned Claude Code shows no `PostToolUse:Read` hook event for a Read under `
   ```
   ```
 - 2026-11-03 · 3d8c806f* · exit 0 · `set -o pipefail …` · acceptance-sha256:ed1c8cd1246b0dea18c82dd11cba066a3f599fb72f4944395e32617e385e12ca · ms:166665
+- 2026-11-03 · 551c2544* · exit 0 · `set -o pipefail …` · acceptance-sha256:ed1c8cd1246b0dea18c82dd11cba066a3f599fb72f4944395e32617e385e12ca · ms:154937
+- 2026-11-03 · 551c2544* · exit 0 · `set -o pipefail …` · acceptance-sha256:ed1c8cd1246b0dea18c82dd11cba066a3f599fb72f4944395e32617e385e12ca · ms:153381
+- 2026-11-03 · 551c2544* · exit 0 · `set -o pipefail …` · acceptance-sha256:ed1c8cd1246b0dea18c82dd11cba066a3f599fb72f4944395e32617e385e12ca · ms:156605
+- 2026-11-03 · 551c2544* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:ed1c8cd1246b0dea18c82dd11cba066a3f599fb72f4944395e32617e385e12ca · ms:0 · test-lock-sha256:33c0214723d3b269beaf0a30e85f95e6af56ee4f5da5ea6348ddf759d1054d35 · test-lock-file:docs/adr/locks/33c0214723d3b269beaf0a30e85f95e6af56ee4f5da5ea6348ddf759d1054d35.lock · test-lock-kind:replace
+- 2026-11-03 · 551c2544* · exit 0 · `set -o pipefail …` · acceptance-sha256:ed1c8cd1246b0dea18c82dd11cba066a3f599fb72f4944395e32617e385e12ca · ms:154470

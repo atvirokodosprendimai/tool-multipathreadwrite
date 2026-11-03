@@ -1219,7 +1219,7 @@ func TestConfigurationHIsBPlusReadAndTheReadHook(t *testing.T) {
 	if HSentence != sentence {
 		t.Fatalf("the sentence is %q, want ADR-192 Decision 1's", HSentence)
 	}
-	opts := stage7Options(t, "A", "H")
+	opts := stage7Options(t, "A", "B", "H")
 	work := filepath.Dir(opts.Out)
 	if _, err := gates(opts); err != nil {
 		t.Fatalf("H under stage7 was refused: %v", err)
@@ -1301,7 +1301,7 @@ func TestConfigurationHIsBPlusReadAndTheReadHook(t *testing.T) {
 
 	// A stage: the receipt counts, the files are kept, run.json names the sentence.
 	opts.Claude = stubClaudeWithReads(t, work, filepath.Join(opts.Tasks[0].Dir, "reference.patch"))
-	writeStage7Canary(t, opts, `["A","H"]`)
+	writeStage7Canary(t, opts, `["A","B","H"]`)
 	stage := filepath.Join(work, "stage")
 	opts.Block, opts.Out = 1, filepath.Join(stage, "block-1")
 	if err := Run(opts); err != nil {
@@ -1356,7 +1356,7 @@ func TestConfigurationHIsBPlusReadAndTheReadHook(t *testing.T) {
 		t.Errorf("block 2 with block 1's sentence: %v", err)
 	}
 
-	// A stage with no blocks, H without B: the stage still names its mrw.
+	// A stage with no blocks still names its mrw.
 	plain := opts
 	plain.Block, plain.Out = 0, filepath.Join(work, "plain")
 	if err := Run(plain); err != nil {
@@ -1367,12 +1367,64 @@ func TestConfigurationHIsBPlusReadAndTheReadHook(t *testing.T) {
 	}
 	pb, err := os.ReadFile(filepath.Join(plain.Out, "run.json"))
 	if err != nil || json.Unmarshal(pb, &pp) != nil || pp.MrwVersion != "mrw stub" {
-		t.Errorf("a stage of A and H names mrw %q (%v), want mrw stub", pp.MrwVersion, err)
+		t.Errorf("a stage with no blocks names mrw %q (%v), want mrw stub", pp.MrwVersion, err)
 	}
 	var ph Receipt
 	pr, err := os.ReadFile(filepath.Join(plain.Out, opts.Tasks[0].ID+".H.stub-model.1.receipt.json"))
 	if err != nil || json.Unmarshal(pr, &ph) != nil || ph.MrwVersion != "mrw stub" {
-		t.Errorf("H's receipt in a stage with no B names mrw %q (%v)", ph.MrwVersion, err)
+		t.Errorf("H's receipt in a stage with no blocks names mrw %q (%v)", ph.MrwVersion, err)
+	}
+}
+
+// TestStage7RunsOnlyAThroughHAndHNeedsBInBlockOne: a stage7 model runs a
+// subset of A, B and H, and H only beside B in the block that plans the
+// comparisons (block 1, or a stage without blocks); a later block may drop B
+// once its comparisons have closed (ADR-192 Decision 1, Decision 3).
+func TestStage7RunsOnlyAThroughHAndHNeedsBInBlockOne(t *testing.T) {
+	for _, c := range []struct {
+		name    string
+		configs []string
+		block   int
+		perM    map[string][]string
+		refused bool
+	}{
+		{"A, B and H", []string{"A", "B", "H"}, 1, nil, false},
+		{"B and H", []string{"B", "H"}, 1, nil, false},
+		{"A and B alone", []string{"A", "B"}, 0, nil, false},
+		{"A and H in block 1", []string{"A", "H"}, 1, nil, true},
+		{"A and H in a stage with no blocks", []string{"A", "H"}, 0, nil, true},
+		{"A and H in block 2, B's comparisons closed", []string{"A", "H"}, 2, nil, false},
+		{"A, B, H and P", []string{"A", "B", "H", "P"}, 1, nil, true},
+		{"H alone for one model in block 1", []string{"A", "B", "H"}, 1, map[string][]string{"stub-model": {"A", "H"}}, true},
+	} {
+		opts := stage7Options(t, c.configs...)
+		opts.Block, opts.ConfigsFor = c.block, c.perM
+		_, err := gates(opts)
+		if (err != nil) != c.refused || (err != nil && !strings.Contains(err.Error(), "ADR-192")) {
+			t.Errorf("%s: gates said %v, want refused %v naming ADR-192", c.name, err, c.refused)
+		}
+	}
+}
+
+// TestRunCanaryFailsAnHWhoseReadHookSpoke: the stage7 canary runs H through
+// the stub that has the hook fire twice and write to standard error, and
+// records it as a problem of H alone (ADR-192 Decision 1).
+func TestRunCanaryFailsAnHWhoseReadHookSpoke(t *testing.T) {
+	opts := stage7Options(t, "A", "B", "H")
+	work := filepath.Dir(opts.Out)
+	opts.Claude = stubClaudeWithReads(t, work, filepath.Join(opts.Tasks[0].Dir, "reference.patch"))
+	opts.Out = filepath.Join(work, "canary")
+	got, err := RunCanary(opts, opts.Tasks[0], "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Pass || !strings.Contains(strings.Join(got.Problems["H"], "\n"), "standard error") {
+		t.Errorf("H's hook wrote to standard error and the canary says %v, pass %v", got.Problems["H"], got.Pass)
+	}
+	for _, name := range []string{"A", "B"} {
+		if strings.Contains(strings.Join(got.Problems[name], "\n"), "read hook") {
+			t.Errorf("%s is blamed for a read hook: %v", name, got.Problems[name])
+		}
 	}
 }
 

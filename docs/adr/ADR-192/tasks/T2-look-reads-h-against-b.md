@@ -21,7 +21,7 @@ UNTESTED when the uptake gate fails (ADR-192 Decisions 3 and 4).
 | File | Change | Why |
 |------|--------|-----|
 | `internal/bench/look.go` | edit | a comparison is `config:baseline`; the A literals at `:134`, `:143`, `:163`, `:188`, `:229`, `:243`, `:277`, `:352` take the baseline; stage7 lists `B:A`, `H:A`, `H:B`; the schedule; the gate |
-| `internal/bench/analyze.go` | edit | call `judgeAgainst` (`:260`) with the baseline; shell reads summed for B and H, not B alone (`:282`) |
+| `internal/bench/analyze.go` | edit | call `judgeAgainst` (`:260`) with the baseline; the compared configuration's shell reads, not the baseline's: summed over the receipts of the comparison's second configuration when it is B or H (`:284`) |
 | `cmd/bench/main.go` | edit | the analysis table names each row's baseline, not "against A" and "(X−A)/A" (`:447-457`) |
 | `internal/bench/look_test.go` | edit | the look tests |
 | `cmd/bench/main_test.go` | edit | the table test |
@@ -53,6 +53,8 @@ out=$(go test ./internal/bench/ ./cmd/bench/ -count=1 -v -run '^(TestLookReadsHA
 | `TestHAgainstBIsIneligibleWhenBIsNot` | `internal/bench/look_test.go` | 3 excluded B attempts among 40 make `H:B` ineligible while A and H are complete | none | S2 |
 | `TestHClosesUntestedBelowTheUptakeGate` | `internal/bench/look_test.go` | 19 of 40 counted H receipts with a Read close both H rows UNTESTED and stop H; 20 of 40 leave them open; an excluded attempt and its replacement count once, as the replacement; a timed-out attempt counts; with `H:B` ineligible at look 1 (3 excluded B attempts), `H:A` does not close at look 1 though its interval says LOSES, and the gate read at look 2 closes both UNTESTED | none | S4 |
 | `TestAnalyzeNamesEachRowsBaseline` | `cmd/bench/main_test.go` | `bench analyze` on stage7 receipts prints `H against B` with `(X−B)/B`, and Stage 5's rows as before | none | S5 |
+| `TestALookRefusesABlockThatRanAnotherHSentence` | `internal/bench/look_test.go` | a block whose `run.json` names another `h_sentence_sha256` than block 1's is refused by the look, naming the H sentence | none | S2 |
+| `TestADescriptiveRowOfAnUntestedComparisonSaysUntested` | `internal/bench/look_test.go` | the descriptive rows of a comparison the gate closed UNTESTED say UNTESTED; B against A keeps its interval's verdict | none | S4, S5 |
 
 ## Reachability
 
@@ -68,6 +70,7 @@ out=$(go test ./internal/bench/ ./cmd/bench/ -count=1 -v -run '^(TestLookReadsHA
 - 2026-11-03 · 3d8c806f* · mutant killed · exit 1 · `internal/bench/look.go` · S3: an open comparison always schedules A instead of its own baseline · acceptance-sha256:cbf93a268b715a03ee37473f1faf13cb96f8673cf641242e5351df24539f89a0
 - 2026-11-03 · 3d8c806f* · mutant killed · exit 1 · `internal/bench/look.go` · S4: the uptake gate fails at exactly half instead of below half · acceptance-sha256:cbf93a268b715a03ee37473f1faf13cb96f8673cf641242e5351df24539f89a0
 - 2026-11-03 · 3d8c806f* · mutant killed · exit 1 · `cmd/bench/main.go` · S5: every analysis table is headed against A · acceptance-sha256:cbf93a268b715a03ee37473f1faf13cb96f8673cf641242e5351df24539f89a0
+- 2026-11-03 · 551c2544* · mutant killed · exit 1 · `internal/bench/analyze.go` · S5: shell reads counted for B whatever the comparison, as before H; the table test with B 7 and H 3 reads per receipt must see 70, 30, 30 · acceptance-sha256:cbf93a268b715a03ee37473f1faf13cb96f8673cf641242e5351df24539f89a0
 
 ## Invariants
 
@@ -95,3 +98,6 @@ Reading against B needs a change to the bar itself (ADR-156) rather than to its 
   ```
   ```
 - 2026-11-03 · 3d8c806f* · exit 0 · `set -o pipefail …` · acceptance-sha256:cbf93a268b715a03ee37473f1faf13cb96f8673cf641242e5351df24539f89a0 · ms:170488
+- 2026-11-03 · 551c2544* · exit 0 · `set -o pipefail …` · acceptance-sha256:cbf93a268b715a03ee37473f1faf13cb96f8673cf641242e5351df24539f89a0 · ms:161762
+- 2026-11-03 · 551c2544* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:cbf93a268b715a03ee37473f1faf13cb96f8673cf641242e5351df24539f89a0 · ms:0 · test-lock-sha256:1dd3f641f91dcc51a95b3f3e05ecc9863da75386e272206a12e92b947ce932b5 · test-lock-file:docs/adr/locks/1dd3f641f91dcc51a95b3f3e05ecc9863da75386e272206a12e92b947ce932b5.lock · test-lock-kind:replace
+- 2026-11-03 · 551c2544* · exit 0 · `set -o pipefail …` · acceptance-sha256:cbf93a268b715a03ee37473f1faf13cb96f8673cf641242e5351df24539f89a0 · ms:149964

@@ -571,3 +571,59 @@ func mustLook(t *testing.T, stage string) LookReport {
 	}
 	return r
 }
+
+// TestALookRefusesABlockThatRanAnotherHSentence: a block whose run.json names
+// another H sentence than block 1's is refused by name, as the runner refuses
+// it when the block is run (ADR-192 Decision 1).
+func TestALookRefusesABlockThatRanAnotherHSentence(t *testing.T) {
+	stage := t.TempDir()
+	same := func(id, m, c string) outcome { return outcome{cost: 1, solved: true, reads: 1} }
+	writeBlockUnder(t, ProfileStage7, stage, 1, ids(1, 40), []string{"m"}, stage7All, same)
+	writeBlockUnder(t, ProfileStage7, stage, 2, ids(2, 40), []string{"m"}, stage7All, same)
+	if _, err := Look(stage); err != nil {
+		t.Fatalf("two blocks with one sentence: %v", err)
+	}
+	path := filepath.Join(stage, "block-2", "run.json")
+	var p plan
+	if err := readJSON(path, &p); err != nil {
+		t.Fatal(err)
+	}
+	p.HSentenceSHA256 = strings.Repeat("b", 64)
+	b, err := json.Marshal(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, b, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Look(stage); err == nil || !strings.Contains(err.Error(), "H sentence") {
+		t.Errorf("a block 2 with another H sentence: %v, want a refusal naming it", err)
+	}
+}
+
+// TestADescriptiveRowOfAnUntestedComparisonSaysUntested: the descriptive rows
+// of a comparison the uptake gate closed UNTESTED read (UNTESTED), not the
+// interval's verdict, which the gate overrode; B against A keeps its own.
+func TestADescriptiveRowOfAnUntestedComparisonSaysUntested(t *testing.T) {
+	stage := t.TempDir()
+	writeBlockUnder(t, ProfileStage7, stage, 1, ids(1, 40), []string{"m"}, stage7All, func(id, m, c string) outcome {
+		o := outcome{cost: 1, solved: true}
+		if c == "H" && index(id) < 19 {
+			o.reads = 1
+		}
+		return o
+	})
+	rep := mustLook(t, stage)
+	desc, err := LookDescriptive(stage, rep, []Subset{{Label: "all of it", Tasks: ids(1, 40)}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(desc) != 3 {
+		t.Fatalf("%d descriptive rows, want 3", len(desc))
+	}
+	for _, r := range desc {
+		if (r.Comparison == "H") != (r.Verdict == "UNTESTED") {
+			t.Errorf("%s against %s descriptive row says %s", r.Comparison, r.Control, r.Verdict)
+		}
+	}
+}

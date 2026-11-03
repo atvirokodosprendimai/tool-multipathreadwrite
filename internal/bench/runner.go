@@ -114,8 +114,9 @@ type Receipt struct {
 	CheckRedAtBase bool `json:"check_red_at_base,omitempty"`
 
 	// H's read hook (ADR-192): the host's Read calls, the hook's runs and the
-	// bytes it wrote to standard error. A run count below the read count says
-	// the hook did not run.
+	// bytes it wrote to standard error. PostToolUse may not fire for a Read
+	// that failed, so a run count below the read count says the hook did not
+	// run for those Reads, not that its wiring is broken.
 	HostReads       int `json:"host_reads,omitempty"`
 	HookRuns        int `json:"hook_runs,omitempty"`
 	HookStderrBytes int `json:"hook_stderr_bytes,omitempty"`
@@ -506,6 +507,11 @@ func gates(o RunOptions) (string, error) {
 	if err := sideGates(o); err != nil {
 		return "", err
 	}
+	if o.Profile == ProfileStage7 {
+		if msg := stage7Problem(o); msg != "" {
+			return "", fmt.Errorf("--profile %s: %s (ADR-192 Decision 1)", ProfileStage7, msg)
+		}
+	}
 	switch {
 	case o.Profile != "" && o.Profile != ProfileStage5 && o.Profile != ProfileStage6 && o.Profile != ProfileStage7:
 		return "", fmt.Errorf("--profile %q: want %s, %s or %s (ADR-162, ADR-163, ADR-192)", o.Profile, ProfileStage5, ProfileStage6, ProfileStage7)
@@ -546,6 +552,33 @@ func gates(o RunOptions) (string, error) {
 		return "", fmt.Errorf("--config-dir %s is the user's own ~/.claude: an attempt would load their instructions, hooks and MCP servers", o.ConfigDir)
 	}
 	return cd, nil
+}
+
+// stage7Problem is what keeps a stage7 stage to the three configurations
+// ADR-192 compares: every list names only A, B and H, and in the block that
+// plans the comparisons (block 1, or a stage without blocks) a model that
+// runs H runs B, whose cost H:B is read against. A later block may drop B
+// once its comparisons have closed.
+func stage7Problem(o RunOptions) string {
+	for _, cs := range append([][]string{o.Configs}, mapValues(o.ConfigsFor)...) {
+		for _, c := range cs {
+			if c != "A" && c != "B" && c != "H" {
+				return fmt.Sprintf("configuration %s is not one of A, B and H", c)
+			}
+		}
+	}
+	if o.Block <= 1 {
+		for _, m := range o.Models {
+			cs := o.Configs
+			if own, ok := o.ConfigsFor[m]; ok {
+				cs = own
+			}
+			if slices.Contains(cs, "H") && !slices.Contains(cs, "B") {
+				return fmt.Sprintf("%s runs H without B, which H is read against", m)
+			}
+		}
+	}
+	return ""
 }
 
 // Verify checks a stage directory against its plan: the stage and the counts
