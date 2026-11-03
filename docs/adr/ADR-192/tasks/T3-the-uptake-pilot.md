@@ -34,7 +34,7 @@ host Read (ADR-192 Decisions 1, 2 and 6).
 3. [S3] The stage7 canary for A, B and H on each model. A failed canary stops here. [proof: acceptance]
 4. [S4] A preflight in a scratch checkout through the stage's settings: H Reads a file, then applies a plan editing lines of it with no `mrw read` between; the same with the hook removed is refused as unread. [proof: human: both receipts, the applied one and the refused one]
 5. [S5] H uncounted on the first 2 instances of `bench/swe-bench/selection.json` (outside the pool), both models: `host_reads`, `hook_runs`, the proxies. With no host Read on either model, change the sentence once (code, test and record together), run again, and record both. [proof: human: the pilot's counts and the sentence it froze]
-6. [S6] Write `pilot.md` with a `sentence: ` line holding the frozen sentence and a `sentence sha256: ` line; commit before T4. [proof: acceptance]
+6. [S6] Write `pilot.md` with a `cli: ` line holding the pinned Claude Code's version as receipts record it, a `sentence: ` line holding the frozen sentence and a `sentence sha256: ` line; commit before T4. [proof: acceptance]
 
 ## Acceptance
 
@@ -44,7 +44,8 @@ R=docs/bench/stage-7
 s=$(sed -n 's/^sentence: //p' $R/pilot.md) && test -n "$s" \
   && test "$(printf '%s' "$s" | shasum -a 256 | cut -d' ' -f1)" = "$(sed -n 's/^sentence sha256: //p' $R/pilot.md)" \
   && grep -qF -- "$s" internal/bench/profile.go \
-  && for m in claude-sonnet-5-5 claude-opus-5-5; do jq -e '.pass == true and .profile == "stage7" and (.configs | index("H")) != null' "$R/canary-$m.json" > /dev/null || exit 1; done
+  && cli=$(sed -n 's/^cli: //p' $R/pilot.md) && test -n "$cli" \
+  && for m in claude-sonnet-5-5 claude-opus-5-5; do jq -e --arg m "$m" --arg cli "$cli" '.pass == true and .profile == "stage7" and .model == $m and (.configs | sort) == ["A","B","H"] and .cli_version == $cli' "$R/canary-$m.json" > /dev/null || exit 1; done
 ```
 
 ## Tests

@@ -37,7 +37,9 @@ R=docs/bench/stage-7
 last=$(ls $R/looks/look-*.txt | sort -V | tail -1) \
   && test "$(grep -cE ' · (B against A|H against A|H against B) · ' "$last")" = 6 \
   && grep -E ' · (B against A|H against A|H against B) · ' "$last" | while IFS= read -r l; do grep -qF -- "$l" $R/RESULTS.md || exit 1; done \
-  && test "$(jq '.cells | length' $R/mechanism.json)" = "$(ls $R/block-*/*.H.*.transcript.jsonl | wc -l | tr -d ' ')"
+  && ls $R/block-*/*.H.*.transcript.jsonl | sort > /tmp/adr192-h.txt && test -s /tmp/adr192-h.txt \
+  && jq -e '(.cells | type) == "object" and (.cells | length) > 0 and all(.cells[]; has("host_reads"))' $R/mechanism.json > /dev/null \
+  && diff <(jq -r '.cells | keys[]' $R/mechanism.json | sort) /tmp/adr192-h.txt
 ```
 
 ## Tests

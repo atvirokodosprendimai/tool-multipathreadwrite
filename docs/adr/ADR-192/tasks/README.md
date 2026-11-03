@@ -39,4 +39,4 @@ Status: `pending` | `partial` | `blocked` | `done`.
 ## Notes
 
 - T3 is blocked until a release carries ADR-191 (`1f01dcdc`); cutting it is Zy's call.
-- T4 is the paid run: at most about 21 hours of attempt time on a shared machine, over days; load the costly-runs skill first.
+- T4 is the paid run: about 21 hours of attempt time projected, on a shared machine, over days; load the costly-runs skill first.

@@ -88,14 +88,16 @@ compacting half stays deferred there.
    - **What it counts.** Per model, over the block-1 instances, the final receipt of H that eligibility's walk
      reaches (`look.go:213-220`): excluded attempts are left out and replaced as ADR-156 replaces them; timed-out
      and over-budget attempts count. An attempt passes when its `host_reads` is at least 1.
-   - **When it is read.** At the first look where H against B is eligible. If fewer than half of the counted
-     attempts pass, H's two comparisons close **UNTESTED**, overriding a PAYS or LOSES reached at the same look,
-     and H is not scheduled again for that model. B against A goes on.
+   - **When it is read.** At the first look where H against B is eligible. Until then neither H comparison may
+     close, whatever its interval says. If fewer than half of the counted attempts pass, both close **UNTESTED**
+     and H is not scheduled again for that model; otherwise both are read as usual from that look on. B against A
+     goes on either way.
    - **The counts,** per H attempt, beside the verdicts and never in their place: from the receipt, `host_reads`,
      `hook_runs` and `hook_stderr_bytes`; from `scripts/bench_mechanism.py` at `3a970837`, hook-licensed writes,
      overlapping mrw reads, refused unread writes and unknown calls, which are proxies (a failed Read followed by a
-     legal `--create` counts as hook-licensed). `hook_runs` below `host_reads`, or hook-licensed writes at zero
-     with Reads above it, says the hook did not work.
+     legal `--create` counts as hook-licensed, and a plan-file write counts as unknown). `hook_runs` below
+     `host_reads` says the hook did not run; zero hook-licensed writes is not evidence either way, which is why
+     T3's preflight is the check that the hook licenses.
 5. **What each outcome means, written now.**
    - **Expected:** H against B INCONCLUSIVE. No offline estimate of the re-reads H removes exists, since B never
      used the Read; PAYS needs about a 10% saving with solving at or above B's (ADR-162 Decision 11).
@@ -105,10 +107,10 @@ compacting half stays deferred there.
 6. **Prerequisite: a release.** No counted attempt runs before a tag `v1.83.0` or later contains `1f01dcdc`
    (ADR-191), and the stage's `mrw_version` names that tag. Cutting it is Zy's call (the release skill).
 7. **Price, said first.**
-   - **Ceiling:** 1,146 attempts (191 × 3 × 2), as ADR-162 planned Stage 5. Stage 5 ran 850 receipts, since P
+   - **Ceiling:** 1,146 scheduled attempts (191 × 3 × 2), before replacements. Stage 5 ran 850 receipts, since P
      closed LOSES at look 1 on both models: $131.12 in API prices and 15.7 hours of attempt wall time, in blocks
      started between 2026-10-17 and 2026-10-21 (measured 2026-11-03 over `docs/bench/stage-5/block-*/*.receipt.json`).
-     At that pace the ceiling is about 21 hours of attempt time, spread over days.
+     At that pace the projection is about 21 hours of attempt time, spread over days.
    - **Projection:** A and B as Stage 5 spent ($49.73 and $38.20 Opus, $11.34 and $10.13 Sonnet) plus H priced as
      B: about $158, on the subscription.
    - **Savings:** an UNTESTED gate at look 1 saves 151 H attempts per model; each comparison closing early saves
@@ -171,7 +173,7 @@ See `docs/adr/ADR-192/tasks/README.md`.
 - **Positive:** the hook is measured where re-reads happen, on the pool and bar the published claim stands on.
 - **Positive:** B against A is replicated on the release that carries ADR-191 and a current CLI, where Stage 5 ran
   v1.68.0 on 2.1.302.
-- **Negative:** at most about 21 hours of attempt time on a shared machine, on the subscription, for an expected INCONCLUSIVE.
+- **Negative:** about 21 hours of attempt time projected on a shared machine, on the subscription, for an expected INCONCLUSIVE.
 - **Negative:** H against B cannot say whether the Read, the sentence or the hook did the work.
 - **Neutral:** bench's slipped-write count is biased low in H: a host Read records a file's sha, so a non-mrw change
   later Read is not counted (`internal/bench/hook.go:724-735`). Descriptive only.

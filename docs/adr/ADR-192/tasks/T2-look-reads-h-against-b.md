@@ -31,7 +31,7 @@ UNTESTED when the uptake gate fails (ADR-192 Decisions 3 and 4).
 1. [S1] Write the four failing tests and see them red. [proof: acceptance]
 2. [S2] A comparison names its baseline, for the verdict and for eligibility; Stage 5's stay `B:A` and `P:A`, so `bench look docs/bench/stage-5` prints what it printed. [proof: mutation]
 3. [S3] The stage7 schedule: a configuration runs while any open comparison includes it; closed rows stay frozen. [proof: mutation]
-4. [S4] The gate: at the first look where `H:B` is eligible, per model, over block 1's final walked H receipts with exclusions left out, fewer than half with `host_reads >= 1` close `H:A` and `H:B` UNTESTED, overriding PAYS or LOSES at that look, and H is not scheduled again for that model. [proof: mutation]
+4. [S4] The gate: neither H comparison closes before it is read, at the first look where `H:B` is eligible; there, per model, over block 1's final walked H receipts with exclusions left out, fewer than half with `host_reads >= 1` close `H:A` and `H:B` UNTESTED and H is not scheduled again for that model. [proof: mutation]
 5. [S5] The analysis table names the baseline per row. [proof: mutation]
 
 ## Acceptance
@@ -51,7 +51,7 @@ out=$(go test ./internal/bench/ ./cmd/bench/ -count=1 -v -run '^(TestLookReadsHA
 |-----------|------|----------|--------|-------|
 | `TestLookReadsHAgainstBAndA` | `internal/bench/look_test.go` | on synthetic stage7 receipts where H is cheaper than B and dearer than A, `H:B` reads H's cost and solved against B's; with `B:A` and `H:A` closed and `H:B` open, A is not scheduled and B and H are; a closed row does not move when later attempts land | none | S2, S3 |
 | `TestHAgainstBIsIneligibleWhenBIsNot` | `internal/bench/look_test.go` | 3 excluded B attempts among 40 make `H:B` ineligible while A and H are complete | none | S2 |
-| `TestHClosesUntestedBelowTheUptakeGate` | `internal/bench/look_test.go` | 19 of 40 counted H receipts with a Read close both H rows UNTESTED and stop H; 20 of 40 leave them open; an excluded attempt and its replacement count once, as the replacement; a timed-out attempt counts; UNTESTED overrides a LOSES at the same look; an ineligible look reads no gate | none | S4 |
+| `TestHClosesUntestedBelowTheUptakeGate` | `internal/bench/look_test.go` | 19 of 40 counted H receipts with a Read close both H rows UNTESTED and stop H; 20 of 40 leave them open; an excluded attempt and its replacement count once, as the replacement; a timed-out attempt counts; with `H:B` ineligible at look 1 (3 excluded B attempts), `H:A` does not close at look 1 though its interval says LOSES, and the gate read at look 2 closes both UNTESTED | none | S4 |
 | `TestAnalyzeNamesEachRowsBaseline` | `cmd/bench/main_test.go` | `bench analyze` on stage7 receipts prints `H against B` with `(X−B)/B`, and Stage 5's rows as before | none | S5 |
 
 ## Reachability
