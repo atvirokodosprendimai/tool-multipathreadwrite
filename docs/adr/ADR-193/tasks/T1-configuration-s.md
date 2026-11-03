@@ -66,6 +66,15 @@ out=$(go test ./internal/bench/ ./cmd/bench/ -count=1 -v -run '^(TestConfigurati
 | 4 — it is used | T3's canary and smoke, T4's pilot |
 
 ## Mutation Log
+- 2026-11-03 · 5c2a308b* · mutant killed · exit 1 · `internal/bench/runner.go` · S2: the newline between mrw instructions and the paragraph is dropped; S's prompt is not instructions, a newline, paragraph · acceptance-sha256:dbd71c3e371a98a9c79c45866a0c1ed15cdaa984744e1dc3a8e7398412e0e6b7
+- 2026-11-03 · 5c2a308b* · mutant killed · exit 1 · `internal/bench/hook.go` · S2: heredoc bodies are read as shell, so a SEARCH/REPLACE document is mistaken for a redirection and the hook refuses it · acceptance-sha256:dbd71c3e371a98a9c79c45866a0c1ed15cdaa984744e1dc3a8e7398412e0e6b7
+- 2026-11-03 · 5c2a308b* · mutant killed · exit 1 · `internal/bench/runner.go` · S3: a block 2 naming another paragraph than block 1 is no longer refused · acceptance-sha256:dbd71c3e371a98a9c79c45866a0c1ed15cdaa984744e1dc3a8e7398412e0e6b7
+- 2026-11-03 · 5c2a308b* · mutant killed · exit 1 · `internal/bench/runner.go` · S3: a model that runs S without B is no longer refused · acceptance-sha256:dbd71c3e371a98a9c79c45866a0c1ed15cdaa984744e1dc3a8e7398412e0e6b7 · covers:stage8 runs only B and S
+- 2026-11-03 · 5c2a308b* · mutant killed · exit 1 · `internal/bench/canary.go` · S4: the stage8 canary runs A and B, not B and S · acceptance-sha256:dbd71c3e371a98a9c79c45866a0c1ed15cdaa984744e1dc3a8e7398412e0e6b7 · covers:the canary runs B and S
+- 2026-11-03 · 5c2a308b* · mutant killed · exit 1 · `internal/bench/runner.go` · S2: B under stage8 gets H's hook flag, so it differs from stage5's B · acceptance-sha256:dbd71c3e371a98a9c79c45866a0c1ed15cdaa984744e1dc3a8e7398412e0e6b7 · covers:B under stage8 is stage5's B
+- 2026-11-03 · 5c2a308b* · mutant killed · exit 1 · `internal/bench/profile.go` · S2: the paragraph is not ADR-193 Decision 1's, byte for byte · acceptance-sha256:dbd71c3e371a98a9c79c45866a0c1ed15cdaa984744e1dc3a8e7398412e0e6b7 · covers:S is B plus the paragraph
+- 2026-11-03 · 5c2a308b* · mutant killed · exit 1 · `internal/bench/runner.go` · S3: a block 2 naming another paragraph than block 1 is no longer refused · acceptance-sha256:dbd71c3e371a98a9c79c45866a0c1ed15cdaa984744e1dc3a8e7398412e0e6b7 · covers:the paragraph cannot change between blocks
+- 2026-11-03 · 5c2a308b* · mutant killed · exit 1 · `internal/bench/hook.go` · S2: heredoc bodies are read as shell, so a SEARCH/REPLACE document is mistaken for a redirection and the hook refuses it · acceptance-sha256:dbd71c3e371a98a9c79c45866a0c1ed15cdaa984744e1dc3a8e7398412e0e6b7 · covers:the hook passes a SEARCH/REPLACE heredoc
 
 ## Invariants
 
@@ -85,3 +94,16 @@ The pinned Claude Code does not read `--append-system-prompt-file` for S as it d
 - Counting the write calls (T2's job).
 
 ## Verification Log
+- 2026-11-03 · 5c2a308b* · exit 1 · `set -o pipefail …` · acceptance-sha256:dbd71c3e371a98a9c79c45866a0c1ed15cdaa984744e1dc3a8e7398412e0e6b7 · ms:141 · test-lock-sha256:4bf8279749b8ab11d06ec53373c4e511fe818153df678f61ca9b4627852226ca · test-lock-file:docs/adr/locks/4bf8279749b8ab11d06ec53373c4e511fe818153df678f61ca9b4627852226ca.lock
+  ```
+  ```
+- 2026-11-03 · 5c2a308b* · exit 0 · `set -o pipefail …` · acceptance-sha256:dbd71c3e371a98a9c79c45866a0c1ed15cdaa984744e1dc3a8e7398412e0e6b7 · ms:168714
+- 2026-11-03 · 5c2a308b* · exit 0 · `set -o pipefail …` · acceptance-sha256:dbd71c3e371a98a9c79c45866a0c1ed15cdaa984744e1dc3a8e7398412e0e6b7 · ms:167824
+- 2026-11-03 · 5c2a308b* · exit 0 · `set -o pipefail …` · acceptance-sha256:dbd71c3e371a98a9c79c45866a0c1ed15cdaa984744e1dc3a8e7398412e0e6b7 · ms:163402
+- 2026-11-03 · 5c2a308b* · exit 0 · `set -o pipefail …` · acceptance-sha256:dbd71c3e371a98a9c79c45866a0c1ed15cdaa984744e1dc3a8e7398412e0e6b7 · ms:194646
+- 2026-11-03 · 5c2a308b* · exit 0 · `set -o pipefail …` · acceptance-sha256:dbd71c3e371a98a9c79c45866a0c1ed15cdaa984744e1dc3a8e7398412e0e6b7 · ms:164582
+- 2026-11-03 · 5c2a308b* · exit 0 · `set -o pipefail …` · acceptance-sha256:dbd71c3e371a98a9c79c45866a0c1ed15cdaa984744e1dc3a8e7398412e0e6b7 · ms:168800
+- 2026-11-03 · 5c2a308b* · exit 0 · `set -o pipefail …` · acceptance-sha256:dbd71c3e371a98a9c79c45866a0c1ed15cdaa984744e1dc3a8e7398412e0e6b7 · ms:152780
+- 2026-11-03 · 5c2a308b* · exit 0 · `set -o pipefail …` · acceptance-sha256:dbd71c3e371a98a9c79c45866a0c1ed15cdaa984744e1dc3a8e7398412e0e6b7 · ms:156333
+- 2026-11-03 · 5c2a308b* · exit 0 · `set -o pipefail …` · acceptance-sha256:dbd71c3e371a98a9c79c45866a0c1ed15cdaa984744e1dc3a8e7398412e0e6b7 · ms:176426
+- 2026-11-03 · 5c2a308b* · exit 0 · `set -o pipefail …` · acceptance-sha256:dbd71c3e371a98a9c79c45866a0c1ed15cdaa984744e1dc3a8e7398412e0e6b7 · ms:161615

@@ -91,10 +91,13 @@ type CanaryReceipt struct {
 const canaryReadFirst = "Before you change anything, read notes.txt with the Read tool."
 
 // CanaryBase is the configurations a canary runs besides the plugin's and the
-// side arms': A and B, and H under stage7.
+// side arms': A and B, H under stage7, and B and S under stage8.
 func CanaryBase(profile string) []string {
-	if profile == ProfileStage7 {
+	switch profile {
+	case ProfileStage7:
 		return []string{"A", "B", "H"}
+	case ProfileStage8:
+		return []string{"B", "S"}
 	}
 	return []string{"A", "B"}
 }

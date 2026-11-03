@@ -224,11 +224,14 @@ start: observed 2026-11-03 in this session's environment. Nothing in this reposi
      mrw's guide changes. A mixed result is NO SHIP: a larger run is Zy's call (Out of Scope).
    - **How often this rule says SHIP with no effect at all.** Resampling, 2026-11-03: two disjoint sets of 18 attempts
      from Stage 5's 191 B attempts per model, one taken as B and one as S, 20,000 times, seed 193, uptake and coverage
-     taken to hold. The rule above PASSES 24.8% of the time on Opus and 24.5% on Sonnet, so a false SHIP (both) is
-     6.1%; with (i) unavailable (B refusing fewer than 3), 4.1%. The first draft's rule passed (b) 30% and 36% of the
-     time (the challenger's resampling); dropping (ii) to output per attempt, adding (g), and gating cost over all
-     paired instances brought it here. Under that null one model's PASS means little; SHIP needs both. T2's `null`
-     mode reproduces these figures with the frozen rule.
+     taken to hold. The frozen script (T2's `null`, `random.Random(193)`, `sample(range(191), 36)` per model, first 18
+     as B and last 18 as S; `docs/bench/stage-8/reference.md`) gives PASS 22.4% on Opus and 24.9% on Sonnet, so a false
+     SHIP (both) is 5.6%; with (i) unavailable (B refusing fewer than 3), 4.0%; seeds 1 to 6 give 5.4–6.0% and 3.8–4.2%.
+     The draft's own simulation gave 24.8%, 24.5%, 6.1% and 4.1%: it read the two Opus B attempts with no result line
+     (`sympy__sympy-16597`, `django__django-16032`) as zero, where this Decision's imputation treats them as missing.
+     The rule is unchanged; the frozen script's figures are the record's. The first draft's rule passed (b) 30% and 36%
+     of the time (the challenger's resampling); dropping (ii) to output per attempt, adding (g), and gating cost over all
+     paired instances brought it here. Under that null one model's PASS means little; SHIP needs both.
    - **Prediction, written now:** uptake holds on both models (the paragraph is directive). B on v1.83.0 refuses
      rarely, so (i) is likely unavailable or small, and the route to PASS is (ii); a block carries the old lines as
      well as the new where a native hunk carries an anchor, so (ii) more likely holds or rises than falls by 15%. The
@@ -332,7 +335,7 @@ See `docs/adr/ADR-193/tasks/README.md`.
 | Refusals move to ADR-052's line-after rule | Med | Med | the paragraph teaches the kept closer; refusals are counted by marker |
 | Bench's hook or the counting script misreads a SEARCH/REPLACE command | Low | High | checked 2026-11-03 (Existing Primitives Audit); an untokenized command is undecided and counts against coverage; T1's and T2's tests and T3's preflight |
 | Shell packaging games the measures (more calls, chained writes) | Med | Med | (g) bounds landed calls per attempt; a call with any refusal is refused; uptake needs mrw's own verdict for one write |
-| A false SHIP with no real effect | Low (6.1% by resampling) | Med | both models must PASS; the rate is recorded, and T2 reproduces it |
+| A false SHIP with no real effect | Low (5.6% by resampling, T2's frozen script) | Med | both models must PASS; the rate is recorded in `docs/bench/stage-8/reference.md` |
 | The core form would clash with core rule 2 | — | — | not shipped (Decision 3); its own measurement first |
 | 18 instances mislead | Med | Med | Decision 5 says what it cannot detect; NO SHIP on a mixed result |
 

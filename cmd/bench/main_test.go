@@ -257,6 +257,27 @@ func TestTheCanaryRunsHOnlyUnderStage7(t *testing.T) {
 	}
 }
 
+// TestTheStage8CanaryRunsBAndS: the canary command's configurations are B and
+// S under stage8, chosen by the command and not only by bench.CanaryBase, and
+// what they were under every other profile (ADR-193 Decision 2).
+func TestTheStage8CanaryRunsBAndS(t *testing.T) {
+	for _, c := range []struct {
+		o    bench.RunOptions
+		want string
+	}{
+		{bench.RunOptions{Profile: bench.ProfileStage8}, "B,S"},
+		{bench.RunOptions{Profile: bench.ProfileStage7}, "A,B,H"},
+		{bench.RunOptions{Profile: bench.ProfileStage6}, "A,B"},
+		{bench.RunOptions{Profile: bench.ProfileStage5}, "A,B"},
+		{bench.RunOptions{}, "A,B"},
+	} {
+		got, err := canaryConfigs(c.o)
+		if err != nil || strings.Join(got, ",") != c.want {
+			t.Errorf("the canary under profile %q runs %v (%v), want %s", c.o.Profile, got, err, c.want)
+		}
+	}
+}
+
 // TestBenchHookReadToolFlagNamesTheReadTool: bench hook refuses a shell write
 // either way, and says the Read tool reads only with --read-tool, the flag
 // configuration H's Bash hook carries.

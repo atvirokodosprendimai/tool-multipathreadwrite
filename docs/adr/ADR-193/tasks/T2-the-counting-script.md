@@ -29,7 +29,7 @@ counted by it as a reference row, and its `null` mode reproduces Decision 5's fa
 1. [S1] Write the failing tests and see them red (the script does not exist). [proof: acceptance]
 2. [S2] `count`: write calls after `-C DIR`, `--root DIR` and `--root=DIR`; untokenized calls; blocked, refused, landed, refused-by-`mrw:` and undecided in Decision 4's order; attribution of a SEARCH/REPLACE call to mrw's own verdict for its one write; missing measures when no final result; each transcript's sha256. [proof: mutation]
 3. [S3] `verdict`: the registered instance list and matrix, the final-receipt walk and its stops, (i), (ii), (iii), (g), (O) as ratios of sums, the imputation against S, the thresholds of Decision 5 as constants, the descriptive bootstrap (4,000 resamples, seed 193), and the verdict line. [proof: mutation]
-4. [S4] Run `count` and `null` over Stage 5's 382 B transcripts and write `reference.md` with both scripts' sha256. Its figures should match ADR-193's Context (555/94 and 359/106 decided/refused; 6.1% false SHIP); a difference is written down beside them, never smoothed. [proof: human: the counts and the rate against the Context's]
+4. [S4] Run `count` and `null` over Stage 5's 382 B transcripts and write `reference.md` with both scripts' sha256. Its figures should match ADR-193's Context (555/94 and 359/106 decided/refused; 5.6% false SHIP, the frozen script's figure, which replaced the draft simulation's 6.1% on 2026-11-03); a difference is written down beside them, never smoothed. [proof: human: the counts and the rate against the Context's]
 5. [S5] Commit before T4's first counted call. [proof: acceptance]
 
 ## Acceptance
@@ -70,6 +70,18 @@ out=$(python3 -B -m unittest discover -s scripts -p test_bench_edits.py -v 2>&1)
 | 4 — it is used | `reference.md`, T4 |
 
 ## Mutation Log
+- 2026-11-03 · 5c2a308b* · mutant killed · exit 1 · `scripts/bench_edits.py` · S2: --root DIR before write is not seen · acceptance-sha256:0a55a766b9af6e47fb037f30ced4d4ac0c6513a2cd955e535b60828fc90a2164 · covers:global flags before write count
+- 2026-11-03 · 5c2a308b* · mutant killed · exit 1 · `scripts/bench_edits.py` · S2: bench's own hook block is counted · acceptance-sha256:0a55a766b9af6e47fb037f30ced4d4ac0c6513a2cd955e535b60828fc90a2164 · covers:a bench hook block is not a write
+- 2026-11-03 · 5c2a308b* · mutant killed · exit 1 · `scripts/bench_edits.py` · S2: a call holding two writes is attributed · acceptance-sha256:0a55a766b9af6e47fb037f30ced4d4ac0c6513a2cd955e535b60828fc90a2164 · covers:uptake needs one attributed write
+- 2026-11-03 · 5c2a308b* · mutant killed · exit 1 · `scripts/bench_edits.py` · S2: a result with an mrw: line and no landed marker is undecided · acceptance-sha256:0a55a766b9af6e47fb037f30ced4d4ac0c6513a2cd955e535b60828fc90a2164 · covers:a write call is classified by its result
+- 2026-11-03 · 5c2a308b* · mutant killed · exit 1 · `scripts/bench_edits.py` · S2: an untokenized call no longer counts against coverage · acceptance-sha256:0a55a766b9af6e47fb037f30ced4d4ac0c6513a2cd955e535b60828fc90a2164 · covers:an untokenized write is undecided
+- 2026-11-03 · 5c2a308b* · mutant killed · exit 1 · `scripts/bench_edits.py` · S2: refusal markers other than nothing was written are ignored, so a mixed call lands · acceptance-sha256:0a55a766b9af6e47fb037f30ced4d4ac0c6513a2cd955e535b60828fc90a2164 · covers:a mixed call is refused
+- 2026-11-03 · 5c2a308b* · mutant killed · exit 1 · `scripts/bench_edits.py` · S2: a SEARCH/REPLACE document written to a file is not attributed · acceptance-sha256:0a55a766b9af6e47fb037f30ced4d4ac0c6513a2cd955e535b60828fc90a2164 · covers:a SEARCH/REPLACE heredoc is one write call
+- 2026-11-03 · 5c2a308b* · mutant killed · exit 1 · `scripts/bench_edits.py` · S3: coverage of exactly 90% is UNTESTED · acceptance-sha256:0a55a766b9af6e47fb037f30ced4d4ac0c6513a2cd955e535b60828fc90a2164 · covers:the verdict follows Decision 5
+- 2026-11-03 · 5c2a308b* · mutant killed · exit 1 · `scripts/bench_edits.py` · S3: an S attempt without a result takes the smallest value, not the largest · acceptance-sha256:0a55a766b9af6e47fb037f30ced4d4ac0c6513a2cd955e535b60828fc90a2164 · covers:undefined measures fail
+- 2026-11-03 · 5c2a308b* · mutant killed · exit 1 · `scripts/bench_edits.py` · S3: a start error is replaced once, not twice · acceptance-sha256:0a55a766b9af6e47fb037f30ced4d4ac0c6513a2cd955e535b60828fc90a2164 · covers:the exclusion walk takes the final receipt
+- 2026-11-03 · 5c2a308b* · mutant killed · exit 1 · `scripts/bench_edits.py` · S3: the instance order is not checked · acceptance-sha256:0a55a766b9af6e47fb037f30ced4d4ac0c6513a2cd955e535b60828fc90a2164 · covers:another instance list is refused
+- 2026-11-03 · 5c2a308b* · mutant killed · exit 1 · `scripts/bench_edits.py` · S3: a recomputed digest is not compared · acceptance-sha256:0a55a766b9af6e47fb037f30ced4d4ac0c6513a2cd955e535b60828fc90a2164 · covers:counts match receipts and digests
 
 ## Invariants
 
@@ -89,3 +101,19 @@ The reference row or the null rate differs from the Context's and the difference
 - The bench configuration (T1's job).
 
 ## Verification Log
+- 2026-11-03 · 5c2a308b* · exit 1 · `set -o pipefail …` · acceptance-sha256:0a55a766b9af6e47fb037f30ced4d4ac0c6513a2cd955e535b60828fc90a2164 · ms:189 · test-lock-sha256:c00359992f6ba8ddc9257362b4b36ee04d325e2b11139bde3784c36ed7f1e522 · test-lock-file:docs/adr/locks/c00359992f6ba8ddc9257362b4b36ee04d325e2b11139bde3784c36ed7f1e522.lock
+  ```
+  ```
+- 2026-11-03 · 5c2a308b* · exit 0 · `set -o pipefail …` · acceptance-sha256:0a55a766b9af6e47fb037f30ced4d4ac0c6513a2cd955e535b60828fc90a2164 · ms:918
+- 2026-11-03 · 5c2a308b* · exit 0 · `set -o pipefail …` · acceptance-sha256:0a55a766b9af6e47fb037f30ced4d4ac0c6513a2cd955e535b60828fc90a2164 · ms:798
+- 2026-11-03 · 5c2a308b* · exit 0 · `set -o pipefail …` · acceptance-sha256:0a55a766b9af6e47fb037f30ced4d4ac0c6513a2cd955e535b60828fc90a2164 · ms:772
+- 2026-11-03 · 5c2a308b* · exit 0 · `set -o pipefail …` · acceptance-sha256:0a55a766b9af6e47fb037f30ced4d4ac0c6513a2cd955e535b60828fc90a2164 · ms:792
+- 2026-11-03 · 5c2a308b* · exit 0 · `set -o pipefail …` · acceptance-sha256:0a55a766b9af6e47fb037f30ced4d4ac0c6513a2cd955e535b60828fc90a2164 · ms:725
+- 2026-11-03 · 5c2a308b* · exit 0 · `set -o pipefail …` · acceptance-sha256:0a55a766b9af6e47fb037f30ced4d4ac0c6513a2cd955e535b60828fc90a2164 · ms:778
+- 2026-11-03 · 5c2a308b* · exit 0 · `set -o pipefail …` · acceptance-sha256:0a55a766b9af6e47fb037f30ced4d4ac0c6513a2cd955e535b60828fc90a2164 · ms:756
+- 2026-11-03 · 5c2a308b* · exit 0 · `set -o pipefail …` · acceptance-sha256:0a55a766b9af6e47fb037f30ced4d4ac0c6513a2cd955e535b60828fc90a2164 · ms:723
+- 2026-11-03 · 5c2a308b* · exit 0 · `set -o pipefail …` · acceptance-sha256:0a55a766b9af6e47fb037f30ced4d4ac0c6513a2cd955e535b60828fc90a2164 · ms:790
+- 2026-11-03 · 5c2a308b* · exit 0 · `set -o pipefail …` · acceptance-sha256:0a55a766b9af6e47fb037f30ced4d4ac0c6513a2cd955e535b60828fc90a2164 · ms:832
+- 2026-11-03 · 5c2a308b* · exit 0 · `set -o pipefail …` · acceptance-sha256:0a55a766b9af6e47fb037f30ced4d4ac0c6513a2cd955e535b60828fc90a2164 · ms:695
+- 2026-11-03 · 5c2a308b* · exit 0 · `set -o pipefail …` · acceptance-sha256:0a55a766b9af6e47fb037f30ced4d4ac0c6513a2cd955e535b60828fc90a2164 · ms:761
+- 2026-11-03 · 5c2a308b* · exit 0 · `set -o pipefail …` · acceptance-sha256:0a55a766b9af6e47fb037f30ced4d4ac0c6513a2cd955e535b60828fc90a2164 · ms:729

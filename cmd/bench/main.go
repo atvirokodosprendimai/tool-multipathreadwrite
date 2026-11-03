@@ -5,11 +5,11 @@
 //	bench run     --stage S --out DIR --model M [--model M2] --claude PATH --mrw PATH
 //	              --config-dir DIR --containment bypass --canary FILE [--task ID ...]
 //	              [--configs A,B[,P,W[,G,C]]] [--repeats N] [--seed N] [--budget 20m] [--max-turns N]
-//	              [--profile stage5|stage6|stage7 [--plugin-dir DIR] [--node PATH] [--work-line FILE] [--checks FILE] [--side-arms FILE [--qh-binary FILE --qh-sums FILE]]] [--status-line]
+//	              [--profile stage5|stage6|stage7|stage8 [--plugin-dir DIR] [--node PATH] [--work-line FILE] [--checks FILE] [--side-arms FILE [--qh-binary FILE --qh-sums FILE]]] [--status-line]
 //	              [--source swe-bench --dataset FILE --swebench-python PATH [--selection FILE] [--docker PATH]]
 //	              [--block K [--configs-for MODEL=A,B,P ...]] [--disk-path PATH --disk-floor GiB]
 //	bench canary  --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass
-//	              [--profile stage5|stage6|stage7 [--plugin-dir DIR] [--node PATH] [--work-line FILE] [--side-arms FILE [--qh-binary FILE --qh-sums FILE]]]
+//	              [--profile stage5|stage6|stage7|stage8 [--plugin-dir DIR] [--node PATH] [--work-line FILE] [--side-arms FILE [--qh-binary FILE --qh-sums FILE]]]
 //	bench baseline --stage S --out DIR --selection FILE --dataset FILE --checks FILE [--surviving FILE] [--docker PATH] [--budget 20m]
 //	bench export-paired --pair X,Y --model M --scorer-sha SHA --selection FILE --canary FILE DIR...
 //	bench verify  --stage S --tasks N --repeats R DIR
@@ -41,8 +41,8 @@ import (
 )
 
 const usageText = `usage:
-  bench run     --stage S --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass --canary FILE [--task ID ...] [--configs A,B[,P,W[,G,C]]] [--repeats N] [--seed N] [--budget 20m] [--max-turns N] [--profile stage5|stage6|stage7 [--plugin-dir DIR] [--node PATH] [--work-line FILE] [--checks FILE] [--side-arms FILE [--qh-binary FILE --qh-sums FILE]]] [--status-line] [--source swe-bench --dataset FILE --swebench-python PATH [--selection FILE] [--docker PATH]]
-  bench canary  --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass [--profile stage5|stage6|stage7 [--plugin-dir DIR] [--node PATH] [--work-line FILE] [--side-arms FILE [--qh-binary FILE --qh-sums FILE]]]
+  bench run     --stage S --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass --canary FILE [--task ID ...] [--configs A,B[,P,W[,G,C]]] [--repeats N] [--seed N] [--budget 20m] [--max-turns N] [--profile stage5|stage6|stage7|stage8 [--plugin-dir DIR] [--node PATH] [--work-line FILE] [--checks FILE] [--side-arms FILE [--qh-binary FILE --qh-sums FILE]]] [--status-line] [--source swe-bench --dataset FILE --swebench-python PATH [--selection FILE] [--docker PATH]]
+  bench canary  --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass [--profile stage5|stage6|stage7|stage8 [--plugin-dir DIR] [--node PATH] [--work-line FILE] [--side-arms FILE [--qh-binary FILE --qh-sums FILE]]]
   bench verify  --stage S --tasks N --repeats R DIR
   bench run     … [--block K [--configs-for MODEL=A,B,P ...]] [--disk-path PATH --disk-floor GiB]
   bench baseline --stage S --out DIR --selection FILE --dataset FILE --checks FILE [--surviving FILE] [--docker PATH] [--budget 20m]   (the declared check once per instance on the unmodified tree; no model)
@@ -146,7 +146,7 @@ func stageFlags(name string) (*flag.FlagSet, *bench.RunOptions, *multi, *string)
 	fs.StringVar(&o.Containment, "containment", "", "bypass, or user:<name> once Zy chooses it")
 	fs.DurationVar(&o.Budget, "budget", bench.DefaultBudget, "an attempt's wall-clock budget")
 	fs.StringVar(&o.Scratch, "scratch", os.TempDir(), "where attempt trees are built")
-	fs.StringVar(&o.Profile, "profile", "", "stage7: stage5 and configuration H (ADR-192); stage5: the profile of ADR-162, for every configuration (skills on, Skill offered, node on PATH, no external model); stage6: the profile of ADR-163, stage5 plus a container of the instance image for python, python3, pytest and py.test")
+	fs.StringVar(&o.Profile, "profile", "", "stage8: stage5 and configuration S (ADR-193); stage7: stage5 and configuration H (ADR-192); stage5: the profile of ADR-162, for every configuration (skills on, Skill offered, node on PATH, no external model); stage6: the profile of ADR-163, stage5 plus a container of the instance image for python, python3, pytest and py.test")
 	fs.StringVar(&o.PluginDir, "plugin-dir", "", "the plugin configuration P loads: its directory in a tagged checkout (ADR-162)")
 	fs.StringVar(&o.Node, "node", "", "the node the profile links on every attempt's PATH; found on PATH when empty")
 	fs.StringVar(&o.Docker, "docker", "docker", "the docker CLI: stage6 starts the container of each attempt with it, and a SWE-bench run pulls and removes images with it")
@@ -166,7 +166,7 @@ func run(args []string) error {
 	fs.StringVar(&o.Stage, "stage", "", "the stage's name")
 	fs.StringVar(&o.Canary, "canary", "", "a passing canary.json for this CLI version")
 	fs.Var(&only, "task", "run only this task (repeatable); default every measured task")
-	configs := fs.String("configs", "A,B", "the configurations: A, B, H (B plus the Read tool, ADR-191's read hook and one sentence, under --profile stage7), P (the quality-harness plugin, under --profile stage5 with --plugin-dir), W (P plus --work-line's line, under --profile stage6), and the side arms G (P with its hooks run by the qh binary) and C (P with turnEnd notify), under --profile stage6 with --side-arms and beside P")
+	configs := fs.String("configs", "A,B", "the configurations: A, B, H (B plus the Read tool, ADR-191's read hook and one sentence, under --profile stage7), S (B plus one paragraph of edit instructions, under --profile stage8 with B), P (the quality-harness plugin, under --profile stage5 with --plugin-dir), W (P plus --work-line's line, under --profile stage6), and the side arms G (P with its hooks run by the qh binary) and C (P with turnEnd notify), under --profile stage6 with --side-arms and beside P")
 	fs.IntVar(&o.Repeats, "repeats", 2, "attempts per task, configuration and model")
 	fs.Int64Var(&o.Seed, "seed", 156, "the order's seed")
 	fs.BoolVar(&o.StatusLine, "status-line", false, "append the registered STATUS sentence to every instruction and record the claim (ADR-162)")
@@ -269,7 +269,8 @@ func baseline(args []string) error {
 }
 
 // canaryConfigs are the configurations a canary runs: A and B, H under
-// stage7, then the plugin's, the work line's and the side arms'.
+// stage7, B and S under stage8, then the plugin's, the work line's and the
+// side arms'.
 func canaryConfigs(o bench.RunOptions) ([]string, error) {
 	configs := bench.CanaryBase(o.Profile)
 	if o.PluginDir != "" {
