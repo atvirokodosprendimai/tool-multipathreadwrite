@@ -82,3 +82,15 @@ Stop if `mrw_read` touches the state directory before `hold` on some path (a ref
 - 2026-10-21 · 13132ca1* · exit 0 · `set -o pipefail …` · acceptance-sha256:9f1fd9d571a13d0286d7113a7390ab16c4dc3eeaa39bedb61c8309065395d886 · ms:3427
 - 2026-10-21 · 13132ca1* · exit 0 · `set -o pipefail …` · acceptance-sha256:9f1fd9d571a13d0286d7113a7390ab16c4dc3eeaa39bedb61c8309065395d886 · ms:3039
 - 2026-10-21 · f2e6f008* · exit 0 · `set -o pipefail …` · acceptance-sha256:9f1fd9d571a13d0286d7113a7390ab16c4dc3eeaa39bedb61c8309065395d886 · ms:1717
+- 2026-11-04 · 61d3051d* · exit 1 · `set -o pipefail …` · acceptance-sha256:9f1fd9d571a13d0286d7113a7390ab16c4dc3eeaa39bedb61c8309065395d886 · ms:895 · test-lock-sha256:c2df6cc87d9ae7ccefbab1937667e80d93fa533a431752f22fc3f3c8b268ebea · test-lock-file:docs/adr/locks/c2df6cc87d9ae7ccefbab1937667e80d93fa533a431752f22fc3f3c8b268ebea.lock
+  ```
+  --- last 7 line(s) of stdout
+  === RUN   TestMrwReadWithAnUnwritableStateServesWithoutCheckpoints
+      readonly166_test.go:34: a whole content read: {rpc:true code:-32603 isError:false text:holding checkpoints: mkdir /var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/TestMrwReadWithAnUnwritableStateServesWithoutCheckpoints2989045986/002/state: not a directory — mrw's state directory, where it keeps the read ledger outside the checkout; it is under XDG_STATE_HOME=/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/TestMrwReadWithAnUnwritableStateServesWithoutCheckpoints2989045986/002/state; /var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/TestMrwReadWithAnUnwritableStateServesWithoutCheckpoints2989045986/002/state is a file, not a directory: set XDG_STATE_HOME to a writable absolute directory}
+      readonly166_test.go:50: page 0 (big.txt): isError true, text "holding checkpoints: mkdir /var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/TestMrwReadWithAnUnwritableStateServesWithoutCheckpoints2989045986/002/state: not a directory — mrw's state directory, where it keeps the read ledger outside the checkout; it is under XDG_STATE_HOME=/var/folders/cp/56m_2hr96"
+  --- FAIL: TestMrwReadWithAnUnwritableStateServesWithoutCheckpoints (0.02s)
+  FAIL
+  FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/mcp	0.023s
+  FAIL
+  ```
+- 2026-11-04 · 61d3051d* · exit 0 · `set -o pipefail …` · acceptance-sha256:9f1fd9d571a13d0286d7113a7390ab16c4dc3eeaa39bedb61c8309065395d886 · ms:407

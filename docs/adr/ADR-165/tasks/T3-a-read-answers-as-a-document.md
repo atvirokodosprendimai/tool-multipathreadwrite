@@ -102,3 +102,18 @@ Stop if `readTool`'s receipt cannot be composed by one function without `interna
 - 2026-10-21 · f31b6ef4* · exit 0 · `set -o pipefail …` · acceptance-sha256:491e83ddab15ab33a97c059d0929940abfc027966bb8fb3172dd422ee5102561 · ms:7123
 - 2026-10-21 · f31b6ef4* · exit 0 · `set -o pipefail …` · acceptance-sha256:491e83ddab15ab33a97c059d0929940abfc027966bb8fb3172dd422ee5102561 · ms:6867
 - 2026-10-21 · f31b6ef4* · exit 0 · `set -o pipefail …` · acceptance-sha256:491e83ddab15ab33a97c059d0929940abfc027966bb8fb3172dd422ee5102561 · ms:6649
+- 2026-11-04 · 61d3051d* · exit 1 · `set -o pipefail …` · acceptance-sha256:491e83ddab15ab33a97c059d0929940abfc027966bb8fb3172dd422ee5102561 · ms:1457 · test-lock-sha256:eee3111c48ac13980117f2df9ef8d761cb45e78fd15a41319568dc447a32006f · test-lock-file:docs/adr/locks/eee3111c48ac13980117f2df9ef8d761cb45e78fd15a41319568dc447a32006f.lock
+  ```
+  --- last 10 line(s) of stdout (of 37 after folding 37 raw)
+                  "Spans": null
+                }
+              },
+              "problems": 0
+            }
+          }
+  --- FAIL: TestReadJSONCarriesTheServedTextAndTheReceiptMrwReadSends (0.55s)
+  FAIL
+  FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/cmd/mrw	0.555s
+  FAIL
+  ```
+- 2026-11-04 · 61d3051d* · exit 0 · `set -o pipefail …` · acceptance-sha256:491e83ddab15ab33a97c059d0929940abfc027966bb8fb3172dd422ee5102561 · ms:1566

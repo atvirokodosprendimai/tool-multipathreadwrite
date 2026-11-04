@@ -90,3 +90,15 @@ Stop if the root command's flag set cannot be read from `usageError` without a g
 ## Verification Log
 (empty until execute)
 - 2026-10-21 · 4756f972* · exit 0 · `set -o pipefail …` · acceptance-sha256:10748d93cd06f00b74247c01887e68c087ee1923929893fd2e70b910cbdfa6d8 · ms:3953
+- 2026-11-04 · 61d3051d* · exit 1 · `set -o pipefail …` · acceptance-sha256:10748d93cd06f00b74247c01887e68c087ee1923929893fd2e70b910cbdfa6d8 · ms:1348 · test-lock-sha256:7d9a3e3e8e1dda0d0f5f8078921cad513f22c428d2582b55256e5b7a864ead86 · test-lock-file:docs/adr/locks/7d9a3e3e8e1dda0d0f5f8078921cad513f22c428d2582b55256e5b7a864ead86.lock
+  ```
+  --- last 7 line(s) of stdout
+  === RUN   TestAGlobalFlagTypedAfterTheSubcommandIsPointedHome
+      rootflag165_test.go:41: read --root: err flag provided but not defined: --root (see: mrw read --help) (exit 2), stdout ""; want exit 2 ending "; --root goes before the subcommand: mrw --root DIR read …"
+      rootflag165_test.go:46: read --root, the case the report met: flag provided but not defined: --root (see: mrw read --help)
+  --- FAIL: TestAGlobalFlagTypedAfterTheSubcommandIsPointedHome (0.01s)
+  FAIL
+  FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/cmd/mrw	0.021s
+  FAIL
+  ```
+- 2026-11-04 · 61d3051d* · exit 0 · `set -o pipefail …` · acceptance-sha256:10748d93cd06f00b74247c01887e68c087ee1923929893fd2e70b910cbdfa6d8 · ms:749

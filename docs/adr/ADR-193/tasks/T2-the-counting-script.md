@@ -138,3 +138,5 @@ The reference row or the null rate differs from the Context's and the difference
 - 2026-11-03 · 272effbb* · exit 0 · `set -o pipefail …` · acceptance-sha256:0a55a766b9af6e47fb037f30ced4d4ac0c6513a2cd955e535b60828fc90a2164 · ms:861
 - 2026-11-03 · 272effbb* · exit 0 · `set -o pipefail …` · acceptance-sha256:0a55a766b9af6e47fb037f30ced4d4ac0c6513a2cd955e535b60828fc90a2164 · ms:911
 - 2026-11-03 · 272effbb* · exit 0 · `set -o pipefail …` · acceptance-sha256:0a55a766b9af6e47fb037f30ced4d4ac0c6513a2cd955e535b60828fc90a2164 · ms:940
+- 2026-11-04 · 61d3051d* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:0a55a766b9af6e47fb037f30ced4d4ac0c6513a2cd955e535b60828fc90a2164 · ms:0 · test-lock-sha256:ba36871ccdd7f776291310048fadb26ef1c665408d86f39eb131d6141d711972 · test-lock-file:docs/adr/locks/ba36871ccdd7f776291310048fadb26ef1c665408d86f39eb131d6141d711972.lock · test-lock-kind:replace
+- 2026-11-04 · 61d3051d* · exit 0 · `set -o pipefail …` · acceptance-sha256:0a55a766b9af6e47fb037f30ced4d4ac0c6513a2cd955e535b60828fc90a2164 · ms:1101
