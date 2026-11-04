@@ -67,6 +67,7 @@ h1=$(shasum -a 256 scripts/bench_edits.py | cut -d' ' -f1) && h2=$(shasum -a 256
 | 4 — it is used | T5 on SHIP; the BACKLOG follow-ups either way |
 
 ## Mutation Log
+- 2026-11-04 · 86bf7511* · mutant killed · exit 1 · `docs/bench/stage-8/verdict.txt` · a verdict file the frozen script does not reproduce · acceptance-sha256:fa599ffd84b1929b96350af8ecef8ad57bb769ae23987717ef870ea85391cae7 · covers:the verdict reproduces from the counts and receipts
 
 ## Invariants
 
@@ -87,3 +88,10 @@ Spend passes $15, an unsupported exclusion or a third dropped instance on a mode
 - Changing the guide (T5's job, on SHIP only).
 
 ## Verification Log
+- 2026-11-04 · 86bf7511* · exit 1 · `set -o pipefail …` · acceptance-sha256:fa599ffd84b1929b96350af8ecef8ad57bb769ae23987717ef870ea85391cae7 · ms:59 · test-lock-sha256:deeb36e69eee92091337010c87f199c96273cf4f30607b345e4a41e96cc4ff11 · test-lock-file:docs/adr/locks/deeb36e69eee92091337010c87f199c96273cf4f30607b345e4a41e96cc4ff11.lock
+  ```
+  --- last 1 line(s) of stderr
+  sed: docs/bench/stage-8/RESULTS.md: No such file or directory
+  ```
+- 2026-11-04 · 86bf7511* · exit 0 · `set -o pipefail …` · acceptance-sha256:fa599ffd84b1929b96350af8ecef8ad57bb769ae23987717ef870ea85391cae7 · ms:411
+- 2026-11-04 · 86bf7511* · exit 0 · `set -o pipefail …` · acceptance-sha256:fa599ffd84b1929b96350af8ecef8ad57bb769ae23987717ef870ea85391cae7 · ms:961

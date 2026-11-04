@@ -199,6 +199,15 @@ schedule is refused. It exits 0 when the stage is complete — after the fifth l
 1 when a block is due, naming each model's next configurations. `bench analyze` prints a Stage 5 directory in a
 table of its own, each verdict with the look it closed at, and leaves it out of the 95% table.
 
+## Stage 8: the edit-format pilot (ADR-193)
+
+Configuration S is B with the edit paragraph appended, run only under `--profile stage8` beside B. One counted pilot, read by
+`scripts/bench_edits.py verdict` under the rule ADR-193 Decision 5 registered:
+
+| Run | Instances | Models | Spend | Verdict | Record |
+|---|---|---|---|---|---|
+| 2026-11-04, CLI 2.1.317, mrw v1.83.0 | 18 × B, S, one repeat | Opus 5.5, Sonnet 5.5 | $8.61 | NO SHIP (both models FAIL) | [RESULTS.md](stage-8/RESULTS.md), [verdict.txt](stage-8/verdict.txt) |
+
 ## Commands
 
 ```
