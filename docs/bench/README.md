@@ -208,6 +208,12 @@ Configuration S is B with the edit paragraph appended, run only under `--profile
 |---|---|---|---|---|---|
 | 2026-11-04, CLI 2.1.317, mrw v1.83.0 | 18 × B, S, one repeat | Opus 5.5, Sonnet 5.5 | $8.61 | NO SHIP (both models FAIL) | [RESULTS.md](stage-8/RESULTS.md), [verdict.txt](stage-8/verdict.txt) |
 
+**The narrow licence replayed on these transcripts (ADR-194 T1).** `scripts/licence194_replay.py` replays every
+attempt's `mrw` calls and counts the landed hunks ADR-194's rule would refuse, against the criterion pre-registered in
+`docs/adr/BACKLOG.md` (From ADR-194). 2026-11-04, 73 transcripts: **INCONCLUSIVE**, W=238 R=0 U=137. Of U, 74 hunks
+were in `--terse` receipts, which print no hunk address, and 60 fell on files those left UNCERTAIN.
+[REPLAY.md](licence194/REPLAY.md), [replay.json](licence194/replay.json), [manifest.txt](licence194/manifest.txt).
+
 ## Commands
 
 ```
