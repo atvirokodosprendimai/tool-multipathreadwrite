@@ -11147,6 +11147,22 @@ else
 fi
 rm -rf "$R332"
 
+# 334. The Stage 8 pilot (ADR-193 T4): an agent passed the file it meant to edit as
+# --format=search_replace's FILE, so mrw read source as the document and refused
+# "no hunks", which named neither the marker nor the mistake. A document with no
+# SEARCH line now says so and says FILE is the document; the file is unchanged. The
+# pair: the same edit sent as a document on standard input lands.
+R334=$(mktemp -d "$WORK/r334-XXXXXX"); printf 'alpha\nbeta\ndelta\n' > "$R334/notes.txt"
+e334() { env XDG_STATE_HOME="$R334/state" "$MRW" --root "$R334" "$@" 2>&1; }
+out=$(e334 write --format=search_replace --no-check "$R334/notes.txt"); rc334=$?
+{ [ "$rc334" = 2 ] && grep -qF 'no line starts <<<<<<< SEARCH' <<<"$out" && grep -qF 'not the file it edits' <<<"$out" \
+  && [ "$(sed -n 2p "$R334/notes.txt")" = beta ]; } \
+  && ok "search_replace on a file with no SEARCH line names the marker and says FILE is the document" || bad "no-marker refusal: exit $rc334 [$out]"
+out=$(printf 'notes.txt\n<<<<<<< SEARCH\nbeta\ndelta\n=======\ngamma\ndelta\n>>>>>>> REPLACE\n' | e334 write --format=search_replace --no-check -); rc334=$?
+{ [ "$rc334" = 0 ] && [ "$(sed -n 2p "$R334/notes.txt")" = gamma ]; } \
+  && ok "the pair: the same edit as a document on standard input lands" || bad "document on stdin: exit $rc334 [$out]"
+rm -rf "$R334"
+
 # 328. ADR-190: a SEARCH block that quotes every line it replaces, exactly and
 # matching once, is licensed for them with no read. The pair: a native plan of
 # the same lines is refused as unread. A block that matches twice is a compile
