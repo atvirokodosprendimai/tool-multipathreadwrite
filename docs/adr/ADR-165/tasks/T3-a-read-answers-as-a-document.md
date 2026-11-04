@@ -117,3 +117,4 @@ Stop if `readTool`'s receipt cannot be composed by one function without `interna
   FAIL
   ```
 - 2026-11-04 · 61d3051d* · exit 0 · `set -o pipefail …` · acceptance-sha256:491e83ddab15ab33a97c059d0929940abfc027966bb8fb3172dd422ee5102561 · ms:1566
+- 2026-11-04 · human-observed · S4: 2026-11-04: ran ./scripts/contract.sh once on 09a251c3 (bin/mrw built from it; exit 0, 'contract holds'), and read the §283 rows: all 5 PASS (read --json exit 0, one document with the line and f.txt's sha; refusal exits 2 as an error document; content equals the plain read's stdout). · acceptance-sha256:491e83ddab15ab33a97c059d0929940abfc027966bb8fb3172dd422ee5102561

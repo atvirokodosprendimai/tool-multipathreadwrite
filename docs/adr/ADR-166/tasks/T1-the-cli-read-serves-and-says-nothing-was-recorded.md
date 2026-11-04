@@ -100,3 +100,4 @@ Stop if a state failure can reach the read action from a call this record does n
   FAIL
   ```
 - 2026-11-04 · 61d3051d* · exit 0 · `set -o pipefail …` · acceptance-sha256:f6b0a940471f3e9eba02bcf2f4948bbcda9c38aaca82b06faa8e519c8c86ab40 · ms:1217
+- 2026-11-04 · human-observed · S3: 2026-11-04: ran ./scripts/contract.sh once on 09a251c3 (bin/mrw built from it; exit 0, 'contract holds'), and read the §284 rows: all 3 PASS (read with an unmakeable state directory exits 0, serves the line, says last that nothing was recorded; --quiet still exits 2). · acceptance-sha256:f6b0a940471f3e9eba02bcf2f4948bbcda9c38aaca82b06faa8e519c8c86ab40

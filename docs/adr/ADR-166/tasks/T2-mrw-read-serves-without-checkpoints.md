@@ -94,3 +94,4 @@ Stop if `mrw_read` touches the state directory before `hold` on some path (a ref
   FAIL
   ```
 - 2026-11-04 · 61d3051d* · exit 0 · `set -o pipefail …` · acceptance-sha256:9f1fd9d571a13d0286d7113a7390ab16c4dc3eeaa39bedb61c8309065395d886 · ms:407
+- 2026-11-04 · human-observed · S3: 2026-11-04: ran ./scripts/contract.sh once on 09a251c3 (bin/mrw built from it; exit 0, 'contract holds'), and read the §285 rows: both PASS (mrw_read answers without checkpoints, saying so; a quiet mrw_read still answers the error). · acceptance-sha256:9f1fd9d571a13d0286d7113a7390ab16c4dc3eeaa39bedb61c8309065395d886

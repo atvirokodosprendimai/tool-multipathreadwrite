@@ -102,3 +102,4 @@ Stop if the root command's flag set cannot be read from `usageError` without a g
   FAIL
   ```
 - 2026-11-04 · 61d3051d* · exit 0 · `set -o pipefail …` · acceptance-sha256:10748d93cd06f00b74247c01887e68c087ee1923929893fd2e70b910cbdfa6d8 · ms:749
+- 2026-11-04 · human-observed · S4: 2026-11-04: ran ./scripts/contract.sh once on 09a251c3 (bin/mrw built from it; exit 0, 'contract holds'), and read the §281 rows: all 5 PASS (read --root after the verb refused exit 2 and says where --root goes; --root before the verb serves the line; write takes --root after the verb). · acceptance-sha256:10748d93cd06f00b74247c01887e68c087ee1923929893fd2e70b910cbdfa6d8

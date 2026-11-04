@@ -117,3 +117,4 @@ Stop if the WITHHELD-by-name rule cannot hold for a `--grep` walk without openin
   FAIL
   ```
 - 2026-11-04 · 61d3051d* · exit 0 · `set -o pipefail …` · acceptance-sha256:d91180fd5a9324639c3e6bf934b8b1e695bd4b15648b4347b0d5beb3799efa66 · ms:1363
+- 2026-11-04 · human-observed · S4: 2026-11-04: ran ./scripts/contract.sh once on 09a251c3 (bin/mrw built from it; exit 0, 'contract holds'), and read the §282 rows: all 5 PASS (over-budget read exits 1 within budget naming b.txt WITHHELD; plan to the withheld file refused exit 1; the pair serves both and applies). · acceptance-sha256:d91180fd5a9324639c3e6bf934b8b1e695bd4b15648b4347b0d5beb3799efa66
