@@ -88,7 +88,7 @@ func CompileSearchReplace(root string, doc []byte) ([]byte, error) {
 		i++
 	}
 	if out.Len() == 0 {
-		return nil, fmt.Errorf("search_replace: no hunks")
+		return nil, fmt.Errorf("search_replace: no line starts %s: the argument is the SEARCH/REPLACE document, not the file it edits; write the blocks to a file and name it, or name - and send them on standard input", searchHead)
 	}
 	return []byte(out.String()), nil
 }

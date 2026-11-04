@@ -133,3 +133,19 @@ func TestEmptySearchOnMissingFileIsCreate(t *testing.T) {
 		t.Fatalf("create = %+v", hunks)
 	}
 }
+
+// The Stage 8 pilot (ADR-193 T4): an agent passed the file it meant to edit as
+// FILE, so mrw read Python source as the document. The refusal names the
+// marker it found none of and says what FILE is.
+func TestADocumentWithNoSearchLineSaysFileIsTheDocument(t *testing.T) {
+	root := writeTree(t, map[string]string{"a.go": demo})
+	_, err := CompileSearchReplace(root, []byte(demo))
+	if err == nil {
+		t.Fatal("a file with no SEARCH line compiled")
+	}
+	for _, want := range []string{"no line starts <<<<<<< SEARCH", "not the file it edits"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("refusal %q does not say %q", err, want)
+		}
+	}
+}

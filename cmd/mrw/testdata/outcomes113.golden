@@ -162,14 +162,14 @@ pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 st
     "window": 0
     "fires": false
   }
-  "error": "<PLAN>: search_replace: no hunks"
+  "error": "<PLAN>: search_replace: no line starts <<<<<<< SEARCH: the argument is the SEARCH/REPLACE document, not the file it edits; write the blocks to a file and name it, or name - and send them on standard input"
 }
-<PLAN>: search_replace: no hunks
+<PLAN>: search_replace: no line starts <<<<<<< SEARCH: the argument is the SEARCH/REPLACE document, not the file it edits; write the blocks to a file and name it, or name - and send them on standard input
 == search_replace_refused human
 exit 2
 counts applied=0 check_not_run=0 failed_check=0 partially_applied=0 refused_apply=0 refused_parse=1 landed 0
 pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 strict_would_refuse_held=0 strict_would_refuse_unchecked=0
-<PLAN>: search_replace: no hunks
+<PLAN>: search_replace: no line starts <<<<<<< SEARCH: the argument is the SEARCH/REPLACE document, not the file it edits; write the blocks to a file and name it, or name - and send them on standard input
 == body_file_missing json
 exit 2
 counts applied=0 check_not_run=0 failed_check=0 partially_applied=0 refused_apply=0 refused_parse=1 landed 0
