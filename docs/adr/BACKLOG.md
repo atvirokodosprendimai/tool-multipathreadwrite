@@ -970,7 +970,50 @@ verdict), written with the record on 2026-11-03, before any code or run.
 - **A SEARCH/REPLACE refusal that says the input has no marker (from ADR-193 T4)** (2026-11-04): `mrw write
   --format=search_replace F` on a file with no `<<<<<<< SEARCH` line refuses with `search_replace: no hunks`, which
   does not say that F holds no marker, nor that F looks like the file to edit rather than the document. A bounded change
-  to the refusal text, with a contract row; it does not depend on a SHIP.
+  to the refusal text, with a contract row; it does not depend on a SHIP. Done: #616, shipped in v1.84.0.
+
+## From ADR-194 (a write licenses the lines the caller saw and the lines it wrote)
+
+- **The replay that prices the narrow licence (ADR-194 T1). PRE-REGISTERED 2026-11-04, before
+  `scripts/licence194_replay.py` exists** (`.claude/rules/adr.md`; amended the same day, before any run, from two
+  challenges).
+  - *Corpus.* Every `*.transcript.jsonl` of the Stage 8 pilot, in the directory `docs/bench/stage-8/RESULTS.md`'s
+    `transcripts:` line names (both cells B and S, both models; Claude Code 2.1.317, mrw v1.83.0; their only tools
+    were Bash and Glob, so every licence went through `mrw`). Pinned by a manifest of each file's name and sha256 of
+    its content, committed with the result.
+  - *Replay.* Per attempt, in transcript order, from each `mrw` Bash call and its result. Historical: every write
+    that landed is applied as it landed, so line numbers follow what happened on disk; each hunk is judged on its own,
+    and none is replayed as if an earlier one had been refused.
+  - *Licence sources.* A read licenses the `@@ A-B` spans it printed under a file's `==>` header; a read that printed
+    the whole file licenses it whole. A read under `--quiet`, `--max-cols` (or `MRW_MAX_COLS`), `--fold`,
+    `--no-comments`, `--if-changed` or `--if-served`, a read piped into another command (`mrw read … | sed`, `| head`), and a read whose printed lines end before the last `@@` span it headed, make its files UNCERTAIN, since the transcript cannot show what mrw recorded. A write's own body lines are licensed
+    as ADR-194 Decisions 1-3 say; a `create` hunk makes the file whole.
+  - *Counts.* W = hunks of writes that printed `applied`, path ops (unlink, rename) included, each placed by the
+    address its `ok` row prints. U = hunks of W the replay cannot place (an address it cannot resolve, a receipt it
+    cannot parse) or that fall on an UNCERTAIN file; a file stays UNCERTAIN from that hunk or read until a whole read
+    or a `create` of it. R = hunks of W not in U that ADR-194 would refuse: a line hunk with a line it addresses (for a
+    multi-line replace, also the line after, ADR-052) outside the file's replayed licence, in a file that no `create`
+    made and no read served whole since its last write; a path op on a file not wholly licensed. Not counted in R,
+    because they license themselves: a SEARCH/REPLACE hunk's quoted lines (ADR-190; only its line after can count), a
+    `--sub` or `--rewrite` hunk (ADR-161), the addressed lines of a hunk of a `--force` write (its line after, for a multi-line replace, still counts: ADR-052 holds under `--force`, `internal/apply/apply.go:1880-1889`).
+  - *Verdict*, the first rule that applies: INCONCLUSIVE if W < 50 or U > W/5; STOP if R > W/20 (T2 does not start
+    until Zy reads the numbers); GO if R + U <= W/20; otherwise INCONCLUSIVE. GO says: on this corpus, the rule would
+    refuse at most 1 landed hunk in 20 even if every hunk the replay could not place were refused. It says nothing about
+    hosts with their own Read tool (ADR-191), which this corpus has none of.
+  - *Reported beside the verdict*, not part of it: W, R and U by model and cell, and each R and U hunk's attempt,
+    file, line and reason.
+  - The script, its synthetic tests, the manifest and the output (`docs/bench/licence194/`) are committed with the
+    verdict; this criterion is not edited after the first run.
+- **The narrow licence on a paid run (deferred from ADR-194)** (2026-11-04): the first paid benchmark on a release that
+  carries ADR-194 T2 counts, per model and cell, the refusals whose reason carries its clause (a write does not license
+  the whole file), beside the run's own refusal rate. Pre-registered with that run, not here.
+
+## From ADR-195 (`--create` refuses empty standard input)
+
+- **`body=@path` naming an empty file (deferred from ADR-195)** (2026-11-04): AGENTS.md §2 says an empty body file
+  is `body=0`, so a producer that failed before writing the body file makes an empty create under a clean receipt,
+  the failure ADR-195 refuses for `--create`. The caller names the file and can inspect it, which is why ADR-195
+  left it out; whether it should be refused too is its own record.
 
 ## Post-v1.77.1 cleanup and decisions (2026-10-28)
 
