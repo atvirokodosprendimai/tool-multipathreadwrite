@@ -66,7 +66,8 @@ visible; a write that changes nothing is not.* `--format=apply_patch` and
 `--format=search_replace` compile to a native plan; sequential apply_patch is
 the leak, not the feature.
 A new file needs no plan: `mrw write --create PATH < content` makes it from standard input as the `create` plan of
-those lines would (ADR-139), through the same lock, check and receipt.
+those lines would (ADR-139), through the same lock, check and receipt. Empty input is refused, exit 2, since zero bytes read
+like a producer that failed before it printed; an empty file is the plan `@@ PATH 0 create body=0` (ADR-195).
 PowerShell appends a CRLF to everything it pipes (ADR-142): after LF lines with no other CR that CRLF is dropped, and stderr says
 so; content that is all CRLF and ends in an empty line is kept and named, because mrw cannot tell PowerShell's CRLF from a blank
 line the file has (`cmd /c "mrw write --create p < f"` adds none); content whose lines end in CRLF is written with LF, as every
