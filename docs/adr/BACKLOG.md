@@ -961,6 +961,16 @@ verdict), written with the record on 2026-11-03, before any code or run.
   not touch them.
 - **A larger confirmation run (deferred from ADR-193)** (2026-11-03): after a mixed pilot, or before any README claim
   from a SHIP, run S against B on more instances (the 20 of `selection-adr-160.json`, or a pool), with its own bar.
+- **A reworded paragraph, measured again (from ADR-193 T4)** (2026-11-04): the pilot said NO SHIP
+  (`docs/bench/stage-8/RESULTS.md`). 15 of Sonnet S's 17 refused calls were `search_replace: no hunks`, in 8 of 18
+  attempts: the agent passed the file it edited as `FILE` and the document on standard input, which "apply it with mrw
+  write --format=search_replace FILE" allows. A paragraph naming FILE as the document is a new paragraph, so a new
+  pilot with its own pre-registration (about $9 at Stage 8's prices); the route to SHIP is (b)(i) alone, since a block
+  carries the old lines and output per attempt rose 25–26% on both models. Zy's call.
+- **A SEARCH/REPLACE refusal that says the input has no marker (from ADR-193 T4)** (2026-11-04): `mrw write
+  --format=search_replace F` on a file with no `<<<<<<< SEARCH` line refuses with `search_replace: no hunks`, which
+  does not say that F holds no marker, nor that F looks like the file to edit rather than the document. A bounded change
+  to the refusal text, with a contract row; it does not depend on a SHIP.
 
 ## Post-v1.77.1 cleanup and decisions (2026-10-28)
 
