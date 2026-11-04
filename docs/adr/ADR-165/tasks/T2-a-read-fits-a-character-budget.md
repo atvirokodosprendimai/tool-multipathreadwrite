@@ -102,3 +102,19 @@ Stop if the WITHHELD-by-name rule cannot hold for a `--grep` walk without openin
 - 2026-10-21 · f3824d00* · exit 0 · `set -o pipefail …` · acceptance-sha256:d91180fd5a9324639c3e6bf934b8b1e695bd4b15648b4347b0d5beb3799efa66 · ms:4236
 - 2026-10-21 · f3824d00* · exit 0 · `set -o pipefail …` · acceptance-sha256:d91180fd5a9324639c3e6bf934b8b1e695bd4b15648b4347b0d5beb3799efa66 · ms:4250
 - 2026-10-21 · a043d346* · exit 0 · `set -o pipefail …` · acceptance-sha256:d91180fd5a9324639c3e6bf934b8b1e695bd4b15648b4347b0d5beb3799efa66 · ms:4451
+- 2026-11-04 · 61d3051d* · exit 1 · `set -o pipefail …` · acceptance-sha256:d91180fd5a9324639c3e6bf934b8b1e695bd4b15648b4347b0d5beb3799efa66 · ms:475 · test-lock-sha256:19fd3577418961d11492e9519fc49f11fc77b46e2b8a36b1a10d9e049d3f6e3d · test-lock-file:docs/adr/locks/19fd3577418961d11492e9519fc49f11fc77b46e2b8a36b1a10d9e049d3f6e3d.lock
+  ```
+  --- last 10 line(s) of stdout (of 28 after folding 28 raw)
+          want "==> a.txt  5L  31B  sha 5c3dbe3a\n@@ 1-5\n 1| alpha\n 2| bravo\n 3| charlie\n 4| delta\n 5| echo\n==> b.txt  5L  32B  sha 019001b9\n@@ 1-5\n 1| foxtrot\n 2| golf\n"
+      maxchars165_test.go:63: the withheld report does not say "b.txt: lines 3-5 WITHHELD (3 line(s)): --max-chars reached":
+          c.txt: WITHHELD: --max-chars reached
+      maxchars165_test.go:70: problems = 1; each withheld range and file is one
+      maxchars165_test.go:76: b.txt is licensed as {SHA:019001b9a6008c6f5d8ea3610dde3f6740a9f7273b816c3b98101085089aec02 Spans:[] Written:false Shown:[]}; only lines 1-2 were printed
+      maxchars165_test.go:108: a refusal the budget dropped: out "==> a.txt  5L  31B  sha 5c3dbe3a\n@@ 1-5\n 1| alpha\n 2| bravo\n 3| charlie\n 4| delta\n 5| echo\n==> missing.txt  UNREADABLE  open /private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/TestAReadStopsAtItsCharacterBudgetAndNamesWhatItWithheld3525136446/001/missing.txt: no such file or directory\n", withheld "", problems 1
+  --- FAIL: TestAReadStopsAtItsCharacterBudgetAndNamesWhatItWithheld (0.00s)
+  FAIL
+  FAIL	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read	0.007s
+  FAIL
+  ```
+- 2026-11-04 · 61d3051d* · exit 0 · `set -o pipefail …` · acceptance-sha256:d91180fd5a9324639c3e6bf934b8b1e695bd4b15648b4347b0d5beb3799efa66 · ms:1363
+- 2026-11-04 · human-observed · S4: 2026-11-04: ran ./scripts/contract.sh once on 09a251c3 (bin/mrw built from it; exit 0, 'contract holds'), and read the §282 rows: all 5 PASS (over-budget read exits 1 within budget naming b.txt WITHHELD; plan to the withheld file refused exit 1; the pair serves both and applies). · acceptance-sha256:d91180fd5a9324639c3e6bf934b8b1e695bd4b15648b4347b0d5beb3799efa66

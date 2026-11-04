@@ -121,3 +121,5 @@ The pinned Claude Code does not read `--append-system-prompt-file` for S as it d
 - 2026-11-03 · 8a9f8005* · exit 0 · `set -o pipefail …` · acceptance-sha256:dbd71c3e371a98a9c79c45866a0c1ed15cdaa984744e1dc3a8e7398412e0e6b7 · ms:172328
 - 2026-11-03 · 8a9f8005* · exit 0 · `set -o pipefail …` · acceptance-sha256:dbd71c3e371a98a9c79c45866a0c1ed15cdaa984744e1dc3a8e7398412e0e6b7 · ms:163452
 - 2026-11-03 · 8a9f8005* · exit 0 · `set -o pipefail …` · acceptance-sha256:dbd71c3e371a98a9c79c45866a0c1ed15cdaa984744e1dc3a8e7398412e0e6b7 · ms:159605
+- 2026-11-04 · 61d3051d* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:dbd71c3e371a98a9c79c45866a0c1ed15cdaa984744e1dc3a8e7398412e0e6b7 · ms:0 · test-lock-sha256:ed304a05df6e6cf4d7b30f359c94666fa31c5d93ef027f3048c286759c20280d · test-lock-file:docs/adr/locks/ed304a05df6e6cf4d7b30f359c94666fa31c5d93ef027f3048c286759c20280d.lock · test-lock-kind:replace
+- 2026-11-04 · 61d3051d* · exit 0 · `set -o pipefail …` · acceptance-sha256:dbd71c3e371a98a9c79c45866a0c1ed15cdaa984744e1dc3a8e7398412e0e6b7 · ms:177915
