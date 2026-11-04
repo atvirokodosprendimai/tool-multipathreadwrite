@@ -125,17 +125,28 @@ STATUSES = ("pending", "partial", "blocked", "done")
 
 
 def status_of(task):
-    """The status the task's row in its tasks/README.md gives, or "" when there is no such row."""
+    """The status the task's row in its tasks/README.md gives in its table's Status column, or "" when
+    there is no such row, or its table names no Status column (read as unknown, so the task is checked).
+    The column is the one the table's header row names: a goal that happens to say "pending" is not a
+    status (Codex, review of #618)."""
     tid = os.path.basename(task).split("-", 1)[0].removesuffix(".md")
     try:
         with open(os.path.join(os.path.dirname(task), "README.md"), encoding="utf-8") as fh:
             rows = fh.read().splitlines()
     except OSError:
         return ""
+    col = None
     for row in rows:
-        cells = [c.strip() for c in row.strip().strip("|").split("|")]
-        if row.lstrip().startswith("|") and cells and cells[0] == tid:
-            return next((c for c in cells[1:] if c in STATUSES), "")
+        if not row.lstrip().startswith("|"):
+            col = None  # a table ended; the next one brings its own header
+            continue
+        cells = [c.strip().strip("`").strip() for c in row.strip().strip("|").split("|")]
+        if col is None:
+            low = [c.lower() for c in cells]
+            col = low.index("status") if "status" in low else -1
+            continue
+        if cells and cells[0] == tid and 0 <= col < len(cells):
+            return cells[col] if cells[col] in STATUSES else ""
     return ""
 
 
@@ -170,9 +181,9 @@ def check(root):
 
 def self_test():
     """A tree whose fence holds, misses, negates, quotes a backtick, anchors with a quoted `$`, and
-    quotes a `;` and a `&&`: exactly the missing clause and the two quoted-operator misses are red,
-    and every clause is checked. A pending task's red clause is counted as not yet done and not run;
-    a task its README lists as done, and one it does not list, are checked."""
+    quotes a `;` and a `&&`: the missing clause and the two quoted-operator misses are red. Beside it,
+    a task its README lists as pending (its red clause is counted as not yet done and not run), one it
+    does not list, and one listed as done whose goal says "pending": the last two are checked and red."""
     with tempfile.TemporaryDirectory() as root:
         os.makedirs(os.path.join(root, "docs/adr/ADR-001-x/tasks"))
         with open(os.path.join(root, "README.md"), "w", encoding="utf-8") as fh:
@@ -186,16 +197,19 @@ def self_test():
                      "  && grep -q 'zero$' README.md \\\n"
                      "  && grep -q 'absent;needle' README.md \\\n"
                      "  && grep -q 'absent&&needle' README.md\n```\n")
-        for tid, clause in (("T2", "grep -q 'pending miss' README.md"), ("T3", "grep -q 'unlisted miss' README.md")):
+        for tid, clause in (("T2", "grep -q 'pending miss' README.md"), ("T3", "grep -q 'unlisted miss' README.md"),
+                            ("T4", "grep -q 'goal-says-pending miss' README.md")):
             with open(os.path.join(root, f"docs/adr/ADR-001-x/tasks/{tid}-x.md"), "w", encoding="utf-8") as fh:
                 fh.write(f"## Acceptance\n\n```bash\n{clause}\n```\n")
         with open(os.path.join(root, "docs/adr/ADR-001-x/tasks/README.md"), "w", encoding="utf-8") as fh:
-            fh.write("| Task | Goal | Status |\n|---|---|---|\n| T1 | x | done |\n| T2 | x | pending |\n")
+            fh.write("| Task | Goal | Depends-on | Status |\n|---|---|---|---|\n| T1 | x | none | done |\n"
+                     "| T2 | x | none | pending |\n| T4 | pending | none | done |\n")
         checked, red, _, unfinished = check(root)
         missed = sorted(c for _, c in red)
         want = ["grep -q 'a phrase nobody wrote' README.md", "grep -q 'absent&&needle' README.md",
-                "grep -q 'absent;needle' README.md", "grep -q 'unlisted miss' README.md"]
-        if checked != 8 or missed != want or len(unfinished) != 1:
+                "grep -q 'absent;needle' README.md", "grep -q 'goal-says-pending miss' README.md",
+                "grep -q 'unlisted miss' README.md"]
+        if checked != 9 or missed != want or len(unfinished) != 1:
             print(f"fence-prose self-test FAILED: checked {checked}, red {missed}, not yet done {len(unfinished)}")
             return 1
     print("fence-prose self-test: every red clause is reported, quoted operators included; a pending task's is not run")
