@@ -23,7 +23,7 @@ func parseOne(t *testing.T, compiled []byte) plan.Hunk {
 
 // ADR-139. A file's content becomes one create hunk, by the same emitter the
 // foreign formats use: the lines of the content, a line beginning "@@" carried
-// verbatim, an empty content an empty create, a path with a space quoted.
+// verbatim, a path with a space quoted. Empty content is refused (ADR-195).
 func TestCompileCreateMakesACreatePlanOfStdin(t *testing.T) {
 	out, err := CompileCreate("dir/a.txt", []byte("alpha\nbeta"))
 	if err != nil {
@@ -40,12 +40,8 @@ func TestCompileCreateMakesACreatePlanOfStdin(t *testing.T) {
 	if h := parseOne(t, out); !reflect.DeepEqual(h.Body, strings.Split(strings.TrimSuffix(doc, "\n"), "\n")) {
 		t.Errorf("a document holding @@ lines was not carried whole: %+v\n%s", h, out)
 	}
-	out, err = CompileCreate("empty.txt", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if h := parseOne(t, out); len(h.Body) != 0 {
-		t.Errorf("empty content made a body: %+v", h)
+	if _, err = CompileCreate("empty.txt", nil); err == nil || !strings.Contains(err.Error(), "standard input was empty") {
+		t.Errorf("empty content was not refused as empty standard input (ADR-195): %v", err)
 	}
 	out, err = CompileCreate("with space.txt", []byte("x\n"))
 	if err != nil {

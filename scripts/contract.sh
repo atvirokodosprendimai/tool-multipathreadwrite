@@ -11147,6 +11147,27 @@ else
 fi
 rm -rf "$R332"
 
+# 336. ADR-195: `mrw write --create PATH` with nothing on standard input is
+# refused, exit 2, and creates nothing: zero bytes read exactly like a producer
+# that failed before it printed (issue #606). The refusal names the body=0 plan,
+# and comes before the apply, so an empty --create of a PATH that exists is this
+# exit 2 and the file is unchanged. The pair: a lone newline is created (one
+# empty line), and the named plan makes the empty file.
+R336=$(mktemp -d "$WORK/r336-XXXXXX")
+e336() { env XDG_STATE_HOME="$R336/state" "$MRW" --root "$R336" "$@" 2>&1; }
+out=$(: | e336 write --no-check --create e.txt); rc336=$?
+{ [ "$rc336" = 2 ] && [ ! -e "$R336/e.txt" ] && grep -qF 'standard input was empty' <<<"$out" && grep -qF '@@ "e.txt" 0 create body=0' <<<"$out"; } \
+  && ok "--create with empty standard input exits 2 and creates nothing" || bad "empty --create: exit $rc336 [$out]"
+printf 'kept\n' > "$R336/old.txt"
+out=$(: | e336 write --no-check --create old.txt); rc336=$?
+{ [ "$rc336" = 2 ] && [ "$(cat "$R336/old.txt")" = kept ]; } \
+  && ok "and an empty --create of a PATH that exists is the same exit 2, the file unchanged" || bad "empty --create of an existing path: exit $rc336 [$out]"
+out=$(printf '\n' | e336 write --no-check --create nl.txt); rc336=$?
+out2=$(printf '@@ e.txt 0 create body=0\n' | e336 write --no-check -); rc336b=$?
+{ [ "$rc336" = 0 ] && [ "$(wc -c < "$R336/nl.txt" | tr -d ' ')" = 1 ] && [ "$rc336b" = 0 ] && [ -f "$R336/e.txt" ] && [ ! -s "$R336/e.txt" ]; } \
+  && ok "the pair: a lone newline is created, and the body=0 plan makes the empty file" || bad "pair: exit $rc336/$rc336b [$out] [$out2]"
+rm -rf "$R336"
+
 # 334. The Stage 8 pilot (ADR-193 T4): an agent passed the file it meant to edit as
 # --format=search_replace's FILE, so mrw read source as the document and refused
 # "no hunks", which named neither the marker nor the mistake. A document with no

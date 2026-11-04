@@ -82,8 +82,19 @@ out=$(go test ./internal/ingest/ -count=1 -v -run '^(TestCreateRefusesEmptyInput
 | 4 — it is used | no telemetry (ADR-009); the evidence for building it is issue #606's run-9 crash |
 
 ## Mutation Log
+- 2026-11-04 · 6a1f611c* · mutant killed · exit 1 · `internal/ingest/create.go` · the empty check removed, so zero bytes compile to an empty create and the zero-byte case must go red · acceptance-sha256:a1ceaaebf36cd08684af552302201956e590df566b53f25344e4d03439bdeb8f · covers:zero bytes are refused
+- 2026-11-04 · 6a1f611c* · mutant killed · exit 1 · `internal/ingest/create.go` · only whitespace treated as empty, so a lone newline is refused and the newline case must go red · acceptance-sha256:a1ceaaebf36cd08684af552302201956e590df566b53f25344e4d03439bdeb8f · covers:one byte or more is created as before
+- 2026-11-04 · 6a1f611c* · mutant killed · exit 1 · `internal/ingest/create.go` · the suggested plan names the path unquoted, so a path with a space is not a plan that parses and the spaced case must go red · acceptance-sha256:a1ceaaebf36cd08684af552302201956e590df566b53f25344e4d03439bdeb8f · covers:zero bytes are refused
 
 ## Verification Log
+- 2026-11-04 · 6a1f611c* · exit 0 · `set -o pipefail …` · acceptance-sha256:a1ceaaebf36cd08684af552302201956e590df566b53f25344e4d03439bdeb8f · ms:89350
+- 2026-11-04 · 6a1f611c* · exit 0 · `set -o pipefail …` · acceptance-sha256:a1ceaaebf36cd08684af552302201956e590df566b53f25344e4d03439bdeb8f · ms:82765
+- 2026-11-04 · 6a1f611c* · exit 0 · `set -o pipefail …` · acceptance-sha256:a1ceaaebf36cd08684af552302201956e590df566b53f25344e4d03439bdeb8f · ms:80676
+- 2026-11-04 · 6a1f611c* · exit 0 · `set -o pipefail …` · acceptance-sha256:a1ceaaebf36cd08684af552302201956e590df566b53f25344e4d03439bdeb8f · ms:81197
+- 2026-11-04 · ac92ea1a* · exit 1 · `set -o pipefail …` · acceptance-sha256:a1ceaaebf36cd08684af552302201956e590df566b53f25344e4d03439bdeb8f · ms:589 · test-lock-sha256:291354546b899bdce14208d2c5c097b0585f5738ffd7a2179e18ba00c2e0c577 · test-lock-file:docs/adr/locks/291354546b899bdce14208d2c5c097b0585f5738ffd7a2179e18ba00c2e0c577.lock
+  ```
+  ```
+- 2026-11-04 · ac92ea1a* · exit 0 · `set -o pipefail …` · acceptance-sha256:a1ceaaebf36cd08684af552302201956e590df566b53f25344e4d03439bdeb8f · ms:93735
 
 ## Invariants
 
