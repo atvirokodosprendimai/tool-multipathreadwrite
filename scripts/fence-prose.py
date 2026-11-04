@@ -14,7 +14,10 @@ output and is skipped. A clause preceded by `!` must not match. Clauses are spli
 `&&`, `||`, `;` and newlines, so a pattern holding one is one clause, not two broken halves.
 
 EXEMPT names the clauses a later record deliberately freed, each with that record: they are still
-counted and reported as exempt, never silently dropped.
+counted and reported as exempt, never silently dropped. A task whose row in its tasks/README.md gives
+a status other than `done` (`pending`, `partial`, `blocked`) is not finished, and its fence is red by
+design until the work lands (.claude/rules/lifecycle.md §2), so its clauses are counted and reported
+as not yet done, not run. A task with no such row is checked.
 
 Usage: fence-prose.py [ROOT]        exit 0 when every checked clause holds, 1 when one does not
        fence-prose.py --self-test   proves a red clause is reported (a check that cannot fail is none)
@@ -118,18 +121,40 @@ def exempt(task, text):
     return ""
 
 
+STATUSES = ("pending", "partial", "blocked", "done")
+
+
+def status_of(task):
+    """The status the task's row in its tasks/README.md gives, or "" when there is no such row."""
+    tid = os.path.basename(task).split("-", 1)[0].removesuffix(".md")
+    try:
+        with open(os.path.join(os.path.dirname(task), "README.md"), encoding="utf-8") as fh:
+            rows = fh.read().splitlines()
+    except OSError:
+        return ""
+    for row in rows:
+        cells = [c.strip() for c in row.strip().strip("|").split("|")]
+        if row.lstrip().startswith("|") and cells and cells[0] == tid:
+            return next((c for c in cells[1:] if c in STATUSES), "")
+    return ""
+
+
 def check(root):
-    """Return (checked, red, exempted): red and exempted list (task, clause[, record])."""
-    checked, red, exempted = 0, [], []
+    """Return (checked, red, exempted, unfinished): red, exempted and unfinished list (task, clause[, record])."""
+    checked, red, exempted, unfinished = 0, [], [], []
     for task in sorted(glob.glob(os.path.join(root, "docs/adr/ADR-*/tasks/T*.md"))):
         with open(task, encoding="utf-8") as fh:
             m = FENCE.search(fh.read())
         if not m:
             continue
         rel = os.path.relpath(task, root)
+        finished = status_of(task) in ("", "done")
         for negated, text, argv in clauses(m.group(1)):
             files = [a for a in argv[1:] if not a.startswith("-") and os.path.isfile(os.path.join(root, a))]
             if not files:
+                continue
+            if not finished:
+                unfinished.append((rel, text))
                 continue
             record = exempt(rel, text)
             if record:
@@ -140,13 +165,14 @@ def check(root):
                                 stderr=subprocess.DEVNULL).returncode
             if (rc == 0) == negated:
                 red.append((rel, ("! " if negated else "") + text))
-    return checked, red, exempted
+    return checked, red, exempted, unfinished
 
 
 def self_test():
     """A tree whose fence holds, misses, negates, quotes a backtick, anchors with a quoted `$`, and
     quotes a `;` and a `&&`: exactly the missing clause and the two quoted-operator misses are red,
-    and every clause is checked."""
+    and every clause is checked. A pending task's red clause is counted as not yet done and not run;
+    a task its README lists as done, and one it does not list, are checked."""
     with tempfile.TemporaryDirectory() as root:
         os.makedirs(os.path.join(root, "docs/adr/ADR-001-x/tasks"))
         with open(os.path.join(root, "README.md"), "w", encoding="utf-8") as fh:
@@ -160,14 +186,19 @@ def self_test():
                      "  && grep -q 'zero$' README.md \\\n"
                      "  && grep -q 'absent;needle' README.md \\\n"
                      "  && grep -q 'absent&&needle' README.md\n```\n")
-        checked, red, _ = check(root)
+        for tid, clause in (("T2", "grep -q 'pending miss' README.md"), ("T3", "grep -q 'unlisted miss' README.md")):
+            with open(os.path.join(root, f"docs/adr/ADR-001-x/tasks/{tid}-x.md"), "w", encoding="utf-8") as fh:
+                fh.write(f"## Acceptance\n\n```bash\n{clause}\n```\n")
+        with open(os.path.join(root, "docs/adr/ADR-001-x/tasks/README.md"), "w", encoding="utf-8") as fh:
+            fh.write("| Task | Goal | Status |\n|---|---|---|\n| T1 | x | done |\n| T2 | x | pending |\n")
+        checked, red, _, unfinished = check(root)
         missed = sorted(c for _, c in red)
         want = ["grep -q 'a phrase nobody wrote' README.md", "grep -q 'absent&&needle' README.md",
-                "grep -q 'absent;needle' README.md"]
-        if checked != 7 or missed != want:
-            print(f"fence-prose self-test FAILED: checked {checked}, red {missed}")
+                "grep -q 'absent;needle' README.md", "grep -q 'unlisted miss' README.md"]
+        if checked != 8 or missed != want or len(unfinished) != 1:
+            print(f"fence-prose self-test FAILED: checked {checked}, red {missed}, not yet done {len(unfinished)}")
             return 1
-    print("fence-prose self-test: every red clause is reported, quoted operators included")
+    print("fence-prose self-test: every red clause is reported, quoted operators included; a pending task's is not run")
     return 0
 
 
@@ -175,11 +206,12 @@ def main():
     if sys.argv[1:] == ["--self-test"]:
         return self_test()
     root = sys.argv[1] if len(sys.argv) > 1 else "."
-    checked, red, exempted = check(root)
+    checked, red, exempted, unfinished = check(root)
     for task, clause in red:
         print(f"RED  {task}\n     {clause}")
     print(f"fence-prose: {checked} prose clause(s) checked, {len(red)} red, "
-          f"{len(exempted)} exempt ({', '.join(sorted({r for _, _, r in exempted})) or 'none'})")
+          f"{len(exempted)} exempt ({', '.join(sorted({r for _, _, r in exempted})) or 'none'}), "
+          f"{len(unfinished)} in task(s) not yet done, not run")
     return 1 if red else 0
 
 
