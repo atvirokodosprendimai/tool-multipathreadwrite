@@ -7,8 +7,8 @@ Read the parts you need, then put the changes in one plan. mrw validates the who
 before changing any file, including checking that it has read the existing lines you want
 to edit. If validation fails, no files change. The output tells you what happened to each edit.
 
-**Status: stable at v1.83.0 (2026-11-03), the tag cut from `3a970837`.**
-See [updating mrw](UPDATE.md) and the [release validation](docs/break/campaign-v1.83.0.txt)
+**Status: stable at v1.84.0 (2026-11-04), the tag cut from `c449792d`.**
+See [updating mrw](UPDATE.md) and the [release validation](docs/break/campaign-v1.84.0.txt)
 when choosing or upgrading a binary. Keep a benchmark's chosen version pinned.
 
 ## Quick start
