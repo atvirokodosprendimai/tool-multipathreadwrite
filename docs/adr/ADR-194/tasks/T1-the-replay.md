@@ -31,7 +31,7 @@ Count, on real agent sessions, how many landed hunks ADR-194's rule would refuse
    - a ranged read of 10-20, an insert of 3 lines after 12, then a write at 24 (old 21): R = 0; at 25 (old 22): R = 1;
    - a ranged read of 3-8, a delete of 4-5, then a write at 4 (old 6): R = 0; at 8 (old 10): R = 1;
    - a create, then any write: R = 0;
-   - a SEARCH/REPLACE hunk on an unread file: R = 0; a multi-line one whose line after was not served: R = 1;
+   - a SEARCH/REPLACE hunk on an unread file: R = 0; a multi-line one whose line after neither rule licenses: R = 0 (it landed, so its quote kept that line, ADR-190 Decision 2); one whose line after only an earlier write's whole-file licence covered: U = 1 (the replay cannot tell whether the quote kept it);
    - a `--sub` write, and a `--force` write at 3: R = 0; then a `--force` replace of 3-4 whose line 5 was not served: R = 1 (ADR-052 holds under `--force`);
    - an unlink of a file read 3-4 and then written: R = 1;
    - a pattern-addressed hunk the transcript cannot place: U = 1, and a later hunk on the same file: U = 2, until a whole read;
@@ -66,7 +66,10 @@ python3 -m unittest discover -s scripts -p 'test_licence194_replay.py' 2>&1 | te
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `test_licence194_replay` | `scripts/test_licence194_replay.py` | known W, R, U on synthetic transcripts for each licence source; the verdict's bounds | none | S1, S2, S3 |
+| `test_an_insert_moves_the_carried_lines` | `scripts/test_licence194_replay.py` | the carry after an insert, and the boundary it refuses | none | S1, S2 |
+| `test_a_search_replace_hunk_is_licensed_by_its_quote` | `scripts/test_licence194_replay.py` | a quote licenses its lines; the line after only the whole-file licence covered is U | none | S1, S2 |
+| `test_an_unplaceable_hunk_leaves_the_file_uncertain_until_a_whole_read` | `scripts/test_licence194_replay.py` | U propagates until a whole read | none | S1, S2 |
+| `test_the_verdict_is_the_pre_registered_rule` | `scripts/test_licence194_replay.py` | the verdict's bounds | none | S1, S3 |
 
 ## Reachability
 
@@ -78,8 +81,46 @@ python3 -m unittest discover -s scripts -p 'test_licence194_replay.py' 2>&1 | te
 | 4 — it is used | T2 starts only on its GO, or on Zy's recorded override |
 
 ## Mutation Log
+- 2026-11-04 · eca1a366* · mutant killed · exit 1 · `scripts/licence194_replay.py` · the carry ignores lines inserted after a line, so the insert case must go red · acceptance-sha256:7482d25dae8d776c8bd61e3d3151c64481d6562afc428348513a65917cc530db · covers:the replay carries a licence as the rule says
+- 2026-11-04 · eca1a366* · mutant killed · exit 1 · `scripts/licence194_replay.py` · a SEARCH/REPLACE hunk's quoted lines are judged against the ledger, so the quoted case must go red · acceptance-sha256:7482d25dae8d776c8bd61e3d3151c64481d6562afc428348513a65917cc530db · covers:each licence source is modelled
+- 2026-11-04 · eca1a366* · mutant killed · exit 1 · `scripts/licence194_replay.py` · any read makes an uncertain file certain again, so the ranged-read-after-unplaced case must go red · acceptance-sha256:7482d25dae8d776c8bd61e3d3151c64481d6562afc428348513a65917cc530db · covers:each licence source is modelled
+- 2026-11-04 · eca1a366* · mutant killed · exit 1 · `scripts/licence194_replay.py` · the STOP bound read as R > W/10, so (100, 6, 0) must go red · acceptance-sha256:7482d25dae8d776c8bd61e3d3151c64481d6562afc428348513a65917cc530db · covers:the verdict follows from W, R and U by the pre-registered rule
 
 ## Verification Log
+- 2026-11-04 · eca1a366* · exit 1 · `set -o pipefail …` · acceptance-sha256:7482d25dae8d776c8bd61e3d3151c64481d6562afc428348513a65917cc530db · ms:200 · test-lock-sha256:392819dc73e0bd5396ef25cb512285ba0fbf8ba9bf6437a74693201c47c48167 · test-lock-file:docs/adr/locks/392819dc73e0bd5396ef25cb512285ba0fbf8ba9bf6437a74693201c47c48167.lock
+  ```
+  --- last 10 line(s) of stdout (of 23 after folding 24 raw)
+      \~~~~~~~~~~~~~~~~~~~~~~~~^^^^
+    File "<frozen importlib._bootstrap_external>", line 747, in exec_module
+    File "<frozen importlib._bootstrap_external>", line 880, in get_code
+    File "<frozen importlib._bootstrap_external>", line 926, in get_data
+  FileNotFoundError: [Errno 2] No such file or directory: '~/GolandProjects/mrw-adr194/scripts/licence194_replay.py'
+    (x2)
+  ----------------------------------------------------------------------
+  Ran 1 test in 0.000s
+
+  FAILED (errors=1)
+  ```
+- 2026-11-04 · eca1a366* · exit 0 · `set -o pipefail …` · acceptance-sha256:7482d25dae8d776c8bd61e3d3151c64481d6562afc428348513a65917cc530db · ms:258
+- 2026-11-04 · eca1a366* · exit 0 · `set -o pipefail …` · acceptance-sha256:7482d25dae8d776c8bd61e3d3151c64481d6562afc428348513a65917cc530db · ms:257
+- 2026-11-04 · eca1a366* · exit 0 · `set -o pipefail …` · acceptance-sha256:7482d25dae8d776c8bd61e3d3151c64481d6562afc428348513a65917cc530db · ms:282
+- 2026-11-04 · eca1a366* · exit 0 · `set -o pipefail …` · acceptance-sha256:7482d25dae8d776c8bd61e3d3151c64481d6562afc428348513a65917cc530db · ms:273
+- 2026-11-04 · eca1a366* · exit 1 · `set -o pipefail …` · acceptance-sha256:7482d25dae8d776c8bd61e3d3151c64481d6562afc428348513a65917cc530db · ms:111
+  ```
+  --- last 10 line(s) of stdout (of 23 after folding 24 raw)
+      \~~~~~~~~~~~~~~~~~~~~~~~~^^^^
+    File "<frozen importlib._bootstrap_external>", line 747, in exec_module
+    File "<frozen importlib._bootstrap_external>", line 880, in get_code
+    File "<frozen importlib._bootstrap_external>", line 926, in get_data
+  FileNotFoundError: [Errno 2] No such file or directory: '~/GolandProjects/mrw-adr194/scripts/licence194_replay.py'
+    (x2)
+  ----------------------------------------------------------------------
+  Ran 1 test in 0.000s
+
+  FAILED (errors=1)
+  ```
+- 2026-11-04 · eca1a366* · exit 0 · `set -o pipefail …` · acceptance-sha256:7482d25dae8d776c8bd61e3d3151c64481d6562afc428348513a65917cc530db · ms:175
+- 2026-11-04 · eca1a366* · exit 0 · `adr-verify --relock` · acceptance-sha256:7482d25dae8d776c8bd61e3d3151c64481d6562afc428348513a65917cc530db · ms:0 · test-lock-sha256:e896a30071f5b7c21d1805f4a4030ea5f7d1e229f3a0d5fe94ef18a21d8e63cf · test-lock-file:docs/adr/locks/e896a30071f5b7c21d1805f4a4030ea5f7d1e229f3a0d5fe94ef18a21d8e63cf.lock · test-lock-kind:relock
 
 ## Invariants
 
