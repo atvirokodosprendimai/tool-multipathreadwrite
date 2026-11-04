@@ -27,7 +27,7 @@ paragraph moves the agent to SEARCH/REPLACE writes (ADR-193 Decisions 1 and 6).
 
 ## Ordered Steps
 
-1. [S1] The red state: `docs/bench/stage-8/pilot.md` does not exist, so the fence fails. [proof: acceptance]
+1. [S1] The red state: `docs/bench/stage-8/pilot.md` does not exist, so the fence fails. Checked 2026-11-04 after the record was written, with `pilot.md` moved aside: the fence exited 1 (`sed: docs/bench/stage-8/pilot.md: No such file or directory`); the log below holds only the green run, which adr-verify recorded. [proof: acceptance]
 2. [S2] The stage8 canary for B and S on each model. A failed canary stops here. [proof: acceptance]
 3. [S3] A preflight in a scratch git checkout through the stage's settings and bench's Bash hook: S writes a SEARCH/REPLACE document to `$TMPDIR` by heredoc and runs `mrw write --format=search_replace` on it with no `mrw read` of the file; the write applies, the hook does not refuse it, and `bench_edits.py count` counts one landed, attributed SEARCH/REPLACE write call. [proof: human: the receipt and the count]
 4. [S4] B and S, uncounted, on `matplotlib__matplotlib-22719` and `astropy__astropy-13033` (the first 2 of `bench/swe-bench/selection.json`, outside the pool), both models; `bench_edits.py count` over the 8 transcripts. When S makes no attributed SEARCH/REPLACE write call on at least one of the two models, change the paragraph once (code, test and record together, still directive), run again, and record both rounds. [proof: human: the smoke's counts and the paragraph it froze]
@@ -61,6 +61,7 @@ p=$(sed -n 's/^paragraph: //p' $R/pilot.md) && test -n "$p" \
 | 4 — it is used | T4, and T5 on SHIP |
 
 ## Mutation Log
+- 2026-11-04 · 1973d056* · mutant killed · exit 1 · `docs/bench/stage-8/pilot.md` · a recorded sha that does not hash the recorded paragraph · acceptance-sha256:d6d929e69441993149697dc8dfa380906156afa929e6690407e0e0ca8c8274bf · covers:the sha hashes the recorded paragraph
 
 ## Invariants
 
@@ -79,3 +80,11 @@ The preflight's write is refused by bench's hook or counted as anything but a la
 - Any counted attempt (T4's job).
 
 ## Verification Log
+- 2026-11-04 · 1973d056* · exit 0 · `set -o pipefail …` · acceptance-sha256:d6d929e69441993149697dc8dfa380906156afa929e6690407e0e0ca8c8274bf · ms:64
+- 2026-11-04 · 1973d056* · exit 1 · `set -o pipefail …` · acceptance-sha256:d6d929e69441993149697dc8dfa380906156afa929e6690407e0e0ca8c8274bf · ms:42 · test-lock-sha256:deeb36e69eee92091337010c87f199c96273cf4f30607b345e4a41e96cc4ff11 · test-lock-file:docs/adr/locks/deeb36e69eee92091337010c87f199c96273cf4f30607b345e4a41e96cc4ff11.lock
+  ```
+  --- last 1 line(s) of stderr
+  sed: docs/bench/stage-8/pilot.md: No such file or directory
+  ```
+- 2026-11-04 · 1973d056* · exit 0 · `set -o pipefail …` · acceptance-sha256:d6d929e69441993149697dc8dfa380906156afa929e6690407e0e0ca8c8274bf · ms:60
+- 2026-11-04 · 1973d056* · exit 0 · `set -o pipefail …` · acceptance-sha256:d6d929e69441993149697dc8dfa380906156afa929e6690407e0e0ca8c8274bf · ms:120

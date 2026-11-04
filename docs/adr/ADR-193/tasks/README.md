@@ -21,7 +21,7 @@ This README is a derived index — when it disagrees with a task file, the task 
 |----|-------|--------|--------|------------|
 | T1 | configuration S and the stage8 profile | pending | — | `go test ./internal/bench/ ./cmd/bench/ -run TestConfigurationSIsBPlusTheEditParagraph…` |
 | T2 | the frozen counting script and Stage 5's reference row | pending | — | `python3 -B -m unittest … test_bench_edits.py`; the reference row names both scripts' sha |
-| T3 | the canary and an uncounted smoke freeze the paragraph | pending | — | the recorded paragraph hashes to its sha and is in the code; both canaries passed with B and S |
+| T3 | the canary and an uncounted smoke freeze the paragraph | done | — | the recorded paragraph hashes to its sha and is in the code; both canaries passed with B and S |
 | T4 | the counted pilot and its verdict | pending | — | the registered matrix per model; a recount and the verdict reproduce from the committed receipts under the unchanged scripts |
 | T5 | on SHIP, mrw instructions --host claude prints the measured paragraph | pending | — | `go test ./cmd/mrw/ -run TestInstructionsForClaudeIsTheTextConfigurationSMeasured…`; section 333 |
 
