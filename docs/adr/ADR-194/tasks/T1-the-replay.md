@@ -121,6 +121,8 @@ python3 -m unittest discover -s scripts -p 'test_licence194_replay.py' 2>&1 | te
   ```
 - 2026-11-04 · eca1a366* · exit 0 · `set -o pipefail …` · acceptance-sha256:7482d25dae8d776c8bd61e3d3151c64481d6562afc428348513a65917cc530db · ms:175
 - 2026-11-04 · eca1a366* · exit 0 · `adr-verify --relock` · acceptance-sha256:7482d25dae8d776c8bd61e3d3151c64481d6562afc428348513a65917cc530db · ms:0 · test-lock-sha256:e896a30071f5b7c21d1805f4a4030ea5f7d1e229f3a0d5fe94ef18a21d8e63cf · test-lock-file:docs/adr/locks/e896a30071f5b7c21d1805f4a4030ea5f7d1e229f3a0d5fe94ef18a21d8e63cf.lock · test-lock-kind:relock
+- 2026-11-04 · 8c829208* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:7482d25dae8d776c8bd61e3d3151c64481d6562afc428348513a65917cc530db · ms:0 · test-lock-sha256:43eeab75593a792bb139d41f8c90f2953bb2ea3dae7d8fa513b8d6f13a88e2cf · test-lock-file:docs/adr/locks/43eeab75593a792bb139d41f8c90f2953bb2ea3dae7d8fa513b8d6f13a88e2cf.lock · test-lock-kind:replace
+- 2026-11-04 · 8c829208* · exit 0 · `set -o pipefail …` · acceptance-sha256:7482d25dae8d776c8bd61e3d3151c64481d6562afc428348513a65917cc530db · ms:169
 
 ## Invariants
 

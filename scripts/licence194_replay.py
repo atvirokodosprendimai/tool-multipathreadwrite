@@ -157,33 +157,39 @@ class Replay:
         reads_uncertain = any(sub == "read" and (piped or any(f in rest for f in UNCERTAIN_FLAGS))
                               for sub, _, rest, piped in calls) or "MRW_MAX_COLS" in cmd
         writes = [(g, rest) for sub, g, rest, _ in calls if sub == "write"]
-        receipts, read_blocks = self.parse(result)
-        for path, nl, spans, printed in read_blocks:
-            self.read(path, nl, spans, printed, reads_uncertain)
-        if len(receipts) != len(writes):
-            for rows, status, terse, wrote in receipts:
-                if status.startswith("applied") or "PARTIALLY" in status:
+        items = self.parse(result)
+        paired = sum(1 for kind, _ in items if kind == "receipt") == len(writes)
+        pending = iter(writes)
+        # In output order, so a read printed after a write licenses nothing that write needed (Codex, review of #620).
+        for kind, payload in items:
+            if kind == "read":
+                self.read(*payload, reads_uncertain)
+                continue
+            rows, status, terse, wrote = payload
+            applied = status.startswith("applied") or "PARTIALLY" in status
+            if not paired:
+                if applied:
                     for row in rows:
                         self.unplaced(row["path"], row.get("a"), row["op"], "write calls and receipts do not pair")
                     for path, _ in terse:
                         self.unplaced(path, None, "terse", "write calls and receipts do not pair")
-            return
-        for (g, rest), (rows, status, terse, wrote) in zip(writes, receipts):
-            if not status.startswith("applied") and "PARTIALLY" not in status:
                 continue
-            self.write(write_mode(g, rest), rows, terse, wrote, partial="PARTIALLY" in status,
-                       created_by_flag="--create" in rest)
+            g, rest = next(pending)
+            if applied:
+                self.write(write_mode(g, rest), rows, terse, wrote, partial="PARTIALLY" in status,
+                           created_by_flag="--create" in rest)
 
     @staticmethod
     def parse(result):
-        receipts, blocks = [], []
+        """The result's read blocks and write receipts, in the order they were printed."""
+        items = []
         rows, terse, wrote = [], [], {}
         cur = None
         for line in result.split("\n"):
             m = HEADER.match(line)
             if m:
                 cur = [m.group(1), int(m.group(2)), [], set()]
-                blocks.append(cur)
+                items.append(("read", cur))
                 continue
             if cur is not None:
                 s, n = SPAN.match(line), NUMBERED.match(line)
@@ -222,9 +228,9 @@ class Replay:
             sm = SUMMARY.match(line)
             if sm:
                 cur = None
-                receipts.append(([x for x in rows if x["status"] in ("ok", "dry")], sm.group(2), terse, wrote))
+                items.append(("receipt", ([x for x in rows if x["status"] in ("ok", "dry")], sm.group(2), terse, wrote)))
                 rows, terse, wrote = [], [], {}
-        return receipts, blocks
+        return items
 
     def read(self, path, nl, spans, printed, uncertain):
         f = self.file(path)
@@ -255,8 +261,10 @@ class Replay:
             by_file.setdefault(row["path"], []).append(row)
         for path, hunks in by_file.items():
             f = self.file(path)
-            before_uncertain = f.uncertain
-            created = any(h["op"] == "create" for h in hunks) or created_by_flag
+            created = any(h["op"] == "create" and "unplaced" not in h for h in hunks) or created_by_flag
+            if created and not partial and mode != "elsewhere":
+                f.uncertain = False  # a create resets the file: every line in it is the caller's
+            before_uncertain, lost = f.uncertain, False
             for h in hunks:
                 if mode == "elsewhere" or "unplaced" in h or partial or h["op"] == "rename":
                     why = h.get("unplaced") or ("a partial commit" if partial else
@@ -266,7 +274,11 @@ class Replay:
                 if before_uncertain:
                     self.outcomes.append(("U", path, h["a"], h["op"], "the file is UNCERTAIN"))
                     continue
-                self.outcomes.append(self.judge(mode, f, h, created))
+                outcome = self.judge(mode, f, h, created)
+                lost = lost or outcome[0] == "U"
+                self.outcomes.append(outcome)
+            if lost:
+                f.uncertain = True  # a U the judge returned leaves the file UNCERTAIN, as the criterion says
             lines = wrote.get(path, f.lines)
             if f.uncertain:
                 f.lines = lines

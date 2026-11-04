@@ -117,6 +117,21 @@ class Replay(unittest.TestCase):
         self.assertEqual(counts([("mrw write --terse -", terse)]), (2, 0, 2))
 
 
+    def test_a_read_printed_after_a_write_does_not_license_it(self):
+        base = [("mrw read f:3-4", read("f", 12, 3, 4)), (PLAN, write(["3 replace -1 +1"], "f", 12, 12))]
+        both = (PLAN + " && mrw read f:6", write(["6 replace -1 +1"], "f", 12, 12) + read("f", 12, 6, 6))
+        self.assertEqual(counts(base + [both]), (2, 1, 0))
+
+    def test_a_lost_licence_leaves_the_file_uncertain(self):
+        ev = [(PLAN, write(["6 replace -1 +1"], "f", 12, 12)), (PLAN, write(["3 replace -1 +1"], "f", 12, 12))]
+        self.assertEqual(counts(ev), (2, 0, 2))
+
+    def test_a_create_clears_an_uncertain_file(self):
+        ev = [("mrw read --quiet f", read("f", 12, 1, 12)),
+              ("mrw write --create f", write(["0 create -0 +5"], "f", 0, 5).replace("wrote", "created")),
+              (PLAN, write(["4 replace -1 +1"], "f", 5, 5))]
+        self.assertEqual(counts(ev), (2, 0, 0))
+
 class Verdict(unittest.TestCase):
     def test_the_verdict_is_the_pre_registered_rule(self):
         for args, want in (((100, 6, 0), "STOP"), ((100, 3, 1), "GO"), ((100, 3, 3), "INCONCLUSIVE"),
