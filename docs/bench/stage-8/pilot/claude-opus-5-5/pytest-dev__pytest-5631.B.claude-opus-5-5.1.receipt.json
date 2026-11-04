@@ -1,0 +1,46 @@
+{
+  "attempt": "pytest-dev__pytest-5631.B.claude-opus-5-5.1",
+  "stage": "pilot-8",
+  "task": "pytest-dev__pytest-5631",
+  "shape": "swe-bench",
+  "source": "swe-bench",
+  "model": "claude-opus-5-5",
+  "config": "B",
+  "repeat": 1,
+  "order": 0,
+  "started": "2026-11-04T05:34:19Z",
+  "wall_ms": 100360,
+  "cli_version": "2.1.317 (Claude Code)",
+  "mrw_version": "v1.83.0 (3a97083)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 15,
+  "tool_calls": 14,
+  "total_cost_usd": 0.24879420000000005,
+  "usage": {
+    "input_tokens": 30,
+    "output_tokens": 4472,
+    "cache_read_input_tokens": 274851,
+    "cache_creation_input_tokens": 13033
+  },
+  "init_tools": [
+    "Bash",
+    "Glob",
+    "Skill"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": true,
+    "harness_resolved": true,
+    "broke_tests": false
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 3,
+    "insertions": 27,
+    "deletions": 1
+  },
+  "hook_refused": 1,
+  "hook_reads": 1,
+  "status": "done"
+}

@@ -1,0 +1,44 @@
+{
+  "attempt": "django__django-14404.S.claude-opus-5-5.1",
+  "stage": "pilot-8",
+  "task": "django__django-14404",
+  "shape": "swe-bench",
+  "source": "swe-bench",
+  "model": "claude-opus-5-5",
+  "config": "S",
+  "repeat": 1,
+  "order": 32,
+  "started": "2026-11-04T07:44:48Z",
+  "wall_ms": 27458,
+  "cli_version": "2.1.317 (Claude Code)",
+  "mrw_version": "v1.83.0 (3a97083)",
+  "exit_code": 0,
+  "is_error": false,
+  "num_turns": 6,
+  "tool_calls": 5,
+  "total_cost_usd": 0.07380300000000001,
+  "usage": {
+    "input_tokens": 12,
+    "output_tokens": 1318,
+    "cache_read_input_tokens": 88295,
+    "cache_creation_input_tokens": 3717
+  },
+  "init_tools": [
+    "Bash",
+    "Glob",
+    "Skill"
+  ],
+  "init_mcp_servers": null,
+  "oracle": {
+    "solved": false
+  },
+  "silent_mis_edit": false,
+  "diff": {
+    "files": 0,
+    "insertions": 0,
+    "deletions": 0
+  },
+  "status": "done",
+  "exclusion": "setup",
+  "note": "oracle: the harness: exit status 1: Running 1 instances...\n\r  0%|          | 0/1 [00:00\u003c?, ?it/s]\r100%|██████████| 1/1 [00:42\u003c00:00, 42.31s/it]\r1 ran successfully, 0 failed: 100%|██████████| 1/1 [00:42\u003c00:00, 42.31s/it]\r1 ran successfully, 0 failed: 100%|██████████| 1/1 [00:42\u003c00:00, 42.31s/it]\nTraceback (most recent call last):\n  File \"/Users/zy/.local/share/mrw-bench/swe-probe/.venv/lib/python3.11/site-packages/docker/api/client.py\", line 275, in _raise_for_status\n    response.raise_for_status()\n  File \"/Users/zy/.local/share/mrw-bench/swe-probe/.venv/lib/python3.11/site-packages/requests/models.py\", line 1167, in raise_for_status\n    raise HTTPError(http_error_msg, response=self)\nrequests.exceptions.HTTPError: 404 Client Error: Not Found for url: http+docker://localhost/v1.56/containers/a02cef5ea700e9b912f254a662f96fd29513e03bd9c2c2e3baaf6a05936a6f49/json\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"\u003cfrozen runpy\u003e\", line 198, in _run_module_as_main\n  File \"\u003cfrozen runpy\u003e\", line 88, in _run_code\n  File \"/Users/zy/.local/share/mrw-bench/swe-probe/.venv/lib/python3.11/site-packages/swebench/harness/run_evaluation.py\", line 863, in \u003cmodule\u003e\n    main(**vars(args))\n  File \"/Users/zy/.local/share/mrw-bench/swe-probe/.venv/lib/python3.11/site-packages/swebench/harness/run_evaluation.py\", line 794, in main\n    return make_run_report(predictions, full_dataset, run_id, client, report_dir)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/zy/.local/share/mrw-bench/swe-probe/.venv/lib/python3.11/site-packages/swebench/harness/reporting.py\", line 118, in make_run_report\n    containers = client.containers.list(all=True)\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/zy/.local/share/mrw-bench/swe-probe/.venv/lib/python3.11/site-packages/docker/models/containers.py\", line 1019, in list\n    containers.append(self.get(r['Id']))\n                      ^^^^^^^^^^^^^^^^^\n  File \"/Users/zy/.local/share/mrw-bench/swe-probe/.venv/lib/python3.11/site-packages/docker/models/containers.py\", line 955, in get\n    resp = self.client.api.inspect_container(container_id)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/zy/.local/share/mrw-bench/swe-probe/.venv/lib/python3.11/site-packages/docker/utils/decorators.py\", line 19, in wrapped\n    return f(self, resource_id, *args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/zy/.local/share/mrw-bench/swe-probe/.venv/lib/python3.11/site-packages/docker/api/container.py\", line 793, in inspect_container\n    return self._result(\n           ^^^^^^^^^^^^^\n  File \"/Users/zy/.local/share/mrw-bench/swe-probe/.venv/lib/python3.11/site-packages/docker/api/client.py\", line 281, in _result\n    self._raise_for_status(response)\n  File \"/Users/zy/.local/share/mrw-bench/swe-probe/.venv/lib/python3.11/site-packages/docker/api/client.py\", line 277, in _raise_for_status\n    raise create_api_error_from_http_exception(e) from e\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/zy/.local/share/mrw-bench/swe-probe/.venv/lib/python3.11/site-packages/docker/errors.py\", line 39, in create_api_error_from_http_exception\n    raise cls(e, response=response, explanation=explanation) from e\ndocker.errors.NotFound: 404 Client Error for http+docker://localhost/v1.56/containers/a02cef5ea700e9b912f254a662f96fd29513e03bd9c2c2e3baaf6a05936a6f49/json: Not Found (\"No such container: a02cef5ea700e9b912f254a662f96fd29513e03bd9c2c2e3baaf6a05936a6f49\")\nAll instances run.\n"
+}
