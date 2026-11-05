@@ -125,6 +125,7 @@ go test ./internal/mcp/ ./internal/read/ ./cmd/mrw/ -count=1 -timeout 240s -run 
   PASS
   ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/cmd/mrw	0.074s
   ```
+- 2026-11-01 · 5baa630e* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:b9190356f5b2384aa1c3344c9c41f96a8f757d2716976af9a2d2d83dd41b54a3 · ms:0 · test-lock-sha256:abee52dcc0c99a07cd4d6d74b58842649f717e37331c459f5a14ac4fe661ddf3 · test-lock-file:docs/adr/locks/abee52dcc0c99a07cd4d6d74b58842649f717e37331c459f5a14ac4fe661ddf3.lock · test-lock-kind:replace
 
 ## Mutation Log
 (empty until execute)

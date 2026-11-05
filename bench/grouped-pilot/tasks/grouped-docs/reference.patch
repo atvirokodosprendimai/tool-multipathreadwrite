@@ -1,0 +1,75 @@
+diff --git a/guides/service_0.md b/guides/service_0.md
+--- a/guides/service_0.md
++++ b/guides/service_0.md
+@@ -4,9 +4,9 @@
+ 
+ ## Current
+ 
+-Endpoint: /v1/run
++Endpoint: /v2/service-0/run
+ 
+-Current retry budget: 3
++Current retry budget: 4
+ 
+ Use the active endpoint for new clients.
+ 
+diff --git a/guides/service_1.md b/guides/service_1.md
+--- a/guides/service_1.md
++++ b/guides/service_1.md
+@@ -4,9 +4,9 @@
+ 
+ ## Current
+ 
+-Endpoint: /v1/run
++Endpoint: /v2/service-1/run
+ 
+-Current retry budget: 3
++Current retry budget: 5
+ 
+ Use the active endpoint for new clients.
+ 
+diff --git a/guides/service_2.md b/guides/service_2.md
+--- a/guides/service_2.md
++++ b/guides/service_2.md
+@@ -4,9 +4,9 @@
+ 
+ ## Current
+ 
+-Endpoint: /v1/run
++Endpoint: /v2/service-2/run
+ 
+-Current retry budget: 3
++Current retry budget: 6
+ 
+ Use the active endpoint for new clients.
+ 
+diff --git a/guides/service_3.md b/guides/service_3.md
+--- a/guides/service_3.md
++++ b/guides/service_3.md
+@@ -4,9 +4,9 @@
+ 
+ ## Current
+ 
+-Endpoint: /v1/run
++Endpoint: /v2/service-3/run
+ 
+-Current retry budget: 3
++Current retry budget: 7
+ 
+ Use the active endpoint for new clients.
+ 
+diff --git a/guides/service_4.md b/guides/service_4.md
+--- a/guides/service_4.md
++++ b/guides/service_4.md
+@@ -4,9 +4,9 @@
+ 
+ ## Current
+ 
+-Endpoint: /v1/run
++Endpoint: /v2/service-4/run
+ 
+-Current retry budget: 3
++Current retry budget: 8
+ 
+ Use the active endpoint for new clients.
+ 

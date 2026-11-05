@@ -553,7 +553,8 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// NextLine only here: firstPage's pages are ranges whose continuation serves
 	// the line they end on, so a page must not add it (ADR-161 Decision 10).
 	var unchanged []read.Unchanged
-	observed, problems := read.Run(w, root, specs, read.Options{Numbers: true, Stat: a.Stat, MaxLines: a.MaxLines, MaxCols: a.MaxCols, Count: a.Count, Counts: counts, Stop: stop, Quiet: a.Quiet, NextLine: true, IfChanged: keyed, Unchanged: &unchanged})
+	var capped int
+	observed, problems := read.Run(w, root, specs, read.Options{Numbers: true, Stat: a.Stat, MaxLines: a.MaxLines, MaxCols: a.MaxCols, Count: a.Count, Counts: counts, Stop: stop, Quiet: a.Quiet, NextLine: true, IfChanged: keyed, Unchanged: &unchanged, Capped: &capped})
 	_ = w.Flush()
 
 	// A result over the declared limit is REFUSED, not truncated.
@@ -668,7 +669,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// ADR-024 removed the flag from answers that DELIVERED something; this restores
 	// it for the one case its enumeration missed, so :202 and this return agree
 	// rather than disagreeing on whether `grep` was passed.
-	served, rpcErr := readResult(ReadReceipt(observed, problems, skipped, counts, unchanged, nil), report, len(observed) == 0 && len(unchanged) == 0)
+	served, rpcErr := readResult(ReadReceipt(observed, problems, capped, skipped, counts, unchanged, nil), report, len(observed) == 0 && len(unchanged) == 0)
 	if rpcErr != nil {
 		return callToolResult{}, rpcErr
 	}
@@ -716,7 +717,7 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 			marked += newerLine(root)
 		}
 		if marked != report {
-			markedServed, markErr := readResult(ReadReceipt(observed, problems, skipped, counts, unchanged, nil), marked, false)
+			markedServed, markErr := readResult(ReadReceipt(observed, problems, capped, skipped, counts, unchanged, nil), marked, false)
 			if markErr != nil {
 				return callToolResult{}, markErr
 			}
@@ -985,7 +986,7 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		in = append(in, apply.Input{
 			Path: path, Start: h.Addr.Start, End: h.Addr.End, Op: string(h.Op),
 			StartPat: h.Addr.StartPat, EndPat: h.Addr.EndPat, RelEnd: h.Addr.RelEnd, Occurrence: h.Occurrence, CountedBody: h.CountedBody,
-			Body: h.Body, SHA: h.SHA, Lines: h.Lines, Anchor: h.Anchor,
+			Body: h.Body, SHA: h.SHA, Lines: h.Lines, Anchor: h.Anchor, Quote: h.Quote,
 			SrcLine: h.SrcLine, Index: h.Index,
 			From: h.BodyFrom, FromStart: h.BodyFromAddr.Start, FromEnd: h.BodyFromAddr.End, FromRelEnd: h.BodyFromAddr.RelEnd,
 		})
@@ -1014,12 +1015,12 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	}
 	// ADR-113: the gates, the landing's count, the check, the drift and the
 	// pricing are the sequence `mrw write` runs (internal/writer/flow.go), so
-	// the two surfaces cannot decide one outcome two ways. ADR-054's rule
-	// decides the check; check: false turns it off, as --no-check does, and
-	// skips the harness read with it.
-	mode := writer.CheckAuto
-	if a.Check != nil && !*a.Check {
-		mode = writer.CheckOff
+	// the two surfaces cannot decide one outcome two ways. ADR-187: no check
+	// unless check: true, which runs it by ADR-054's rule (a non-prose write,
+	// a check declared or inferred); without it the harness is not read.
+	mode := writer.CheckOff
+	if a.Check != nil && *a.Check {
+		mode = writer.CheckAuto
 	}
 	// ADR-115: `then` names steps declared in .quality-harness.json; Prepare
 	// resolves them and refuses a name the project did not declare.
@@ -2074,7 +2075,7 @@ func overflowMessage(specs []string, cw *capped) string {
 	unterminated := countLines(&cw.buf) <= headerLines
 	// ⚠ ONLY LINES THAT ENDED COUNT. Splitting on newline leaves the last
 	// element unterminated, and the PREFIX of a giant line arrives — with its
-	// "NNNNN| " gutter — so counting every element containing "| " counts the
+	// gutter (" N| ", ADR-189) — so counting every element containing "| " counts the
 	// very line that did not fit and hides the case.
 	lines := bytes.Split(cw.buf.Bytes(), []byte{'\n'})
 	tail := lines[len(lines)-1]
@@ -2746,8 +2747,8 @@ func undeclaredRefusal(name string, args json.RawMessage) string {
 // TestTheRefusalRoutesOnlyToFlagsTheCLIHas applies).
 var cliRoute = map[string]string{
 	"mrw_read": "`mrw read` in a shell has what this tool does not, such as --context and --no-numbers.",
-	"mrw_write": "This tool runs the project's check after a write that touches code, and the declared steps named in then " +
-		"(ADR-113, ADR-115); `mrw write` in a shell also takes --then-sh for an ad-hoc step.",
+	"mrw_write": "This tool runs the project's check after a write that touches code when check is true, and the declared steps named in then " +
+		"(ADR-187, ADR-115); `mrw write` in a shell also takes --then-sh for an ad-hoc step.",
 }
 
 // quoteAll quotes each name and joins them with commas, in the order given.

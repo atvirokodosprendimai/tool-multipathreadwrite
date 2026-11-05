@@ -497,7 +497,7 @@ func adr060NeighbourHint(t *testing.T, label, state string, r *rand.Rand) {
 	if strings.Contains(out, "needs a served line after") {
 		t.Fatalf("%s %v printed the neighbour note, which the CLI no longer prints\n%s", label, args, out)
 	}
-	if wantNext && !strings.Contains(out, "    3| three") {
+	if wantNext && !strings.Contains(out, " 3| three") {
 		t.Fatalf("%s %v did not serve the line after the range\n%s", label, args, out)
 	}
 }
@@ -521,7 +521,7 @@ func adr060CheckLast(t *testing.T, label, state string, iter int, fail bool) {
 	if err := os.WriteFile(planFile, []byte(doc), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	out, code := run(t, state, root, "write", planFile)
+	out, code := run(t, state, root, "write", "--check", planFile)
 	if fail {
 		if code != 3 {
 			t.Fatalf("%s failing check exit %d want 3\n%s", label, code, out)

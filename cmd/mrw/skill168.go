@@ -117,8 +117,9 @@ const bom = "\xef\xbb\xbf"
 
 // installOnce judges DIR/mrw/SKILL.md and writes the skill once. It reports
 // raced when another --dir is mid-write — the file is the engine's empty probe,
-// or the engine refused because the file changed between the judging and the
-// write — so the caller judges again.
+// the probe was removed between the Lstat and the open, or the engine refused
+// because the file changed between the judging and the write — so the caller
+// judges again.
 func installOnce(dir string, out io.Writer) (raced bool, err error) {
 	text := guide.Skill(versionString())
 	target := filepath.Join(dir, "mrw", "SKILL.md")
@@ -133,9 +134,11 @@ func installOnce(dir string, out io.Writer) (raced bool, err error) {
 	case err == nil && !fi.Mode().IsRegular():
 		return false, cli.Exit(fmt.Sprintf("%s is not a regular file (a link, a junction, a FIFO, a device or a directory); --dir replaces only a SKILL.md it wrote", shownPath(target)), exitNotApplied)
 	case err == nil:
-		b, err := readSkillFile(target)
+		b, err := readSkill(target)
 		if err != nil {
-			return false, err
+			// Gone since the Lstat: a racing run's probe (probeName creates the
+			// name and removes it), so judge again rather than fail.
+			return errors.Is(err, fs.ErrNotExist), err
 		}
 		if len(b) == 0 {
 			return true, cli.Exit(fmt.Sprintf("%s is empty, so it is left as it is; move it aside to install here", shownPath(target)), exitNotApplied)
@@ -317,6 +320,10 @@ func shownPath(p string) string {
 // maxSkillBytes bounds what --dir reads before judging a SKILL.md: the one mrw
 // prints is a few kilobytes, so a larger file is not one it wrote.
 const maxSkillBytes = 1 << 20
+
+// readSkill is the seam installOnce reads SKILL.md through, so a test can make
+// the file vanish between the Lstat and the open, as a racing run's probe does.
+var readSkill = readSkillFile
 
 // readSkillFile reads an existing SKILL.md through regular.Open (ADR-109), so a
 // file swapped for a FIFO after the Lstat is refused rather than waited on, and

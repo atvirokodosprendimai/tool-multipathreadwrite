@@ -23,7 +23,7 @@ func TestEverySurfaceTeachesThen(t *testing.T) {
 	help, _ := runIn(t, t.TempDir(), "write", "--help")
 	then := regexp.MustCompile(`--then([^A-Za-z0-9-]|$)`)
 	caveat := guide.ThenShCaveat()
-	if !strings.Contains(caveat, "--then-sh") || !strings.Contains(caveat, "arbitrary shell") {
+	if !strings.Contains(caveat, "--then-sh") || !strings.Contains(caveat, "MRW_SHELL=on") {
 		t.Fatalf("the caveat does not say what --then-sh grants: %q", caveat)
 	}
 	for name, doc := range map[string]string{

@@ -1,0 +1,58 @@
+{
+  "id": "grouped-source-tests",
+  "instruction": "Update each active label and its corresponding active test, leaving legacy constants and legacy tests unchanged: unit_0.py ACTIVE_LABEL and test_unit_0.py test_active should use \"ready_0\"; unit_1.py ACTIVE_LABEL and test_unit_1.py test_active should use \"ready_1\"; unit_2.py ACTIVE_LABEL and test_unit_2.py test_active should use \"ready_2\"; unit_3.py ACTIVE_LABEL and test_unit_3.py test_active should use \"ready_3\"; unit_4.py ACTIVE_LABEL and test_unit_4.py test_active should use \"ready_4\". Preserve all other text and formatting exactly, including legacy examples. Do not change accept.py, TASK.json, .quality-harness.json or .gitignore. Run the declared checker. Do not start background jobs.",
+  "edit_sites": 10,
+  "edited_files": 10,
+  "replacements": [
+    {
+      "file": "unit_0.py",
+      "old": "ACTIVE_LABEL = \"old_0\"",
+      "new": "ACTIVE_LABEL = \"ready_0\""
+    },
+    {
+      "file": "test_unit_0.py",
+      "old": "assert unit_0.active_label() == \"old_0\"",
+      "new": "assert unit_0.active_label() == \"ready_0\""
+    },
+    {
+      "file": "unit_1.py",
+      "old": "ACTIVE_LABEL = \"old_1\"",
+      "new": "ACTIVE_LABEL = \"ready_1\""
+    },
+    {
+      "file": "test_unit_1.py",
+      "old": "assert unit_1.active_label() == \"old_1\"",
+      "new": "assert unit_1.active_label() == \"ready_1\""
+    },
+    {
+      "file": "unit_2.py",
+      "old": "ACTIVE_LABEL = \"old_2\"",
+      "new": "ACTIVE_LABEL = \"ready_2\""
+    },
+    {
+      "file": "test_unit_2.py",
+      "old": "assert unit_2.active_label() == \"old_2\"",
+      "new": "assert unit_2.active_label() == \"ready_2\""
+    },
+    {
+      "file": "unit_3.py",
+      "old": "ACTIVE_LABEL = \"old_3\"",
+      "new": "ACTIVE_LABEL = \"ready_3\""
+    },
+    {
+      "file": "test_unit_3.py",
+      "old": "assert unit_3.active_label() == \"old_3\"",
+      "new": "assert unit_3.active_label() == \"ready_3\""
+    },
+    {
+      "file": "unit_4.py",
+      "old": "ACTIVE_LABEL = \"old_4\"",
+      "new": "ACTIVE_LABEL = \"ready_4\""
+    },
+    {
+      "file": "test_unit_4.py",
+      "old": "assert unit_4.active_label() == \"old_4\"",
+      "new": "assert unit_4.active_label() == \"ready_4\""
+    }
+  ]
+}

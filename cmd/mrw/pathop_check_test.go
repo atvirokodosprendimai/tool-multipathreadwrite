@@ -7,14 +7,14 @@ import (
 	"testing"
 )
 
-func TestUnlinkOfGoRunsTheCheckByDefault(t *testing.T) {
+func TestUnlinkOfGoRunsTheCheckWhenAskedFor(t *testing.T) {
 	needShell(t)
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	root := checkTree(t)
 	if _, err := readIn(t, root, "a.go"); err != nil {
 		t.Fatal(err)
 	}
-	out, code := writeIn(t, root, planFile(t, "@@ a.go - unlink\n"))
+	out, code := writeIn(t, root, "--check", planFile(t, "@@ a.go - unlink\n"))
 	if code != exitCheckFailed {
 		t.Fatalf("unlink of a.go exited %d, want %d:\n%s", code, exitCheckFailed, out)
 	}
@@ -33,7 +33,7 @@ func TestRenameOfGoRunsTheCheckOnTheDest(t *testing.T) {
 	if _, err := readIn(t, root, "a.go"); err != nil {
 		t.Fatal(err)
 	}
-	out, code := writeIn(t, root, planFile(t, "@@ a.go - rename\nb.go\n"))
+	out, code := writeIn(t, root, "--check", planFile(t, "@@ a.go - rename\nb.go\n"))
 	if code != exitCheckFailed {
 		t.Fatalf("rename of a.go exited %d, want %d:\n%s", code, exitCheckFailed, out)
 	}
@@ -42,14 +42,14 @@ func TestRenameOfGoRunsTheCheckOnTheDest(t *testing.T) {
 	}
 }
 
-func TestRenameGoToTxtRunsTheCheckByDefault(t *testing.T) {
+func TestRenameGoToTxtRunsTheCheckWhenAskedFor(t *testing.T) {
 	needShell(t)
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	root := checkTree(t)
 	if _, err := readIn(t, root, "a.go"); err != nil {
 		t.Fatal(err)
 	}
-	out, code := writeIn(t, root, planFile(t, "@@ a.go - rename\nout.txt\n"))
+	out, code := writeIn(t, root, "--check", planFile(t, "@@ a.go - rename\nout.txt\n"))
 	if code != exitCheckFailed {
 		t.Fatalf("rename of a.go to .txt exited %d, want %d:\n%s", code, exitCheckFailed, out)
 	}

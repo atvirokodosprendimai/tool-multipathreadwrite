@@ -21,13 +21,15 @@ import (
 // Config is one of the configurations ADR-156 Decision 1 compares, and
 // ADR-162's third.
 type Config struct {
-	Name    string
-	Tools   []string
-	Mrw     bool // a pinned mrw on PATH, its instructions appended, the hook installed
-	Plugin  bool // the quality-harness plugin loaded with --plugin-dir (ADR-162)
-	Work    bool // W: the instruction carries the pre-registered work line (ADR-163)
-	GoHooks bool // G: P with its hooks run by the qh binary instead of Node (ADR-163 Decision 9)
-	Quiet   bool // C: P with the setting that ends a turn without continuing it (ADR-163 Decision 9)
+	Name       string
+	Tools      []string
+	Mrw        bool // a pinned mrw on PATH, its instructions appended, the hook installed
+	Plugin     bool // the quality-harness plugin loaded with --plugin-dir (ADR-162)
+	Work       bool // W: the instruction carries the pre-registered work line (ADR-163)
+	GoHooks    bool // G: P with its hooks run by the qh binary instead of Node (ADR-163 Decision 9)
+	Quiet      bool // C: P with the setting that ends a turn without continuing it (ADR-163 Decision 9)
+	ReadHook   bool // H: B with the host's Read tool, ADR-191's read hook and HSentence (ADR-192)
+	EditFormat bool // S: B with EditParagraph after the instructions (ADR-193)
 }
 
 // Configs are A (the baseline), B (mrw forced), P (A with the
@@ -35,11 +37,15 @@ type Config struct {
 // more line in its instruction, run only under stage6), and the side arms G (P
 // with its hooks run by the qh binary) and C (P with the turn-end setting that
 // ends a turn without continuing it), run only under stage6 and read against P
-// alone (ADR-163 Decision 9). Task, Agent, WebFetch and WebSearch are offered
-// to none.
+// alone (ADR-163 Decision 9). H is B with the host's Read tool, ADR-191's read
+// hook and one sentence, run only under stage7 (ADR-192). S is B with one
+// paragraph more in its prompt, run only under stage8 (ADR-193). Task, Agent,
+// WebFetch and WebSearch are offered to none.
 var Configs = map[string]Config{
 	"A": {Name: "A", Tools: []string{"Bash", "Read", "Edit", "Write", "Glob", "Grep"}},
 	"B": {Name: "B", Tools: []string{"Bash", "Glob"}, Mrw: true},
+	"H": {Name: "H", Tools: []string{"Bash", "Glob", "Read"}, Mrw: true, ReadHook: true},
+	"S": {Name: "S", Tools: []string{"Bash", "Glob"}, Mrw: true, EditFormat: true},
 	"P": {Name: "P", Tools: []string{"Bash", "Read", "Edit", "Write", "Glob", "Grep"}, Plugin: true},
 	"W": {Name: "W", Tools: []string{"Bash", "Read", "Edit", "Write", "Glob", "Grep"}, Plugin: true, Work: true},
 	"G": {Name: "G", Tools: []string{"Bash", "Read", "Edit", "Write", "Glob", "Grep"}, Plugin: true, GoHooks: true},
@@ -58,9 +64,9 @@ var (
 	ErrDiskFloor   = errors.New("free disk is below the floor")
 )
 
-// The registered wall-time budget (BACKLOG, "Pre-registered for ADR-156"): an
-// attempt past it, or past the turn cap (DefaultMaxTurns), is unsolved, its
-// cost counted.
+// DefaultBudget is the registered wall-time budget (BACKLOG, "Pre-registered
+// for ADR-156"): an attempt past it, or past the turn cap (DefaultMaxTurns), is
+// unsolved, its cost counted.
 const DefaultBudget = 20 * time.Minute
 
 // Exclusions the registration admits; no other reason leaves an attempt out.
@@ -109,6 +115,14 @@ type Receipt struct {
 	// CheckRedAtBase is the task's flag (Task.CheckRedAtBase), copied so the
 	// receipt alone says the attempt ran against a check that was red at base.
 	CheckRedAtBase bool `json:"check_red_at_base,omitempty"`
+
+	// H's read hook (ADR-192): the host's Read calls, the hook's runs and the
+	// bytes it wrote to standard error. PostToolUse may not fire for a Read
+	// that failed, so a run count below the read count says the hook did not
+	// run for those Reads, not that its wiring is broken.
+	HostReads       int `json:"host_reads,omitempty"`
+	HookRuns        int `json:"hook_runs,omitempty"`
+	HookStderrBytes int `json:"hook_stderr_bytes,omitempty"`
 
 	// ShimCounts are the container's, under ADR-163 stage6 profile alone: a
 	// stage without it has none of these keys.
@@ -195,6 +209,8 @@ type plan struct {
 	SideAdmitted     []string            `json:"side_admitted,omitempty"`
 	SideConfigsFor   map[string][]string `json:"side_configs_for,omitempty"`
 	Side             map[string]SideMeta `json:"side,omitempty"`
+	HSentenceSHA256  string              `json:"h_sentence_sha256,omitempty"`
+	EditParagraphSHA string              `json:"edit_paragraph_sha256,omitempty"`
 }
 
 // attempt is one run of one task in one configuration on one model.
@@ -251,8 +267,9 @@ func Run(o RunOptions) (err error) {
 	}
 	mrwVersion := ""
 	// A Stage 5 block names the stage's mrw whether or not it still runs B, so
-	// a block after B's comparison closed is the same release (the review of T3).
-	if hasConfig(o, "B") || (o.Block > 0 && o.Mrw != "") {
+	// a block after B's comparison closed is the same release (the review of
+	// T3); any configuration that carries mrw names it, H without B included.
+	if runsMrw(o) || (o.Block > 0 && o.Mrw != "") {
 		if mrwVersion, err = firstLine(o.Mrw, "version"); err != nil {
 			return fmt.Errorf("%s version: %w", o.Mrw, err)
 		}
@@ -294,6 +311,12 @@ func Run(o RunOptions) (err error) {
 	p := plan{Stage: o.Stage, Models: o.Models, Configs: core, Repeats: o.Repeats, Seed: o.Seed, CLIVersion: cli, MrwVersion: mrwVersion, Containment: o.Containment, Profile: o.Profile, Plugin: o.plugin}
 	p.ConfigsFor = o.ConfigsFor
 	p.WorkLineSHA256 = o.workLineSHA
+	if o.Profile == ProfileStage7 {
+		p.HSentenceSHA256 = hSentenceSHA256()
+	}
+	if o.Profile == ProfileStage8 {
+		p.EditParagraphSHA = editParagraphSHA256()
+	}
 	if o.checks != nil {
 		p.ChecksSHA256 = o.checks.SHA256
 	}
@@ -328,6 +351,12 @@ func Run(o RunOptions) (err error) {
 		}
 		if err := sameSide(first, p); err != nil {
 			return err
+		}
+		if first.HSentenceSHA256 != p.HSentenceSHA256 {
+			return fmt.Errorf("block 1 ran H's sentence %q and this one %q: a stage keeps one sentence (ADR-192 Decision 1)", first.HSentenceSHA256, p.HSentenceSHA256)
+		}
+		if first.EditParagraphSHA != p.EditParagraphSHA {
+			return fmt.Errorf("block 1 ran the edit paragraph %q and this one %q: a stage keeps one paragraph (ADR-193 Decision 1)", first.EditParagraphSHA, p.EditParagraphSHA)
 		}
 	}
 	if err := claimOut(o.Out, p); err != nil {
@@ -488,9 +517,23 @@ func gates(o RunOptions) (string, error) {
 	if err := sideGates(o); err != nil {
 		return "", err
 	}
+	if o.Profile == ProfileStage7 {
+		if msg := stage7Problem(o); msg != "" {
+			return "", fmt.Errorf("--profile %s: %s (ADR-192 Decision 1)", ProfileStage7, msg)
+		}
+	}
+	if o.Profile == ProfileStage8 {
+		if msg := stage8Problem(o); msg != "" {
+			return "", fmt.Errorf("--profile %s: %s (ADR-193 Decision 2)", ProfileStage8, msg)
+		}
+	}
 	switch {
-	case o.Profile != "" && o.Profile != ProfileStage5 && o.Profile != ProfileStage6:
-		return "", fmt.Errorf("--profile %q: want %s or %s (ADR-162, ADR-163)", o.Profile, ProfileStage5, ProfileStage6)
+	case o.Profile != "" && o.Profile != ProfileStage5 && o.Profile != ProfileStage6 && o.Profile != ProfileStage7 && o.Profile != ProfileStage8:
+		return "", fmt.Errorf("--profile %q: want %s, %s, %s or %s (ADR-162, ADR-163, ADR-192, ADR-193)", o.Profile, ProfileStage5, ProfileStage6, ProfileStage7, ProfileStage8)
+	case hasConfig(o, "H") && o.Profile != ProfileStage7:
+		return "", fmt.Errorf("configuration H runs only under --profile %s (ADR-192 Decision 1)", ProfileStage7)
+	case hasConfig(o, "S") && o.Profile != ProfileStage8:
+		return "", fmt.Errorf("configuration S runs only under --profile %s (ADR-193 Decision 2)", ProfileStage8)
 	case o.Profile == ProfileStage6 && !settled && !o.canary:
 		return "", errors.New("the stage6 profile is not settled: ADR-163 T1 S1 has not recorded the inspection of a real image, so bench run refuses it; bench canary may run")
 	case o.Profile == ProfileStage6 && o.CanaryImage == "" && slices.ContainsFunc(o.Tasks, func(t Task) bool { return t.swe == nil }):
@@ -526,6 +569,55 @@ func gates(o RunOptions) (string, error) {
 		return "", fmt.Errorf("--config-dir %s is the user's own ~/.claude: an attempt would load their instructions, hooks and MCP servers", o.ConfigDir)
 	}
 	return cd, nil
+}
+
+// stage7Problem is what keeps a stage7 stage to the three configurations
+// ADR-192 compares: every list names only A, B and H, and in block 1, which
+// plans the comparisons, a model that runs H runs B, whose cost H:B is read
+// against. A later block may drop B once its comparisons have closed, and a
+// stage without blocks (T3's uncounted pilot) is judged by no look.
+func stage7Problem(o RunOptions) string {
+	for _, cs := range append([][]string{o.Configs}, mapValues(o.ConfigsFor)...) {
+		for _, c := range cs {
+			if c != "A" && c != "B" && c != "H" {
+				return fmt.Sprintf("configuration %s is not one of A, B and H", c)
+			}
+		}
+	}
+	if o.Block == 1 {
+		for _, m := range o.Models {
+			cs := o.Configs
+			if own, ok := o.ConfigsFor[m]; ok {
+				cs = own
+			}
+			if slices.Contains(cs, "H") && !slices.Contains(cs, "B") {
+				return fmt.Sprintf("%s runs H without B, which H is read against", m)
+			}
+		}
+	}
+	return ""
+}
+
+// stage8Problem is what keeps a stage8 stage to the two configurations
+// ADR-193 compares: every list names only B and S, and a model that runs S
+// runs B, which S is read against.
+func stage8Problem(o RunOptions) string {
+	for _, cs := range append([][]string{o.Configs}, mapValues(o.ConfigsFor)...) {
+		for _, c := range cs {
+			if c != "B" && c != "S" {
+				return fmt.Sprintf("configuration %s is not one of B and S", c)
+			}
+		}
+	}
+	for _, m := range o.Models {
+		if cs := configsFor(o, m); slices.Contains(cs, "S") && !slices.Contains(cs, "B") {
+			return fmt.Sprintf("%s runs S without B, which S is read against", m)
+		}
+	}
+	if !o.StatusLine && !o.canary {
+		return "needs --status-line: B under stage8 is Stage 5's B, whose instruction carried the STATUS sentence"
+	}
+	return ""
 }
 
 // Verify checks a stage directory against its plan: the stage and the counts
@@ -695,6 +787,14 @@ func hasConfig(o RunOptions, c string) bool {
 		}
 	}
 	return slices.Contains(o.Configs, c) && len(o.Models) == 0
+}
+
+// runsMrw says whether any configuration a model of the stage runs carries
+// mrw: B, and H, which can run on after B's comparison closed (ADR-192).
+func runsMrw(o RunOptions) bool {
+	return slices.ContainsFunc(o.Models, func(m string) bool {
+		return slices.ContainsFunc(configsFor(o, m), func(c string) bool { return Configs[c].Mrw })
+	})
 }
 
 func mapValues(m map[string][]string) [][]string {
@@ -889,6 +989,14 @@ func runAttempt(o RunOptions, a attempt, order int, cli, mrwVersion string) (r R
 	if errText, _ := os.ReadFile(base + ".stderr"); startFailed(t, r, string(errText)) {
 		r.Exclusion = ExclusionStart
 	}
+	// H's evidence is taken before grading, which can end the attempt early:
+	// a failed grading is an exclusion, and its hook files are still kept.
+	if a.Config.ReadHook {
+		r.HostReads = t.HostReads
+		if r.HookRuns, r.HookStderrBytes, err = keepHookFiles(scratch, base); err != nil {
+			r.Exclusion, r.Note = ExclusionSetup, "hook files: "+err.Error()
+		}
+	}
 	var v Verdict
 	if a.Task.swe != nil {
 		v, err = o.SWE.grade(a.Task, tree, scratch, a.ID)
@@ -922,6 +1030,27 @@ func runAttempt(o RunOptions, a attempt, order int, cli, mrwVersion string) (r R
 		}
 	}
 	return r
+}
+
+// keepHookFiles copies H's hook.fired and hook.stderr from the attempt's
+// scratch beside its receipt, before the scratch is removed, and counts them:
+// one run per line of hook.fired, and the bytes of hook.stderr.
+func keepHookFiles(scratch, base string) (runs, stderrBytes int, err error) {
+	fired, err := os.ReadFile(filepath.Join(scratch, "hook.fired"))
+	if err != nil {
+		return 0, 0, err
+	}
+	errText, err := os.ReadFile(filepath.Join(scratch, "hook.stderr"))
+	if err != nil {
+		return 0, 0, err
+	}
+	if err := writeOnce(base+".hook.fired", fired); err != nil {
+		return 0, 0, err
+	}
+	if err := writeOnce(base+".hook.stderr", errText); err != nil {
+		return 0, 0, err
+	}
+	return bytes.Count(fired, []byte("\n")), len(errText), nil
 }
 
 // startFailure is what an authentication, rate-limit or start error says.
@@ -1072,15 +1201,41 @@ func invocation(o RunOptions, a attempt, scratch string) ([]string, []string, er
 		if err != nil {
 			return nil, nil, fmt.Errorf("mrw instructions: %w", err)
 		}
+		if a.Config.ReadHook {
+			text = append(append(text, '\n'), HSentence...)
+		}
+		if a.Config.EditFormat {
+			text = append(append(text, '\n'), EditParagraph...)
+		}
 		prompt := filepath.Join(scratch, "mrw-instructions.txt")
 		if err := os.WriteFile(prompt, text, 0o644); err != nil {
 			return nil, nil, err
 		}
 		args = append(args, "--append-system-prompt-file", prompt)
-		settings["hooks"] = map[string]any{"PreToolUse": []any{map[string]any{
+		readTool := ""
+		if a.Config.ReadHook {
+			readTool = " --read-tool"
+		}
+		hooks := map[string]any{"PreToolUse": []any{map[string]any{
 			"matcher": "Bash",
-			"hooks":   []any{map[string]any{"type": "command", "command": shellQuote(o.Bench) + " hook --log " + shellQuote(filepath.Join(scratch, "hook.log")) + " --tree " + shellQuote(attemptTree(scratch))}},
+			"hooks":   []any{map[string]any{"type": "command", "command": shellQuote(o.Bench) + " hook" + readTool + " --log " + shellQuote(filepath.Join(scratch, "hook.log")) + " --tree " + shellQuote(attemptTree(scratch))}},
 		}}}
+		// H: ADR-191's hook licenses the lines the host's Read showed. Its
+		// standard error and one line per run are kept in the scratch, and
+		// runAttempt copies both beside the receipt.
+		if a.Config.ReadHook {
+			stderrFile, firedFile := filepath.Join(scratch, "hook.stderr"), filepath.Join(scratch, "hook.fired")
+			for _, f := range []string{stderrFile, firedFile} {
+				if err := os.WriteFile(f, nil, 0o644); err != nil {
+					return nil, nil, err
+				}
+			}
+			hooks["PostToolUse"] = []any{map[string]any{
+				"matcher": "Read",
+				"hooks":   []any{map[string]any{"type": "command", "command": shellQuote(filepath.Join(bin, "mrw")) + " hook read 2>>" + shellQuote(stderrFile) + "; echo fired >>" + shellQuote(firedFile)}},
+			}}
+		}
+		settings["hooks"] = hooks
 		env = append(env, "XDG_STATE_HOME="+filepath.Join(scratch, "state"))
 	}
 	sb, err := json.Marshal(settings)

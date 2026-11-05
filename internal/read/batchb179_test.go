@@ -25,7 +25,7 @@ func bb179Run(t *testing.T, name, body string, ranges []Range, opt Options) (str
 // placeholder: `id #` shares a run with nothing, `id 7` and `id 42` fold.
 func TestFoldDoesNotTakeAHashForADigitRun(t *testing.T) {
 	text, _, _ := bb179Run(t, "f.txt", "id #\nid 7\nid 42\n", nil, Options{Numbers: true, Fold: true})
-	if !strings.Contains(text, "    1| id #\n    2| id 7\n-- ×2: lines 2-3 like 2, differing only in digits\n") {
+	if !strings.Contains(text, " 1| id #\n 2| id 7\n-- ×2: lines 2-3 like 2, differing only in digits\n") {
 		t.Errorf("the fold printed\n%s", text)
 	}
 }

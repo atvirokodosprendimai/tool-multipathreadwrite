@@ -42,6 +42,7 @@ func TestACheckStepRefusalIsOneJSONDocument(t *testing.T) {
 // log and returns an error: the write has landed, and the steps it asked for
 // are still named, not_run, in both receipts.
 func TestAWriteWhoseCheckCannotRunStillNamesItsSteps(t *testing.T) {
+	t.Setenv("MRW_SHELL", "on")
 	needShell(t)
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	root := stepsTree(t, "exit 0")
@@ -52,7 +53,7 @@ func TestAWriteWhoseCheckCannotRunStillNamesItsSteps(t *testing.T) {
 		t.Setenv("TMP", gone)
 		t.Setenv("TEMP", gone)
 	}
-	out, code := writeIn(t, root, "--json", "--then", "a", "--then-sh", "echo x >> log", plan)
+	out, code := writeIn(t, root, "--json", "--check", "--then", "a", "--then-sh", "echo x >> log", plan)
 	if code != exitUsage {
 		t.Fatalf("exit %d, want %d:\n%s", code, exitUsage, out)
 	}
@@ -61,7 +62,7 @@ func TestAWriteWhoseCheckCannotRunStillNamesItsSteps(t *testing.T) {
 		t.Errorf("statuses %v, error %q, want both not_run beside the error:\n%s", got, r.Error, out)
 	}
 	plan2 := planFile(t, "@@ a.go 2 replace anchor=\"func A\"\nfunc A() { _ = 2 }\n")
-	out, code = writeIn(t, root, "--then", "a", plan2)
+	out, code = writeIn(t, root, "--check", "--then", "a", plan2)
 	if code != exitUsage || !strings.Contains(out, "NOT RUN") {
 		t.Errorf("the human receipt does not name the step not run: exit %d:\n%s", code, out)
 	}

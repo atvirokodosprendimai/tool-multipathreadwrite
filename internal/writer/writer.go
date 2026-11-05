@@ -11,6 +11,8 @@ package writer
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/apply"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
@@ -98,10 +100,20 @@ func applyCounted(root string, in []apply.Input, opt apply.Options) (apply.Resul
 			gone = append(gone, f.Path)
 			continue
 		}
-		if f.Written {
+		if f.Written && f.QuotedOnly {
+			// ADR-190: a quote licensed these lines and the caller read nothing
+			// else, so the file is known only where it was written.
+			wrote[f.Path] = seen.Observation{SHA: f.SHAAfter, Spans: append([][2]int{}, f.Spans...)}
+		} else if f.Written {
 			wrote[f.Path] = seen.Observation{SHA: f.SHAAfter, Written: true}
 		}
 	}
+	// Issue #597: the ledger is keyed by spelling, so the same file read as
+	// A.TXT (or through an in-root symlink) keeps an entry at the sha it had
+	// before this write. Left there, a write through that spelling is refused
+	// as changed since mrw saw it. Dropped, its next lookup misses and finds
+	// this write's record by os.SameFile, as apply's alias lookup already does.
+	gone = append(gone, otherSpellings(root, res.Files, opt.Seen)...)
 	// Drop before Record: an unlink of c and a rename onto c in one plan leave
 	// two records for c, and the one that holds is the file on disk.
 	if lerr := seen.Drop(root, gone); lerr != nil {
@@ -111,6 +123,45 @@ func applyCounted(root string, in []apply.Input, opt apply.Options) (apply.Resul
 		return res, gen, ledgerFailed(m, err, lerr)
 	}
 	return res, gen, err
+}
+
+// otherSpellings returns the ledger keys that name a file this write changed
+// under a spelling the plan did not use: a case variant on a case-insensitive
+// filesystem, or an in-root symlink (issue #597). Identity is os.SameFile, the
+// filesystem's own answer, so on a case-sensitive filesystem a.txt and A.TXT
+// stay two files with two entries. Each ledger key is stat'ed once.
+func otherSpellings(root string, files []apply.FileResult, ledger map[string]apply.Seen) []string {
+	named := map[string]bool{}
+	var written []os.FileInfo
+	for _, f := range files {
+		named[f.Path] = true
+		if !f.Written || f.Removed {
+			continue
+		}
+		if fi, err := os.Stat(filepath.Join(root, filepath.FromSlash(f.Path))); err == nil {
+			written = append(written, fi)
+		}
+	}
+	if len(written) == 0 {
+		return nil
+	}
+	var out []string
+	for key := range ledger {
+		if named[key] {
+			continue
+		}
+		fi, err := os.Stat(filepath.Join(root, filepath.FromSlash(key)))
+		if err != nil {
+			continue
+		}
+		for _, w := range written {
+			if os.SameFile(w, fi) {
+				out = append(out, key)
+				break
+			}
+		}
+	}
+	return out
 }
 
 // ledgerFailed is what applyCounted returns when the ledger could not record what

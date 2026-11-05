@@ -156,3 +156,4 @@ to fail. Otherwise: the fence exits 0.
 - 2026-09-29 · cc8fa3b* · exit 0 · `set -o pipefail …` · acceptance-sha256:30b5822cf3d3ed496530ad83e76e273d0737e40a6a1efb986526b959bb0d8d5a · ms:848
 - 2026-09-29 · cc8fa3b* · exit 0 · `set -o pipefail …` · acceptance-sha256:30b5822cf3d3ed496530ad83e76e273d0737e40a6a1efb986526b959bb0d8d5a · ms:920
 - 2026-09-29 · human-observed · S5 observed: PR #278 records 'contract.sh holds' (rebased on 8c5f37a); contract.sh exit 0 with §178 on main db39d42 on 2026-09-29 (this session)
+- 2026-10-29 · 33aa28b7* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:30b5822cf3d3ed496530ad83e76e273d0737e40a6a1efb986526b959bb0d8d5a · ms:0 · test-lock-sha256:2e3cbf0fadcc100ba710d128916f95cac2ad24e4257fada70551c2eaa7e43ad5 · test-lock-file:docs/adr/locks/2e3cbf0fadcc100ba710d128916f95cac2ad24e4257fada70551c2eaa7e43ad5.lock · test-lock-kind:replace

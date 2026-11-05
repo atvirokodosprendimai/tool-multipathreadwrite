@@ -63,6 +63,16 @@ jobs:
       - name: Local parallel test runner checks
         run: python3 -m unittest discover -s scripts -p test_test_fast.py -v
 
+      - name: Homebrew publisher checks
+        run: python3 -m unittest discover -s scripts -p test_brew_tap.py -v
+
+      - name: Measurement and warning report checks
+        run: |
+          go build -o "$RUNNER_TEMP/mrw" ./cmd/mrw
+          PATH="$RUNNER_TEMP:$PATH" python3 -m unittest discover -s scripts -p test_mrw_observe.py -v
+          PATH="$RUNNER_TEMP:$PATH" python3 -m unittest discover -s scripts -p test_claude_evidence.py -v
+          PATH="$RUNNER_TEMP:$PATH" python3 -m unittest discover -s scripts -p test_grouped_pilot.py -v
+
       - name: Vet
         run: go vet ./...
 
@@ -219,6 +229,12 @@ jobs:
           go vet $pkgs
           go test -count=1 $pkgs
           go test -race -count=1 $pkgs
+          # ADR-181 T2: the test whose job log is its evidence runs again with -v
+          # in the shard that holds cmd/mrw, so its PASS line and the shell
+          # versions it logs are in the log; the shards above run without -v.
+          if grep -qx 'github.com/atvirokodosprendimai/tool-multipathreadwrite/cmd/mrw' <<<"$pkgs"; then
+            go test -count=1 -v -run '^TestEveryPrintedReadLineServesTheLogInItsShell$' ./cmd/mrw/
+          fi
 
   # The name branch protection requires. It exists to collapse the six shards
   # into one context, and it must FAIL when any of them does.

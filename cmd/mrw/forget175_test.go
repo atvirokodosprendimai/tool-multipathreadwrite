@@ -28,7 +28,7 @@ func TestSeenForgetMakesTheNextWriteNeedAFreshRead(t *testing.T) {
 		t.Fatalf("read exited %d: %s", code, out)
 	}
 	out, code := runIn(t, root, "seen", "--forget")
-	if code != 0 || !strings.Contains(out, "forgot 1 file(s): a write now needs a fresh read of the lines it touches") {
+	if code != 0 || !strings.HasPrefix(out, "forgot 1 file(s) in ") || !strings.Contains(out, ": a write now needs a fresh read of the lines it touches") {
 		t.Fatalf("seen --forget exited %d: %q", code, out)
 	}
 	if out, code = runIn(t, root, "write", "--no-check", plan); code != 1 {

@@ -604,7 +604,7 @@ func TestStatsLandedLineUsesAppliedPlusFailedCheckPlusCheckNotRun(t *testing.T) 
 	}
 	writeIn(t, root, "--no-check", planFile(t, "@@ a.go 2 replace\nfunc A() { _ = 1 }\n")) // applied
 	writeIn(t, root, planFile(t, "@@ notes.md 2 replace\nline 2\n"))                       // applied (prose skip)
-	writeIn(t, root, planFile(t, "@@ a.go 3 replace\nfunc B() { _ = 1 }\n"))               // failed_check
+	writeIn(t, root, "--check", planFile(t, "@@ a.go 3 replace\nfunc B() { _ = 1 }\n"))    // failed_check
 	// A written tree whose check could not run (exit 2). Recorded directly:
 	// the fixture declares a check, so no write here can reach that exit,
 	// and without this row a denominator that drops check_not_run passes.
@@ -670,7 +670,7 @@ func TestStatsPricesStrictBalance(t *testing.T) {
 		exit int
 	}{
 		{[]string{"--no-check"}, delta, 0},
-		{nil, delta, 3},
+		{[]string{"--check"}, delta, 3},
 		{[]string{"--no-check"}, clean, 0},
 		{[]string{"--no-check", "--strict-balance"}, delta, 1},
 	}

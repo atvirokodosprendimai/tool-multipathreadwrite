@@ -1159,3 +1159,562 @@ func TestTheRunStopsBelowTheDiskFloor(t *testing.T) {
 		t.Errorf("a floor below the free space: %v", err)
 	}
 }
+
+// stage7Options are profiledOptions under the stage7 profile with a stub mrw
+// that answers `hook` on standard error, the way ADR-191's hook does.
+func stage7Options(t *testing.T, configs ...string) RunOptions {
+	t.Helper()
+	opts := profiledOptions(t, "", configs...)
+	opts.Profile = ProfileStage7
+	opts.Mrw = filepath.Join(filepath.Dir(opts.Out), "mrw-h")
+	script := "#!/bin/sh\n[ \"$1\" = version ] && { echo 'mrw stub'; exit 0; }\n[ \"$1\" = hook ] && { echo 'hook said' >&2; exit 0; }\necho 'use it'\n"
+	if err := os.WriteFile(opts.Mrw, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return opts
+}
+
+// stubClaudeWithReads is stubClaude whose session reads twice with the host's
+// Read tool and, where bench made the hook's files, has the hook fire twice
+// and say "oops" on standard error.
+func stubClaudeWithReads(t *testing.T, dir, patch string) string {
+	t.Helper()
+	claude := filepath.Join(dir, "claude-reads")
+	script := `#!/bin/sh
+tools=""; prev=""
+for a in "$@"; do
+	[ "$a" = "--version" ] && { echo "9.9.9 (Claude Code)"; exit 0; }
+	[ "$prev" = "--tools" ] && tools="$a"
+	prev="$a"
+done
+git apply "` + patch + `" >/dev/null 2>&1
+if [ -f "$TMPDIR/hook.fired" ]; then printf 'fired\nfired\n' >> "$TMPDIR/hook.fired"; printf 'oops\n' >> "$TMPDIR/hook.stderr"; fi
+printf '{"type":"system","subtype":"init","model":"stub-model","tools":["%s"],"mcp_servers":[]}\n' "$(printf '%s' "$tools" | sed 's/,/","/g')"
+printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Read","input":{"file_path":"notes.txt"}},{"type":"tool_use","name":"Read","input":{"file_path":"notes.txt"}},{"type":"tool_use","name":"Bash","input":{"command":"ls"}}]}}'
+printf '%s\n' '{"type":"result","subtype":"success","is_error":false,"num_turns":2,"duration_ms":10,"total_cost_usd":0.25,"usage":{"input_tokens":100,"output_tokens":20,"cache_read_input_tokens":300,"cache_creation_input_tokens":40}}'
+`
+	if err := os.WriteFile(claude, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return claude
+}
+
+func writeStage7Canary(t *testing.T, opts RunOptions, configs string) {
+	t.Helper()
+	if err := os.WriteFile(opts.Canary, []byte(`{"pass":true,"cli_version":"9.9.9 (Claude Code)","profile":"stage7","configs":`+configs+`}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestConfigurationHIsBPlusReadAndTheReadHook: H is offered Bash, Glob, Read
+// and Skill; its settings carry a PostToolUse hook on Read that runs mrw's
+// hook and keeps its standard error and one line per run in the attempt's
+// scratch; its prompt is mrw's instructions, a newline and the registered
+// sentence; its refusal text names the Read tool; the receipt counts the
+// reads, the runs and the standard error, and both files are kept beside it;
+// run.json names the sentence's SHA-256 and a later block naming another is
+// refused; H outside stage7 is refused (ADR-192 Decision 1).
+func TestConfigurationHIsBPlusReadAndTheReadHook(t *testing.T) {
+	const sentence = "In this session, read files with the Read tool, not with mrw read, cat or grep: the lines a Read shows you count as read for mrw, so a plan may then edit them with no mrw read. Edit and create files only with mrw write."
+	if HSentence != sentence {
+		t.Fatalf("the sentence is %q, want ADR-192 Decision 1's", HSentence)
+	}
+	opts := stage7Options(t, "A", "B", "H")
+	work := filepath.Dir(opts.Out)
+	if _, err := gates(opts); err != nil {
+		t.Fatalf("H under stage7 was refused: %v", err)
+	}
+	for _, profile := range []string{"", ProfileStage5} {
+		bad := opts
+		bad.Profile = profile
+		if _, err := gates(bad); err == nil {
+			t.Errorf("configuration H ran under profile %q", profile)
+		}
+	}
+	if err := resolveProfile(&opts); err != nil {
+		t.Fatal(err)
+	}
+
+	scratch := t.TempDir()
+	args, _, err := invocation(opts, attempt{ID: "x", Task: opts.Tasks[0], Model: "m", Config: Configs["H"], Repeat: 1}, scratch)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tools := args[slices.Index(args, "--tools")+1]; tools != "Bash,Glob,Read,Skill" {
+		t.Errorf("H is offered %q, want Bash,Glob,Read,Skill", tools)
+	}
+	prompt, err := os.ReadFile(args[slices.Index(args, "--append-system-prompt-file")+1])
+	if err != nil || string(prompt) != "use it\n\n"+sentence {
+		t.Errorf("H's prompt is %q (%v), want mrw's instructions, a newline and the sentence", prompt, err)
+	}
+	b, err := os.ReadFile(args[slices.Index(args, "--settings")+1])
+	if err != nil {
+		t.Fatal(err)
+	}
+	var s struct {
+		Hooks map[string][]struct {
+			Matcher string `json:"matcher"`
+			Hooks   []struct {
+				Command string `json:"command"`
+			} `json:"hooks"`
+		} `json:"hooks"`
+	}
+	if err := json.Unmarshal(b, &s); err != nil {
+		t.Fatal(err)
+	}
+	post := s.Hooks["PostToolUse"]
+	if len(post) != 1 || post[0].Matcher != "Read" || len(post[0].Hooks) != 1 {
+		t.Fatalf("H's PostToolUse hooks are %+v, want one on Read", post)
+	}
+	cmd := post[0].Hooks[0].Command
+	if !strings.Contains(cmd, " hook read") || !strings.Contains(cmd, filepath.Join(scratch, "hook.stderr")) || !strings.Contains(cmd, filepath.Join(scratch, "hook.fired")) {
+		t.Errorf("the read hook's command is %q", cmd)
+	}
+	pre := s.Hooks["PreToolUse"]
+	if len(pre) != 1 || pre[0].Matcher != "Bash" || !strings.Contains(pre[0].Hooks[0].Command, " hook --read-tool ") {
+		t.Errorf("H's Bash hook is %+v, want bench's hook told the Read tool is offered", pre)
+	}
+	// The hook command runs: two runs leave two lines and two answers.
+	for range 2 {
+		c := exec.Command("sh", "-c", cmd)
+		c.Stdin = strings.NewReader("{}")
+		if out, err := c.CombinedOutput(); err != nil || len(out) != 0 {
+			t.Fatalf("the read hook command: %v %q", err, out)
+		}
+	}
+	if fired, _ := os.ReadFile(filepath.Join(scratch, "hook.fired")); strings.Count(string(fired), "\n") != 2 {
+		t.Errorf("hook.fired holds %q after two runs", fired)
+	}
+	if got, _ := os.ReadFile(filepath.Join(scratch, "hook.stderr")); string(got) != "hook said\nhook said\n" {
+		t.Errorf("hook.stderr holds %q after two runs", got)
+	}
+
+	// H's refusal says the Read tool reads; B's says what it always said.
+	var hErr, bErr bytes.Buffer
+	log := filepath.Join(work, "hook.log")
+	if code := ReadToolHook(bytes.NewReader(hookInput(t, "Bash", "rm x")), &hErr, log, ""); code != 2 || !strings.Contains(hErr.String(), "read them with mrw read or the Read tool") {
+		t.Errorf("H's refusal: exit %d %q", code, hErr.String())
+	}
+	if code := Hook(bytes.NewReader(hookInput(t, "Bash", "rm x")), &bErr, log, ""); code != 2 || !strings.Contains(bErr.String(), "read them with mrw read.") || strings.Contains(bErr.String(), "Read tool") {
+		t.Errorf("B's refusal: exit %d %q", code, bErr.String())
+	}
+
+	// A stage: the receipt counts, the files are kept, run.json names the sentence.
+	opts.Claude = stubClaudeWithReads(t, work, filepath.Join(opts.Tasks[0].Dir, "reference.patch"))
+	writeStage7Canary(t, opts, `["A","B","H"]`)
+	stage := filepath.Join(work, "stage")
+	opts.Block, opts.Out = 1, filepath.Join(stage, "block-1")
+	if err := Run(opts); err != nil {
+		t.Fatal(err)
+	}
+	id := func(c string) string { return filepath.Join(opts.Out, opts.Tasks[0].ID+"."+c+".stub-model.1") }
+	var h Receipt
+	raw, err := os.ReadFile(id("H") + ".receipt.json")
+	if err != nil || json.Unmarshal(raw, &h) != nil {
+		t.Fatalf("H's receipt: %v", err)
+	}
+	if h.HostReads != 2 || h.HookRuns != 2 || h.HookStderrBytes != len("oops\n") || h.MrwVersion != "mrw stub" {
+		t.Errorf("H's receipt counts %d reads, %d runs, %d bytes, mrw %q; want 2, 2, 5, mrw stub", h.HostReads, h.HookRuns, h.HookStderrBytes, h.MrwVersion)
+	}
+	if got, _ := os.ReadFile(id("H") + ".hook.stderr"); string(got) != "oops\n" {
+		t.Errorf("the kept hook.stderr holds %q", got)
+	}
+	if got, _ := os.ReadFile(id("H") + ".hook.fired"); string(got) != "fired\nfired\n" {
+		t.Errorf("the kept hook.fired holds %q", got)
+	}
+	a, err := os.ReadFile(id("A") + ".receipt.json")
+	if err != nil || strings.Contains(string(a), "host_reads") || strings.Contains(string(a), "hook_runs") || strings.Contains(string(a), "mrw_version") {
+		t.Errorf("A's receipt carries H's or mrw's keys: %s %v", a, err)
+	}
+	if exists(id("A")+".hook.fired") || exists(id("A")+".hook.stderr") {
+		t.Error("A kept hook files")
+	}
+	first := filepath.Join(opts.Out, "run.json")
+	runJSON, err := os.ReadFile(first)
+	sum := sha256.Sum256([]byte(sentence))
+	var p struct {
+		SHA        string `json:"h_sentence_sha256"`
+		MrwVersion string `json:"mrw_version"`
+	}
+	if err != nil || json.Unmarshal(runJSON, &p) != nil || p.SHA != hex.EncodeToString(sum[:]) || p.MrwVersion != "mrw stub" {
+		t.Errorf("run.json names sentence sha %q and mrw %q (%v), want the sentence's and mrw stub", p.SHA, p.MrwVersion, err)
+	}
+
+	// Block 2 names the sentence block 1 named, or it is refused.
+	opts.Block, opts.Out = 2, filepath.Join(stage, "block-2")
+	tampered := bytes.Replace(runJSON, []byte(p.SHA), []byte(strings.Repeat("0", 64)), 1)
+	if err := os.WriteFile(first, tampered, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := Run(opts); err == nil || !strings.Contains(err.Error(), "sentence") {
+		t.Errorf("block 2 after a block 1 with another sentence: %v", err)
+	}
+	if err := os.WriteFile(first, runJSON, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := Run(opts); err != nil {
+		t.Errorf("block 2 with block 1's sentence: %v", err)
+	}
+
+	// A stage with no blocks, T3's pilot among them, may run H without B
+	// and still names its mrw.
+	plain := opts
+	plain.Block, plain.Out, plain.Configs = 0, filepath.Join(work, "plain"), []string{"A", "H"}
+	if err := Run(plain); err != nil {
+		t.Fatal(err)
+	}
+	var pp struct {
+		MrwVersion string `json:"mrw_version"`
+	}
+	pb, err := os.ReadFile(filepath.Join(plain.Out, "run.json"))
+	if err != nil || json.Unmarshal(pb, &pp) != nil || pp.MrwVersion != "mrw stub" {
+		t.Errorf("a stage with no blocks names mrw %q (%v), want mrw stub", pp.MrwVersion, err)
+	}
+	var ph Receipt
+	pr, err := os.ReadFile(filepath.Join(plain.Out, opts.Tasks[0].ID+".H.stub-model.1.receipt.json"))
+	if err != nil || json.Unmarshal(pr, &ph) != nil || ph.MrwVersion != "mrw stub" {
+		t.Errorf("H's receipt in a stage with no blocks names mrw %q (%v)", ph.MrwVersion, err)
+	}
+}
+
+// TestStage7RunsOnlyAThroughHAndHNeedsBInBlockOne: a stage7 model runs a
+// subset of A, B and H, and H only beside B in block 1, which plans the
+// comparisons; a later block may drop B once its comparisons have closed,
+// and a stage without blocks (T3's uncounted pilot) is judged by no look
+// (ADR-192 Decision 1, Decision 3).
+func TestStage7RunsOnlyAThroughHAndHNeedsBInBlockOne(t *testing.T) {
+	for _, c := range []struct {
+		name    string
+		configs []string
+		block   int
+		perM    map[string][]string
+		refused bool
+	}{
+		{"A, B and H", []string{"A", "B", "H"}, 1, nil, false},
+		{"B and H", []string{"B", "H"}, 1, nil, false},
+		{"A and B alone", []string{"A", "B"}, 0, nil, false},
+		{"A and H in block 1", []string{"A", "H"}, 1, nil, true},
+		{"A and H in a stage with no blocks", []string{"A", "H"}, 0, nil, false},
+		{"H alone in a stage with no blocks, T3's pilot", []string{"H"}, 0, nil, false},
+		{"A and H in block 2, B's comparisons closed", []string{"A", "H"}, 2, nil, false},
+		{"A, B, H and P", []string{"A", "B", "H", "P"}, 1, nil, true},
+		{"H alone for one model in block 1", []string{"A", "B", "H"}, 1, map[string][]string{"stub-model": {"A", "H"}}, true},
+	} {
+		opts := stage7Options(t, c.configs...)
+		opts.Block, opts.ConfigsFor = c.block, c.perM
+		_, err := gates(opts)
+		if (err != nil) != c.refused || (err != nil && !strings.Contains(err.Error(), "ADR-192")) {
+			t.Errorf("%s: gates said %v, want refused %v naming ADR-192", c.name, err, c.refused)
+		}
+	}
+}
+
+// TestHKeepsItsHookEvidenceWhenGradingFails: an H attempt whose grading
+// fails is a setup exclusion that still counts its Reads and its hook runs
+// and keeps both hook files beside its receipt (ADR-192 Decision 1).
+func TestHKeepsItsHookEvidenceWhenGradingFails(t *testing.T) {
+	opts := stage7Options(t, "A", "B", "H")
+	work := t.TempDir()
+	reads := stubClaudeWithReads(t, work, filepath.Join(opts.Tasks[0].Dir, "reference.patch"))
+	// The session ends by removing its tree's .git, so the oracle cannot list the changes.
+	opts.Claude = filepath.Join(work, "claude-no-git")
+	script := "#!/bin/sh\n\"" + reads + "\" \"$@\"; s=$?\n[ \"$1\" = --version ] || rm -rf .git\nexit $s\n"
+	if err := os.WriteFile(opts.Claude, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeStage7Canary(t, opts, `["A","B","H"]`)
+	opts.Block, opts.Out = 1, filepath.Join(work, "stage", "block-1")
+	if err := Run(opts); err != nil {
+		t.Fatal(err)
+	}
+	base := filepath.Join(opts.Out, opts.Tasks[0].ID+".H.stub-model.1")
+	var h Receipt
+	raw, err := os.ReadFile(base + ".receipt.json")
+	if err != nil || json.Unmarshal(raw, &h) != nil {
+		t.Fatalf("H's receipt: %v", err)
+	}
+	if h.Exclusion != ExclusionSetup || !strings.Contains(h.Note, "oracle") {
+		t.Fatalf("H's grading did not fail: exclusion %q, note %q", h.Exclusion, h.Note)
+	}
+	if h.HostReads != 2 || h.HookRuns != 2 || h.HookStderrBytes != len("oops\n") {
+		t.Errorf("H's receipt counts %d reads, %d runs, %d bytes after a failed grading; want 2, 2, 5", h.HostReads, h.HookRuns, h.HookStderrBytes)
+	}
+	if got, _ := os.ReadFile(base + ".hook.fired"); string(got) != "fired\nfired\n" {
+		t.Errorf("the kept hook.fired holds %q after a failed grading", got)
+	}
+	if got, _ := os.ReadFile(base + ".hook.stderr"); string(got) != "oops\n" {
+		t.Errorf("the kept hook.stderr holds %q after a failed grading", got)
+	}
+}
+
+// TestRunCanaryFailsAnHWhoseReadHookSpoke: the stage7 canary runs H through
+// the stub that has the hook fire twice and write to standard error, and
+// records it as a problem of H alone (ADR-192 Decision 1).
+func TestRunCanaryFailsAnHWhoseReadHookSpoke(t *testing.T) {
+	opts := stage7Options(t, "A", "B", "H")
+	work := filepath.Dir(opts.Out)
+	opts.Claude = stubClaudeWithReads(t, work, filepath.Join(opts.Tasks[0].Dir, "reference.patch"))
+	opts.Out = filepath.Join(work, "canary")
+	got, err := RunCanary(opts, opts.Tasks[0], "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Pass || !strings.Contains(strings.Join(got.Problems["H"], "\n"), "standard error") {
+		t.Errorf("H's hook wrote to standard error and the canary says %v, pass %v", got.Problems["H"], got.Pass)
+	}
+	for _, name := range []string{"A", "B"} {
+		if strings.Contains(strings.Join(got.Problems[name], "\n"), "read hook") {
+			t.Errorf("%s is blamed for a read hook: %v", name, got.Problems[name])
+		}
+	}
+}
+
+// TestAAndBCarryNoReadHookInStage7: under stage7, A's and B's arguments,
+// settings, prompt and environment are what stage5 gives them (ADR-192
+// Decision 1).
+func TestAAndBCarryNoReadHookInStage7(t *testing.T) {
+	shared := stage7Options(t, "A", "B")
+	render := func(profile, name string) string {
+		opts := shared
+		opts.Profile = profile
+		scratch := t.TempDir()
+		args, env, err := invocation(opts, attempt{ID: "x", Task: opts.Tasks[0], Model: "m", Config: Configs[name], Repeat: 1}, scratch)
+		if err != nil {
+			t.Fatal(err)
+		}
+		files := []string{"settings.json", "mrw-instructions.txt"}
+		var parts []string
+		for _, f := range files {
+			b, err := os.ReadFile(filepath.Join(scratch, f))
+			if err != nil && !errors.Is(err, os.ErrNotExist) {
+				t.Fatal(err)
+			}
+			parts = append(parts, f+"="+string(b))
+		}
+		parts = append(parts, strings.Join(args, "\x00"), strings.Join(env, "\x00"))
+		return strings.ReplaceAll(strings.Join(parts, "\n"), scratch, "<scratch>")
+	}
+	for _, name := range []string{"A", "B"} {
+		if s5, s7 := render(ProfileStage5, name), render(ProfileStage7, name); s5 != s7 {
+			t.Errorf("configuration %s under stage7 differs from stage5:\nstage5 %s\nstage7 %s", name, s5, s7)
+		}
+	}
+	for _, name := range []string{"A", "B"} {
+		if strings.Contains(render(ProfileStage7, name), "PostToolUse") {
+			t.Errorf("configuration %s carries a PostToolUse hook", name)
+		}
+	}
+}
+
+// editParagraph is ADR-193 Decision 1's paragraph as the record gives it.
+const editParagraph = "In this session, make every edit to an existing file as a SEARCH/REPLACE block and apply it with mrw write --format=search_replace FILE. A block is the file's path on its own line, then <<<<<<< SEARCH, the file's current lines exactly as they are, =======, the lines that replace them, and >>>>>>> REPLACE; one FILE may hold many blocks for many files. SEARCH must match exactly once. End SEARCH and REPLACE with the same unchanged line, and the block needs no mrw read of the lines it quotes. Use a native @@ hunk only for an edit by line number, and mrw write --grep P --sub R for one change at many sites."
+
+// stage8Options are stage7Options under the stage8 profile.
+func stage8Options(t *testing.T, configs ...string) RunOptions {
+	t.Helper()
+	opts := stage7Options(t, configs...)
+	opts.Profile = ProfileStage8
+	opts.StatusLine = true
+	return opts
+}
+
+func writeStage8Canary(t *testing.T, opts RunOptions, configs string) {
+	t.Helper()
+	if err := os.WriteFile(opts.Canary, []byte(`{"pass":true,"cli_version":"9.9.9 (Claude Code)","profile":"stage8","configs":`+configs+`}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// rendered is what invocation gives an attempt: its arguments and environment,
+// the settings file and the prompt file, with the scratch directory's path
+// taken out so two attempts compare.
+type rendered struct{ args, env, settings, prompt string }
+
+func renderInvocation(t *testing.T, opts RunOptions, name string) rendered {
+	t.Helper()
+	scratch := t.TempDir()
+	args, env, err := invocation(opts, attempt{ID: "x", Task: opts.Tasks[0], Model: "m", Config: Configs[name], Repeat: 1}, scratch)
+	if err != nil {
+		t.Fatal(err)
+	}
+	read := func(f string) string {
+		b, err := os.ReadFile(filepath.Join(scratch, f))
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			t.Fatal(err)
+		}
+		return string(b)
+	}
+	fix := func(s string) string { return strings.ReplaceAll(s, scratch, "<scratch>") }
+	return rendered{fix(strings.Join(args, "\x00")), fix(strings.Join(env, "\x00")), fix(read("settings.json")), read("mrw-instructions.txt")}
+}
+
+// TestConfigurationSIsBPlusTheEditParagraph: S is offered B's tools and has B's
+// arguments, environment, settings and refusal text; its prompt is mrw's
+// instructions, a newline and the registered paragraph; run.json names the
+// paragraph's SHA-256 and a later block naming another is refused; S outside
+// stage8 is refused (ADR-193 Decisions 1 and 2).
+func TestConfigurationSIsBPlusTheEditParagraph(t *testing.T) {
+	if EditParagraph != editParagraph {
+		t.Fatalf("the paragraph is %q, want ADR-193 Decision 1's", EditParagraph)
+	}
+	opts := stage8Options(t, "B", "S")
+	work := filepath.Dir(opts.Out)
+	if _, err := gates(opts); err != nil {
+		t.Fatalf("S under stage8 was refused: %v", err)
+	}
+	for _, profile := range []string{"", ProfileStage5, ProfileStage6, ProfileStage7} {
+		bad := opts
+		bad.Profile = profile
+		if _, err := gates(bad); err == nil {
+			t.Errorf("configuration S ran under profile %q", profile)
+		}
+	}
+	if err := resolveProfile(&opts); err != nil {
+		t.Fatal(err)
+	}
+
+	b, s := renderInvocation(t, opts, "B"), renderInvocation(t, opts, "S")
+	if s.args != b.args || s.env != b.env || s.settings != b.settings {
+		t.Errorf("S differs from B beyond its prompt:\nB %+v\nS %+v", b, s)
+	}
+	if tools := strings.Split(s.args, "\x00"); tools[slices.Index(tools, "--tools")+1] != "Bash,Glob,Skill" {
+		t.Errorf("S is offered %q, want Bash,Glob,Skill", tools[slices.Index(tools, "--tools")+1])
+	}
+	if b.prompt != "use it\n" || s.prompt != "use it\n\n"+editParagraph {
+		t.Errorf("B's prompt is %q and S's %q, want mrw's instructions, and those, a newline and the paragraph", b.prompt, s.prompt)
+	}
+	if strings.Contains(s.settings, "--read-tool") || strings.Contains(s.settings, "PostToolUse") {
+		t.Errorf("S's settings carry H's hook: %s", s.settings)
+	}
+
+	// A stage: run.json names the paragraph, and block 2 names the same or is refused.
+	writeStage8Canary(t, opts, `["B","S"]`)
+	stage := filepath.Join(work, "stage")
+	opts.Block, opts.Out = 1, filepath.Join(stage, "block-1")
+	if err := Run(opts); err != nil {
+		t.Fatal(err)
+	}
+	first := filepath.Join(opts.Out, "run.json")
+	runJSON, err := os.ReadFile(first)
+	sum := sha256.Sum256([]byte(editParagraph))
+	var p struct {
+		SHA string `json:"edit_paragraph_sha256"`
+	}
+	if err != nil || json.Unmarshal(runJSON, &p) != nil || p.SHA != hex.EncodeToString(sum[:]) {
+		t.Fatalf("run.json names paragraph sha %q (%v), want the paragraph's", p.SHA, err)
+	}
+	opts.Block, opts.Out = 2, filepath.Join(stage, "block-2")
+	if err := os.WriteFile(first, bytes.Replace(runJSON, []byte(p.SHA), []byte(strings.Repeat("0", 64)), 1), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := Run(opts); err == nil || !strings.Contains(err.Error(), "paragraph") {
+		t.Errorf("block 2 after a block 1 with another paragraph: %v", err)
+	}
+	if err := os.WriteFile(first, runJSON, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := Run(opts); err != nil {
+		t.Errorf("block 2 with block 1's paragraph: %v", err)
+	}
+}
+
+// TestBUnderStage8IsStage5sB: B's arguments, tools, prompt, settings,
+// environment and refusal text under stage8 are what stage5 gives it, and
+// its run.json names no paragraph (ADR-193 Decision 2).
+func TestBUnderStage8IsStage5sB(t *testing.T) {
+	shared := stage8Options(t, "B", "S")
+	at := func(profile string) rendered {
+		o := shared
+		o.Profile = profile
+		return renderInvocation(t, o, "B")
+	}
+	if s5, s8 := at(ProfileStage5), at(ProfileStage8); s5 != s8 {
+		t.Errorf("configuration B under stage8 differs from stage5:\nstage5 %+v\nstage8 %+v", s5, s8)
+	}
+	if got := at(ProfileStage8); got.prompt != "use it\n" || strings.Contains(got.settings, "read-tool") {
+		t.Errorf("B under stage8 has prompt %q and settings %s", got.prompt, got.settings)
+	}
+}
+
+// TestRunJSONNamesAConfigurationsTextOnlyUnderItsProfile: run.json carries H's
+// sentence digest under stage7 alone and the edit paragraph's under stage8
+// alone, so a Stage 5 run.json keeps its bytes (ADR-192 and ADR-193 Decision 1).
+func TestRunJSONNamesAConfigurationsTextOnlyUnderItsProfile(t *testing.T) {
+	for _, c := range []struct {
+		profile        string
+		sentence, edit bool
+	}{{ProfileStage5, false, false}, {ProfileStage7, true, false}, {ProfileStage8, false, true}} {
+		opts := stage7Options(t, "B")
+		opts.Profile, opts.StatusLine = c.profile, true
+		if err := os.WriteFile(opts.Canary, []byte(`{"pass":true,"cli_version":"9.9.9 (Claude Code)","profile":"`+c.profile+`","configs":["B"]}`), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		opts.Block, opts.Out = 1, filepath.Join(filepath.Dir(opts.Out), "stage", "block-1")
+		if err := Run(opts); err != nil {
+			t.Fatalf("%s: %v", c.profile, err)
+		}
+		b, err := os.ReadFile(filepath.Join(opts.Out, "run.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := strings.Contains(string(b), `"h_sentence_sha256"`); got != c.sentence {
+			t.Errorf("%s run.json names H's sentence: %v, want %v", c.profile, got, c.sentence)
+		}
+		if got := strings.Contains(string(b), `"edit_paragraph_sha256"`); got != c.edit {
+			t.Errorf("%s run.json names the edit paragraph: %v, want %v", c.profile, got, c.edit)
+		}
+	}
+}
+
+// TestStage8RunsOnlyBAndS: a stage8 list names only B and S, and a model that
+// runs S runs B; S under any other profile is refused (ADR-193 Decision 2).
+func TestStage8RunsOnlyBAndS(t *testing.T) {
+	for _, c := range []struct {
+		name    string
+		configs []string
+		block   int
+		perM    map[string][]string
+		refused bool
+	}{
+		{"B and S", []string{"B", "S"}, 1, nil, false},
+		{"B and S in block 2", []string{"B", "S"}, 2, nil, false},
+		{"B and S in a stage with no blocks", []string{"B", "S"}, 0, nil, false},
+		{"B alone", []string{"B"}, 0, nil, false},
+		{"S alone", []string{"S"}, 1, nil, true},
+		{"S alone in a stage with no blocks", []string{"S"}, 0, nil, true},
+		{"A and B", []string{"A", "B"}, 1, nil, true},
+		{"B, S and A", []string{"B", "S", "A"}, 1, nil, true},
+		{"B, S and H", []string{"B", "S", "H"}, 1, nil, true},
+		{"B, S and P", []string{"B", "S", "P"}, 1, nil, true},
+		{"S alone for one model", []string{"B", "S"}, 1, map[string][]string{"stub-model": {"S"}}, true},
+		{"A for one model", []string{"B", "S"}, 1, map[string][]string{"stub-model": {"B", "A"}}, true},
+	} {
+		opts := stage8Options(t, c.configs...)
+		opts.Block, opts.ConfigsFor = c.block, c.perM
+		_, err := gates(opts)
+		if (err != nil) != c.refused || (err != nil && !strings.Contains(err.Error(), "ADR-193")) {
+			t.Errorf("%s: gates said %v, want refused %v naming ADR-193", c.name, err, c.refused)
+		}
+	}
+	for _, profile := range []string{"", ProfileStage5, ProfileStage7} {
+		opts := stage8Options(t, "B", "S")
+		opts.Profile = profile
+		if profile == ProfileStage5 || profile == "" {
+			if _, err := gates(opts); err == nil || !strings.Contains(err.Error(), "ADR-193") {
+				t.Errorf("S under profile %q: gates said %v, want a refusal naming ADR-193", profile, err)
+			}
+		} else if _, err := gates(opts); err == nil {
+			t.Errorf("S under profile %q was not refused", profile)
+		}
+	}
+	// B under stage8 is Stage 5's B, which ran with --status-line; a canary has no such flag.
+	opts := stage8Options(t, "B", "S")
+	opts.StatusLine = false
+	if _, err := gates(opts); err == nil || !strings.Contains(err.Error(), "ADR-193") || !strings.Contains(err.Error(), "status-line") {
+		t.Errorf("a stage8 run without --status-line: gates said %v, want a refusal naming it and ADR-193", err)
+	}
+	opts.canary = true
+	if _, err := gates(opts); err != nil {
+		t.Errorf("a stage8 canary was refused for --status-line: %v", err)
+	}
+}

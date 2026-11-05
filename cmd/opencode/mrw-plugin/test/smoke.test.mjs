@@ -176,7 +176,7 @@ test("a write whose check cannot run landed, and the answer does not call it ref
   const saved = process.env.TMPDIR;
   process.env.TMPDIR = path.join(dir, "missing");
   t.after(() => { if (saved === undefined) delete process.env.TMPDIR; else process.env.TMPDIR = saved; });
-  const write = await tl.mrw_write.execute({ plan: "@@ a.go 2 replace\nfunc A() { _ = 1 }\n", ack: acks(read.output) }, ctx(dir));
+  const write = await tl.mrw_write.execute({ plan: "@@ a.go 2 replace\nfunc A() { _ = 1 }\n", ack: acks(read.output), check: true }, ctx(dir));
   assert.equal(write.metadata.isError, true, write.output);
   assert.doesNotMatch(write.output, /refused/, write.output);
   assert.match(write.output, /COULD NOT RUN/, write.output);

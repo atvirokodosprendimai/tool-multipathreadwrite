@@ -34,6 +34,8 @@ func TestATwoHunkSearchReplaceWithOneUnreadLineWritesNothing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("compile refused a locatable two-hunk SEARCH/REPLACE: %v", err)
 	}
+	// The quoted hunks need no read (ADR-190); a native sibling does.
+	planText = append(planText, []byte(`@@ a.go 4 replace`+nl+`func B() int { return 20 }`+nl)...)
 	res := applyCompiled(t, root, planText, observed)
 	if res.Failed != 1 {
 		t.Fatalf("want 1 failed hunk, got failed=%d applied=%v: %+v", res.Failed, res.Applied, res.Hunks)
@@ -129,5 +131,21 @@ func TestEmptySearchOnMissingFileIsCreate(t *testing.T) {
 	}
 	if len(hunks) != 1 || string(hunks[0].Op) != "create" || strings.Join(hunks[0].Body, "\n") != "hello" {
 		t.Fatalf("create = %+v", hunks)
+	}
+}
+
+// The Stage 8 pilot (ADR-193 T4): an agent passed the file it meant to edit as
+// FILE, so mrw read Python source as the document. The refusal names the
+// marker it found none of and says what FILE is.
+func TestADocumentWithNoSearchLineSaysFileIsTheDocument(t *testing.T) {
+	root := writeTree(t, map[string]string{"a.go": demo})
+	_, err := CompileSearchReplace(root, []byte(demo))
+	if err == nil {
+		t.Fatal("a file with no SEARCH line compiled")
+	}
+	for _, want := range []string{"no line starts <<<<<<< SEARCH", "not the file it edits"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("refusal %q does not say %q", err, want)
+		}
 	}
 }

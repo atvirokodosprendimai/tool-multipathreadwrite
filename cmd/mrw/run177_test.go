@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -68,6 +69,7 @@ func decodeFirst(out string, v any) error {
 // none of its output; the log holds all of it; the read: line, run as printed
 // from a state home whose name holds a space and a quote, serves the last 40.
 func TestRunKeepsTheOutputAndPrintsOneReceipt(t *testing.T) {
+	t.Setenv("MRW_SHELL", "on")
 	needShell(t)
 	if runtime.GOOS == "windows" {
 		t.Skip("the read: line is PowerShell's there; its text is asserted by TestTheReadLineIsQuotedForThePlatform")
@@ -147,7 +149,7 @@ func TestTheReadLineIsQuotedForThePlatform(t *testing.T) {
 	// PowerShell 5.1): the typed form, a PowerShell double-quoted string, with
 	// ` and $ escaped and ' left alone; it is byte-exact where a pipe is not.
 	bt := "`"
-	want := `cmd /c "` + bt + `"C:\Program Files\mrw\mrw.exe` + bt + `" read -- -:61-` + bt + `$ < ` + bt + `"C:\u's\` + bt + `$x\b` + bt + bt + `c.log` + bt + `""`
+	want := `cmd /d /v:off /c "` + bt + `"C:\Program Files\mrw\mrw.exe` + bt + `" read -- -:61-` + bt + `$ < ` + bt + `"C:\u's\` + bt + `$x\b` + bt + bt + `c.log` + bt + `""`
 	if got := runReadLine("windows", `C:\Program Files\mrw\mrw.exe`, "C:\\u's\\$x\\b`c.log", 100); got != want {
 		t.Errorf("windows:\n got %s\nwant %s", got, want)
 	}
@@ -166,6 +168,36 @@ func TestTheReadLineIsQuotedForThePlatform(t *testing.T) {
 	}
 	if got := runReadLine("windows", `C:\mrw.exe`, `C:\logs\r.log`, 5); got == "" {
 		t.Error("windows, no % or quote: want a line")
+	}
+}
+
+// ADR-181 Decisions 1-2: on Windows the receipt names a read line for each
+// shell, labelled, the PowerShell one ADR-177's byte for byte; unix keeps its
+// one read: line. A path holding " or % prints none; one holding ! drops only
+// the cmd line, since cmd expands !NAME! under delayed expansion.
+func TestTheWindowsRunReceiptLabelsAReadLineForEachShell(t *testing.T) {
+	bt := "`"
+	exe, log := `C:\Program Files\mrw\mrw.exe`, "C:\\u's\\$x\\b`c.log"
+	want := []string{
+		`read (PowerShell): cmd /d /v:off /c "` + bt + `"C:\Program Files\mrw\mrw.exe` + bt + `" read -- -:61-` + bt + `$ < ` + bt + `"C:\u's\` + bt + `$x\b` + bt + bt + `c.log` + bt + `""`,
+		`read (cmd): "C:\Program Files\mrw\mrw.exe" read -- -:61-$ < "C:\u's\$x\b` + bt + `c.log"`,
+		`read (Git Bash): 'C:\Program Files\mrw\mrw.exe' read -- '-:61-$' < 'C:\u'\''s\$x\b` + bt + `c.log'`,
+	}
+	if got := runReadLines("windows", exe, log, 100); !slices.Equal(got, want) {
+		t.Errorf("windows:\n got %q\nwant %q", got, want)
+	}
+	unix := []string{`read: '/opt/my mrw/mrw' read -- '-:1-$' < '/a b/run.log'`}
+	if got := runReadLines("linux", "/opt/my mrw/mrw", "/a b/run.log", 3); !slices.Equal(got, unix) {
+		t.Errorf("unix:\n got %q\nwant %q", got, unix)
+	}
+	for _, p := range []string{`C:\a"b\r.log`, `C:\logs\%USERNAME%\r.log`} {
+		if got := runReadLines("windows", exe, p, 5); len(got) != 0 {
+			t.Errorf("windows, %s: %q, want no line", p, got)
+		}
+	}
+	got := runReadLines("windows", exe, `C:\logs\wow!\r.log`, 5)
+	if len(got) != 2 || !strings.HasPrefix(got[0], "read (PowerShell): ") || !strings.HasPrefix(got[1], "read (Git Bash): ") {
+		t.Errorf("windows, a ! in the path: %q, want the PowerShell and Git Bash lines only", got)
 	}
 }
 
@@ -188,6 +220,7 @@ func TestTheReadLineNamesTheRunningBinary(t *testing.T) {
 }
 
 func TestRunKeepsTheLogOfAShortOrEmptySuccess(t *testing.T) {
+	t.Setenv("MRW_SHELL", "on")
 	needShell(t)
 	state := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", state)
@@ -209,8 +242,8 @@ func TestRunKeepsTheLogOfAShortOrEmptySuccess(t *testing.T) {
 	if fi, err := os.Stat(receiptField(out, "log")); err != nil || fi.Size() != 0 {
 		t.Errorf("an empty passing run lost its log: %v", err)
 	}
-	if receiptField(out, "last") != "" || strings.Contains(out, "last:") || strings.Contains(out, "read:") {
-		t.Errorf("an empty output has no last: or read: line:\n%s", out)
+	if receiptField(out, "last") != "" || strings.Contains(out, "last:") || strings.Contains(out, "read:") || strings.Contains(out, "read (") {
+		t.Errorf("an empty output has no last: or read line:\n%s", out)
 	}
 	entries, _ := os.ReadDir(filepath.Join(state, "mrw-runs"))
 	if len(entries) != 2 {
@@ -229,6 +262,7 @@ func TestRunKeepsTheLogOfAShortOrEmptySuccess(t *testing.T) {
 }
 
 func TestRunExitsWithTheCommandsOwnCode(t *testing.T) {
+	t.Setenv("MRW_SHELL", "on")
 	needShell(t)
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	root := t.TempDir()
@@ -256,6 +290,7 @@ func TestRunExitsWithTheCommandsOwnCode(t *testing.T) {
 }
 
 func TestRunThatCannotStartSaysSoAndExitsTwo(t *testing.T) {
+	t.Setenv("MRW_SHELL", "on")
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	if runtime.GOOS == "windows" {
 		t.Skip("Git for Windows' sh may still be found")
@@ -277,6 +312,7 @@ func TestRunThatCannotStartSaysSoAndExitsTwo(t *testing.T) {
 }
 
 func TestRunTakesExactlyOneCommandString(t *testing.T) {
+	t.Setenv("MRW_SHELL", "on")
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	root := t.TempDir()
 	for _, args := range [][]string{{"run", "echo", "hi"}, {"run"}} {
@@ -297,6 +333,7 @@ func TestRunTakesExactlyOneCommandString(t *testing.T) {
 }
 
 func TestRunIsRefusedAtTheStepDepthLimit(t *testing.T) {
+	t.Setenv("MRW_SHELL", "on")
 	needShell(t)
 	state := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", state)
@@ -327,6 +364,7 @@ func TestRunIsRefusedAtTheStepDepthLimit(t *testing.T) {
 // An interrupt sent to mrw while the command runs stops the command's group,
 // and the run says so and exits 130.
 func TestRunStoppedByAnInterruptExits130(t *testing.T) {
+	t.Setenv("MRW_SHELL", "on")
 	needShell(t)
 	if runtime.GOOS == "windows" {
 		t.Skip("an interrupt cannot be sent to a process on Windows")
@@ -403,6 +441,7 @@ func runInCtx(ctx context.Context, t *testing.T, root string, argv ...string) (s
 // 130 or 124, not a configuration failure's 2 (ADR-177 Decision 6), and no
 // command ran and no log is left.
 func TestRunStoppedBeforeItStartsExits130Or124(t *testing.T) {
+	t.Setenv("MRW_SHELL", "on")
 	needShell(t)
 	state := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", state)
@@ -490,6 +529,7 @@ func TestRunUsageErrorUnderJSONIsOneRefusalDocument(t *testing.T) {
 
 // A line is blank or not by all of it, not by the first 4,096 bytes kept of it.
 func TestRunLastLineIsJudgedWholeNotByItsKeptPrefix(t *testing.T) {
+	t.Setenv("MRW_SHELL", "on")
 	needShell(t)
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	root := t.TempDir()
@@ -506,6 +546,7 @@ func TestRunLastLineIsJudgedWholeNotByItsKeptPrefix(t *testing.T) {
 // Names sort by when the command ENDED, so the newest 64 by name are the 64
 // that finished last and a long run's log is not the oldest name.
 func TestRunLogIsNamedWhenTheCommandEnds(t *testing.T) {
+	t.Setenv("MRW_SHELL", "on")
 	needShell(t)
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	before := time.Now()
@@ -567,6 +608,7 @@ func TestRunJSONFlagIsReadAsTheParserReadsIt(t *testing.T) {
 // A whitespace-only line is blank whole: a multi-byte space (U+2003) split
 // across the 64 KiB read boundary must not make it the last line.
 func TestRunLastLineBlankIsJudgedAcrossFragmentBoundaries(t *testing.T) {
+	t.Setenv("MRW_SHELL", "on")
 	needShell(t)
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	root := t.TempDir()

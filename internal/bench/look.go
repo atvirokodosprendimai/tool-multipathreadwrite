@@ -38,12 +38,14 @@ func BlockTasks(ts []Task, k int) ([]Task, error) {
 	return ts[lo:hi], nil
 }
 
-// LookRow is one model's comparison with A at the latest look: closed at the
-// look it first read eligible and PAYS or LOSES, else open, and INCONCLUSIVE
-// once the stage is complete.
+// LookRow is one model's comparison of a configuration with its baseline (A,
+// and under stage7 B for H against B) at the latest look: closed at the look it
+// first read eligible and PAYS or LOSES, or at the look the uptake gate failed
+// and UNTESTED, else open, and INCONCLUSIVE once the stage is complete.
 type LookRow struct {
 	Model      string
 	Comparison string
+	Baseline   string
 	Verdict    string
 	ClosedAt   int    // the look it closed at, 0 while open
 	Eligible   bool   // whether the latest look it was read at was eligible
@@ -90,8 +92,8 @@ func Look(stageDir string) (LookReport, error) {
 		}
 		if len(blocks) > 0 {
 			f := blocks[0].plan
-			if p.Stage != f.Stage || p.CLIVersion != f.CLIVersion || p.MrwVersion != f.MrwVersion || p.Profile != f.Profile || !samePlugin(p.Plugin, f.Plugin) {
-				return rep, fmt.Errorf("%s ran another stage, CLI, mrw, profile or plugin than block 1", dir)
+			if p.Stage != f.Stage || p.CLIVersion != f.CLIVersion || p.MrwVersion != f.MrwVersion || p.Profile != f.Profile || !samePlugin(p.Plugin, f.Plugin) || p.HSentenceSHA256 != f.HSentenceSHA256 || p.EditParagraphSHA != f.EditParagraphSHA {
+				return rep, fmt.Errorf("%s ran another stage, CLI, mrw, profile, plugin, H sentence or edit paragraph than block 1", dir)
 			}
 		}
 		paths, err := filepath.Glob(filepath.Join(dir, "*.receipt.json"))
@@ -129,63 +131,62 @@ func Look(stageDir string) (LookReport, error) {
 		}
 	}
 	for _, m := range first.Models {
-		var comps []string
-		for _, c := range plannedConfigs(first, m) {
-			if c != "A" {
-				comps = append(comps, c)
-			}
+		comps := comparisonsFor(first, m)
+		rows := make([]*LookRow, len(comps))
+		for i, c := range comps {
+			rows[i] = &LookRow{Model: m, Comparison: c.config, Baseline: c.base}
 		}
-		rows := map[string]*LookRow{}
-		for _, c := range comps {
-			rows[c] = &LookRow{Model: m, Comparison: c}
-		}
+		// ADR-192 Decision 4: neither H comparison closes before the uptake
+		// gate is read, at the first look where H against B is eligible.
+		gate, gateRead := slices.Index(comps, comparison{"H", "B"}), false
 		for j := range blocks {
-			open := []string{"A"}
-			for _, c := range comps {
-				if rows[c].ClosedAt == 0 {
-					open = append(open, c)
-				}
-			}
-			if len(open) == 1 {
-				open = nil
-			}
+			open := scheduled(plannedConfigs(first, m), comps, rows)
 			if j > 0 && !sameSet(plannedConfigs(blocks[j].plan, m), open) {
 				return rep, fmt.Errorf("block %d runs %v for %s; after look %d the rule schedules %v", j+1, plannedConfigs(blocks[j].plan, m), m, j, open)
 			}
-			for _, c := range comps {
-				row := rows[c]
+			failed := false
+			if gate >= 0 && !gateRead && eligible(blocks[:j+1], m, comps[gate]) {
+				gateRead = true
+				passed, counted := uptake(blocks[0], m)
+				failed = 2*passed < counted
+			}
+			for i, c := range comps {
+				row := rows[i]
 				if row.ClosedAt != 0 {
 					continue
 				}
 				var rs []Receipt
 				for _, b := range blocks[:j+1] {
 					for _, r := range b.rs {
-						if r.Model == m && (r.Config == "A" || r.Config == c) {
+						if r.Model == m && (r.Config == c.base || r.Config == c.config) {
 							rs = append(rs, r)
 						}
 					}
 				}
-				res, err := judgeWith(first.Stage, m, "swe-bench", rs, c, lookLevel, true)
+				res, err := judgeAgainst(c.base, first.Stage, m, "swe-bench", rs, c.config, lookLevel, true)
 				if err != nil {
 					return rep, err
 				}
 				res.Look = j + 1
 				row.Result, row.Eligible = res, eligible(blocks[:j+1], m, c)
-				if row.Eligible && (res.Verdict == "PAYS" || res.Verdict == "LOSES") {
+				switch {
+				case gate >= 0 && c.config == "H" && !gateRead:
+					// held open until the gate is read, whatever the interval says
+				case gate >= 0 && c.config == "H" && failed:
+					row.ClosedAt, row.Verdict = j+1, "UNTESTED"
+				case row.Eligible && (res.Verdict == "PAYS" || res.Verdict == "LOSES"):
 					row.ClosedAt, row.Verdict = j+1, res.Verdict
 				}
 			}
 		}
-		var next []string
-		for _, c := range comps {
-			if rows[c].ClosedAt == 0 {
-				rows[c].Verdict = "INCONCLUSIVE"
-				next = append(next, c)
+		for _, row := range rows {
+			if row.ClosedAt == 0 {
+				row.Verdict = "INCONCLUSIVE"
 			}
-			rep.Rows = append(rep.Rows, *rows[c])
+			rep.Rows = append(rep.Rows, *row)
 		}
-		if len(next) > 0 {
-			rep.Next[m] = append([]string{"A"}, next...)
+		if next := scheduled(plannedConfigs(first, m), comps, rows); len(next) > 0 {
+			rep.Next[m] = next
 		}
 	}
 	rep.Complete = rep.Blocks == Looks || len(rep.Next) == 0
@@ -195,29 +196,97 @@ func Look(stageDir string) (LookReport, error) {
 	return rep, nil
 }
 
+// comparison is one configuration read against a baseline: B and P against A
+// in Stage 5, and under stage7 B against A, H against A and H against B.
+type comparison struct{ config, base string }
+
+// comparisonsFor are the comparisons block 1 planned for a model, in the order
+// a look lists them.
+func comparisonsFor(p plan, model string) []comparison {
+	planned := plannedConfigs(p, model)
+	if p.Profile != ProfileStage7 {
+		var out []comparison
+		for _, c := range planned {
+			if c != "A" {
+				out = append(out, comparison{c, "A"})
+			}
+		}
+		return out
+	}
+	return slices.DeleteFunc([]comparison{{"B", "A"}, {"H", "A"}, {"H", "B"}}, func(c comparison) bool {
+		return !slices.Contains(planned, c.config) || !slices.Contains(planned, c.base)
+	})
+}
+
+// scheduled are the configurations the next block runs for a model: those in
+// some open comparison, A first (ADR-192 Decision 3). Nothing once every
+// comparison is closed.
+func scheduled(planned []string, comps []comparison, rows []*LookRow) []string {
+	var in []string
+	for i, c := range comps {
+		if rows[i].ClosedAt == 0 {
+			in = append(in, c.config, c.base)
+		}
+	}
+	var out []string
+	if slices.Contains(in, "A") {
+		out = append(out, "A")
+	}
+	for _, c := range planned {
+		if c != "A" && slices.Contains(in, c) {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+// finalReceipts finds a block's final receipt for a model's task and
+// configuration: walked from the first try through each replacement the
+// registration owes, as Verify walks it.
+func finalReceipts(b lookBlock, model string) func(task, cfg string) (Receipt, bool) {
+	byID := map[string]Receipt{}
+	for _, r := range b.rs {
+		if r.Model == model {
+			byID[r.Attempt] = r
+		}
+	}
+	return func(task, cfg string) (Receipt, bool) {
+		id := fmt.Sprintf("%s.%s.%s.1", task, cfg, safe(model))
+		r, ok := byID[id]
+		for try := 0; ok && replaced(r.Exclusion, try); try++ {
+			r, ok = byID[fmt.Sprintf("%s.r%d", id, try+1)]
+		}
+		return r, ok
+	}
+}
+
+// uptake is the gate's count (ADR-192 Decision 4): over block 1's instances,
+// the final H receipts eligibility's walk reaches, with excluded attempts left
+// out and timed-out and over-budget ones counted, how many show a host Read.
+func uptake(b lookBlock, model string) (passed, counted int) {
+	final := finalReceipts(b, model)
+	for _, task := range b.plan.Tasks {
+		if r, ok := final(task, "H"); ok && r.Exclusion == "" {
+			counted++
+			if r.HostReads >= 1 {
+				passed++
+			}
+		}
+	}
+	return passed, counted
+}
+
 // eligible is ADR-162 Decision 5's rule for a look. Every attempt a block
 // scheduled for the model — every configuration it planned, not only this
 // comparison's — has its receipt, walked from the first try through each
 // replacement the registration owes, as Verify walks it; then at most 5% of
-// the instances are excluded in A or c, and at least 95% are paired.
-func eligible(blocks []lookBlock, model, c string) bool {
+// the instances are excluded in the baseline or the configuration, and at
+// least 95% are paired.
+func eligible(blocks []lookBlock, model string, c comparison) bool {
 	n, paired := 0, 0
 	excluded := map[string]int{}
 	for _, b := range blocks {
-		byID := map[string]Receipt{}
-		for _, r := range b.rs {
-			if r.Model == model {
-				byID[r.Attempt] = r
-			}
-		}
-		final := func(task, cfg string) (Receipt, bool) {
-			id := fmt.Sprintf("%s.%s.%s.1", task, cfg, safe(model))
-			r, ok := byID[id]
-			for try := 0; ok && replaced(r.Exclusion, try); try++ {
-				r, ok = byID[fmt.Sprintf("%s.r%d", id, try+1)]
-			}
-			return r, ok
-		}
+		final := finalReceipts(b, model)
 		for _, task := range b.plan.Tasks {
 			for _, cfg := range plannedConfigs(b.plan, model) {
 				if _, ok := final(task, cfg); !ok {
@@ -226,7 +295,7 @@ func eligible(blocks []lookBlock, model, c string) bool {
 			}
 			n++
 			both := true
-			for _, cfg := range []string{"A", c} {
+			for _, cfg := range []string{c.base, c.config} {
 				if r, _ := final(task, cfg); r.Exclusion != "" {
 					excluded[cfg]++
 					both = false
@@ -240,7 +309,7 @@ func eligible(blocks []lookBlock, model, c string) bool {
 	if n == 0 {
 		return false
 	}
-	for _, cfg := range []string{"A", c} {
+	for _, cfg := range []string{c.base, c.config} {
 		if float64(excluded[cfg]) > 0.05*float64(n)+eps {
 			return false
 		}
@@ -274,8 +343,8 @@ func (r LookReport) Text() string {
 			state = fmt.Sprintf("closed at look %d", row.ClosedAt)
 		}
 		res := row.Result
-		fmt.Fprintf(&b, "%s · %s against A · %s · %s · eligible %v · cost %+.3f [%+.3f, %+.3f] · solved %+.3f [%+.3f, %+.3f] at %.0f%% · tasks %d",
-			row.Model, row.Comparison, state, row.Verdict, row.Eligible, res.RelCost, res.RelLo, res.RelHi, res.SolvedDiff, res.SolvedLo, res.SolvedHi, res.Level*100, res.Tasks)
+		fmt.Fprintf(&b, "%s · %s against %s · %s · %s · eligible %v · cost %+.3f [%+.3f, %+.3f] · solved %+.3f [%+.3f, %+.3f] at %.0f%% · tasks %d",
+			row.Model, row.Comparison, row.Baseline, state, row.Verdict, row.Eligible, res.RelCost, res.RelLo, res.RelHi, res.SolvedDiff, res.SolvedLo, res.SolvedHi, res.Level*100, res.Tasks)
 		// What a ruling or a killed attempt left out is said on the row it
 		// shaped, and only there, so a row without either reads as before.
 		if res.Excluded > 0 {
@@ -349,7 +418,7 @@ func LookDescriptive(stageDir string, rep LookReport, subsets []Subset) ([]Resul
 				if err := rule(ruled, &r, map[string]bool{}); err != nil {
 					return nil, err
 				}
-				if r.Model == row.Model && (r.Config == "A" || r.Config == row.Comparison) {
+				if r.Model == row.Model && (r.Config == row.Baseline || r.Config == row.Comparison) {
 					rs = append(rs, r)
 				}
 			}
@@ -364,11 +433,16 @@ func LookDescriptive(stageDir string, rep LookReport, subsets []Subset) ([]Resul
 			if len(in) == 0 {
 				continue
 			}
-			res, err := judgeWith(row.Result.Stage, row.Model, "swe-bench", in, row.Comparison, lookLevel, true)
+			res, err := judgeAgainst(row.Baseline, row.Result.Stage, row.Model, "swe-bench", in, row.Comparison, lookLevel, true)
 			if err != nil {
 				return nil, err
 			}
 			res.Descriptive, res.Look = s.Label, upTo
+			// The gate closed the row UNTESTED over the interval's reading,
+			// which is not the verdict to print beside it.
+			if row.Verdict == "UNTESTED" {
+				res.Verdict = "UNTESTED"
+			}
 			out = append(out, res)
 		}
 	}

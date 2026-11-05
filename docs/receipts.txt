@@ -242,6 +242,7 @@ mcp_read same_as_served
 mcp_read same_as_served[].path
 mcp_read same_as_served[].sha
 mcp_read same_as_served[].spans
+mcp_read capped
 read content
 read receipt
 read_refusal error

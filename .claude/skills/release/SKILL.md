@@ -94,15 +94,16 @@ N probes, exit codes identical to v<prev>.`; CONTRIBUTING's `(\`v<prev>\` is
 
 ```sh
 git -c advice.detachedHead=false checkout vX.Y.Z
-CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=vX.Y.Z" -o /tmp/mrw ./cmd/mrw
+GOTOOLCHAIN="go$(go list -m -f '{{.GoVersion}}')" CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=vX.Y.Z" -o /tmp/mrw ./cmd/mrw
 install -m 0755 /tmp/mrw ~/.local/bin/mrw && git checkout main && mrw version
 ```
 
-Same flags CI uses. Then one write that exercises the change through the
+Same flags and the same Go CI uses (`go.mod`'s, which `setup-go` reads; a newer local `go` would
+compile a binary the release asset is not). Then one write that exercises the change through the
 installed binary — not `bin/mrw` — and read the receipt.
 
 Between releases, after a merge, install from `main` instead, stamped so `mrw version` names the commit:
-`go build -ldflags "-X main.version=v<next>-dev+$(git rev-parse --short=8 HEAD)" -o "$(command -v mrw)" ./cmd/mrw`.
+`GOTOOLCHAIN="go$(go list -m -f '{{.GoVersion}}')" go build -ldflags "-X main.version=v<next>-dev+$(git rev-parse --short=8 HEAD)" -o "$(command -v mrw)" ./cmd/mrw`.
 This is the one place that says how the local CLI is installed; `~/.claude/CLAUDE.md` points here.
 
 ## 7. Write it down

@@ -77,6 +77,22 @@ const (
 // stale one silently kept the read-before-modify bypass alive on this machine.
 var version = "dev"
 
+// readBuildInfo is debug.ReadBuildInfo, a variable so a test can give the
+// command a go install build's module version (ADR-183): a test binary's own
+// build info always says (devel).
+var readBuildInfo = debug.ReadBuildInfo
+
+// reportedVersion is the version mrw reports before versionFrom adds the
+// commit: the linker stamp, else the module version a go install build
+// recorded. It is what --check-latest judges (ADR-183 Decision 1).
+func reportedVersion() string {
+	info, ok := readBuildInfo()
+	if !ok {
+		return version
+	}
+	return moduleVersion(version, info.Main.Version, info.Settings)
+}
+
 // versionString reports the version plus the commit the binary was BUILT from.
 //
 // Go records vcs.revision, vcs.time and vcs.modified in every build made inside
@@ -89,11 +105,29 @@ var version = "dev"
 // built from a tarball, or with -buildvcs=false, is not a liar, it is just
 // unstamped.
 func versionString() string {
-	info, ok := debug.ReadBuildInfo()
+	info, ok := readBuildInfo()
 	if !ok {
 		return version
 	}
-	return versionFrom(version, info.Settings)
+	return versionFrom(reportedVersion(), info.Settings)
+}
+
+// moduleVersion is the version to report when the linker stamped none: a
+// `go install …@<version>` build is made in module mode, with no vcs.* settings
+// for versionFrom to read, so "dev" alone named nothing although Go recorded
+// the module version it built — a tag, or a pseudo-version ending in the
+// commit. A stamp wins, and a build with a revision (a checkout) keeps "dev",
+// which versionFrom then names by its commit.
+func moduleVersion(v, module string, settings []debug.BuildSetting) string {
+	if v != "dev" || module == "" || module == "(devel)" {
+		return v
+	}
+	for _, s := range settings {
+		if s.Key == "vcs.revision" {
+			return v
+		}
+	}
+	return module
 }
 
 // versionFrom is the composition, split out because it is the half that can be
@@ -168,15 +202,18 @@ func rootCommand() *cli.Command {
 			// The ledger names the mrw that writes it (ADR-150).
 			seen.SetWriter(versionString())
 			// version, instructions and skill touch no state at all (ADR-145,
-			// ADR-168); the legacy migration runs for every other command, stats included.
+			// ADR-168); hook skips the migration, whose lock would wait without a deadline
+			// (ADR-191); the legacy migration runs for every other command, stats included.
 			verb := cmd.Args().First()
-			if verb != "version" && verb != "instructions" && verb != "skill" {
+			if verb != "version" && verb != "instructions" && verb != "skill" && verb != "hook" {
 				migrateLegacyState()
 			}
 			// version, instructions, skill and stats never read the ledger (ADR-136,
-			// ADR-168), and help — asked for by name, or a bare mrw — uses none (ADR-157).
+			// ADR-168), help — asked for by name, or a bare mrw — uses none (ADR-157),
+			// and run records nothing in it and serves nothing from it (ADR-177). hook
+			// tells the person of a lock or a newer ledger itself, once (ADR-191).
 			switch verb {
-			case "version", "instructions", "skill", "stats", "help", "h", "":
+			case "version", "instructions", "skill", "stats", "run", "help", "h", "", "hook":
 				return ctx, nil
 			}
 			// The seen subcommand's flags are parsed before this runs (urfave/cli
@@ -221,7 +258,7 @@ func rootCommand() *cli.Command {
 			cmd.Metadata = map[string]any{"notFound": cli.Exit(
 				fmt.Sprintf("unknown command %q (want %s)", name, strings.Join(names, ", ")), exitUsage)}
 		},
-		Commands: []*cli.Command{readCmd(), writeCmd(), checkCmd(), runCmd(), iterCmd(), seenCmd(), statsCmd(), mcpCmd(), instructionsCmd(), skillCmd(), versionCmd()},
+		Commands: []*cli.Command{readCmd(), writeCmd(), checkCmd(), runCmd(), iterCmd(), seenCmd(), statsCmd(), mcpCmd(), instructionsCmd(), skillCmd(), versionCmd(), hookCmd()},
 	}
 	installUsageErrors(cmd)
 	return cmd
@@ -603,7 +640,7 @@ func versionCmd() *cli.Command {
 			if !cmd.Bool("check-latest") {
 				return nil
 			}
-			return checkLatest(ctx, out)
+			return checkLatest(ctx, out, reportedVersion())
 		},
 	}
 }
@@ -750,9 +787,10 @@ those, so it does not know what they are — nor the entry for the root you are
 running in. --prune --dry-run prints the same list and removes nothing.
 
 --forget empties the read ledger of this checkout, read and written files alike, so
-that a write needs a fresh read of the lines it touches. A host hook runs it after
-it compacts its context (docs/agents.md); it costs every session in the checkout a
-re-read, and it is refused, exit 2, over a ledger a newer mrw wrote.
+that a write needs a fresh read of the lines it touches, and names the checkout whose
+ledger it emptied. A host hook runs it after it compacts its context (docs/agents.md);
+it costs every session in the checkout a re-read, and it is refused, exit 2, over a
+ledger a newer mrw wrote.
 
 There is no automatic reaper and there will not be one: a path that is gone may
 be a deleted checkout or a volume that is not mounted, and only you can tell.`,
@@ -908,7 +946,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			},
 			&cli.IntFlag{
 				Name:  "max-matches",
-				Usage: "with --grep or --ast-grep, show matching lines across all the files in walk order until `N` have been shown (a match inside a span already shown counts as shown, so more than N can print) and count the rest: the answer ends `-- max-matches N reached: M more matching line(s) in K file(s) not shown` and the read exits 1 incomplete when some were left; a match inside a span already shown counts as shown, and only what was shown is licensed (ADR-179)",
+				Usage: "with --grep or --ast-grep, show matching lines across all the files in walk order until `N` have been shown (a match inside a span already shown counts as shown, so more than N can print) and count the rest: the answer ends `-- max-matches N reached: M more matching line(s) in K file(s) not shown` and the read exits 0 with `mrw: capped:` on standard error when some were left (ADR-173; --max-chars reached still exits 1); only what was shown is licensed (ADR-179)",
 			},
 			&cli.BoolFlag{
 				Name:  "no-comments",
@@ -1555,7 +1593,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			}
 			var unoutlined []string
 			var wholeNames []string
-			var matchesLeft int
+			var matchesLeft, capped int
 			var long read.LongLines
 			var wholeLong *read.LongLines
 			if !colsFixed {
@@ -1591,6 +1629,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				Project:      projections,
 				WholeLong:    wholeLong,
 				Unshown:      &matchesLeft,
+				Capped:       &capped,
 			})
 			skipNote()
 			// The answer reaches the caller BEFORE anything is recorded (ADR-088).
@@ -1611,7 +1650,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				fmt.Fprintln(os.Stderr, hint)
 			}
 			if cmd.Bool("json") {
-				if err := document(mcp.ReadReceipt(observed, problems+len(refusals), skipped, counts, unchanged, referred)); err != nil {
+				if err := document(mcp.ReadReceipt(observed, problems+len(refusals), capped, skipped, counts, unchanged, referred)); err != nil {
 					return err
 				}
 			}
@@ -1647,6 +1686,11 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			// A budget that dropped anything — a served line, or only the walk's
 			// own last line — leaves an answer that is not the whole one, and a
 			// cut answer must never read as complete (ADR-165).
+			// A range the caller's own --max-lines or --max-matches withheld is
+			// not one mrw could not serve (ADR-173); --max-chars reached still is.
+			if problems > 0 && problems == capped && !budget.Over() {
+				return cli.Exit(cappedLine(capped, matchesLeft, maxMatches(cmd)), 0)
+			}
 			if problems > 0 || budget.Over() {
 				return cli.Exit(incompleteLine(problems, matchesLeft, maxMatches(cmd), reached()), 1)
 			}
@@ -1728,12 +1772,12 @@ is not an apply_patch; --format=git is usage.
 visible. Default 0. It is not a checker: a closer in the pad does not fail
 the hunk. Negative is usage.
 
-After a successful apply the project's check runs by default when a written
-path is not prose (.md .markdown .txt .rst .adoc) and a check exists — declared
-in .quality-harness.json or inferred from go.mod. A markdown-only plan does
-not spawn it; a tree with no check stays exit 0. --no-check opts out. --check
-is a demand: it runs on prose too, and is exit 2 when nothing can run. A
-failing check is exit 3 and the tree is NOT reverted.
+After a successful apply no check runs unless --check asks for it (ADR-187).
+--check runs the project's check — declared in .quality-harness.json, or
+inferred from go.mod, narrowed by scoped_check when one is declared — on any
+plan, prose included, and is exit 2 when nothing can run. A failing check is
+exit 3 and the tree is NOT reverted. --no-check is accepted and changes
+nothing.
 
 A non-prose hunk whose {} () [] nets differ between the replaced lines and
 the body prints a balance row under ok. It does not fail the hunk and it is
@@ -1770,20 +1814,20 @@ held or went unchecked.`,
 			},
 			&cli.BoolFlag{
 				Name:  "quiet",
-				Usage: "print only failed hunks and the summary line, dropping ok and skip rows and file lines; the check's report and every step verdict still print",
+				Usage: "print only failed hunks and the summary line, dropping ok and skip rows and file lines; the check's report and every step verdict still print; MRW_RECEIPT=quiet in the environment does this for every write that gives neither flag (ADR-188)",
 			},
 			&cli.BoolFlag{
 				Name:  "terse",
-				Usage: "print one line per file (ok PATH N hunk(s) -A +B sha X; dry under --dry-run) and the summary instead of a row per hunk; every failed hunk, balance and closer row, the check's report and every step verdict still print, and --json is unchanged (ADR-179)",
+				Usage: "print one line per file (ok PATH N hunk(s) -A +B sha X; dry under --dry-run) and the summary instead of a row per hunk; every failed hunk, balance and closer row, the check's report and every step verdict still print, and --json is unchanged (ADR-179); MRW_RECEIPT=terse in the environment does this for every write that gives neither flag (ADR-188)",
 			},
 			&cli.BoolFlag{
 				Name: "check",
-				Usage: "demand the project's check after a successful write, even on a prose-only plan " +
-					"(exit 2 if none can run)",
+				Usage: "run the project's check after a successful write, prose included " +
+					"(exit 3 if it fails, exit 2 if none can run); without it no check runs (ADR-187)",
 			},
 			&cli.BoolFlag{
 				Name:  "no-check",
-				Usage: "do not run the project's check after this write (the default runs it when a written path is not prose)",
+				Usage: "run no check after this write; the default since ADR-187, kept for scripts that pass it",
 			},
 			&cli.StringFlag{
 				Name:  "format",
@@ -2225,7 +2269,7 @@ held or went unchecked.`,
 				in = append(in, apply.Input{
 					Path: path, Start: h.Addr.Start, End: h.Addr.End, Op: string(h.Op),
 					StartPat: h.Addr.StartPat, EndPat: h.Addr.EndPat, RelEnd: h.Addr.RelEnd, Occurrence: h.Occurrence, CountedBody: h.CountedBody,
-					Body: h.Body, SHA: h.SHA, Lines: h.Lines, Anchor: h.Anchor,
+					Body: h.Body, SHA: h.SHA, Lines: h.Lines, Anchor: h.Anchor, Quote: h.Quote,
 					SrcLine: h.SrcLine, Index: h.Index,
 					From: h.BodyFrom, FromStart: h.BodyFromAddr.Start, FromEnd: h.BodyFromAddr.End, FromRelEnd: h.BodyFromAddr.RelEnd,
 				})
@@ -2235,7 +2279,7 @@ held or went unchecked.`,
 			// the steps and the pricing are the shared sequence mrw_write runs
 			// too; this action renders what it returns. ADR-072: the harness
 			// is read BEFORE anything is written, inside Prepare.
-			mode := writer.CheckAuto
+			mode := writer.CheckOff // ADR-187: no check unless --check asks for it
 			switch {
 			case cmd.Bool("no-check"):
 				mode = writer.CheckOff
@@ -2597,7 +2641,29 @@ func askedStepsError(steps []check.Step) error {
 			return fmt.Errorf("--then-sh %q: its command holds %s, which mrw expands only in scoped_check; a step runs as written", s.Command, tok)
 		}
 	}
+	for _, s := range steps {
+		if s.AdHoc {
+			return adHocShellRefusal("--then-sh", "; a step the project declares in .quality-harness.json runs with --then NAME")
+		}
+	}
 	return nil
+}
+
+// adHocShellRefusal is ADR-174's switch: a command the caller wrote on mrw's
+// command line reaches a shell only when MRW_SHELL is exactly "on" (not "ON",
+// not " on"). what names the surface and hint closes its sentence; it comes
+// last among the refusals, so depth, an empty command, a placeholder and a
+// usage error keep their words.
+func adHocShellRefusal(what, hint string) error {
+	raw := os.Getenv("MRW_SHELL")
+	if raw == "on" {
+		return nil
+	}
+	msg := what + " runs any shell command, so it is off unless MRW_SHELL=on is in mrw's environment" + hint
+	if raw != "" {
+		msg += fmt.Sprintf(" (MRW_SHELL is %q; only the exact value on enables it)", raw)
+	}
+	return errors.New(msg)
 }
 
 // stepsExit is the exit a stopped sequence earns (ADR-092 Decision 6): 2 for a
@@ -3049,13 +3115,27 @@ func report(w *os.File, res apply.Result, quiet bool) {
 }
 
 // reportAs prints the receipt the write's flags ask for: the default, --quiet's,
-// or --terse's one line per file (ADR-179).
+// or --terse's one line per file (ADR-179). With neither flag, MRW_RECEIPT
+// chooses: quiet, terse, or full as unset (ADR-188); a flag on the call wins,
+// and any other value is ignored with one note, as MRW_MAX_COLS's is.
 func reportAs(w *os.File, res apply.Result, cmd *cli.Command) {
-	if cmd.Bool("terse") {
+	quiet, terse := cmd.Bool("quiet"), cmd.Bool("terse")
+	if !quiet && !terse {
+		switch v := os.Getenv("MRW_RECEIPT"); v {
+		case "quiet":
+			quiet = true
+		case "terse":
+			terse = true
+		case "", "full":
+		default:
+			fmt.Fprintf(os.Stderr, "mrw: MRW_RECEIPT=%s is not quiet, terse or full; ignored\n", v)
+		}
+	}
+	if terse {
 		reportMode(w, res, false, true)
 		return
 	}
-	report(w, res, cmd.Bool("quiet"))
+	report(w, res, quiet)
 }
 
 func reportMode(w *os.File, res apply.Result, quiet, terse bool) {
@@ -3275,7 +3355,8 @@ func forget(root string) error {
 		return exitWith(errors.New(strings.TrimPrefix(seen.NewerNotice(writer), "mrw: ")))
 	}
 	roots := []string{root}
-	if top, _ := state.Checkout(root); top != root {
+	top, _ := state.Checkout(root)
+	if top != root {
 		roots = append(roots, top)
 	}
 	for _, r := range roots {
@@ -3287,11 +3368,13 @@ func forget(root string) error {
 	if err != nil {
 		return exitWith(err)
 	}
+	// The checkout is named because the ledger is the checkout's, not the root's
+	// (ADR-180): from a subdirectory or a worktree it tells which one was emptied.
 	if n == 0 {
-		fmt.Println("forgot 0 file(s)")
+		fmt.Printf("forgot 0 file(s) in %s\n", top)
 		return nil
 	}
-	fmt.Printf("forgot %d file(s): a write now needs a fresh read of the lines it touches\n", n)
+	fmt.Printf("forgot %d file(s) in %s: a write now needs a fresh read of the lines it touches\n", n, top)
 	return nil
 }
 

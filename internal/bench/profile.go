@@ -1,6 +1,8 @@
 package bench
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -22,6 +24,40 @@ const ProfileStage5 = "stage5"
 // container of the instance own image, through shims, one command at a time.
 const ProfileStage6 = "stage6"
 
+// ProfileStage7 is ADR-192's profile: everything stage5 does, and configuration
+// H may run. Without it H is refused, and every other configuration's
+// arguments are the ones stage5 gives it.
+const ProfileStage7 = "stage7"
+
+// ProfileStage8 is ADR-193's profile: everything stage5 does, and configuration
+// S may run. Without it S is refused, and every other configuration's
+// arguments are the ones stage5 gives it.
+const ProfileStage8 = "stage8"
+
+// HSentence is the one sentence configuration H's prompt carries after mrw's
+// instructions (ADR-192 Decision 1). run.json holds its SHA-256, and a block
+// that names another is refused. T3's pilot (2026-11-03) changed it once: the
+// first, "you may also read files with the Read tool", moved no host Read on
+// either model, which read with mrw read as the instructions' first rule says.
+const HSentence = "In this session, read files with the Read tool, not with mrw read, cat or grep: the lines a Read shows you count as read for mrw, so a plan may then edit them with no mrw read. Edit and create files only with mrw write."
+
+// hSentenceSHA256 is the digest run.json records for HSentence.
+func hSentenceSHA256() string {
+	sum := sha256.Sum256([]byte(HSentence))
+	return hex.EncodeToString(sum[:])
+}
+
+// EditParagraph is the one paragraph configuration S's prompt carries after
+// mrw's instructions (ADR-193 Decision 1). run.json holds its SHA-256, and a
+// block that names another is refused.
+const EditParagraph = "In this session, make every edit to an existing file as a SEARCH/REPLACE block and apply it with mrw write --format=search_replace FILE. A block is the file's path on its own line, then <<<<<<< SEARCH, the file's current lines exactly as they are, =======, the lines that replace them, and >>>>>>> REPLACE; one FILE may hold many blocks for many files. SEARCH must match exactly once. End SEARCH and REPLACE with the same unchanged line, and the block needs no mrw read of the lines it quotes. Use a native @@ hunk only for an edit by line number, and mrw write --grep P --sub R for one change at many sites."
+
+// editParagraphSHA256 is the digest run.json records for EditParagraph.
+func editParagraphSHA256() string {
+	sum := sha256.Sum256([]byte(EditParagraph))
+	return hex.EncodeToString(sum[:])
+}
+
 // pluginName is the plugin configuration P loads (quality-harness ADR-106).
 const pluginName = "quality-harness"
 
@@ -30,9 +66,10 @@ const pluginName = "quality-harness"
 // The canary holds A and B to exactly these, and P to these and the plugin's.
 var builtinSkills = []string{"design", "doctor"}
 
-// builtinPlugins are the plugins Claude Code 2.1.302 loads on its own; the
-// probe saw all three switched off by enabledPlugins.
-var builtinPlugins = []string{"cc-plugin-agents-md@builtin", "cc-plugin-telemetry@builtin", "cc-plugin-plugin-authoring@builtin"}
+// builtinPlugins are the plugins Claude Code loads on its own; the probe saw
+// 2.1.302's three switched off by enabledPlugins, and 2.1.317's stage7 canary
+// (2026-11-03) listed cc-plugin-privacy beside them (ADR-192 T3 S2).
+var builtinPlugins = []string{"cc-plugin-agents-md@builtin", "cc-plugin-telemetry@builtin", "cc-plugin-plugin-authoring@builtin", "cc-plugin-privacy@builtin"}
 
 // PluginRef names the plugin P ran: the tag its checkout is at, and the commit.
 type PluginRef struct {

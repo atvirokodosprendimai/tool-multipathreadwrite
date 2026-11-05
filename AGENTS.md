@@ -10,6 +10,9 @@ and applies many edits across many files, in **one** invocation — and it repor
 a verdict for **every** edit. Read `README.md` for the full interface; this file
 is only about changing the code.
 
+For installed-binary usage, see [BESTPRACTICES.md](BESTPRACTICES.md); for host setup, see
+[docs/agents.md](docs/agents.md). This file owns repository policy and the check list below.
+
 ## Build and check
 
 ```sh
@@ -29,13 +32,14 @@ pipeline reports the *last* command's status, not the script's.
 
 `.quality-harness.json` also declares `scripts/static.sh` as the step `static` (ADR-092), so
 `mrw check --then static` runs the tests and then the static gate in one call, a verdict for each.
-`mrw write --then static` does the same after a code edit; after a prose-only write, or with
-`--no-check`, no check runs and the step runs alone.
+`mrw write --then static` runs the step after any write that lands; add `--check` and the tests run
+first, a failing check stopping the step (ADR-187).
 
 `./scripts/measure.sh` measures what mrw saves, shape by shape, including the shapes where it loses
 (`docs/measure.md` says which): quote the script, never a remembered number. A `bin/mrw` built from a
 working tree reports `dev`, which is newer than any tag, not older; the read-before-modify guard has been
-in every release since v0.0.2.
+in every release since v0.0.2. One made by `go install …/cmd/mrw@<version>` reports the module version Go
+recorded for it, a tag or a pseudo-version ending in the commit.
 
 ## The rules this codebase is built around
 
@@ -62,7 +66,8 @@ visible; a write that changes nothing is not.* `--format=apply_patch` and
 `--format=search_replace` compile to a native plan; sequential apply_patch is
 the leak, not the feature.
 A new file needs no plan: `mrw write --create PATH < content` makes it from standard input as the `create` plan of
-those lines would (ADR-139), through the same lock, check and receipt.
+those lines would (ADR-139), through the same lock, check and receipt. Empty input is refused, exit 2, since zero bytes read
+like a producer that failed before it printed; an empty file is the plan `@@ PATH 0 create body=0` (ADR-195).
 PowerShell appends a CRLF to everything it pipes (ADR-142): after LF lines with no other CR that CRLF is dropped, and stderr says
 so; content that is all CRLF and ends in an empty line is kept and named, because mrw cannot tell PowerShell's CRLF from a blank
 line the file has (`cmd /c "mrw write --create p < f"` adds none); content whose lines end in CRLF is written with LF, as every
@@ -110,7 +115,9 @@ read would, its last stderr line beginning `mrw: nothing was recorded` (on exit 
 to license (`--quiet`, `--sub`, `--rewrite`, `ack`) and writes still exit 2 (ADR-166).
 A `mrw read` that exits `1` ends its stderr with the kind (ADR-146): `mrw: no match: …` when a search found no file and nothing it was
 asked for was refused, `mrw: incomplete: …` when a requested range or path was not served, a search that matched no file beside a refused
-path included. Read the first word after `mrw: `; every earlier phrase survives inside the line.
+path included. Read the first word after `mrw: `; every earlier phrase survives inside the line. A range the caller's own `--max-lines` or
+`--max-matches` withheld is not one (ADR-173): that read exits `0` and ends `mrw: capped: …`; beside a missed range, a refused path or
+`--max-chars` reached it exits `1` `incomplete:`, and `receipt.capped` counts the caps' share of `problems`.
 
 And a receipt's keys are only added (ADR-111): every key a `--json` or MCP receipt carries is listed in
 `docs/receipts.txt`, keeps its name, type and meaning, and a new one is appended there in the change that adds it.
@@ -123,6 +130,8 @@ And a receipt's keys are only added (ADR-111): every key a `--json` or MCP recei
   an ADR in `docs/adr/`, not just a commit message.
 - Exported identifiers carry doc comments starting with the name. Packages carry
   a package comment.
+- Keep private external project, customer and organization identities out of tracked files,
+  branch names, commit messages and pull requests. Use anonymized descriptions and synthetic fixtures.
 
 ## The drill — how a change reaches `main`
 
@@ -137,8 +146,10 @@ They are project policy, not tool documentation, which is why they are there and
 **Use mrw always: plan the activity as one read of every site, then one plan, then one write.**
 One edit in one file still goes through mrw: the cost is two calls, and the ledger is the point. Batch every site into that one read and one write — do not spend a turn per site.
 
-**Start with the recipes.** `mrw instructions` prints them first, and each keeps lines you do not
-need out of your context (ADR-161). Fill the placeholders (`P`, `f.go`, `NAME`, `$plan`):
+**Start with the recipes.** Read `mrw instructions --core` once at session start; after compaction,
+read the rules again only if they are no longer in context. The full `mrw instructions` supplies
+recipes and the exceptional cases a refusal names (ADR-161, ADR-171).
+The examples below mirror its recipes. Fill the placeholders (`P`, `f.go`, `NAME`, `$plan`):
 
 ```sh
 # 1. the same change at many sites, nothing in your context
@@ -159,24 +170,36 @@ mrw read --quiet f.go:40-60
 mrw read --grep P --max-cols 200 f.jsonl
 # 9. narrow any command's output without leaving mrw
 cmd | mrw read --grep P --max-lines 20 -
-# 10. re-read a file you read earlier, its text only if it changed (the sha is the 8 hex digits its header printed)
+# 10. copy lines you have read without typing them again, or move them with a delete of the same range (a copy of lines you were not served is refused, --force or not)
+mrw read a.go:40-52 b.go:9 && printf '%s\n' '@@ b.go 9 insert-after from=a.go:40-52' '@@ a.go 40-52 delete' | mrw write -
+# 11. re-read a file you read earlier, its text only if it changed (the sha is the 8 hex digits its header printed)
 mrw read --if-changed f.go=8dc37337 f.go:40-60
-# 11. a long file's shape before its lines: a .go file's declarations or a .md or .markdown file's headings with their line ranges, licensing nothing
+# 12. a long command (a build, a test suite) with its output kept out of your context and its exit code kept: a receipt instead of cmd | tail, which returns tail's status
+mrw run 'go test ./...'
+# 13. a few fields out of a JSON document, one line each, instead of the lines that hold them (it licenses nothing: read the path address before editing the value)
+cmd | mrw read --json-path '$.a,$.b' -
+# 14. a long file's shape before its lines: a .go file's declarations or a .md or .markdown file's headings with their line ranges, licensing nothing
 mrw read --outline f.go docs.md
-# 12. matches across many files without the flood: count them, then the first N (the rest counted, exit 1)
+# 15. matches across many files without the flood: count them, then the first N (the rest counted, exit 0 saying capped)
 mrw read --grep P --count . && mrw read --grep P --max-matches 40 .
-# 13. a log of near-identical lines, each run shown once (only its first line is licensed)
+# 16. a log of near-identical lines, each run shown once (only its first line is licensed)
 mrw read --fold f.log
-# 14. a Go file without its comment runs (the elided lines are not licensed)
+# 17. a Go file without its comment runs (the elided lines are not licensed)
 mrw read --no-comments f.go
-# 15. a write receipt of one line per file, every failure and advisory still printed
+# 18. a setup that reads long lines: MRW_MAX_COLS=200 in the environment is --max-cols 200 on every read that gives none
+mrw read --grep P .
+# 19. a write receipt of one line per file, every failure and advisory still printed
 mrw write --terse plan.txt
-# 16. by reference what you were already served: only in a session alone in its checkout whose host runs mrw seen --forget on start, resume, clear and compaction, with reads made under --max-chars below the host's limit
+# 20. by reference what you were already served: only in a session alone in its checkout whose host runs mrw seen --forget on start, resume, clear and compaction, with reads made under --max-chars below the host's limit
 mrw read --if-served f.go=8dc37337 f.go:40-60
 ```
 
 `./bin/mrw` after `go build`. Building and using it here is fine — it is the
 project.
+
+For a queue of code writes (none runs a check unless `--check` asks, ADR-187), follow the
+[queue recipe](docs/agents.md#queue-code-edits-then-check-the-final-tree): verify the final tree
+with a check covering every queued edit, and report any pending verification.
 
 
 If you are reaching mrw over MCP (`mrw mcp --enable`; the tools are off, and every call refused, until `--enable` or
@@ -239,7 +262,7 @@ lines with no ack: nothing is shown, so the checkpoints, which certify lines a h
 too large for one answer is refused whole, never paged. `quiet` licenses what the read serves at once and returns no line,
 for the same reason (`mrw read --quiet`).
 Cap a read with `--max-lines N` instead of `| head`: `| head` loses mrw's exit code, while `--max-lines` names what it
-withheld and the read exits 1 `incomplete:`. A host with an output limit takes `--max-chars N`: standard output stays within N
+withheld and the read exits 0, its last stderr line `mrw: capped: …` (a range your own cap withheld is not one mrw could not serve; beside a missed range, a refused path or `--max-chars` reached it exits 1 `incomplete:`). A host with an output limit takes `--max-chars N`: standard output stays within N
 characters in whole lines, every range and file it kept back is listed on standard error, and only what was printed is
 licensed (ADR-165).
 An adapter that parses mrw's report reads `mrw read --json` instead: `{"content", "receipt"}`, the content byte for byte the
@@ -283,7 +306,7 @@ prints `NOT JSON`, and either exits 1. The same quoting applies to the expressio
 
 **Shorter reads (ADR-179).** `mrw read --outline f.go` prints a `.go` file's declarations or a `.md` or `.markdown` file's headings with the lines
 they span and licenses nothing; `--max-matches N` (with `--grep` or `--ast-grep`) shows matching lines across all the files until N
-have been shown and counts the rest, and exits 1 only when matches remain unshown; `--fold` shows a run of identical or digit-only-different lines once, and
+have been shown and counts the rest, and exits 0 with `mrw: capped: …` last when matches remain unshown (ADR-173); `--fold` shows a run of identical or digit-only-different lines once, and
 `--no-comments` shows a run of whole-line Go comments as one `-- … N comment line(s), A-B` line, each leaving the lines it hides
 unlicensed, so read them without the flag before editing them. `MRW_MAX_COLS=N` in the environment is `--max-cols N` where the
 flag is absent, and a read that serves a line over 400 columns whole, with no width chosen, says so once on standard error. `--if-served PATH=SHA`
@@ -353,8 +376,11 @@ arrives as `internal\f.go;C:\…\Git\^func main\`, and the error names a line
 number you never typed. A one-letter pattern becomes a drive (`/x/` → `X:\`),
 and a `--grep` pattern that starts with `/` is rewritten into a false "no
 match". Quoting does not help; it happens in the process-spawn layer, after the
-shell. Export `MSYS_NO_PATHCONV=1` or `MSYS2_ARG_CONV_EXCL='*'`, or use
-PowerShell or WSL. Line-number and `$` addresses are unaffected.
+shell. Put the setting on the one mrw command, not in an export:
+`MSYS_NO_PATHCONV=1 mrw read 'f.go:/^func main/'` or `MSYS2_ARG_CONV_EXCL='*' mrw …`.
+An export reaches every later command in that shell, and another native tool then
+gets POSIX paths MSYS no longer converts for it. Or use PowerShell or WSL.
+Line-number and `$` addresses are unaffected.
 
 ⚠ **A shell glob and an address suffix do not mix.** `mrw read 'dir/*.go:1-3'`
 is served with the star taken literally, so it reports the path UNREADABLE; and
@@ -397,7 +423,7 @@ An unquoted `anchor=` that contains `"` is refused — write `anchor="…"`.
 declared vs extra. `body=<n>` goes ON the header — `@@ a.go 12-14 replace anchor="func A" body=3` —
 never on a line of its own: a hunk with no count whose first body line begins `body=` is refused
 (ADR-070), because in blind reading 04 that line was written into the file.
-A plan piped to `mrw write -` that ends with nothing in the tree (a refusal, a dry run, a commit that landed nothing) is kept in `<state home>/mrw-refused/`, the newest 16, beside mrw's state directory and not in it: stderr names the path (`refused_plan` under `--json`), and the caller edits that file and runs the same command with the path in place of `-` instead of sending the plan again (ADR-176).
+A plan piped to `mrw write -` that ends with nothing in the tree (a refusal once the plan is read, a dry run, a commit that landed nothing) is kept in `<state home>/mrw-refused/`, the newest 16, beside mrw's state directory and not in it: stderr names the path (`refused_plan` under `--json`), and the caller edits that file and runs the same command with the path in place of `-` instead of sending the plan again (ADR-176).
 
 ```
 @@ internal/apply/apply.go 42-58 replace anchor="func Apply" lines=17
@@ -553,12 +579,12 @@ whole list arrives as one argument and the regex swallows the rest of the line.
   ⚠ **Loud is not the same as early.** A broken template may not fail until it is
   rendered — for a playbook, mid-run against a live host after earlier tasks have
   already applied; for a Blade view, a 500 on the page rather than a build failure.
-- **A write to a non-prose file runs the project's check by default** (ADR-054).
-  In a Go module, or any tree with `.quality-harness.json`, a `.go`/`.rs`/`.toml`
-  write pays the check and exits 3 when it fails. A markdown-only plan does not
-  spawn it. `--no-check` opts out; `--check` demands it even on prose. `mrw_write`
-  runs it by the same rule (ADR-113) and returns the verdict as `check`: `check: false`
-  opts out, and a check that ran and failed is not `isError` — the write applied, and
+- **A write runs no check unless `--check` asks for it** (ADR-187, which replaced ADR-054's default).
+  `--check` runs the project's check — declared in `.quality-harness.json`, or a Go module's `go test` —
+  on any plan, prose included, and exits 3 when it fails (2 when none can run). `--no-check` is accepted and
+  does nothing. `mrw_write` runs none unless `check: true`, which runs it by ADR-054's rule (a non-prose write,
+  a check declared or inferred; ADR-113) and returns the verdict as `check`;
+  a check that ran and failed is not `isError` — the write applied, and
   re-sending the plan would apply it again. `then` names steps declared in `.quality-harness.json`
   to run after a passing check, as `--then` does (ADR-115); `--then-sh` stays CLI-only. A
   `scoped_check` whose template contains `{files}` or `{dirs}` and not `{packages}` still
@@ -584,7 +610,7 @@ whole list arrives as one argument and the regex swallows the rest of the line.
   the human line prints.
   `mrw write --terse` prints one line per file (`ok PATH N hunk(s) -A +B sha X`, `dry` under `--dry-run`) and the summary
   line instead of a row per hunk; every failed hunk, balance and closer row, a delete's and a copy's rows, the check's
-  report and every step verdict still print, and the exit codes are the same (ADR-179). It is refused beside `--quiet`.
+  report and every step verdict still print, and the exit codes are the same (ADR-179). It is refused beside `--quiet`. `MRW_RECEIPT=quiet` or `terse` in mrw's environment gives every write that receipt when neither flag is on the call; `full`, or unset, the row per hunk; a flag wins, and any other value is ignored with a note (ADR-188).
   A replace whose body ends in a closer — a fence, `}`, `</div>`, `@endif`, `end`, `fi` — that the replaced range
   did not itself end in, and that one of the next four non-blank lines after it repeats, prints a `closer` row
   under `ok` and stays `ok` (ADR-119): likely the closer the file already had, left below a body that brought its
@@ -605,7 +631,7 @@ whole list arrives as one argument and the regex swallows the rest of the line.
   both repeat and run in command-line order after a write that landed and whose check passed, on
   `write` and on `check`. The first step that does not pass stops the rest, which the receipt names
   not run; it exits 3, or 2 if it could not start. `--json` carries `then: {steps, pruned_logs}`. A
-  step is POSIX shell on every platform. --then-sh and mrw run run any shell command they are given: a harness rule that allows mrw without reading its arguments allows arbitrary shell through --then-sh and mrw run.
+  step is POSIX shell on every platform. --then-sh and mrw run run any shell command they are given, so both are off unless MRW_SHELL=on is in mrw's environment (a step the project declares in .quality-harness.json runs with --then NAME); with them off, allowing mrw still runs the project's declared check and steps and no ad-hoc shell, but that is not containment: mrw writes any file its user can, .quality-harness.json included.
   `could_not_start` means mrw could not start the shell; a command the shell cannot find is a step
   that ran and failed (exit 127). On Unix a step's background children are killed with it, and one
   that calls `setsid` leaves its process group and is not; on Windows they are killed with it too (a job object, ADR-120),
@@ -663,7 +689,8 @@ and #73, one release apart.
   Extra arguments are usage (exit 2). A PATH binary that predates the
   subcommand still answers `-v`. `mrw version --check-latest` asks GitHub for
   the latest release and exits 1 when this mrw is older, 2 when it could not
-  ask: the only network call mrw makes, and only when asked (ADR-149).
+  ask: the only network call mrw makes, and only when asked (ADR-149). A
+  `go install …@<commit>` build is judged by the release its commit follows (ADR-183).
 - **`mrw instructions`** prints the contract from the binary: use mrw always
   and plan the activity, the two rules that produce most refusals, the traps
   that make a red run look green, the plan ops, and the read side — address
@@ -688,18 +715,20 @@ and #73, one release apart.
   standard error, interleaved) in a log under `<state home>/mrw-runs/` (mode 0600, beside mrw's state
   directory, never in it) and prints a receipt instead of the output: `exit N · lines · bytes · seconds`, the
   last non-empty line (cut to 200 characters), the log's path, and a `'EXE' read -- '-:N-$' < 'LOG'` command that
-  serves the last 40 lines with the running binary (on Windows the form typed at a PowerShell prompt, `cmd /c "`"EXE`" read -- -:N-`$ < `"LOG`""`); `mrw read --grep P -C 3 - < LOG`
-  searches it. The point is a long build or test output that costs the context four lines, with the exit code
+  serves the last 40 lines with the running binary (on Windows one line per shell, labelled, ADR-181:
+  `read (PowerShell): cmd /d /v:off /c "`"EXE`" read -- -:N-`$ < `"LOG`""`, `read (cmd): "EXE" read -- -:N-$ < "LOG"` and
+  `read (Git Bash): 'EXE' read -- '-:N-$' < 'LOG'`, with no cmd line for a path holding `!`); `mrw read --grep P -C 3 - < LOG`
+  searches it. The point is a long build or test output that costs the context four lines (six on Windows), with the exit code
   kept: it replaces `CMD | tail`, which returns tail's status. More than one argument is usage, exit 2 (in Windows PowerShell 5.1 a command holding `"` reaches mrw as several arguments: use single quotes inside the command, or pwsh 7); standard
   input is the null device; the deadline is 24 hours; an interrupt, terminate or hangup sent to mrw stops the
   command's group. Every log is kept, passing ones too; one older than 7 days, and all but the newest 64, are
   eligible for removal and a later completed run removes them. `--json` is one document (receipt type `run`,
   `docs/receipts.txt`); a refusal before anything runs is `{"error": …}`; at `MRW_STEP_DEPTH` 8 it is refused and
-  its command runs one level deeper. It runs any shell command it is given, as `--then-sh` does: allowing
-  mrw allows arbitrary shell. CLI only; MCP is for hosts with no shell (ADR-177).
+  its command runs one level deeper. It runs any shell command it is given, as `--then-sh` does, so it is off
+  unless `MRW_SHELL=on` is in mrw's environment (ADR-174). CLI only; MCP is for hosts with no shell (ADR-177).
 - **`mrw check`** runs the project's check on its own, scoped to the working
-  set or to paths you name. A CLI `write` to a non-prose file runs the same
-  runner by default (ADR-054); this is it without the write, for when you want the verdict again
+  set or to paths you name. A CLI `write --check` runs the same
+  runner (ADR-187); this is it without the write, for when you want the verdict again
   without applying another plan. ⚠ It is NOT read-only: the declared command is
   whatever the project declared, run with `sh -c` in the checkout, so a check
   that generates code or writes fixtures does exactly that. On Windows with no `sh` on PATH — a plain
@@ -747,7 +776,8 @@ and #73, one release apart.
   (ADR-034). One machine had 22,836 of these directories, 242 MB of disk by `du`, on
   2026-09-07, 98.9% of them dead.
 - **`mrw seen --forget`** empties this checkout's read ledger under its lock, read and written
-  files alike, and prints `forgot N file(s)`; after it a write needs a fresh read of the lines it touches.
+  files alike, and prints `forgot N file(s) in <checkout>`, naming the checkout top whose ledger it emptied (ADR-180);
+  after it a write needs a fresh read of the lines it touches.
   It first empties the pending MCP acknowledgements of this root and of the checkout's top, which an `ack` would
   otherwise promote into the ledger. It exits 2, changing nothing, over a root that does not exist or is not a
   directory (checked first, so no state directory is made for it), over a newer mrw's ledger (ADR-150), and beside
@@ -756,6 +786,13 @@ and #73, one release apart.
   checkout a re-read, and it does not reach a command already in flight. A re-read after it must show the
   lines: `--if-changed` and `--quiet` do not put them back in front of the model; `--sub` and `--rewrite`
   plans need none.
+- **`mrw hook read`** is for a host's PostToolUse hook, not for typing (ADR-191, hidden from the root help). It reads the
+  payload of the host's own `Read` tool on standard input and records in the ledger the lines the Read returned whose
+  text equals the file on disk now, as a `mrw read` of them would, so a plan to them needs no second read. A line the
+  host cut, a changed line, a path outside the root, in `.git` or in mrw's state, an image, an error and any shape it
+  does not know record nothing. It prints nothing on standard output and always exits 0; at most one stderr line, for
+  a ledger lock it could not take in one second or a newer mrw's ledger. It skips the startup migration of `./.mrw`.
+  `docs/agents.md` §9 has the Claude Code block.
 
 mrw's OWN state lives outside the tree (ADR-004), so none of these commands
 writes to your checkout of its own accord — with two exceptions: `mrw check`

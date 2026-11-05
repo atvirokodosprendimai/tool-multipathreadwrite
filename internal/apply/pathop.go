@@ -113,7 +113,7 @@ func respelling(src, dst string) int {
 
 // planPathOp validates a single unlink or rename hunk. The caller has already
 // refused mixing those ops with line-edits on the same path.
-func planPathOp(root, path, full string, h hunk, orig []string, existed bool, shaBefore string, unlinked, produced map[string]bool, destCount map[string]int, covered func(hunk, int, int) bool, fail func(hunk, string, ...any), out map[int]HunkResult) bool {
+func planPathOp(root, path, full string, h hunk, orig []string, existed bool, shaBefore, miss string, unlinked, produced map[string]bool, destCount map[string]int, covered func(hunk, int, int) bool, fail func(hunk, string, ...any), out map[int]HunkResult) bool {
 	if h.StartPat != nil || h.Start != 0 || h.End != 0 || h.RelEnd > 0 {
 		fail(h, "%s takes no address, use %q", h.Op, "-")
 		return false
@@ -133,7 +133,7 @@ func planPathOp(root, path, full string, h hunk, orig []string, existed bool, sh
 	if h.SHA != "" {
 		switch {
 		case !existed:
-			fail(h, "sha=%s given but %s does not exist", h.SHA, path)
+			fail(h, "sha=%s given but %s does not exist%s", h.SHA, path, miss)
 			return false
 		case !strings.HasPrefix(shaBefore, h.SHA):
 			fail(h, "file changed: sha is %s, plan expected %s", shaShown(shaBefore, h.SHA), h.SHA)
@@ -146,7 +146,7 @@ func planPathOp(root, path, full string, h hunk, orig []string, existed bool, sh
 				"which does not exist", h.Path, full)
 			return false
 		}
-		fail(h, "%s does not exist", path)
+		fail(h, "%s does not exist%s", path, miss)
 		return false
 	}
 	total := len(orig)

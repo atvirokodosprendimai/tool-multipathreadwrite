@@ -1,0 +1,85 @@
+diff --git a/routes/adapter_0.py b/routes/adapter_0.py
+--- a/routes/adapter_0.py
++++ b/routes/adapter_0.py
+@@ -1,11 +1,11 @@
+ """Routing adapter 0, including the legacy compatibility path."""
+ 
+-ACTIVE_ROUTE = "/v1/submit"
++ACTIVE_ROUTE = "/v2/service-0/submit"
+ LEGACY_ROUTE = "/v1/submit"
+ 
+ SUPPORTED_METHODS = ("POST", "GET")
+ 
+-ACTIVE_LIMIT = 20
++ACTIVE_LIMIT = 30
+ LEGACY_LIMIT = 20
+ 
+ 
+diff --git a/routes/adapter_1.py b/routes/adapter_1.py
+--- a/routes/adapter_1.py
++++ b/routes/adapter_1.py
+@@ -1,11 +1,11 @@
+ """Routing adapter 1, including the legacy compatibility path."""
+ 
+-ACTIVE_ROUTE = "/v1/submit"
++ACTIVE_ROUTE = "/v2/service-1/submit"
+ LEGACY_ROUTE = "/v1/submit"
+ 
+ SUPPORTED_METHODS = ("POST", "GET")
+ 
+-ACTIVE_LIMIT = 20
++ACTIVE_LIMIT = 31
+ LEGACY_LIMIT = 20
+ 
+ 
+diff --git a/routes/adapter_2.py b/routes/adapter_2.py
+--- a/routes/adapter_2.py
++++ b/routes/adapter_2.py
+@@ -1,11 +1,11 @@
+ """Routing adapter 2, including the legacy compatibility path."""
+ 
+-ACTIVE_ROUTE = "/v1/submit"
++ACTIVE_ROUTE = "/v2/service-2/submit"
+ LEGACY_ROUTE = "/v1/submit"
+ 
+ SUPPORTED_METHODS = ("POST", "GET")
+ 
+-ACTIVE_LIMIT = 20
++ACTIVE_LIMIT = 32
+ LEGACY_LIMIT = 20
+ 
+ 
+diff --git a/routes/adapter_3.py b/routes/adapter_3.py
+--- a/routes/adapter_3.py
++++ b/routes/adapter_3.py
+@@ -1,11 +1,11 @@
+ """Routing adapter 3, including the legacy compatibility path."""
+ 
+-ACTIVE_ROUTE = "/v1/submit"
++ACTIVE_ROUTE = "/v2/service-3/submit"
+ LEGACY_ROUTE = "/v1/submit"
+ 
+ SUPPORTED_METHODS = ("POST", "GET")
+ 
+-ACTIVE_LIMIT = 20
++ACTIVE_LIMIT = 33
+ LEGACY_LIMIT = 20
+ 
+ 
+diff --git a/routes/adapter_4.py b/routes/adapter_4.py
+--- a/routes/adapter_4.py
++++ b/routes/adapter_4.py
+@@ -1,11 +1,11 @@
+ """Routing adapter 4, including the legacy compatibility path."""
+ 
+-ACTIVE_ROUTE = "/v1/submit"
++ACTIVE_ROUTE = "/v2/service-4/submit"
+ LEGACY_ROUTE = "/v1/submit"
+ 
+ SUPPORTED_METHODS = ("POST", "GET")
+ 
+-ACTIVE_LIMIT = 20
++ACTIVE_LIMIT = 34
+ LEGACY_LIMIT = 20
+ 
+ 

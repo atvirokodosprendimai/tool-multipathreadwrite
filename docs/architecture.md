@@ -2,8 +2,8 @@
 
 **Status:** Living — every ADR that changes structure updates this doc in the same commit.
 **Repo:** github.com/atvirokodosprendimai/tool-multipathreadwrite
-**Tier:** library (one Go module, three binaries: `mrw`, `bench`, `curve`)
-**Gate command:** `go test ./internal/adversarial/ ./cmd/mrw/ ./internal/mcp/ -count=1 -run 'TestTheEngineImportsNoSurface$|TestEachSurfaceHasOneRoot$|TestOnlyTheseStartAProcess$|TestOnlyTheCheckLatestFileImportsTheNetwork$|TestNoShippedReceiptFieldDisappears$|TestNoShippedMCPReceiptFieldDisappears$|TestTheTwoSurfacesCountAWriteAlike$'`
+**Tier:** library (one Go module, four binaries: `mrw`, `bench`, `curve`, `nativebench`)
+**Gate command:** `go test ./internal/adversarial/ ./cmd/mrw/ ./internal/mcp/ -count=1 -run 'TestTheEngineImportsNoSurface$|TestEachSurfaceHasOneRoot$|TestOnlyTheseStartAProcess$|TestEveryModulePackageIsInTheModuleMap$|TestOnlyTheCheckLatestFileImportsTheNetwork$|TestNoShippedReceiptFieldDisappears$|TestNoShippedMCPReceiptFieldDisappears$|TestTheTwoSurfacesCountAWriteAlike$'`
 **Last full audit:** 2026-10-20, scouted from `go list ./...` at b89dafa7
 
 The current state the ADRs in `docs/adr/` are deltas against. AGENTS.md says how to use and change
@@ -37,6 +37,7 @@ The engine is the six packages AGENTS.md's drill names (`read`, `apply`, `plan`,
 | `internal/addr` | domain | the address grammar shared by read specs and plan hunks | ADR-026 |
 | `internal/lines` | domain | line splitting and numbering for every surface | ADR-065, ADR-073 |
 | `internal/ingest` | adapter | compiling `apply_patch` and `search_replace` to a native plan | ADR-069 |
+| `internal/quote` | domain | the quote mark a `search_replace` block earns, and its check against the file under the write lock | ADR-190 |
 | `internal/iter` | domain | the working set | ADR-079 |
 | `internal/authoring` | domain | plan outcomes and the advisory pattern (`mrw stats`) | ADR-055, ADR-056, ADR-102 |
 | `internal/guide` | domain | the teaching sentences both surfaces print | ADR-037, ADR-063, ADR-141 |
@@ -47,6 +48,7 @@ The engine is the six packages AGENTS.md's drill names (`read`, `apply`, `plan`,
 | `internal/adversarial` | test | tests that hold the promises, not the code | ADR-015 |
 | `cmd/bench`, `internal/bench` | tooling | the agent benchmark | ADR-156, ADR-162 |
 | `cmd/curve`, `internal/curve` | tooling | the read/write curve harness | ADR-020 |
+| `cmd/nativebench` | tooling | the native performance baseline driver, run as `docs/bench/native-baseline/PREREGISTRATION.md` registers | #558, #565 |
 | `cmd/opencode/mrw-plugin` | adapter | the opencode plugin, which spawns the `mrw` binary | ADR-089 |
 
 ## Dependency Contracts
@@ -58,6 +60,7 @@ The engine is the six packages AGENTS.md's drill names (`read`, `apply`, `plan`,
 | D3 | Inside the `mrw` binary only `internal/check`, `internal/read` and `internal/subproc` import `os/exec` | `go test ./internal/adversarial/ -run 'TestOnlyTheseStartAProcess$'` in `internal/adversarial/architecture_test.go` |
 | D4 | Only `cmd/mrw/latest149.go` imports the network, and only for `version --check-latest` | `go test ./cmd/mrw/ -run 'TestOnlyTheCheckLatestFileImportsTheNetwork$'` in `cmd/mrw/latest149_test.go` |
 | D5 | Unused code, and production code only a test reaches, is deleted | `./scripts/static.sh` (deadcode, U1000 with `-tests=false`) |
+| D6 | Every package `go list ./...` finds has a Module Map row, and every `cmd/` or `internal/` path a row names is in the tree | `go test ./internal/adversarial/ -run 'TestEveryModulePackageIsInTheModuleMap$'` in `internal/adversarial/architecture_test.go` |
 
 ## Concept Ownership (DRY)
 
@@ -78,6 +81,7 @@ The engine is the six packages AGENTS.md's drill names (`read`, `apply`, `plan`,
 | `cmd/mrw/main.go` `main` | the CLI command tree; the MCP server (`mcp.Serve`, with the `MaxResultChars` and `Version` globals set first) | `go test ./internal/adversarial/ -run 'TestEachSurfaceHasOneRoot$'` in `internal/adversarial/architecture_test.go` |
 | `cmd/bench/main.go` | the agent benchmark | `go test ./internal/adversarial/ -run 'TestEachSurfaceHasOneRoot$'` in `internal/adversarial/architecture_test.go` |
 | `cmd/curve/main.go` | the curve harness | `go test ./internal/adversarial/ -run 'TestEachSurfaceHasOneRoot$'` in `internal/adversarial/architecture_test.go` |
+| `cmd/nativebench/main.go` | the native baseline driver, which runs the two `mrw` binaries it is handed | `go test ./internal/adversarial/ -run 'TestEveryModulePackageIsInTheModuleMap$'` in `internal/adversarial/architecture_test.go` (D6: its Module Map row; it imports no surface package, so D2 has nothing to say about it) |
 
 ## Test Doubles
 
@@ -94,7 +98,7 @@ The engine is the six packages AGENTS.md's drill names (`read`, `apply`, `plan`,
 | mrw's state directory | nothing inside it, or hard-linked to it, is served or written | `go test ./internal/rooted/` and `./scripts/contract.sh` (ADR-077, ADR-134 rows) |
 | `.git` | a write through any `.git` component is refused; a read is served | `./scripts/contract.sh` (ADR-143 rows) |
 | Windows device names | a reserved name in any component is refused on every build | `go test ./internal/rooted/` (ADR-081) |
-| Shell execution | only the project's declared check and steps run, through `internal/check` with `sh -c`, and `--then-sh`, which runs what the caller gave it | D3, and `./scripts/contract.sh` (ADR-092, ADR-095 rows) |
+| Shell execution | only the project's declared check and steps run, through `internal/check` with `sh -c`, and `--then-sh` and `mrw run`, which run what the caller gave them and only when `MRW_SHELL=on` (ADR-174) | D3, and `./scripts/contract.sh` (ADR-092, ADR-095, ADR-174 rows) |
 | The network | none, except `version --check-latest` when asked | D4: `go test ./cmd/mrw/ -run 'TestOnlyTheCheckLatestFileImportsTheNetwork$'` in `cmd/mrw/latest149_test.go` |
 
 ## Superseded

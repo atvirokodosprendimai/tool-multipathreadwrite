@@ -190,7 +190,7 @@ func TestAFilesOnlyWriteOnRustRunsTheScopedCheck(t *testing.T) {
 	if err := os.WriteFile(plan, []byte("@@ a.rs 1 replace\nfn main() { let _ = 1; }\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	out, code := run(t, state, root, "write", plan)
+	out, code := run(t, state, root, "write", "--check", plan)
 	if code != 0 {
 		t.Fatalf("write exit %d\n%s", code, out)
 	}

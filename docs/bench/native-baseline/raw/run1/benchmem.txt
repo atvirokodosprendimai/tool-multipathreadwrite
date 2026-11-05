@@ -1,0 +1,38 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read
+cpu: Apple M5
+BenchmarkWalkDeep131-10    	      26	  50658521 ns/op	 9809263 B/op	   78721 allocs/op
+BenchmarkWalkDeep131-10    	      16	  64113523 ns/op	 9814257 B/op	   78715 allocs/op
+BenchmarkWalkDeep131-10    	      26	  42107099 ns/op	 9710311 B/op	   78703 allocs/op
+BenchmarkWalkDeep131-10    	      26	  42511428 ns/op	 9685917 B/op	   78702 allocs/op
+BenchmarkWalkDeep131-10    	      26	  42787580 ns/op	 9677348 B/op	   78701 allocs/op
+PASS
+ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read	8.855s
+goos: darwin
+goarch: arm64
+pkg: github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted
+cpu: Apple M5
+BenchmarkResolveADeepFile-10    	   33744	     34931 ns/op	   16784 B/op	     146 allocs/op
+BenchmarkResolveADeepFile-10    	   34210	     35664 ns/op	   16912 B/op	     146 allocs/op
+BenchmarkResolveADeepFile-10    	   34263	     35334 ns/op	   16784 B/op	     146 allocs/op
+BenchmarkResolveADeepFile-10    	   33662	     35081 ns/op	   16912 B/op	     146 allocs/op
+BenchmarkResolveADeepFile-10    	   33836	     35438 ns/op	   16784 B/op	     146 allocs/op
+PASS
+ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted	7.818s
+goos: darwin
+goarch: arm64
+pkg: github.com/atvirokodosprendimai/tool-multipathreadwrite/cmd/nativebench
+cpu: Apple M5
+BenchmarkR1-10    	    4671	    249785 ns/op	  889576 B/op	     239 allocs/op
+BenchmarkR1-10    	    4869	    509785 ns/op	  889602 B/op	     239 allocs/op
+BenchmarkR1-10    	    4708	    263013 ns/op	  889588 B/op	     239 allocs/op
+BenchmarkR1-10    	    4605	    260289 ns/op	  889593 B/op	     239 allocs/op
+BenchmarkR1-10    	    4740	    256147 ns/op	  889589 B/op	     239 allocs/op
+BenchmarkW1-10    	     361	   3372565 ns/op	 4053095 B/op	    6462 allocs/op
+BenchmarkW1-10    	     356	   3446429 ns/op	 4059367 B/op	    6464 allocs/op
+BenchmarkW1-10    	     345	   3448778 ns/op	 4058817 B/op	    6467 allocs/op
+BenchmarkW1-10    	     334	   3305389 ns/op	 4055056 B/op	    6470 allocs/op
+BenchmarkW1-10    	     340	   3390711 ns/op	 4060008 B/op	    6469 allocs/op
+PASS
+ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/cmd/nativebench	16.370s

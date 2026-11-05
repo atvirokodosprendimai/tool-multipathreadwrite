@@ -497,6 +497,7 @@ func TestAPlanRefusedFromStandardInputIsKept(t *testing.T) {
 // ADR-176 Decision 1. Anything in the tree keeps nothing, and neither does a
 // run that never read a standard-input plan.
 func TestAWriteThatLandedKeepsNoPlan(t *testing.T) {
+	t.Setenv("MRW_SHELL", "on")
 	k := newKeptRig(t)
 	none := func(why string) {
 		t.Helper()

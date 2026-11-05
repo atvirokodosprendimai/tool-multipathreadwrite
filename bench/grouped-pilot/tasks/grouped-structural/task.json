@@ -1,0 +1,58 @@
+{
+  "id": "grouped-structural",
+  "instruction": "Change only the active functions. Format each active_payload return as a multiline dictionary with four-space nesting, double-quoted keys, name first and retry second, a trailing comma after each item, and the closing brace on its own line. parsers/parser_0.py: active_payload uses the multiline dict with name \"beta_0\" and retry 3; active_parse strips then lowercases; parsers/parser_1.py: active_payload uses the multiline dict with name \"beta_1\" and retry 3; active_parse strips then lowercases; parsers/parser_2.py: active_payload uses the multiline dict with name \"beta_2\" and retry 3; active_parse strips then lowercases; parsers/parser_3.py: active_payload uses the multiline dict with name \"beta_3\" and retry 3; active_parse strips then lowercases; parsers/parser_4.py: active_payload uses the multiline dict with name \"beta_4\" and retry 3; active_parse strips then lowercases. Preserve all other text and formatting exactly, including legacy examples. Do not change accept.py, TASK.json, .quality-harness.json or .gitignore. Run the declared checker. Do not start background jobs.",
+  "edit_sites": 10,
+  "edited_files": 5,
+  "replacements": [
+    {
+      "file": "parsers/parser_0.py",
+      "old": "def active_payload():\n    return {\"name\": \"alpha\", \"retry\": 2}",
+      "new": "def active_payload():\n    return {\n        \"name\": \"beta_0\",\n        \"retry\": 3,\n    }"
+    },
+    {
+      "file": "parsers/parser_0.py",
+      "old": "def active_parse(text):\n    return text.strip()",
+      "new": "def active_parse(text):\n    return text.strip().lower()"
+    },
+    {
+      "file": "parsers/parser_1.py",
+      "old": "def active_payload():\n    return {\"name\": \"alpha\", \"retry\": 2}",
+      "new": "def active_payload():\n    return {\n        \"name\": \"beta_1\",\n        \"retry\": 3,\n    }"
+    },
+    {
+      "file": "parsers/parser_1.py",
+      "old": "def active_parse(text):\n    return text.strip()",
+      "new": "def active_parse(text):\n    return text.strip().lower()"
+    },
+    {
+      "file": "parsers/parser_2.py",
+      "old": "def active_payload():\n    return {\"name\": \"alpha\", \"retry\": 2}",
+      "new": "def active_payload():\n    return {\n        \"name\": \"beta_2\",\n        \"retry\": 3,\n    }"
+    },
+    {
+      "file": "parsers/parser_2.py",
+      "old": "def active_parse(text):\n    return text.strip()",
+      "new": "def active_parse(text):\n    return text.strip().lower()"
+    },
+    {
+      "file": "parsers/parser_3.py",
+      "old": "def active_payload():\n    return {\"name\": \"alpha\", \"retry\": 2}",
+      "new": "def active_payload():\n    return {\n        \"name\": \"beta_3\",\n        \"retry\": 3,\n    }"
+    },
+    {
+      "file": "parsers/parser_3.py",
+      "old": "def active_parse(text):\n    return text.strip()",
+      "new": "def active_parse(text):\n    return text.strip().lower()"
+    },
+    {
+      "file": "parsers/parser_4.py",
+      "old": "def active_payload():\n    return {\"name\": \"alpha\", \"retry\": 2}",
+      "new": "def active_payload():\n    return {\n        \"name\": \"beta_4\",\n        \"retry\": 3,\n    }"
+    },
+    {
+      "file": "parsers/parser_4.py",
+      "old": "def active_parse(text):\n    return text.strip()",
+      "new": "def active_parse(text):\n    return text.strip().lower()"
+    }
+  ]
+}

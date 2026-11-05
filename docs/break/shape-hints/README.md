@@ -85,6 +85,8 @@ matched. The harness now passes the anchor raw, on multi-line replaces only.
 - Orphans above the body (a short address) are not looked for; see BACKLOG "From ADR-119".
 - A correct replace that adds a new block ending in a closer just above a sibling's identical closer, within four
   non-blank lines, can still fire. The `-U0` replay contains that shape, and its rate is the one in the table.
+  The [Sibling-closer regression](sibling-closer.md) pins a concrete Ruby example and a genuine duplicate-closer
+  control. It is open on v1.79.0; its standalone check exits 1 while the false hint remains.
 - A known miss, not measured: a range that stops short on an INNER closer — `3-6` ending in `\t}` where the
   function's `}` at 7 was meant, or an HTML range ending in an inner `</div>` — carries no hint, because the
   comparison is trimmed and the range "already ended in" the same token. The balance row still reports the Go

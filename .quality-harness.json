@@ -4,6 +4,7 @@
   "timeout_seconds": 300,
   "tail_lines": 30,
   "steps": {
-    "static": "./scripts/static.sh"
+    "static": "./scripts/static.sh",
+    "brew-tap": "python3 -m unittest discover -s scripts -p test_brew_tap.py -v"
   }
 }

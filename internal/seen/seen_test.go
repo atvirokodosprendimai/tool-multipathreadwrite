@@ -305,10 +305,10 @@ func TestAWrittenFileIsLicensedButNotShown(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if s := r.Served(); s != "lines 2-3 since mrw wrote it" {
+	if s := r.Served(); s != "lines 2-3, and licensed the whole file" {
 		t.Errorf("Served for a written file: %q, want the lines shown since the write", s)
 	}
-	if s := w.Served(); s != "no lines since mrw wrote it" {
+	if s := w.Served(); s != "no lines, and licensed the whole file" {
 		t.Errorf("Served for a written file nothing shown: %q", s)
 	}
 	if o := got["w.go"]; !o.Written || !o.ServedLine(3) || o.ServedLine(4) {

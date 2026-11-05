@@ -1,0 +1,58 @@
+{
+  "id": "grouped-docs",
+  "instruction": "Update the Current section of these guides, preserving the fenced legacy examples: guides/service_0.md: Current endpoint /v2/service-0/run, Current retry budget 4; guides/service_1.md: Current endpoint /v2/service-1/run, Current retry budget 5; guides/service_2.md: Current endpoint /v2/service-2/run, Current retry budget 6; guides/service_3.md: Current endpoint /v2/service-3/run, Current retry budget 7; guides/service_4.md: Current endpoint /v2/service-4/run, Current retry budget 8. Preserve all other text and formatting exactly, including legacy examples. Do not change accept.py, TASK.json, .quality-harness.json or .gitignore. Run the declared checker. Do not start background jobs.",
+  "edit_sites": 10,
+  "edited_files": 5,
+  "replacements": [
+    {
+      "file": "guides/service_0.md",
+      "old": "## Current\n\nEndpoint: /v1/run",
+      "new": "## Current\n\nEndpoint: /v2/service-0/run"
+    },
+    {
+      "file": "guides/service_0.md",
+      "old": "Current retry budget: 3\n\nUse the active endpoint",
+      "new": "Current retry budget: 4\n\nUse the active endpoint"
+    },
+    {
+      "file": "guides/service_1.md",
+      "old": "## Current\n\nEndpoint: /v1/run",
+      "new": "## Current\n\nEndpoint: /v2/service-1/run"
+    },
+    {
+      "file": "guides/service_1.md",
+      "old": "Current retry budget: 3\n\nUse the active endpoint",
+      "new": "Current retry budget: 5\n\nUse the active endpoint"
+    },
+    {
+      "file": "guides/service_2.md",
+      "old": "## Current\n\nEndpoint: /v1/run",
+      "new": "## Current\n\nEndpoint: /v2/service-2/run"
+    },
+    {
+      "file": "guides/service_2.md",
+      "old": "Current retry budget: 3\n\nUse the active endpoint",
+      "new": "Current retry budget: 6\n\nUse the active endpoint"
+    },
+    {
+      "file": "guides/service_3.md",
+      "old": "## Current\n\nEndpoint: /v1/run",
+      "new": "## Current\n\nEndpoint: /v2/service-3/run"
+    },
+    {
+      "file": "guides/service_3.md",
+      "old": "Current retry budget: 3\n\nUse the active endpoint",
+      "new": "Current retry budget: 7\n\nUse the active endpoint"
+    },
+    {
+      "file": "guides/service_4.md",
+      "old": "## Current\n\nEndpoint: /v1/run",
+      "new": "## Current\n\nEndpoint: /v2/service-4/run"
+    },
+    {
+      "file": "guides/service_4.md",
+      "old": "Current retry budget: 3\n\nUse the active endpoint",
+      "new": "Current retry budget: 8\n\nUse the active endpoint"
+    }
+  ]
+}

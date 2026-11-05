@@ -88,7 +88,7 @@ func idAt(lines []map[string]any, id float64) int {
 }
 
 func writeCall(id float64, plan string, meta map[string]any) map[string]any {
-	params := map[string]any{"name": "mrw_write", "arguments": map[string]any{"plan": plan}}
+	params := map[string]any{"name": "mrw_write", "arguments": map[string]any{"plan": plan, "check": true}} // ADR-187: the check runs only when asked
 	if meta != nil {
 		params["_meta"] = meta
 	}
@@ -215,10 +215,11 @@ func TestTheLoopIsReleasedOnlyWhenACheckOrStepRuns(t *testing.T) {
 		args    map[string]any
 		want    bool
 	}{
-		{"a code write whose check runs", `{"check":"true"}`, map[string]any{"plan": goEdit113}, true},
+		{"a code write whose check runs", `{"check":"true"}`, map[string]any{"plan": goEdit113, "check": true}, true},
+		{"no check argument", `{"check":"true"}`, map[string]any{"plan": goEdit113}, false},
 		{"check: false", `{"check":"true"}`, map[string]any{"plan": goEdit113, "check": false}, false},
-		{"a prose write", `{"check":"true"}`, map[string]any{"plan": "@@ notes.md 2 replace\nline 2\n"}, false},
-		{"a dry run", `{"check":"true"}`, map[string]any{"plan": goEdit113, "dry_run": true}, false},
+		{"a prose write", `{"check":"true"}`, map[string]any{"plan": "@@ notes.md 2 replace\nline 2\n", "check": true}, false},
+		{"a dry run", `{"check":"true"}`, map[string]any{"plan": goEdit113, "dry_run": true, "check": true}, false},
 	} {
 		root := checkTree113(t, tc.harness)
 		raw, _ := json.Marshal(map[string]any{"name": "mrw_write", "arguments": tc.args})

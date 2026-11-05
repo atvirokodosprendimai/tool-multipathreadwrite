@@ -2,8 +2,11 @@ package main
 
 import (
 	"os"
+	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/guide"
 )
 
 // TestEverySubcommandReachesTheAgentFacingGuide derives its universe from the
@@ -114,5 +117,59 @@ func TestReadmeAndSkillNameInstructions(t *testing.T) {
 		if !documented(string(b), "instructions") {
 			t.Errorf("%s never mentions %q — a caller who reads the mirror is not told the binary prints its own contract", path, "mrw instructions")
 		}
+	}
+}
+
+// AGENTS.md's recipe block is a copy of what `mrw instructions` prints, in the
+// binary's order, one command per recipe: README says it "lists them all", and
+// the block was four recipes behind the binary when nothing held it (16 of 20,
+// 2026-10-29). The labels are the block's own words; the commands are the
+// binary's, so a recipe added to guide.Recipes without its AGENTS.md line, or
+// one whose command drifts, fails here.
+func TestAgentsRecipeBlockIsTheBinarysRecipes(t *testing.T) {
+	b, err := os.ReadFile("../../AGENTS.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, after, ok := strings.Cut(string(b), "**Start with the recipes.**")
+	if !ok {
+		t.Fatal("AGENTS.md has no \"**Start with the recipes.**\" paragraph")
+	}
+	_, after, ok = strings.Cut(after, "```sh\n")
+	if !ok {
+		t.Fatal("no ```sh block follows the recipes paragraph in AGENTS.md")
+	}
+	block, _, _ := strings.Cut(after, "```")
+	var labels, commands []string
+	for _, line := range strings.Split(strings.TrimSpace(block), "\n") {
+		if strings.HasPrefix(line, "# ") {
+			labels = append(labels, line)
+		} else {
+			commands = append(commands, line)
+		}
+	}
+	var want []string
+	for _, line := range strings.Split(guide.Recipes(), "\n") {
+		if strings.HasPrefix(line, "  ") {
+			want = append(want, strings.TrimPrefix(line, "  "))
+		}
+	}
+	if len(labels) != len(want) {
+		t.Errorf("AGENTS.md's block has %d recipe labels, mrw instructions prints %d recipes", len(labels), len(want))
+	}
+	for i, w := range want {
+		if i >= len(commands) {
+			t.Errorf("recipe %d is missing from AGENTS.md's block: %s", i+1, w)
+			continue
+		}
+		if commands[i] != w {
+			t.Errorf("recipe %d: AGENTS.md runs %q, mrw instructions %q", i+1, commands[i], w)
+		}
+		if i < len(labels) && !strings.HasPrefix(labels[i], "# "+strconv.Itoa(i+1)+". ") {
+			t.Errorf("recipe %d's label in AGENTS.md is not numbered %d: %q", i+1, i+1, labels[i])
+		}
+	}
+	if len(commands) > len(want) {
+		t.Errorf("AGENTS.md's block runs %d commands past the binary's recipes, the first %q", len(commands)-len(want), commands[len(want)])
 	}
 }

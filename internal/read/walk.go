@@ -385,7 +385,7 @@ func (w *walker) walkDir(named string, full string) {
 					w.skipNames[r] = true
 				}
 			}
-			return nil //nolint:nilerr // discovered, not named: skipped in silence (rule 2, above)
+			return nil // discovered, not named: skipped in silence (rule 2, above)
 		}
 		// Resolve, THEN ask what it is: a symlink to an in-root regular file
 		// is a candidate, a FIFO or device is not.
@@ -408,7 +408,7 @@ func (w *walker) walkDir(named string, full string) {
 					}
 				}
 			}
-			return nil //nolint:nilerr // any other discovered non-file is skipped in silence
+			return nil // any other discovered non-file is skipped in silence
 		}
 		if w.excluded(rel) {
 			return nil

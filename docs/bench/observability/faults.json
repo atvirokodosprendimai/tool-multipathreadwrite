@@ -1,0 +1,26 @@
+[
+  {
+    "probe": "exhausted collection budget",
+    "exit": 1,
+    "status": "incomplete",
+    "error": "collection budget exhausted",
+    "timed_samples": 0
+  },
+  {
+    "probe": "real checker rejects a corrupt file outside the scoped edit",
+    "scoped": {
+      "exit": 0,
+      "check_exit": 0,
+      "tail": [
+        "checked 1"
+      ]
+    },
+    "full": {
+      "exit": 3,
+      "check_exit": 1,
+      "tail": [
+        "checked 2"
+      ]
+    }
+  }
+]

@@ -109,9 +109,10 @@ func TestTerseKeepsEveryFailedHunkAndAdvisory(t *testing.T) {
 // ADR-179 Decision (f). The check's report and every step's verdict print, and
 // the exit code is the check's: 3 when it fails, and 3 for a step that fails.
 func TestTerseKeepsTheCheckReportAndItsExit(t *testing.T) {
+	t.Setenv("MRW_SHELL", "on")
 	needShell(t)
 	root := stepsTree(t, "exit 3")
-	out, code := writeIn(t, root, "--terse", primed(t, root))
+	out, code := writeIn(t, root, "--terse", "--check", primed(t, root))
 	if code != exitCheckFailed || !strings.Contains(out, "ok   a.go  1 hunk(s)") || !strings.Contains(out, "check FAIL") {
 		t.Errorf("a failing check under --terse exited %d, want 3 with its report:\n%s", code, out)
 	}

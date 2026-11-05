@@ -179,9 +179,9 @@ const toolWrite = tool({
     "insert-before, delete, create, unlink, rename. A new file is '@@ path 0 create'. A " +
     "multi-line replace needs anchor= AND, unless its range ends at the last line, a served line " +
     "after it: read past the end first. mrw will not edit a line it has not served AND you have " +
-    "acknowledged: pass the ck ids from mrw_read in ack. After a write that touches code it runs " +
-    "the project's check, as `mrw write` does, and reports it in the receipt's check; a failed " +
-    "check leaves the write applied. check: false turns it off.",
+    "acknowledged: pass the ck ids from mrw_read in ack. A write runs no check unless check: true " +
+    "asks for it (ADR-187): with it, after a write that touches code, the project's check runs and is reported in the receipt's check; a failed " +
+    "check leaves the write applied.",
   args: {
     plan: z.string().describe(
       "The plan document. Each hunk: '@@ <path> <address> <op> [guards]' + body lines.\n" +
@@ -199,7 +199,7 @@ const toolWrite = tool({
     check: z
       .boolean()
       .optional()
-      .describe("Run the project's check after a write that touches code (default true); false runs none."),
+      .describe("Run the project's check after a write that touches code (default false: no check runs unless true)."),
     then: z
       .array(z.string())
       .optional()

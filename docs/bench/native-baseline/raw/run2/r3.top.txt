@@ -1,0 +1,88 @@
+File: nativebench.test
+Type: cpu
+Time: 2026-10-29 14:37:13 EET
+Duration: 4.95s, Total samples = 12s (242.54%)
+Showing nodes accounting for 11.43s, 95.25% of 12s total
+Dropped 126 nodes (cum <= 0.06s)
+Showing top 80 nodes out of 143
+      flat  flat%   sum%        cum   cum%
+         0     0%     0%      9.13s 76.08%  syscall.syscalln
+     9.11s 75.92% 75.92%      9.11s 75.92%  syscall.rawsyscalln
+         0     0% 75.92%      8.99s 74.92%  syscall.syscall
+         0     0% 75.92%      7.56s 63.00%  os.ignoringEINTR (inline)
+         0     0% 75.92%      7.04s 58.67%  github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read.(*walker).offer.func1
+         0     0% 75.92%      6.93s 57.75%  github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read.init.func1
+         0     0% 75.92%      6.93s 57.75%  github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read.readBudget
+         0     0% 75.92%      5.79s 48.25%  github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/regular.Open
+         0     0% 75.92%      5.67s 47.25%  os.open (inline)
+         0     0% 75.92%      5.67s 47.25%  syscall.Open
+         0     0% 75.92%      5.55s 46.25%  os.OpenFile
+         0     0% 75.92%      5.55s 46.25%  os.openFileNolog
+         0     0% 75.92%      5.33s 44.42%  os.openFileNolog.func1 (inline)
+         0     0% 75.92%      2.29s 19.08%  github.com/atvirokodosprendimai/tool-multipathreadwrite/cmd/nativebench.BenchmarkR3Repo
+         0     0% 75.92%      2.29s 19.08%  testing.(*B).runN
+         0     0% 75.92%      2.27s 18.92%  github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read.(*walker).consider
+         0     0% 75.92%      2.27s 18.92%  github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read.(*walker).walkDir
+         0     0% 75.92%      2.27s 18.92%  github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read.Walk
+         0     0% 75.92%      2.27s 18.92%  path/filepath.WalkDir
+         0     0% 75.92%      2.27s 18.92%  path/filepath.walkDir
+         0     0% 75.92%      2.22s 18.50%  testing.(*B).launch
+         0     0% 75.92%      1.71s 14.25%  github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read.(*walker).walkDir.func1
+         0     0% 75.92%      1.26s 10.50%  runtime.schedule
+         0     0% 75.92%      1.21s 10.08%  runtime.systemstack
+         0     0% 75.92%      1.14s  9.50%  runtime.mcall
+         0     0% 75.92%      1.10s  9.17%  runtime.findRunnable
+         0     0% 75.92%      1.08s  9.00%  os.Lstat
+         0     0% 75.92%      1.08s  9.00%  os.lstatNolog
+         0     0% 75.92%      1.08s  9.00%  os.lstatNolog.func1 (inline)
+         0     0% 75.92%      1.08s  9.00%  syscall.Lstat
+         0     0% 75.92%      1.07s  8.92%  github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted.(*Resolver).Resolve
+         0     0% 75.92%      0.89s  7.42%  io.ReadAll
+         0     0% 75.92%      0.88s  7.33%  internal/poll.(*FD).Read
+         0     0% 75.92%      0.88s  7.33%  internal/poll.ignoringEINTRIO (inline)
+         0     0% 75.92%      0.88s  7.33%  io.(*LimitedReader).Read
+         0     0% 75.92%      0.88s  7.33%  os.(*File).Read
+         0     0% 75.92%      0.88s  7.33%  os.(*File).read (inline)
+         0     0% 75.92%      0.88s  7.33%  syscall.Read (inline)
+         0     0% 75.92%      0.88s  7.33%  syscall.read
+         0     0% 75.92%      0.79s  6.58%  runtime.goexit0
+         0     0% 75.92%      0.75s  6.25%  runtime.semasleep
+     0.69s  5.75% 81.67%      0.69s  5.75%  runtime.pthread_cond_wait
+         0     0% 81.67%      0.65s  5.42%  runtime.stopm
+         0     0% 81.67%      0.62s  5.17%  runtime.mPark (inline)
+         0     0% 81.67%      0.62s  5.17%  runtime.notesleep
+     0.61s  5.08% 86.75%      0.61s  5.08%  runtime.usleep
+         0     0% 86.75%      0.60s  5.00%  os.Stat
+         0     0% 86.75%      0.60s  5.00%  os.statNolog
+         0     0% 86.75%      0.60s  5.00%  os.statNolog.func1 (inline)
+         0     0% 86.75%      0.60s  5.00%  syscall.Stat
+         0     0% 86.75%      0.56s  4.67%  os.ReadDir
+         0     0% 86.75%      0.45s  3.75%  syscall.Fstat
+     0.44s  3.67% 90.42%      0.44s  3.67%  runtime.pthread_cond_signal
+         0     0% 90.42%      0.44s  3.67%  runtime.semawakeup
+         0     0% 90.42%      0.42s  3.50%  runtime.lock (partial-inline)
+     0.02s  0.17% 90.58%      0.42s  3.50%  runtime.lock2
+         0     0% 90.58%      0.42s  3.50%  runtime.lockWithRank (inline)
+         0     0% 90.58%      0.38s  3.17%  runtime.notewakeup
+         0     0% 90.58%      0.35s  2.92%  runtime.gcBgMarkWorker.func2
+         0     0% 90.58%      0.35s  2.92%  runtime.gcDrain
+         0     0% 90.58%      0.34s  2.83%  os.openDir
+         0     0% 90.58%      0.34s  2.83%  os.openDirNolog
+         0     0% 90.58%      0.34s  2.83%  os.openDirNolog.func1 (inline)
+         0     0% 90.58%      0.34s  2.83%  runtime.gcDrainMarkWorkerDedicated (inline)
+         0     0% 90.58%      0.33s  2.75%  github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted.(*Resolver).dir
+         0     0% 90.58%      0.33s  2.75%  runtime.osyield (inline)
+         0     0% 90.58%      0.31s  2.58%  runtime.newstack
+         0     0% 90.58%      0.30s  2.50%  runtime.morestack
+         0     0% 90.58%      0.30s  2.50%  runtime.preemptM
+     0.30s  2.50% 93.08%      0.30s  2.50%  runtime.pthread_kill
+         0     0% 93.08%      0.30s  2.50%  runtime.signalM (inline)
+         0     0% 93.08%      0.29s  2.42%  runtime.gopreempt_m (inline)
+         0     0% 93.08%      0.29s  2.42%  runtime.goschedImpl
+         0     0% 93.08%      0.28s  2.33%  runtime.park_m
+         0     0% 93.08%      0.28s  2.33%  runtime.runqgrab
+         0     0% 93.08%      0.28s  2.33%  runtime.runqsteal
+         0     0% 93.08%      0.28s  2.33%  runtime.stealWork
+         0     0% 93.08%      0.27s  2.25%  os.(*File).Close (partial-inline)
+         0     0% 93.08%      0.27s  2.25%  os.(*file).close
+     0.26s  2.17% 95.25%      0.26s  2.17%  runtime.madvise

@@ -1,0 +1,100 @@
+diff --git a/parsers/parser_0.py b/parsers/parser_0.py
+--- a/parsers/parser_0.py
++++ b/parsers/parser_0.py
+@@ -2,11 +2,14 @@
+ 
+ 
+ def active_payload():
+-    return {"name": "alpha", "retry": 2}
++    return {
++        "name": "beta_0",
++        "retry": 3,
++    }
+ 
+ 
+ def active_parse(text):
+-    return text.strip()
++    return text.strip().lower()
+ 
+ 
+ def legacy_payload():
+diff --git a/parsers/parser_1.py b/parsers/parser_1.py
+--- a/parsers/parser_1.py
++++ b/parsers/parser_1.py
+@@ -2,11 +2,14 @@
+ 
+ 
+ def active_payload():
+-    return {"name": "alpha", "retry": 2}
++    return {
++        "name": "beta_1",
++        "retry": 3,
++    }
+ 
+ 
+ def active_parse(text):
+-    return text.strip()
++    return text.strip().lower()
+ 
+ 
+ def legacy_payload():
+diff --git a/parsers/parser_2.py b/parsers/parser_2.py
+--- a/parsers/parser_2.py
++++ b/parsers/parser_2.py
+@@ -2,11 +2,14 @@
+ 
+ 
+ def active_payload():
+-    return {"name": "alpha", "retry": 2}
++    return {
++        "name": "beta_2",
++        "retry": 3,
++    }
+ 
+ 
+ def active_parse(text):
+-    return text.strip()
++    return text.strip().lower()
+ 
+ 
+ def legacy_payload():
+diff --git a/parsers/parser_3.py b/parsers/parser_3.py
+--- a/parsers/parser_3.py
++++ b/parsers/parser_3.py
+@@ -2,11 +2,14 @@
+ 
+ 
+ def active_payload():
+-    return {"name": "alpha", "retry": 2}
++    return {
++        "name": "beta_3",
++        "retry": 3,
++    }
+ 
+ 
+ def active_parse(text):
+-    return text.strip()
++    return text.strip().lower()
+ 
+ 
+ def legacy_payload():
+diff --git a/parsers/parser_4.py b/parsers/parser_4.py
+--- a/parsers/parser_4.py
++++ b/parsers/parser_4.py
+@@ -2,11 +2,14 @@
+ 
+ 
+ def active_payload():
+-    return {"name": "alpha", "retry": 2}
++    return {
++        "name": "beta_4",
++        "retry": 3,
++    }
+ 
+ 
+ def active_parse(text):
+-    return text.strip()
++    return text.strip().lower()
+ 
+ 
+ def legacy_payload():

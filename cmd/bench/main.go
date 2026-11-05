@@ -5,18 +5,18 @@
 //	bench run     --stage S --out DIR --model M [--model M2] --claude PATH --mrw PATH
 //	              --config-dir DIR --containment bypass --canary FILE [--task ID ...]
 //	              [--configs A,B[,P,W[,G,C]]] [--repeats N] [--seed N] [--budget 20m] [--max-turns N]
-//	              [--profile stage5|stage6 [--plugin-dir DIR] [--node PATH] [--work-line FILE] [--checks FILE] [--side-arms FILE [--qh-binary FILE --qh-sums FILE]]] [--status-line]
+//	              [--profile stage5|stage6|stage7|stage8 [--plugin-dir DIR] [--node PATH] [--work-line FILE] [--checks FILE] [--side-arms FILE [--qh-binary FILE --qh-sums FILE]]] [--status-line]
 //	              [--source swe-bench --dataset FILE --swebench-python PATH [--selection FILE] [--docker PATH]]
 //	              [--block K [--configs-for MODEL=A,B,P ...]] [--disk-path PATH --disk-floor GiB]
 //	bench canary  --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass
-//	              [--profile stage5|stage6 [--plugin-dir DIR] [--node PATH] [--work-line FILE] [--side-arms FILE [--qh-binary FILE --qh-sums FILE]]]
+//	              [--profile stage5|stage6|stage7|stage8 [--plugin-dir DIR] [--node PATH] [--work-line FILE] [--side-arms FILE [--qh-binary FILE --qh-sums FILE]]]
 //	bench baseline --stage S --out DIR --selection FILE --dataset FILE --checks FILE [--surviving FILE] [--docker PATH] [--budget 20m]
 //	bench export-paired --pair X,Y --model M --scorer-sha SHA --selection FILE --canary FILE DIR...
 //	bench verify  --stage S --tasks N --repeats R DIR
 //	bench look    DIR                                     (a Stage 5 directory: exit 0 complete, 1 a block due)
 //	bench analyze [--tasks-dir DIR] [--selection FILE ...] DIR
 //	bench side    --control P --arm G|C DIR...             (a side arm read against P, per model: ADR-163 Decision 9)
-//	bench hook    --log FILE --tree DIR (configuration B's PreToolUse hook)
+//	bench hook    --log FILE --tree DIR [--read-tool] (configuration B's PreToolUse hook)
 //	bench shim    --docker PATH --container NAME --tree DIR --state DIR --base SHA --name CMD -- ARGS...   (the shims of stage6; not run by hand)
 //	bench swebench-select [--n 20]                         (instance ids on stdin; Stage 3's rule)
 //	bench swebench-select --dataset FILE --min-hunks N [--exclude FILE ...] [--salt S] [--n 20] [--subset-min-hunks N] [--no-unnamed]
@@ -41,8 +41,8 @@ import (
 )
 
 const usageText = `usage:
-  bench run     --stage S --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass --canary FILE [--task ID ...] [--configs A,B[,P,W[,G,C]]] [--repeats N] [--seed N] [--budget 20m] [--max-turns N] [--profile stage5|stage6 [--plugin-dir DIR] [--node PATH] [--work-line FILE] [--checks FILE] [--side-arms FILE [--qh-binary FILE --qh-sums FILE]]] [--status-line] [--source swe-bench --dataset FILE --swebench-python PATH [--selection FILE] [--docker PATH]]
-  bench canary  --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass [--profile stage5|stage6 [--plugin-dir DIR] [--node PATH] [--work-line FILE] [--side-arms FILE [--qh-binary FILE --qh-sums FILE]]]
+  bench run     --stage S --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass --canary FILE [--task ID ...] [--configs A,B[,P,W[,G,C]]] [--repeats N] [--seed N] [--budget 20m] [--max-turns N] [--profile stage5|stage6|stage7|stage8 [--plugin-dir DIR] [--node PATH] [--work-line FILE] [--checks FILE] [--side-arms FILE [--qh-binary FILE --qh-sums FILE]]] [--status-line] [--source swe-bench --dataset FILE --swebench-python PATH [--selection FILE] [--docker PATH]]
+  bench canary  --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass [--profile stage5|stage6|stage7|stage8 [--plugin-dir DIR] [--node PATH] [--work-line FILE] [--side-arms FILE [--qh-binary FILE --qh-sums FILE]]]
   bench verify  --stage S --tasks N --repeats R DIR
   bench run     … [--block K [--configs-for MODEL=A,B,P ...]] [--disk-path PATH --disk-floor GiB]
   bench baseline --stage S --out DIR --selection FILE --dataset FILE --checks FILE [--surviving FILE] [--docker PATH] [--budget 20m]   (the declared check once per instance on the unmodified tree; no model)
@@ -50,7 +50,7 @@ const usageText = `usage:
   bench export-paired --pair X,Y --model M --scorer-sha SHA --selection FILE --canary FILE DIR...
   bench analyze [--tasks-dir DIR] [--selection FILE ...] DIR
   bench side    --control P --arm G|C DIR...   (side arm G or C read against P alone, per model, paired by task; DIR is each block's directory)
-  bench hook    --log FILE --tree DIR
+  bench hook    --log FILE --tree DIR [--read-tool]
   bench shim    --docker PATH --container NAME --tree DIR --state DIR --base SHA --name CMD -- ARGS...   (the shims of stage6; not run by hand)
   bench swebench-select [--n 20] < ids
   bench swebench-select --dataset FILE --min-hunks N [--exclude FILE ...] [--salt S] [--n 20] [--subset-min-hunks N] [--no-unnamed]
@@ -81,11 +81,7 @@ func main() {
 	case "look":
 		os.Exit(look(os.Args[2:], os.Stdout, os.Stderr))
 	case "hook":
-		fs := flag.NewFlagSet("hook", flag.ExitOnError)
-		log := fs.String("log", "", "where refusals and counted reads are appended")
-		tree := fs.String("tree", "", "the attempt's task tree: a write whose target lands outside it passes")
-		_ = fs.Parse(os.Args[2:])
-		os.Exit(bench.Hook(os.Stdin, os.Stderr, *log, *tree))
+		os.Exit(hookCmd(os.Args[2:], os.Stdin, os.Stderr))
 	case "shim":
 		cwd, _ := os.Getwd()
 		os.Exit(bench.Shim(os.Args[2:], cwd, os.Stdin, os.Stdout, os.Stderr))
@@ -110,6 +106,27 @@ func main() {
 	}
 }
 
+// hookCmd is bench hook: the Bash hook of configurations B and H, H's with
+// --read-tool (ADR-192). It returns the hook's exit code.
+func hookCmd(args []string, stdin io.Reader, stderr io.Writer) int {
+	fs := flag.NewFlagSet("hook", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	log := fs.String("log", "", "where refusals and counted reads are appended")
+	tree := fs.String("tree", "", "the attempt's task tree: a write whose target lands outside it passes")
+	readTool := fs.Bool("read-tool", false, "configuration H: the refusal says the Read tool reads as well as mrw read (ADR-192)")
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
+		return 2
+	}
+	hook := bench.Hook
+	if *readTool {
+		hook = bench.ReadToolHook
+	}
+	return hook(stdin, stderr, *log, *tree)
+}
+
 type multi []string
 
 func (m *multi) String() string     { return strings.Join(*m, ",") }
@@ -129,7 +146,7 @@ func stageFlags(name string) (*flag.FlagSet, *bench.RunOptions, *multi, *string)
 	fs.StringVar(&o.Containment, "containment", "", "bypass, or user:<name> once Zy chooses it")
 	fs.DurationVar(&o.Budget, "budget", bench.DefaultBudget, "an attempt's wall-clock budget")
 	fs.StringVar(&o.Scratch, "scratch", os.TempDir(), "where attempt trees are built")
-	fs.StringVar(&o.Profile, "profile", "", "stage5: the profile of ADR-162, for every configuration (skills on, Skill offered, node on PATH, no external model); stage6: the profile of ADR-163, stage5 plus a container of the instance image for python, python3, pytest and py.test")
+	fs.StringVar(&o.Profile, "profile", "", "stage8: stage5 and configuration S (ADR-193); stage7: stage5 and configuration H (ADR-192); stage5: the profile of ADR-162, for every configuration (skills on, Skill offered, node on PATH, no external model); stage6: the profile of ADR-163, stage5 plus a container of the instance image for python, python3, pytest and py.test")
 	fs.StringVar(&o.PluginDir, "plugin-dir", "", "the plugin configuration P loads: its directory in a tagged checkout (ADR-162)")
 	fs.StringVar(&o.Node, "node", "", "the node the profile links on every attempt's PATH; found on PATH when empty")
 	fs.StringVar(&o.Docker, "docker", "docker", "the docker CLI: stage6 starts the container of each attempt with it, and a SWE-bench run pulls and removes images with it")
@@ -149,7 +166,7 @@ func run(args []string) error {
 	fs.StringVar(&o.Stage, "stage", "", "the stage's name")
 	fs.StringVar(&o.Canary, "canary", "", "a passing canary.json for this CLI version")
 	fs.Var(&only, "task", "run only this task (repeatable); default every measured task")
-	configs := fs.String("configs", "A,B", "the configurations: A, B, P (the quality-harness plugin, under --profile stage5 with --plugin-dir), W (P plus --work-line's line, under --profile stage6), and the side arms G (P with its hooks run by the qh binary) and C (P with turnEnd notify), under --profile stage6 with --side-arms and beside P")
+	configs := fs.String("configs", "A,B", "the configurations: A, B, H (B plus the Read tool, ADR-191's read hook and one sentence, under --profile stage7), S (B plus one paragraph of edit instructions, under --profile stage8 with B), P (the quality-harness plugin, under --profile stage5 with --plugin-dir), W (P plus --work-line's line, under --profile stage6), and the side arms G (P with its hooks run by the qh binary) and C (P with turnEnd notify), under --profile stage6 with --side-arms and beside P")
 	fs.IntVar(&o.Repeats, "repeats", 2, "attempts per task, configuration and model")
 	fs.Int64Var(&o.Seed, "seed", 156, "the order's seed")
 	fs.BoolVar(&o.StatusLine, "status-line", false, "append the registered STATUS sentence to every instruction and record the claim (ADR-162)")
@@ -251,24 +268,36 @@ func baseline(args []string) error {
 	return bench.Baseline(o)
 }
 
+// canaryConfigs are the configurations a canary runs: A and B, H under
+// stage7, B and S under stage8, then the plugin's, the work line's and the
+// side arms'.
+func canaryConfigs(o bench.RunOptions) ([]string, error) {
+	configs := bench.CanaryBase(o.Profile)
+	if o.PluginDir != "" {
+		configs = append(configs, "P")
+	}
+	if o.WorkLine != "" {
+		configs = append(configs, "W")
+	}
+	if o.SideArms != "" {
+		arms, err := bench.SideNamed(o.SideArms)
+		if err != nil {
+			return nil, err
+		}
+		configs = append(configs, arms...)
+	}
+	return configs, nil
+}
+
 func canary(args []string) error {
 	fs, o, models, tasksDir := stageFlags("canary")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	o.Models, o.Stage, o.Repeats, o.Configs = *models, "canary", 1, []string{"A", "B"}
-	if o.PluginDir != "" {
-		o.Configs = append(o.Configs, "P")
-	}
-	if o.WorkLine != "" {
-		o.Configs = append(o.Configs, "W")
-	}
-	if o.SideArms != "" {
-		arms, err := bench.SideNamed(o.SideArms)
-		if err != nil {
-			return err
-		}
-		o.Configs = append(o.Configs, arms...)
+	o.Models, o.Stage, o.Repeats = *models, "canary", 1
+	var err error
+	if o.Configs, err = canaryConfigs(*o); err != nil {
+		return err
 	}
 	task, err := bench.LoadTask(filepath.Join(*tasksDir, "canary"))
 	if err != nil {
@@ -443,18 +472,45 @@ func analyze(args []string, w io.Writer) error {
 		if err != nil {
 			return err
 		}
-		fmt.Fprintln(w)
-		fmt.Fprintln(w, "| stage | model | source | verdict | look | tasks | attempts | excluded | cost (X−A)/A [99%] | solved X−A [99%, Tango] | B shell reads |")
-		fmt.Fprintln(w, "|---|---|---|---|---|---|---|---|---|---|---|")
+		bases, seen := []string{}, map[string]bool{}
 		for _, row := range rep.Rows {
-			look := lookLabel(rep, row)
-			r := row.Result
-			fmt.Fprintf(w, "| %s | %s | swe-bench, %s against A | %s | %s | %d | %d | %d | %+.3f [%+.3f, %+.3f] | %+.3f [%+.3f, %+.3f] | %d |\n",
-				r.Stage, r.Model, row.Comparison, row.Verdict, look, r.Tasks, r.Attempts, r.Excluded, r.RelCost, r.RelLo, r.RelHi, r.SolvedDiff, r.SolvedLo, r.SolvedHi, r.ReadsB)
+			if !seen[row.Baseline] {
+				seen[row.Baseline] = true
+				bases = append(bases, row.Baseline)
+			}
 		}
-		for _, r := range desc {
-			fmt.Fprintf(w, "| %s | %s | swe-bench, %s against A (%s) | (%s) | look %d | %d | %d | %d | %+.3f [%+.3f, %+.3f] | %+.3f [%+.3f, %+.3f] | %d |\n",
-				r.Stage, r.Model, r.Comparison, r.Descriptive, r.Verdict, r.Look, r.Tasks, r.Attempts, r.Excluded, r.RelCost, r.RelLo, r.RelHi, r.SolvedDiff, r.SolvedLo, r.SolvedHi, r.ReadsB)
+		if len(bases) == 0 {
+			bases = []string{"A"}
+		}
+		// One table per baseline, its cost and solved columns naming it
+		// (ADR-192 Decision 3): a stage with a single baseline, A, prints
+		// the one table it always did.
+		for _, base := range bases {
+			reads := "B shell reads"
+			for _, row := range rep.Rows {
+				if row.Baseline == base && row.Comparison == "H" {
+					reads = "X shell reads"
+				}
+			}
+			fmt.Fprintln(w)
+			fmt.Fprintf(w, "| stage | model | source | verdict | look | tasks | attempts | excluded | cost (X−%s)/%s [99%%] | solved X−%s [99%%, Tango] | %s |\n", base, base, base, reads)
+			fmt.Fprintln(w, "|---|---|---|---|---|---|---|---|---|---|---|")
+			for _, row := range rep.Rows {
+				if row.Baseline != base {
+					continue
+				}
+				look := lookLabel(rep, row)
+				r := row.Result
+				fmt.Fprintf(w, "| %s | %s | swe-bench, %s against %s | %s | %s | %d | %d | %d | %+.3f [%+.3f, %+.3f] | %+.3f [%+.3f, %+.3f] | %d |\n",
+					r.Stage, r.Model, row.Comparison, base, row.Verdict, look, r.Tasks, r.Attempts, r.Excluded, r.RelCost, r.RelLo, r.RelHi, r.SolvedDiff, r.SolvedLo, r.SolvedHi, r.ReadsB)
+			}
+			for _, r := range desc {
+				if r.Control != base {
+					continue
+				}
+				fmt.Fprintf(w, "| %s | %s | swe-bench, %s against %s (%s) | (%s) | look %d | %d | %d | %d | %+.3f [%+.3f, %+.3f] | %+.3f [%+.3f, %+.3f] | %d |\n",
+					r.Stage, r.Model, r.Comparison, base, r.Descriptive, r.Verdict, r.Look, r.Tasks, r.Attempts, r.Excluded, r.RelCost, r.RelLo, r.RelHi, r.SolvedDiff, r.SolvedLo, r.SolvedHi, r.ReadsB)
+			}
 		}
 	}
 	return nil

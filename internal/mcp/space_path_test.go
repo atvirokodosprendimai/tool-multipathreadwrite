@@ -18,7 +18,7 @@ func TestAFileWithASpaceInItsNameIsServedAndLicensedOverMCP(t *testing.T) {
 		root, _ := checkout(t, name, "hello\nworld\n")
 		res := call(t, root, "mrw_read", map[string]any{"specs": []any{name}})
 		text := served0(t, res)
-		if !strings.Contains(text, "    1| hello") {
+		if !strings.Contains(text, " 1| hello") {
 			t.Fatalf("%q: the read did not serve the file:\n%s", name, text)
 		}
 		ack := checkpointsIn(text)

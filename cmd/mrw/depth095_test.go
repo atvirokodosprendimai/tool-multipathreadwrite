@@ -67,10 +67,10 @@ func TestAWriteWhoseCheckIsDueIsRefusedAtTheDepthLimit(t *testing.T) {
 		args []string
 		plan string
 	}{
-		{"a .go replace", nil, goPlan},
-		{"a .go unlink", nil, "@@ a.go - unlink\n"},
-		{"a .go renamed to .md", nil, "@@ a.go - rename\nb.md\n"},
-		{"a .md renamed to .go", nil, "@@ notes.md - rename\nnotes.go\n"},
+		{"a .go replace", []string{"--check"}, goPlan},
+		{"a .go unlink", []string{"--check"}, "@@ a.go - unlink\n"},
+		{"a .go renamed to .md", []string{"--check"}, "@@ a.go - rename\nb.md\n"},
+		{"a .md renamed to .go", []string{"--check"}, "@@ notes.md - rename\nnotes.go\n"},
 		{"--check on prose", []string{"--check"}, mdPlan},
 	} {
 		root := depthTree(t)
@@ -93,7 +93,7 @@ func TestAWriteWhoseCheckIsDueIsRefusedAtTheDepthLimit(t *testing.T) {
 	t.Run("the inferred check", func(t *testing.T) {
 		root := grepTree(t, map[string]string{"go.mod": "module a\n\ngo 1.26\n", "a.go": "package a\nfunc A() {}\n"})
 		plan := primed(t, root)
-		out, code := runIn(t, root, "write", plan)
+		out, code := runIn(t, root, "write", "--check", plan)
 		if b, _ := os.ReadFile(filepath.Join(root, "a.go")); code != exitUsage || strings.Contains(string(b), "_ = 1") || !strings.Contains(out, "MRW_STEP_DEPTH=8") {
 			t.Errorf("exit %d, a.go %q, want 2 and unchanged:\n%s", code, b, out)
 		}
@@ -102,7 +102,7 @@ func TestAWriteWhoseCheckIsDueIsRefusedAtTheDepthLimit(t *testing.T) {
 	t.Run("--json and the tally", func(t *testing.T) {
 		t.Setenv("XDG_STATE_HOME", t.TempDir())
 		root := depthTree(t)
-		out, code := writeIn(t, root, "--json", planFile(t, goPlan))
+		out, code := writeIn(t, root, "--json", "--check", planFile(t, goPlan))
 		jsonRefusal(t, out, code, "MRW_STEP_DEPTH=8")
 		var doc map[string]any
 		if err := json.Unmarshal([]byte(out), &doc); err == nil {
@@ -122,6 +122,7 @@ func TestAWriteWhoseCheckIsDueIsRefusedAtTheDepthLimit(t *testing.T) {
 			args []string
 			plan string
 		}{
+			{"no flag", nil, goPlan},
 			{"--no-check", []string{"--no-check"}, goPlan},
 			{"--dry-run", []string{"--dry-run"}, goPlan},
 			{"a .md-only plan", nil, mdPlan},
@@ -141,7 +142,7 @@ func TestAWriteWhoseCheckIsDueIsRefusedAtTheDepthLimit(t *testing.T) {
 	t.Run("at 7 the write lands and its check runs at 8", func(t *testing.T) {
 		t.Setenv("MRW_STEP_DEPTH", "7")
 		root := depthTree(t)
-		out, code := runIn(t, root, "write", planFile(t, goPlan))
+		out, code := runIn(t, root, "write", "--check", planFile(t, goPlan))
 		b, _ := os.ReadFile(filepath.Join(root, "checked"))
 		if code != 0 || strings.TrimSpace(string(b)) != "8" {
 			t.Errorf("exit %d, the check saw %q, want 0 and 8:\n%s", code, b, out)

@@ -1,0 +1,1131 @@
+{
+ "R": 0,
+ "U": 137,
+ "W": 238,
+ "cells": {
+  "claude-opus-5-5 B": {
+   "R": 0,
+   "U": 60,
+   "W": 91
+  },
+  "claude-opus-5-5 S": {
+   "R": 0,
+   "U": 53,
+   "W": 90
+  },
+  "claude-sonnet-5-5 B": {
+   "R": 0,
+   "U": 13,
+   "W": 23
+  },
+  "claude-sonnet-5-5 S": {
+   "R": 0,
+   "U": 11,
+   "W": 34
+  }
+ },
+ "corpus": {
+  "dir": "/Users/zy/.local/share/mrw-bench/runs/stage8/pilot",
+  "files": 73,
+  "manifest_sha256": "364d95c14fe8722c65268392de9cdc95ac307a7247ad863316bd84de9852fb20"
+ },
+ "hunks": [
+  {
+   "attempt": "astropy__astropy-14539.B.claude-opus-5-5.1",
+   "file": "astropy/io/fits/tests/test_diff.py",
+   "kind": "U",
+   "line": 458,
+   "op": "insert-after",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "django__django-11451.S.claude-opus-5-5.1",
+   "file": "tests/auth_tests/test_auth_backends.py",
+   "kind": "U",
+   "line": 226,
+   "op": "replace",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "django__django-11532.B.claude-opus-5-5.1",
+   "file": "django/core/mail/message.py",
+   "kind": "U",
+   "line": 19,
+   "op": "replace",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "django__django-11532.B.claude-opus-5-5.1",
+   "file": "django/core/mail/message.py",
+   "kind": "U",
+   "line": 105,
+   "op": "replace",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "django__django-11532.B.claude-opus-5-5.1",
+   "file": "django/core/mail/message.py",
+   "kind": "U",
+   "line": 260,
+   "op": "replace",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "django__django-11532.B.claude-opus-5-5.1",
+   "file": "django/core/mail/message.py",
+   "kind": "U",
+   "line": 257,
+   "op": "replace",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "django__django-11532.B.claude-opus-5-5.1",
+   "file": "django/core/mail/message.py",
+   "kind": "U",
+   "line": 256,
+   "op": "delete",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "django__django-11532.B.claude-opus-5-5.1",
+   "file": "tests/mail/tests.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "django__django-11532.B.claude-opus-5-5.1",
+   "file": "tests/mail/tests.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "django__django-11532.B.claude-opus-5-5.1",
+   "file": "tests/mail/tests.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "django__django-11532.S.claude-opus-5-5.1",
+   "file": "django/utils/encoding.py",
+   "kind": "U",
+   "line": 221,
+   "op": "replace",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "django__django-11532.S.claude-opus-5-5.1",
+   "file": "django/core/mail/message.py",
+   "kind": "U",
+   "line": 19,
+   "op": "replace",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "django__django-11532.S.claude-opus-5-5.1",
+   "file": "django/core/mail/message.py",
+   "kind": "U",
+   "line": 108,
+   "op": "replace",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "django__django-11532.S.claude-opus-5-5.1",
+   "file": "django/core/mail/message.py",
+   "kind": "U",
+   "line": 260,
+   "op": "replace",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "django__django-11532.S.claude-opus-5-5.1",
+   "file": "tests/mail/tests.py",
+   "kind": "U",
+   "line": 15,
+   "op": "replace",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "django__django-11532.S.claude-opus-5-5.1",
+   "file": "tests/mail/tests.py",
+   "kind": "U",
+   "line": 24,
+   "op": "replace",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "django__django-11532.S.claude-opus-5-5.1",
+   "file": "tests/mail/tests.py",
+   "kind": "U",
+   "line": 301,
+   "op": "replace",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "django__django-11555.B.claude-opus-5-5.1",
+   "file": "django/db/models/sql/compiler.py",
+   "kind": "U",
+   "line": 724,
+   "op": "replace",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "django__django-11555.B.claude-opus-5-5.1",
+   "file": "tests/ordering/models.py",
+   "kind": "U",
+   "line": 56,
+   "op": "insert-before",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "django__django-11555.B.claude-opus-5-5.1",
+   "file": "tests/ordering/tests.py",
+   "kind": "U",
+   "line": 12,
+   "op": "replace",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "django__django-11555.B.claude-opus-5-5.1",
+   "file": "tests/ordering/tests.py",
+   "kind": "U",
+   "line": 464,
+   "op": "insert-after",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "django__django-11555.B.claude-opus-5-5.1",
+   "file": "django/db/models/sql/compiler.py",
+   "kind": "U",
+   "line": 725,
+   "op": "delete",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "django__django-11555.B.claude-opus-5-5.1",
+   "file": "django/db/models/sql/compiler.py",
+   "kind": "U",
+   "line": 724,
+   "op": "insert-after",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "django__django-14011.B.claude-opus-5-5.1",
+   "file": "django/core/servers/basehttp.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "django__django-14011.B.claude-opus-5-5.1",
+   "file": "django/core/servers/basehttp.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "django__django-14011.B.claude-opus-5-5.1",
+   "file": "django/test/testcases.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "django__django-14011.B.claude-opus-5-5.1",
+   "file": "django/test/testcases.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "django__django-14011.B.claude-opus-5-5.1",
+   "file": "tests/servers/tests.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "django__django-14011.B.claude-opus-5-5.1",
+   "file": "tests/servers/tests.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "django__django-14011.S.claude-opus-5-5.1",
+   "file": "django/core/servers/basehttp.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "django__django-14011.S.claude-opus-5-5.1",
+   "file": "django/core/servers/basehttp.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "django__django-14011.S.claude-opus-5-5.1",
+   "file": "django/test/testcases.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "django__django-14011.S.claude-opus-5-5.1",
+   "file": "django/test/testcases.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "django__django-14011.S.claude-opus-5-5.1",
+   "file": "tests/servers/tests.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "django__django-14011.S.claude-opus-5-5.1",
+   "file": "tests/servers/tests.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "django__django-14011.S.claude-opus-5-5.1",
+   "file": "tests/servers/test_liveserverthread.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "django__django-14011.S.claude-opus-5-5.1",
+   "file": "tests/servers/test_liveserverthread.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "django__django-14404.B.claude-opus-5-5.1",
+   "file": "admin_views/tests.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "django__django-16116.B.claude-opus-5-5.1",
+   "file": "django/core/management/commands/makemigrations.py",
+   "kind": "U",
+   "line": 113,
+   "op": "replace",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "django__django-16116.B.claude-opus-5-5.1",
+   "file": "docs/ref/django-admin.txt",
+   "kind": "U",
+   "line": 825,
+   "op": "replace",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "django__django-16116.B.claude-opus-5-5.1",
+   "file": "tests/migrations/test_commands.py",
+   "kind": "U",
+   "line": 2394,
+   "op": "replace",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "django__django-16116.S.claude-opus-5-5.1",
+   "file": "django/core/management/commands/makemigrations.py",
+   "kind": "U",
+   "line": 113,
+   "op": "replace",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "django__django-16116.S.claude-opus-5-5.1",
+   "file": "django/core/management/commands/makemigrations.py",
+   "kind": "U",
+   "line": 73,
+   "op": "replace",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "django__django-16642.S.claude-opus-5-5.1",
+   "file": "tests/responses/test_fileresponse.py",
+   "kind": "U",
+   "line": 257,
+   "op": "replace",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "matplotlib__matplotlib-25775.B.claude-opus-5-5.1",
+   "file": "lib/matplotlib/text.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "matplotlib__matplotlib-25775.B.claude-opus-5-5.1",
+   "file": "lib/matplotlib/text.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "matplotlib__matplotlib-25775.B.claude-opus-5-5.1",
+   "file": "lib/matplotlib/text.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "matplotlib__matplotlib-25775.B.claude-opus-5-5.1",
+   "file": "lib/matplotlib/text.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "matplotlib__matplotlib-25775.B.claude-opus-5-5.1",
+   "file": "lib/matplotlib/text.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "matplotlib__matplotlib-25775.B.claude-opus-5-5.1",
+   "file": "lib/matplotlib/text.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "matplotlib__matplotlib-25775.B.claude-opus-5-5.1",
+   "file": "lib/matplotlib/text.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "matplotlib__matplotlib-25775.B.claude-opus-5-5.1",
+   "file": "lib/matplotlib/text.pyi",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "matplotlib__matplotlib-25775.B.claude-opus-5-5.1",
+   "file": "lib/matplotlib/text.pyi",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "matplotlib__matplotlib-25775.B.claude-opus-5-5.1",
+   "file": "lib/matplotlib/backends/backend_cairo.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "matplotlib__matplotlib-25775.B.claude-opus-5-5.1",
+   "file": "lib/matplotlib/backends/backend_agg.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "matplotlib__matplotlib-25775.B.claude-opus-5-5.1",
+   "file": "lib/matplotlib/mathtext.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "matplotlib__matplotlib-25775.B.claude-opus-5-5.1",
+   "file": "lib/matplotlib/mathtext.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "matplotlib__matplotlib-25775.B.claude-opus-5-5.1",
+   "file": "lib/matplotlib/mathtext.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "matplotlib__matplotlib-25775.B.claude-opus-5-5.1",
+   "file": "lib/matplotlib/mathtext.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "matplotlib__matplotlib-25775.B.claude-opus-5-5.1",
+   "file": "lib/matplotlib/mathtext.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "matplotlib__matplotlib-25775.B.claude-opus-5-5.1",
+   "file": "lib/matplotlib/mathtext.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "matplotlib__matplotlib-25775.B.claude-opus-5-5.1",
+   "file": "lib/matplotlib/mathtext.pyi",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "matplotlib__matplotlib-25775.B.claude-opus-5-5.1",
+   "file": "lib/matplotlib/_mathtext.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "matplotlib__matplotlib-25775.B.claude-opus-5-5.1",
+   "file": "lib/matplotlib/_mathtext.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "matplotlib__matplotlib-25775.B.claude-opus-5-5.1",
+   "file": "lib/matplotlib/backends/backend_agg.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "matplotlib__matplotlib-25775.B.claude-opus-5-5.1",
+   "file": "lib/matplotlib/text.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "matplotlib__matplotlib-25775.B.claude-opus-5-5.1",
+   "file": "lib/matplotlib/text.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "matplotlib__matplotlib-25775.B.claude-opus-5-5.1",
+   "file": "lib/matplotlib/tests/test_text.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "matplotlib__matplotlib-25775.B.claude-opus-5-5.1",
+   "file": "lib/matplotlib/tests/test_text.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "matplotlib__matplotlib-25775.B.claude-opus-5-5.1",
+   "file": "doc/users/next_whats_new/text_antialiasing.rst",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "matplotlib__matplotlib-25775.S.claude-opus-5-5.1",
+   "file": "text.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "matplotlib__matplotlib-25775.S.claude-opus-5-5.1",
+   "file": "text.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "matplotlib__matplotlib-25775.S.claude-opus-5-5.1",
+   "file": "text.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "matplotlib__matplotlib-25775.S.claude-opus-5-5.1",
+   "file": "text.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "matplotlib__matplotlib-25775.S.claude-opus-5-5.1",
+   "file": "text.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "matplotlib__matplotlib-25775.S.claude-opus-5-5.1",
+   "file": "text.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "matplotlib__matplotlib-25775.S.claude-opus-5-5.1",
+   "file": "text.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "matplotlib__matplotlib-25775.S.claude-opus-5-5.1",
+   "file": "text.pyi",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "matplotlib__matplotlib-25775.S.claude-opus-5-5.1",
+   "file": "text.pyi",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "matplotlib__matplotlib-25775.S.claude-opus-5-5.1",
+   "file": "backends/backend_agg.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "matplotlib__matplotlib-25775.S.claude-opus-5-5.1",
+   "file": "backends/backend_agg.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "matplotlib__matplotlib-25775.S.claude-opus-5-5.1",
+   "file": "backends/backend_cairo.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "matplotlib__matplotlib-25775.S.claude-opus-5-5.1",
+   "file": "backends/backend_cairo.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "matplotlib__matplotlib-25775.S.claude-opus-5-5.1",
+   "file": "mathtext.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "matplotlib__matplotlib-25775.S.claude-opus-5-5.1",
+   "file": "mathtext.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "matplotlib__matplotlib-25775.S.claude-opus-5-5.1",
+   "file": "mathtext.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "matplotlib__matplotlib-25775.S.claude-opus-5-5.1",
+   "file": "mathtext.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "matplotlib__matplotlib-25775.S.claude-opus-5-5.1",
+   "file": "mathtext.pyi",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "matplotlib__matplotlib-25775.S.claude-opus-5-5.1",
+   "file": "_mathtext.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "matplotlib__matplotlib-25775.S.claude-opus-5-5.1",
+   "file": "_mathtext.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "matplotlib__matplotlib-25775.S.claude-opus-5-5.1",
+   "file": "mathtext.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "matplotlib__matplotlib-25775.S.claude-opus-5-5.1",
+   "file": "mathtext.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "matplotlib__matplotlib-25775.S.claude-opus-5-5.1",
+   "file": "text.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "matplotlib__matplotlib-25775.S.claude-opus-5-5.1",
+   "file": "lib/matplotlib/tests/test_text.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "matplotlib__matplotlib-25775.S.claude-opus-5-5.1",
+   "file": "lib/matplotlib/tests/test_text.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "pytest-dev__pytest-5631.B.claude-opus-5-5.1",
+   "file": "src/_pytest/compat.py",
+   "kind": "U",
+   "line": 70,
+   "op": "replace",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "pytest-dev__pytest-5631.B.claude-opus-5-5.1",
+   "file": "testing/python/integration.py",
+   "kind": "U",
+   "line": 157,
+   "op": "insert-after",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "pytest-dev__pytest-5631.B.claude-opus-5-5.1",
+   "file": "testing/python/integration.py",
+   "kind": "U",
+   "line": 158,
+   "op": "replace",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "pytest-dev__pytest-5631.S.claude-opus-5-5.1",
+   "file": "src/_pytest/compat.py",
+   "kind": "U",
+   "line": 71,
+   "op": "replace",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "pytest-dev__pytest-5631.S.claude-opus-5-5.1",
+   "file": "testing/python/integration.py",
+   "kind": "U",
+   "line": 155,
+   "op": "replace",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "scikit-learn__scikit-learn-12585.B.claude-opus-5-5.1",
+   "file": "sklearn/tests/test_base.py",
+   "kind": "U",
+   "line": 168,
+   "op": "insert-after",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "scikit-learn__scikit-learn-12585.S.claude-opus-5-5.1",
+   "file": "sklearn/tests/test_base.py",
+   "kind": "U",
+   "line": 146,
+   "op": "replace",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "scikit-learn__scikit-learn-25747.B.claude-opus-5-5.1",
+   "file": "sklearn/utils/tests/test_set_output.py",
+   "kind": "U",
+   "line": 27,
+   "op": "replace",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "scikit-learn__scikit-learn-25747.B.claude-opus-5-5.1",
+   "file": "sklearn/tests/test_pipeline.py",
+   "kind": "U",
+   "line": 1621,
+   "op": "insert-after",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "sphinx-doc__sphinx-8265.B.claude-opus-5-5.1",
+   "file": "sphinx/pycode/ast.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "sphinx-doc__sphinx-8265.B.claude-opus-5-5.1",
+   "file": "sphinx/pycode/ast.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "sphinx-doc__sphinx-8265.B.claude-opus-5-5.1",
+   "file": "tests/test_pycode_ast.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "sphinx-doc__sphinx-8265.S.claude-opus-5-5.1",
+   "file": "sphinx/pycode/ast.py",
+   "kind": "U",
+   "line": 168,
+   "op": "replace",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "sphinx-doc__sphinx-8265.S.claude-opus-5-5.1",
+   "file": "sphinx/pycode/ast.py",
+   "kind": "U",
+   "line": 175,
+   "op": "replace",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "sphinx-doc__sphinx-8265.S.claude-opus-5-5.1",
+   "file": "tests/test_pycode_ast.py",
+   "kind": "U",
+   "line": 56,
+   "op": "replace",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "sphinx-doc__sphinx-8265.S.claude-opus-5-5.1",
+   "file": "sphinx/pycode/ast.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "sphinx-doc__sphinx-8265.S.claude-opus-5-5.1",
+   "file": "tests/test_pycode_ast.py",
+   "kind": "U",
+   "line": null,
+   "op": "terse",
+   "reason": "a --terse receipt names no hunk address"
+  },
+  {
+   "attempt": "sympy__sympy-24661.S.claude-opus-5-5.1",
+   "file": "sympy/parsing/tests/test_sympy_parser.py",
+   "kind": "U",
+   "line": 361,
+   "op": "replace",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "astropy__astropy-14539.B.claude-sonnet-5-5.1",
+   "file": "astropy/io/fits/diff.py",
+   "kind": "U",
+   "line": 1452,
+   "op": "replace",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "astropy__astropy-14539.S.claude-sonnet-5-5.1",
+   "file": "astropy/io/fits/diff.py",
+   "kind": "U",
+   "line": 1452,
+   "op": "replace",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "django__django-11451.B.claude-sonnet-5-5.1",
+   "file": "django/contrib/auth/backends.py",
+   "kind": "U",
+   "line": 41,
+   "op": "insert-after",
+   "reason": "write calls and receipts do not pair"
+  },
+  {
+   "attempt": "django__django-11532.B.claude-sonnet-5-5.1",
+   "file": "django/core/mail/message.py",
+   "kind": "U",
+   "line": 260,
+   "op": "replace",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "django__django-11532.B.claude-sonnet-5-5.1",
+   "file": "django/core/mail/message.py",
+   "kind": "U",
+   "line": 260,
+   "op": "replace",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "django__django-11532.S.claude-sonnet-5-5.1",
+   "file": "django/core/mail/message.py",
+   "kind": "U",
+   "line": 260,
+   "op": "replace",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "django__django-11555.B.claude-sonnet-5-5.1",
+   "file": "django/db/models/sql/compiler.py",
+   "kind": "U",
+   "line": 724,
+   "op": "replace",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "django__django-11555.S.claude-sonnet-5-5.1",
+   "file": "django/db/models/sql/compiler.py",
+   "kind": "U",
+   "line": 724,
+   "op": "replace",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "django__django-13807.B.claude-sonnet-5-5.1",
+   "file": "django/db/backends/sqlite3/base.py",
+   "kind": "U",
+   "line": 330,
+   "op": "replace",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "django__django-13807.B.claude-sonnet-5-5.1",
+   "file": "django/db/backends/sqlite3/base.py",
+   "kind": "U",
+   "line": 336,
+   "op": "replace",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "django__django-13807.S.claude-sonnet-5-5.1",
+   "file": "django/db/backends/sqlite3/base.py",
+   "kind": "U",
+   "line": 330,
+   "op": "replace",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "django__django-13807.S.claude-sonnet-5-5.1",
+   "file": "django/db/backends/sqlite3/base.py",
+   "kind": "U",
+   "line": 336,
+   "op": "replace",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "django__django-14434.S.claude-sonnet-5-5.1",
+   "file": "django/db/backends/base/schema.py",
+   "kind": "U",
+   "line": 1254,
+   "op": "replace",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "django__django-16116.B.claude-sonnet-5-5.1",
+   "file": "django/core/management/commands/makemigrations.py",
+   "kind": "U",
+   "line": 251,
+   "op": "replace",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "django__django-16116.S.claude-sonnet-5-5.1",
+   "file": "django/core/management/commands/makemigrations.py",
+   "kind": "U",
+   "line": 250,
+   "op": "replace",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "django__django-16642.B.claude-sonnet-5-5.1",
+   "file": "django/http/response.py",
+   "kind": "U",
+   "line": 614,
+   "op": "insert-after",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "matplotlib__matplotlib-25775.B.claude-sonnet-5-5.1",
+   "file": "backends/backend_agg.py",
+   "kind": "U",
+   "line": 209,
+   "op": "replace",
+   "reason": "write calls and receipts do not pair"
+  },
+  {
+   "attempt": "matplotlib__matplotlib-25775.B.claude-sonnet-5-5.1",
+   "file": "backends/backend_cairo.py",
+   "kind": "U",
+   "line": 208,
+   "op": "replace",
+   "reason": "write calls and receipts do not pair"
+  },
+  {
+   "attempt": "pytest-dev__pytest-5631.S.claude-sonnet-5-5.1",
+   "file": "src/_pytest/compat.py",
+   "kind": "U",
+   "line": 70,
+   "op": "replace",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "scikit-learn__scikit-learn-25747.B.claude-sonnet-5-5.1",
+   "file": "sklearn/utils/_set_output.py",
+   "kind": "U",
+   "line": 58,
+   "op": "replace",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "sphinx-doc__sphinx-8265.S.claude-sonnet-5-5.1",
+   "file": "sphinx/pycode/ast.py",
+   "kind": "U",
+   "line": 176,
+   "op": "replace",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "sympy__sympy-18199.B.claude-sonnet-5-5.1",
+   "file": "sympy/ntheory/residue_ntheory.py",
+   "kind": "U",
+   "line": 772,
+   "op": "insert-after",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "sympy__sympy-24661.S.claude-sonnet-5-5.1",
+   "file": "sympy/parsing/sympy_parser.py",
+   "kind": "U",
+   "line": 1189,
+   "op": "replace",
+   "reason": "the file is UNCERTAIN"
+  },
+  {
+   "attempt": "sympy__sympy-24661.S.claude-sonnet-5-5.1",
+   "file": "sympy/parsing/sympy_parser.py",
+   "kind": "U",
+   "line": 1111,
+   "op": "replace",
+   "reason": "the file is UNCERTAIN"
+  }
+ ],
+ "verdict": "INCONCLUSIVE"
+}

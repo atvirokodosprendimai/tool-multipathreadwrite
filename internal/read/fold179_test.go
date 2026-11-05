@@ -25,7 +25,7 @@ func TestFoldCollapsesRepeatedAndDigitOnlyDifferentLines(t *testing.T) {
 	observed, problems := Run(&out, root, []Spec{{Path: "f.txt", Raw: "f.txt"}}, Options{Numbers: true, Fold: true})
 	text := out.String()
 	for _, w := range []string{
-		"    1| head\n    2| x 1\n-- ×3: lines 2-4 like 2, differing only in digits\n    5| mid\n    6| same\n-- ×3: lines 6-8 like 6\n    9| \n   10| \n   11| y 1\n   12| other\n   13| y 2\n",
+		"  1| head\n  2| x 1\n-- ×3: lines 2-4 like 2, differing only in digits\n  5| mid\n  6| same\n-- ×3: lines 6-8 like 6\n  9| \n 10| \n 11| y 1\n 12| other\n 13| y 2\n",
 	} {
 		if !strings.Contains(text, w) {
 			t.Errorf("the fold printed\n%s\nwant it to hold\n%s", text, w)

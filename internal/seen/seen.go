@@ -113,18 +113,24 @@ func (o Observation) coversLine(line int) bool {
 
 // Served renders the spans the way a diagnostic should quote them.
 func (o Observation) Served() string {
-	// A file mrw wrote is wholly licensed but was shown only what a read has
-	// served since (ADR-118); "the whole file" there contradicted a refusal
-	// naming unread lines, and hid in `mrw seen` why a write was refused.
+	// A written-shaped record (ADR-118, ADR-161, ADR-167) is licensed beyond
+	// what a read has shown. The ledger holds no source for the licence (a
+	// write, a --sub plan and a --quiet read record alike), so say what was
+	// shown and what is licensed, and nothing about who licensed it (ADR-182).
 	if o.Written {
-		since := " since mrw wrote it"
-		if o.Spans != nil { // ADR-161: licensed by a --sub plan, not written by mrw
-			since = ", and a --sub plan licensed " + quoteSpans(o.Spans)
+		shown := "no lines"
+		if len(o.Shown) > 0 {
+			shown = quoteSpans(o.Shown)
 		}
-		if len(o.Shown) == 0 {
-			return "no lines" + since
+		licence := "the whole file"
+		switch {
+		case o.Spans == nil:
+		case len(o.Spans) == 0:
+			licence = "none"
+		default:
+			licence = quoteSpans(o.Spans)
 		}
-		return quoteSpans(o.Shown) + since
+		return shown + ", and licensed " + licence
 	}
 	if o.Whole() {
 		return "the whole file"
@@ -633,18 +639,6 @@ func formatSpans(o Observation) string {
 // enter afterLoad while the first still holds LOCK_EX.
 var beforeLock func()
 
-// Record merges observations into the ledger on disk and saves it. Paths absent
-// from obs keep whatever was recorded for them: one command observing two files
-// must not erase what another observed about a third.
-//
-// Within one path the observations ACCUMULATE while the file is unchanged: two
-// reads of different ranges leave the caller having seen both. A different SHA
-// replaces the record outright, because spans counted in one version of a file
-// say nothing about another.
-//
-// ONE WRITER, EVEN ACROSS PROCESSES (ADR-038). The whole load-merge-save is
-// held under an exclusive lock on seen.lock, so N concurrent CLI processes
-// keep N entries. The format is unchanged.
 // Drop removes paths from the ledger. An unlinked file is gone; keeping its
 // observation would license a recreate against a SHA that no longer exists
 // on disk, or refuse a create because the ledger still names it.
@@ -697,6 +691,18 @@ func Forget(root string) (int, error) {
 	return n, err
 }
 
+// Record merges observations into the ledger on disk and saves it. Paths absent
+// from obs keep whatever was recorded for them: one command observing two files
+// must not erase what another observed about a third.
+//
+// Within one path the observations ACCUMULATE while the file is unchanged: two
+// reads of different ranges leave the caller having seen both. A different SHA
+// replaces the record outright, because spans counted in one version of a file
+// say nothing about another.
+//
+// ONE WRITER, EVEN ACROSS PROCESSES (ADR-038). The whole load-merge-save is
+// held under an exclusive lock on seen.lock, so N concurrent CLI processes
+// keep N entries. The format is unchanged.
 func Record(root string, obs map[string]Observation) error {
 	if len(obs) == 0 {
 		return nil
@@ -704,7 +710,28 @@ func Record(root string, obs map[string]Observation) error {
 	if beforeLock != nil {
 		beforeLock()
 	}
-	return withLock(root, func() error {
+	return withLock(root, merged(root, obs))
+}
+
+// RecordWithin is Record for a caller that must not wait: the ledger lock is
+// tried for wait, and a *state.LockTimeoutError comes back with nothing recorded
+// (ADR-191, a host's hook runs once per host read).
+func RecordWithin(root string, obs map[string]Observation, wait time.Duration) error {
+	if len(obs) == 0 {
+		return nil
+	}
+	top, _ := state.Checkout(root)
+	release, err := state.HoldWithin(top, Name+".lock", wait)
+	if err != nil {
+		return err
+	}
+	defer release()
+	return merged(root, obs)()
+}
+
+// merged is the load-merge-save both Records run under the ledger lock.
+func merged(root string, obs map[string]Observation) func() error {
+	return func() error {
 		// ADR-150: a newer mrw's ledger is never written over, so this read
 		// records nothing.
 		if _, newer, err := Newer(root); err == nil && newer {
@@ -720,7 +747,7 @@ func Record(root string, obs map[string]Observation) error {
 			l[k] = merge(l[k], o)
 		}
 		return save(top, l)
-	})
+	}
 }
 
 func withLock(root string, fn func() error) error {

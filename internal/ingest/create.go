@@ -99,13 +99,20 @@ func EndingNote(content []byte) string {
 // always double-quoted and escaped, so no name is read as other syntax.
 //
 // The file is what a create plan makes of the content's lines: each ends in a
-// newline, so a missing final newline is added and CRLF becomes LF, and empty
-// content makes an empty file. Content mrw cannot split into lines, or whose
+// newline, so a missing final newline is added and CRLF becomes LF. Zero bytes
+// are refused (ADR-195): they read exactly like a producer that failed before
+// it printed, so the refusal names the body=0 plan that makes an empty file on
+// purpose (ADR-027). Content mrw cannot split into lines, or whose
 // lines end in a bare CR (mixed line endings, which the plan parser would strip
 // without a word), is refused. The function writes nothing.
 func CompileCreate(path string, content []byte) ([]byte, error) {
 	if err := CheckCreatePath(path); err != nil {
 		return nil, err
+	}
+	quoted := strings.ReplaceAll(path, `\`, `\\`)
+	quoted = strings.ReplaceAll(quoted, `"`, `\"`)
+	if len(content) == 0 {
+		return nil, fmt.Errorf("--create %s: standard input was empty, which reads exactly like a producer that failed before it printed; to make an empty file, send the plan @@ \"%s\" 0 create body=0 to mrw write -", path, quoted)
 	}
 	if why := lines.Unsplittable(content); why != "" {
 		return nil, fmt.Errorf("--create %s: the content %s, so mrw cannot carry it as lines", path, why)
@@ -128,8 +135,6 @@ func CompileCreate(path string, content []byte) ([]byte, error) {
 			return nil, fmt.Errorf("--create %s: a line is %d bytes, longer than the %d a plan carries", path, len(l), maxPlanLine-2)
 		}
 	}
-	quoted := strings.ReplaceAll(path, `\`, `\\`)
-	quoted = strings.ReplaceAll(quoted, `"`, `\"`)
 	var b strings.Builder
 	fmt.Fprintf(&b, "@@ \"%s\" 0 create body=%d raw=true\n", quoted, len(ls))
 	for _, l := range ls {

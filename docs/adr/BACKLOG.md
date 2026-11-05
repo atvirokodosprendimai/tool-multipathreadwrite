@@ -271,8 +271,8 @@ Archived: [BACKLOG-archive.md](BACKLOG-archive.md)
     Not run 2026-09-16 — this session is Cursor, not a Claude Desktop MCP session. Still not the coder count. Pick A stands.
 
   **Desktop reading 0 — 2026-09-24, this Mac. NOT the analyst measure.** Claude
-  Desktop has `mrw` registered as `--root /Users/zy/GolandProjects/tool-multipathreadwrite
-  mcp`. `~/Library/Logs/Claude/mcp-server-mrw.log`, 2026-09-04 → 2026-09-24:
+  Desktop has `mrw` registered as `--root /path/to/tool-multipathreadwrite
+  mcp` (path anonymized). `~/Library/Logs/Claude/mcp-server-mrw.log`, 2026-09-04 → 2026-09-24:
   84 launches (`mrw mcp: serving` lines, all this one root), 34 `initialize`,
   1 `tools/call`, 0 `roots/list`, 0 `outside the root`. Population: one coder's
   machine, where the CLI is the tool of choice. It says Desktop reach is idle
@@ -466,6 +466,101 @@ so the result cannot move it:
   taught to write. The bar is unchanged and applies to EACH replay separately: under 5% in every bucket of 50 or
   more, and 3 of 3 closer fixtures. The third run uses seed 3119, 1,200 replaces a repository and 6,000 commits
   (`stress.py --seed 3119 --cap 1200 --max-commits 6000`).
+
+## From ADR-119 (sibling-closer false positive)
+
+- **A valid sibling expression triggers the closer hint.** A private field report described
+  a multi-line RSpec expectation whose closing `)` matches a second expectation's closing `)`
+  within four non-blank lines. Reproduced with the installed v1.79.0: the edit is correct and
+  exits 0, but the receipt warns about line 10. The standalone
+  [regression and duplicate-closer control](../break/shape-hints/sibling-closer.md) captures the case;
+  it currently exits 1. Owner: mrw's ADR-119 follow-up. Before changing the heuristic, use both
+  cases and remeasure false positives and true positives under ADR-119's bar. This entry records
+  the open warning-quality defect; it does not amend that bar or the shipped contract.
+  The [observable-costs and warning-evidence follow-up](../specs/2026-10-30-observable-costs-and-warnings.md)
+  implements an offline evidence report and controls; it adds no shipped MRW diagnostic command or receipt field.
+  The [eight-case verification](../bench/observability/RESULTS.md) also finds a valid nested closer warning
+  (line 5); both false positives remain open. Two real duplicate controls still warn. No shipping bar is met.
+
+### Pre-registered 2026-11-02 for the sibling-closer false positive — written before any variant code or run
+
+**Variant `closer_k4_token_ne_net`.** The shipped `closer_k4_token_ne`, firing only when the body's net
+count for its closer's kind differs from the replaced range's. Net is openers minus closers, counted on raw
+text, strings and comments included, as ADR-055's balance row counts. The kinds:
+- `}`, `)`, `]`: their bracket pair.
+- `</tag>`: `<tag` against `</tag>`.
+- `@endX`: `@X` against `@endX`.
+- a fence: the parity of fence lines.
+- any other closer token (`end`, `fi`, …): no net is computed, and it fires as now.
+
+The hypothesis: in every true positive measured so far the replaced range opened a structure (net +1) and the body
+closed its own (net 0). The Blade, HTML and markdown field fixtures all have that shape. In the false positives
+both nets are 0: `sibling_spec.rb`, `nested.go`, and two replaces in this session's own work.
+
+**It ships only if every one of these holds, else it does not ship and this entry records why:**
+1. The three closer field fixtures in `docs/break/shape-hints/stress.py` (blade, html, markdown) still fire.
+2. In `scripts/mrw_observe.py`'s eight warning cases:
+   - `duplicate.md` and `blanks.md` still fire;
+   - `sibling_spec.rb` and `nested.go` no longer fire;
+   - the other four are unchanged.
+3. On the history replay with run 2's parameters (seed 2119, `--cap 1200`, `--max-commits 6000`, the same
+   directories), and again on a fresh seed 3119:
+   - the variant fires fewer times than `closer_k4_token_ne`;
+   - no fire is gained;
+   - every bucket of 50 or more replaces stays under ADR-119's 5% bar.
+
+   The variant only removes fires, so the bar cannot be newly missed. The result reports how many fires it removes,
+   and of what shape, so a removed true positive is visible. The replay's `through_closer` true-positive rows,
+   if any, are reported separately: losing one is a finding against the variant.
+4. Any fire it removes on the replay is read by hand from a 20-fire random sample (seed 4119). If any one of them is
+   a real orphaned closer, the variant does not ship.
+
+Owner: mrw's ADR-119 follow-up. Shipping needs an ADR amending ADR-119 and Zy's acceptance; this entry decides
+nothing beyond the bar.
+
+**Result, 2026-11-02: does not ship. Bar 3 missed on seed 3119.**
+- `docs/break/shape-hints/stress.py` gained the variant; no other change.
+- Each seed took about 33 s over 14 repositories and one worktree.
+
+**Corrections, from the cloud review of #593.** The registration above stands as committed.
+- **Seeds.** Neither seed was fresh: 2119 is ADR-119's second run and 3119 its third. Both samples were seen when
+  ADR-119 was tuned, so these figures are no held-out check.
+- **Corpus.** It is not ADR-119's: 14 repositories here against 16 on 2026-10-02. One rng is shared across
+  repositories in sorted order, so a changed corpus reshuffles every sample after it. "Run 2's parameters" did not
+  reproduce run 2's sample.
+- **Bar 3's true-positive half could not fail.** On every `through_closer` row, `ends_alike` holds by construction:
+  the range and the body end on the same line. So both `ne` variants fire 0 times on those rows (3,249 rows on seed
+  2119, 2,944 on 3119). And because the variant is the shipped hint ANDed with one more condition, "fewer fires, none
+  gained" is a tautology. Only the 5% bucket bar and bar 4 could fail, and bar 4 was not run. A next registration
+  needs a true-positive guard that can fail.
+- **The code differed from the registered definition.** The tag opener needed a character after the name, so a bare
+  `<div` ending the replaced range counted 0. A self-closing `<x-foo />` counted as an opener. Both were fixed to match
+  "`<tag` against `</tag>`", and both seeds re-run. The numbers below are from the fixed code. The verdict did not
+  change.
+- **Self-closing tags, from the Codex review of #593.** The self-closing count put `\b` after the name, so `<x-foo-bar />`
+  counted against `x-foo`. It now needs a space or `/` after the name, as the opener does. Both seeds were re-run.
+  The replace counts moved a little because this repository gained commits between runs.
+
+Bar 1 held: the blade, html and markdown field fixtures all still fire.
+
+Bar 2 held: all eight `scripts/mrw_observe.py` cases match their expected hint. `sibling_spec.rb` and `nested.go` no
+longer fire; `duplicate.md` and `blanks.md` still do.
+
+Bar 3 missed. False fires on correct committed edits, from the `-U0` replay:
+
+| seed | replaces | `closer_k4_token_ne` (shipped) | `closer_k4_token_ne_net` | removed, by closer shape | `blade` shipped / net |
+|---|---:|---:|---:|---|---:|
+| 2119 | 11,678 | 139 | 11 | `}` 112, tag 9, `]` 4, `)` 2, fence 1 | 5.66% / 1.89% of 53 |
+| 3119 | 11,631 | 122 | 22 | `}` 83, tag 13, `]` 2, `)` 1, fence 1 | 9.28% / **6.19%** of 97 |
+
+On seed 3119 the variant's `blade` bucket is over the 5% bar, so it does not ship. The six `blade` fires it keeps are
+10 to 18-line rewrites of nested templates. Their net tag count really does differ, because the hunk changes how much
+structure it encloses, so a closer-token rule cannot tell them from an orphan. No further variant is proposed.
+
+**About the shipped hint.** On this corpus the shipped `closer_k4_token_ne` is over ADR-119's bar in `blade`: 5.66% and
+9.28%. ADR-119's runs never had a `blade` bucket of 50 or more replaces, and its corpus differed, so this is a first
+measurement of that bucket, not a measured regression. It is an open question for Zy whether the hint should keep
+firing on `.blade.php`. Owner: as above.
 
 ## Pre-registered for ADR-156 (does mrw pay for itself on agent runs) — the bar, written before any run
 
@@ -806,6 +901,120 @@ Zy, 2026-10-27: *"yes, go, address these, measure, plan, implement verify, udupa
 - **The new read flags and `--terse` on `mrw_read` and `mrw_write`** (2026-10-27): CLI only. Arm when a shell-less host asks (ADR-179: these flags on the MCP tools).
 - **`TestAnExponentIsReducedExactlyAndInLinearTime` fails under a loaded full suite** (2026-10-28): at the v1.77.0 release, `go test ./...` on `a508f6a2` failed twice locally at load 15-21 on 10 cores, only this test (`internal/mcp/surface128_test.go:257`), with 1M-to-4M ratios 6.4/7.1/7.2 and 3.7/9.5/9.9 in one run; it passed alone three times at load 21, a third full run passed, and CI passed. The noise guard (skip when ratios disagree threefold) did not fire on the first run. Arm when it fails again in a full run on a tree that does not touch `internal/mcp` (no ADR; found at the v1.77.0 release).
 
+## From ADR-184
+
+- **Whether the core arm now costs less (deferred from ADR-184) — done 2026-10-31.** Runs 3, 4 and 5
+  of `docs/bench/observability/CORE-RESULTS.md`, each registered before its first call: with
+  ADR-184's core no core cell fetched the full guide, and over four rounds against v1.80.0 the cost
+  difference was "no cost result" (#579). A difference under about $0.03 per five jobs is not ruled out.
+- **`docs/agents.md`'s core-first advice (deferred from ADR-184) — done 2026-10-31.** Kept, as
+  Amendment 3 decided before the data, and it now says it was measured cost-neutral (#579).
+
+## From ADR-189
+
+- **The measurement against native (deferred from ADR-189)** (2026-11-01): a grouped run, native against
+  MRW, on the release that carries ADR-189 T1, its predictions registered first as runs 6-8 were. It
+  answers the record's "what would make this wrong": whether a narrower gutter costs refused or
+  misaddressed writes. Running it is Zy's call (a paid run).
+
+## From ADR-190 and ADR-191
+
+- **apply_patch's `-` lines as a quote (deferred from ADR-190)** (2026-11-02): an apply_patch hunk interleaves the
+  lines it replaces with context lines, so "every line it replaces is quoted" needs its own rule before it can
+  license. Pick it up if SEARCH/REPLACE proves out.
+- **The measurement against native (deferred from ADR-190 and ADR-191)** (2026-11-02): a grouped run, native
+  against MRW, on the release that carries both records' T1, with predictions registered first. It must include
+  a compacting arm, since the 90 post-compaction re-reads that motivate ADR-190 come from small-context runs. Zy's
+  call: it is a paid run.
+  The grouped run was run 9 (docs/bench/observability/HOOK-RESULTS.md): the agent never used the host Read, so the
+  hook went unexercised. ADR-192 takes ADR-191's half to SWE-bench; ADR-190's compacting half stays here.
+
+## From ADR-192
+
+- **Rule 1 of mrw's guide (deferred from ADR-192)** (2026-11-03): `internal/guide/guide.go` tells agents to read with
+  mrw, which kept the host Read and its hook unused in run 9. Change it only if ADR-192's H against B PAYS on a
+  model, through its own record.
+- **Configuration N, B plus the Read with no hook (deferred from ADR-192)** (2026-11-03): separates the hook from the
+  Read that H bundles. Run it only if H against B PAYS; about 13 more hours at Stage 5's pace.
+
+## From ADR-193
+
+ADR-193's pre-registration is its Decisions 4 and 5 (the counting rule, the 18 instances, the thresholds and the
+verdict), written with the record on 2026-11-03, before any code or run.
+
+- **Codex steering toward `--format=apply_patch` (deferred from ADR-193)** (2026-11-03): the Codex analogue of S. Bench
+  drives Claude Code only, so nothing here can measure it, and nothing in this repository records what environment
+  Codex sets. Pick it up when a Codex harness exists, with its own pre-registration.
+- **A native JSON `str_replace` front end (deferred from ADR-193)** (2026-11-03): `{path, old_str, new_str}`, the
+  syntax Claude was trained on, over ADR-190's quote licence. Consider it if ADR-193's pilot says SHIP.
+- **Hashline-style per-line hashes in reads and edits (deferred from ADR-193)** (2026-11-03): an edit addressed by a
+  short hash of the line it replaces. Not measured; needs its own record.
+- **A safety and long-session benchmark (deferred from ADR-193)** (2026-11-03): what the guarantee layer prevents
+  (silent mis-edits, partial writes, edits after compaction) over long sessions, which SWE-bench's short attempts do
+  not exercise. Its own record.
+- **`mrw instructions --core --host claude` (deferred from ADR-193)** (2026-11-03): Zy's surface decision ships only
+  the measured full form on SHIP. The core form needs its own measurement, against B on `--core`, and must settle its
+  clash with the core's rule 2 ("writing a line mrw never served you is refused") first.
+- **Wiring the paragraph into the triggers and the skill (deferred from ADR-193)** (2026-11-03): after a SHIP, whether
+  the standing trigger (`docs/agents.md` §1), `mrw skill` and `.claude/skills/mrw/SKILL.md`, BESTPRACTICES.md and the
+  owner's global instructions point Claude hosts at `mrw instructions --host claude`. Zy's decision; ADR-193 T5 does
+  not touch them.
+- **A larger confirmation run (deferred from ADR-193)** (2026-11-03): after a mixed pilot, or before any README claim
+  from a SHIP, run S against B on more instances (the 20 of `selection-adr-160.json`, or a pool), with its own bar.
+- **A reworded paragraph, measured again (from ADR-193 T4)** (2026-11-04): the pilot said NO SHIP
+  (`docs/bench/stage-8/RESULTS.md`). 15 of Sonnet S's 17 refused calls were `search_replace: no hunks`, in 8 of 18
+  attempts: the agent passed the file it edited as `FILE` and the document on standard input, which "apply it with mrw
+  write --format=search_replace FILE" allows. A paragraph naming FILE as the document is a new paragraph, so a new
+  pilot with its own pre-registration (about $9 at Stage 8's prices); the route to SHIP is (b)(i) alone, since a block
+  carries the old lines and output per attempt rose 25–26% on both models. Zy's call.
+- **A SEARCH/REPLACE refusal that says the input has no marker (from ADR-193 T4)** (2026-11-04): `mrw write
+  --format=search_replace F` on a file with no `<<<<<<< SEARCH` line refuses with `search_replace: no hunks`, which
+  does not say that F holds no marker, nor that F looks like the file to edit rather than the document. A bounded change
+  to the refusal text, with a contract row; it does not depend on a SHIP. Done: #616, shipped in v1.84.0.
+
+## From ADR-194 (a write licenses the lines the caller saw and the lines it wrote)
+
+- **The replay that prices the narrow licence (ADR-194 T1). PRE-REGISTERED 2026-11-04, before
+  `scripts/licence194_replay.py` exists** (`.claude/rules/adr.md`; amended the same day, before any run, from two
+  challenges).
+  - *Corpus.* Every `*.transcript.jsonl` of the Stage 8 pilot, in the directory `docs/bench/stage-8/RESULTS.md`'s
+    `transcripts:` line names (both cells B and S, both models; Claude Code 2.1.317, mrw v1.83.0; their only tools
+    were Bash and Glob, so every licence went through `mrw`). Pinned by a manifest of each file's name and sha256 of
+    its content, committed with the result.
+  - *Replay.* Per attempt, in transcript order, from each `mrw` Bash call and its result. Historical: every write
+    that landed is applied as it landed, so line numbers follow what happened on disk; each hunk is judged on its own,
+    and none is replayed as if an earlier one had been refused.
+  - *Licence sources.* A read licenses the `@@ A-B` spans it printed under a file's `==>` header; a read that printed
+    the whole file licenses it whole. A read under `--quiet`, `--max-cols` (or `MRW_MAX_COLS`), `--fold`,
+    `--no-comments`, `--if-changed` or `--if-served`, a read piped into another command (`mrw read … | sed`, `| head`), and a read whose printed lines end before the last `@@` span it headed, make its files UNCERTAIN, since the transcript cannot show what mrw recorded. A write's own body lines are licensed
+    as ADR-194 Decisions 1-3 say; a `create` hunk makes the file whole.
+  - *Counts.* W = hunks of writes that printed `applied`, path ops (unlink, rename) included, each placed by the
+    address its `ok` row prints. U = hunks of W the replay cannot place (an address it cannot resolve, a receipt it
+    cannot parse) or that fall on an UNCERTAIN file; a file stays UNCERTAIN from that hunk or read until a whole read
+    or a `create` of it. R = hunks of W not in U that ADR-194 would refuse: a line hunk with a line it addresses (for a
+    multi-line replace, also the line after, ADR-052) outside the file's replayed licence, in a file that no `create`
+    made and no read served whole since its last write; a path op on a file not wholly licensed. Not counted in R,
+    because they license themselves: a SEARCH/REPLACE hunk's quoted lines (ADR-190; only its line after can count), a
+    `--sub` or `--rewrite` hunk (ADR-161), the addressed lines of a hunk of a `--force` write (its line after, for a multi-line replace, still counts: ADR-052 holds under `--force`, `internal/apply/apply.go:1880-1889`).
+  - *Verdict*, the first rule that applies: INCONCLUSIVE if W < 50 or U > W/5; STOP if R > W/20 (T2 does not start
+    until Zy reads the numbers); GO if R + U <= W/20; otherwise INCONCLUSIVE. GO says: on this corpus, the rule would
+    refuse at most 1 landed hunk in 20 even if every hunk the replay could not place were refused. It says nothing about
+    hosts with their own Read tool (ADR-191), which this corpus has none of.
+  - *Reported beside the verdict*, not part of it: W, R and U by model and cell, and each R and U hunk's attempt,
+    file, line and reason.
+  - The script, its synthetic tests, the manifest and the output (`docs/bench/licence194/`) are committed with the
+    verdict; this criterion is not edited after the first run.
+- **The narrow licence on a paid run (deferred from ADR-194)** (2026-11-04): the first paid benchmark on a release that
+  carries ADR-194 T2 counts, per model and cell, the refusals whose reason carries its clause (a write does not license
+  the whole file), beside the run's own refusal rate. Pre-registered with that run, not here.
+
+## From ADR-195 (`--create` refuses empty standard input)
+
+- **`body=@path` naming an empty file (deferred from ADR-195)** (2026-11-04): AGENTS.md §2 says an empty body file
+  is `body=0`, so a producer that failed before writing the body file makes an empty create under a clean receipt,
+  the failure ADR-195 refuses for `--create`. The caller names the file and can inspect it, which is why ADR-195
+  left it out; whether it should be refused too is its own record.
+
 ## Post-v1.77.1 cleanup and decisions (2026-10-28)
 
 Zy asked to fix and clean up the reproducible issues, re-examine the open work,
@@ -864,14 +1073,14 @@ change an exit code, a trust boundary, or any registered measurement window.
   Decide whether a module-installed build should use that metadata while an
   explicit linker stamp remains authoritative; preserve local `dev` builds
   and the honest no-revision fallback.
-- **Open PRs (triaged, not merged):** #528's required `PUSH_TOKEN` secret is
-  present by name. Its `workflow_run.branches: [main]` filter conflicts with
-  tag release runs (v1.77.1 CI reports `head_branch=v1.77.1`); correct and test
-  the trigger before approval. [GitHub documents that this filter applies to
-  the triggering workflow's branch](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#limiting-your-workflow-to-run-based-on-branches).
-  PR #543 hit the held-pipe fixture failure above. PR #523 changes knip but
-  leaves ADR-147 T2's acceptance grep pinned to 6.38.0; update and reverify that
-  record with the dependency change, rather than weakening the static gate.
+- **Existing PR completion (2026-10-28):** #543 merged at `32addb78` after
+  refresh onto the held-pipe test fix; plugin, static, Go, race, contract and CI
+  checks passed. #523's knip 6.43.0 fence fix and analyser self-test are prepared,
+  but Zy retained ADR-147's two-week waiting period: do not merge before
+  2026-11-07 08:32:43 UTC (npm publication: 2026-10-24). #528 merged at
+  `3508dcb8`; Actions run 40718218358 published v1.77.1 to tap commit
+  `1ec84f0ac89658644b9f2e72059c7be75a82bca3`. Exact served bytes and all four
+  OS/CPU manifest pairs were verified; ADR-172 T1's integration sign-off is complete.
 - **Historical receipt routing (reader finding, not recertified):**
   `work-next` 3.8.59 reports historical done tasks as needing verification.
   For ADR-026 T4, current green receipt rows exist and `adr-lint` passes,

@@ -257,14 +257,17 @@ func keys(m map[string]bool) []string {
 // the rationale as backwards.
 //
 // The digests were taken from the binary built at origin/main (e96504a) and
-// confirmed identical on this head across 6 seeds x 3 positions.
+// confirmed identical on this head across 6 seeds x 3 positions. Two of the digests were re-taken
+// for ADR-189's narrower gutter (the third cell's bytes are the same under both gutters, measured
+// by the go-reviewer pass on ADR-189 T1), so a re-run of an ADR-020 reading serves different bytes from the
+// ones that reading was collected against.
 func TestTheNamedFixtureMatchesItsGoldenBytes(t *testing.T) {
 	golden := []struct {
 		p      Params
 		digest string
 	}{
-		{Params{ServedBytes: 2000, Position: Early, Distractors: 3, Seed: 1}, "a9504af9b15f03df2ad26bddbb0016d5"},
-		{Params{ServedBytes: 20000, Position: Middle, Distractors: 3, Seed: 3}, "ce3922d276340d0136af54378719ce55"},
+		{Params{ServedBytes: 2000, Position: Early, Distractors: 3, Seed: 1}, "81b67ca1e9f8a73476b098e9af533c83"},
+		{Params{ServedBytes: 20000, Position: Middle, Distractors: 3, Seed: 3}, "89f50ebbec2bc35069e45b076b4e2298"},
 		{Params{ServedBytes: 200000, Position: Late, Distractors: 3, Seed: 5}, "53516277fd562c27f583a7f5a13ba230"},
 	}
 	for _, g := range golden {

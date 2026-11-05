@@ -23,11 +23,11 @@ const projectDirEnv = "CLAUDE_PROJECT_DIR"
 type Source string
 
 const (
-	// SourceFlag: the caller passed --root, which always wins.
+	// SourceFlag means the caller passed --root, which always wins.
 	SourceFlag Source = "flag"
-	// SourceProjectDir: the host named the project in the environment.
+	// SourceProjectDir means the host named the project in the environment.
 	SourceProjectDir Source = "project-dir"
-	// SourceWorkingDir: nothing named a root, so the working directory stands.
+	// SourceWorkingDir means nothing named a root, so the working directory stands.
 	SourceWorkingDir Source = "working-dir"
 )
 

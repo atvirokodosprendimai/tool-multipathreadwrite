@@ -1,0 +1,1 @@
+{"id":"pilot-multisite","instruction":"Update the active queue status from queued to pending in producer.py, worker.py, router.py, reader.py, scheduler.py and config.json. Keep all legacy status values queued. Update only those active values. Do not edit the acceptance script or task/configuration instructions. Run the declared checker. Do not start background jobs."}

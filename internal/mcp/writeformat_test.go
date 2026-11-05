@@ -177,6 +177,24 @@ const twoHunkSearchReplace = "a.go\n" +
 	"func C() int { return 30 }\n" +
 	">>>>>>> REPLACE\n"
 
+// unreadAfterSearchReplace quotes two lines of a.go whose line after, the
+// one a wrap-tail closer would sit on, no read has served (ADR-052, ADR-190).
+var unreadAfterSearchReplace = strings.Join([]string{
+	`a.go`,
+	`<<<<<<< SEARCH`,
+	`func A() int { return 1 }`,
+	`func B() int { return 2 }`,
+	`=======`,
+	`func AB() int { return 12 }`,
+	`>>>>>>> REPLACE`,
+	`<<<<<<< SEARCH`,
+	`func C() int { return 3 }`,
+	`=======`,
+	`func C() int { return 30 }`,
+	`>>>>>>> REPLACE`,
+	``,
+}, string(rune(10)))
+
 func TestWriteFormatSearchReplaceUnreadWritesNothing(t *testing.T) {
 	root, _ := checkout(t, "a.go", demoFile)
 	served := call(t, root, "mrw_read", map[string]any{"specs": []any{"a.go:3"}})
@@ -186,7 +204,7 @@ func TestWriteFormatSearchReplaceUnreadWritesNothing(t *testing.T) {
 	}
 
 	got := structured(t, call(t, root, "mrw_write", map[string]any{
-		"plan":   twoHunkSearchReplace,
+		"plan":   unreadAfterSearchReplace,
 		"format": "search_replace",
 		"ack":    acks,
 	}))
@@ -200,7 +218,7 @@ func TestWriteFormatSearchReplaceUnreadWritesNothing(t *testing.T) {
 		switch h["status"] {
 		case "failed":
 			failed++
-			if reason, _ := h["reason"].(string); !strings.Contains(reason, "has not been read") {
+			if reason, _ := h["reason"].(string); !strings.Contains(reason, "needs a served line after") {
 				t.Errorf("failed hunk is not the ledger refusal: %q", reason)
 			}
 		case "skipped":

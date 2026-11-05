@@ -53,9 +53,9 @@ func TestTheServedTextSaysWhatTheCodeDoes(t *testing.T) {
 		{"M9 exclude", servedDescription(t, "mrw_read", "exclude"), []string{"Refused without `grep` or `ast_grep`"}, []string{"Only meaningful"}},
 		// With ast_grep, specs are paths to search and carry no range.
 		{"M10 specs", servedDescription(t, "mrw_read", "specs"), []string{"`grep` or `ast_grep`", "carry no range"}, nil},
-		// The write checks after a code write when a check exists, on both
-		// surfaces since ADR-113; check: false turns it off here.
-		{"M11 write", servedDescription(t, "mrw_write", ""), []string{"After a write that touches code", "check: false turns it off"}, []string{"this tool runs none"}},
+		// The write checks after a code write only when asked: check: true
+		// selects the rule (ADR-187); without it no check runs.
+		{"M11 write", servedDescription(t, "mrw_write", ""), []string{"With check: true, after a write that touches code", "Without check: true no check runs"}, []string{"this tool runs none", "check: false turns it off"}},
 		{"M11 instructions", ins, []string{"--check on prose"}, []string{"a check after code writes (--check)"}},
 		// rename: address `-` and one body line, the destination (plan.go).
 		{"M12 rename", plan, []string{"rename takes address `-` and one body line"}, nil},

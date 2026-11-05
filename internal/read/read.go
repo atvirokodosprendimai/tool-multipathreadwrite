@@ -59,17 +59,29 @@ func (e errOverFileCap) Error() string {
 	return fmt.Sprintf("more than %d bytes by the time it was read, over the limit mrw reads a file whole to (ADR-104): read a smaller file, or split this one", maxFileBytes)
 }
 
+// errIsDirectory is readCapped's refusal of a path whose OPEN DESCRIPTOR is a
+// directory. Its text is the same on every OS: reading a directory handle fails
+// on Windows with ERROR_INVALID_FUNCTION, "Incorrect function.", which names
+// nothing a reader can act on. A directory that cannot be opened at all keeps
+// the open's own error, permission denied included.
+var errIsDirectory = errors.New("is a directory")
+
 // readCapped reads path whole, up to maxFileBytes. It refuses by the file's
 // size first, and then reads through a limit of one byte more, because a size
 // taken before the read is outrun by a file that grows (the review of #295).
 // It opens through regular.Open (ADR-109): a file swapped for a FIFO after the
 // caller's path check is refused rather than blocking the read.
+// A directory is refused with errIsDirectory, judged by the descriptor rather
+// than the caller's earlier stat, so a path swapped in between is judged as it is.
 func readCapped(path string) ([]byte, error) {
 	f, fi, err := regular.Open(path)
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = f.Close() }()
+	if fi.IsDir() {
+		return nil, errIsDirectory
+	}
 	if fi.Mode().IsRegular() && fi.Size() > maxFileBytes {
 		return nil, errOverFileCap{size: fi.Size(), exact: true}
 	}
@@ -213,6 +225,10 @@ type Options struct {
 	// Unshown, when not nil, receives the matching lines MaxMatches left
 	// unshown, so a caller can name the budget in the kind line of its exit.
 	Unshown *int
+	// Capped, when not nil, receives how many of the problems were the
+	// caller's own caps: a span --max-lines withheld whole or cut, and the one
+	// problem --max-matches adds (ADR-173).
+	Capped *int
 	// Fold prints a run of two or more non-blank lines that are identical, or
 	// identical once each run of digits is one placeholder, as its first line and
 	// `-- ×N: lines A-B like A`; the folded lines are not shown and so not
@@ -375,7 +391,8 @@ func msysHint(s string) string {
 	}
 	return " — this looks like MSYS2 argument conversion (Git Bash): your ':' became ';' " +
 		"and a /pattern/ was expanded against the Git install prefix. Quoting does not stop it. " +
-		"Set MSYS_NO_PATHCONV=1 or MSYS2_ARG_CONV_EXCL='*', or use PowerShell or WSL"
+		"Put the setting on this one command — MSYS_NO_PATHCONV=1 mrw … or MSYS2_ARG_CONV_EXCL='*' mrw … — " +
+		"not in an export, which reaches every later command; or use PowerShell or WSL"
 }
 
 // readElsewhere is the advice for a file the root does not hold: ": " and the
@@ -684,6 +701,7 @@ func parseRange(s string) (Range, error) {
 // ranges; a withheld span is not observed at all.
 func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[string]seen.Observation, problems int) {
 	observed = map[string]seen.Observation{}
+	callerCaps := 0
 	note := func(path, sha string, spans [][2]int) {
 		key := filepath.Clean(path)
 		// Keyed the same way apply keys its hunks, so "a.go" read and "./a.go"
@@ -1029,6 +1047,14 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 			}
 			whole = false
 		}
+		// ADR-189: the gutter is as wide as the largest line this block plans to
+		// serve, fixed here, before --max-lines, --max-chars, --fold or
+		// --no-comments cut anything, so a budget cannot change the width it is
+		// measured in.
+		width := 1
+		for _, s := range spans {
+			width = max(width, len(strconv.Itoa(s.end)))
+		}
 		stopped := false
 		var printed [][2]int // the lines of each span that reached the answer
 		for si, sn := range spans {
@@ -1040,6 +1066,7 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 					reportOn(sp.Path, "@@ %d-%d  WITHHELD %d line(s): --max-lines reached\n", sn.start, sn.end, n)
 				}
 				problems++
+				callerCaps++
 				whole = false
 				continue
 			}
@@ -1104,7 +1131,7 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 				switch {
 				case opt.Quiet:
 				case opt.Numbers:
-					fmt.Fprintf(w, "%5d| %s\n", ln, text)
+					fmt.Fprintf(w, " %*d| %s\n", width, ln, text)
 				default:
 					fmt.Fprintln(w, text)
 				}
@@ -1157,6 +1184,7 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 			if cut > 0 {
 				reportOn(sp.Path, "!! %d more line(s) withheld: --max-lines reached\n", cut)
 				problems++
+				callerCaps++
 			}
 			budget -= n
 		}
@@ -1211,6 +1239,7 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 			*opt.Unshown = matchLeft
 		}
 		problems++
+		callerCaps++
 	}
 	if englishUnreadables >= 2 {
 		fmt.Fprint(w, hintSplitRegexAddress())
@@ -1221,6 +1250,9 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 		opt.Sub.Plan.Reset()
 		opt.Sub.Sites, opt.Sub.Files = 0, 0
 		observed = map[string]seen.Observation{}
+	}
+	if opt.Capped != nil {
+		*opt.Capped = callerCaps
 	}
 	return observed, problems
 }
@@ -1300,7 +1332,7 @@ func load(w io.Writer, root string, sp *Spec) (b []byte, englishUnreadable, ok b
 	// ADR-074: opening a FIFO for reading blocks until something writes to
 	// it, and a device can stream without end. The walk has refused a
 	// non-regular candidate since ADR-007; a named spec is reported the
-	// same way. A directory keeps ReadFile's own "is a directory", and a
+	// same way. A directory readCapped could open is errIsDirectory, and a
 	// stat that fails falls through to the error ReadFile gives.
 	fi, statErr := os.Stat(full)
 	if statErr == nil && !fi.Mode().IsRegular() && !fi.IsDir() {
@@ -1312,15 +1344,33 @@ func load(w io.Writer, root string, sp *Spec) (b []byte, englishUnreadable, ok b
 	b, err = readCapped(full)
 	if err != nil {
 		glob := hintUnexpandedGlob(sp.Path)
+		// Decided before the directory hint is added, so a directory name still counts
+		// toward the shell-split hint as it did (the Codex review of #591).
+		english := glob == "" && isEnglishWordToken(sp.Path)
+		if errors.Is(err, errIsDirectory) {
+			// Only a directory readCapped opened gets the walk hint: one it
+			// could not open (permission denied) keeps its own error, since
+			// the walk the hint names would fail the same way.
+			glob = dirHint(root, sp.Path, full)
+		}
+		if glob == "" && errors.Is(err, os.ErrNotExist) {
+			// argPath, as typed: an absolute path inside the root was made
+			// relative above, and its separators were the caller's own.
+			if glob = eatenSeparatorHint(root, argPath); glob != "" {
+				// A path this hint names is not a shell-split word: counting it
+				// would print a hint that contradicts this one.
+				english = false
+			}
+		}
 		fmt.Fprintf(w, "==> %s  UNREADABLE  %v%s\n", sp.Path, err, glob)
-		return nil, glob == "" && isEnglishWordToken(sp.Path), false
+		return nil, english, false
 	}
 	return b, false, true
 }
 
-// ReadStdin reads standard input whole for `mrw read -` (ADR-161), under the
+// Stdin reads standard input whole for `mrw read -` (ADR-161), under the
 // bound a file is read under (ADR-104).
-func ReadStdin(r io.Reader) ([]byte, error) {
+func Stdin(r io.Reader) ([]byte, error) {
 	b, err := io.ReadAll(io.LimitReader(r, maxFileBytes+1))
 	if err != nil {
 		return nil, err
@@ -1717,6 +1767,93 @@ func NamedFiles(names []string) string {
 // It fires only on a path that ALREADY failed to open, so it is advice about a
 // broken path rather than a claim about what the caller meant. A file whose
 // name really does contain a star is served normally and never sees this.
+// dirHint is the line after a directory's UNREADABLE refusal (ADR-015: a refusal
+// names the fix): a directory is walked, not read. It names the fix in prose and
+// prints no command line: no one quoting runs unchanged in sh, pwsh, cmd.exe and
+// Git Bash (six review rounds of #591 found a new shell each time). A link names
+// the directory it leads to, found as the walk finds it (Lstat that is not a
+// directory, then rooted.Real), since a walk follows no link (ADR-096).
+func dirHint(root, path, full string) string {
+	fix := "a directory is walked, not read: give it"
+	if li, err := os.Lstat(filepath.Join(root, path)); err == nil && !li.IsDir() {
+		if abs, err := filepath.Abs(root); err == nil {
+			if rel, err := filepath.Rel(rooted.Real(abs), rooted.Real(full)); err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+				fix = "a link to the directory " + filepath.ToSlash(rel) + ", and a walk does not follow a link: give " + filepath.ToSlash(rel)
+			}
+		}
+	}
+	return "\n    (" + fix + " to mrw read --grep PATTERN for the lines that match, or --grep $ for every line.)"
+}
+
+// eatenSeparatorDepth and eatenSeparatorLists bound eatenSeparatorHint's search:
+// at most four directory levels below the root, and 32 directory listings in all.
+const (
+	eatenSeparatorDepth = 4
+	eatenSeparatorLists = 32
+)
+
+// eatenSeparatorHint is the line after a missing path's UNREADABLE refusal when a
+// file under the root spells that path once its separators are removed (ADR-015:
+// a refusal names the fix). In Git Bash an unquoted parsers\p.py reaches mrw as
+// parsersp.py, the shell having taken the backslash as an escape. It names the
+// file in prose and prints no command line, as dirHint does (#591). A path that
+// already holds a separator gets nothing.
+//
+// The search is prefix-guided, so it stays cheap: from the root it enters only a
+// directory whose name begins the text still unmatched, at most
+// eatenSeparatorDepth levels deep and eatenSeparatorLists listings in all. It
+// follows no link, as a walk does not (ADR-096), enters no .git, as a walk does
+// not, and answers only with a regular file, the first in name order, that a
+// read of it would not refuse. The line blames no shell, since a --files-from
+// list or an MCP spec can lose a separator too.
+func eatenSeparatorHint(root, path string) string {
+	if path == "" || strings.ContainsAny(path, `/\`) {
+		return ""
+	}
+	lists := 0
+	var find func(dir, rel, rest string, depth int) string
+	find = func(dir, rel, rest string, depth int) string {
+		if depth > eatenSeparatorDepth || lists >= eatenSeparatorLists {
+			return ""
+		}
+		lists++
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			return ""
+		}
+		for _, e := range entries {
+			name := e.Name()
+			if name == ".git" {
+				continue // the walk does not enter it either (walk.go)
+			}
+			if !strings.HasPrefix(rest, name) {
+				continue
+			}
+			if name == rest {
+				// depth > 0 is not reachable as false: a name equal to the whole
+				// path at the root means the path exists, and load gets here only
+				// when it does not. It is a guard, and no test can kill it.
+				if depth > 0 && e.Type().IsRegular() {
+					if _, err := rooted.Resolve(root, rel+name); err == nil {
+						return rel + name
+					}
+				}
+				continue
+			}
+			if e.Type().IsDir() {
+				if got := find(filepath.Join(dir, name), rel+name+"/", rest[len(name):], depth+1); got != "" {
+					return got
+				}
+			}
+		}
+		return ""
+	}
+	if got := find(root, "", path, 0); got != "" {
+		return "\n    (a path separator may have been lost, as a shell eats an unquoted backslash: did you mean " + got + "? quote the path, or use /)"
+	}
+	return ""
+}
+
 func hintUnexpandedGlob(path string) string {
 	if !strings.ContainsAny(path, "*?[") {
 		return ""

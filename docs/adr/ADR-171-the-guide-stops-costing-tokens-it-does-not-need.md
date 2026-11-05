@@ -14,7 +14,7 @@
 
 ## Context
 
-An outside team ran mrw v1.74.0 against Claude Code alone on their Rails monolith, "Rubie": 17 paired headless runs, Claude Opus 5.5, mrw set up as `docs/agents.md` §1 says (Rubie tech summary v1, 2026-10-24; Rubie report v3, 2026-10-23/24). Same code quality in blind reviews; with mrw, cost +18% ($61.43 vs $51.89), output tokens +35%, model time 161 vs 126 minutes. Their tech summary traced most of the extra to three things the guide tells an agent to do:
+An outside team ran mrw v1.74.0 against Claude Code alone on their Rails monolith: 17 paired headless runs, Claude Opus 5.5, mrw set up as `docs/agents.md` §1 says (external tech summary v1, 2026-10-24; external report v3, 2026-10-23/24). Same code quality in blind reviews; with mrw, cost +18% ($61.43 vs $51.89), output tokens +35%, model time 161 vs 126 minutes. Their tech summary traced most of the extra to three things the guide tells an agent to do:
 
 1. **`body=` counts (MRW-01).** 7 of 50 plans (14%) were refused for a miscount, 13 count errors, 9 of them off by one, 7 of those leaving out a closing `end`; in 4 of 17 runs the agent wrote a Python script only to count lines. For an ordinary inline body the count is optional — the same plan without `body=` applies (reproduced 2026-10-24 on v1.75.0) — but core rule 4 says "body= is a line count and goes on the header" (`internal/guide/guide.go:129`), which an agent reads as an instruction to write one.
 2. **The rules text, re-read (MRW-02).** 45 reads of `mrw instructions`, 279K characters: 8% of all tool output with mrw and 72% of the extra tool output against Claude Code alone. 15 of 17 runs read `--core` and then the full text at the start (1.6K + 12.9K characters), and 13 more reads came after compactions (65K). `docs/agents.md:51` says to run `--core` at session start, "and `mrw instructions` adds the recipes"; the core's header says "(mrw instructions prints the whole contract)" (`guide.go:125`).
@@ -45,7 +45,7 @@ A fourth item is a gap in what the docs show: a write to a `.rb` file runs no ch
 
 **5. Every surface that teaches the count is dispositioned.** `mrw instructions --core`, `mrw instructions`, `mrw skill`: Decisions 1-3. `mrw write --help` (`cmd/mrw/main.go`, its `body=` lines): opens with "body= is optional for an ordinary body" and keeps the line-count sentence. The MCP instructions (`internal/mcp/instructions.go`): unchanged — the tools are off unless enabled (ADR-170), a plan there is a JSON string no shell parses, and the counted example shows ADR-070's header form within the 4096-byte budget. ADR-037's shared sentences hold no count rule and are unchanged.
 
-**What would make this decision wrong:** agents that, told to omit `body=`, write bodies missing lines that a count would have caught. A body that goes missing entirely is already refused ("replace with an empty body would delete 2-4"); a body short by a line applies. The Rubie runs show the opposite error, a miscount refusing a correct body, at 14% of plans.
+**What would make this decision wrong:** agents that, told to omit `body=`, write bodies missing lines that a count would have caught. A body that goes missing entirely is already refused ("replace with an empty body would delete 2-4"); a body short by a line applies. The external runs show the opposite error, a miscount refusing a correct body, at 14% of plans.
 
 ## Alternatives Considered
 
@@ -82,7 +82,7 @@ A fourth item is a gap in what the docs show: a write to a `.rb` file runs no ch
 
 ## Consequences
 
-- **Positive:** the three costs the Rubie runs traced to the guide stop being taught.
+- **Positive:** the three costs the external runs traced to the guide stop being taught.
 - **Negative:** every standing trigger that copied the old `docs/agents.md` sentence (this owner's three host files among them) needs the new one; that is the owner's to change.
 - **Neutral:** the parser, exit codes and receipts are unchanged.
 
@@ -91,7 +91,7 @@ A fourth item is a gap in what the docs show: a write to a `.rb` file runs no ch
 - MRW-04, a refused plan from standard input is kept (permanent: boundary: decided by its own record, ADR-176, accepted the same day as ADR-172 and renumbered before it merged, since PR #528 had taken 172)
 - MRW-12, an epoch that makes old licences need a fresh read (permanent: boundary: decided by its own record, ADR-175, accepted the same day)
 - A one-line answer to a repeated `mrw instructions` (deferred: docs/adr/BACKLOG.md)
-- Re-measuring the Rubie A/B after this lands (external: the Rubie team: their headless A/B harness; this corpus has none on their repository)
+- Re-measuring the external A/B after this lands (external: the external team: their headless A/B harness; this corpus has none on their repository)
 - The owner's own host triggers (`~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`, Cursor rules) (permanent: boundary: they live outside this repository; the owner changes them)
 
 ## Risks

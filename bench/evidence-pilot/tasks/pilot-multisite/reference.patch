@@ -1,0 +1,44 @@
+diff --git a/producer.py b/producer.py
+--- a/producer.py
++++ b/producer.py
+@@ -1,2 +1,2 @@
+-ACTIVE_STATUS = "queued"
++ACTIVE_STATUS = "pending"
+ LEGACY_STATUS = "queued"
+diff --git a/worker.py b/worker.py
+--- a/worker.py
++++ b/worker.py
+@@ -1,2 +1,2 @@
+-ACTIVE_STATUS = "queued"
++ACTIVE_STATUS = "pending"
+ LEGACY_STATUS = "queued"
+diff --git a/config.json b/config.json
+--- a/config.json
++++ b/config.json
+@@ -1,4 +1,4 @@
+ {
+-  "active_status": "queued",
++  "active_status": "pending",
+   "legacy_status": "queued"
+ }
+diff --git a/router.py b/router.py
+--- a/router.py
++++ b/router.py
+@@ -1,2 +1,2 @@
+-ACTIVE_STATUS = "queued"
++ACTIVE_STATUS = "pending"
+ LEGACY_STATUS = "queued"
+diff --git a/reader.py b/reader.py
+--- a/reader.py
++++ b/reader.py
+@@ -1,2 +1,2 @@
+-ACTIVE_STATUS = "queued"
++ACTIVE_STATUS = "pending"
+ LEGACY_STATUS = "queued"
+diff --git a/scheduler.py b/scheduler.py
+--- a/scheduler.py
++++ b/scheduler.py
+@@ -1,2 +1,2 @@
+-ACTIVE_STATUS = "queued"
++ACTIVE_STATUS = "pending"
+ LEGACY_STATUS = "queued"

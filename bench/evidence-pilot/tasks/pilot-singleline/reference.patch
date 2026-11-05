@@ -1,0 +1,7 @@
+diff --git a/settings.py b/settings.py
+--- a/settings.py
++++ b/settings.py
+@@ -1,2 +1,2 @@
+-TIMEOUT_SECONDS = 30
++TIMEOUT_SECONDS = 45
+ RETRY_SECONDS = 30

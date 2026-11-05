@@ -21,6 +21,16 @@
 set -u
 cd "$(dirname "$0")/.." || exit 2
 
+# Every `go` command below, and every tool's Go subprocess (package loading,
+# export data), runs under the toolchain go.mod names, the one every CI job
+# builds with (setup-go's go-version-file), whatever go is on PATH; gofmt is
+# taken from that toolchain's GOROOT for the same reason. What it cannot pin is
+# the Go built INTO an installed binary: golangci-lint's own parser and
+# analysers are the ones its release embeds. Printed, so a run says which
+# compiler judged it; the first run downloads it, later runs use the cache.
+GOTOOLCHAIN="go$(go list -m -f '{{.GoVersion}}')"; export GOTOOLCHAIN
+echo "toolchain: $(go version)"
+
 GOLANGCI_VERSION=2.14.0
 DEADCODE=golang.org/x/tools/cmd/deadcode@v0.50.0
 STATICCHECK=honnef.co/go/tools/cmd/staticcheck@v0.8.1
@@ -62,7 +72,7 @@ gofmt_seen() {
     || { echo "gofmt: git ls-files failed, so no Go file was checked"; rm -f "$list"; return 1; }
   while IFS= read -r -d '' f; do [ -e "$f" ] && files+=("$f"); done < "$list"
   rm -f "$list"
-  [ "${#files[@]}" -eq 0 ] || gofmt -l "${files[@]}"
+  [ "${#files[@]}" -eq 0 ] || "$(go env GOROOT)/bin/gofmt" -l "${files[@]}"
 }
 
 golangci() {
@@ -81,10 +91,10 @@ golangci() {
 
 # staticcheck reads the compiler's export data, and v0.8.1 (still the newest
 # release, and master too, 2026-10-09) cannot decode the version Go 1.27 writes:
-# "export data version 5 is greater than maximum supported version 4". It runs
-# under the toolchain go.mod names, the one CI builds with, whatever go is on PATH.
+# "export data version 5 is greater than maximum supported version 4". The
+# GOTOOLCHAIN export at the top is what keeps it on go.mod's Go.
 staticcheck_u1000() {
-  GOTOOLCHAIN="go$(go list -m -f '{{.GoVersion}}')" go run "$STATICCHECK" -tests=false -checks U1000 ./...
+  go run "$STATICCHECK" -tests=false -checks U1000 ./...
 }
 
 # have TOOL VERSION HINT: TOOL is on PATH, or say how to install it; a version

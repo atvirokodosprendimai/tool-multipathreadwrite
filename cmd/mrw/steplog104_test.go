@@ -12,6 +12,7 @@ import (
 // holds the whole line. Before, the pointer printed only when lines were
 // dropped, so the marker counted bytes the receipt gave no place to find.
 func TestAPassingStepNamesTheLogItKept(t *testing.T) {
+	t.Setenv("MRW_SHELL", "on")
 	needShell(t)
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	root := grepTree(t, map[string]string{

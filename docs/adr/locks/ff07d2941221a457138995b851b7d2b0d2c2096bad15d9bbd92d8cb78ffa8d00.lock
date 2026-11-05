@@ -1,0 +1,11 @@
+check@2	1bb497e3e13a1105cf24e3359fa3ef75de08b66ff8a2839cd7f9ea97824d9eb3
+body	internal/mcp/steps115_test.go	TestAnMCPWriteRunsItsSteps	64145c163b9bfa876c4faa855dd7bbc3a56975abd45df4d98470f6db34bdde07
+body	internal/mcp/steps115_test.go	a declared step runs after a passing check	09f61bd387e31378c82b6b27a704c46e11bfe7bce3b937d10ff1eb0fd3da5ba6
+body	internal/mcp/steps115_test.go	a declared step runs with no check asked	75aba609304b50d3156f20b30c58fc13052618ad74376353387592ba748da9d0
+body	internal/mcp/steps115_test.go	a failed check leaves the steps not run	fe13ac10f06cb667bec1d1f7ffe4d76c56174438431f576d0a23e48dc12fc171
+body	internal/mcp/steps115_test.go	a failing step is data and counted failed_check	a7e1a934d69afaae5865cd46fdd4f52e5970019e6d6a7625cf9fefa3472e1fd7
+body	internal/mcp/steps115_test.go	a step that cannot start is isError with the receipt	ad7900b98b6c2aae3fa3e4a3a05d106e5b57efcd6be577dac23e4f1d8d4c6f34
+body	internal/mcp/steps115_test.go	an undeclared name writes nothing	74814d6b276c917ea6a6a2a305b69b4f56a15d9966037e586bb93db8c45e867f
+body	internal/mcp/steps115_test.go	every step phrase fits the write floor	48939c428438310d921f326fb907ce973ffb31c378159f31e67877e87a480444
+body	internal/mcp/steps115_test.go	step tails go first under a small ceiling, each kept in its log	89500869b4b9e59ec3f66c2197195c8b381a91550b37b2fa73652d58abe381a3
+body	internal/mcp/steps115_test.go	the depth limit refuses before anything is written	b6c522f2a3cdbeb158981d374abbe873fae00043f97d2a771a1bec74b19bc6f7

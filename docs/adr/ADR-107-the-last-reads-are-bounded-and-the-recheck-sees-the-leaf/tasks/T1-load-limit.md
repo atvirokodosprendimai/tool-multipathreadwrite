@@ -114,3 +114,4 @@ Stop and ask if a locked test must change to pass.
   ```
 - 2026-09-30 · 7f75ca1* · exit 0 · `set -o pipefail …` · acceptance-sha256:96ccf4ce7b9da0d2ce5a695457fc3011d779ecb85095bd49e8253f4e8718a606 · ms:867
 - 2026-09-30 · 7f75ca1* · exit 0 · `set -o pipefail …` · acceptance-sha256:96ccf4ce7b9da0d2ce5a695457fc3011d779ecb85095bd49e8253f4e8718a606 · ms:294
+- 2026-11-04 · 1ffd99f4* · exit 0 · `set -o pipefail …` · acceptance-sha256:96ccf4ce7b9da0d2ce5a695457fc3011d779ecb85095bd49e8253f4e8718a606 · ms:609

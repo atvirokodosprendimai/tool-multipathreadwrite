@@ -34,7 +34,7 @@ sentence.
 in under 300 words (ADR-141), and `mrw instructions` adds the recipes. A survey of 14 adopting sessions
 (2026-10-09) found about 900 words of mrw guidance carried every session for about eight rules, and two
 paragraphs that eight and five sessions had acted on zero times; a copy also goes stale with the next
-release. A trigger of five short paragraphs that names the rule, the exception and where the contract lives
+release. A short trigger naming the rule, the exception and where the contract lives
 is enough. A working one:
 
 ```markdown
@@ -64,6 +64,10 @@ sound plans all day and read badly all day; it found the read recipes only when 
 at the end of the day, and listed the habits in §6. Telling the agent to run `mrw instructions --core`
 once at session start costs a few hundred input tokens; reading the full text after it, and the rules
 again after every compaction, cost an outside team 8% of its tool output (ADR-171).
+Measured against appending the full guide on five synthetic jobs (v1.80.0, four counterbalanced
+rounds, `docs/bench/observability/CORE-RESULTS.md`, runs 4 and 5): the core cost the same within what
+four rounds can tell, started each job's first request about 7,600 tokens smaller, and needed the full text in no
+job. Before ADR-184 the core arm fetched it in 8 of 10 cells and cost more.
 
 **Add the skill beside the trigger, not in its place.** `mrw --skill` prints mrw's Agent Skills `SKILL.md` — a
 description the host loads every session, then `mrw instructions --core` and the recipes — and
@@ -85,8 +89,8 @@ Every file you read to edit, and every edit, goes through mrw:
 - narrow command output: `cmd 2>&1 | mrw read --grep P --max-lines 40 -`
 - edit: one plan in a file (write it with the host's file tool in a temporary directory; a plan file is your input, not a repository edit), `mrw write "$TMPDIR/plan.txt"` (`@@ path N-M replace anchor="…"`; `body=` only when `mrw instructions` names your case), read first
 - new file: `mrw write --create path < content`; delete: `@@ path - unlink`
-- `--no-check` for a write to prose or shell only; a literal `$` in a `--sub` replacement is `$$`
-- never `>`, `cp`, `sed -i`, or the host's Edit/Write
+- `--no-check` may defer checks on intermediate code writes; run and verify the final check over every queued edit before reporting completion (see section 6). A literal `$` in a `--sub` replacement is `$$`
+- never `>`, `cp`, `sed -i`, or the host's Edit/Write on repository files; the temporary plan-file exception is above
 Your final report lists any command that broke this.
 ```
 
@@ -120,7 +124,7 @@ standard error (ADR-179).
 
 ## 4. A host without a shell uses the MCP server
 
-With a shell, the CLI is the better surface: it has `--context`, `--then-sh` and every read flag, and one
+With a shell, the CLI is the better surface: it has `--context`, `--then-sh` (with `MRW_SHELL=on`, ADR-174) and every read flag, and one
 command reaches any checkout with `--root`. A host with no shell runs `mrw mcp --enable` and calls `mrw_read` and
 `mrw_write` (README, "MCP"); without `--enable` or `MRW_MCP=on` the server lists no tools (ADR-170). Register it only for the hosts that need it: a user-scope registration puts the
 two tools into every project on the machine, including those whose instructions say to use the shell.
@@ -148,10 +152,35 @@ From that agent's own review of a day of use (2026-10-22). Its writes were sound
 | reading before knowing how much matches | context spent on lines it did not need | `mrw read --grep P --count` first |
 | a grep-and-cut pipeline to learn a line number, then a hunk on that number | two calls, and a number that goes stale | a pattern address, `@@ f.go /^func A/ replace …`, with `occurrence=N` when the start matches more than once |
 | `sed -i` on a plan whose `body=` count was wrong | an edit outside the ledger | regenerate the plan from what you read. `body=` is an optional line count: leave it out unless the body needs one. Where it is needed and missing, the plan is refused with a hint, except for a body line that is itself a valid hunk header (`@@ b.txt 0 create`), which silently starts a new hunk; a body holding one needs `body=N raw=true` |
-| a build, a test suite or a gate run as `CMD \| tail` (or `\| head`) | the pipeline's exit code is the last command's, and the output still costs context | `mrw run 'CMD'`: the output goes to a log and a four-line receipt carries the command's own exit code, the last line, the log's path and a read of it; look further with `mrw read --grep P -C 3 - < LOG` (ADR-177) |
+| a build, a test suite or a gate run as `CMD \| tail` (or `\| head`) | the pipeline's exit code is the last command's, and the output still costs context | `mrw run 'CMD'`: the output goes to a log and a four-line receipt (on Windows a read line per shell, labelled) carries the command's own exit code, the last line, the log's path and a read of it; look further with `mrw read --grep P -C 3 - < LOG` (ADR-177) |
 | a whole-file read of a long Go or Markdown file to find one place | the whole file in context | `mrw read --outline f.go` first: the declarations or headings with their line ranges, licensing nothing; then the range you need (ADR-179) |
-| `--grep` over many files when the first few matches decide | every match in context | `--count` first, then `--max-matches N`: the first N, the rest counted, exit 1 only when some remain (ADR-179) |
+| `--grep` over many files when the first few matches decide | every match in context | `--count` first, then `--max-matches N`: the first N, the rest counted, exit 0 saying `capped:` when some remain (ADR-173) |
 | a log of near-identical lines, or a Go file's comment runs | the repeats in context | `--fold` shows a run once, `--no-comments` shows a comment run as one line; both leave what they hide unlicensed, so read it without the flag before editing (ADR-179) |
+
+### Queue code edits, then check the final tree
+
+After reading the sites and preparing the plans, write without a check (none runs unless `--check` asks, ADR-187) and check the final tree once:
+
+```sh
+mrw write --no-check "$TMPDIR/first.plan" &&
+mrw write --no-check "$TMPDIR/second.plan" &&
+mrw check --full
+```
+
+Run these in the same checkout, with no intervening edits while the final check runs. `--no-check` is
+accepted and does nothing since ADR-187; a write keeps the read guard and whole-plan validation. The queued edits remain
+unverified until a check covering them passes. Fix a failed check and run it again after the last
+edit; an earlier passing check does not verify a later write.
+
+The example runs the whole-project check once. For a scoped check over existing edited paths,
+name every queued path in `mrw check PATH...` and verify the command and any paths it reports
+outside the scope. If the queue deletes or renames files, keep `--full`: a removed source path
+cannot be passed to `mrw check`. A checked last write alone may cover only that write's files.
+
+If the project declares no check and has no Go module, declare the project's checker or run its
+required checks explicitly; mrw does not infer a Ruby checker
+([README: Write, "No check unless asked"](../README.md#write)). Report the actual command, scope and
+exit status, or say that verification is still pending.
 
 ## 7. What allowing mrw allows
 
@@ -162,7 +191,7 @@ elsewhere — allows:
   the root it was given, not to a root anyone chose.
   A host's per-path rules for its Edit and Write tools do not reach a shell command, so `deny Write(.env)`
   or `allow Edit(src/**)` does not stop `mrw write`.
-- **shell.** `--then-sh 'CMD'` and `mrw run 'CMD'` run any command; `mrw check` and `--then` run what the project declares.
+- **shell.** `mrw check` and `--then NAME` run what the project declares. `--then-sh 'CMD'` and `mrw run 'CMD'` run any command the caller writes and are off unless `MRW_SHELL=on` is in mrw's environment (ADR-174). With it unset, no command written on mrw's command line reaches a shell; that is not containment, since mrw writes any file its user can, `.quality-harness.json` and the test files a check runs included, so an agent allowed mrw can still change what the declared check runs and trigger it with a code write.
 
 mrw's own refusals — a write into `.git`, into its state directory, through a link that leaves the root, to
 a reserved Windows name — keep a plan honest, not an agent contained. The trigger and the skill move an
@@ -177,7 +206,8 @@ When a host compacts its context, the model keeps a summary, not the lines it wa
 still licenses them: a write to a line read before the compaction is allowed although the model no longer holds
 it (measured once: 2 such writes in a 100K-window run, none broke a test). mrw cannot see a compaction; the
 host can. `mrw seen --forget` empties the ledger of the checkout, read and written files alike, and
-prints `forgot N file(s)`; after it a write needs a fresh read of the lines it touches (ADR-175). A root that does
+prints `forgot N file(s) in <checkout>`, naming the checkout top whose ledger it emptied (ADR-180); after it a write
+needs a fresh read of the lines it touches (ADR-175). A root that does
 not exist, or is not a directory, is refused, exit 2, and no state directory is made for it.
 
 For Claude Code, run it when a session starts after a compaction or a clear. The hook reads the checkout
@@ -224,3 +254,40 @@ What it costs and what it does not reach:
 
 mrw ships no hook and installs none: the host's configuration is the user's. Other hosts need their own
 equivalent (`docs/adr/BACKLOG.md` keeps the Codex and Cursor ones).
+
+## 9. License what the host's own Read showed
+
+An agent with mrw also reads with its host's tool, and those lines never reach the ledger, so a plan to them is
+refused until mrw serves them again (measured once: 26 re-reads of about 1,000 lines each in 17 runs, ADR-191).
+`mrw hook read` reads the host's PostToolUse payload for its Read tool on standard input and records in the ledger
+the lines the Read returned whose text equals the file on disk now, as a `mrw read` of them would. A line the host
+cut, a line that changed after the read, a file outside the root, in `.git` or in mrw's state, an image, an error
+and any payload it does not recognise record nothing. It prints nothing on standard output and always exits 0, so
+a hook never fails the host's tool; at most one line goes to standard error, for a ledger lock it could not take in
+one second or a newer mrw's ledger (ADR-150). The root is the payload's `cwd`, or `--root`. In
+`.claude/settings.json` (or the user's), beside the compaction block above:
+
+<!-- ADR-191 hook -->
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Read",
+        "hooks": [
+          { "type": "command", "command": "mrw hook read" }
+        ]
+      }
+    ]
+  }
+}
+```
+
+Captured from Claude Code 2.1.316: `tool_response.file.content` is the lines joined by a newline, with no line numbers
+and a CRLF file's CR gone, from `file.startLine`, exactly what the model received; a 2,500-character line is not cut;
+a Read that fails sends no payload. A host that sends a different shape records nothing. What it costs:
+
+- **One mrw process and one ledger write per host Read**, up to one second more when another command holds the ledger.
+- **The ledger holds what another tool showed.** Its truth rests on the host's payload. Run `mrw seen --forget` after a
+  compaction, as §8 says: a licence the hook recorded is forgotten with the rest.
+- **Only Read.** Grep output and shell `cat` are not licensed: what reached the model is not in the payload.

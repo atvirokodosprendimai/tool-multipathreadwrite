@@ -35,19 +35,19 @@ func tally113(t *testing.T, root string) authoring.Tally {
 	return tally
 }
 
-// ADR-113 T2. mrw_write ran no check, so a caller with no shell learned what
-// was written and nothing about whether it still built. It runs the check by
+// ADR-113 T2, ADR-187. mrw_write ran no check, so a caller with no shell learned what
+// was written and nothing about whether it still built. With check: true it runs the check by
 // ADR-054's rule, returns the verdict in the receipt, and counts it as the CLI
-// does; check: false turns it off. A check that ran and failed is not
+// does; without it none runs (ADR-187). A check that ran and failed is not
 // isError — the write landed and the verdict is data — while one that could
 // not run is.
-func TestAnMCPWriteRunsTheCheck(t *testing.T) {
+func TestAnMCPWriteRunsTheCheck(t *testing.T) { // ADR-187: with check: true; the name is ADR-113 T2's
 	if runtime.GOOS == "windows" {
 		t.Skip("the checks are POSIX shell lines")
 	}
 	t.Run("a code write runs the check and reports its failure", func(t *testing.T) {
 		root := checkTree113(t, `{"check":"echo boom; exit 3"}`)
-		res := call(t, root, "mrw_write", map[string]any{"plan": goEdit113})
+		res := call(t, root, "mrw_write", map[string]any{"plan": goEdit113, "check": true})
 		sc := structured(t, res)
 		chk, _ := sc["check"].(map[string]any)
 		if chk == nil || chk["ran"] != true || chk["exit_code"] != float64(3) {
@@ -75,14 +75,14 @@ func TestAnMCPWriteRunsTheCheck(t *testing.T) {
 	})
 	t.Run("a prose write runs none", func(t *testing.T) {
 		root := checkTree113(t, `{"check":"exit 3"}`)
-		sc := structured(t, call(t, root, "mrw_write", map[string]any{"plan": "@@ notes.md 2 replace anchor=\"line two\"\nline 2\n"}))
+		sc := structured(t, call(t, root, "mrw_write", map[string]any{"plan": "@@ notes.md 2 replace anchor=\"line two\"\nline 2\n", "check": true}))
 		if _, has := sc["check"]; has {
 			t.Fatalf("a markdown write ran the check: %v", sc)
 		}
 	})
 	t.Run("a passing check is reported and priced as held", func(t *testing.T) {
 		root := checkTree113(t, `{"check":"exit 0"}`)
-		res := call(t, root, "mrw_write", map[string]any{"plan": goEdit113})
+		res := call(t, root, "mrw_write", map[string]any{"plan": goEdit113, "check": true})
 		chk, _ := structured(t, res)["check"].(map[string]any)
 		if chk == nil || chk["ran"] != true || chk["exit_code"] != float64(0) || res["isError"] == true {
 			t.Fatalf("check %v isError %v, want a passing check and no error", chk, res["isError"])
@@ -94,7 +94,7 @@ func TestAnMCPWriteRunsTheCheck(t *testing.T) {
 	t.Run("a check that cannot start is isError with the receipt", func(t *testing.T) {
 		root := checkTree113(t, `{"check":"exit 0"}`)
 		t.Setenv("PATH", t.TempDir())
-		res := call(t, root, "mrw_write", map[string]any{"plan": goEdit113})
+		res := call(t, root, "mrw_write", map[string]any{"plan": goEdit113, "check": true})
 		chk, _ := structured(t, res)["check"].(map[string]any)
 		if res["isError"] != true || chk == nil || chk["ran"] != false || structured(t, res)["applied"] != true {
 			t.Fatalf("isError %v check %v, want isError with an applied receipt and a check that did not run", res["isError"], chk)
@@ -106,7 +106,7 @@ func TestAnMCPWriteRunsTheCheck(t *testing.T) {
 	t.Run("a check that cannot run is isError with the receipt", func(t *testing.T) {
 		root := checkTree113(t, `{"check":"exit 0"}`)
 		t.Setenv("TMPDIR", filepath.Join(t.TempDir(), "missing"))
-		res := call(t, root, "mrw_write", map[string]any{"plan": goEdit113})
+		res := call(t, root, "mrw_write", map[string]any{"plan": goEdit113, "check": true})
 		sc := structured(t, res)
 		if res["isError"] != true || sc["applied"] != true || sc["error"] == nil {
 			t.Fatalf("isError %v, want isError with an applied receipt naming the error: %v", res["isError"], sc)
@@ -117,7 +117,7 @@ func TestAnMCPWriteRunsTheCheck(t *testing.T) {
 	})
 	t.Run("a malformed harness refuses the write before anything lands", func(t *testing.T) {
 		root := checkTree113(t, `{`)
-		res := call(t, root, "mrw_write", map[string]any{"plan": goEdit113})
+		res := call(t, root, "mrw_write", map[string]any{"plan": goEdit113, "check": true})
 		if res["isError"] != true || !strings.Contains(firstText(t, res), "nothing was written") {
 			t.Fatalf("want a refusal saying nothing was written: %v", res)
 		}
@@ -134,7 +134,7 @@ func TestAnMCPWriteRunsTheCheck(t *testing.T) {
 		MaxResultChars = 20000
 		t.Cleanup(func() { MaxResultChars = restore })
 		root := checkTree113(t, `{"check":"i=0; while [ $i -lt 30 ]; do printf '%01000d\\n' 0; i=$((i+1)); done; exit 3"}`)
-		res := call(t, root, "mrw_write", map[string]any{"plan": goEdit113})
+		res := call(t, root, "mrw_write", map[string]any{"plan": goEdit113, "check": true})
 		sc := structured(t, res)
 		chk, _ := sc["check"].(map[string]any)
 		if chk == nil || chk["ran"] != true || chk["exit_code"] != float64(3) {
@@ -152,7 +152,7 @@ func TestAnMCPWriteRunsTheCheck(t *testing.T) {
 		MaxResultChars = 20000
 		t.Cleanup(func() { MaxResultChars = restore })
 		root := checkTree113(t, `{"check":"i=0; while [ $i -lt 30 ]; do printf '%01000d\\n' 0; i=$((i+1)); done; exit 0"}`)
-		chk, _ := structured(t, call(t, root, "mrw_write", map[string]any{"plan": goEdit113}))["check"].(map[string]any)
+		chk, _ := structured(t, call(t, root, "mrw_write", map[string]any{"plan": goEdit113, "check": true}))["check"].(map[string]any)
 		if chk == nil || chk["exit_code"] != float64(0) {
 			t.Fatalf("check %v, want a passing verdict", chk)
 		}
@@ -191,7 +191,7 @@ func TestAnMCPWriteRunsTheCheck(t *testing.T) {
 		MaxResultChars = minWriteCeiling()
 		t.Cleanup(func() { MaxResultChars = restore })
 		root := checkTree113(t, `{"check":"echo boom; exit 3"}`)
-		res := call(t, root, "mrw_write", map[string]any{"plan": goEdit113})
+		res := call(t, root, "mrw_write", map[string]any{"plan": goEdit113, "check": true})
 		if text := firstText(t, res); !strings.Contains(text, "exit 3") {
 			t.Fatalf("at ceiling %d the answer does not name the check's verdict:\n%s", MaxResultChars, text)
 		}

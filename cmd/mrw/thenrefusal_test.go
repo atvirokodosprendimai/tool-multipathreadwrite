@@ -20,6 +20,7 @@ import (
 // steps or not. The ledger file is made read-only so its save fails after the
 // commit.
 func TestALedgerFailureStillNamesTheStepsNotRun(t *testing.T) {
+	t.Setenv("MRW_SHELL", "on")
 	if runtime.GOOS == "windows" || os.Geteuid() == 0 {
 		t.Skip("a read-only file does not stop this user from writing it")
 	}
@@ -83,6 +84,7 @@ func TestALedgerFailureStillNamesTheStepsNotRun(t *testing.T) {
 // then block (ADR-100 T1). The pair: the same check with its temp directory
 // back runs the steps.
 func TestACheckWhoseLogCannotBeCreatedStillNamesItsSteps(t *testing.T) {
+	t.Setenv("MRW_SHELL", "on")
 	needShell(t)
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	root := stepsTree(t, "exit 0")

@@ -139,3 +139,4 @@ _(tool-written)_
   PASS
   ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/cmd/mrw	0.486s
   ```
+- 2026-11-01 · 5baa630e* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:0f7b601f6b894654cf21244e9b59ed3551a524867eca9229a215c8c44b8237ec · ms:0 · test-lock-sha256:75eb029cfbb906c4612d67c98756b9cc85ef40963dacf719dd4b26cd515ab8bb · test-lock-file:docs/adr/locks/75eb029cfbb906c4612d67c98756b9cc85ef40963dacf719dd4b26cd515ab8bb.lock · test-lock-kind:replace

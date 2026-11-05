@@ -1,0 +1,1101 @@
+{
+ "rounds": {
+  "1": {
+   "stop_reason": "completed",
+   "plan": [
+    [
+     "grouped-structural",
+     "FC"
+    ],
+    [
+     "grouped-config",
+     "CF"
+    ],
+    [
+     "grouped-source-tests",
+     "FC"
+    ],
+    [
+     "grouped-docs",
+     "CF"
+    ],
+    [
+     "grouped-routing",
+     "FC"
+    ]
+   ],
+   "not_run": [],
+   "all_in_usd": 0.4123421,
+   "canaries": [
+    {
+     "first_request_context": 12345,
+     "messages": 3,
+     "tool_calls": 2,
+     "by_kind": {
+      "Bash": 2
+     },
+     "mrw_writes": 1,
+     "refused_writes": 0,
+     "full_guide_calls": 0,
+     "core_calls": 0,
+     "tool_result_chars": 222,
+     "task": "canary",
+     "arm": "F",
+     "solved": false,
+     "verdict": {
+      "execution_ok": true,
+      "isolation_ok": true,
+      "exact_tree_ok": true,
+      "verification_ok": false,
+      "solved": false
+     },
+     "turns": 3,
+     "usage": {
+      "input_tokens": 6,
+      "output_tokens": 191,
+      "cache_read_input_tokens": 24838,
+      "cache_creation_input_tokens": 12688
+     },
+     "cost_usd": 0.0551578,
+     "cost_residual": 0.0,
+     "claude_wall_ms": 5187,
+     "observer_wall_ms": null,
+     "outer_wall_ms": 5226,
+     "appended_sha256": "a76dbd46ae65184aae51853b372c174f845a99fac6e2ad45c3a632a9fb7830f7",
+     "transcript_sha256": "881d67b1e2ffca2d1ebcafe412dc733338936b94d87a9cac8e9eeb0ceb2d37db"
+    },
+    {
+     "first_request_context": 4764,
+     "messages": 3,
+     "tool_calls": 2,
+     "by_kind": {
+      "Bash": 2
+     },
+     "mrw_writes": 1,
+     "refused_writes": 0,
+     "full_guide_calls": 0,
+     "core_calls": 0,
+     "tool_result_chars": 234,
+     "task": "canary",
+     "arm": "C",
+     "solved": false,
+     "verdict": {
+      "execution_ok": true,
+      "isolation_ok": true,
+      "exact_tree_ok": true,
+      "verification_ok": false,
+      "solved": false
+     },
+     "turns": 3,
+     "usage": {
+      "input_tokens": 6,
+      "output_tokens": 186,
+      "cache_read_input_tokens": 9679,
+      "cache_creation_input_tokens": 5109
+     },
+     "cost_usd": 0.023275899999999995,
+     "cost_residual": 3.469446951953614e-18,
+     "claude_wall_ms": 4400,
+     "observer_wall_ms": null,
+     "outer_wall_ms": 4441,
+     "appended_sha256": "11a023b125e5db3314babf90059a42705a67ad4155f3c434013b0b0dab7c550b",
+     "transcript_sha256": "065ba5eeb66d93864c131624d0536d1717284147900ed0690c8db3ab51af6e59"
+    }
+   ],
+   "cells": [
+    {
+     "first_request_context": 12702,
+     "messages": 4,
+     "tool_calls": 3,
+     "by_kind": {
+      "Bash": 3
+     },
+     "mrw_writes": 2,
+     "refused_writes": 0,
+     "full_guide_calls": 0,
+     "core_calls": 0,
+     "tool_result_chars": 3682,
+     "task": "grouped-structural",
+     "arm": "F",
+     "solved": true,
+     "verdict": {
+      "execution_ok": true,
+      "isolation_ok": true,
+      "exact_tree_ok": true,
+      "verification_ok": true,
+      "solved": true
+     },
+     "turns": 4,
+     "usage": {
+      "input_tokens": 8,
+      "output_tokens": 722,
+      "cache_read_input_tokens": 43592,
+      "cache_creation_input_tokens": 12499
+     },
+     "cost_usd": 0.061591200000000006,
+     "cost_residual": -6.938893903907228e-18,
+     "claude_wall_ms": 9251,
+     "observer_wall_ms": 115,
+     "outer_wall_ms": 9401,
+     "appended_sha256": "a76dbd46ae65184aae51853b372c174f845a99fac6e2ad45c3a632a9fb7830f7",
+     "transcript_sha256": "97abcda6362d3c3384a450715a7755a1eb82dfd0438eb7cb85c4bbf99ce73aa6"
+    },
+    {
+     "first_request_context": 5118,
+     "messages": 4,
+     "tool_calls": 3,
+     "by_kind": {
+      "Bash": 3
+     },
+     "mrw_writes": 1,
+     "refused_writes": 0,
+     "full_guide_calls": 0,
+     "core_calls": 0,
+     "tool_result_chars": 4560,
+     "task": "grouped-structural",
+     "arm": "C",
+     "solved": true,
+     "verdict": {
+      "execution_ok": true,
+      "isolation_ok": true,
+      "exact_tree_ok": true,
+      "verification_ok": true,
+      "solved": true
+     },
+     "turns": 4,
+     "usage": {
+      "input_tokens": 8,
+      "output_tokens": 677,
+      "cache_read_input_tokens": 21739,
+      "cache_creation_input_tokens": 3981
+     },
+     "cost_usd": 0.024883899999999997,
+     "cost_residual": 3.469446951953614e-18,
+     "claude_wall_ms": 9465,
+     "observer_wall_ms": 137,
+     "outer_wall_ms": 9636,
+     "appended_sha256": "11a023b125e5db3314babf90059a42705a67ad4155f3c434013b0b0dab7c550b",
+     "transcript_sha256": "efdd099f5a91803a46cb76276bb598b339157d06d521da8c8087296cc388e78e"
+    },
+    {
+     "first_request_context": 4979,
+     "messages": 5,
+     "tool_calls": 4,
+     "by_kind": {
+      "Bash": 4
+     },
+     "mrw_writes": 2,
+     "refused_writes": 0,
+     "full_guide_calls": 0,
+     "core_calls": 0,
+     "tool_result_chars": 6169,
+     "task": "grouped-config",
+     "arm": "C",
+     "solved": true,
+     "verdict": {
+      "execution_ok": true,
+      "isolation_ok": true,
+      "exact_tree_ok": true,
+      "verification_ok": true,
+      "solved": true
+     },
+     "turns": 5,
+     "usage": {
+      "input_tokens": 10,
+      "output_tokens": 707,
+      "cache_read_input_tokens": 30579,
+      "cache_creation_input_tokens": 5134
+     },
+     "cost_usd": 0.030683899999999997,
+     "cost_residual": 3.469446951953614e-18,
+     "claude_wall_ms": 10155,
+     "observer_wall_ms": 134,
+     "outer_wall_ms": 10324,
+     "appended_sha256": "11a023b125e5db3314babf90059a42705a67ad4155f3c434013b0b0dab7c550b",
+     "transcript_sha256": "d21ab70c505340527f731e0f0e54a7b681c947d19b2f4abf1b5291e786f5773c"
+    },
+    {
+     "first_request_context": 12562,
+     "messages": 4,
+     "tool_calls": 3,
+     "by_kind": {
+      "Bash": 3
+     },
+     "mrw_writes": 1,
+     "refused_writes": 0,
+     "full_guide_calls": 0,
+     "core_calls": 0,
+     "tool_result_chars": 3852,
+     "task": "grouped-config",
+     "arm": "F",
+     "solved": true,
+     "verdict": {
+      "execution_ok": true,
+      "isolation_ok": true,
+      "exact_tree_ok": true,
+      "verification_ok": true,
+      "solved": true
+     },
+     "turns": 4,
+     "usage": {
+      "input_tokens": 8,
+      "output_tokens": 594,
+      "cache_read_input_tokens": 51757,
+      "cache_creation_input_tokens": 3613
+     },
+     "cost_usd": 0.0255837,
+     "cost_residual": 0.0,
+     "claude_wall_ms": 9520,
+     "observer_wall_ms": 133,
+     "outer_wall_ms": 9689,
+     "appended_sha256": "a76dbd46ae65184aae51853b372c174f845a99fac6e2ad45c3a632a9fb7830f7",
+     "transcript_sha256": "429d3a741af585798eacf75ef08f1d61155cd6ab25c9f5bdb245be485a83888f"
+    },
+    {
+     "first_request_context": 12608,
+     "messages": 3,
+     "tool_calls": 2,
+     "by_kind": {
+      "Bash": 2
+     },
+     "mrw_writes": 1,
+     "refused_writes": 0,
+     "full_guide_calls": 0,
+     "core_calls": 0,
+     "tool_result_chars": 3863,
+     "task": "grouped-source-tests",
+     "arm": "F",
+     "solved": true,
+     "verdict": {
+      "execution_ok": true,
+      "isolation_ok": true,
+      "exact_tree_ok": true,
+      "verification_ok": true,
+      "solved": true
+     },
+     "turns": 3,
+     "usage": {
+      "input_tokens": 6,
+      "output_tokens": 505,
+      "cache_read_input_tokens": 38171,
+      "cache_creation_input_tokens": 3748
+     },
+     "cost_usd": 0.0238711,
+     "cost_residual": 0.0,
+     "claude_wall_ms": 7910,
+     "observer_wall_ms": 116,
+     "outer_wall_ms": 8060,
+     "appended_sha256": "a76dbd46ae65184aae51853b372c174f845a99fac6e2ad45c3a632a9fb7830f7",
+     "transcript_sha256": "35adca3d311ddbfb3b4cf2b934e2d3cb94521d7aca5074bf3d70a90c30198f04"
+    },
+    {
+     "first_request_context": 5025,
+     "messages": 7,
+     "tool_calls": 6,
+     "by_kind": {
+      "Bash": 6
+     },
+     "mrw_writes": 2,
+     "refused_writes": 0,
+     "full_guide_calls": 0,
+     "core_calls": 0,
+     "tool_result_chars": 7865,
+     "task": "grouped-source-tests",
+     "arm": "C",
+     "solved": true,
+     "verdict": {
+      "execution_ok": true,
+      "isolation_ok": true,
+      "exact_tree_ok": true,
+      "verification_ok": true,
+      "solved": true
+     },
+     "turns": 7,
+     "usage": {
+      "input_tokens": 14,
+      "output_tokens": 1390,
+      "cache_read_input_tokens": 44953,
+      "cache_creation_input_tokens": 6387
+     },
+     "cost_usd": 0.043971300000000005,
+     "cost_residual": -6.938893903907228e-18,
+     "claude_wall_ms": 17092,
+     "observer_wall_ms": 135,
+     "outer_wall_ms": 17263,
+     "appended_sha256": "11a023b125e5db3314babf90059a42705a67ad4155f3c434013b0b0dab7c550b",
+     "transcript_sha256": "bffeacb6d14fbe8976b3fa3147e41ccd65ccd41cd57535eebc25118d928171ef"
+    },
+    {
+     "first_request_context": 4997,
+     "messages": 5,
+     "tool_calls": 4,
+     "by_kind": {
+      "Bash": 4
+     },
+     "mrw_writes": 1,
+     "refused_writes": 0,
+     "full_guide_calls": 0,
+     "core_calls": 0,
+     "tool_result_chars": 3305,
+     "task": "grouped-docs",
+     "arm": "C",
+     "solved": true,
+     "verdict": {
+      "execution_ok": true,
+      "isolation_ok": true,
+      "exact_tree_ok": true,
+      "verification_ok": true,
+      "solved": true
+     },
+     "turns": 5,
+     "usage": {
+      "input_tokens": 10,
+      "output_tokens": 1214,
+      "cache_read_input_tokens": 27650,
+      "cache_creation_input_tokens": 3967
+     },
+     "cost_usd": 0.030793,
+     "cost_residual": 0.0,
+     "claude_wall_ms": 13893,
+     "observer_wall_ms": 133,
+     "outer_wall_ms": 14062,
+     "appended_sha256": "11a023b125e5db3314babf90059a42705a67ad4155f3c434013b0b0dab7c550b",
+     "transcript_sha256": "8c93e5e2c7987dab6dba4a42adad36785afebd10db8fa4691862e083df8ee24f"
+    },
+    {
+     "first_request_context": 12578,
+     "messages": 5,
+     "tool_calls": 4,
+     "by_kind": {
+      "Bash": 4
+     },
+     "mrw_writes": 2,
+     "refused_writes": 0,
+     "full_guide_calls": 0,
+     "core_calls": 0,
+     "tool_result_chars": 3894,
+     "task": "grouped-docs",
+     "arm": "F",
+     "solved": true,
+     "verdict": {
+      "execution_ok": true,
+      "isolation_ok": true,
+      "exact_tree_ok": true,
+      "verification_ok": true,
+      "solved": true
+     },
+     "turns": 5,
+     "usage": {
+      "input_tokens": 10,
+      "output_tokens": 1276,
+      "cache_read_input_tokens": 67801,
+      "cache_creation_input_tokens": 4198
+     },
+     "cost_usd": 0.0363521,
+     "cost_residual": 6.938893903907228e-18,
+     "claude_wall_ms": 12207,
+     "observer_wall_ms": 134,
+     "outer_wall_ms": 12377,
+     "appended_sha256": "a76dbd46ae65184aae51853b372c174f845a99fac6e2ad45c3a632a9fb7830f7",
+     "transcript_sha256": "e7d08d576d8688056563935c9bc98c6010b66afa7f828f32cbd1a667df2c22fd"
+    },
+    {
+     "first_request_context": 12645,
+     "messages": 4,
+     "tool_calls": 3,
+     "by_kind": {
+      "Bash": 3
+     },
+     "mrw_writes": 2,
+     "refused_writes": 0,
+     "full_guide_calls": 0,
+     "core_calls": 0,
+     "tool_result_chars": 2783,
+     "task": "grouped-routing",
+     "arm": "F",
+     "solved": true,
+     "verdict": {
+      "execution_ok": true,
+      "isolation_ok": true,
+      "exact_tree_ok": true,
+      "verification_ok": true,
+      "solved": true
+     },
+     "turns": 4,
+     "usage": {
+      "input_tokens": 8,
+      "output_tokens": 871,
+      "cache_read_input_tokens": 51881,
+      "cache_creation_input_tokens": 3589
+     },
+     "cost_usd": 0.0282701,
+     "cost_residual": 3.469446951953614e-18,
+     "claude_wall_ms": 10784,
+     "observer_wall_ms": 135,
+     "outer_wall_ms": 10955,
+     "appended_sha256": "a76dbd46ae65184aae51853b372c174f845a99fac6e2ad45c3a632a9fb7830f7",
+     "transcript_sha256": "daffb8a447668437d95a1debfd6e983aacdec038069b50828a8cf0e787f1e778"
+    },
+    {
+     "first_request_context": 5063,
+     "messages": 4,
+     "tool_calls": 3,
+     "by_kind": {
+      "Bash": 3
+     },
+     "mrw_writes": 2,
+     "refused_writes": 0,
+     "full_guide_calls": 0,
+     "core_calls": 0,
+     "tool_result_chars": 3382,
+     "task": "grouped-routing",
+     "arm": "C",
+     "solved": true,
+     "verdict": {
+      "execution_ok": true,
+      "isolation_ok": true,
+      "exact_tree_ok": true,
+      "verification_ok": true,
+      "solved": true
+     },
+     "turns": 4,
+     "usage": {
+      "input_tokens": 8,
+      "output_tokens": 965,
+      "cache_read_input_tokens": 22421,
+      "cache_creation_input_tokens": 4000
+     },
+     "cost_usd": 0.0279081,
+     "cost_residual": 0.0,
+     "claude_wall_ms": 10552,
+     "observer_wall_ms": 139,
+     "outer_wall_ms": 10726,
+     "appended_sha256": "11a023b125e5db3314babf90059a42705a67ad4155f3c434013b0b0dab7c550b",
+     "transcript_sha256": "0094197d0d9a2e4cdcb48f1dd46dc3c36b73043024607f5cc57d909952bc0893"
+    }
+   ],
+   "F": {
+    "cells": 5,
+    "solved": 5,
+    "cost_usd": 0.1756682,
+    "first_request_context": 63095,
+    "turns": 20,
+    "messages": 20,
+    "output_tokens": 3968,
+    "full_guide_calls": 0,
+    "core_calls": 0,
+    "refused_writes": 0,
+    "mrw_writes": 8,
+    "input_tokens": 40,
+    "cache_read_input_tokens": 253202,
+    "cache_creation_input_tokens": 27647
+   },
+   "C": {
+    "cells": 5,
+    "solved": 5,
+    "cost_usd": 0.1582402,
+    "first_request_context": 25182,
+    "turns": 25,
+    "messages": 25,
+    "output_tokens": 4953,
+    "full_guide_calls": 0,
+    "core_calls": 0,
+    "refused_writes": 0,
+    "mrw_writes": 8,
+    "input_tokens": 50,
+    "cache_read_input_tokens": 147342,
+    "cache_creation_input_tokens": 23469
+   }
+  },
+  "2": {
+   "stop_reason": "completed",
+   "plan": [
+    [
+     "grouped-structural",
+     "CF"
+    ],
+    [
+     "grouped-config",
+     "FC"
+    ],
+    [
+     "grouped-source-tests",
+     "CF"
+    ],
+    [
+     "grouped-docs",
+     "FC"
+    ],
+    [
+     "grouped-routing",
+     "CF"
+    ]
+   ],
+   "not_run": [],
+   "all_in_usd": 0.28324550000000004,
+   "canaries": [
+    {
+     "first_request_context": 12346,
+     "messages": 3,
+     "tool_calls": 2,
+     "by_kind": {
+      "Bash": 2
+     },
+     "mrw_writes": 1,
+     "refused_writes": 0,
+     "full_guide_calls": 0,
+     "core_calls": 0,
+     "tool_result_chars": 222,
+     "task": "canary",
+     "arm": "F",
+     "solved": false,
+     "verdict": {
+      "execution_ok": true,
+      "isolation_ok": true,
+      "exact_tree_ok": true,
+      "verification_ok": false,
+      "solved": false
+     },
+     "turns": 3,
+     "usage": {
+      "input_tokens": 6,
+      "output_tokens": 180,
+      "cache_read_input_tokens": 36221,
+      "cache_creation_input_tokens": 1304
+     },
+     "cost_usd": 0.0106501,
+     "cost_residual": 1.734723475976807e-18,
+     "claude_wall_ms": 4703,
+     "observer_wall_ms": null,
+     "outer_wall_ms": 4737,
+     "appended_sha256": "a76dbd46ae65184aae51853b372c174f845a99fac6e2ad45c3a632a9fb7830f7",
+     "transcript_sha256": "395cbd5f78755d41165f591d4e9b2689c39958bee255abd49cf4fe88b0ee7041"
+    },
+    {
+     "first_request_context": 4764,
+     "messages": 3,
+     "tool_calls": 2,
+     "by_kind": {
+      "Bash": 2
+     },
+     "mrw_writes": 1,
+     "refused_writes": 0,
+     "full_guide_calls": 0,
+     "core_calls": 0,
+     "tool_result_chars": 234,
+     "task": "canary",
+     "arm": "C",
+     "solved": false,
+     "verdict": {
+      "execution_ok": true,
+      "isolation_ok": true,
+      "exact_tree_ok": true,
+      "verification_ok": false,
+      "solved": false
+     },
+     "turns": 3,
+     "usage": {
+      "input_tokens": 6,
+      "output_tokens": 205,
+      "cache_read_input_tokens": 13475,
+      "cache_creation_input_tokens": 1302
+     },
+     "cost_usd": 0.0086175,
+     "cost_residual": 0.0,
+     "claude_wall_ms": 4945,
+     "observer_wall_ms": null,
+     "outer_wall_ms": 4989,
+     "appended_sha256": "11a023b125e5db3314babf90059a42705a67ad4155f3c434013b0b0dab7c550b",
+     "transcript_sha256": "e2de2f2192b0629cac73b7c4de7b79da448b29059169c999ca852a1b6571293f"
+    }
+   ],
+   "cells": [
+    {
+     "first_request_context": 5117,
+     "messages": 4,
+     "tool_calls": 3,
+     "by_kind": {
+      "Bash": 3
+     },
+     "mrw_writes": 1,
+     "refused_writes": 0,
+     "full_guide_calls": 0,
+     "core_calls": 0,
+     "tool_result_chars": 4439,
+     "task": "grouped-structural",
+     "arm": "C",
+     "solved": true,
+     "verdict": {
+      "execution_ok": true,
+      "isolation_ok": true,
+      "exact_tree_ok": true,
+      "verification_ok": true,
+      "solved": true
+     },
+     "turns": 4,
+     "usage": {
+      "input_tokens": 8,
+      "output_tokens": 683,
+      "cache_read_input_tokens": 21820,
+      "cache_creation_input_tokens": 3952
+     },
+     "cost_usd": 0.024836,
+     "cost_residual": 0.0,
+     "claude_wall_ms": 8881,
+     "observer_wall_ms": 141,
+     "outer_wall_ms": 9066,
+     "appended_sha256": "11a023b125e5db3314babf90059a42705a67ad4155f3c434013b0b0dab7c550b",
+     "transcript_sha256": "5550f94e90e45f4fa3c3832f49970ed87c210eed27cf30f065918355ec417ace"
+    },
+    {
+     "first_request_context": 12701,
+     "messages": 3,
+     "tool_calls": 2,
+     "by_kind": {
+      "Bash": 2
+     },
+     "mrw_writes": 1,
+     "refused_writes": 0,
+     "full_guide_calls": 0,
+     "core_calls": 0,
+     "tool_result_chars": 3289,
+     "task": "grouped-structural",
+     "arm": "F",
+     "solved": true,
+     "verdict": {
+      "execution_ok": true,
+      "isolation_ok": true,
+      "exact_tree_ok": true,
+      "verification_ok": true,
+      "solved": true
+     },
+     "turns": 3,
+     "usage": {
+      "input_tokens": 6,
+      "output_tokens": 670,
+      "cache_read_input_tokens": 37998,
+      "cache_creation_input_tokens": 3408
+     },
+     "cost_usd": 0.0241438,
+     "cost_residual": 0.0,
+     "claude_wall_ms": 9185,
+     "observer_wall_ms": 144,
+     "outer_wall_ms": 9364,
+     "appended_sha256": "a76dbd46ae65184aae51853b372c174f845a99fac6e2ad45c3a632a9fb7830f7",
+     "transcript_sha256": "a11d8f0dcc7ba54791715d4868cd514fc49e0ab35451b042459d89f5b5885219"
+    },
+    {
+     "first_request_context": 12561,
+     "messages": 4,
+     "tool_calls": 3,
+     "by_kind": {
+      "Bash": 3
+     },
+     "mrw_writes": 1,
+     "refused_writes": 0,
+     "full_guide_calls": 0,
+     "core_calls": 0,
+     "tool_result_chars": 3859,
+     "task": "grouped-config",
+     "arm": "F",
+     "solved": true,
+     "verdict": {
+      "execution_ok": true,
+      "isolation_ok": true,
+      "exact_tree_ok": true,
+      "verification_ok": true,
+      "solved": true
+     },
+     "turns": 4,
+     "usage": {
+      "input_tokens": 8,
+      "output_tokens": 544,
+      "cache_read_input_tokens": 51755,
+      "cache_creation_input_tokens": 3678
+     },
+     "cost_usd": 0.0253435,
+     "cost_residual": 0.0,
+     "claude_wall_ms": 8688,
+     "observer_wall_ms": 108,
+     "outer_wall_ms": 8832,
+     "appended_sha256": "a76dbd46ae65184aae51853b372c174f845a99fac6e2ad45c3a632a9fb7830f7",
+     "transcript_sha256": "37e0071afff7ef1544488d98fd7da745639dd5771acf85550ce75dd2ebfaf50b"
+    },
+    {
+     "first_request_context": 4978,
+     "messages": 4,
+     "tool_calls": 3,
+     "by_kind": {
+      "Bash": 3
+     },
+     "mrw_writes": 1,
+     "refused_writes": 0,
+     "full_guide_calls": 0,
+     "core_calls": 0,
+     "tool_result_chars": 5344,
+     "task": "grouped-config",
+     "arm": "C",
+     "solved": true,
+     "verdict": {
+      "execution_ok": true,
+      "isolation_ok": true,
+      "exact_tree_ok": true,
+      "verification_ok": true,
+      "solved": true
+     },
+     "turns": 4,
+     "usage": {
+      "input_tokens": 8,
+      "output_tokens": 506,
+      "cache_read_input_tokens": 22884,
+      "cache_creation_input_tokens": 4521
+     },
+     "cost_usd": 0.025448400000000003,
+     "cost_residual": -3.469446951953614e-18,
+     "claude_wall_ms": 8776,
+     "observer_wall_ms": 142,
+     "outer_wall_ms": 8954,
+     "appended_sha256": "11a023b125e5db3314babf90059a42705a67ad4155f3c434013b0b0dab7c550b",
+     "transcript_sha256": "efdf2b0109cebf910c20f3f045a8d3d5b09e4e955287387d50ebcb1ba0ccdad4"
+    },
+    {
+     "first_request_context": 5024,
+     "messages": 3,
+     "tool_calls": 2,
+     "by_kind": {
+      "Bash": 2
+     },
+     "mrw_writes": 1,
+     "refused_writes": 0,
+     "full_guide_calls": 0,
+     "core_calls": 0,
+     "tool_result_chars": 5689,
+     "task": "grouped-source-tests",
+     "arm": "C",
+     "solved": true,
+     "verdict": {
+      "execution_ok": true,
+      "isolation_ok": true,
+      "exact_tree_ok": true,
+      "verification_ok": true,
+      "solved": true
+     },
+     "turns": 3,
+     "usage": {
+      "input_tokens": 6,
+      "output_tokens": 454,
+      "cache_read_input_tokens": 16321,
+      "cache_creation_input_tokens": 4501
+     },
+     "cost_usd": 0.0241881,
+     "cost_residual": 0.0,
+     "claude_wall_ms": 7131,
+     "observer_wall_ms": 114,
+     "outer_wall_ms": 7280,
+     "appended_sha256": "11a023b125e5db3314babf90059a42705a67ad4155f3c434013b0b0dab7c550b",
+     "transcript_sha256": "8d689714a107fbdd2b8524ba9393994f100ae46c3087b9b78ddc035651adeae9"
+    },
+    {
+     "first_request_context": 12609,
+     "messages": 3,
+     "tool_calls": 2,
+     "by_kind": {
+      "Bash": 2
+     },
+     "mrw_writes": 1,
+     "refused_writes": 0,
+     "full_guide_calls": 0,
+     "core_calls": 0,
+     "tool_result_chars": 3543,
+     "task": "grouped-source-tests",
+     "arm": "F",
+     "solved": true,
+     "verdict": {
+      "execution_ok": true,
+      "isolation_ok": true,
+      "exact_tree_ok": true,
+      "verification_ok": true,
+      "solved": true
+     },
+     "turns": 3,
+     "usage": {
+      "input_tokens": 6,
+      "output_tokens": 526,
+      "cache_read_input_tokens": 38004,
+      "cache_creation_input_tokens": 3575
+     },
+     "cost_usd": 0.0233724,
+     "cost_residual": 0.0,
+     "claude_wall_ms": 7378,
+     "observer_wall_ms": 136,
+     "outer_wall_ms": 7551,
+     "appended_sha256": "a76dbd46ae65184aae51853b372c174f845a99fac6e2ad45c3a632a9fb7830f7",
+     "transcript_sha256": "0ca4132a787205af2d274eafae5a214f8711b016f64b583a9e72173f27f3af3e"
+    },
+    {
+     "first_request_context": 12580,
+     "messages": 5,
+     "tool_calls": 4,
+     "by_kind": {
+      "Bash": 4
+     },
+     "mrw_writes": 2,
+     "refused_writes": 0,
+     "full_guide_calls": 0,
+     "core_calls": 0,
+     "tool_result_chars": 4009,
+     "task": "grouped-docs",
+     "arm": "F",
+     "solved": true,
+     "verdict": {
+      "execution_ok": true,
+      "isolation_ok": true,
+      "exact_tree_ok": true,
+      "verification_ok": true,
+      "solved": true
+     },
+     "turns": 5,
+     "usage": {
+      "input_tokens": 10,
+      "output_tokens": 1298,
+      "cache_read_input_tokens": 67896,
+      "cache_creation_input_tokens": 4290
+     },
+     "cost_usd": 0.0369496,
+     "cost_residual": 0.0,
+     "claude_wall_ms": 12179,
+     "observer_wall_ms": 128,
+     "outer_wall_ms": 12343,
+     "appended_sha256": "a76dbd46ae65184aae51853b372c174f845a99fac6e2ad45c3a632a9fb7830f7",
+     "transcript_sha256": "f5a0141fcd3616425547cbb5cef247a4a5ec7df0e9e74ad01d6412e5c643ea02"
+    },
+    {
+     "first_request_context": 4997,
+     "messages": 4,
+     "tool_calls": 3,
+     "by_kind": {
+      "Bash": 3
+     },
+     "mrw_writes": 1,
+     "refused_writes": 0,
+     "full_guide_calls": 0,
+     "core_calls": 0,
+     "tool_result_chars": 3185,
+     "task": "grouped-docs",
+     "arm": "C",
+     "solved": true,
+     "verdict": {
+      "execution_ok": true,
+      "isolation_ok": true,
+      "exact_tree_ok": true,
+      "verification_ok": true,
+      "solved": true
+     },
+     "turns": 4,
+     "usage": {
+      "input_tokens": 8,
+      "output_tokens": 736,
+      "cache_read_input_tokens": 20967,
+      "cache_creation_input_tokens": 3289
+     },
+     "cost_usd": 0.0226287,
+     "cost_residual": 0.0,
+     "claude_wall_ms": 8758,
+     "observer_wall_ms": 143,
+     "outer_wall_ms": 8937,
+     "appended_sha256": "11a023b125e5db3314babf90059a42705a67ad4155f3c434013b0b0dab7c550b",
+     "transcript_sha256": "6bd5c085d23d4b042c349c5b83eeec818bb07098aa6d52f6974afcd6c32b8eaa"
+    },
+    {
+     "first_request_context": 5062,
+     "messages": 4,
+     "tool_calls": 3,
+     "by_kind": {
+      "Bash": 3
+     },
+     "mrw_writes": 2,
+     "refused_writes": 0,
+     "full_guide_calls": 0,
+     "core_calls": 0,
+     "tool_result_chars": 3923,
+     "task": "grouped-routing",
+     "arm": "C",
+     "solved": true,
+     "verdict": {
+      "execution_ok": true,
+      "isolation_ok": true,
+      "exact_tree_ok": true,
+      "verification_ok": true,
+      "solved": true
+     },
+     "turns": 4,
+     "usage": {
+      "input_tokens": 8,
+      "output_tokens": 987,
+      "cache_read_input_tokens": 22639,
+      "cache_creation_input_tokens": 4269
+     },
+     "cost_usd": 0.029225900000000003,
+     "cost_residual": 0.0,
+     "claude_wall_ms": 10534,
+     "observer_wall_ms": 106,
+     "outer_wall_ms": 10676,
+     "appended_sha256": "11a023b125e5db3314babf90059a42705a67ad4155f3c434013b0b0dab7c550b",
+     "transcript_sha256": "fafb342a0b3a7350fce3f2b882f47f1c02ba7be2d11b98a5979dd395976f5a7d"
+    },
+    {
+     "first_request_context": 12646,
+     "messages": 4,
+     "tool_calls": 3,
+     "by_kind": {
+      "Bash": 3
+     },
+     "mrw_writes": 2,
+     "refused_writes": 0,
+     "full_guide_calls": 0,
+     "core_calls": 0,
+     "tool_result_chars": 2668,
+     "task": "grouped-routing",
+     "arm": "F",
+     "solved": true,
+     "verdict": {
+      "execution_ok": true,
+      "isolation_ok": true,
+      "exact_tree_ok": true,
+      "verification_ok": true,
+      "solved": true
+     },
+     "turns": 4,
+     "usage": {
+      "input_tokens": 8,
+      "output_tokens": 848,
+      "cache_read_input_tokens": 51895,
+      "cache_creation_input_tokens": 3539
+     },
+     "cost_usd": 0.0278415,
+     "cost_residual": -3.469446951953614e-18,
+     "claude_wall_ms": 9460,
+     "observer_wall_ms": 108,
+     "outer_wall_ms": 9604,
+     "appended_sha256": "a76dbd46ae65184aae51853b372c174f845a99fac6e2ad45c3a632a9fb7830f7",
+     "transcript_sha256": "c6bf9c1da1a0fa045f3d27de09469904bd894b92dfa426e0366dfaef27ba4a88"
+    }
+   ],
+   "F": {
+    "cells": 5,
+    "solved": 5,
+    "cost_usd": 0.13765080000000002,
+    "first_request_context": 63097,
+    "turns": 19,
+    "messages": 19,
+    "output_tokens": 3886,
+    "full_guide_calls": 0,
+    "core_calls": 0,
+    "refused_writes": 0,
+    "mrw_writes": 7,
+    "input_tokens": 38,
+    "cache_read_input_tokens": 247548,
+    "cache_creation_input_tokens": 18490
+   },
+   "C": {
+    "cells": 5,
+    "solved": 5,
+    "cost_usd": 0.1263271,
+    "first_request_context": 25178,
+    "turns": 19,
+    "messages": 19,
+    "output_tokens": 3366,
+    "full_guide_calls": 0,
+    "core_calls": 0,
+    "refused_writes": 0,
+    "mrw_writes": 6,
+    "input_tokens": 38,
+    "cache_read_input_tokens": 104631,
+    "cache_creation_input_tokens": 20532
+   }
+  }
+ },
+ "eligible": true,
+ "repeat_spread": {
+  "cost_usd": {
+   "F": [
+    0.1756682,
+    0.13765080000000002
+   ],
+   "C": [
+    0.1582402,
+    0.1263271
+   ],
+   "saving_per_round": [
+    0.017428,
+    0.01132370000000002
+   ],
+   "mean_saving": 0.01437585000000001,
+   "spread": {
+    "F": 0.03801739999999998,
+    "C": 0.0319131
+   },
+   "verdict": "within repeat spread: no result"
+  },
+  "first_request_context": {
+   "F": [
+    63095,
+    63097
+   ],
+   "C": [
+    25182,
+    25178
+   ],
+   "saving_per_round": [
+    37913,
+    37919
+   ],
+   "mean_saving": 37916.0,
+   "spread": {
+    "F": 2,
+    "C": 4
+   },
+   "verdict": "C lower"
+  },
+  "turns": {
+   "F": [
+    20,
+    19
+   ],
+   "C": [
+    25,
+    19
+   ],
+   "saving_per_round": [
+    -5,
+    0
+   ],
+   "mean_saving": -2.5,
+   "spread": {
+    "F": 1,
+    "C": 6
+   },
+   "verdict": "within repeat spread: no result"
+  },
+  "output_tokens": {
+   "F": [
+    3968,
+    3886
+   ],
+   "C": [
+    4953,
+    3366
+   ],
+   "saving_per_round": [
+    -985,
+    520
+   ],
+   "mean_saving": -232.5,
+   "spread": {
+    "F": 82,
+    "C": 1587
+   },
+   "verdict": "within repeat spread: no result"
+  }
+ }
+}

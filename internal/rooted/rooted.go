@@ -24,14 +24,6 @@ import (
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/state"
 )
 
-// Resolve returns the absolute file that path names under root, and an error if
-// it resolves outside it.
-//
-// Symlinks are resolved before the check, because following one out of the tree
-// is the same escape wearing a different hat. A path that does not exist yet is
-// checked lexically — `create` is entitled to name a file that is not there,
-// and filepath.Join has already cleaned it.
-
 // Abs is the root as the boundary compares it: absolute, and with symlinks
 // resolved so a root reached through one — /var on macOS — is the same string
 // as the paths it is compared against.
@@ -71,6 +63,14 @@ func Abs(root string) (string, error) {
 	}
 	return absRoot, nil
 }
+
+// Resolve returns the absolute file that path names under root, and an error if
+// it resolves outside it.
+//
+// Symlinks are resolved before the check, because following one out of the tree
+// is the same escape wearing a different hat. A path that does not exist yet is
+// checked lexically — `create` is entitled to name a file that is not there,
+// and filepath.Join has already cleaned it.
 func Resolve(root, path string) (string, error) {
 	if err := aliasRefusal(path); err != nil {
 		return "", err
@@ -196,8 +196,15 @@ func resolveIn(absRoot, path string) (string, error) {
 // — so an absolute argument and the root it is checked against are spelled the
 // same way. Resolving only with EvalSymlinks, which stops at a junction,
 // refused an absolute path inside a root reached through one (review of #228).
-// A path that cannot be resolved comes back cleaned; Resolve still judges it.
-func Real(p string) string { return links.Real(p) }
+// A path is resolved as far as it resolves (RealAsFarAsItExists): EvalSymlinks
+// fails on any leaf it cannot resolve — missing, a dangling link, a name under a
+// regular file, behind a directory it may not search, a loop — and the path as
+// spelled then sat outside a root reached through a linked ancestor (/var ->
+// /private/var on macOS), so a path inside the root was refused as outside it
+// instead of being reported with its own error (issue #599, ADR-007). A path
+// that resolves comes back exactly as links.Real gives it; Resolve still
+// judges the rest.
+func Real(p string) string { return RealAsFarAsItExists(p) }
 
 // Contains reports whether p is absRoot itself or something beneath it. The
 // separator matters: without it, "/repo-backup" counts as inside "/repo". A root

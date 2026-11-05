@@ -223,3 +223,80 @@ func TestTheStage6CanaryProvesTheContainer(t *testing.T) {
 		t.Error("a stage6 run of a task with no image was accepted")
 	}
 }
+
+// TestTheStage7CanaryRefusesAnHWithoutItsHook: H passes the profile canary
+// with Read among its init tools and a PostToolUse:Read hook event, and fails
+// without either; B and A fail with that event; the stage7 canary runs A, B
+// and H, and asks H alone for a Read first (ADR-192 Decision 1).
+func TestTheStage7CanaryRefusesAnHWithoutItsHook(t *testing.T) {
+	initH := strings.Replace(profileInitB, `"tools":["Bash","Glob","Skill"]`, `"tools":["Bash","Glob","Read","Skill"]`, 1)
+	h := initH + "\n" + hookLine("PreToolUse", "PreToolUse:Bash") + "\n" + hookLine("PostToolUse", "PostToolUse:Read") + "\n" +
+		`{"type":"assistant","message":{"content":[{"type":"text","text":"read notes.txt with the Read tool"}]}}` + "\n" + profileResult + "\n"
+	if p := CheckProfileCanary([]byte(h), Configs["H"], "", "", ""); len(p) != 0 {
+		t.Fatalf("a clean H failed: %v", p)
+	}
+	leaks := map[string]string{
+		"H without Read in its init tools": strings.Replace(h, `"Glob","Read","Skill"`, `"Glob","Skill"`, 1),
+		"H with no PostToolUse:Read event": strings.Replace(h, hookLine("PostToolUse", "PostToolUse:Read")+"\n", "", 1),
+		"H with another hook":              strings.Replace(h, `"PostToolUse:Read"`, `"PostToolUse:Bash"`, 1),
+		"H with Grep as well":              strings.Replace(h, `"Glob","Read","Skill"`, `"Glob","Read","Grep","Skill"`, 1),
+	}
+	for name, transcript := range leaks {
+		if p := CheckProfileCanary([]byte(transcript), Configs["H"], "", "", ""); len(p) == 0 {
+			t.Errorf("%s: the canary passed", name)
+		}
+	}
+	for name, c := range map[string]struct{ cfg, init string }{"B": {"B", profileInitB}, "A": {"A", profileInitA}} {
+		withEvent := c.init + "\n" + hookLine("PostToolUse", "PostToolUse:Read") + "\n" + profileResult + "\n"
+		if p := CheckProfileCanary([]byte(withEvent), Configs[name], "", "", ""); len(p) == 0 {
+			t.Errorf("%s with a PostToolUse:Read event: the canary passed", name)
+		}
+	}
+	if got := CanaryBase(ProfileStage7); !slices.Equal(got, []string{"A", "B", "H"}) {
+		t.Errorf("the stage7 canary runs %v, want A, B and H", got)
+	}
+	for _, profile := range []string{"", ProfileStage5, ProfileStage6} {
+		if got := CanaryBase(profile); !slices.Equal(got, []string{"A", "B"}) {
+			t.Errorf("the %q canary runs %v, want A and B", profile, got)
+		}
+	}
+	// Only the canary asks for the Read; a counted attempt's instruction is the task's.
+	opts := RunOptions{Profile: ProfileStage7}
+	task := Task{Instruction: "Change beta to gamma in notes.txt."}
+	if got := instructionFor(opts, Configs["H"], task); got != task.Instruction {
+		t.Errorf("a counted H attempt is told %q", got)
+	}
+	opts.canary = true
+	if got := instructionFor(opts, Configs["H"], task); !strings.HasPrefix(got, task.Instruction) || !strings.Contains(got, "Read tool") {
+		t.Errorf("the canary asks H %q, want the task and a request to Read first", got)
+	}
+	for _, name := range []string{"A", "B"} {
+		if got := instructionFor(opts, Configs[name], task); got != task.Instruction {
+			t.Errorf("the canary asks %s %q, want the task alone", name, got)
+		}
+	}
+}
+
+// TestTheReadHookMustHaveRunQuietlyForEveryRead: an H attempt whose hook wrote
+// to standard error, or ran fewer times than the host Read, is a canary
+// problem; a quiet hook that ran for every Read, and a configuration with no
+// read hook, are not (ADR-192 Decision 1).
+func TestTheReadHookMustHaveRunQuietlyForEveryRead(t *testing.T) {
+	for _, c := range []struct {
+		name string
+		r    Receipt
+		bad  bool
+	}{
+		{"quiet and ran for both Reads", Receipt{HostReads: 2, HookRuns: 2}, false},
+		{"no Reads, no runs", Receipt{}, false},
+		{"standard error", Receipt{HostReads: 2, HookRuns: 2, HookStderrBytes: 5}, true},
+		{"one run for two Reads", Receipt{HostReads: 2, HookRuns: 1}, true},
+	} {
+		if p := readHookProblems(Configs["H"], c.r); (len(p) > 0) != c.bad {
+			t.Errorf("H, %s: %v, want a problem: %v", c.name, p, c.bad)
+		}
+	}
+	if p := readHookProblems(Configs["B"], Receipt{HostReads: 2, HookStderrBytes: 5}); len(p) != 0 {
+		t.Errorf("B has no read hook and is blamed for one: %v", p)
+	}
+}

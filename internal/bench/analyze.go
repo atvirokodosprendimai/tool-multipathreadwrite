@@ -34,11 +34,13 @@ type Result struct {
 	// Descriptive is empty on the verdict. On a second row it names what was
 	// left out; that row is not a verdict of the registered bar (ADR-156 T6 S5).
 	Descriptive string `json:"descriptive,omitempty"`
-	// Comparison is the configuration compared with A: "B" (mrw) or "P" (the
-	// quality-harness plugin, ADR-162). Level is the interval's level: 0.95
-	// for ADR-156's bar, 1 − 0.05/5 at an ADR-162 look; Look is the look a
+	// Comparison is the configuration compared with Control, which is A unless
+	// the stage names another baseline: "B" (mrw) or "P" (the quality-harness
+	// plugin, ADR-162), or H against B (ADR-192). Level is the interval's level:
+	// 0.95 for ADR-156's bar, 1 − 0.05/5 at an ADR-162 look; Look is the look a
 	// Stage 5 verdict was read at.
 	Comparison string  `json:"comparison"`
+	Control    string  `json:"control"`
 	Level      float64 `json:"level"`
 	Look       int     `json:"look,omitempty"`
 
@@ -260,7 +262,7 @@ func judgeWith(stage, model, source string, g []Receipt, second string, level fl
 // judgeAgainst is judgeWith with any configuration as the control: bench side
 // reads a side arm against P (ADR-163 Decision 9).
 func judgeAgainst(control, stage, model, source string, g []Receipt, second string, level float64, tango bool) (Result, error) {
-	res := Result{Stage: stage, Model: model, Source: source, Comparison: second, Level: level}
+	res := Result{Stage: stage, Model: model, Source: source, Comparison: second, Control: control, Level: level}
 	type side struct {
 		cost         float64
 		solved, runs int
@@ -279,7 +281,7 @@ func judgeAgainst(control, stage, model, source string, g []Receipt, second stri
 		if r.CostUSD == nil && !r.TimedOut {
 			return res, fmt.Errorf("attempt %s: no cost", r.Attempt)
 		}
-		if r.Config == "B" {
+		if r.Config == second && (second == "B" || second == "H") {
 			res.ReadsB += r.HookReads
 			res.SlippedB += len(r.SlippedWrites)
 		}

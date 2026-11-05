@@ -180,3 +180,4 @@ Stop and ask if a create plan cannot carry a content the survey sessions need (a
   FAIL
   ```
 - 2026-10-10 · c2d8b77* · exit 0 · `set -o pipefail …` · acceptance-sha256:672ccdcd090b9347082cb9579d8fdd1872a66a97f6858d91eab70fab27578c7d · ms:1051
+- 2026-11-04 · c221472d* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:672ccdcd090b9347082cb9579d8fdd1872a66a97f6858d91eab70fab27578c7d · ms:0 · test-lock-sha256:840b7f31b61704e1d87b9fb4814c6ea4842a7a2608f8ac84a845aa34dab87782 · test-lock-file:docs/adr/locks/840b7f31b61704e1d87b9fb4814c6ea4842a7a2608f8ac84a845aa34dab87782.lock · test-lock-kind:replace

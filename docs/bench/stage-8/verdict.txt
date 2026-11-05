@@ -1,0 +1,28 @@
+ADR-193 pilot: 18 instances, B and S, one repeat, claude-opus-5-5 and claude-sonnet-5-5
+claude-opus-5-5: 18 paired instances (0 dropped: none)
+  B: solved 17/18, landed 38, refused 3, undecided 0, (i) refused rate 7.3%, (ii) output per attempt 2928.7, (iii) spend per success 0.1990, (g) landed per attempt 2.11, (O) coverage 100.0%
+  S: solved 17/18, landed 38, refused 3, undecided 0, (i) refused rate 7.3%, (ii) output per attempt 3696.7, (iii) spend per success 0.2014, (g) landed per attempt 2.11, (O) coverage 100.0%
+  (U) S attempts with an attributed SEARCH/REPLACE write call: 18 of 18, need 9: ok
+  (O) coverage at least 90% and a decided call on each arm: ok
+  (a) S solved 17 >= B solved 17 - 2: ok
+  (b) B refused 3 >= 3 and S (i) <= 2/3 of B's: fails; or S (ii) <= 0.85 of B's: fails; (b): fails
+  (g) S landed per attempt <= 1.2 times B's, both landed: ok
+  (c) S spend per success <= 1.10 times B's, both solved: ok
+  descriptive: both-solved subset 17, S spend over B's minus one [-18.3%, 22.3%] (4,000 resamples, seed 193)
+  descriptive B: output per landed write call 1387, turns per attempt 9.8, attempts with a refusal 3, blocked 6, untokenized 0, landed attributed SEARCH/REPLACE calls 0
+  descriptive S: output per landed write call 1751, turns per attempt 10.0, attempts with a refusal 3, blocked 6, untokenized 0, landed attributed SEARCH/REPLACE calls 33
+  claude-opus-5-5: FAIL
+claude-sonnet-5-5: 18 paired instances (0 dropped: none)
+  B: solved 14/18, landed 17, refused 3, undecided 0, (i) refused rate 15.0%, (ii) output per attempt 1186.0, (iii) spend per success 0.0561, (g) landed per attempt 0.94, (O) coverage 100.0%
+  S: solved 12/18, landed 18, refused 17, undecided 1, (i) refused rate 48.6%, (ii) output per attempt 1481.2, (iii) spend per success 0.0788, (g) landed per attempt 1.00, (O) coverage 97.2%
+  (U) S attempts with an attributed SEARCH/REPLACE write call: 18 of 18, need 9: ok
+  (O) coverage at least 90% and a decided call on each arm: ok
+  (a) S solved 12 >= B solved 14 - 2: ok
+  (b) B refused 3 >= 3 and S (i) <= 2/3 of B's: fails; or S (ii) <= 0.85 of B's: fails; (b): fails
+  (g) S landed per attempt <= 1.2 times B's, both landed: ok
+  (c) S spend per success <= 1.10 times B's, both solved: fails
+  descriptive: both-solved subset 12, S spend over B's minus one [-14.6%, 34.1%] (4,000 resamples, seed 193)
+  descriptive B: output per landed write call 1256, turns per attempt 5.6, attempts with a refusal 2, blocked 2, untokenized 0, landed attributed SEARCH/REPLACE calls 0
+  descriptive S: output per landed write call 1481, turns per attempt 5.8, attempts with a refusal 10, blocked 1, untokenized 0, landed attributed SEARCH/REPLACE calls 16
+  claude-sonnet-5-5: FAIL
+verdict: NO SHIP

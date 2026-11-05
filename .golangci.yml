@@ -3,23 +3,38 @@
 version: "2"
 
 linters:
-  # The standard set (errcheck, govet, ineffassign, staticcheck, unused) plus
-  # linters that find defects rather than style.
+  # The standard set (errcheck, govet, ineffassign, staticcheck, unused), linters
+  # that find defects, and the checks that enforce the comment rules
+  # CONTRIBUTING.md states (staticcheck ST1000, ST1020-ST1022; revive exported).
   enable:
     - copyloopvar
     - durationcheck
     - errorlint
     - misspell
     - nilerr
+    - nolintlint
+    - revive
     - unconvert
     - unparam
     - usestdlibvars
     - wastedassign
   settings:
     staticcheck:
-      # QF* are refactoring suggestions, not defects; the ST checks listed are
-      # staticcheck's own defaults-off (package comments, naming).
-      checks: ["all", "-QF*", "-ST1000", "-ST1003", "-ST1016", "-ST1020", "-ST1021", "-ST1022"]
+      # QF* are refactoring suggestions, not defects. ST1000 (a package comment,
+      # except in package main) and ST1020-ST1022 (a doc comment that exists starts
+      # with the name) enforce what CONTRIBUTING.md asks for; two doc comments
+      # were found orphaned above another declaration when they were first
+      # enabled. ST1003 and ST1016 (identifier spelling, receiver names) are
+      # style this repository does not state.
+      checks: ["all", "-QF*", "-ST1003", "-ST1016"]
+    revive:
+      # Only `exported`, as its explicit rules list replaces revive's defaults:
+      # the doc comment an exported type, function, method, variable or constant
+      # is missing, and a name that stutters with its package. It skips struct
+      # fields and interface methods; staticcheck's ST1020-ST1022 judge the form
+      # of a comment that exists.
+      rules:
+        - name: exported
     errcheck:
       # A formatted write goes to a buffered writer whose error reaches a
       # checked Flush (ADR-088 T4), to an in-memory buffer that cannot fail, or

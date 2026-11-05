@@ -196,6 +196,10 @@ func instructionFor(o RunOptions, c Config, t Task) string {
 	if c.Work {
 		instruction += "\n\n" + o.workLine
 	}
+	// The canary alone asks H for a Read, so its hook has something to fire on.
+	if o.canary && c.ReadHook {
+		instruction += "\n\n" + canaryReadFirst
+	}
 	if o.StatusLine {
 		instruction = strings.Replace(PromptTemplate, "{instruction}", instruction, 1)
 	}

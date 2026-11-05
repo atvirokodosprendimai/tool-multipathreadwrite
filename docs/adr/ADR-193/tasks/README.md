@@ -1,0 +1,42 @@
+# ADR-193 Tasks
+
+Implementation tasks for ADR-193: Claude hosts are taught to edit in search_replace blocks, if a paired pilot says it pays. See the parent ADR for the decision.
+
+**Source of truth:** the task files' `Depends-on` / `Produces` / `Consumes` / `Covers` headers.
+This README is a derived index — when it disagrees with a task file, the task file wins.
+
+## Execution Order
+
+| Order | Task | Depends-on |
+|-------|------|------------|
+| 1 | T1 | none |
+| 2 | T2 | none |
+| 3 | T3 | T1, T2 |
+| 4 | T4 | T3 |
+| 5 | T5 | T4 |
+
+## Task Index
+
+| ID | Title | Status | Covers | Acceptance |
+|----|-------|--------|--------|------------|
+| T1 | configuration S and the stage8 profile | done | — | `go test ./internal/bench/ ./cmd/bench/ -run TestConfigurationSIsBPlusTheEditParagraph…` |
+| T2 | the frozen counting script and Stage 5's reference row | done | — | `python3 -B -m unittest … test_bench_edits.py`; the reference row names both scripts' sha |
+| T3 | the canary and an uncounted smoke freeze the paragraph | done | — | the recorded paragraph hashes to its sha and is in the code; both canaries passed with B and S |
+| T4 | the counted pilot and its verdict | done | — | the registered matrix per model; a recount and the verdict reproduce from the committed receipts under the unchanged scripts |
+| T5 | on SHIP, mrw instructions --host claude prints the measured paragraph | blocked | — | `go test ./cmd/mrw/ -run TestInstructionsForClaudeIsTheTextConfigurationSMeasured…`; section 333. Blocked: T4 says NO SHIP (`docs/bench/stage-8/verdict.txt`), so T5 does not run |
+
+Status: `pending` | `partial` | `blocked` | `done`.
+
+## Contract Coupling
+
+| Producer | Contract | Consumer(s) | Ordering note |
+|----------|----------|-------------|---------------|
+| T1 | configuration S, profile `stage8`, `EditParagraph` | T3, T4, T5 | T1 first |
+| T2 | `bench_edits.py` and its rule, both scripts' hashes | T3, T4 | T2 before T3 |
+| T3 | the frozen paragraph and its sha | T4, T5 | T3 before T4 |
+| T4 | the verdict line | T5 | T5 only on SHIP |
+
+## Notes
+
+- T4 is the paid run (about $9 and an hour of attempt time); load the costly-runs skill first. Stage 7 (ADR-192 T4) is stopped (Zy, 2026-11-03), so nothing else is queued against it.
+- T5 is blocked unless T4 says SHIP; on NO SHIP it is closed blocked and the guide is unchanged.

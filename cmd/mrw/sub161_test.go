@@ -62,6 +62,8 @@ func subFile(t *testing.T, root, name string) string {
 // --dry-run writes nothing, a CRLF file keeps its endings, and the write's
 // own steps run.
 func TestASubWriteAppliesThePlanInOneCommand(t *testing.T) {
+	t.Setenv("MRW_SHELL", "on")
+	t.Setenv("MRW_SHELL", "on")
 	root, run := subRun(t)
 	files := map[string]string{
 		"a.go":     "Old\nOldX\nxOld\nkeep Old and Old\n",
@@ -209,7 +211,7 @@ func TestASubReadRefusalsAndExits(t *testing.T) {
 	// itself and only the unshown line 1 before it can refuse it.
 	if o, e, c := run("@@ a.go /^(Old|Old Old)$/ replace occurrence=2\nzzz\n", "write", "-"); c == 0 || subFile(t, root, "a.go") != "Old\nOldX\nxOld\nOld Old\n" {
 		t.Errorf("occurrence=2 over a planned-but-unshown line 1: exit %d, want a refusal:\n%s%s", c, o, e)
-	} else if !strings.Contains(o+e, "a --sub plan licensed line") {
+	} else if !strings.Contains(o+e, "no lines, and licensed lines") {
 		t.Errorf("the refusal does not say the lines were not shown:\n%s%s", o, e)
 	}
 	// Lines it did not plan are not licensed: line 2 was served by no read.

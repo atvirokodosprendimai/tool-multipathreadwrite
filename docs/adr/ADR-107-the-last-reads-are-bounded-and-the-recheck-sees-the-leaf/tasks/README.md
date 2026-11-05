@@ -18,7 +18,7 @@ README must be regenerated.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | a file over the edit limit is refused before it is read | pending | — | `docs/adr/ADR-107-the-last-reads-are-bounded-and-the-recheck-sees-the-leaf/tasks/T1-load-limit.md` fence |
+| T1 | a file over the edit limit is refused before it is read | done | — | `docs/adr/ADR-107-the-last-reads-are-bounded-and-the-recheck-sees-the-leaf/tasks/T1-load-limit.md` fence |
 | T2 | acknowledgement hashes in bounded memory | done | — | `docs/adr/ADR-107-the-last-reads-are-bounded-and-the-recheck-sees-the-leaf/tasks/T2-streamed-hash.md` fence |
 | T3 | the recheck sees the leaf, and a failed ID load refuses | done | — | `docs/adr/ADR-107-the-last-reads-are-bounded-and-the-recheck-sees-the-leaf/tasks/T3-leaf-and-id.md` fence |
 
