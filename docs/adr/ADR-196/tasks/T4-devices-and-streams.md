@@ -61,6 +61,8 @@ out=$(go test ./cmd/mrw/ -count=1 -v -run '^(TestAPlanOrListNamingADeviceOrAStre
   the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
   ```
 - 2026-11-10 · 3da3f32b* · mutant killed · exit 1 · `cmd/mrw/keep196.go` · the stream check skipped for a \\?\ path, so \\?\C:\t\p.mrw:alt must go red · acceptance-sha256:b2b6d6520c8ac80135f1fc2febb5f3a5fbfc00eda91d71bb434a301af64b9fee · covers:a stream is refused, a verbatim path included
+- 2026-11-10 · faaf2678* · mutant killed · exit 1 · `cmd/mrw/keep196.go` · the device check removed, so CON must go red (after the #630 review) · acceptance-sha256:b2b6d6520c8ac80135f1fc2febb5f3a5fbfc00eda91d71bb434a301af64b9fee · covers:a device name is refused on Windows only
+- 2026-11-10 · faaf2678* · mutant killed · exit 1 · `cmd/mrw/keep196.go` · the stream check skipped for a \\?\ path (after the #630 review) · acceptance-sha256:b2b6d6520c8ac80135f1fc2febb5f3a5fbfc00eda91d71bb434a301af64b9fee · covers:a stream is refused, a verbatim path included
 
 ## Verification Log
 - 2026-11-10 · 3da3f32b* · exit 1 · `set -o pipefail …` · acceptance-sha256:b2b6d6520c8ac80135f1fc2febb5f3a5fbfc00eda91d71bb434a301af64b9fee · ms:2468 · test-lock-sha256:821ee80700bb28428d41d98b07203a8537ab8102f943b3c30ddda6772f9dd094 · test-lock-file:docs/adr/locks/821ee80700bb28428d41d98b07203a8537ab8102f943b3c30ddda6772f9dd094.lock
@@ -70,6 +72,10 @@ out=$(go test ./cmd/mrw/ -count=1 -v -run '^(TestAPlanOrListNamingADeviceOrAStre
 - 2026-11-10 · 3da3f32b* · exit 0 · `set -o pipefail …` · acceptance-sha256:b2b6d6520c8ac80135f1fc2febb5f3a5fbfc00eda91d71bb434a301af64b9fee · ms:3718
 - 2026-11-10 · 3da3f32b* · exit 0 · `set -o pipefail …` · acceptance-sha256:b2b6d6520c8ac80135f1fc2febb5f3a5fbfc00eda91d71bb434a301af64b9fee · ms:3054
 - 2026-11-10 · 3da3f32b* · exit 0 · `set -o pipefail …` · acceptance-sha256:b2b6d6520c8ac80135f1fc2febb5f3a5fbfc00eda91d71bb434a301af64b9fee · ms:2026
+- 2026-11-10 · faaf2678* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:b2b6d6520c8ac80135f1fc2febb5f3a5fbfc00eda91d71bb434a301af64b9fee · ms:0 · test-lock-sha256:8eaf00397bbe957294e69fce9296118785b2dda158312f6452f419d97f4dc148 · test-lock-file:docs/adr/locks/8eaf00397bbe957294e69fce9296118785b2dda158312f6452f419d97f4dc148.lock · test-lock-kind:replace
+- 2026-11-10 · faaf2678* · exit 0 · `set -o pipefail …` · acceptance-sha256:b2b6d6520c8ac80135f1fc2febb5f3a5fbfc00eda91d71bb434a301af64b9fee · ms:1585
+- 2026-11-10 · faaf2678* · exit 0 · `set -o pipefail …` · acceptance-sha256:b2b6d6520c8ac80135f1fc2febb5f3a5fbfc00eda91d71bb434a301af64b9fee · ms:1995
+- 2026-11-10 · faaf2678* · exit 0 · `set -o pipefail …` · acceptance-sha256:b2b6d6520c8ac80135f1fc2febb5f3a5fbfc00eda91d71bb434a301af64b9fee · ms:2056
 
 ## Invariants
 

@@ -394,7 +394,7 @@ the UNREADABLE line too, but by then you have spent a call.
 never `x`; an attached flag value (`--files-from='list '`) is that value with its whitespace. urfave/cli
 v3.11.0 trimmed both, and mrw refused them (ADR-069); since v3.12.0 the parser hands them over byte for
 byte, and mrw requires v3.14.0 (ADR-196). A stray space is therefore a name that is not there, reported
-UNREADABLE with its spelling (on Windows, which cannot keep such a name, REFUSED). `--files-from`, the working set, a rename destination and the foreign
+UNREADABLE with its spelling (on Windows, whose ordinary paths drop a trailing dot or space, REFUSED). `--files-from`, the working set, a rename destination and the foreign
 formats keep the path as written too.
 
 ### 2. One plan, not N writes

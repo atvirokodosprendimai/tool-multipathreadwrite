@@ -30,14 +30,35 @@ func keepsOn(goos, what, path string) error {
 	// A \\?\ path skips Win32's normalization, so a name ending in a dot or a
 	// space, or a device name, is kept as written there and opens that name (the
 	// Codex review of #628). The filesystem, not Win32, reads a colon as a
-	// stream, so that is judged under \\?\ too. A \\.\ path is normalized and is
-	// judged whole; its prefix and a drive after it are not components.
+	// stream, so that is judged under \\?\ too. Only the volume is skipped: a
+	// drive, a UNC server and share (`\\srv\share`, `\\?\UNC\srv\share`), and a
+	// device path's prefix (`\\.\`, `//./`, either separator); a named pipe
+	// (`\\.\pipe\…`) is no file at all and is not judged (the Codex review of
+	// #630).
 	verbatim := strings.HasPrefix(path, `\\?\`)
-	rest := path
-	if verbatim || strings.HasPrefix(path, `\\.\`) {
-		rest = path[4:]
+	sep := func(i int) bool { return i < len(path) && (path[i] == '/' || path[i] == '\\') }
+	comps := strings.FieldsFunc(path, func(r rune) bool { return r == '/' || r == '\\' })
+	drive := true
+	switch {
+	case sep(0) && sep(1) && len(path) > 2 && (path[2] == '.' || path[2] == '?') && (len(path) == 3 || sep(3)):
+		comps = comps[1:]
+		if len(comps) > 0 && strings.EqualFold(comps[0], "pipe") {
+			return nil
+		}
+		if len(comps) > 0 && strings.EqualFold(comps[0], "UNC") {
+			comps, drive = comps[min(3, len(comps)):], false
+		}
+	case sep(0) && sep(1):
+		comps, drive = comps[min(2, len(comps)):], false
 	}
-	for _, c := range strings.FieldsFunc(dropDrive(rest), func(r rune) bool { return r == '/' || r == '\\' }) {
+	if drive && len(comps) > 0 {
+		if d := dropDrive(comps[0]); d == "" {
+			comps = comps[1:]
+		} else {
+			comps[0] = d
+		}
+	}
+	for _, c := range comps {
 		if c == "." || c == ".." {
 			continue
 		}

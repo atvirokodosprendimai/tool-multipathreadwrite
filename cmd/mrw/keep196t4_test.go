@@ -34,6 +34,23 @@ func TestAPlanOrListNamingADeviceOrAStreamIsRefused(t *testing.T) {
 			t.Errorf("%q off Windows is a name, refused: %v", p, err)
 		}
 	}
+	// The Codex review of #630: only the volume is skipped — a slash-form or
+	// mixed device prefix, a UNC server and share — and a named pipe is no file.
+	for _, p := range []string{"//./CON", `\\srv\share\CON`, `\\.\UNC\srv\share\nul`} {
+		if err := keepsOn("windows", "the plan", p); err == nil || !strings.Contains(err.Error(), "device") {
+			t.Errorf("%q on windows: %v, want the device refusal", p, err)
+		}
+	}
+	for _, p := range []string{"//./C:/t/p.mrw:alt", `\\srv\share\p.mrw:alt`, `\\?\UNC\srv\share\p:alt`} {
+		if err := keepsOn("windows", "the plan", p); err == nil || !strings.Contains(err.Error(), "NTFS stream") {
+			t.Errorf("%q on windows: %v, want the stream refusal", p, err)
+		}
+	}
+	for _, p := range []string{"//./C:/t/p.mrw", "//?/C:/t/p.mrw", `\/.\C:\t\p.mrw`, `\\con.example.test\share\p.mrw`, `\\srv\nul\p.mrw`, `\\?\UNC\con\aux\p.mrw`, `\\.\pipe\plan:input`, `\\.\pipe\CON`, `//./PIPE/x`, `\\?\Volume{0d2a}\p.mrw`} {
+		if err := keepsOn("windows", "the plan", p); err != nil {
+			t.Errorf("%q on windows refused: %v", p, err)
+		}
+	}
 	if runtime.GOOS != "windows" {
 		return
 	}
@@ -49,17 +66,17 @@ func TestAPlanOrListNamingADeviceOrAStreamIsRefused(t *testing.T) {
 	}
 	t.Chdir(root)
 	for _, argv := range [][]string{{"write", "NUL"}, {"read", "--files-from", "NUL"}} {
-		if out, code := runIn(t, root, argv...); code == 0 || !strings.Contains(out, "device") {
+		if out, code := runIn(t, root, argv...); code != 2 || !strings.Contains(out, "device") {
 			t.Errorf("%q: exit %d, want the device refusal:\n%s", argv, code, out)
 		}
 	}
-	if out, code := runIn(t, root, "write", "p.mrw:alt"); code == 0 || !strings.Contains(out, "NTFS stream") {
+	if out, code := runIn(t, root, "write", "p.mrw:alt"); code != 2 || !strings.Contains(out, "NTFS stream") {
 		t.Errorf("write p.mrw:alt: exit %d, want the stream refusal:\n%s", code, out)
 	}
 	if _, err := os.Stat(filepath.Join(root, "s.txt")); err == nil {
 		t.Fatal("write p.mrw:alt applied the plan in the stream")
 	}
-	if out, code := runIn(t, root, "read", "--files-from", "list:alt"); code == 0 || strings.Contains(out, "| listed") {
+	if out, code := runIn(t, root, "read", "--files-from", "list:alt"); code != 2 || strings.Contains(out, "| listed") {
 		t.Errorf("read --files-from list:alt: exit %d, read the stream:\n%s", code, out)
 	}
 }
