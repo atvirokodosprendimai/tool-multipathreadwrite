@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"runtime"
+	"strings"
 )
 
 // windowsKeeps refuses, on Windows, a path the caller handed mrw on the command
@@ -19,6 +20,12 @@ func windowsKeeps(what, path string) error { return keepsOn(runtime.GOOS, what, 
 // keepsOn is windowsKeeps for a named GOOS, so the rule is tested on every platform.
 func keepsOn(goos, what, path string) error {
 	if goos != "windows" {
+		return nil
+	}
+	// A \\?\ path skips Win32's normalization, so a name ending in a dot or a
+	// space is kept as written there and opens that name (the Codex review of
+	// #628). A \\.\ device path is normalized, and is judged.
+	if strings.HasPrefix(path, `\\?\`) {
 		return nil
 	}
 	if c := unkeptComponent(dropDrive(path)); c != "" {
