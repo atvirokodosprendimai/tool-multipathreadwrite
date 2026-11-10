@@ -95,9 +95,6 @@ func runAction(ctx context.Context, cmd *cli.Command) error {
 	if err := check.DepthRefusal("mrw run is"); err != nil {
 		return refuse(err)
 	}
-	if err := refusePaddedArgs(cmd); err != nil {
-		return refuse(err)
-	}
 	if cmd.Args().Len() != 1 {
 		return refuse(errors.New("mrw run takes exactly one argument, the command as one string: mrw run 'CMD', for example mrw run 'go test ./...'"))
 	}

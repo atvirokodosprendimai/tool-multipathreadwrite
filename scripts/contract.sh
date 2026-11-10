@@ -6565,17 +6565,19 @@ want 0 $? "and the trailing-CR file that was read is writable"
 [ "$(cat "$R/x"$'\r')" = WROTE ] && ok "and the write to it landed" || bad "x-CR holds: $(cat "$R/x"$'\r')"
 
 
-# 128. ADR-069 T1: urfave/cli trims a positional before `--`, so `read 'x '`
-# served x, a file the caller did not name. It is refused, exit 2, naming the
-# `--` that reaches it; the pair: `read -- 'x '` still serves it.
+# 128. ADR-069 T1, retargeted by ADR-196: urfave/cli v3.11.0 trimmed a
+# positional before `--`, so `read 'x '` served x, and ADR-069 refused it.
+# v3.14.0 hands the path as typed: `read 'x '` serves the file `x `. The pair:
+# with only x on disk, `read 'x '` names `x ` UNREADABLE and never serves x.
 fixture
-printf 'padded\n' > "$R/x "
+printf 'plain\n' > "$R/x"; printf 'padded\n' > "$R/x "
 out=$(m read 'x ' 2>&1); rc=$?
-want 2 "$rc" "a padded positional without -- is refused and names --"
-grep -qF "put -- before the path" <<<"$out" && ok "and the refusal says where -- goes" || bad "refusal: $out"
-out=$(m read -- 'x ' 2>&1); rc=$?
-want 0 "$rc" "and read -- 'x ' is served"
-grep -q 'padded' <<<"$out" && ok "and it serves the file named" || bad "served: $out"
+want 0 "$rc" "a padded path reaches the file named as typed"
+grep -q 'padded' <<<"$out" && ! grep -q 'plain' <<<"$out" && ok "and it serves that file, not its trimmed sibling" || bad "served: $out"
+rm "$R/x "
+out=$(m read 'x ' 2>&1); rc=$?
+want 1 "$rc" "with only x on disk, read 'x ' is incomplete"
+grep -q 'plain' <<<"$out" && bad "read 'x ' served x: $out" || ok "and with only its trimmed sibling on disk it is never served"
 
 # 129. ADR-069 T2: a --files-from line was TrimSpaced, so a list naming "x "
 # served x. The pair: the list's comment and blank line are still skipped.
@@ -6633,132 +6635,99 @@ m write --no-check "$WORK/133b.mrw" >/dev/null 2>&1
 want 0 $? "and a counted body writes a body= line as content"
 [ "$(cat "$R/meta.yaml")" = 'body=1' ] && ok "and the file holds it" || bad "meta.yaml: $(cat "$R/meta.yaml")"
 
-# 134. ADR-069 T5 (the Codex review of v1.25.0): a "--" consumed as a flag
-# value ended the padded-path guard, and urfave trims an attached flag value
-# with its token, so `read --grep -- 'x '` and `--files-from='list '` still
-# reached the trimmed name. Both are refused, exit 2, and so is a padded
-# attached root flag. The pair: the separate spelling serves the path.
+# 134. ADR-069 T5, retargeted by ADR-196: urfave/cli v3.11.0 trimmed an
+# attached flag value with its token, so `--files-from='list '` opened list,
+# and ADR-069 refused it. v3.14.0 keeps the value as typed. The pair: the
+# trimmed list is never the one read.
 fixture
+printf 'x \n' > "$WORK/134 list "; printf 'b.go\n' > "$WORK/134 list"
 printf 'padded\n' > "$R/x "
-m read --grep -- 'x ' >"$WORK/served.out" 2>&1
-want 2 $? "a -- consumed as a flag value does not end the guard"
-printf 'x \n' > "$WORK/134 list "
-m read --files-from="$WORK/134 list " >"$WORK/served.out" 2>&1
-want 2 $? "an attached flag value ending in a space is refused"
-"$MRW" --root="$R " read -- 'x ' >"$WORK/served.out" 2>&1
-want 2 $? "and so is a padded attached root flag"
-out=$(m read --files-from "$WORK/134 list " 2>&1); rc=$?
-want 0 "$rc" "and the separate spelling is served"
-grep -q 'padded' <<<"$out" && ok "and it serves the padded path" || bad "served: $out"
+out=$(m read --files-from="$WORK/134 list " 2>&1); rc=$?
+want 0 "$rc" "an attached flag value ending in a space is that value"
+grep -q 'padded' <<<"$out" && ! grep -q 'func D' <<<"$out" && ok "and the list named with the space is the one read" || bad "served: $out"
+rm -f "$R/x "; printf 'has -- in it\n' > "$R/x"
+out=$(m read --grep -- x 2>&1); rc=$?
+want 0 "$rc" "a -- consumed as --grep's value is the pattern, and it matches x"
+out=$(m read --grep -- 'x ' 2>&1); rc=$?
+want 1 "$rc" "and the padded path after it is read as typed, so with only x on disk it is incomplete"
+grep -q 'has -- in it' <<<"$out" && bad "read --grep -- 'x ' served x: $out" || ok "and x, which holds the pattern, is never served for it"
 
-# 135. ADR-069 T6 (the Codex review of PR #222): the guard looked a flag name
-# up as typed, so a padded boolean name ('--no-numbers ') read as value-taking
-# and hid the padded path after it; the whole-argv check read a separate value
-# as a flag and stopped at a "--" a root flag had consumed; and an attached
-# value was checked for space and tab while the parser trims every whitespace.
-# Each is paired with the spelling the parser keeps.
+# 135. ADR-069 T6, retargeted by ADR-196: a padded boolean flag name is still
+# that flag (the parser trims a token to classify it), and the padded path
+# after it is read as typed; an attached value ending in a newline is that
+# value. The pair: the trimmed sibling is never served.
 fixture
 printf 'plain\n' > "$R/x"; printf 'padded\n' > "$R/x "
-m read '--no-numbers ' 'x ' >"$WORK/served.out" 2>&1
-want 2 $? "a padded boolean flag name does not hide a padded path"
-out=$(m read --no-numbers x 2>&1); rc=$?
-want 0 "$rc" "and the trimmed spelling serves x"
-printf 'x \n' > "$R/--list= "
-out=$(cd "$R" && "$MRW" -C "$R" read --files-from '--list= ' 2>&1); rc=$?
-want 0 "$rc" "a separate value that looks like an attached flag is served"
-grep -q 'padded' <<<"$out" && ok "and it reaches the padded path" || bad "served: $out"
-"$MRW" --root -- --root="$R " read x >"$WORK/served.out" 2>&1
-want 2 $? "a -- consumed by a root flag does not end the whole-argv guard"
+out=$(m read '--no-numbers ' 'x ' 2>&1); rc=$?
+want 0 "$rc" "a padded boolean flag name is the flag"
+grep -qx 'padded' <<<"$out" && ! grep -q 'plain' <<<"$out" && ok "and the padded path after it is served as typed, unnumbered" || bad "served: $out"
 printf 'x \n' > "$WORK/135 list"$'\n'
 out=$(m read --files-from="$WORK/135 list"$'\n' 2>&1); rc=$?
-want 2 "$rc" "an attached value ending in a newline is refused"
-grep -q 'own argument' <<<"$out" && ok "and the newline refusal names the separate spelling" || bad "refusal: $out"
-out=$(m read --files-from "$WORK/135 list"$'\n' 2>&1); rc=$?
-want 0 "$rc" "and the separate spelling serves the newline-named list"
+want 0 "$rc" "an attached value ending in a newline is that value"
+grep -q 'padded' <<<"$out" && ok "and the newline-named list is the one read" || bad "served: $out"
 
-# 136. ADR-069 T7 (the Codex review of PR #222, second round): a parent's
-# persistent flag is accepted by a subcommand that has no flag of the same
-# name (--root after write or iter; not after read, whose -C is context), and
-# neither guard knew it; and a single dash before a non-letter stops the
-# parser, which keeps the rest as given, while the guard read it as a flag.
+# 136. ADR-069 T7, retargeted by ADR-196: an inherited --root after the verb
+# takes its value as typed, so `write --root='DIR '` works in `DIR `, never in
+# DIR; and a single dash before a non-letter stops the parser, which keeps the
+# rest as given.
 fixture
-printf 'padded\n' > "$R/x "
-mkdir "$R/d "; printf 'in d\n' > "$R/d /x"; printf '@@ x 1 replace\nnew\n' > "$WORK/136.mrw"
-out=$(m write --no-check --root -- --root="$R " "$WORK/136.mrw" 2>&1); rc=$?
-want 2 "$rc" "an inherited root flag after the verb is read by the whole-argv guard"
-grep -q 'own argument' <<<"$out" && ok "and its refusal names the separate spelling" || bad "refusal: $out"
-"$MRW" -C "$R/d " read x >"$WORK/served.out"
-"$MRW" --root -- --root "$R/d " write --no-check --dry-run "$WORK/136.mrw" >/dev/null 2>&1
-want 0 $? "and a -- the root flag consumed, then a separate padded root, is accepted"
-mkdir "$R/ x"; printf 'q\n' > "$R/ x/x"
-(cd "$R" && "$MRW" -C "$R" iter --root ' x' add x) >/dev/null 2>&1
-want 0 $? "an inherited root value equal to a positional after its trim is not refused"
-(cd "$R" && "$MRW" -C "$R" iter --root ' x' add 'x ') >/dev/null 2>&1
-want 2 $? "and a padded positional after it still is"
+mkdir "$R/d" "$R/d "; printf 'in d\n' > "$R/d/x"; printf 'in d space\n' > "$R/d /x"
+"$MRW" -C "$R/d " read x > "$WORK/136.read" 2>&1
+printf '@@ x 1 replace\nnew\n' > "$WORK/136.mrw"
+m write --no-check --root="$R/d " "$WORK/136.mrw" >/dev/null 2>&1
+want 0 $? "an inherited --root with a trailing space is that directory"
+[ "$(cat "$R/d /x")" = new ] && [ "$(cat "$R/d/x")" = 'in d' ] && ok "and the write landed there, not in its trimmed sibling" || bad "d /x: $(cat "$R/d /x"), d/x: $(cat "$R/d/x")"
 printf 'dashfile\n' > "$R/ -1= "
 out=$(cd "$R" && "$MRW" -C "$R" read ' -1= ' 2>&1); rc=$?
-want 0 "$rc" "a single dash before a non-letter stops the parser and the guard"
+want 0 "$rc" "a single dash before a non-letter stops the parser"
 grep -q 'dashfile' <<<"$out" && ok "and the path is served as given" || bad "served: $out"
 
-# 137. ADR-069 T8 (the Codex review of PR #222, third round): a "--" before
-# the subcommand ends the ROOT's options only — the parser still dispatches
-# the subcommand, which parses its own flags — and both guards went quiet
-# there, so `-- iter note --root='dir '` and `-- stats --root='dir '` reached
-# the trimmed root. And a lone "-" ends the parse (the parser keeps it and
-# drops the rest) while the guard read on and refused what the parser never
-# saw. Since ADR-161 a lone - moves last before parsing, so what follows it is
-# parsed and judged: the drop had turned `write - --dry-run` into a write. Each
-# is paired with the shape the parser keeps.
+# 137. ADR-069 T8 and ADR-161, retargeted by ADR-196: urfave/cli v3.11.0 ended
+# the parse at a lone - and dropped what followed, so `write - --dry-run`
+# wrote; ADR-161 moved the - last. v3.14.0 keeps a lone - and parses on, so
+# the flags after it are honoured with no lift, and `write - --` is the piped
+# plan. The pair: a path after - is still refused, writing nothing.
 fixture
-mkdir "$R/d "; printf 'in d\n' > "$R/d /x"
-out=$("$MRW" -C "$R" -- iter note --root="$R/d " revised 2>&1); rc=$?
-want 2 "$rc" "a -- before the subcommand does not end the guard for its flags"
-grep -q 'own argument' <<<"$out" && ok "and that refusal names the separate spelling" || bad "refusal: $out"
-"$MRW" -C "$R" -- iter note --root "$R/d " revised >/dev/null 2>&1
-want 0 $? "and the separate spelling is accepted after the --"
-"$MRW" -C "$R" -- stats --root="$R/d " >/dev/null 2>&1
-want 2 $? "a subcommand with no guard of its own is covered by the whole-argv guard"
-"$MRW" -C "$R" -- stats --root "$R/d " >/dev/null 2>&1
-want 0 $? "and its separate spelling is accepted"
-out=$(printf '@@ a.go 1 replace\npackage demo\n' | m write --no-check --dry-run - '--format=plan ' 2>&1); rc=$?
-want 2 "$rc" "a lone - no longer ends the parse: a padded token after it is judged (ADR-161)"
-grep -q 'own argument' <<<"$out" && ok "and refused as padded, as it is before the -" || bad "token after a lone -: $out"
-printf '@@ a.go 1 replace\npackage demo\n' | m write --no-check --dry-run '--format=plan ' - >/dev/null 2>&1
-want 2 "${PIPESTATUS[1]}" "and the same token before the - is refused"
+printf '@@ c137.txt 0 create\nmade\n' | m write --no-check - --dry-run >/dev/null 2>&1
+want 0 "${PIPESTATUS[1]}" "a lone - honours the flags after it"
+[ -e "$R/c137.txt" ] && bad "write - --dry-run wrote c137.txt" || ok "and the dry run wrote nothing"
+printf '@@ c137.txt 0 create\nmade\n' | m write --no-check - -- >/dev/null 2>&1
+want 0 "${PIPESTATUS[1]}" "write - -- applies the piped plan"
+[ "$(cat "$R/c137.txt" 2>/dev/null)" = made ] && ok "and the planned file is made" || bad "c137.txt: $(cat "$R/c137.txt" 2>&1)"
+printf '@@ c137b.txt 0 create\nmade\n' | m write --no-check - a.go >/dev/null 2>&1
+want 2 "${PIPESTATUS[1]}" "a path after a lone - is refused"
+[ -e "$R/c137b.txt" ] && bad "write - a.go wrote c137b.txt" || ok "and it writes nothing"
 
-# 138. ADR-069 T9 (the Codex review of PR #222, fourth round): the parser
-# trims a lone "-" and KEEPS it as the positional that ends its parse, so
-# `write ' - '` read stdin once T8 stopped the guard there. The token is
-# judged first; after a "--" it is kept as given, and a bare "-" is stdin.
+# 138. ADR-069 T9, retargeted by ADR-196: v3.11.0 trimmed a padded lone - to
+# -, so `write ' - '` read stdin. v3.14.0 keeps it as typed: ' - ' is a plan
+# FILE of that name. The pair: a bare - is stdin.
 fixture
-out=$(printf '@@ a.go 1 replace\npackage demo\n' | m write --no-check --dry-run ' - ' 2>&1); rc=$?
-want 2 "$rc" "a padded lone - is refused before the guard stops"
-grep -q 'edge whitespace' <<<"$out" && ok "and the refusal names the --" || bad "refusal: $out"
-printf '@@ a.go 1 replace\npackage demo\n' | m write --no-check --dry-run -- - >/dev/null 2>&1
-want 0 "${PIPESTATUS[1]}" "and a bare - after -- is stdin"
+printf '@@ c138.txt 0 create\nfromfile\n' > "$R/ - "
+printf '@@ c138.txt 0 create\nfromstdin\n' > "$WORK/138.stdin"
+(cd "$R" && "$MRW" -C "$R" write --no-check ' - ' < "$WORK/138.stdin") >/dev/null 2>&1
+want 0 $? "a padded - names the plan file ' - '"
+[ "$(cat "$R/c138.txt" 2>/dev/null)" = fromfile ] && ok "and the plan came from that file, not standard input" || bad "c138.txt: $(cat "$R/c138.txt" 2>&1)"
+rm -f "$R/c138.txt"
+printf '@@ c138.txt 0 create\nfromstdin\n' | m write --no-check - >/dev/null 2>&1
+want 0 "${PIPESTATUS[1]}" "and a bare - is standard input"
 
-# 139. ADR-069 T10 (the Codex review of PR #222, fifth round): a single dash
-# before a non-letter stops the parser, which keeps that token and the rest
-# as given; T9 judged it before stopping, so a padded name beside its trimmed
-# twin was refused. Only the lone "-", which the parser trims and keeps, is
-# judged before the stop.
+# 139. ADR-069 T10, retargeted by ADR-196: a single dash before a non-letter
+# stops the parser, which keeps that token and the rest as given, so a padded
+# name beside its trimmed twin serves both.
 fixture
 printf 'padded\n' > "$R/ -1= "; printf 'plain\n' > "$R/-1="
 out=$(cd "$R" && "$MRW" -C "$R" read ' -1= ' '-1=' 2>&1); rc=$?
 want 0 "$rc" "a preserved stop token is not judged against a sibling"
 grep -q 'padded' <<<"$out" && grep -q 'plain' <<<"$out" && ok "and both names are served as given" || bad "served: $out"
-m read ' - ' a.go >"$WORK/served.out" 2>&1
-want 2 $? "and the padded lone - is still refused"
 
-# 140. ADR-069 T12: `mrw instructions` teaches the padded-path rule. A caller
-# with only the binary learned it at the refusal (the v1.25.1 field test of
-# the downloaded Windows asset found the gap). The pair: the same text must
-# not teach the trim as the rule.
+# 140. ADR-069 T12, retargeted by ADR-196 T2: `mrw instructions` taught that a
+# padded path goes after --, because the parser trimmed it. Since ADR-196 the
+# parser hands it over as typed, and the text says so. The pair: it no longer
+# teaches the -- escape or the separate spelling of an attached value.
 out=$("$MRW" instructions 2>&1); rc=$?
 want 0 "$rc" "mrw instructions exits 0"
-grep -q "goes after --" <<<"$out" && grep -q "mrw read -- 'x '" <<<"$out" && ok "instructions teach that a padded path goes after --" || bad "instructions: no -- rule"
-grep -q "as its own argument" <<<"$out" && ok "and that an attached padded value is passed separately" || bad "instructions: no attached-value rule"
-grep -q "would reach x, so mrw reads x" <<<"$out" && bad "instructions teach the trim as the rule" || ok "and they do not teach the trim as the rule"
+grep -q "reaches mrw as typed" <<<"$out" && ok "mrw instructions say a path reaches mrw as typed" || bad "instructions: no as-typed rule"
+grep -q "goes after --" <<<"$out" || grep -q "as its own argument" <<<"$out" && bad "instructions still teach the -- escape" || ok "and they do not teach the -- escape for a padded path"
 # 141. ADR-071 T2: two creates that could be one file are refused before
 # anything is written. The v1.25.1 round created n.txt and N.TXT in one plan
 # on APFS and NTFS: both said "created", one file remained and the first body
@@ -7259,14 +7228,12 @@ want 2 "$rc" "-C on a noted working set is refused"
 [ -z "$out" ] && ok "with nothing on stdout, the note included" || bad "-C on a noted set wrote: $out"
 out=$(m read 2>/dev/null); want 0 $? "the noted working set still reads"
 grep -q '^# iteration: probe note$' <<<"$out" && ok "and prints its note" || bad "note missing: $out"
-# A padded name holding an apostrophe: the offered fix is quoted for a POSIX
-# shell, and running it serves the file (the review of #239 found the cmd.exe
-# form rewriting it; the POSIX form had the same flaw).
+# A padded name holding an apostrophe: ADR-069 refused it and offered a quoted
+# fix (the review of #239). Since ADR-196 the parser hands it over as typed, so
+# the name, apostrophe and leading space included, is the file served.
 printf 'apostrophe\n' > "$R/ O'Brien"
-out=$(m read " O'Brien" 2>&1); want 2 $? "a padded name holding an apostrophe is refused"
-fix=${out##*put -- before the path: mrw }
-out=$(eval "m $fix" 2>&1); want 0 $? "and the fix it offers, run by a POSIX shell, serves the file"
-grep -q '| apostrophe' <<<"$out" && ok "the file it names" || bad "the offered fix read something else: $out"
+out=$(m read " O'Brien" 2>&1); want 0 $? "a padded name holding an apostrophe is read as typed"
+grep -q '| apostrophe' <<<"$out" && ok "the file it names" || bad "read something else: $out"
 
 # 160. ADR-079: the working set and the tally survive racing processes. Each
 # was rewritten by truncate-and-write with no lock, so racing processes lost an
@@ -7509,8 +7476,8 @@ python3 -c 'import json,sys; r=json.load(open(sys.argv[1])); assert r["ran"] and
   && ok "and keeps the flat check fields beside then" || bad "check --json: $(head -c 300 "$WORK/j173c")"
 m write --then-sh 'printf "%s" "a,b" > comma173' "$R/p173.mrw" > /dev/null 2>&1; want 0 $? "a --then-sh holding quotes and a comma, through a real shell"
 [ "$(cat "$R/comma173" 2>/dev/null)" = "a,b" ] && ok "is one step that wrote a,b" || bad "comma173 holds '$(cat "$R/comma173" 2>/dev/null)'"
-m write --then-sh='echo x ' "$R/p173.mrw" > "$WORK/o173p" 2>&1; want 2 $? "an attached --then-sh value ending in whitespace is refused by the binary"
-grep -q "\-\-then-sh 'echo x '" "$WORK/o173p" && ok "and names the separate form" || bad "the padded refusal: $(head -c 300 "$WORK/o173p")"
+m write --then-sh='echo x ' "$R/p173.mrw" > "$WORK/o173p" 2>&1; want 0 $? "an attached --then-sh value ending in whitespace runs as typed (ADR-196)"
+grep -q 'echo x  — PASS' "$WORK/o173p" && ok "and its step passes" || bad "the padded step: $(head -c 300 "$WORK/o173p")"
 printf '@@ a.go 3 replace\nfunc A() int { return 5 }\n' > "$R/p173bad.mrw"
 m write --check --then-sh 'touch m173-afterfail' "$R/p173bad.mrw" > "$WORK/o173f" 2>&1; want 3 $? "a real go test that fails: exit 3"
 { [ ! -e "$R/m173-afterfail" ] && grep -q 'NOT RUN' "$WORK/o173f"; } && ok "and the step after it never ran, named NOT RUN" || bad "after a failed check: $(head -c 400 "$WORK/o173f")"
@@ -7877,7 +7844,7 @@ grep -qxF 'mrw: flag provided but not defined: --stats (see: mrw check --help)' 
 grep -qxF 'mrw: flag provided but not defined: -z (see: mrw --help)' "$WORK/e188e" \
   && ok "and keeps its one dash: -z is spelled that way" || bad "-z: $(head -c 300 "$WORK/e188e")"
 "$MRW" '--instructions= ' > /dev/null 2> "$WORK/e188d"; want 2 $? "a padded attached value exits 2"
-grep -q 'ends in whitespace' "$WORK/e188d" && ok "and is refused by ADR-069's guard before the parser" || bad "padded: $(head -c 300 "$WORK/e188d")"
+grep -q 'the subcommand is `mrw instructions`' "$WORK/e188d" && ok "and, reaching the parser as typed (ADR-196), names the subcommand" || bad "padded: $(head -c 300 "$WORK/e188d")"
 "$MRW" instructions > "$WORK/o188e" 2> /dev/null; want 0 $? "mrw instructions exits 0"
 [ -s "$WORK/o188e" ] && ok "and prints the contract: the named command is the one that works" || bad "mrw instructions printed nothing"
 
@@ -8021,7 +7988,7 @@ for a in ../outside nosuchdir '--full a.go'; do
   [ -z "$out" ] && ok "and prints nothing on stdout" || bad "check $a wrote stdout: $out"
 done
 [ ! -e "$R/marker193" ] && ok "and no refusal ran the check" || bad "a refusal ran the check"
-out=$("$MRW" -C "$R" check --json --then-sh='true ' 2>/dev/null); want 2 $? "the boundary: a padded attached flag value is refused in main, exit 2"
+out=$("$MRW" -C "$R" check --json --nosuchflag193 2>/dev/null); want 2 $? "the boundary: a flag the parser rejects is refused before the Action, exit 2"
 [ -z "$out" ] && ok "and, refused before any flag is parsed, prints nothing on stdout" || bad "pre-parse refusal wrote stdout: $out"
 
 # 194. ADR-100: at MRW_STEP_DEPTH 8 every form of mrw check that reaches the
@@ -9815,14 +9782,14 @@ out=$(cd "$R" && printf '@@ a.txt 1 replace\nuno\n' | XDG_STATE_HOME="$WORK/s272
   && ok "and names mrw's state directory and the variable that moves it" || bad "an unmakeable state directory: $out"
 out=$(cd "$R" && XDG_STATE_HOME="$WORK/s272ok" "$MRW" read a.txt 2>&1); want 0 $? "the pair: the same read with a writable XDG_STATE_HOME exits 0"
 
-# 277. ADR-164 T5: -v gets a pointer — `--grep -v P f` (no match) and
-# `--grep -v ' P' f` (refused for the padded value before any read) both say
-# there is no inverted match. The pair: `--grep -i` keeps ADR-140's pointer.
+# 277. ADR-164 T5: -v gets a pointer — `--grep -v P f` and `--grep -v ' P' f`
+# (no match; since ADR-196 the padded path is read as typed, not refused) both
+# say there is no inverted match. The pair: `--grep -i` keeps ADR-140's pointer.
 R=$(mktemp -d "$WORK/r277-XXXXXX"); printf 'needle\n' > "$R/f.txt"
 out=$(cd "$R" && "$MRW" read --grep -v a f.txt 2>&1); want 1 $? "--grep -v a f.txt exits 1"
 grep -q 'there is no inverted match: --grep serves the lines that match' <<<"$out" && ok "and says there is no inverted match" || bad "--grep -v: $out"
-out=$(cd "$R" && "$MRW" read --grep -v ' a' f.txt 2>&1); want 2 $? "--grep -v ' a' is refused for the padded value, exit 2"
-{ grep -q 'has edge whitespace' <<<"$out" && grep -q 'there is no inverted match' <<<"$out"; } && ok "and names the inverted match there too" || bad "--grep -v padded: $out"
+out=$(cd "$R" && "$MRW" read --grep -v ' a' f.txt 2>&1); want 1 $? "--grep -v ' a' f.txt exits 1, the padded path read as typed"
+grep -q 'there is no inverted match' <<<"$out" && ok "and names the inverted match there too" || bad "--grep -v padded: $out"
 out=$(cd "$R" && "$MRW" read --grep -i a f.txt 2>&1); want 1 $? "the pair: --grep -i a f.txt exits 1"
 grep -q "start the pattern with (?i)" <<<"$out" && ok "with ADR-140's pointer" || bad "--grep -i: $out"
 

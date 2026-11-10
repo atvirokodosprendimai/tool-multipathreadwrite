@@ -11,9 +11,9 @@ description: >-
   heredocs. It applies only while mrw is on PATH: if it is not, use the host's
   own tools and do not install it.
 metadata:
-  mrw-version: "v1.85.0 (84f5be6)"
+  mrw-version: "dev (f3aabb9, dirty)"
   generated-by: "mrw skill"
-  content-sha256: "84c33f5388a9fd9390a5f16a9fbd849a5cbe253f3c17d1d91098f1d55d408bf2"
+  content-sha256: "edb0a7541b91d8de94453f44fad169b645872845cca9b7f7372830c313367018"
 ---
 
 # mrw
@@ -26,7 +26,7 @@ The eight rules that matter most; read them once a session, and after a compacti
 5. For a write: exit 0 fine, 1 a hunk failed and nothing was written, 2 usage or filesystem, 3 applied but the check did not pass. A read exits 1 when a range cannot be served; a range your own --max-lines or --max-matches withheld is not one: exits 0 (capped). Never read an exit code through a pipe: head's status replaces it.
 6. Find with mrw read --grep PATTERN; start it with (?i) to ignore case; --stat lists the matching files; --max-cols N cuts long lines, leaving them unread; --no-numbers drops numbers.
 7. A new file is mrw write --create PATH < content, or @@ path 0 create in a plan.
-8. -C DIR or --root DIR comes BEFORE the subcommand; after read, -C N is context lines. A path with a leading or trailing space goes after --.
+8. -C DIR or --root DIR comes BEFORE the subcommand; after read, -C N is context lines. A path reaches mrw as typed, spaces included.
 
 Recipes:
 1. the same change at many sites, nothing in your context:
@@ -70,6 +70,6 @@ Recipes:
 20. answer by reference what you were already served, with --if-served PATH=SHA — only in a session alone in its checkout, whose host runs mrw seen --forget on start, resume, clear and compaction, and whose reads were made under --max-chars below the host's output limit, since a line recorded as shown may never have reached you (anywhere else, recipe 11):
   mrw read --if-served f.go=8dc37337 f.go:40-60
 
-`mrw instructions` prints the whole contract. This file was printed by `mrw skill` from mrw v1.85.0 (84f5be6); when `mrw version` prints another version, `mrw skill --dir <the directory holding this mrw folder>` replaces it.
+`mrw instructions` prints the whole contract. This file was printed by `mrw skill` from mrw dev (f3aabb9, dirty); when `mrw version` prints another version, `mrw skill --dir <the directory holding this mrw folder>` replaces it.
 
 A host's per-path rules for its Edit and Write tools do not reach mrw, which writes wherever its user can: their absence is not permission, and mrw is not a way to reach a path the host refused you.
