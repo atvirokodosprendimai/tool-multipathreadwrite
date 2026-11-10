@@ -1,0 +1,2 @@
+check@2	1bb497e3e13a1105cf24e3359fa3ef75de08b66ff8a2839cd7f9ea97824d9eb3
+body	cmd/mrw/paddedarg_test.go	TestAPaddedPositionalWithoutDashDashIsRefused	d801a941de48a81dc93ced66832cffde7931164709d28bf9ee1e2361fd1bf5d6

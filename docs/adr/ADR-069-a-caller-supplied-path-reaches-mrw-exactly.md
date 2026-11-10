@@ -7,9 +7,10 @@
 **Spec:** None — no spec stage
 **Cross-references:** ADR-002, ADR-051, ADR-057, ADR-068, docs/adr/BACKLOG.md
 **Governs:** `cmd/mrw/main.go`, `internal/iter/iter.go`, `internal/apply/apply.go`, `internal/apply/pathop.go`, `internal/ingest/applypatch.go`, `internal/ingest/searchreplace.go`, `scripts/contract.sh`
-**Enforced-by:** `cmd/mrw/paddedarg_test.go::TestAPaddedPositionalWithoutDashDashIsRefused`
+**Enforced-by:** `cmd/mrw/parser196_test.go::TestTheParserHandsMrwOnlyWhatWasTyped` (since ADR-196; the test first named here, `TestAPaddedPositionalWithoutDashDashIsRefused`, pinned the refusal ADR-196 retired)
 **Invalidates:** none — checked
 **Served-path change:** A path with a trailing space now reaches mrw as typed on every surface that takes one: `--files-from` lines, the working set (`mrw iter`), a rename destination, and the paths in `--format=apply_patch` and `--format=search_replace`. Today each of these silently retargets `x ` to `x`. A padded positional given WITHOUT `--` (`mrw read 'x '`) is now refused, exit 2, and the refusal names `--`. Today it silently reads `x`. `mrw read -- 'x '` is unchanged.
+**Superseded in part:** by ADR-196 (2026-11-10): Decision items 1 and 5–12 — the CLI's refusal of a positional or attached flag value the parser trimmed, the whole-argv walk, the random differential test against the guard, and the `--` rule in `mrw instructions`. urfave/cli v3.12.0 and later hand every positional and attached value over as typed, so the guards went with v3.14.0. Items 2–4 stand. The Decision text below is left as it was when written.
 
 ## Context
 

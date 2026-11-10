@@ -97,7 +97,7 @@ func readFlagPatternRefusal(flags []cli.Flag, pattern string) string {
 	for _, f := range flags {
 		if slices.Contains(f.Names(), name) && long == (len(name) > 1) {
 			// Double quotes: cmd.exe keeps single quotes as characters, and every
-			// supported shell takes this form (ADR-078's cmdExeForm trap).
+			// supported shell takes this form (the trap ADR-078 met).
 			return fmt.Sprintf("--grep took %q as its pattern; put the pattern right after --grep: mrw read --grep PATTERN %s … (to search for the literal, write --grep=\"(?:%s)\")", pattern, pattern, pattern)
 		}
 	}

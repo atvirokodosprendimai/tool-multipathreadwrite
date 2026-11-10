@@ -390,14 +390,12 @@ the wrong half of the fix. Use `--grep` to walk and serve in one call, or
 `--files-from` to pipe a list in and add the suffix per line. mrw says this in
 the UNREADABLE line too, but by then you have spent a call.
 
-⚠ **A path with a leading or trailing space goes after `--`.** The argument parser trims every
-positional before `--`, so `mrw read 'x '` would reach `x`; mrw refuses it instead, exit 2, and the
-refusal names the fix: `mrw read -- 'x '` (ADR-069). `--files-from`, the working set, a rename
-destination and the foreign formats keep the path as written. An ATTACHED flag value that ends in
-whitespace (`--files-from='list '`) is refused too, since v1.25.1: the parser trims the whole token,
-so pass the value as its own argument — `--files-from 'list '` — which it keeps as given.
-In cmd.exe, which keeps single quotes as characters, each refusal also names the double-quoted form
-(`mrw read -- " x"`); PowerShell and Git Bash take the form printed first (ADR-078).
+⚠ **A path reaches mrw as typed, spaces included.** `mrw read 'x '` reads the file named `x ` and
+never `x`; an attached flag value (`--files-from='list '`) is that value with its whitespace. urfave/cli
+v3.11.0 trimmed both, and mrw refused them (ADR-069); since v3.12.0 the parser hands them over byte for
+byte, and mrw requires v3.14.0 (ADR-196). A stray space is therefore a name that is not there, reported
+UNREADABLE with its spelling. `--files-from`, the working set, a rename destination and the foreign
+formats keep the path as written too.
 
 ### 2. One plan, not N writes
 
@@ -736,9 +734,9 @@ and #73, one release apart.
   neither, it reports that it could not start and names what to install (ADR-082). It takes `--then`
   and `--then-sh` too: the steps run after a passing check (ADR-092). Under `--json` every refusal it
   makes once its flags are parsed is one document, `{"error": …}`, with no `exit_code`, and at
-  `MRW_STEP_DEPTH` 8 the depth refusal answers before any of those; a flag the parser rejects, or an
-  attached flag value with edge whitespace (`--then-sh='x '`), is refused earlier, plain, with nothing on
-  stdout. When no check could run the receipt says `"ran": false` and `"exit_code": -1`, the value
+  `MRW_STEP_DEPTH` 8 the depth refusal answers before any of those; a flag the parser rejects is
+  refused earlier, plain, with nothing on stdout. When no check could run the receipt says
+  `"ran": false` and `"exit_code": -1`, the value
   every check or step with no exit status carries, never 0 (ADR-100, ADR-101).
 - **`mrw stats`** prints what became of the plans this checkout has been given
   — every name at zero: applied, refused because the document did not PARSE,

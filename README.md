@@ -410,8 +410,8 @@ These are gates, not a tour of the records behind them.
   pre-registered default question (BACKLOG) is decided on.
 - **Check miss refuses.** An in-root `mrw check` miss is exit 2 and names the
   path — not a silent whole-project PASS. Under `--json` every refusal `mrw check` makes once its flags
-  are parsed is one document, `{"error": …}`, with no `exit_code`; a flag the parser rejects, or an
-  attached flag value with edge whitespace, is refused before that and prints nothing on stdout. When no
+  are parsed is one document, `{"error": …}`, with no `exit_code`; a flag the parser rejects is
+  refused before that and prints nothing on stdout. When no
   check could run the receipt says `"ran": false` and `"exit_code": -1`, the value every check or step
   with no exit status carries, never 0 (ADR-100, ADR-101).
 - **The process is the verdict.** A check that prints `PASS` and exits 1 is a
