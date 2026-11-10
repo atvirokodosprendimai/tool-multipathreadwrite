@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"runtime"
+	"slices"
 	"strings"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
@@ -39,17 +40,27 @@ func keepsOn(goos, what, path string) error {
 	sep := func(i int) bool { return i < len(path) && (path[i] == '/' || path[i] == '\\') }
 	comps := strings.FieldsFunc(path, func(r rune) bool { return r == '/' || r == '\\' })
 	drive := true
+	// A named pipe, local (`\\.\pipe\…`) or remote (`\\srv\pipe\…`), is no
+	// file and is not judged — unless a `..` could climb out of the pipe
+	// namespace: Windows normalizes `\\.\pipe\..\NUL` to `\\.\NUL` (the Codex
+	// re-review of #630), so such a path is judged whole.
+	pipe := false
 	switch {
 	case sep(0) && sep(1) && len(path) > 2 && (path[2] == '.' || path[2] == '?') && (len(path) == 3 || sep(3)):
 		comps = comps[1:]
-		if len(comps) > 0 && strings.EqualFold(comps[0], "pipe") {
-			return nil
-		}
-		if len(comps) > 0 && strings.EqualFold(comps[0], "UNC") {
+		switch {
+		case len(comps) > 0 && strings.EqualFold(comps[0], "pipe"):
+			pipe = true
+		case len(comps) > 0 && strings.EqualFold(comps[0], "UNC"):
+			pipe = len(comps) > 2 && strings.EqualFold(comps[2], "pipe")
 			comps, drive = comps[min(3, len(comps)):], false
 		}
 	case sep(0) && sep(1):
+		pipe = len(comps) > 1 && strings.EqualFold(comps[1], "pipe")
 		comps, drive = comps[min(2, len(comps)):], false
+	}
+	if pipe && !slices.Contains(comps, "..") {
+		return nil
 	}
 	if drive && len(comps) > 0 {
 		if d := dropDrive(comps[0]); d == "" {
