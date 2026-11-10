@@ -3,18 +3,24 @@ package main
 import (
 	"fmt"
 	"runtime"
+	"slices"
 	"strings"
+
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 )
 
 // windowsKeeps refuses, on Windows, a path the caller handed mrw on the command
-// line that Win32 would open as another name: one with a component ending in a
-// dot or a space, which Win32 drops (ADR-071). A plan file and a --files-from
-// list are opened with os.Open and never pass rooted.Resolve, which refuses that
-// spelling for every path inside the root. While urfave/cli v3.11.0 trimmed a
-// positional, ADR-069's guard refused `write 'p.mrw '`; with v3.14.0 handing it
-// over as typed, `write 'p.mrw '` applied p.mrw on Windows (the Codex review of
-// #628, ADR-196). A separate `--files-from 'list '` opened list on every
-// release; it is refused too.
+// line that Win32 would open as another thing than the file it reads as: one
+// with a component ending in a dot or a space, which Win32 drops (ADR-071); one
+// holding a colon, which names an NTFS stream; or one naming a device such as
+// CON or NUL (ADR-081). A plan file and a --files-from list are opened with
+// os.Open and never pass rooted.Resolve, which refuses those spellings for every
+// path inside the root. While urfave/cli v3.11.0 trimmed a positional, ADR-069's
+// guard refused `write 'p.mrw '`; with v3.14.0 handing it over as typed, `write
+// 'p.mrw '` applied p.mrw on Windows (the Codex review of #628, ADR-196). The
+// Windows field test of v1.86.0 found the other two: `write CON` waited on the
+// console, and `write p.mrw:alt` applied a plan that `type p.mrw` does not show
+// (ADR-196 T4).
 func windowsKeeps(what, path string) error { return keepsOn(runtime.GOOS, what, path) }
 
 // keepsOn is windowsKeeps for a named GOOS, so the rule is tested on every platform.
@@ -23,13 +29,68 @@ func keepsOn(goos, what, path string) error {
 		return nil
 	}
 	// A \\?\ path skips Win32's normalization, so a name ending in a dot or a
-	// space is kept as written there and opens that name (the Codex review of
-	// #628). A \\.\ device path is normalized, and is judged.
-	if strings.HasPrefix(path, `\\?\`) {
+	// space, or a device name, is kept as written there and opens that name (the
+	// Codex review of #628). The filesystem, not Win32, reads a colon as a
+	// stream, so that is judged under \\?\ too. Only the volume is skipped: a
+	// drive, a UNC server and share (`\\srv\share`, `\\?\UNC\srv\share`), and a
+	// device path's prefix (`\\.\`, `//./`, either separator); a named pipe
+	// (`\\.\pipe\…`) is no file at all and is not judged (the Codex review of
+	// #630).
+	verbatim := strings.HasPrefix(path, `\\?\`)
+	sep := func(i int) bool { return i < len(path) && (path[i] == '/' || path[i] == '\\') }
+	comps := strings.FieldsFunc(path, func(r rune) bool { return r == '/' || r == '\\' })
+	drive := true
+	// A named pipe, local (`\\.\pipe\…`) or remote (`\\srv\pipe\…`), is no
+	// file and is not judged — unless a `..` could climb out of the pipe
+	// namespace: Windows normalizes `\\.\pipe\..\NUL` to `\\.\NUL` (the Codex
+	// re-review of #630), so such a path is judged whole.
+	pipe := false
+	switch {
+	case sep(0) && sep(1) && len(path) > 2 && (path[2] == '.' || path[2] == '?') && (len(path) == 3 || sep(3)):
+		// Past the prefix, Windows removes a `.` component before it reads the
+		// namespace, so `\\.\.\pipe\x` is a pipe (the third Codex review of #630);
+		// a \\?\ path is not normalized and keeps it.
+		if comps = comps[1:]; !verbatim {
+			comps = slices.DeleteFunc(comps, func(c string) bool { return c == "." })
+		}
+		switch {
+		case len(comps) > 0 && strings.EqualFold(comps[0], "pipe"):
+			pipe = true
+		case len(comps) > 0 && strings.EqualFold(comps[0], "UNC"):
+			pipe = len(comps) > 2 && strings.EqualFold(comps[2], "pipe")
+			comps, drive = comps[min(3, len(comps)):], false
+		}
+	case sep(0) && sep(1):
+		pipe = len(comps) > 1 && strings.EqualFold(comps[1], "pipe")
+		comps, drive = comps[min(2, len(comps)):], false
+	}
+	if pipe && !slices.Contains(comps, "..") {
 		return nil
 	}
-	if c := unkeptComponent(dropDrive(path)); c != "" {
-		return fmt.Errorf("%s %s: Windows does not keep %s as written — it drops a trailing dot or space — so it would open another file; name the file as it is", what, quoted(path), quoted(c))
+	if drive && len(comps) > 0 {
+		if d := dropDrive(comps[0]); d == "" {
+			comps = comps[1:]
+		} else {
+			comps[0] = d
+		}
+	}
+	for _, c := range comps {
+		if c == "." || c == ".." {
+			continue
+		}
+		if strings.Contains(c, ":") {
+			return fmt.Errorf("%s %s: Windows reads the ':' in %s as an NTFS stream, not as part of a name, so it would open a stream that dir and git do not show; name the file as it is", what, quoted(path), quoted(c))
+		}
+		if verbatim {
+			continue
+		}
+		if strings.TrimRight(c, ". ") != c {
+			return fmt.Errorf("%s %s: Windows does not keep %s as written — it drops a trailing dot or space — so it would open another file; name the file as it is", what, quoted(path), quoted(c))
+		}
+		base, _, _ := strings.Cut(c, ".")
+		if rooted.DeviceBase(strings.TrimRight(base, " ")) {
+			return fmt.Errorf("%s %s: %s is a Windows device name, so it would open the device, not a file; name a file (standard input is -)", what, quoted(path), quoted(c))
+		}
 	}
 	return nil
 }
