@@ -65,6 +65,8 @@ out=$(go test ./cmd/mrw/ -count=1 -v -run '^TestAWindowsAliasOfAPlanOrListIsRefu
 - 2026-11-10 · 012f56e3* · exit 0 · `set -o pipefail …` · acceptance-sha256:d4cd53bcba7f77f24bc39391e645793ffef0405ebdf1cbdde3f7e168b2ab86df · ms:1795
 - 2026-11-10 · 012f56e3* · exit 0 · `set -o pipefail …` · acceptance-sha256:d4cd53bcba7f77f24bc39391e645793ffef0405ebdf1cbdde3f7e168b2ab86df · ms:1860
 - 2026-11-10 · 012f56e3* · exit 0 · `set -o pipefail …` · acceptance-sha256:d4cd53bcba7f77f24bc39391e645793ffef0405ebdf1cbdde3f7e168b2ab86df · ms:599
+- 2026-11-10 · 47338f2c* · exit 0 · `set -o pipefail …` · acceptance-sha256:d4cd53bcba7f77f24bc39391e645793ffef0405ebdf1cbdde3f7e168b2ab86df · ms:415
+- 2026-11-10 · 47338f2c* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:d4cd53bcba7f77f24bc39391e645793ffef0405ebdf1cbdde3f7e168b2ab86df · ms:0 · test-lock-sha256:6505f1d4c8da24829b3a4623b59af2feab9a6f89b9d055718cf7c58040dbe769 · test-lock-file:docs/adr/locks/6505f1d4c8da24829b3a4623b59af2feab9a6f89b9d055718cf7c58040dbe769.lock · test-lock-kind:replace
 
 ## Invariants
 

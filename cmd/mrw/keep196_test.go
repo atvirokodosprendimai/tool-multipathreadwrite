@@ -13,12 +13,12 @@ import (
 // Windows a spelling ending in a dot or a space opened the file without it.
 // The rule is judged for Windows on every platform; elsewhere it is no rule.
 func TestAWindowsAliasOfAPlanOrListIsRefused(t *testing.T) {
-	for _, p := range []string{"p.mrw ", "p.mrw.", `d.\p.mrw`, "d /p.mrw"} {
+	for _, p := range []string{"p.mrw ", "p.mrw.", `d.\p.mrw`, "d /p.mrw", `C:\d.\p.mrw`, `C:p.mrw `} {
 		if err := keepsOn("windows", "the plan", p); err == nil || !strings.Contains(err.Error(), "Windows does not keep") {
 			t.Errorf("%q on windows: %v, want the refusal", p, err)
 		}
 	}
-	for _, p := range []string{"p.mrw", `d\p.mrw`, "./p.mrw", `..\p.mrw`, " p.mrw"} {
+	for _, p := range []string{"p.mrw", `d\p.mrw`, "./p.mrw", `..\p.mrw`, " p.mrw", `C:.\p.mrw`, `C:..\list`, `c:p.mrw`, `C:\d\p.mrw`, `\\server\share\p.mrw`} {
 		if err := keepsOn("windows", "the plan", p); err != nil {
 			t.Errorf("%q on windows refused: %v", p, err)
 		}

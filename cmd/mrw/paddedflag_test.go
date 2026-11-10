@@ -213,6 +213,19 @@ func TestAPaddedLoneDashIsRefusedBeforeTheGuardStops(t *testing.T) {
 		t.Skip(err)
 	}
 	t.Chdir(root)
+	if runtime.GOOS == "windows" {
+		// Win32 would open " -" for " - ", so ADR-196 Decision 6 refuses the
+		// plan path; nothing is applied, from the file or from stdin.
+		withStdin(t, "@@ c.txt 0 create\nfromstdin\n", func() {
+			if out, code := runIn(t, root, "write", " - "); code != exitUsage {
+				t.Fatalf("write ' - ' on Windows: exit %d, want %d:\n%s", code, exitUsage, out)
+			}
+		})
+		if _, err := os.Stat(filepath.Join(root, "c.txt")); err == nil {
+			t.Error("write ' - ' on Windows applied a plan")
+		}
+		return
+	}
 	withStdin(t, "@@ c.txt 0 create\nfromstdin\n", func() {
 		if out, code := runIn(t, root, "write", " - "); code != 0 {
 			t.Fatalf("write ' - ': exit %d:\n%s", code, out)
