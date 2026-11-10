@@ -80,6 +80,10 @@ out=$(go test ./cmd/mrw/ -count=1 -v -run '^(TestAPlanOrListNamingADeviceOrAStre
 - 2026-11-10 · 2ae3f86b* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:b2b6d6520c8ac80135f1fc2febb5f3a5fbfc00eda91d71bb434a301af64b9fee · ms:0 · test-lock-sha256:9738dccb51e3ed829a7297580682021c24d980e275fd740684f5c93befcf802e · test-lock-file:docs/adr/locks/9738dccb51e3ed829a7297580682021c24d980e275fd740684f5c93befcf802e.lock · test-lock-kind:replace
 - 2026-11-10 · 2ae3f86b* · exit 0 · `set -o pipefail …` · acceptance-sha256:b2b6d6520c8ac80135f1fc2febb5f3a5fbfc00eda91d71bb434a301af64b9fee · ms:2452
 - 2026-11-10 · 2ae3f86b* · exit 0 · `set -o pipefail …` · acceptance-sha256:b2b6d6520c8ac80135f1fc2febb5f3a5fbfc00eda91d71bb434a301af64b9fee · ms:619
+- 2026-11-10 · 9fdd9e61* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:b2b6d6520c8ac80135f1fc2febb5f3a5fbfc00eda91d71bb434a301af64b9fee · ms:0 · test-lock-sha256:5728f00d80cbe9af6e3eb78a6d51f6f44aef276b6e36cbd0a4c448cacda79f19 · test-lock-file:docs/adr/locks/5728f00d80cbe9af6e3eb78a6d51f6f44aef276b6e36cbd0a4c448cacda79f19.lock · test-lock-kind:replace
+- 2026-11-10 · 9fdd9e61* · exit 0 · `set -o pipefail …` · acceptance-sha256:b2b6d6520c8ac80135f1fc2febb5f3a5fbfc00eda91d71bb434a301af64b9fee · ms:476
+- 2026-11-10 · 9fdd9e61* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:b2b6d6520c8ac80135f1fc2febb5f3a5fbfc00eda91d71bb434a301af64b9fee · ms:0 · test-lock-sha256:5728f00d80cbe9af6e3eb78a6d51f6f44aef276b6e36cbd0a4c448cacda79f19 · test-lock-file:docs/adr/locks/5728f00d80cbe9af6e3eb78a6d51f6f44aef276b6e36cbd0a4c448cacda79f19.lock · test-lock-kind:replace
+- 2026-11-10 · 9fdd9e61* · exit 0 · `set -o pipefail …` · acceptance-sha256:b2b6d6520c8ac80135f1fc2febb5f3a5fbfc00eda91d71bb434a301af64b9fee · ms:553
 
 ## Invariants
 

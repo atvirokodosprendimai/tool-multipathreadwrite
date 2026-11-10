@@ -47,7 +47,12 @@ func keepsOn(goos, what, path string) error {
 	pipe := false
 	switch {
 	case sep(0) && sep(1) && len(path) > 2 && (path[2] == '.' || path[2] == '?') && (len(path) == 3 || sep(3)):
-		comps = comps[1:]
+		// Past the prefix, Windows removes a `.` component before it reads the
+		// namespace, so `\\.\.\pipe\x` is a pipe (the third Codex review of #630);
+		// a \\?\ path is not normalized and keeps it.
+		if comps = comps[1:]; !verbatim {
+			comps = slices.DeleteFunc(comps, func(c string) bool { return c == "." })
+		}
 		switch {
 		case len(comps) > 0 && strings.EqualFold(comps[0], "pipe"):
 			pipe = true

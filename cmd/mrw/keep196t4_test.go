@@ -34,11 +34,10 @@ func TestAPlanOrListNamingADeviceOrAStreamIsRefused(t *testing.T) {
 			t.Errorf("%q off Windows is a name, refused: %v", p, err)
 		}
 	}
-	// The Codex review of #630: only the volume is skipped — a slash-form or
-	// mixed device prefix, a UNC server and share — and a named pipe is no file.
-	// The Codex re-review of #630: a remote pipe is a pipe too, and a `..` that
-	// climbs out of the pipe namespace ends the exemption.
-	for _, p := range []string{`\\.\pipe\..\NUL`, `//./pipe/../CON`} {
+	// The Codex reviews of #630: only the volume is skipped — a slash-form or
+	// mixed device prefix, a UNC server and share — and a named pipe, local or
+	// remote, is no file, unless a `..` climbs out of the pipe namespace.
+	for _, p := range []string{`\\.\pipe\..\NUL`, `//./pipe/../CON`, `\\.\.\pipe\..\NUL`} {
 		if err := keepsOn("windows", "the plan", p); err == nil || !strings.Contains(err.Error(), "device") {
 			t.Errorf("%q on windows: %v, want the device refusal", p, err)
 		}
@@ -46,7 +45,7 @@ func TestAPlanOrListNamingADeviceOrAStreamIsRefused(t *testing.T) {
 	if err := keepsOn("windows", "the plan", `\\.\pipe\..\C:\t\p.mrw:alt`); err == nil || !strings.Contains(err.Error(), "NTFS stream") {
 		t.Errorf(`\\.\pipe\..\C:\t\p.mrw:alt on windows: %v, want the stream refusal`, err)
 	}
-	for _, p := range []string{`\\srv\pipe\CON`, `\\srv\pipe\plan:input`, `\\?\UNC\srv\pipe\x:y`, `\\.\pipe\a\b:c`} {
+	for _, p := range []string{`\\srv\pipe\CON`, `\\srv\pipe\plan:input`, `\\?\UNC\srv\pipe\x:y`, `\\.\pipe\a\b:c`, `\\.\.\pipe\CON`, `//./././pipe/x:y`} {
 		if err := keepsOn("windows", "the plan", p); err != nil {
 			t.Errorf("%q on windows refused: %v", p, err)
 		}
