@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -51,8 +52,15 @@ func servesOnly(t *testing.T, argv []string, out string, code int, want string) 
 // ADR-069 T5. A -- consumed as --grep's value is the pattern, and the padded
 // path after it is read as typed: with only x on disk, x is never served.
 func TestAFlagValueDoesNotEndThePaddedArgGuard(t *testing.T) {
-	out, code := runIn(t, plainTree(t), "read", "--grep", "--", "x ")
-	if code == 0 || strings.Contains(out, "| plain") {
+	// x holds the pattern, so a trim of `x ` to x would serve it (the Codex
+	// review of #628: with x holding no "--", a trim was invisible).
+	root := t.TempDir()
+	writeFiles(t, root, map[string]string{"x": "has -- in it\n"})
+	if out, code := runIn(t, root, "read", "--grep", "--", "x"); code != 0 || !strings.Contains(out, "| has -- in it") {
+		t.Fatalf("read --grep -- x: exit %d, the pattern must match x:\n%s", code, out)
+	}
+	out, code := runIn(t, root, "read", "--grep", "--", "x ")
+	if code == 0 || strings.Contains(out, "has -- in it") {
 		t.Errorf("read --grep -- 'x ': exit %d, served x:\n%s", code, out)
 	}
 }
@@ -161,6 +169,13 @@ func TestASingleDashNonLetterTokenStopsTheParserAndTheGuard(t *testing.T) {
 	t.Chdir(root)
 	argv := []string{"read", " -1= "}
 	out, code := runIn(t, root, argv...)
+	if runtime.GOOS == "windows" {
+		// NTFS stores " -1= " as " -1=", and ADR-071 refuses the spelling.
+		if code == 0 || strings.Contains(out, "| dashfile") {
+			t.Errorf("%q on Windows: exit %d, served the file under another name:\n%s", argv, code, out)
+		}
+		return
+	}
 	servesOnly(t, argv, out, code, "| dashfile")
 }
 
@@ -218,6 +233,13 @@ func TestAPreservedStopTokenIsNotJudgedAgainstAPositional(t *testing.T) {
 	}
 	t.Chdir(root)
 	out, code := runIn(t, root, "read", " -1= ", "-1=")
+	if runtime.GOOS == "windows" {
+		// NTFS stores " -1= " as " -1=": ADR-071 refuses that spelling, the twin is served.
+		if code == 0 || strings.Contains(out, "| padded") || !strings.Contains(out, "| twin") {
+			t.Errorf("on Windows: exit %d, want the padded spelling refused and the twin served:\n%s", code, out)
+		}
+		return
+	}
 	if code != 0 || !strings.Contains(out, "| padded") || !strings.Contains(out, "| twin") {
 		t.Errorf("exit %d, want both served:\n%s", code, out)
 	}

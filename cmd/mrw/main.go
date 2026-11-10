@@ -2071,6 +2071,9 @@ held or went unchecked.`,
 				if abs, err := filepath.Abs(args[0]); err == nil && rooted.InStateOrLinked(cmd.String("root"), abs) {
 					return refuse(fmt.Sprintf("%s is inside mrw's own state directory, or is a hard link to a file in it; mrw does not read its own files as a plan", args[0]))
 				}
+				if err := windowsKeeps("the plan", args[0]); err != nil {
+					return refuseErr(err)
+				}
 				f, err := os.Open(args[0])
 				if err != nil {
 					// -C moves the paths INSIDE the plan; the plan file itself
@@ -3536,6 +3539,9 @@ func specList(root, name string) ([]string, error) {
 		// ids and all (Codex review of #238).
 		if abs, err := filepath.Abs(name); err == nil && rooted.InStateOrLinked(root, abs) {
 			return nil, fmt.Errorf("--files-from %s is inside mrw's own state directory, or is a hard link to a file in it; mrw does not read its own files as input", name)
+		}
+		if err := windowsKeeps("--files-from", name); err != nil {
+			return nil, err
 		}
 		f, err := os.Open(name)
 		if err != nil {

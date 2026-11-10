@@ -6645,8 +6645,12 @@ printf 'padded\n' > "$R/x "
 out=$(m read --files-from="$WORK/134 list " 2>&1); rc=$?
 want 0 "$rc" "an attached flag value ending in a space is that value"
 grep -q 'padded' <<<"$out" && ! grep -q 'func D' <<<"$out" && ok "and the list named with the space is the one read" || bad "served: $out"
+rm -f "$R/x "; printf 'has -- in it\n' > "$R/x"
+out=$(m read --grep -- x 2>&1); rc=$?
+want 0 "$rc" "a -- consumed as --grep's value is the pattern, and it matches x"
 out=$(m read --grep -- 'x ' 2>&1); rc=$?
-want 1 "$rc" "a -- consumed as --grep's value is the pattern, and the padded path is read as typed"
+want 1 "$rc" "and the padded path after it is read as typed, so with only x on disk it is incomplete"
+grep -q 'has -- in it' <<<"$out" && bad "read --grep -- 'x ' served x: $out" || ok "and x, which holds the pattern, is never served for it"
 
 # 135. ADR-069 T6, retargeted by ADR-196: a padded boolean flag name is still
 # that flag (the parser trims a token to classify it), and the padded path
