@@ -35,7 +35,7 @@ func errNotComparable(path string) error {
 // ADR-134 Decision 4 refuses; it says that, and not that the file has a second
 // name, which nothing has learnt (the Windows field test of v1.86.4, ADR-196 T7).
 func errNoIdentity(path string, err error) error {
-	return fmt.Errorf("mrw cannot read the file identity of %s (%v), so it cannot tell whether it is a file in its own state directory; %w", path, err, ErrOwnState)
+	return fmt.Errorf("mrw cannot read the file identity of %s (%w), so it cannot tell whether it is a file in its own state directory; %w", path, err, ErrOwnState)
 }
 
 // stateLinks answers whether a file is a second name of a file in THIS
