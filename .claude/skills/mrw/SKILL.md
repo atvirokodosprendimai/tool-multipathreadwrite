@@ -11,9 +11,9 @@ description: >-
   heredocs. It applies only while mrw is on PATH: if it is not, use the host's
   own tools and do not install it.
 metadata:
-  mrw-version: "v1.86.1 (62f4a9a)"
+  mrw-version: "v1.86.2 (8cba7c4)"
   generated-by: "mrw skill"
-  content-sha256: "5467189874c1da8d1e0e3d6f9880549a6a1da4cb5056391d61886ab755bc58ca"
+  content-sha256: "67cec7f39064872d1dcddd155fc1ad7be0e919b9d44a68e33351579b0af1146e"
 ---
 
 # mrw
@@ -70,6 +70,6 @@ Recipes:
 20. answer by reference what you were already served, with --if-served PATH=SHA — only in a session alone in its checkout, whose host runs mrw seen --forget on start, resume, clear and compaction, and whose reads were made under --max-chars below the host's output limit, since a line recorded as shown may never have reached you (anywhere else, recipe 11):
   mrw read --if-served f.go=8dc37337 f.go:40-60
 
-`mrw instructions` prints the whole contract. This file was printed by `mrw skill` from mrw v1.86.1 (62f4a9a); when `mrw version` prints another version, `mrw skill --dir <the directory holding this mrw folder>` replaces it.
+`mrw instructions` prints the whole contract. This file was printed by `mrw skill` from mrw v1.86.2 (8cba7c4); when `mrw version` prints another version, `mrw skill --dir <the directory holding this mrw folder>` replaces it.
 
 A host's per-path rules for its Edit and Write tools do not reach mrw, which writes wherever its user can: their absence is not permission, and mrw is not a way to reach a path the host refused you.
