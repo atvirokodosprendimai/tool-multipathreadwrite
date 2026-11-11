@@ -33,7 +33,7 @@ echo "toolchain: $(go version)"
 
 GOLANGCI_VERSION=2.14.0
 DEADCODE=golang.org/x/tools/cmd/deadcode@v0.50.0
-STATICCHECK=honnef.co/go/tools/cmd/staticcheck@v0.8.1
+STATICCHECK=honnef.co/go/tools/cmd/staticcheck@v0.8.2
 GOVULNCHECK=golang.org/x/vuln/cmd/govulncheck@v1.8.0
 RUFF_VERSION=0.15.6
 SHELLCHECK_VERSION=0.11.0
