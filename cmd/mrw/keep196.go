@@ -77,18 +77,32 @@ func judgeOn(goos, what, path string) (pipe bool, err error) {
 		if len(comps) > 0 {
 			first = comps[0]
 		}
+		// A drive, a volume, a UNC share or the pipe namespace with nothing
+		// after it names that object itself: `\\.\C:` opened the raw volume
+		// (the field test of v1.86.3), so a file must follow it.
+		noFile := func(n int) error {
+			return fmt.Errorf("%s %s: it names %s and no file in it, so it would open that volume, share or namespace itself; name a file in it", what, quoted(path), quoted(strings.Join(comps[:min(n, len(comps))], `\`)))
+		}
 		switch lower := strings.ToLower(first); {
-		case len(first) == 2 && first[1] == ':' && 'a' <= lower[0] && lower[0] <= 'z':
+		case len(first) == 2 && first[1] == ':' && 'a' <= lower[0] && lower[0] <= 'z',
+			strings.HasPrefix(lower, "volume{") && strings.HasSuffix(lower, "}"):
+			if len(comps) < 2 {
+				return false, noFile(1)
+			}
 			comps, drive = comps[1:], false
 		case lower == "unc":
-			if len(comps) > 2 && strings.EqualFold(comps[2], "pipe") {
+			if len(comps) < 4 {
+				return false, noFile(3)
+			}
+			if strings.EqualFold(comps[2], "pipe") {
 				return true, nil
 			}
-			comps, drive = comps[min(3, len(comps)):], false
+			comps, drive = comps[3:], false
 		case lower == "pipe":
+			if len(comps) < 2 {
+				return false, noFile(1)
+			}
 			return true, nil
-		case strings.HasPrefix(lower, "volume{") && strings.HasSuffix(lower, "}"):
-			comps, drive = comps[1:], false
 		default:
 			return false, fmt.Errorf("%s %s: %s names a Windows object that is not a file on a drive or a share (a device, GLOBALROOT, …), so it would open that object; name the file by its drive or share path", what, quoted(path), quoted(first))
 		}
@@ -96,11 +110,16 @@ func judgeOn(goos, what, path string) (pipe bool, err error) {
 		// A remote pipe (`\\srv\pipe\…`) is a pipe. Below the share, `.` and
 		// `..` are resolved as Windows resolves them, and a `..` cannot climb
 		// above the share, so `\\srv\pipe\..\plan` is still a pipe (the Codex
-		// review of #633).
-		if len(comps) > 1 && strings.EqualFold(comps[1], "pipe") {
+		// review of #633). A server and share with nothing below them name no
+		// file (the field test of v1.86.3).
+		rest := resolveDots(comps[min(2, len(comps)):])
+		if len(comps) < 2 || len(rest) == 0 {
+			return false, fmt.Errorf("%s %s: it names %s and no file in it, so it would open that share or namespace itself; name a file in it", what, quoted(path), quoted(strings.Join(comps[:min(2, len(comps))], `\`)))
+		}
+		if strings.EqualFold(comps[1], "pipe") {
 			return true, nil
 		}
-		comps, drive = resolveDots(comps[min(2, len(comps)):]), false
+		comps, drive = rest, false
 	}
 	if drive && len(comps) > 0 {
 		if d := dropDrive(comps[0]); d == "" {
