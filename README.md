@@ -97,7 +97,7 @@ Two other ways in:
   tap's formula is generated and pushed by CI from the release's four archives and their checksums
   (ADR-172), so it serves the published binary; `release-smoke-brew.yml`, run by hand after a release,
   installs from the tap and checks the binary against `SHA256SUMS.txt`.
-- **`go install`** (Go 1.26.10 or newer, `go.mod`):
+- **`go install`** (Go 1.26.11 or newer, `go.mod`):
   `go install github.com/atvirokodosprendimai/tool-multipathreadwrite/cmd/mrw@latest`, or `@<tag>`, or
   `@<commit>`. That build is compiled by your Go and carries no release stamp: `mrw version` reports
   the module version Go recorded for it, the tag or a pseudo-version ending in the commit
@@ -167,7 +167,7 @@ would allow every write ([docs/agents.md](docs/agents.md) §7, ADR-168, ADR-174)
 
 ### From source
 
-Go 1.26.10 or newer (`go.mod`). One dependency, no cgo:
+Go 1.26.11 or newer (`go.mod`). One dependency, no cgo:
 
 ```sh
 go build -o bin/mrw ./cmd/mrw          # Linux, macOS
