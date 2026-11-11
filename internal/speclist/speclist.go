@@ -27,6 +27,16 @@ func Parse(r io.Reader, label string, notes io.Writer) ([]string, error) {
 	for sc.Scan() {
 		n++
 		line := sc.Text()
+		// A list saved by Notepad, or piped by PowerShell with a UTF-8
+		// preamble, starts with a byte order mark that no spec means (ADR-117 T2).
+		if n == 1 {
+			if rest, ok := strings.CutPrefix(line, "\xef\xbb\xbf"); ok {
+				line = rest
+				if notes != nil {
+					_, _ = fmt.Fprintf(notes, "mrw: %s: dropped the byte order mark at the start of the list\n", label)
+				}
+			}
+		}
 		if t := strings.TrimSpace(line); t == "" || strings.HasPrefix(t, "#") {
 			continue
 		}
