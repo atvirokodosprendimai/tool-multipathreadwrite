@@ -2068,11 +2068,13 @@ held or went unchecked.`,
 				// ADR-077: the plan is a shell argument and never passed the
 				// boundary; a plan naming mrw's ack store had its JSON quoted
 				// back as "text before the first @@ header" (Codex review of #238).
-				if abs, err := filepath.Abs(args[0]); err == nil && rooted.InStateOrLinked(cmd.String("root"), abs) {
-					return refuse(fmt.Sprintf("%s is inside mrw's own state directory, or is a hard link to a file in it; mrw does not read its own files as a plan", args[0]))
-				}
+				// Judged before anything touches the path, and a pipe skips the
+				// state check, which opens what it judges (ADR-196 T5).
 				if err := windowsKeeps("the plan", args[0]); err != nil {
 					return refuseErr(err)
+				}
+				if abs, err := filepath.Abs(args[0]); err == nil && !windowsPipe(args[0]) && rooted.InStateOrLinked(cmd.String("root"), abs) {
+					return refuse(fmt.Sprintf("%s is inside mrw's own state directory, or is a hard link to a file in it; mrw does not read its own files as a plan", args[0]))
 				}
 				f, err := os.Open(args[0])
 				if err != nil {
@@ -3537,11 +3539,11 @@ func specList(root, name string) ([]string, error) {
 		// directory, and never passed the boundary; a list naming mrw's own
 		// ack store had its JSON quoted back in the parse error, checkpoint
 		// ids and all (Codex review of #238).
-		if abs, err := filepath.Abs(name); err == nil && rooted.InStateOrLinked(root, abs) {
-			return nil, fmt.Errorf("--files-from %s is inside mrw's own state directory, or is a hard link to a file in it; mrw does not read its own files as input", name)
-		}
 		if err := windowsKeeps("--files-from", name); err != nil {
 			return nil, err
+		}
+		if abs, err := filepath.Abs(name); err == nil && !windowsPipe(name) && rooted.InStateOrLinked(root, abs) {
+			return nil, fmt.Errorf("--files-from %s is inside mrw's own state directory, or is a hard link to a file in it; mrw does not read its own files as input", name)
 		}
 		f, err := os.Open(name)
 		if err != nil {
