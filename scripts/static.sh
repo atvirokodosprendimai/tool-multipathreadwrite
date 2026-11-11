@@ -89,10 +89,10 @@ golangci() {
   golangci-lint run ./...
 }
 
-# staticcheck reads the compiler's export data, and v0.8.1 (still the newest
-# release, and master too, 2026-10-09) cannot decode the version Go 1.27 writes:
-# "export data version 5 is greater than maximum supported version 4". The
-# GOTOOLCHAIN export at the top is what keeps it on go.mod's Go.
+# staticcheck reads the compiler's export data. v0.8.1 could not decode the
+# version Go 1.27 writes ("export data version 5 is greater than maximum
+# supported version 4"); v0.8.2 can, and go.mod moved to Go 1.27.4 with it
+# (#635). The GOTOOLCHAIN export at the top keeps it on go.mod's Go.
 staticcheck_u1000() {
   go run "$STATICCHECK" -tests=false -checks U1000 ./...
 }
