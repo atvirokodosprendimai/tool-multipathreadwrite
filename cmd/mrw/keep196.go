@@ -103,6 +103,9 @@ func judgeOn(goos, what, path string) (pipe bool, err error) {
 				return false, noFile(1)
 			}
 			return true, nil
+		case first == "":
+			// `\\.\C:\..` climbed above the volume and left nothing to name.
+			return false, fmt.Errorf("%s %s: it names nothing past its prefix once . and .. are resolved, so it is not a file on a drive or a share; name the file by its drive or share path", what, quoted(path))
 		default:
 			return false, fmt.Errorf("%s %s: %s names a Windows object that is not a file on a drive or a share (a device, GLOBALROOT, …), so it would open that object; name the file by its drive or share path", what, quoted(path), quoted(first))
 		}
