@@ -16,6 +16,7 @@ func TestAPlanOrListNamingAWindowsObjectIsRefused(t *testing.T) {
 		`\\.\GLOBALROOT\Device\Null`, `\\?\GLOBALROOT\Device\Null`, `\\.\GLOBALROOT\Device\ConDrv\Console`,
 		`\\.\pipe\..\GLOBALROOT\Device\Null`, `//./pipe/x/../../GLOBALROOT/Device/Null`, `\\.\C:\..\GLOBALROOT\x`,
 		`\\?\GLOBAL??\CON`, `\\.\PhysicalDrive0`, `\\.\`, `\\?\GLOBALROOT\Device\HarddiskVolume3\p.mrw`,
+		`\??\GLOBALROOT\Device\Null`, `\??\GLOBALROOT\Device\ConDrv\Console`,
 	} {
 		if err := keepsOn("windows", "the plan", p); err == nil || !strings.Contains(err.Error(), "not a file on a drive or a share") {
 			t.Errorf("%q on windows: %v, want the object refusal", p, err)
@@ -26,7 +27,7 @@ func TestAPlanOrListNamingAWindowsObjectIsRefused(t *testing.T) {
 	if err := keepsOn("windows", "the plan", `\\.\pipe\x\..\..\C:\t\p.mrw:alt`); err == nil || !strings.Contains(err.Error(), `in "p.mrw:alt"`) {
 		t.Errorf("a stream reached through a pipe's ..: %v, want it named", err)
 	}
-	for _, p := range []string{`\\.\Volume{0d2a}\p.mrw`, `\\?\Volume{0D2A}\d\p.mrw`, `\\.\C:\x\..\p.mrw`, `\\.\pipe\x\..\..\C:\t\p.mrw`} {
+	for _, p := range []string{`\\.\Volume{0d2a}\p.mrw`, `\\?\Volume{0D2A}\d\p.mrw`, `\\.\C:\x\..\p.mrw`, `\\.\pipe\x\..\..\C:\t\p.mrw`, `\??\C:\t\CON`} {
 		if err := keepsOn("windows", "the plan", p); err != nil {
 			t.Errorf("%q on windows refused: %v", p, err)
 		}
@@ -35,6 +36,7 @@ func TestAPlanOrListNamingAWindowsObjectIsRefused(t *testing.T) {
 	// would spend the pipe's one instance, is not run for one.
 	for p, want := range map[string]bool{
 		`\\.\pipe\plan`: true, `//./PIPE/plan`: true, `\\.\.\pipe\plan`: true, `\\srv\pipe\plan`: true, `\\?\UNC\srv\pipe\plan`: true,
+		`\\srv\pipe\..\plan`: true, `\\srv\pipe\.\plan`: true,
 		`\\.\pipe\..\NUL`: false, `\\.\pipe\..\GLOBALROOT\Device\Null`: false, `p.mrw`: false, `C:\pipe\plan`: false,
 	} {
 		if got := pipeOn("windows", p); got != want {

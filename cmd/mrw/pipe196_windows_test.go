@@ -14,7 +14,6 @@ var (
 	kernel32            = syscall.NewLazyDLL("kernel32.dll")
 	procCreateNamedPipe = kernel32.NewProc("CreateNamedPipeW")
 	procConnectPipe     = kernel32.NewProc("ConnectNamedPipe")
-	procDisconnectPipe  = kernel32.NewProc("DisconnectNamedPipe")
 )
 
 // servePipeOnce serves text to the first client of a one-instance pipe and
@@ -40,7 +39,10 @@ func servePipeOnce(t *testing.T, name, text string) <-chan error {
 		var n uint32
 		err := syscall.WriteFile(syscall.Handle(h), []byte(text), &n, nil)
 		_ = syscall.FlushFileBuffers(syscall.Handle(h))
-		_, _, _ = procDisconnectPipe.Call(h)
+		// No DisconnectNamedPipe: it forces the reader off before it reads to
+		// the end, and its next read fails "no process is on the other end"
+		// (the Codex review of #633). Closing the handle, deferred, ends the
+		// stream at EOF once the reader has drained it.
 		done <- err
 	}()
 	return done

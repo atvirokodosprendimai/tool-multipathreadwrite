@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"runtime"
-	"slices"
 	"strings"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
@@ -56,12 +55,15 @@ func judgeOn(goos, what, path string) (pipe bool, err error) {
 	// drive, a UNC server and share (`\\srv\share`, `\\?\UNC\srv\share`), and a
 	// device path's prefix (`\\.\`, `//./`, either separator) with the volume
 	// after it (the Codex review of #630).
-	verbatim := strings.HasPrefix(path, `\\?\`)
+	// `\??\` is the NT form of `\\?\`, which Go's os.Open passes on as it is (the
+	// Codex review of #633), so it is judged as a verbatim prefix.
+	verbatim := strings.HasPrefix(path, `\\?\`) || strings.HasPrefix(path, `\??\`)
 	sep := func(i int) bool { return i < len(path) && (path[i] == '/' || path[i] == '\\') }
 	comps := strings.FieldsFunc(path, func(r rune) bool { return r == '/' || r == '\\' })
 	drive := true
 	switch {
-	case sep(0) && sep(1) && len(path) > 2 && (path[2] == '.' || path[2] == '?') && (len(path) == 3 || sep(3)):
+	case sep(0) && len(path) > 3 && sep(3) && ((sep(1) && (path[2] == '.' || path[2] == '?')) || path[1:3] == "??"),
+		sep(0) && sep(1) && len(path) == 3 && (path[2] == '.' || path[2] == '?'):
 		// Past the prefix Windows resolves `.` and `..` before it reads the
 		// namespace (not under \\?\), so `\\.\pipe\..\NUL` is `\\.\NUL` and
 		// `\\.\.\pipe\x` is a pipe (the Codex reviews of #630). Then the first
@@ -91,12 +93,14 @@ func judgeOn(goos, what, path string) (pipe bool, err error) {
 			return false, fmt.Errorf("%s %s: %s names a Windows object that is not a file on a drive or a share (a device, GLOBALROOT, …), so it would open that object; name the file by its drive or share path", what, quoted(path), quoted(first))
 		}
 	case sep(0) && sep(1):
-		// A remote pipe (`\\srv\pipe\…`) is a pipe; a `..` cannot climb above a
-		// UNC share, but a pipe spelled with one is judged as a path all the same.
-		if len(comps) > 1 && strings.EqualFold(comps[1], "pipe") && !slices.Contains(comps, "..") {
+		// A remote pipe (`\\srv\pipe\…`) is a pipe. Below the share, `.` and
+		// `..` are resolved as Windows resolves them, and a `..` cannot climb
+		// above the share, so `\\srv\pipe\..\plan` is still a pipe (the Codex
+		// review of #633).
+		if len(comps) > 1 && strings.EqualFold(comps[1], "pipe") {
 			return true, nil
 		}
-		comps, drive = comps[min(2, len(comps)):], false
+		comps, drive = resolveDots(comps[min(2, len(comps)):]), false
 	}
 	if drive && len(comps) > 0 {
 		if d := dropDrive(comps[0]); d == "" {

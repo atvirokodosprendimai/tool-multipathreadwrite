@@ -66,6 +66,12 @@ out=$(go test ./cmd/mrw/ -count=1 -v -run '^(TestAPlanOrListNamingAWindowsObject
 - 2026-11-11 · db2941aa* · mutant killed · exit 1 · `cmd/mrw/keep196.go` · pipeOn always false, so the state check opens a pipe again · acceptance-sha256:b2f108728d2ab5704cc40e7241050afbf59dd35c06bb558966e1f4e736787d49 · covers:a pipe skips the state check
 - 2026-11-11 · db2941aa* · mutant killed · exit 1 · `cmd/mrw/keep196.go` · an object past the prefix accepted, so GLOBALROOT must go red · acceptance-sha256:15f2c8213ff373603723868ad3407334e475eebab6cdaee2f18412412ae78f58 · covers:an object past the prefix is refused
 - 2026-11-11 · db2941aa* · mutant killed · exit 1 · `cmd/mrw/keep196.go` · pipeOn always false, so the state check opens a pipe again · acceptance-sha256:15f2c8213ff373603723868ad3407334e475eebab6cdaee2f18412412ae78f58 · covers:a pipe skips the state check
+- 2026-11-11 · a7d829b2* · mutant killed · exit 1 · `cmd/mrw/keep196.go` · a UNC pipe with .. judged a path again, so \\srv\pipe\..\plan must go red (Codex review of #633) · acceptance-sha256:15f2c8213ff373603723868ad3407334e475eebab6cdaee2f18412412ae78f58 · covers:a pipe skips the state check
+- 2026-11-11 · a7d829b2* · mutant survived · exit 0 · `cmd/mrw/keep196.go` · the \??\ prefix not verbatim: \??\GLOBALROOT must still go red · acceptance-sha256:15f2c8213ff373603723868ad3407334e475eebab6cdaee2f18412412ae78f58 · covers:an object past the prefix is refused
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
+- 2026-11-11 · a7d829b2* · mutant killed · exit 1 · `cmd/mrw/keep196.go` · the \??\ prefix not verbatim, so \??\C:\t\CON must go red · acceptance-sha256:15f2c8213ff373603723868ad3407334e475eebab6cdaee2f18412412ae78f58 · covers:an object past the prefix is refused
 
 ## Verification Log
 - 2026-11-11 · db2941aa* · exit 1 · `set -o pipefail …` · acceptance-sha256:b2f108728d2ab5704cc40e7241050afbf59dd35c06bb558966e1f4e736787d49 · ms:213 · test-lock-sha256:533c0920eb27d7a136f48809252874bad17199f631b908c96af1a4d6efd2e4c9 · test-lock-file:docs/adr/locks/533c0920eb27d7a136f48809252874bad17199f631b908c96af1a4d6efd2e4c9.lock
@@ -80,6 +86,13 @@ out=$(go test ./cmd/mrw/ -count=1 -v -run '^(TestAPlanOrListNamingAWindowsObject
 - 2026-11-11 · db2941aa* · exit 0 · `set -o pipefail …` · acceptance-sha256:15f2c8213ff373603723868ad3407334e475eebab6cdaee2f18412412ae78f58 · ms:518
 - 2026-11-11 · db2941aa* · exit 0 · `set -o pipefail …` · acceptance-sha256:15f2c8213ff373603723868ad3407334e475eebab6cdaee2f18412412ae78f58 · ms:1904
 - 2026-11-11 · db2941aa* · exit 0 · `set -o pipefail …` · acceptance-sha256:15f2c8213ff373603723868ad3407334e475eebab6cdaee2f18412412ae78f58 · ms:1893
+- 2026-11-11 · a7d829b2* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:15f2c8213ff373603723868ad3407334e475eebab6cdaee2f18412412ae78f58 · ms:0 · test-lock-sha256:c83abc8d0725b8233fe98f3f9bd4408315884892a08662c023ba37facf3bfab9 · test-lock-file:docs/adr/locks/c83abc8d0725b8233fe98f3f9bd4408315884892a08662c023ba37facf3bfab9.lock · test-lock-kind:replace
+- 2026-11-11 · a7d829b2* · exit 0 · `set -o pipefail …` · acceptance-sha256:15f2c8213ff373603723868ad3407334e475eebab6cdaee2f18412412ae78f58 · ms:447
+- 2026-11-11 · a7d829b2* · exit 0 · `set -o pipefail …` · acceptance-sha256:15f2c8213ff373603723868ad3407334e475eebab6cdaee2f18412412ae78f58 · ms:1725
+- 2026-11-11 · a7d829b2* · exit 0 · `set -o pipefail …` · acceptance-sha256:15f2c8213ff373603723868ad3407334e475eebab6cdaee2f18412412ae78f58 · ms:1756
+- 2026-11-11 · a7d829b2* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:15f2c8213ff373603723868ad3407334e475eebab6cdaee2f18412412ae78f58 · ms:0 · test-lock-sha256:c578d5d249752ff77e81b09e73dfb07aafffdadb1d8d31790ed6bec667630895 · test-lock-file:docs/adr/locks/c578d5d249752ff77e81b09e73dfb07aafffdadb1d8d31790ed6bec667630895.lock · test-lock-kind:replace
+- 2026-11-11 · a7d829b2* · exit 0 · `set -o pipefail …` · acceptance-sha256:15f2c8213ff373603723868ad3407334e475eebab6cdaee2f18412412ae78f58 · ms:1801
+- 2026-11-11 · a7d829b2* · exit 0 · `set -o pipefail …` · acceptance-sha256:15f2c8213ff373603723868ad3407334e475eebab6cdaee2f18412412ae78f58 · ms:485
 
 ## Invariants
 
