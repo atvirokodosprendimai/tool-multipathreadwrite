@@ -17,8 +17,9 @@ const MaxLine = 8 * 1024 * 1024
 // character is "#", is skipped; every other line is a spec as written, edge
 // spaces kept (ADR-069). label names the list in every error, so each surface
 // keeps its own word for it ("--files-from x", "files_from x"). A list that
-// holds no spec is an error, never an empty read.
-func Parse(r io.Reader, label string) ([]string, error) {
+// holds no spec is an error, never an empty read. notes, when not nil, takes
+// a line about what Parse changed in the list as written (ADR-117 T2).
+func Parse(r io.Reader, label string, notes io.Writer) ([]string, error) {
 	var out []string
 	sc := bufio.NewScanner(r)
 	sc.Buffer(make([]byte, 0, 64*1024), MaxLine)

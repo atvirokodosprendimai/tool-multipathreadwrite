@@ -3556,7 +3556,7 @@ func specList(root, name string) ([]string, error) {
 		defer func() { _ = f.Close() }()
 		r = f
 	}
-	return speclist.Parse(r, "--files-from "+name)
+	return speclist.Parse(r, "--files-from "+name, os.Stderr)
 }
 
 // maxLines is the read's per-SPEC cap, or nil when the flag was not given.
