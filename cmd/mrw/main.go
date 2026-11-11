@@ -2073,8 +2073,10 @@ held or went unchecked.`,
 				if err := windowsKeeps("the plan", args[0]); err != nil {
 					return refuseErr(err)
 				}
-				if abs, err := filepath.Abs(args[0]); err == nil && !windowsPipe(args[0]) && rooted.InStateOrLinked(cmd.String("root"), abs) {
-					return refuse(fmt.Sprintf("%s is inside mrw's own state directory, or is a hard link to a file in it; mrw does not read its own files as a plan", args[0]))
+				if abs, err := filepath.Abs(args[0]); err == nil && !windowsPipe(args[0]) {
+					if err := rooted.OwnStateRefusal(cmd.String("root"), abs, args[0]); err != nil {
+						return refuse(fmt.Sprintf("the plan %v; mrw does not read its own files as a plan", err))
+					}
 				}
 				f, err := os.Open(args[0])
 				if err != nil {
@@ -3542,8 +3544,10 @@ func specList(root, name string) ([]string, error) {
 		if err := windowsKeeps("--files-from", name); err != nil {
 			return nil, err
 		}
-		if abs, err := filepath.Abs(name); err == nil && !windowsPipe(name) && rooted.InStateOrLinked(root, abs) {
-			return nil, fmt.Errorf("--files-from %s is inside mrw's own state directory, or is a hard link to a file in it; mrw does not read its own files as input", name)
+		if abs, err := filepath.Abs(name); err == nil && !windowsPipe(name) {
+			if err := rooted.OwnStateRefusal(root, abs, name); err != nil {
+				return nil, fmt.Errorf("--files-from %w; mrw does not read its own files as input", err)
+			}
 		}
 		f, err := os.Open(name)
 		if err != nil {
