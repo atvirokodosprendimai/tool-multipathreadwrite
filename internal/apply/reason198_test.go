@@ -148,6 +148,11 @@ func TestAReasonSpellsAPlansPathAsItsRowDoes(t *testing.T) {
 		{name: "two names that differ only in case, one a rename's destination", files: one, plan: fixed(
 			op(f, "rename", nat("d/Q.txt")), op(nat("d/q.txt"), "create", "x")),
 			want: []string{"d/q.txt may name the same file as d/Q.txt"}, absent: []string{nat("d/")}},
+		// foldClashes runs before an absolute destination is refused, so it
+		// can hold a rooted name: that one stays as the caller typed it.
+		{name: "two rooted rename destinations that differ only in case", files: two, plan: fixed(
+			op(f, "rename", string(filepath.Separator)+nat("missing/Q.txt")), op(g, "rename", string(filepath.Separator)+nat("missing/q.txt"))),
+			want: []string{string(filepath.Separator) + nat("missing/q.txt") + " may name the same file as " + string(filepath.Separator) + nat("missing/Q.txt")}},
 		{name: "a rename onto the source", files: one, plan: fixed(op(f, "rename", f)),
 			want: []string{"rename dest d/f.txt is the source"}, absent: []string{f}},
 		{name: "a rename dest named twice", files: two, plan: fixed(op(f, "rename", nat("d/t.txt")), op(g, "rename", nat("d/t.txt"))),
@@ -213,7 +218,9 @@ func TestAReasonSpellsAPlansPathAsItsRowDoes(t *testing.T) {
 				}
 			}, want: []string{"rename dest d/g.txt appeared before commit", "ALREADY WRITTEN: d/h.txt"}, absent: []string{g, h}},
 		{name: "a rename dest under a link to nothing", files: one, setup: func(t *testing.T, root string) {
-			if err := os.MkdirAll(filepath.Join(root, "x"), 0o755); err != nil {
+			// The link's own parent: the root where "/" is the separator (the
+			// name is then `a\l`), the directory a on Windows.
+			if err := os.MkdirAll(filepath.Dir(filepath.Join(root, nat("a/l"))), 0o755); err != nil {
 				t.Fatal(err)
 			}
 			if err := os.Symlink("nowhere", filepath.Join(root, nat("a/l"))); err != nil {
