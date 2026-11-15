@@ -440,7 +440,7 @@ damage falls outside the lines the hunk named. Take the anchor from the
 the address is wrong. `sha=` and `lines=` do not stand in for it: `sha=` pins the whole file, not which lines the range covers (ADR-164).
 An anchor that is not in the addressed line is refused, and the refusal ends with where it is — `; the anchor is in line N`, or `lines N, M, …`,
 the first five and a count of the rest — or `; no line of PATH holds it` (ADR-197): read the named line if you were not served it, and address
-that. A line that holds the anchor once its double quotes are gone ends with how to quote it instead.
+that. A line that holds the anchor once its double quotes are gone, when no line holds it as written, ends with how to quote it instead.
 
 Or address by pattern, when you would otherwise read the file only to learn a
 line number:

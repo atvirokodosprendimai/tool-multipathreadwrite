@@ -10,7 +10,7 @@
 **Supersedes:** none
 **Governs:** `internal/apply/apply.go`, `scripts/contract.sh`, `README.md`, `AGENTS.md`, `docs/bench/anchor-miss-study/scan.py`
 **Enforced-by:** `internal/apply/anchor197_test.go::TestAnAnchorMissNamesTheLinesThatHoldIt`
-**Served-path change:** a hunk refused because its `anchor=` is not in the addressed line also names up to five lines of the file that do hold the anchor, or says no line does. The exit code, the verdict and the words the refusal has today are unchanged; the new clause follows them.
+**Served-path change:** a hunk refused because its `anchor=` is not in the addressed line also names up to five lines of the file that do hold the anchor, or says no line does; the one miss that already ends with quoting advice (the addressed line holds the anchor without its double quotes and no line holds it as written) is unchanged. The exit code, the verdict and the words the refusal has today are unchanged; the new clause follows them.
 
 ## Context
 
