@@ -87,7 +87,7 @@ func TestAStoppedWritesErrorBeginsAsTheRowDoes(t *testing.T) {
 		var doc struct {
 			Error string `json:"error"`
 		}
-		if jerr := json.Unmarshal([]byte(out), &doc); jerr == nil && doc.Error != "" && !strings.HasPrefix(doc.Error, `x\d`) {
+		if jerr := json.Unmarshal([]byte(out), &doc); jerr != nil || !strings.HasPrefix(doc.Error, `x\d`) {
 			t.Errorf("the document's error %q, want it to begin with x\\d as it is", doc.Error)
 		}
 	})

@@ -1,12 +1,17 @@
 package apply
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
 )
+
+// engineReasonOf is the package's reasonOf, which the test below shadows with
+// a helper of the same name.
+var engineReasonOf = reasonOf
 
 // ADR-198 Decision 6. A refusal that `rooted` words about a rename
 // destination or a `from=` source begins with the path as the platform spells
@@ -127,6 +132,29 @@ func TestARefusedDestinationOrSourceBeginsAsTheRowDoes(t *testing.T) {
 		}
 		if got := SlashLead(`l/a/b.txt resolves to x`, "l/a/b.txt", '\\'); got != `l/a/b.txt resolves to x` {
 			t.Errorf("a path with no separator in it changed: %q", got)
+		}
+	})
+
+	t.Run("an error is converted against the longest path that begins it, and still unwraps", func(t *testing.T) {
+		cause := errors.New(`a\b c\d.txt appeared before commit: x`)
+		res := Result{Hunks: []HunkResult{{Path: `a\b`}, {Path: `a\b c\d.txt`}}}
+		got := SlashErr(res, cause, '\\')
+		if got.Error() != `a/b c/d.txt appeared before commit: x` {
+			t.Errorf("SlashErr = %q, want the whole of the longer path converted", got.Error())
+		}
+		if !errors.Is(got, cause) {
+			t.Error("the converted error does not unwrap to its cause")
+		}
+		plain := errors.New("the root cannot be opened: gone")
+		if got := SlashErr(res, plain, '\\'); got != plain {
+			t.Errorf("an error that begins with no path of the result came back changed: %v", got)
+		}
+	})
+	t.Run("a rooted path is kept as typed", func(t *testing.T) {
+		reasonSep = '\\'
+		const p = `/x\y`
+		if got := engineReasonOf(errors.New(p+" resolves to z"), p); got != p+" resolves to z" {
+			t.Errorf("reasonOf converted a rooted path: %q", got)
 		}
 	})
 }

@@ -1058,7 +1058,10 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// ADR-001 rule 3: the receipt is filled even when the filesystem failed, so
 	// it is rendered on whichever path we are on rather than discarded.
 	if land.Err != nil {
-		return boundedReceipt(root, res, statehint.Hint(land.Err))
+		// ADR-198 Decision 7: a stopped write's error begins with its file as
+		// the row spells it, judged against the paths as Apply returned them.
+		// Only this error: a check's or the ledger's is not a stopped write's.
+		return boundedReceipt(root, res, apply.SlashErr(res, statehint.Hint(land.Err), receiptSep))
 	}
 	// ADR-113 Decision 4: a check that ran and did not pass is not isError —
 	// the call did what it was asked, and the verdict is data; one that could
@@ -1258,9 +1261,6 @@ var receiptSep = filepath.Separator
 // the ladder below; and the terminal sentence names the verdict in a phrase
 // from a fixed set, which writeFloor is measured with.
 func checkedReceipt(root string, res apply.Result, v *writer.Verified, applyErr error, isErr bool) (callToolResult, *rpcError) {
-	// ADR-198 Decision 7: the error's start is spelled against the paths as
-	// Apply returned them, which the next line converts.
-	applyErr = apply.SlashErr(res, applyErr, receiptSep)
 	res = apply.Slashed(res, receiptSep)
 	pattern := authoring.PatternOf(root)
 	var chk *check.Result

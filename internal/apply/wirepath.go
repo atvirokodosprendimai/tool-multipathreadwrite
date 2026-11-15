@@ -112,19 +112,20 @@ func SlashErr(res Result, err error, sep rune) error {
 		return nil
 	}
 	text := err.Error()
-	var paths []string
+	// The longest path that fits: a\b and "a\b c\d.txt" both begin the text
+	// "a\b c\d.txt appeared …", and the shorter would convert half of it (the
+	// go-reviewer pass on #645). Every error Apply returns for a stopped write
+	// begins with a hunk's path.
+	best := ""
 	for _, h := range res.Hunks {
-		paths = append(paths, h.Path)
-	}
-	for _, f := range res.Files {
-		paths = append(paths, f.Path, f.RenamedTo)
-	}
-	for _, p := range paths {
-		if conv := SlashLead(text, p, sep); conv != text {
-			return &slashedError{err: err, text: conv}
+		if len(h.Path) > len(best) && SlashLead(text, h.Path, sep) != text {
+			best = h.Path
 		}
 	}
-	return err
+	if best == "" {
+		return err
+	}
+	return &slashedError{err: err, text: SlashLead(text, best, sep)}
 }
 
 // slashedError is an error whose text has been spelled for a receipt and that
