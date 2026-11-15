@@ -1248,13 +1248,20 @@ func boundedReceipt(root string, res apply.Result, applyErr error) (callToolResu
 	return checkedReceipt(root, res, nil, applyErr, true)
 }
 
+// receiptSep is the separator a receipt's paths are converted from (ADR-091);
+// a variable so a test can drive `\` on any platform, as cmd/mrw's is.
+var receiptSep = filepath.Separator
+
 // checkedReceipt is boundedReceipt with what followed the landing (ADR-113):
 // the check's verdict and the drift. The verdict leads the text and is never
 // cut: when the receipt does not fit, the check's tail lines go first, then
 // the ladder below; and the terminal sentence names the verdict in a phrase
 // from a fixed set, which writeFloor is measured with.
 func checkedReceipt(root string, res apply.Result, v *writer.Verified, applyErr error, isErr bool) (callToolResult, *rpcError) {
-	res = apply.Slashed(res, filepath.Separator)
+	// ADR-198 Decision 7: the error's start is spelled against the paths as
+	// Apply returned them, which the next line converts.
+	applyErr = apply.SlashErr(res, applyErr, receiptSep)
+	res = apply.Slashed(res, receiptSep)
 	pattern := authoring.PatternOf(root)
 	var chk *check.Result
 	var checkErr error

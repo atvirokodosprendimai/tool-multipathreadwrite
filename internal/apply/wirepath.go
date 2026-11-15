@@ -85,3 +85,64 @@ func SlashIn(text, p string, sep rune) string {
 	}
 	return strings.ReplaceAll(text, "`mrw read "+p+"`", "`mrw read "+q+"`")
 }
+
+// SlashLead spells the root-relative path p with "/" where sep separated it,
+// when text begins with exactly p followed by a space or a colon, and returns
+// text as it was otherwise. It is SlashIn's first place and no other: a refusal
+// `rooted` words, or the error of a stopped commit, begins with the path as the
+// platform spells it, and the rest of the text is the system's (ADR-198
+// Decision 6).
+func SlashLead(text, p string, sep rune) string {
+	if p == "" || !strings.ContainsRune(p, sep) {
+		return text
+	}
+	if rest, ok := strings.CutPrefix(text, p); ok && (strings.HasPrefix(rest, " ") || strings.HasPrefix(rest, ":")) {
+		return Slash(p, sep) + rest
+	}
+	return text
+}
+
+// SlashErr is err with the start of its text spelled by SlashLead against the
+// first path of res, as Apply returned it, that the text begins with; it still
+// unwraps to err. An error that begins with none of them (a directory named in
+// a plan, a lock) comes back as it was. A caller converts before the receipt's
+// own conversion has spelled those paths with "/" (ADR-198 Decision 7).
+func SlashErr(res Result, err error, sep rune) error {
+	if err == nil {
+		return nil
+	}
+	text := err.Error()
+	var paths []string
+	for _, h := range res.Hunks {
+		paths = append(paths, h.Path)
+	}
+	for _, f := range res.Files {
+		paths = append(paths, f.Path, f.RenamedTo)
+	}
+	for _, p := range paths {
+		if conv := SlashLead(text, p, sep); conv != text {
+			return &slashedError{err: err, text: conv}
+		}
+	}
+	return err
+}
+
+// slashedError is an error whose text has been spelled for a receipt and that
+// unwraps to the error it came from, so errors.As still finds its cause.
+type slashedError struct {
+	err  error
+	text string
+}
+
+func (e *slashedError) Error() string { return e.text }
+func (e *slashedError) Unwrap() error { return e.err }
+
+// reasonOf is err's text as a reason holds it: the start spelled as the row
+// spells p, the path `rooted` was given. A rooted p is the caller's own
+// spelling of a place and is kept, as asPlan keeps it (ADR-198 Decision 6).
+func reasonOf(err error, p string) string {
+	if rooted.IsRooted(p) {
+		return err.Error()
+	}
+	return SlashLead(err.Error(), p, reasonSep)
+}

@@ -740,7 +740,7 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 				for _, h := range hs {
 					results[h.Index] = HunkResult{
 						Path: path, Addr: h.SrcAddr, Op: h.SrcOp, SrcLine: h.SrcLine,
-						Status: StatusFailed, Reason: err.Error(),
+						Status: StatusFailed, Reason: reasonOf(err, destRel),
 					}
 				}
 				failed = append(failed, fr)
@@ -767,7 +767,7 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 				for _, h := range hs {
 					results[h.Index] = HunkResult{
 						Path: path, Addr: h.SrcAddr, Op: h.SrcOp, SrcLine: h.SrcLine,
-						Status: StatusFailed, Reason: err.Error(),
+						Status: StatusFailed, Reason: reasonOf(err, destRel),
 					}
 				}
 				failed = append(failed, fr)
