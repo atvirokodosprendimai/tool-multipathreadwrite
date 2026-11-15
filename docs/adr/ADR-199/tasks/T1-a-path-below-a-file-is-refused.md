@@ -5,7 +5,7 @@
 **Estimated scope:** S
 **Owner:** unassigned
 **Produces:** the obstruction check in `Apply` and `planPathOp`; `TestAPathBelowAFileIsRefusedOnItsHunk`; a contract section
-**Consumes:** `asPlan` (ADR-198); lands after ADR-198-T2
+**Consumes:** `asPlan` (ADR-198); lands after ADR-198's second task (pull request #645)
 **Data dependency:** hermetic
 **Proof map:** v1
 **Rests-on:** `a path below a non-directory is refused on its hunk`, `a rename destination below one is refused in mrw's words`, `a path below a directory, a missing directory or a link to a directory applies`, `a prefix the boundary refuses is not looked at`, `the built binary exits 1 with a receipt`, `the packages the task does not own are unchanged`
