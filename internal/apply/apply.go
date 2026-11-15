@@ -26,7 +26,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"syscall"
 	"unicode"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/lines"
@@ -2961,28 +2960,27 @@ func foldKey(name string) string {
 }
 
 // belowAFile is the refusal for a cleaned root-relative path that lies below
-// something that is not a directory, or "" when there is none (ADR-199). full
-// is the path as resolve returned it. The obstruction is the shortest proper
-// prefix that the boundary accepts, that exists as an entry, and that leads to
-// something other than a directory, and the refusal says which it is: a file,
-// a link to something that is not a directory, a link that leads back to
-// itself, or something else that is not a directory (a FIFO, a device).
+// something that is itself not a directory, or "" when there is none
+// (ADR-199). full is the path as resolve returned it. The obstruction is the
+// shortest proper prefix that the boundary accepts and whose own entry is
+// neither a directory nor a link: a file, or a FIFO or a device.
 //
-// A path whose parent is a directory has no such prefix, so that is asked
-// first and the walk is skipped: every create of a new file and every rename
-// to a new name comes here, and it costs them one Stat (the go-reviewer pass
-// on the first version measured 4x on a plan of 2,000 creates).
+// A link is never the obstruction. One that leads to a directory is walked
+// through, so a file below it is found; one that leads anywhere else (a file,
+// nothing, itself) ends the search and the path is left to what happens today.
+// Where a link leads is the system's to say, differently on each platform (on
+// Windows "the path was not found" is also "not a directory", and a junction
+// is an irregular file), and another hunk of the plan may make the directory a
+// link leads to. A prefix the boundary refuses, or one that cannot be examined,
+// ends the search too, so the refusals that exist for those keep their place.
 //
-// A link to nothing is not an obstruction: another hunk of the same plan may
-// make the directory it leads to, and such a plan applies. A prefix the
-// boundary refuses, or whose Lstat or Stat fails for any other reason, ends
-// the search, so the refusals that exist for those keep their place.
-//
-// The nearest ancestor of full that exists is found by Lstat alone, upwards
-// from its parent: a plan that makes its own directories reaches the check for
-// every file, and judging each prefix through the boundary cost such a plan a
-// tenth more (measured on 2,000 creates). full has passed the boundary, and
-// these are the names resolving it walked.
+// The nearest ancestor of full that exists is found first, by Lstat alone,
+// upwards from its parent, and when it is a directory nothing more is done:
+// every create of a new file and every rename to a new name comes here, and a
+// plan that makes its own directories does so for every file. Judging each
+// prefix through the boundary for those cost such a plan a tenth more on
+// macOS and a quarter more on Windows (measured on 2,000 creates). full has
+// passed the boundary, and these are the names resolving it walked.
 func belowAFile(root, path, full string) string {
 	if rooted.IsRooted(path) {
 		return ""
@@ -3001,25 +2999,21 @@ func belowAFile(root, path, full string) string {
 		if err != nil {
 			return ""
 		}
-		info, err := os.Stat(full)
-		var what string
-		// Windows reports a junction as irregular, not as a symlink (ADR-071).
-		isLink := entry.Mode()&(os.ModeSymlink|os.ModeIrregular) != 0
+		mode := entry.Mode()
 		switch {
-		case err == nil && info.IsDir():
+		case mode.IsDir():
 			continue
-		case err == nil && isLink, errors.Is(err, syscall.ENOTDIR) && isLink:
-			what = "is a link to something that is not a directory"
-		case err == nil && info.Mode().IsRegular():
-			what = "is a file, not a directory"
-		case err == nil:
-			what = "is not a directory"
-		case errors.Is(err, syscall.ELOOP):
-			what = "is a link that leads back to itself"
-		default:
+		case mode&(os.ModeSymlink|os.ModeIrregular) != 0:
+			// A link, or on Windows a junction or another reparse point.
+			if info, err := os.Stat(full); err == nil && info.IsDir() {
+				continue
+			}
 			return ""
+		case mode.IsRegular():
+			return fmt.Sprintf("%s cannot be written: %s is a file, not a directory", asPlan(path), asPlan(anc))
+		default:
+			return fmt.Sprintf("%s cannot be written: %s is not a directory", asPlan(path), asPlan(anc))
 		}
-		return fmt.Sprintf("%s cannot be written: %s %s", asPlan(path), asPlan(anc), what)
 	}
 	return ""
 }

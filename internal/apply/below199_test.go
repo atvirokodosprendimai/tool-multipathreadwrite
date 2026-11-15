@@ -4,7 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"runtime"
 	"strings"
 	"testing"
 )
@@ -65,11 +64,7 @@ func TestAPathBelowAFileIsRefusedOnItsHunk(t *testing.T) {
 		return Input{Path: p(path), Op: o, Start: s, End: e, Body: b, Lines: -1}
 	}
 	files := map[string]string{"d/f.txt": body, "d/g.txt": body}
-	const (
-		aFile        = "is a file, not a directory"
-		aLinkToAFile = "is a link to something that is not a directory"
-		aLinkLoop    = "is a link that leads back to itself"
-	)
+	const aFile = "is a file, not a directory"
 	words := func(path, anc, what string) string { return path + " cannot be written: " + anc + " " + what }
 	link := func(target, name string) func(*testing.T, string) {
 		return func(t *testing.T, root string) {
@@ -107,17 +102,12 @@ func TestAPathBelowAFileIsRefusedOnItsHunk(t *testing.T) {
 			plan: []Input{line("d/g.txt", "replace", 1, 1, "x"), op(below, "create", "x")}, at: 1, want: words(below, "d/f.txt", aFile)},
 		{name: "an unlink of the file beside a create below it",
 			plan: []Input{op("d/f.txt", "unlink"), op(below, "create", "x")}, at: 1, want: words(below, "d/f.txt", aFile)},
-		{name: "create below a link to a file", setup: link("f.txt", "d/lf"),
-			plan: []Input{op("d/lf/x", "create", "x")}, want: words("d/lf/x", "d/lf", aLinkToAFile)},
-		{name: "create below a link whose target is below a file", setup: link(filepath.Join("f.txt", "sub"), "d/lq"),
-			plan: []Input{op("d/lq/x", "create", "x")}, want: words("d/lq/x", "d/lq", aLinkToAFile)},
-		{name: "create below a link loop", setup: func(t *testing.T, root string) {
-			if runtime.GOOS == "windows" {
-				t.Skip("on Windows the boundary refuses a link loop first, at its hop limit")
-			}
-			link("l2", "d/l1")(t, root)
-			link("l1", "d/l2")(t, root)
-		}, plan: []Input{op("d/l1/x", "create", "x")}, want: words("d/l1/x", "d/l1", aLinkLoop)},
+		// A link to a directory is walked through, and the file below it is
+		// the obstruction, named by the plan's own path.
+		{name: "create below a file that is under a link to a directory", setup: func(t *testing.T, root string) {
+			write(t, root, "d/real/f", body)
+			link("real", "d/ld")(t, root)
+		}, plan: []Input{op("d/ld/f/x", "create", "x")}, want: words("d/ld/f/x", "d/ld/f", aFile)},
 		{name: "the shortest obstruction is named", setup: link("f.txt", "d/lf"),
 			plan: []Input{op("d/f.txt/lf/x", "create", "x")}, want: words("d/f.txt/lf/x", "d/f.txt", aFile)},
 	}
@@ -210,6 +200,62 @@ func TestAPathBelowAFileIsRefusedOnItsHunk(t *testing.T) {
 	// The parent is missing here, so the prefixes are walked and the link is
 	// judged by where it leads: a check on the link itself would refuse it.
 	applied(t, "kept: create below a missing directory under a link to a directory", link("real", "d/ld"), op("d/ld/new/x.txt", "create", "x"), "d/real/new/x.txt")
+	// A link is never the obstruction. One that does not lead to a directory
+	// is left to what happened before this record (an error from the load or
+	// from staging), because where a link leads is told differently on each
+	// platform: on Windows a link to nothing two levels deep answers "path not
+	// found", which Go also reads as "not a directory", and a build that went
+	// by that refused a plan that applies (the go-reviewer pass on #646).
+	for _, c := range []struct {
+		name  string
+		setup func(*testing.T, string)
+		path  string
+	}{
+		{"a link to a file", link("f.txt", "d/lf"), "d/lf/x"},
+		{"a link whose target is below a file", link(filepath.Join("f.txt", "sub"), "d/lq"), "d/lq/x"},
+		{"a link to nothing", link("nowhere", "d/ln"), "d/ln/x"},
+		{"a link to nothing two levels deep", link(filepath.Join("..", "gone", "sub"), "d/l2"), "d/l2/x"},
+		{"a link loop", func(t *testing.T, root string) {
+			link("lb", "d/la")(t, root)
+			link("la", "d/lb")(t, root)
+		}, "d/la/x"},
+	} {
+		t.Run("left as before: create below "+c.name, func(t *testing.T) {
+			root := t.TempDir()
+			for n, b := range files {
+				write(t, root, n, b)
+			}
+			c.setup(t, root)
+			in := op(c.path, "create", "x")
+			in.Index, in.SrcLine = 0, 1
+			res, _ := Apply(root, []Input{in}, Options{})
+			for _, h := range res.Hunks {
+				if strings.Contains(h.Reason, "cannot be written") {
+					t.Errorf("a path below %s was refused by this record's rule: %q", c.name, h.Reason)
+				}
+			}
+		})
+	}
+	// The two-level target made by the same plan: it applied before, and the
+	// build that read Windows' answer as "not a directory" refused it there.
+	t.Run("kept: create below a link to a two-level directory the same plan makes", func(t *testing.T) {
+		root := t.TempDir()
+		for n, b := range files {
+			write(t, root, n, b)
+		}
+		link(filepath.Join("..", "newdir", "sub"), "d/ln")(t, root)
+		in := []Input{op("newdir/sub/y.txt", "create", "y"), op("d/ln/x.txt", "create", "x")}
+		for i := range in {
+			in[i].Index, in[i].SrcLine = i, i+1
+		}
+		res, err := Apply(root, in, Options{})
+		if err != nil || !res.Applied || res.Failed != 0 {
+			t.Fatalf("the plan did not apply: %v %+v", err, res.Hunks)
+		}
+		if got := read(t, root, "newdir/sub/x.txt"); got != "x\n" {
+			t.Errorf("newdir/sub/x.txt = %q, want %q", got, "x\n")
+		}
+	})
 	// A link to nothing is not an obstruction: the same plan may make the
 	// directory it leads to, and that plan applied before this record (the
 	// go-reviewer pass on the first version, which refused it).
@@ -233,7 +279,7 @@ func TestAPathBelowAFileIsRefusedOnItsHunk(t *testing.T) {
 	})
 
 	// A prefix that leaves the root is the boundary's to refuse, in its own
-	// words, and what is outside is not looked at.
+	// words, and nothing is made or changed outside.
 	for _, c := range []struct{ name, target string }{
 		{"a link to a directory outside the root", ""},
 		{"a link to a file outside the root", "file.txt"},
