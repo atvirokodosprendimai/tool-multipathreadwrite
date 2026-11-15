@@ -103,6 +103,7 @@ out=$(go test ./internal/apply/ -count=1 -v -run '^(TestAPathBelowAFileIsRefused
 - 2026-11-15 · 77ca0152* · mutant killed · exit 1 · `internal/apply/apply.go` · a link that does not lead to a directory is the obstruction, so the plan that makes its target must go red · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · covers:a path below a directory, a missing directory or a link to a directory applies
 - 2026-11-15 · df9b1127* · mutant killed · exit 1 · `internal/apply/apply.go` · a prefix is read without asking the boundary, so the path that leaves the root and comes back must go red · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · covers:a prefix the boundary refuses is not looked at
 - 2026-11-15 · df9b1127* · mutant killed · exit 1 · `internal/apply/apply.go` · a link is the obstruction, so the file under a link to a directory and the plan that makes a link target must go red · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · covers:a path below a directory, a missing directory or a link to a directory applies
+- 2026-11-15 · 1c4696dc* · mutant killed · exit 1 · `internal/apply/apply.go` · the nearest existing ancestor ends the check whatever it is, so the create below a file must go red · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · covers:a path below a non-directory is refused on its hunk
 
 ## Verification Log
 - 2026-11-15 · 58365dc0* · exit 1 · `set -o pipefail …` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:1097 · test-lock-sha256:6af3851a85641b0ca90979ca22321234caab0b97e3ed2b98eb8a624b2a73840d · test-lock-file:docs/adr/locks/6af3851a85641b0ca90979ca22321234caab0b97e3ed2b98eb8a624b2a73840d.lock
@@ -128,10 +129,13 @@ out=$(go test ./internal/apply/ -count=1 -v -run '^(TestAPathBelowAFileIsRefused
 - 2026-11-15 · df9b1127* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:173829
 - 2026-11-15 · df9b1127* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:174485
 - 2026-11-15 · df9b1127* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:169273
+- 2026-11-15 · 1c4696dc* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:0 · test-lock-sha256:0e277f80e617c04531e5db755c331ff483d05943c94f386482287ee10033b72c · test-lock-file:docs/adr/locks/0e277f80e617c04531e5db755c331ff483d05943c94f386482287ee10033b72c.lock · test-lock-kind:replace
+- 2026-11-15 · 1c4696dc* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:165286
+- 2026-11-15 · 1c4696dc* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:166422
 
 ## Invariants
 
-- A plan that applies today applies. The check never runs for a file that opens; for a file the plan makes it costs an `Lstat` per missing directory above it and one `Stat`, and the prefixes are judged one by one only when the nearest existing ancestor is not a directory.
+- A plan that applies today applies. The check never runs for a file that opens; for a file the plan makes it costs an `Lstat` for its parent and per missing directory above it, and the prefixes are judged one by one only when the nearest existing ancestor is not a directory.
 - A refusal by the check writes nothing, stages nothing and returns no error.
 
 ## Risks

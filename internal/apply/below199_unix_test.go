@@ -5,6 +5,7 @@ package apply
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"syscall"
 	"testing"
 )
@@ -27,8 +28,7 @@ func TestAPathBelowAFifoIsRefusedOnItsHunk(t *testing.T) {
 	if r := failedReason(res); r != want || res.Failed != 1 || res.Applied {
 		t.Errorf("reason %q Failed=%d Applied=%v, want %q", r, res.Failed, res.Applied, want)
 	}
-	after := snapshot(t, root)
-	if len(after) != len(before) {
+	if after := snapshot(t, root); !reflect.DeepEqual(after, before) {
 		t.Errorf("the tree changed: %v -> %v", before, after)
 	}
 	if _, err := os.Lstat(filepath.Join(root, "d", "pipe", "x")); err == nil {

@@ -229,11 +229,18 @@ func TestAPathBelowAFileIsRefusedOnItsHunk(t *testing.T) {
 			c.setup(t, root)
 			in := op(c.path, "create", "x")
 			in.Index, in.SrcLine = 0, 1
-			res, _ := Apply(root, []Input{in}, Options{})
+			before := snapshot(t, root)
+			res, err := Apply(root, []Input{in}, Options{})
+			if err == nil && res.Applied {
+				t.Errorf("a create below %s applied: %+v", c.name, res.Hunks)
+			}
 			for _, h := range res.Hunks {
 				if strings.Contains(h.Reason, "cannot be written") {
 					t.Errorf("a path below %s was refused by this record's rule: %q", c.name, h.Reason)
 				}
+			}
+			if after := snapshot(t, root); !reflect.DeepEqual(after, before) {
+				t.Errorf("the tree changed: %v -> %v", before, after)
 			}
 		})
 	}
@@ -299,11 +306,21 @@ func TestAPathBelowAFileIsRefusedOnItsHunk(t *testing.T) {
 		}
 		in := op("d/ld/back/f.txt/x", "create", "x")
 		in.Index, in.SrcLine = 0, 1
-		res, _ := Apply(root, []Input{in}, Options{})
+		before, beforeOut := snapshot(t, root), snapshot(t, outside)
+		res, err := Apply(root, []Input{in}, Options{})
+		if err == nil && res.Applied {
+			t.Errorf("the create applied: %+v", res.Hunks)
+		}
 		for _, h := range res.Hunks {
 			if strings.Contains(h.Reason, "cannot be written") {
 				t.Errorf("a verdict was reached through a directory outside the root: %q", h.Reason)
 			}
+		}
+		if after := snapshot(t, root); !reflect.DeepEqual(after, before) {
+			t.Errorf("the root changed: %v -> %v", before, after)
+		}
+		if after := snapshot(t, outside); !reflect.DeepEqual(after, beforeOut) {
+			t.Errorf("the outside directory changed: %v -> %v", beforeOut, after)
 		}
 	})
 

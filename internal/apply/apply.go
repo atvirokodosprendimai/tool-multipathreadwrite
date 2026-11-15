@@ -3018,16 +3018,18 @@ func belowAFile(root, path, full string) string {
 }
 
 // nearestIsDir reports whether the nearest ancestor of a path that can be
-// examined, the path itself included, is a directory. Anything else there (a
-// file, a link to nothing) is false: the caller then looks at each prefix with
-// care. A name that cannot be examined is passed over like one that does not
-// exist: on unix a path below a file answers "not a directory" for every level
-// under it, and the file is found above.
+// examined, the path itself included, is itself a directory. Anything else
+// there (a file, a link, wherever it leads) is false: the caller then looks at
+// each prefix with care, asking the boundary first. The entry is read with
+// Lstat and never followed, so a link is not judged by what it leads to before
+// the boundary has been asked about it (the Codex review of #646). A name
+// that cannot be examined is passed over like one that does not exist: on
+// unix a path below a file answers "not a directory" for every level under
+// it, and the file is found above.
 func nearestIsDir(dir string) bool {
 	for {
-		if _, err := os.Lstat(dir); err == nil {
-			info, err := os.Stat(dir)
-			return err == nil && info.IsDir()
+		if entry, err := os.Lstat(dir); err == nil {
+			return entry.IsDir()
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
