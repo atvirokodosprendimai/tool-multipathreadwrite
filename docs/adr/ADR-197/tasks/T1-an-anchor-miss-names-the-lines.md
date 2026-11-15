@@ -25,18 +25,21 @@ Decision 1 of the record.
 
 ## Ordered Steps
 
-1. [S1] Write the failing test `TestAnAnchorMissNamesTheLinesThatHoldIt` and see it RED. Cases, through `Apply` with every line read:
-   - the anchor is in one other line: the reason ends `; the anchor is in line 4`;
+1. [S1] Write the failing test `TestAnAnchorMissNamesTheLinesThatHoldIt` and see it RED. Cases, through `Apply` with no ledger, as the package's other anchor tests run, each for `replace` and for `insert-after`, which reach `anchorMiss` from different sites:
+   - the anchor is in one line below: the reason ends `; the anchor is in line 4`;
+   - in one line above the addressed one: `line 1` (added after the go-reviewer pass: a scan that began at the addressed line passed every other case);
    - in three other lines: `lines 4, 7, 9`;
    - in seven: the first five, then `and 2 more`;
-   - in no line: `; no line of f.go holds it`;
+   - in no line: `; no line of f.txt holds it`, the path as the plan spelled it;
    - the #589 case (the line holds the anchor without its double quotes, no line holds it as written): the quote advice is there, and neither `no line of` nor `the anchor is in` is;
-   - the anchor is in the addressed line's neighbour only as part of a longer word: it is named, since the test is the one the anchor itself gets, a substring;
    - an anchor that matches: no refusal, as now.
+   Every holding line holds the anchor inside a longer word: the test is the one the anchor itself gets, a substring.
 2. [S2] `anchorMiss` reports what its scan finds. Mutants, each killed:
    - the clause dropped, so the one-line case goes red;
    - the cap of five removed, so the seven-line case goes red;
-   - `no line of` printed when lines do hold it, so the three-line case goes red.
+   - `no line of` printed when lines do hold it, so the three-line case goes red;
+   - the scan started after the addressed line, so the line-above case goes red;
+   - the insert site passing the resolved path instead of the plan's, so the insert `no line of f.txt` case goes red.
    [proof: mutation]
 3. [S3] Contract §337, through the built binary: a two-line replace whose anchor sits one line below the range exits 1, writes nothing and names that line; the pair: the same plan re-addressed to the named line exits 0. [proof: acceptance]
 4. [S4] README and AGENTS.md say so. [proof: acceptance]
@@ -80,6 +83,8 @@ out=$(go test ./internal/apply/ -count=1 -v -run '^TestAnAnchorMissNamesTheLines
 - 2026-11-15 · 663b047e* · mutant killed · exit 1 · `scripts/contract.sh` · the row expects another line number, so the built binary naming line 3 must fail the row · acceptance-sha256:d28930553aa0afe99b861d918397d316730b9875df91341a00cf798f6178d594 · covers:the built binary names the line
 - 2026-11-15 · 663b047e* · mutant killed · exit 1 · `AGENTS.md` · the sentence loses the clause, so the AGENTS.md grep must go red · acceptance-sha256:d28930553aa0afe99b861d918397d316730b9875df91341a00cf798f6178d594 · covers:README and AGENTS.md name the clause
 - 2026-11-15 · 663b047e* · mutant killed · exit 1 · `internal/plan/plan.go` · a package the task does not own is changed, so the byte-identical clause must go red · acceptance-sha256:d28930553aa0afe99b861d918397d316730b9875df91341a00cf798f6178d594 · covers:the packages the task does not own are unchanged
+- 2026-11-15 · 0d5defe4* · mutant killed · exit 1 · `internal/apply/apply.go` · the scan starts after the addressed line, so an anchor above it is never named and the line-above case must go red · acceptance-sha256:d28930553aa0afe99b861d918397d316730b9875df91341a00cf798f6178d594 · covers:the lines holding the anchor are named
+- 2026-11-15 · 0d5defe4* · mutant killed · exit 1 · `internal/apply/apply.go` · the insert site prints the resolved path, so the insert no-line case must go red · acceptance-sha256:d28930553aa0afe99b861d918397d316730b9875df91341a00cf798f6178d594 · covers:no line holding it is said
 
 ## Verification Log
 - 2026-11-15 · 663b047e* · exit 1 · `set -o pipefail …` · acceptance-sha256:d28930553aa0afe99b861d918397d316730b9875df91341a00cf798f6178d594 · ms:547 · test-lock-sha256:d41b0403233945480b7274e1e176802e8d5d218babc523f098c368d21359bcf5 · test-lock-file:docs/adr/locks/d41b0403233945480b7274e1e176802e8d5d218babc523f098c368d21359bcf5.lock
@@ -92,6 +97,9 @@ out=$(go test ./internal/apply/ -count=1 -v -run '^TestAnAnchorMissNamesTheLines
 - 2026-11-15 · 663b047e* · exit 0 · `set -o pipefail …` · acceptance-sha256:d28930553aa0afe99b861d918397d316730b9875df91341a00cf798f6178d594 · ms:89909
 - 2026-11-15 · 663b047e* · exit 0 · `set -o pipefail …` · acceptance-sha256:d28930553aa0afe99b861d918397d316730b9875df91341a00cf798f6178d594 · ms:90071
 - 2026-11-15 · 663b047e* · exit 0 · `set -o pipefail …` · acceptance-sha256:d28930553aa0afe99b861d918397d316730b9875df91341a00cf798f6178d594 · ms:86568
+- 2026-11-15 · 0d5defe4* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:d28930553aa0afe99b861d918397d316730b9875df91341a00cf798f6178d594 · ms:0 · test-lock-sha256:831c96bc71f0ee6921b4a834d349c99514a00120a2887d3eaf8711ab9a61bfb1 · test-lock-file:docs/adr/locks/831c96bc71f0ee6921b4a834d349c99514a00120a2887d3eaf8711ab9a61bfb1.lock · test-lock-kind:replace
+- 2026-11-15 · 0d5defe4* · exit 0 · `set -o pipefail …` · acceptance-sha256:d28930553aa0afe99b861d918397d316730b9875df91341a00cf798f6178d594 · ms:93141
+- 2026-11-15 · 0d5defe4* · exit 0 · `set -o pipefail …` · acceptance-sha256:d28930553aa0afe99b861d918397d316730b9875df91341a00cf798f6178d594 · ms:91319
 
 ## Invariants
 

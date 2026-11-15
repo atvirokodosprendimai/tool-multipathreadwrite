@@ -75,7 +75,7 @@ None — one task.
 ## Consequences
 
 - **Positive:** a wrong range is corrected from the refusal's own line number.
-- **Negative:** a longer refusal; one scan of the file's lines on each anchor miss.
+- **Negative:** a longer refusal; and each anchor miss scans the file's lines once, under the write lock, where before only the #589 case did. Measured by the go-reviewer pass on 0d5defe4: 2,000 missed anchors in one 200,000-line file took 1.44 s against 9 ms, about 3.6 ns per line per missed hunk.
 - **Neutral:** the caller still reads a named line it was not served.
 
 ## Out of Scope
@@ -92,6 +92,7 @@ None — one task.
 |------|------------|--------|------------|
 | An existing assertion needs the reason to end where it ends now | Low | Low | every assertion found is a substring (`anchor_quote_test.go:35, 38, 65`, `adversarial/ledger_test.go:302`, `contract.sh:4107, 10176, 10934`); T1 searches again before editing |
 | A short anchor (`}`) is in hundreds of lines | Med | Low | five are named and the rest counted |
+| A plan with thousands of missed anchors in a very large file holds the write lock while each is scanned | Low | Med | measured above; 10,000 misses in a million-line file is about 36 s of the 120 s another writer waits (ADR-110). Not capped: a plan that large is generated, and a generated plan takes its anchors from the file. A cap per file is the fix if one is ever seen |
 
 ## Rollback
 
