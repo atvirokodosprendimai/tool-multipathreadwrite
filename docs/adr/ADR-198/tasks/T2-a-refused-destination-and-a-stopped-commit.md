@@ -85,7 +85,7 @@ a=$(go test ./internal/apply/ -count=1 -v -run '^(TestARefusedDestinationOrSourc
 | 1 — exists | the tests |
 | 2 — something selects it | a refused rename destination or source in `Apply`; every CLI `--json` landing refusal; every `mrw_write` receipt |
 | 3 — the caller can discover it | it is the refusal itself |
-| 4 — it is used | no telemetry (ADR-009); the evidence is the Windows probe of 0d49d6e8 (`d\nul\x leads to "nul"`) and, for the error line, the code read by two reviews; that line has not been seen on Windows |
+| 4 — it is used | no telemetry (ADR-009); the evidence is the Windows probe of 0d49d6e8 (`d\nul\x leads to "nul"`) and, for the error line, a Windows 11 probe of bfeae770, an earlier head of this task: the error begins `q/n.txt appeared before commit` in the `--json` field, the stderr line, and `mrw_write`'s field and `error:` line. Later heads were not probed by hand |
 
 ## Mutation Log
 - 2026-11-15 · bfeae770* · mutant killed · exit 1 · `internal/apply/pathop.go` · the destination site prints the rooted error as it is, so the refused destination case must go red · acceptance-sha256:6bf1f9f7692ec54d5d492c3d605878303575b1b5985e457ffb11b7b06f692b0f · covers:a refused destination begins with the path as the row spells it

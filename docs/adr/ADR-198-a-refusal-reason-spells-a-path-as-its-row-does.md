@@ -46,7 +46,7 @@ Kept:
 - An `error`'s own text, an absolute path, a link target; and a rooted path that reaches a converted site, which `asPlan` returns as it is (two rename destinations `\missing\Q.txt` and `\missing\q.txt` reach `foldClashes` before the absolute-path refusal).
 - `; you were served A, B` (`servedAs`): already `/`.
 - Reasons made in `internal/writer/flow.go:225, 229`: they begin with the path, which `SlashIn` converts.
-- `mrw cannot read the file identity of P` (`internal/rooted/hardlink.go:38`): made in `rooted`, which the read side shares (Out of Scope, deferred).
+- `mrw cannot read the file identity of P` (`internal/rooted/hardlink.go:38`): made in `rooted`, which the read side shares (Out of Scope, a boundary since the amendment that added T2).
 
 Only the ADR-197 ending was measured on Windows. The rest is read from the code.
 
@@ -123,7 +123,7 @@ None — T2 consumes T1's `asPlan` and `reasonSep`.
 
 ## Rollback
 
-Revert T1: a path inside a reason is spelled as the platform spells it.
+Revert T2, then T1 (T2 uses T1's `asPlan` and `reasonSep`): a path inside a reason, and the start of a stopped write's error, are spelled as the platform spells them.
 
 ## Follow-ups
 

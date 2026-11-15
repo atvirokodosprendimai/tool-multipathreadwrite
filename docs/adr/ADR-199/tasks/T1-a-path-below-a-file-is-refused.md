@@ -5,7 +5,7 @@
 **Estimated scope:** S
 **Owner:** unassigned
 **Produces:** the obstruction check in `Apply` and `planPathOp`; `TestAPathBelowAFileIsRefusedOnItsHunk`; a contract section
-**Consumes:** `asPlan` (ADR-198); lands after ADR-198 T2
+**Consumes:** `asPlan` (ADR-198); lands after ADR-198-T2
 **Data dependency:** hermetic
 **Proof map:** v1
 **Rests-on:** `a path below a non-directory is refused on its hunk`, `a rename destination below one is refused in mrw's words`, `a path below a directory, a missing directory or a link to a directory applies`, `a prefix the boundary refuses is not looked at`, `the built binary exits 1 with a receipt`, `the packages the task does not own are unchanged`
@@ -27,15 +27,16 @@ Decisions 1-4 of the record.
 
 ## Ordered Steps
 
-1. [S1] Write the failing test `TestAPathBelowAFileIsRefusedOnItsHunk` and see it RED. Through `Apply` in a temporary root holding `d/f.txt` and `d/g.txt`, with the staging seam (`stageFileFn`) failing the test if it is called. Each refused case: no error returned, `Failed` 1, nothing changed on disk, the reason exactly `P cannot be written: A is not a directory`:
+1. [S1] Write the failing test `TestAPathBelowAFileIsRefusedOnItsHunk` and see it RED. Through `Apply` in a temporary root holding `d/f.txt` and `d/g.txt`, with the staging seam (`stageFileFn`) failing the test if it is called. Each refused case: no error returned, `Failed` 1, nothing changed on disk, the reason exactly `P cannot be written: A WHAT`, WHAT as the record lists it for that kind of ancestor:
    - below a file, one case per op: `create` one and two levels down, `replace`, `insert-after`, `insert-before`, `delete`, `unlink`, a rename whose source is `d/f.txt/x`;
    - a rename of `d/g.txt` to `d/f.txt/x`, alone and beside an edit of `d/g.txt`;
    - an edit of `d/g.txt` beside a `create` of `d/f.txt/x`: the edit reports skipped;
    - an `unlink` of `d/f.txt` beside a `create` of `d/f.txt/x`: refused;
-   - below a FIFO (unix); below a link to a file, a link to nothing and a link loop (each skipped where it cannot be made, and the test says which ran).
+   - below a FIFO (unix, in its own test `TestAPathBelowAFifoIsRefusedOnItsHunk`, which the fence does not name); below a link to a file, a link whose target is below a file and a link loop (each skipped where it cannot be made; the loop case skips on Windows, where the boundary refuses a loop first at its hop limit).
    Kept, each a case:
    - applied as now: `create` `d/new/x.txt`, `create` `d/x.txt`, `create` below a link to a directory;
-   - a prefix that is a link out of the root: refused in the boundary's words, and the outside target's listing is unchanged;
+   - applied as now: a `create` below a link to nothing whose directory another hunk of the plan makes;
+   - a prefix that is a link out of the root: refused in the boundary's words, and the outside target's listing is unchanged (the whole-path judgement refuses these, so they do not exercise the per-prefix one);
    - two spellings of one file below a file: the case-clash refusal wins.
 2. [S2] The check. Mutants, each killed:
    - the check removed where a load fails, so the `replace` case goes red;
@@ -44,9 +45,9 @@ Decisions 1-4 of the record.
    - the check refusing a prefix that does not exist, so the missing-directory case goes red;
    - the check testing `IsRegular` where it tests "not a directory", so the FIFO case goes red;
    - the check using `Lstat` alone, so the link-to-a-directory case goes red;
-   - the boundary judgement of the prefix removed, so the link-out-of-the-root case goes red.
+   - the boundary judgement of the prefix removed: SURVIVES, declared uncovered (the record's Risks row says why).
    [proof: mutation]
-3. [S3] The contract section, through the built binary: `create` of `d/f.txt/x` exits 1, prints a FAIL row naming `d/f.txt is not a directory`, and makes nothing; the pair: `create` of `d/new/x.txt` exits 0 and makes the file. [proof: acceptance]
+3. [S3] The contract section, through the built binary: `create` of `d/f.txt/x` exits 1, prints a FAIL row naming `d/f.txt is a file, not a directory`, and makes nothing; the pair: `create` of `d/new/x.txt` exits 0 and makes the file. [proof: acceptance]
 4. [S4] `go test ./internal/apply/ ./cmd/mrw/ ./internal/mcp/` pass. [proof: acceptance]
 
 Before the merge, outside the fence: the built binary is probed on Windows with issue #644's plans, and each exits 1 with the new reason.
@@ -89,7 +90,7 @@ out=$(go test ./internal/apply/ -count=1 -v -run '^(TestAPathBelowAFileIsRefused
 
 ## Invariants
 
-- A plan that applies today applies, and the check does not run for it.
+- A plan that applies today applies. The check never runs for a file that opens, and costs one `Stat` for a file the plan makes.
 - A refusal by the check writes nothing, stages nothing and returns no error.
 
 ## Risks

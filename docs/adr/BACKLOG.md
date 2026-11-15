@@ -1142,3 +1142,8 @@ The exponent timing-test entry above retains its recurrence trigger. ADR-169's
   when the plan is judged, where that prefix does not exist; `nestedPath` (`internal/apply/pathop.go:181-192`) refuses
   nesting only between rename destinations and written files. The fix is the same nesting rule for every file a plan
   makes. ADR-198 T2's test uses this plan to reach a stopped write, so the two are changed together.
+- **A path below a link to nothing** (measured 2026-11-15, macOS, `dev (0d49d6e)`): `create d/dl/x`, `d/dl` a link to
+  nothing, exits 2 at staging, `mkdirat d/dl: file exists`, nothing written; a rename to such a destination is refused
+  at staging, exit 1, in ADR-106's words. ADR-199's first build refused both at validation and with them a plan that
+  applies today: `create newdir/y.txt` beside `create d/ln/x.txt`, `d/ln` a link to `../newdir` (it applies only in
+  that hunk order; the other order exits 2). A rule needs to know which directories the plan itself makes.
