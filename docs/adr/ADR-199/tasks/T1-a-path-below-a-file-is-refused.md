@@ -90,7 +90,7 @@ out=$(go test ./internal/apply/ -count=1 -v -run '^(TestAPathBelowAFileIsRefused
 
 ## Invariants
 
-- A plan that applies today applies. The check never runs for a file that opens, and costs one `Stat` for a file the plan makes.
+- A plan that applies today applies. The check never runs for a file that opens; for a file the plan makes it costs one `Stat` when the parent is a directory, and a walk of the existing prefixes when the plan also makes the parent.
 - A refusal by the check writes nothing, stages nothing and returns no error.
 
 ## Risks
