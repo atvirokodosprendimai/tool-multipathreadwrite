@@ -192,7 +192,7 @@ func planPathOp(root, path, full string, h hunk, orig []string, existed bool, sh
 		}
 		destFull, err := resolve(root, dest)
 		if err != nil {
-			fail(h, "%s", err.Error())
+			fail(h, "%s", reasonOf(err, dest))
 			return false
 		}
 		// ADR-066: only "does not exist" clears a destination. Acting on

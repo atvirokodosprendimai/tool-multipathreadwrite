@@ -11167,6 +11167,28 @@ out=$(printf '%s\n' '@@ sub/f.txt 2 replace anchor="nowhere"' 'x' | e338 write -
   && ok "the pair: a path in a directory is named with its slash" || bad "directory name: exit $rc338 [$out]"
 rm -rf "$R338"
 
+# 339. ADR-198 T2: a refusal `rooted` words about a rename destination begins with
+# that path as the row spells it. Here, where "/" is the separator, a backslash in the
+# destination is part of its name and is kept: `l/a\b.txt` through a link out of the
+# root is refused, exit 1, and the reason begins with it as typed. The conversion is
+# driven by the Go tests with `\` as the separator and by a probe on Windows. The
+# pair: a destination through the link with no backslash is refused the same way,
+# and one in the root applies.
+R339=$(mktemp -d "$WORK/r339-XXXXXX"); O339=$(mktemp -d "$WORK/o339-XXXXXX"); mkdir "$R339/d"
+printf 'a\n' > "$R339/f.txt"; ln -s "$O339" "$R339/l"
+e339() { env XDG_STATE_HOME="$R339/state" "$MRW" --root "$R339" "$@" 2>&1; }
+out=$(e339 read --quiet f.txt)
+out=$(printf '%s\n' '@@ f.txt - rename' 'l/a\b.txt' | e339 write --no-check -); rc339=$?
+{ [ "$rc339" = 1 ] && grep -qF ': l/a\b.txt resolves to ' <<<"$out" && [ -e "$R339/f.txt" ] && [ ! -e "$O339"/'a\b.txt' ]; } \
+  && ok "a refused rename destination keeps the backslash in its name" || bad "backslash destination: exit $rc339 [$out]"
+out=$(printf '%s\n' '@@ f.txt - rename' 'l/ok.txt' | e339 write --no-check -); rc339=$?
+refused339=no
+{ [ "$rc339" = 1 ] && grep -qF ': l/ok.txt resolves to ' <<<"$out" && [ -e "$R339/f.txt" ] && [ ! -e "$O339/ok.txt" ]; } && refused339=yes
+out=$(printf '%s\n' '@@ f.txt - rename' 'd/ok.txt' | e339 write --no-check -); rc339=$?
+{ [ "$refused339" = yes ] && [ "$rc339" = 0 ] && [ -e "$R339/d/ok.txt" ] && [ ! -e "$R339/f.txt" ]; } \
+  && ok "the pair: a destination through the link is refused, and one in the root applies" || bad "link pair: refused=$refused339, exit $rc339 [$out]"
+rm -rf "$R339" "$O339"
+
 # 334. The Stage 8 pilot (ADR-193 T4): an agent passed the file it meant to edit as
 # --format=search_replace's FILE, so mrw read source as the document and refused
 # "no hunks", which named neither the marker nor the mistake. A document with no

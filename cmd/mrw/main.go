@@ -2317,7 +2317,7 @@ held or went unchecked.`,
 					// verdict yet. Rendered only when it had hunks, a failure
 					// before the first one — a plan naming a directory —
 					// printed nothing under --json (review of #229, B2).
-					return refuseWith(res, land.Err)
+					return refuseWith(res, apply.SlashErr(land.Res, land.Err, receiptSep))
 				}
 				if len(res.Hunks) > 0 {
 					reportAs(os.Stdout, res, cmd)
