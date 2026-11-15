@@ -32,11 +32,12 @@ Decisions 1-4 of the record.
    - a rename of `d/g.txt` to `d/f.txt/x`, alone and beside an edit of `d/g.txt`;
    - an edit of `d/g.txt` beside a `create` of `d/f.txt/x`: the edit reports skipped;
    - an `unlink` of `d/f.txt` beside a `create` of `d/f.txt/x`: refused;
-   - below a FIFO (unix, in its own test `TestAPathBelowAFifoIsRefusedOnItsHunk`, which the fence does not name); below a link to a file, a link whose target is below a file and a link loop (each skipped where it cannot be made; the loop case skips on Windows, where the boundary refuses a loop first at its hop limit).
+   - below a FIFO (unix, in its own test `TestAPathBelowAFifoIsRefusedOnItsHunk`, which the fence does not name); below a file that is under a link to a directory (skipped where links cannot be made).
    Kept, each a case:
    - applied as now: `create` `d/new/x.txt`, `create` `d/x.txt`, `create` below a link to a directory;
-   - applied as now: a `create` below a link to nothing whose directory another hunk of the plan makes;
-   - a prefix that is a link out of the root: refused in the boundary's words, and the outside target's listing is unchanged (the whole-path judgement refuses these, so they do not exercise the per-prefix one);
+   - applied as now: a `create` below a link to a directory, one or two levels deep, that another hunk of the plan makes;
+   - left as before, with no reason of this record's: a `create` below a link to a file, a link whose target is below a file, a link to nothing (one and two levels deep) and a link loop;
+   - a prefix that is a link out of the root: refused in the boundary's words, and the outside target's listing is unchanged; a path that leaves the root through one link and comes back through another: no reason of this record's, since the prefix judgement stops at the first link; on Windows, in `TestAPathBelowAJunctionIsLeftToWhereItLeads`, three junction cases that need no privilege;
    - two spellings of one file below a file: the case-clash refusal wins.
 2. [S2] The check. Mutants, each killed:
    - the check removed where a load fails, so the `replace` case goes red;
@@ -44,8 +45,9 @@ Decisions 1-4 of the record.
    - the check removed from the rename destination, so the rename case goes red on its words;
    - the check refusing a prefix that does not exist, so the missing-directory case goes red;
    - the check testing `IsRegular` where it tests "not a directory", so the FIFO case goes red;
-   - the check using `Lstat` alone, so the link-to-a-directory case goes red;
-   - the boundary judgement of the prefix removed: SURVIVES, declared uncovered (the record's Risks row says why).
+   - a link to a directory treated as the obstruction, so the file-under-a-link case goes red on the ancestor it names; a link that leads nowhere treated as one, so the plan that makes its target goes red;
+   - the nearest existing ancestor ending the check whatever it is, so the create below a file goes red;
+   - the boundary judgement of the prefix removed, so the path that leaves the root and comes back goes red (it survived until the third review supplied that fixture). One more survived an earlier build and is logged as such: in the helper that finds the nearest existing ancestor, a branch that stopped at a name it could not examine. Both ways reach the same answer, so the branch was removed instead of kept untested. Mutant rows written against builds before the link rule was narrowed name cases that no longer exist; the rows stay as history.
    [proof: mutation]
 3. [S3] The contract section, through the built binary: `create` of `d/f.txt/x` exits 1, prints a FAIL row naming `d/f.txt is a file, not a directory`, and makes nothing; the pair: `create` of `d/new/x.txt` exits 0 and makes the file. [proof: acceptance]
 4. [S4] `go test ./internal/apply/ ./cmd/mrw/ ./internal/mcp/` pass. [proof: acceptance]
@@ -85,12 +87,57 @@ out=$(go test ./internal/apply/ -count=1 -v -run '^(TestAPathBelowAFileIsRefused
 | 4 — it is used | no telemetry (ADR-009); the evidence is issue #644's measurements |
 
 ## Mutation Log
+- 2026-11-15 · 58365dc0* · mutant killed · exit 1 · `internal/apply/apply.go` · the check is not made where a load fails, so the replace below a file case must go red · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · covers:a path below a non-directory is refused on its hunk
+- 2026-11-15 · 58365dc0* · mutant killed · exit 1 · `internal/apply/apply.go` · the check is not made where a file reports as missing, so the Windows-shaped cases must go red · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · covers:a path below a non-directory is refused on its hunk
+- 2026-11-15 · 58365dc0* · mutant killed · exit 1 · `internal/apply/pathop.go` · the check is not made for a rename destination, so the rename case must go red on its words · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · covers:a rename destination below one is refused in mrw's words
+- 2026-11-15 · 58365dc0* · mutant killed · exit 1 · `internal/apply/apply.go` · a prefix that does not exist is treated as an obstruction, so the create below a missing directory must go red · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · covers:a path below a directory, a missing directory or a link to a directory applies
+- 2026-11-15 · 58365dc0* · mutant killed · exit 1 · `internal/apply/apply.go` · only a regular file or a link counts, so the FIFO case must go red · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · covers:a path below a non-directory is refused on its hunk
+- 2026-11-15 · 58365dc0* · mutant killed · exit 1 · `internal/apply/apply.go` · the prefix is judged by the link itself, so the create below a missing directory under a link to a directory must go red · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · covers:a path below a directory, a missing directory or a link to a directory applies
+- 2026-11-15 · 58365dc0* · mutant killed · exit 1 · `internal/apply/apply.go` · a parent that exists ends the check whatever it is, so the create below a file case must go red · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · covers:a path below a non-directory is refused on its hunk
+- 2026-11-15 · 593f12ac* · mutant killed · exit 1 · `internal/apply/apply.go` · the nearest existing ancestor ends the check whatever it is, so the create below a file case must go red · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · covers:a path below a non-directory is refused on its hunk
+- 2026-11-15 · 593f12ac* · mutant survived · exit 0 · `internal/apply/apply.go` · an ancestor that cannot be examined is skipped upwards, so a path two levels below a file must go red · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · covers:a path below a non-directory is refused on its hunk
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
+- 2026-11-15 · 77ca0152* · mutant killed · exit 1 · `internal/apply/apply.go` · a link is judged as an ordinary entry and so is the obstruction, so the file under a link to a directory must go red on the ancestor it names · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · covers:a path below a non-directory is refused on its hunk
+- 2026-11-15 · 77ca0152* · mutant killed · exit 1 · `internal/apply/apply.go` · a link that does not lead to a directory is the obstruction, so the plan that makes its target must go red · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · covers:a path below a directory, a missing directory or a link to a directory applies
+- 2026-11-15 · df9b1127* · mutant killed · exit 1 · `internal/apply/apply.go` · a prefix is read without asking the boundary, so the path that leaves the root and comes back must go red · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · covers:a prefix the boundary refuses is not looked at
+- 2026-11-15 · df9b1127* · mutant killed · exit 1 · `internal/apply/apply.go` · a link is the obstruction, so the file under a link to a directory and the plan that makes a link target must go red · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · covers:a path below a directory, a missing directory or a link to a directory applies
+- 2026-11-15 · 1c4696dc* · mutant killed · exit 1 · `internal/apply/apply.go` · the nearest existing ancestor ends the check whatever it is, so the create below a file must go red · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · covers:a path below a non-directory is refused on its hunk
 
 ## Verification Log
+- 2026-11-15 · 58365dc0* · exit 1 · `set -o pipefail …` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:1097 · test-lock-sha256:6af3851a85641b0ca90979ca22321234caab0b97e3ed2b98eb8a624b2a73840d · test-lock-file:docs/adr/locks/6af3851a85641b0ca90979ca22321234caab0b97e3ed2b98eb8a624b2a73840d.lock
+  ```
+  ```
+- 2026-11-15 · 58365dc0* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:210086
+- 2026-11-15 · 58365dc0* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:230696
+- 2026-11-15 · 58365dc0* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:243588
+- 2026-11-15 · 58365dc0* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:287867
+- 2026-11-15 · 58365dc0* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:213435
+- 2026-11-15 · 58365dc0* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:194771
+- 2026-11-15 · 58365dc0* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:208329
+- 2026-11-15 · 58365dc0* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:210749
+- 2026-11-15 · 593f12ac* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:172579
+- 2026-11-15 · 593f12ac* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:191103
+- 2026-11-15 · 593f12ac* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:181933
+- 2026-11-15 · 593f12ac* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:184447
+- 2026-11-15 · 77ca0152* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:0 · test-lock-sha256:98a6b92bfb0ce92a33038b2539dc786ce81728121f5401d6c45911f3e8491b04 · test-lock-file:docs/adr/locks/98a6b92bfb0ce92a33038b2539dc786ce81728121f5401d6c45911f3e8491b04.lock · test-lock-kind:replace
+- 2026-11-15 · 77ca0152* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:172792
+- 2026-11-15 · 77ca0152* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:187743
+- 2026-11-15 · 77ca0152* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:170104
+- 2026-11-15 · df9b1127* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:0 · test-lock-sha256:8812c9e4d1510e4242e003848f8f548aff7a11693a1116f7e05d3290c11ee184 · test-lock-file:docs/adr/locks/8812c9e4d1510e4242e003848f8f548aff7a11693a1116f7e05d3290c11ee184.lock · test-lock-kind:replace
+- 2026-11-15 · df9b1127* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:173829
+- 2026-11-15 · df9b1127* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:174485
+- 2026-11-15 · df9b1127* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:169273
+- 2026-11-15 · 1c4696dc* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:0 · test-lock-sha256:0e277f80e617c04531e5db755c331ff483d05943c94f386482287ee10033b72c · test-lock-file:docs/adr/locks/0e277f80e617c04531e5db755c331ff483d05943c94f386482287ee10033b72c.lock · test-lock-kind:replace
+- 2026-11-15 · 1c4696dc* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:165286
+- 2026-11-15 · 1c4696dc* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:166422
+- 2026-11-15 · 087c7862* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:0 · test-lock-sha256:96626445bd6e0dc548304a82e58ac83c093377a9ccb050842c8d82b9f939a55e · test-lock-file:docs/adr/locks/96626445bd6e0dc548304a82e58ac83c093377a9ccb050842c8d82b9f939a55e.lock · test-lock-kind:replace
+- 2026-11-15 · 087c7862* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:171964
 
 ## Invariants
 
-- A plan that applies today applies. The check never runs for a file that opens; for a file the plan makes it costs one `Stat` when the parent is a directory, and a walk of the existing prefixes when the plan also makes the parent.
+- A plan that applies today applies. The check never runs for a file that opens; for a file the plan makes it costs an `Lstat` for its parent and per missing directory above it, and the prefixes are judged one by one only when the nearest existing ancestor is not a directory.
 - A refusal by the check writes nothing, stages nothing and returns no error.
 
 ## Risks

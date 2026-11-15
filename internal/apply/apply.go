@@ -693,6 +693,19 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			failed = append(failed, FileResult{Path: path})
 			continue
 		}
+		// ADR-199: a path below something that is not a directory cannot be
+		// opened (macOS and Linux: "not a directory", which causeOf does not
+		// name) or is reported as missing (Windows). It is a fact about the
+		// plan and the tree, so it is a failed hunk. Only a path that could
+		// not be found is looked at, after the boundary, the clash and
+		// same-file refusals above.
+		if err != nil || !existed {
+			if why := belowAFile(root, path, full); why != "" {
+				refuseFile(results, path, hs, 0, why)
+				failed = append(failed, FileResult{Path: path})
+				continue
+			}
+		}
 		if err != nil {
 			return res, fmt.Errorf("%s: %w", path, err)
 		}
@@ -2944,6 +2957,86 @@ func foldKey(name string) string {
 		b.WriteRune(least)
 	}
 	return b.String()
+}
+
+// belowAFile is the refusal for a cleaned root-relative path that lies below
+// something that is itself not a directory, or "" when there is none
+// (ADR-199). full is the path as resolve returned it. The obstruction is the
+// shortest proper prefix that the boundary accepts and whose own entry is
+// neither a directory nor a link: a file, or a FIFO or a device.
+//
+// A link is never the obstruction. One that leads to a directory is walked
+// through, so a file below it is found; one that leads anywhere else (a file,
+// nothing, itself) ends the search and the path is left to what happens today.
+// Where a link leads is the system's to say, differently on each platform (on
+// Windows "the path was not found" is also "not a directory", and a junction
+// is an irregular file), and another hunk of the plan may make the directory a
+// link leads to. A prefix the boundary refuses, or one that cannot be examined,
+// ends the search too, so the refusals that exist for those keep their place.
+//
+// The nearest ancestor of full that exists is found first, by Lstat alone,
+// upwards from its parent, and when it is a directory nothing more is done:
+// every create of a new file and every rename to a new name comes here, and a
+// plan that makes its own directories does so for every file. Judging each
+// prefix through the boundary for those cost such a plan a tenth more on
+// macOS and a quarter more on Windows (measured on 2,000 creates). full has
+// passed the boundary, and these are the names resolving it walked.
+func belowAFile(root, path, full string) string {
+	if rooted.IsRooted(path) {
+		return ""
+	}
+	if nearestIsDir(filepath.Dir(full)) {
+		return ""
+	}
+	parts := strings.Split(path, string(filepath.Separator))
+	for i := 1; i < len(parts); i++ {
+		anc := filepath.Join(parts[:i]...)
+		full, err := resolve(root, anc)
+		if err != nil {
+			return ""
+		}
+		entry, err := os.Lstat(full)
+		if err != nil {
+			return ""
+		}
+		mode := entry.Mode()
+		switch {
+		case mode.IsDir():
+			continue
+		case mode&(os.ModeSymlink|os.ModeIrregular) != 0:
+			// A link, or on Windows a junction or another reparse point: go on
+			// to what lies below it. If it does not lead to a directory, the
+			// next prefix cannot be examined and the search ends there.
+			continue
+		case mode.IsRegular():
+			return fmt.Sprintf("%s cannot be written: %s is a file, not a directory", asPlan(path), asPlan(anc))
+		default:
+			return fmt.Sprintf("%s cannot be written: %s is not a directory", asPlan(path), asPlan(anc))
+		}
+	}
+	return ""
+}
+
+// nearestIsDir reports whether the nearest ancestor of a path that can be
+// examined, the path itself included, is itself a directory. Anything else
+// there (a file, a link, wherever it leads) is false: the caller then looks at
+// each prefix with care, asking the boundary first. The entry is read with
+// Lstat and never followed, so a link is not judged by what it leads to before
+// the boundary has been asked about it (the Codex review of #646). A name
+// that cannot be examined is passed over like one that does not exist: on
+// unix a path below a file answers "not a directory" for every level under
+// it, and the file is found above.
+func nearestIsDir(dir string) bool {
+	for {
+		if entry, err := os.Lstat(dir); err == nil {
+			return entry.IsDir()
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return false
+		}
+		dir = parent
+	}
 }
 
 // refuseFile fails hs[at] with reason and skips the file's other hunks: one

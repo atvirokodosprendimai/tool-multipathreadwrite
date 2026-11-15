@@ -1142,8 +1142,11 @@ The exponent timing-test entry above retains its recurrence trigger. ADR-169's
   when the plan is judged, where that prefix does not exist; `nestedPath` (`internal/apply/pathop.go:181-192`) refuses
   nesting only between rename destinations and written files. The fix is the same nesting rule for every file a plan
   makes. ADR-198 T2's test uses this plan to reach a stopped write, so the two are changed together.
-- **A path below a link to nothing** (measured 2026-11-15, macOS, `dev (0d49d6e)`): `create d/dl/x`, `d/dl` a link to
-  nothing, exits 2 at staging, `mkdirat d/dl: file exists`, nothing written; a rename to such a destination is refused
-  at staging, exit 1, in ADR-106's words. ADR-199's first build refused both at validation and with them a plan that
-  applies today: `create newdir/y.txt` beside `create d/ln/x.txt`, `d/ln` a link to `../newdir` (it applies only in
-  that hunk order; the other order exits 2). A rule needs to know which directories the plan itself makes.
+- **A path below a link that does not lead to a directory** (measured 2026-11-15, macOS, `dev (0d49d6e)`): `create d/dl/x`,
+  `d/dl` a link to nothing, exits 2 at staging, `mkdirat d/dl: file exists`; below a link to a file or a link loop,
+  exit 2 with one line and no receipt; a rename to a destination under a link to nothing is refused at staging, exit 1,
+  in ADR-106's words. Two levels below a link to nothing (`e/dl/a/b/c.txt`) the write applies and makes the link's
+  target, which ADR-106 says a rename will not do. ADR-199 leaves all of these: two builds that judged a link refused a
+  plan that applies today (`create newdir/y.txt` beside `create d/ln/x.txt`, `d/ln` a link to `../newdir`; on Windows
+  also the two-level form, where "path not found" reads as "not a directory"), and one judged a link out of the root by
+  what lay outside. A rule needs to follow the link itself, know which directories the plan makes, and stay in the root.

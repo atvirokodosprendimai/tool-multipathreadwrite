@@ -222,9 +222,17 @@ func planPathOp(root, path, full string, h hunk, orig []string, existed bool, sh
 				fail(h, "rename dest %s already exists — unlink it in this plan, or pick another path", asPlan(dest))
 				return false
 			}
-		} else if err != nil && !os.IsNotExist(err) {
-			fail(h, "rename dest %s cannot be used: %v", asPlan(dest), err)
-			return false
+		} else if err != nil {
+			// ADR-199: a destination below a file, whichever way the system
+			// reports it, is the plan's to refuse in mrw's words.
+			if why := belowAFile(root, dest, destFull); why != "" {
+				fail(h, "%s", why)
+				return false
+			}
+			if !os.IsNotExist(err) {
+				fail(h, "rename dest %s cannot be used: %v", asPlan(dest), err)
+				return false
+			}
 		}
 	}
 	out[h.Index] = HunkResult{

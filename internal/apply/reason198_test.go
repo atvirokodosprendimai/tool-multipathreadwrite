@@ -167,15 +167,13 @@ func TestAReasonSpellsAPlansPathAsItsRowDoes(t *testing.T) {
 		}, want: []string{"rename dest a/b nests with a/b/c.txt written by another hunk"}, absent: []string{nat("a/")}},
 		{name: "a rename dest that exists", files: two, plan: fixed(op(f, "rename", g)),
 			want: []string{"rename dest d/g.txt already exists"}, absent: []string{g}},
-		// Not on Windows: there Lstat of a path under a regular file answers
-		// "not found", so validation passes and the commit refuses it instead
-		// (measured on #643, Windows 11); this site is not reached.
-		{name: "a rename dest that cannot be used", files: two, setup: func(t *testing.T, _ string) {
-			if runtime.GOOS == "windows" {
-				t.Skip("Windows reports a path under a regular file as not found, so validation does not refuse it")
-			}
-		}, plan: fixed(op(g, "rename", under(f, "x"))),
-			want: []string{"rename dest d/f.txt/x cannot be used"}, absent: []string{"dest " + f}},
+		// ADR-066's fixture (a 300-byte leaf, past NAME_MAX on every platform,
+		// under a directory that exists): a destination whose Lstat fails for
+		// a reason mrw has no words of its own for. A path under a file is
+		// ADR-199's, and refused in its words.
+		{name: "a rename dest that cannot be used", files: map[string]string{f: body, g: body, under(nat("a/b"), "k.txt"): body},
+			plan: fixed(op(g, "rename", under(nat("a/b"), long))),
+			want: []string{"rename dest a/b/" + long + " cannot be used"}, absent: []string{"dest " + nat("a/")}},
 		{name: "a rename dest spelled as a directory", files: map[string]string{"f0.txt": body}, plan: func(string) ([]Input, Options) {
 			return []Input{op("f0.txt", "rename", nat("e/s")+string(filepath.Separator))}, Options{}
 		}, want: []string{"rename dest " + nat("e/s") + string(filepath.Separator), "such as e/s/f0.txt"}},
