@@ -45,7 +45,7 @@ Decisions 1-4 of the record.
    - the check refusing a prefix that does not exist, so the missing-directory case goes red;
    - the check testing `IsRegular` where it tests "not a directory", so the FIFO case goes red;
    - the check using `Lstat` alone, so the create below a missing directory under a link to a directory goes red; a parent that exists ending the check whatever it is, so the create below a file goes red;
-   - the boundary judgement of the prefix removed: SURVIVES, declared uncovered (the record's Risks row says why).
+   - the boundary judgement of the prefix removed: SURVIVES, declared uncovered (the record's Risks row says why). One more survived and is logged as such: in the helper that finds the nearest existing ancestor, a branch that stopped at a name it could not examine. Both ways end with no refusal, so the branch was removed instead of kept untested.
    [proof: mutation]
 3. [S3] The contract section, through the built binary: `create` of `d/f.txt/x` exits 1, prints a FAIL row naming `d/f.txt is a file, not a directory`, and makes nothing; the pair: `create` of `d/new/x.txt` exits 0 and makes the file. [proof: acceptance]
 4. [S4] `go test ./internal/apply/ ./cmd/mrw/ ./internal/mcp/` pass. [proof: acceptance]
@@ -92,6 +92,11 @@ out=$(go test ./internal/apply/ -count=1 -v -run '^(TestAPathBelowAFileIsRefused
 - 2026-11-15 · 58365dc0* · mutant killed · exit 1 · `internal/apply/apply.go` · only a regular file or a link counts, so the FIFO case must go red · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · covers:a path below a non-directory is refused on its hunk
 - 2026-11-15 · 58365dc0* · mutant killed · exit 1 · `internal/apply/apply.go` · the prefix is judged by the link itself, so the create below a missing directory under a link to a directory must go red · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · covers:a path below a directory, a missing directory or a link to a directory applies
 - 2026-11-15 · 58365dc0* · mutant killed · exit 1 · `internal/apply/apply.go` · a parent that exists ends the check whatever it is, so the create below a file case must go red · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · covers:a path below a non-directory is refused on its hunk
+- 2026-11-15 · 593f12ac* · mutant killed · exit 1 · `internal/apply/apply.go` · the nearest existing ancestor ends the check whatever it is, so the create below a file case must go red · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · covers:a path below a non-directory is refused on its hunk
+- 2026-11-15 · 593f12ac* · mutant survived · exit 0 · `internal/apply/apply.go` · an ancestor that cannot be examined is skipped upwards, so a path two levels below a file must go red · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · covers:a path below a non-directory is refused on its hunk
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
 
 ## Verification Log
 - 2026-11-15 · 58365dc0* · exit 1 · `set -o pipefail …` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:1097 · test-lock-sha256:6af3851a85641b0ca90979ca22321234caab0b97e3ed2b98eb8a624b2a73840d · test-lock-file:docs/adr/locks/6af3851a85641b0ca90979ca22321234caab0b97e3ed2b98eb8a624b2a73840d.lock
@@ -105,10 +110,14 @@ out=$(go test ./internal/apply/ -count=1 -v -run '^(TestAPathBelowAFileIsRefused
 - 2026-11-15 · 58365dc0* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:194771
 - 2026-11-15 · 58365dc0* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:208329
 - 2026-11-15 · 58365dc0* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:210749
+- 2026-11-15 · 593f12ac* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:172579
+- 2026-11-15 · 593f12ac* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:191103
+- 2026-11-15 · 593f12ac* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:181933
+- 2026-11-15 · 593f12ac* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:184447
 
 ## Invariants
 
-- A plan that applies today applies. The check never runs for a file that opens; for a file the plan makes it costs one `Stat` when the parent is a directory, and a walk of the existing prefixes when the plan also makes the parent.
+- A plan that applies today applies. The check never runs for a file that opens; for a file the plan makes it costs an `Lstat` per missing directory above it and one `Stat`, and the prefixes are judged one by one only when the nearest existing ancestor is not a directory.
 - A refusal by the check writes nothing, stages nothing and returns no error.
 
 ## Risks

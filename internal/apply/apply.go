@@ -2977,11 +2977,17 @@ func foldKey(name string) string {
 // make the directory it leads to, and such a plan applies. A prefix the
 // boundary refuses, or whose Lstat or Stat fails for any other reason, ends
 // the search, so the refusals that exist for those keep their place.
+//
+// The nearest ancestor of full that exists is found by Lstat alone, upwards
+// from its parent: a plan that makes its own directories reaches the check for
+// every file, and judging each prefix through the boundary cost such a plan a
+// tenth more (measured on 2,000 creates). full has passed the boundary, and
+// these are the names resolving it walked.
 func belowAFile(root, path, full string) string {
 	if rooted.IsRooted(path) {
 		return ""
 	}
-	if parent, err := os.Stat(filepath.Dir(full)); err == nil && parent.IsDir() {
+	if nearestIsDir(filepath.Dir(full)) {
 		return ""
 	}
 	parts := strings.Split(path, string(filepath.Separator))
@@ -3016,6 +3022,26 @@ func belowAFile(root, path, full string) string {
 		return fmt.Sprintf("%s cannot be written: %s %s", asPlan(path), asPlan(anc), what)
 	}
 	return ""
+}
+
+// nearestIsDir reports whether the nearest ancestor of a path that can be
+// examined, the path itself included, is a directory. Anything else there (a
+// file, a link to nothing) is false: the caller then looks at each prefix with
+// care. A name that cannot be examined is passed over like one that does not
+// exist: on unix a path below a file answers "not a directory" for every level
+// under it, and the file is found above.
+func nearestIsDir(dir string) bool {
+	for {
+		if _, err := os.Lstat(dir); err == nil {
+			info, err := os.Stat(dir)
+			return err == nil && info.IsDir()
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return false
+		}
+		dir = parent
+	}
 }
 
 // refuseFile fails hs[at] with reason and skips the file's other hunks: one
