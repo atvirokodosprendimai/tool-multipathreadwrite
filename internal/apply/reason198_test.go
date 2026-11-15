@@ -162,7 +162,14 @@ func TestAReasonSpellsAPlansPathAsItsRowDoes(t *testing.T) {
 		}, want: []string{"rename dest a/b nests with a/b/c.txt written by another hunk"}, absent: []string{nat("a/")}},
 		{name: "a rename dest that exists", files: two, plan: fixed(op(f, "rename", g)),
 			want: []string{"rename dest d/g.txt already exists"}, absent: []string{g}},
-		{name: "a rename dest that cannot be used", files: two, plan: fixed(op(g, "rename", under(f, "x"))),
+		// Not on Windows: there Lstat of a path under a regular file answers
+		// "not found", so validation passes and the commit refuses it instead
+		// (measured on #643, Windows 11); this site is not reached.
+		{name: "a rename dest that cannot be used", files: two, setup: func(t *testing.T, _ string) {
+			if runtime.GOOS == "windows" {
+				t.Skip("Windows reports a path under a regular file as not found, so validation does not refuse it")
+			}
+		}, plan: fixed(op(g, "rename", under(f, "x"))),
 			want: []string{"rename dest d/f.txt/x cannot be used"}, absent: []string{"dest " + f}},
 		{name: "a rename dest spelled as a directory", files: map[string]string{"f0.txt": body}, plan: func(string) ([]Input, Options) {
 			return []Input{op("f0.txt", "rename", nat("e/s")+string(filepath.Separator))}, Options{}
@@ -191,6 +198,8 @@ func TestAReasonSpellsAPlansPathAsItsRowDoes(t *testing.T) {
 		}, want: []string{"of d/f.txt have not been shown"}, absent: []string{f}},
 		{name: "from= a span that runs past the source", files: one, plan: fixed(from(g, f, 1, 99)),
 			want: []string{"from=d/f.txt: lines 1-99 run past"}, absent: []string{f}},
+		{name: "from= a source in another encoding", files: map[string]string{f: "\xff\xfea\x00\n\x00"}, plan: fixed(from(g, f, 1, 1)),
+			want: []string{"from=d/f.txt ", "mrw copies UTF-8 text line by line"}, absent: []string{f}},
 		{name: "a rename dest that appears before commit, and the files already written", files: map[string]string{f: body, h: body},
 			plan: fixed(ed(h, 1, 1), op(f, "rename", g)), viaErr: true, setup: func(t *testing.T, root string) {
 				real := commitRenameFn

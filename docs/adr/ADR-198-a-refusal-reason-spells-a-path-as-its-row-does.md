@@ -4,10 +4,12 @@
 **Accepted:** 2026-11-15 by Zy — asked *"Do you accept ADR-198 as written?"* on the draft rewritten after the two challenges, answered *"accept"*.
 **Date:** 2026-11-15
 **Amended:** 2026-11-15, before acceptance, from an adr-challenger pass and a Codex xhigh challenge (each finding checked against the code): the class audit gained fourteen members, the commonest refusal among them; the first draft's mechanism (keep each reason's format and arguments, format again in `Slashed`) is replaced by spelling the path where the reason is built, which reaches the reasons that are already a string or an error when a hunk fails; the `attrib` and `chmod` advice is kept in the platform's spelling; the "as typed" sites are told from the cleaned ones; contract §338 is stated as the guard it is.
+**Amended:** 2026-11-15, after acceptance, from the go-reviewer pass on #643 and four Windows 11 sessions that probed a binary built from d6526b90 (decisions unchanged; claims corrected): `from=P: ERR` for a source `rooted` refuses is kept, because the error begins with the path as the platform spells it; the coverage claim names the sites with no test case; `attrib` was measured to accept `/`, so keeping its command's spelling is caution; `mrw skill --dir`'s own refusal and the raw error line are not converted and are deferred.
 **Owner:** Zy
 **Spec:** None — no spec stage
 **Cross-references:** ADR-091, ADR-132, ADR-197, ADR-167, ADR-111, ADR-069, issue #642, docs/adr/BACKLOG.md
 **Supersedes:** ADR-132, in one clause of its Out of Scope: a plan's own path that mrw's words quote inside a reason is no longer left in the platform's spelling. The clause stands for text mrw did not format.
+**Invalidates:** ADR-076 — one expectation of its test `TestARenameToADirectorySpellingIsRefused` (`internal/apply/paths076_test.go`): the name the refusal suggests is `d/a.txt` on every platform, where the test expected the platform's spelling. Zy, 2026-11-15, asked whether to update it: *"yes"*. ADR-076's rule is unchanged.
 **Governs:** `internal/apply/apply.go`, `internal/apply/pathop.go`, `internal/apply/fromcopy.go`, `internal/apply/replace.go`, `internal/apply/wirepath.go`, `scripts/contract.sh`
 **Enforced-by:** `internal/apply/reason198_test.go::TestAReasonSpellsAPlansPathAsItsRowDoes`
 **Served-path change:** on Windows, a refused hunk's reason spells with `/` every root-relative path that mrw's own words put in it: the hunk's file, a rename's destination and a `from=` source, wherever in the reason they stand, and the `ALREADY WRITTEN` list. Before, only a path the reason began with and the one inside `` `mrw read X` `` advice were converted, so one line could read `FAIL sub/f.txt … no line of sub\f.txt holds it`. Kept as they are: a path quoted as the caller typed it, a path the system printed, an absolute path, and the path in `attrib -r` advice. On every other platform nothing changes. The exit code and every receipt key are unchanged.
@@ -31,13 +33,14 @@ ADR-132 left every other position out as a permanent boundary: three Codex round
 Converted here, the path being a cleaned root-relative one:
 - The hunk's file: `SPAN of P has not been read` (`apply.go:1429`, the ordinary unread refusal); `Read P with mrw_read first` (`1394` after `forceRemedy`, `1235`, on `mrw_write`); `unlink/rename cannot mix with other hunks on P` (`1327`); `create: P already exists` (`1387`, `1579`); `sha=… given but P does not exist` (`1474`, `pathop.go:136`); the pattern refusals (`1627`, `1640`, `1652`, `1657`, `1690`, `1692`); `no line of P holds it` (`2686`, ADR-197); `P: its identity could not be read: P cannot be opened` (`replace.go:58`, the second `P`); `rename source P is not spelled that way` (`pathop.go:219`).
 - A second file of the plan: `P names the same file as Q` (`apply.go:659`); `P may name the same file as Q` (`2899`, `foldClashes`, where a rename's leading name is its destination and so is not the hunk's path); `rename dest D …` (`pathop.go:170, 174, 178, 183, 189, 212, 216, 222, 226`, with `nests with D2` and `respells the directory DIR`), and the `such as D/NAME` example of `165`; the staging and commit refusals `rename dest D is under …`, `rename dest D: …` and `rename dest D appeared before commit` (`apply.go:1096, 1101`, `pathop.go:361`), which reach the reason through an `error`.
-- A `from=` source, cleaned: `from=P: WHY` (`fromcopy.go:96`), the eight `loadSource` reasons (`169-201`), and `sourceGate`'s `` Run `mrw read P:A-B` first `` and `lines SPAN of P have not been shown` (`224`, `234`).
+- A `from=` source, cleaned: `from=P: WHY` (`fromcopy.go:96`), the `loadSource` reasons that `mrw` words itself (`176-201`), and `sourceGate`'s `` Run `mrw read P:A-B` first `` and `lines SPAN of P have not been shown` (`224`, `234`).
 - `ALREADY WRITTEN: P, Q` (`apply.go:1220`): mrw joins `FileResult.Path` values.
 
 Kept:
 - A path quoted as the caller typed it, to show the typing: the trailing-separator refusals (`apply.go:580`, `fromcopy.go:81`, and the first path of `pathop.go:165`), an absolute rename destination (`pathop.go:159`), and `from=X` where `X` is the header's own text (`fromcopy.go:72, 75`).
 - `P is absolute … mrw looked for FULL` (`apply.go:1599`, `pathop.go:145`): `P` leads and `SlashIn` converts it today; `FULL` is absolute.
-- The command in `clear the mark first: attrib -r P` or `chmod u+w P` (`apply.go:2995-2999`): a command for the platform's own shell, where `/` can begin a switch.
+- The command in `clear the mark first: attrib -r P` or `chmod u+w P` (`apply.go:2995-2999`): a command for the platform's own shell. Measured 2026-11-15 on Windows 11 26200: `attrib -r d/ro.txt` works from cmd and from pwsh, so the backslash is kept as the spelling that shell's own tools print, not because `/` fails.
+- `from=P: ERR` when `rooted.Resolve` refuses the source (`fromcopy.go:169`): the error begins with `P` as the platform spells it (`internal/rooted/rooted.go:185, 239`), and converting the first would put two spellings on one line.
 - An `error`'s own text, an absolute path, a link target.
 - `; you were served A, B` (`servedAs`): already `/`.
 - Reasons made in `internal/writer/flow.go:225, 229`: they begin with the path, which `SlashIn` converts.
@@ -58,7 +61,7 @@ Only the ADR-197 ending was measured on Windows. The rest is read from the code.
 4. **Kept in the platform's or the caller's spelling**: the sites the audit lists as kept.
 5. **Nothing changes where the separator is `/`.** A file whose name holds a backslash is named as it is.
 
-**What would make this decision wrong:** a caller on Windows that takes a path out of a reason's prose and hands it to a tool that refuses `/`. The one such place found in mrw's own words is the `attrib -r` advice, which is kept for that reason. The receipt's path fields have been `/` on `mrw_write` since ADR-091 and on the CLI since ADR-132.
+**What would make this decision wrong:** a caller on Windows that takes a path out of a reason's prose and hands it to a tool that refuses `/`. None is known: the one command mrw's own words print, `attrib -r`, was measured to accept both. The receipt's path fields have been `/` on `mrw_write` since ADR-091 and on the CLI since ADR-132.
 
 ## Alternatives Considered
 
@@ -74,7 +77,7 @@ Only the ADR-197 ending was measured on Windows. The rest is read from the code.
 
 | Surface | Change | Producer | Consumer(s) |
 |---------|--------|----------|-------------|
-| a refused hunk's `reason` and the exit-2 line, CLI, `mrw_write` and `mrw skill --dir`, on Windows | a plan's path inside it is spelled with `/` | T1 | every caller on Windows |
+| a refused hunk's `reason`, CLI and `mrw_write`, on Windows | a plan's path inside it is spelled with `/` | T1 | every caller on Windows |
 | `scripts/contract.sh` | §338: on Linux a name holding a backslash is not rewritten in a reason | T1 | CI Linux |
 | `README.md`, `AGENTS.md`, `docs/receipts.txt` | none: no sentence in them states how a reason spells a path (`grep -n -i "separator\|ADR-091" README.md AGENTS.md docs/receipts.txt`, 2026-11-15, no hit on the subject) | — | — |
 
@@ -89,15 +92,17 @@ None — one task.
 ## Consequences
 
 - **Positive:** one spelling of a file on one line, on every surface that prints a reason.
-- **Negative:** a reason `Apply` returns spells a path with `/` beside path fields that keep the platform's; a new refusal site that formats a bare path prints the platform's spelling, as today.
+- **Negative:** a reason `Apply` returns spells a path with `/` beside path fields that keep the platform's; a new refusal site that formats a bare path prints the platform's spelling, as today. The error `Apply` returns for a commit that stopped begins with the file as the platform spells it and now holds `/` paths after it; `mrw_write`'s `error:` line and a CLI `--json` refusal print it raw (the plain exit-2 line converts its start). Deferred.
 - **Neutral:** what cannot be shown here. `scripts/contract.sh` runs on Linux only, where the separator is `/`: §338 guards Decision 5 and cannot show the conversion. The conversion's proof is the Go test with `\` set as the separator, which runs on every platform, the same test in the Windows CI job, and a probe of the built binary on Windows before the merge.
 
 ## Out of Scope
 
 - A path quoted as the caller typed it (permanent: boundary: the reason quotes the spelling it refuses or echoes the header, and converting it would misquote the caller; ADR-069)
-- The path in `attrib -r` and `chmod u+w` advice (permanent: boundary: it is a command for the platform's own shell, and cmd tools can read `/` as a switch)
+- The path in `attrib -r` and `chmod u+w` advice (permanent: boundary: it is a command for the platform's own shell, printed as that shell's tools spell a path)
 - A path the system printed inside a reason (permanent: boundary: ADR-132's reasoning stands for text mrw did not format)
 - `mrw cannot read the file identity of P`, made in `internal/rooted` (deferred: docs/adr/BACKLOG.md)
+- `mrw skill --dir`'s own refusal, `DIR\mrw\SKILL.md was not written by …`, built in `cmd/mrw` (deferred: docs/adr/BACKLOG.md)
+- The raw error of a stopped commit on `mrw_write`'s `error:` line and in a CLI `--json` refusal (deferred: docs/adr/BACKLOG.md)
 - The CLI `read` side's refusals (permanent: boundary: the read side is its own surface, as ADR-132 left it)
 - Plan-parse refusals, which quote the header as written (permanent: boundary: no path has been resolved when a header is refused)
 
@@ -106,7 +111,7 @@ None — one task.
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
 | Something searches a reason for the platform's spelling of a path | Low | Med | read 2026-11-15: `exitTwoLine` compares a reason with the error built from it (`main.go:3611`), `mrw skill --dir` cuts the directory from a reason (`cmd/mrw/skill168.go:212`), `mrw_write` appends to one (`internal/mcp/tools.go:2564`), `newerLedger` replaces one (`internal/writer/flow.go:225`); T1 checks each and stops if one needs the old spelling |
-| A refusal site is missed | Med | Low | it prints what it prints today; T1 has a case for every converted site of the audit |
+| A refusal site is missed | Med | Low | it prints what it prints today; T1 has a case for each converted site but these, which no fixture reached: `fromcopy.go:179, 185, 188, 195-199` (a stat or read error, a non-regular source, a source over the size limit) and `replace.go:58` (an identity that cannot be read). They share their format with a covered neighbour. On Windows `pathop.go:226` is not reached (a path under a regular file reports as not found), and the two link cases skip where links need a privilege |
 | A case needs a filesystem the gate's platform lacks | Med | Low | the respelling cases need a filesystem that folds case and skip where it does not (Linux CI); macOS and the Windows CI job run them |
 
 ## Rollback
@@ -117,3 +122,4 @@ Revert T1: a path inside a reason is spelled as the platform spells it.
 
 - [ ] The Windows probe of the built binary before the merge (T1, Stop Condition)
 - [ ] `rooted`'s identity error (BACKLOG.md, From ADR-198)
+- [ ] `mrw skill --dir`'s refusal and the raw error line (BACKLOG.md, From ADR-198)

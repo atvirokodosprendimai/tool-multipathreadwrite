@@ -52,7 +52,8 @@ func TestARenameToADirectorySpellingIsRefused(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		want := filepath.Join(filepath.Clean(dest), "a.txt")
+		// The suggested name is spelled as a plan spells it, with "/" (ADR-198).
+		want := filepath.ToSlash(filepath.Join(filepath.Clean(dest), "a.txt"))
 		if res.Applied || !strings.Contains(res.Hunks[0].Reason, "names a directory") || !strings.Contains(res.Hunks[0].Reason, want) {
 			t.Errorf("rename to %s was not refused naming %s: applied=%v %+v", dest, want, res.Applied, res.Hunks)
 		}

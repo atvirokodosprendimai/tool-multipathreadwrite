@@ -104,6 +104,7 @@ out=$(go test ./internal/apply/ -count=1 -v -run '^(TestAReasonSpellsAPlansPathA
 - 2026-11-15 · 682b17a9* · mutant killed · exit 1 · `internal/apply/wirepath.go` · the reason separator is a backslash where the platform separator is a slash, so the case that leaves the separator alone must go red · acceptance-sha256:8d9c8be8b8ce7290ffbc1e82213fbfbd5e1bc1ef3baf17b782c59e5621eea74f · covers:a path the caller typed, a system path and the attrib advice are kept
 - 2026-11-15 · 682b17a9* · mutant killed · exit 1 · `internal/apply/apply.go` · the ALREADY WRITTEN list joins the bare paths, so the stopped-commit case must go red · acceptance-sha256:8d9c8be8b8ce7290ffbc1e82213fbfbd5e1bc1ef3baf17b782c59e5621eea74f · covers:a path inside a reason is spelled as the row spells it
 - 2026-11-15 · 682b17a9* · mutant killed · exit 1 · `internal/apply/apply.go` · the staging refusal rename dest D: ERR formats the bare path, so the swapped-directory case must go red · acceptance-sha256:8d9c8be8b8ce7290ffbc1e82213fbfbd5e1bc1ef3baf17b782c59e5621eea74f · covers:a path inside a reason is spelled as the row spells it
+- 2026-11-15 · d6526b90* · mutant killed · exit 1 · `internal/apply/fromcopy.go` · the foreign-encoding source reason formats the bare path, so that case must go red · acceptance-sha256:8d9c8be8b8ce7290ffbc1e82213fbfbd5e1bc1ef3baf17b782c59e5621eea74f · covers:a path inside a reason is spelled as the row spells it
 
 ## Verification Log
 - 2026-11-15 · 682b17a9* · exit 1 · `set -o pipefail …` · acceptance-sha256:8d9c8be8b8ce7290ffbc1e82213fbfbd5e1bc1ef3baf17b782c59e5621eea74f · ms:1534 · test-lock-sha256:ba928dcc254a3b96a7f250dfaf49908d458bc7a9094f43a58b3a0ee2a6c2f25b · test-lock-file:docs/adr/locks/ba928dcc254a3b96a7f250dfaf49908d458bc7a9094f43a58b3a0ee2a6c2f25b.lock
@@ -124,6 +125,9 @@ out=$(go test ./internal/apply/ -count=1 -v -run '^(TestAReasonSpellsAPlansPathA
 - 2026-11-15 · 682b17a9* · exit 0 · `set -o pipefail …` · acceptance-sha256:8d9c8be8b8ce7290ffbc1e82213fbfbd5e1bc1ef3baf17b782c59e5621eea74f · ms:247198
 - 2026-11-15 · 682b17a9* · exit 0 · `set -o pipefail …` · acceptance-sha256:8d9c8be8b8ce7290ffbc1e82213fbfbd5e1bc1ef3baf17b782c59e5621eea74f · ms:196738
 - 2026-11-15 · 682b17a9* · exit 0 · `set -o pipefail …` · acceptance-sha256:8d9c8be8b8ce7290ffbc1e82213fbfbd5e1bc1ef3baf17b782c59e5621eea74f · ms:182113
+- 2026-11-15 · d6526b90* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:8d9c8be8b8ce7290ffbc1e82213fbfbd5e1bc1ef3baf17b782c59e5621eea74f · ms:25 · test-lock-sha256:b7784f7129510448c7a250811bd63b048baa6b0eb2933eba227315c1cfc52781 · test-lock-file:docs/adr/locks/b7784f7129510448c7a250811bd63b048baa6b0eb2933eba227315c1cfc52781.lock · test-lock-kind:replace
+- 2026-11-15 · d6526b90* · exit 0 · `set -o pipefail …` · acceptance-sha256:8d9c8be8b8ce7290ffbc1e82213fbfbd5e1bc1ef3baf17b782c59e5621eea74f · ms:230690
+- 2026-11-15 · d6526b90* · exit 0 · `set -o pipefail …` · acceptance-sha256:8d9c8be8b8ce7290ffbc1e82213fbfbd5e1bc1ef3baf17b782c59e5621eea74f · ms:172790
 
 ## Invariants
 

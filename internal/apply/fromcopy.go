@@ -166,7 +166,9 @@ func loadSource(root, p string) *sourceFile {
 	f := &sourceFile{}
 	full, err := rooted.Resolve(root, p)
 	if err != nil {
-		f.why = fmt.Sprintf("from=%s: %v", asPlan(p), err)
+		// Not asPlan: err is rooted's, and it begins with p as the platform
+		// spells it, so the two stay one spelling (the go-reviewer pass on #643).
+		f.why = fmt.Sprintf("from=%s: %v", p, err)
 		return f
 	}
 	f.full = full
