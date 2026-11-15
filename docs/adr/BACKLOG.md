@@ -1124,12 +1124,20 @@ The exponent timing-test entry above retains its recurrence trigger. ADR-169's
   ADR-198 converts only what `internal/apply` formats; `rooted` serves the read side too, whose refusals no record
   has converted. Read from the code, not measured on Windows. Take it with the read side's spelling, if that is ever
   reported (issue #642 names the class).
-- **`mrw skill --dir`'s refusal keeps the platform's spelling** (measured 2026-11-15, Windows 11, d6526b90):
-  `mrw skill --dir skills` over a hand-written file prints `skills\mrw\SKILL.md was not written by …`. The words are
-  built in `cmd/mrw/skill168.go`, not in `internal/apply`, and no receipt converter runs there. With an absolute
-  `--dir` the path is absolute and stays as the system spells it.
+- **`mrw skill --dir`'s refusal keeps the platform's spelling — closed as a boundary** (Zy, 2026-11-15: *"agree"*):
+  measured 2026-11-15 on Windows 11 at d6526b90, `mrw skill --dir skills` over a hand-written file prints
+  `skills\mrw\SKILL.md was not written by …`. The path is relative to the working directory and starts with the
+  directory as typed; ADR-198's Out of Scope now lists it as permanent. Nothing to build.
 - **A stopped commit's raw error mixes spellings on Windows** (read from the code by the go-reviewer pass on #643, not
   measured): the error begins with the file as the platform spells it (`apply.go:1021, 1177`, `pathop.go:439`) and
   after ADR-198 holds `/` paths behind it. `mrw_write`'s `error:` line (`internal/mcp/tools.go:1191`) and a CLI
   `--json` refusal (`cmd/mrw/main.go:1974`) print it raw; the plain exit-2 line converts its start. Converting the
   start in the engine would make `exitTwoLine` print the path twice, so the fix belongs on those two surfaces.
+
+## From ADR-199 (a path below something that is not a directory is refused on its hunk)
+
+- **A prefix the same plan writes as a file** (measured 2026-11-15, macOS, `dev (0d49d6e)`): `create d/n.txt` beside
+  `create d/n.txt/x` exits 2, `d/n.txt appeared before commit`, nothing written. ADR-199 judges the tree as it is
+  when the plan is judged, where that prefix does not exist; `nestedPath` (`internal/apply/pathop.go:181-192`) refuses
+  nesting only between rename destinations and written files. The fix is the same nesting rule for every file a plan
+  makes. ADR-198 T2's test uses this plan to reach a stopped write, so the two are changed together.
