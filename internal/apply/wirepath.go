@@ -1,6 +1,7 @@
 package apply
 
 import (
+	"path/filepath"
 	"slices"
 	"strings"
 )
@@ -45,6 +46,19 @@ func Slashed(res Result, sep rune) Result {
 // Slash spells p's sep separators as "/".
 func Slash(p string, sep rune) string {
 	return strings.ReplaceAll(p, string(sep), "/")
+}
+
+// reasonSep is the separator asPlan converts a path from: the platform's, and
+// a variable so a test can drive `\` on any platform (ADR-198).
+var reasonSep = filepath.Separator
+
+// asPlan spells a cleaned root-relative path with "/" as a plan and its row do.
+// A refusal site that puts a plan's path into a reason formats it through
+// here, where mrw knows which argument is a path; text it did not format, a
+// path as the caller typed it, an absolute path and the `attrib -r` command
+// are never passed (ADR-198).
+func asPlan(p string) string {
+	return Slash(p, reasonSep)
 }
 
 // SlashIn spells the root-relative path p with "/" where sep separated it, in

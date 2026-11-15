@@ -36,8 +36,8 @@ Decisions 1-5 of the record.
    - the anchor in no line;
    - two spellings of one existing file; two names that differ only in case, neither existing, one of them a rename's destination;
    - rename destinations: the source itself, named twice, also written, nesting with another destination and with a written file (names holding a literal `\` under a real `/` directory where the separator is `/`), existing, unusable, and the `such as D/NAME` example;
-   - `from=`: a source that does not exist, a directory, an unread source (the `mrw read P:A-B` advice), unshown lines, and a span that is no source address;
-   - a rename destination that appears before commit and one under a link to nothing: the reason and the error `Apply` returns carry the same text;
+   - `from=`: a source that does not exist, a directory, an unread source (the `mrw read P:A-B` advice), unshown lines, and a span that runs past the source;
+   - a rename destination that appears before commit (the reason and the error `Apply` returns carry the same text), one under a link to nothing, and one whose directory left the root after validation (added after the first green run: the implementer had found no way to reach `rename dest D: ERR`, and ADR-106's swap seam reaches it);
    - the `ALREADY WRITTEN` list of a commit that stopped after one file landed;
    - where the filesystem folds case, the respelling refusals (`respells the directory`, `rename source … is not spelled that way`); these subcases skip where it does not, and the test says which ran.
    Kept, each a case:
@@ -51,7 +51,7 @@ Decisions 1-5 of the record.
    - the unread-lines site formats the bare path, so that case goes red;
    - a rename-destination site formats the bare path, so that case goes red;
    - `sourceGate` formats the bare path, so the `from=` advice case goes red;
-   - the `ALREADY WRITTEN` list joins the bare paths, so that case goes red;
+   - the `ALREADY WRITTEN` list joins the bare paths, so that case goes red; the staging refusal `rename dest D: ERR` formats the bare path, so the swapped-directory case goes red;
    - the read-only command formats through the function, so the kept `attrib`/`chmod` case goes red;
    - a path field is converted, so the path-fields case goes red;
    - the reason separator is fixed at `\`, so contract §338's first row goes red.
@@ -95,8 +95,35 @@ out=$(go test ./internal/apply/ -count=1 -v -run '^(TestAReasonSpellsAPlansPathA
 | 4 — it is used | no telemetry (ADR-009); the evidence is issue #642's measurement |
 
 ## Mutation Log
+- 2026-11-15 · 682b17a9* · mutant killed · exit 1 · `internal/apply/wirepath.go` · asPlan returns its argument unchanged, so every converted site prints the platform spelling and the anchor case must go red · acceptance-sha256:8d9c8be8b8ce7290ffbc1e82213fbfbd5e1bc1ef3baf17b782c59e5621eea74f · covers:a path inside a reason is spelled as the row spells it
+- 2026-11-15 · 682b17a9* · mutant killed · exit 1 · `internal/apply/apply.go` · the unread-lines site formats the bare path, so the SPAN of d/f.txt case must go red · acceptance-sha256:8d9c8be8b8ce7290ffbc1e82213fbfbd5e1bc1ef3baf17b782c59e5621eea74f · covers:a path inside a reason is spelled as the row spells it
+- 2026-11-15 · 682b17a9* · mutant killed · exit 1 · `internal/apply/pathop.go` · a rename-destination site formats the bare path, so the named-twice case must go red · acceptance-sha256:8d9c8be8b8ce7290ffbc1e82213fbfbd5e1bc1ef3baf17b782c59e5621eea74f · covers:a path inside a reason is spelled as the row spells it
+- 2026-11-15 · 682b17a9* · mutant killed · exit 1 · `internal/apply/fromcopy.go` · sourceGate formats the bare path inside its mrw read advice, so the unread-source case must go red · acceptance-sha256:8d9c8be8b8ce7290ffbc1e82213fbfbd5e1bc1ef3baf17b782c59e5621eea74f · covers:a path inside a reason is spelled as the row spells it
+- 2026-11-15 · 682b17a9* · mutant killed · exit 1 · `internal/apply/apply.go` · the read-only command is formatted through asPlan, so the kept chmod case must go red · acceptance-sha256:8d9c8be8b8ce7290ffbc1e82213fbfbd5e1bc1ef3baf17b782c59e5621eea74f · covers:a path the caller typed, a system path and the attrib advice are kept
+- 2026-11-15 · 682b17a9* · mutant killed · exit 1 · `internal/apply/apply.go` · a path field is converted in the engine, so the path-fields case must go red · acceptance-sha256:8d9c8be8b8ce7290ffbc1e82213fbfbd5e1bc1ef3baf17b782c59e5621eea74f · covers:the path fields keep the platform's spelling
+- 2026-11-15 · 682b17a9* · mutant killed · exit 1 · `internal/apply/wirepath.go` · the reason separator is a backslash where the platform separator is a slash, so the case that leaves the separator alone must go red · acceptance-sha256:8d9c8be8b8ce7290ffbc1e82213fbfbd5e1bc1ef3baf17b782c59e5621eea74f · covers:a path the caller typed, a system path and the attrib advice are kept
+- 2026-11-15 · 682b17a9* · mutant killed · exit 1 · `internal/apply/apply.go` · the ALREADY WRITTEN list joins the bare paths, so the stopped-commit case must go red · acceptance-sha256:8d9c8be8b8ce7290ffbc1e82213fbfbd5e1bc1ef3baf17b782c59e5621eea74f · covers:a path inside a reason is spelled as the row spells it
+- 2026-11-15 · 682b17a9* · mutant killed · exit 1 · `internal/apply/apply.go` · the staging refusal rename dest D: ERR formats the bare path, so the swapped-directory case must go red · acceptance-sha256:8d9c8be8b8ce7290ffbc1e82213fbfbd5e1bc1ef3baf17b782c59e5621eea74f · covers:a path inside a reason is spelled as the row spells it
 
 ## Verification Log
+- 2026-11-15 · 682b17a9* · exit 1 · `set -o pipefail …` · acceptance-sha256:8d9c8be8b8ce7290ffbc1e82213fbfbd5e1bc1ef3baf17b782c59e5621eea74f · ms:1534 · test-lock-sha256:ba928dcc254a3b96a7f250dfaf49908d458bc7a9094f43a58b3a0ee2a6c2f25b · test-lock-file:docs/adr/locks/ba928dcc254a3b96a7f250dfaf49908d458bc7a9094f43a58b3a0ee2a6c2f25b.lock
+  ```
+  ```
+- 2026-11-15 · 682b17a9* · exit 0 · `set -o pipefail …` · acceptance-sha256:8d9c8be8b8ce7290ffbc1e82213fbfbd5e1bc1ef3baf17b782c59e5621eea74f · ms:195006
+- 2026-11-15 · 682b17a9* · exit 0 · `set -o pipefail …` · acceptance-sha256:8d9c8be8b8ce7290ffbc1e82213fbfbd5e1bc1ef3baf17b782c59e5621eea74f · ms:213444
+- 2026-11-15 · 682b17a9* · exit 0 · `set -o pipefail …` · acceptance-sha256:8d9c8be8b8ce7290ffbc1e82213fbfbd5e1bc1ef3baf17b782c59e5621eea74f · ms:170663
+- 2026-11-15 · 682b17a9* · exit 0 · `set -o pipefail …` · acceptance-sha256:8d9c8be8b8ce7290ffbc1e82213fbfbd5e1bc1ef3baf17b782c59e5621eea74f · ms:168187
+- 2026-11-15 · 682b17a9* · exit 0 · `set -o pipefail …` · acceptance-sha256:8d9c8be8b8ce7290ffbc1e82213fbfbd5e1bc1ef3baf17b782c59e5621eea74f · ms:178426
+- 2026-11-15 · 682b17a9* · exit 1 · `set -o pipefail …` · acceptance-sha256:8d9c8be8b8ce7290ffbc1e82213fbfbd5e1bc1ef3baf17b782c59e5621eea74f · ms:166673
+  ```
+  ```
+- 2026-11-15 · 682b17a9* · exit 0 · `set -o pipefail …` · acceptance-sha256:8d9c8be8b8ce7290ffbc1e82213fbfbd5e1bc1ef3baf17b782c59e5621eea74f · ms:164210
+- 2026-11-15 · 682b17a9* · exit 0 · `set -o pipefail …` · acceptance-sha256:8d9c8be8b8ce7290ffbc1e82213fbfbd5e1bc1ef3baf17b782c59e5621eea74f · ms:168846
+- 2026-11-15 · 682b17a9* · exit 0 · `set -o pipefail …` · acceptance-sha256:8d9c8be8b8ce7290ffbc1e82213fbfbd5e1bc1ef3baf17b782c59e5621eea74f · ms:167419
+- 2026-11-15 · 682b17a9* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:8d9c8be8b8ce7290ffbc1e82213fbfbd5e1bc1ef3baf17b782c59e5621eea74f · ms:0 · test-lock-sha256:b2f02863e160ae14a70e8a1bf210a2321f0bc9d79d45a9f865e35e56121b0562 · test-lock-file:docs/adr/locks/b2f02863e160ae14a70e8a1bf210a2321f0bc9d79d45a9f865e35e56121b0562.lock · test-lock-kind:replace
+- 2026-11-15 · 682b17a9* · exit 0 · `set -o pipefail …` · acceptance-sha256:8d9c8be8b8ce7290ffbc1e82213fbfbd5e1bc1ef3baf17b782c59e5621eea74f · ms:247198
+- 2026-11-15 · 682b17a9* · exit 0 · `set -o pipefail …` · acceptance-sha256:8d9c8be8b8ce7290ffbc1e82213fbfbd5e1bc1ef3baf17b782c59e5621eea74f · ms:196738
+- 2026-11-15 · 682b17a9* · exit 0 · `set -o pipefail …` · acceptance-sha256:8d9c8be8b8ce7290ffbc1e82213fbfbd5e1bc1ef3baf17b782c59e5621eea74f · ms:182113
 
 ## Invariants
 

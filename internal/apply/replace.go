@@ -55,5 +55,5 @@ func identityRefusal(path, full string) string {
 		_ = f.Close()
 		return fmt.Sprintf("%s: its identity could not be read, so a change before the commit could not be seen; send the plan again", path)
 	}
-	return fmt.Sprintf("%s: its identity could not be read: %s", path, openRefusal(path, err))
+	return fmt.Sprintf("%s: its identity could not be read: %s", path, openRefusal(asPlan(path), err))
 }
