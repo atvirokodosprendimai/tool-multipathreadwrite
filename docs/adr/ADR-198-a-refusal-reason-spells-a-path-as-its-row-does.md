@@ -41,7 +41,7 @@ Kept:
 - `P is absolute … mrw looked for FULL` (`apply.go:1599`, `pathop.go:145`): `P` leads and `SlashIn` converts it today; `FULL` is absolute.
 - The command in `clear the mark first: attrib -r P` or `chmod u+w P` (`apply.go:2995-2999`): a command for the platform's own shell. Measured 2026-11-15 on Windows 11 26200: `attrib -r d/ro.txt` works from cmd and from pwsh, so the backslash is kept as the spelling that shell's own tools print, not because `/` fails.
 - `from=P: ERR` when `rooted.Resolve` refuses the source (`fromcopy.go:169`): the error begins with `P` as the platform spells it (`internal/rooted/rooted.go:185, 239`), and converting the first would put two spellings on one line.
-- An `error`'s own text, an absolute path, a link target; and a rooted path that reaches a converted site, which `asPlan` returns as it is (two rename destinations `\\missing\\Q.txt` and `\\missing\\q.txt` reach `foldClashes` before the absolute-path refusal).
+- An `error`'s own text, an absolute path, a link target; and a rooted path that reaches a converted site, which `asPlan` returns as it is (two rename destinations `\missing\Q.txt` and `\missing\q.txt` reach `foldClashes` before the absolute-path refusal).
 - `; you were served A, B` (`servedAs`): already `/`.
 - Reasons made in `internal/writer/flow.go:225, 229`: they begin with the path, which `SlashIn` converts.
 - `mrw cannot read the file identity of P` (`internal/rooted/hardlink.go:38`): made in `rooted`, which the read side shares (Out of Scope, deferred).
