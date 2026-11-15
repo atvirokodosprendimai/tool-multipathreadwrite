@@ -82,7 +82,7 @@ out=$(go test ./internal/apply/ -count=1 -v -run '^(TestAReasonSpellsAPlansPathA
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `TestAReasonSpellsAPlansPathAsItsRowDoes` | `internal/apply/reason198_test.go` | every converted site's path is spelled with `/`; typed paths, system paths, the read-only command and the path fields are kept | none | S1, S2 |
+| `TestAReasonSpellsAPlansPathAsItsRowDoes` | `internal/apply/reason198_test.go` | the path of each converted site a fixture reaches is spelled with `/` (the record's Risks row names the sites with no case); typed paths, system paths, the read-only command and the path fields are kept | none | S1, S2 |
 | `TestAnAnchorMissNamesTheLinesThatHoldIt` | `internal/apply/anchor197_test.go` | ADR-197's endings are unchanged | none | S2 |
 
 ## Reachability
