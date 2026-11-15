@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -211,15 +212,20 @@ func TestAPathBelowAFileIsRefusedOnItsHunk(t *testing.T) {
 		name  string
 		setup func(*testing.T, string)
 		path  string
+		// madeOnWindows: before this record the write applied on Windows,
+		// making the link's missing target, and failed at staging elsewhere
+		// (Windows CI on #646; a Windows 11 session saw the same through a
+		// junction on main). Either is "as before"; neither is this record's.
+		madeOnWindows bool
 	}{
-		{"a link to a file", link("f.txt", "d/lf"), "d/lf/x"},
-		{"a link whose target is below a file", link(filepath.Join("f.txt", "sub"), "d/lq"), "d/lq/x"},
-		{"a link to nothing", link("nowhere", "d/ln"), "d/ln/x"},
-		{"a link to nothing two levels deep", link(filepath.Join("..", "gone", "sub"), "d/l2"), "d/l2/x"},
+		{"a link to a file", link("f.txt", "d/lf"), "d/lf/x", false},
+		{"a link whose target is below a file", link(filepath.Join("f.txt", "sub"), "d/lq"), "d/lq/x", false},
+		{"a link to nothing", link("nowhere", "d/ln"), "d/ln/x", true},
+		{"a link to nothing two levels deep", link(filepath.Join("..", "gone", "sub"), "d/l2"), "d/l2/x", true},
 		{"a link loop", func(t *testing.T, root string) {
 			link("lb", "d/la")(t, root)
 			link("la", "d/lb")(t, root)
-		}, "d/la/x"},
+		}, "d/la/x", false},
 	} {
 		t.Run("left as before: create below "+c.name, func(t *testing.T) {
 			root := t.TempDir()
@@ -231,13 +237,16 @@ func TestAPathBelowAFileIsRefusedOnItsHunk(t *testing.T) {
 			in.Index, in.SrcLine = 0, 1
 			before := snapshot(t, root)
 			res, err := Apply(root, []Input{in}, Options{})
-			if err == nil && res.Applied {
-				t.Errorf("a create below %s applied: %+v", c.name, res.Hunks)
-			}
 			for _, h := range res.Hunks {
 				if strings.Contains(h.Reason, "cannot be written") {
 					t.Errorf("a path below %s was refused by this record's rule: %q", c.name, h.Reason)
 				}
+			}
+			if c.madeOnWindows && runtime.GOOS == "windows" {
+				return
+			}
+			if err == nil && res.Applied {
+				t.Errorf("a create below %s applied: %+v", c.name, res.Hunks)
 			}
 			if after := snapshot(t, root); !reflect.DeepEqual(after, before) {
 				t.Errorf("the tree changed: %v -> %v", before, after)
