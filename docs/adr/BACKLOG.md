@@ -1116,3 +1116,11 @@ change an exit code, a trust boundary, or any registered measurement window.
 The exponent timing-test entry above retains its recurrence trigger. ADR-169's
 14-day adoption reading is due 2026-11-06; ADR-177–179's first 30-day window ends
 2026-11-27, anchored to v1.77.0. v1.77.1 does not reset either window.
+
+## From ADR-198 (a refusal reason spells a plan's path as its row does)
+
+- **`rooted`'s identity error keeps the platform's spelling** (2026-11-15): `mrw cannot read the file identity of P`
+  (`internal/rooted/hardlink.go:38`) reaches a write's reason through `apply.go:591` with `P` as Windows spells it.
+  ADR-198 converts only what `internal/apply` formats; `rooted` serves the read side too, whose refusals no record
+  has converted. Read from the code, not measured on Windows. Take it with the read side's spelling, if that is ever
+  reported (issue #642 names the class).
