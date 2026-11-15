@@ -695,10 +695,10 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 		}
 		// ADR-199: a path below something that is not a directory cannot be
 		// opened (macOS and Linux: "not a directory", which causeOf does not
-		// name) or is reported as missing (Windows, a link to nothing). It is a
-		// fact about the plan and the tree, so it is a failed hunk. Only a path
-		// that could not be found is looked at, after the boundary, the clash
-		// and same-file refusals above.
+		// name) or is reported as missing (Windows). It is a fact about the
+		// plan and the tree, so it is a failed hunk. Only a path that could
+		// not be found is looked at, after the boundary, the clash and
+		// same-file refusals above.
 		if err != nil || !existed {
 			if why := belowAFile(root, path, full); why != "" {
 				refuseFile(results, path, hs, 0, why)
@@ -3004,11 +3004,10 @@ func belowAFile(root, path, full string) string {
 		case mode.IsDir():
 			continue
 		case mode&(os.ModeSymlink|os.ModeIrregular) != 0:
-			// A link, or on Windows a junction or another reparse point.
-			if info, err := os.Stat(full); err == nil && info.IsDir() {
-				continue
-			}
-			return ""
+			// A link, or on Windows a junction or another reparse point: go on
+			// to what lies below it. If it does not lead to a directory, the
+			// next prefix cannot be examined and the search ends there.
+			continue
 		case mode.IsRegular():
 			return fmt.Sprintf("%s cannot be written: %s is a file, not a directory", asPlan(path), asPlan(anc))
 		default:

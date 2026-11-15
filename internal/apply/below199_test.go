@@ -197,8 +197,9 @@ func TestAPathBelowAFileIsRefusedOnItsHunk(t *testing.T) {
 	applied(t, "kept: create below a directory that does not exist yet", nil, op("d/new/x.txt", "create", "x"), "d/new/x.txt")
 	applied(t, "kept: create below a directory that exists", nil, op("d/x.txt", "create", "x"), "d/x.txt")
 	applied(t, "kept: create below a link to a directory", link("real", "d/ld"), op("d/ld/x.txt", "create", "x"), "d/real/x.txt")
-	// The parent is missing here, so the prefixes are walked and the link is
-	// judged by where it leads: a check on the link itself would refuse it.
+	// A missing directory under a link to a directory: the nearest ancestor
+	// that exists is the link, which leads to a directory, so nothing is in
+	// the way.
 	applied(t, "kept: create below a missing directory under a link to a directory", link("real", "d/ld"), op("d/ld/new/x.txt", "create", "x"), "d/real/new/x.txt")
 	// A link is never the obstruction. One that does not lead to a directory
 	// is left to what happened before this record (an error from the load or
@@ -275,6 +276,34 @@ func TestAPathBelowAFileIsRefusedOnItsHunk(t *testing.T) {
 		}
 		if got := read(t, root, "newdir/x.txt"); got != "x\n" {
 			t.Errorf("newdir/x.txt = %q, want %q", got, "x\n")
+		}
+	})
+
+	// The boundary is asked about each prefix before its entry is read. Here
+	// the whole path passes it (d/ld leads out of the root and `back` leads in
+	// again, so the path resolves inside), while the prefix d/ld does not: the
+	// search ends there, and no verdict is reached by way of a directory
+	// outside the root (the third go-reviewer pass on #646 built this fixture;
+	// without the per-prefix judgement the reason named d/ld/back/f.txt).
+	t.Run("left as before: a path that leaves the root and comes back", func(t *testing.T) {
+		root, outside := t.TempDir(), t.TempDir()
+		write(t, root, "d/f.txt", body)
+		if err := os.Mkdir(filepath.Join(outside, "odir"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(filepath.Join(root, "d"), filepath.Join(outside, "odir", "back")); err != nil {
+			t.Skipf("links unavailable here: %v", err)
+		}
+		if err := os.Symlink(filepath.Join(outside, "odir"), filepath.Join(root, "d", "ld")); err != nil {
+			t.Skipf("links unavailable here: %v", err)
+		}
+		in := op("d/ld/back/f.txt/x", "create", "x")
+		in.Index, in.SrcLine = 0, 1
+		res, _ := Apply(root, []Input{in}, Options{})
+		for _, h := range res.Hunks {
+			if strings.Contains(h.Reason, "cannot be written") {
+				t.Errorf("a verdict was reached through a directory outside the root: %q", h.Reason)
+			}
 		}
 	})
 

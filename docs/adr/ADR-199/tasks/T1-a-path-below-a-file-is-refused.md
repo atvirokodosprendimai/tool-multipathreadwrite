@@ -37,7 +37,7 @@ Decisions 1-4 of the record.
    - applied as now: `create` `d/new/x.txt`, `create` `d/x.txt`, `create` below a link to a directory;
    - applied as now: a `create` below a link to a directory, one or two levels deep, that another hunk of the plan makes;
    - left as before, with no reason of this record's: a `create` below a link to a file, a link whose target is below a file, a link to nothing (one and two levels deep) and a link loop;
-   - a prefix that is a link out of the root: refused in the boundary's words, and the outside target's listing is unchanged (the whole-path judgement refuses these, so they do not exercise the per-prefix one);
+   - a prefix that is a link out of the root: refused in the boundary's words, and the outside target's listing is unchanged; a path that leaves the root through one link and comes back through another: no reason of this record's, since the prefix judgement stops at the first link; on Windows, in `TestAPathBelowAJunctionIsLeftToWhereItLeads`, three junction cases that need no privilege;
    - two spellings of one file below a file: the case-clash refusal wins.
 2. [S2] The check. Mutants, each killed:
    - the check removed where a load fails, so the `replace` case goes red;
@@ -47,7 +47,7 @@ Decisions 1-4 of the record.
    - the check testing `IsRegular` where it tests "not a directory", so the FIFO case goes red;
    - a link to a directory treated as the obstruction, so the file-under-a-link case goes red on the ancestor it names; a link that leads nowhere treated as one, so the plan that makes its target goes red;
    - the nearest existing ancestor ending the check whatever it is, so the create below a file goes red;
-   - the boundary judgement of the prefix removed: SURVIVES, declared uncovered (the record's Risks row says why). One more survived an earlier build and is logged as such: in the helper that finds the nearest existing ancestor, a branch that stopped at a name it could not examine. Both ways reach the same answer, so the branch was removed instead of kept untested. Mutant rows written against builds before the link rule was narrowed name cases that no longer exist; the rows stay as history.
+   - the boundary judgement of the prefix removed, so the path that leaves the root and comes back goes red (it survived until the third review supplied that fixture). One more survived an earlier build and is logged as such: in the helper that finds the nearest existing ancestor, a branch that stopped at a name it could not examine. Both ways reach the same answer, so the branch was removed instead of kept untested. Mutant rows written against builds before the link rule was narrowed name cases that no longer exist; the rows stay as history.
    [proof: mutation]
 3. [S3] The contract section, through the built binary: `create` of `d/f.txt/x` exits 1, prints a FAIL row naming `d/f.txt is a file, not a directory`, and makes nothing; the pair: `create` of `d/new/x.txt` exits 0 and makes the file. [proof: acceptance]
 4. [S4] `go test ./internal/apply/ ./cmd/mrw/ ./internal/mcp/` pass. [proof: acceptance]
@@ -101,6 +101,8 @@ out=$(go test ./internal/apply/ -count=1 -v -run '^(TestAPathBelowAFileIsRefused
   ```
 - 2026-11-15 · 77ca0152* · mutant killed · exit 1 · `internal/apply/apply.go` · a link is judged as an ordinary entry and so is the obstruction, so the file under a link to a directory must go red on the ancestor it names · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · covers:a path below a non-directory is refused on its hunk
 - 2026-11-15 · 77ca0152* · mutant killed · exit 1 · `internal/apply/apply.go` · a link that does not lead to a directory is the obstruction, so the plan that makes its target must go red · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · covers:a path below a directory, a missing directory or a link to a directory applies
+- 2026-11-15 · df9b1127* · mutant killed · exit 1 · `internal/apply/apply.go` · a prefix is read without asking the boundary, so the path that leaves the root and comes back must go red · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · covers:a prefix the boundary refuses is not looked at
+- 2026-11-15 · df9b1127* · mutant killed · exit 1 · `internal/apply/apply.go` · a link is the obstruction, so the file under a link to a directory and the plan that makes a link target must go red · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · covers:a path below a directory, a missing directory or a link to a directory applies
 
 ## Verification Log
 - 2026-11-15 · 58365dc0* · exit 1 · `set -o pipefail …` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:1097 · test-lock-sha256:6af3851a85641b0ca90979ca22321234caab0b97e3ed2b98eb8a624b2a73840d · test-lock-file:docs/adr/locks/6af3851a85641b0ca90979ca22321234caab0b97e3ed2b98eb8a624b2a73840d.lock
@@ -122,6 +124,10 @@ out=$(go test ./internal/apply/ -count=1 -v -run '^(TestAPathBelowAFileIsRefused
 - 2026-11-15 · 77ca0152* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:172792
 - 2026-11-15 · 77ca0152* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:187743
 - 2026-11-15 · 77ca0152* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:170104
+- 2026-11-15 · df9b1127* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:0 · test-lock-sha256:8812c9e4d1510e4242e003848f8f548aff7a11693a1116f7e05d3290c11ee184 · test-lock-file:docs/adr/locks/8812c9e4d1510e4242e003848f8f548aff7a11693a1116f7e05d3290c11ee184.lock · test-lock-kind:replace
+- 2026-11-15 · df9b1127* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:173829
+- 2026-11-15 · df9b1127* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:174485
+- 2026-11-15 · df9b1127* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:169273
 
 ## Invariants
 
