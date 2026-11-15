@@ -114,6 +114,7 @@ a=$(go test ./internal/apply/ -count=1 -v -run '^(TestARefusedDestinationOrSourc
 - 2026-11-15 · 4e02b7d9* · exit 0 · `set -o pipefail …` · acceptance-sha256:6bf1f9f7692ec54d5d492c3d605878303575b1b5985e457ffb11b7b06f692b0f · ms:167345
 - 2026-11-15 · 4e02b7d9* · exit 0 · `set -o pipefail …` · acceptance-sha256:6bf1f9f7692ec54d5d492c3d605878303575b1b5985e457ffb11b7b06f692b0f · ms:166559
 - 2026-11-15 · 4e02b7d9* · exit 0 · `set -o pipefail …` · acceptance-sha256:6bf1f9f7692ec54d5d492c3d605878303575b1b5985e457ffb11b7b06f692b0f · ms:168035
+- 2026-11-15 · 58365dc0* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:6bf1f9f7692ec54d5d492c3d605878303575b1b5985e457ffb11b7b06f692b0f · ms:1 · test-lock-sha256:81bae941edc9710a2366d509735201b84f7a8197c061c5f5984ac82b04cd106f · test-lock-file:docs/adr/locks/81bae941edc9710a2366d509735201b84f7a8197c061c5f5984ac82b04cd106f.lock · test-lock-kind:replace
 
 ## Invariants
 

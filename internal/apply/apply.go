@@ -26,6 +26,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 	"unicode"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/lines"
@@ -692,6 +693,19 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			refuseFile(results, path, hs, 0, openRefusal(path, err))
 			failed = append(failed, FileResult{Path: path})
 			continue
+		}
+		// ADR-199: a path below something that is not a directory cannot be
+		// opened (macOS and Linux: "not a directory", which causeOf does not
+		// name) or is reported as missing (Windows, a link to nothing). It is a
+		// fact about the plan and the tree, so it is a failed hunk. Only a path
+		// that could not be found is looked at, after the boundary, the clash
+		// and same-file refusals above.
+		if err != nil || !existed {
+			if why := belowAFile(root, path, full); why != "" {
+				refuseFile(results, path, hs, 0, why)
+				failed = append(failed, FileResult{Path: path})
+				continue
+			}
 		}
 		if err != nil {
 			return res, fmt.Errorf("%s: %w", path, err)
@@ -2944,6 +2958,64 @@ func foldKey(name string) string {
 		b.WriteRune(least)
 	}
 	return b.String()
+}
+
+// belowAFile is the refusal for a cleaned root-relative path that lies below
+// something that is not a directory, or "" when there is none (ADR-199). full
+// is the path as resolve returned it. The obstruction is the shortest proper
+// prefix that the boundary accepts, that exists as an entry, and that leads to
+// something other than a directory, and the refusal says which it is: a file,
+// a link to something that is not a directory, a link that leads back to
+// itself, or something else that is not a directory (a FIFO, a device).
+//
+// A path whose parent is a directory has no such prefix, so that is asked
+// first and the walk is skipped: every create of a new file and every rename
+// to a new name comes here, and it costs them one Stat (the go-reviewer pass
+// on the first version measured 4x on a plan of 2,000 creates).
+//
+// A link to nothing is not an obstruction: another hunk of the same plan may
+// make the directory it leads to, and such a plan applies. A prefix the
+// boundary refuses, or whose Lstat or Stat fails for any other reason, ends
+// the search, so the refusals that exist for those keep their place.
+func belowAFile(root, path, full string) string {
+	if rooted.IsRooted(path) {
+		return ""
+	}
+	if parent, err := os.Stat(filepath.Dir(full)); err == nil && parent.IsDir() {
+		return ""
+	}
+	parts := strings.Split(path, string(filepath.Separator))
+	for i := 1; i < len(parts); i++ {
+		anc := filepath.Join(parts[:i]...)
+		full, err := resolve(root, anc)
+		if err != nil {
+			return ""
+		}
+		entry, err := os.Lstat(full)
+		if err != nil {
+			return ""
+		}
+		info, err := os.Stat(full)
+		var what string
+		// Windows reports a junction as irregular, not as a symlink (ADR-071).
+		isLink := entry.Mode()&(os.ModeSymlink|os.ModeIrregular) != 0
+		switch {
+		case err == nil && info.IsDir():
+			continue
+		case err == nil && isLink, errors.Is(err, syscall.ENOTDIR) && isLink:
+			what = "is a link to something that is not a directory"
+		case err == nil && info.Mode().IsRegular():
+			what = "is a file, not a directory"
+		case err == nil:
+			what = "is not a directory"
+		case errors.Is(err, syscall.ELOOP):
+			what = "is a link that leads back to itself"
+		default:
+			return ""
+		}
+		return fmt.Sprintf("%s cannot be written: %s %s", asPlan(path), asPlan(anc), what)
+	}
+	return ""
 }
 
 // refuseFile fails hs[at] with reason and skips the file's other hunks: one

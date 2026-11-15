@@ -11188,6 +11188,27 @@ out=$(printf '%s\n' '@@ f.txt - rename' 'd/ok.txt' | e339 write --no-check -); r
 { [ "$refused339" = yes ] && [ "$rc339" = 0 ] && [ -e "$R339/d/ok.txt" ] && [ ! -e "$R339/f.txt" ]; } \
   && ok "the pair: a destination through the link is refused, and one in the root applies" || bad "link pair: refused=$refused339, exit $rc339 [$out]"
 rm -rf "$R339" "$O339"
+# 340. ADR-199: a path below something that is not a directory was exit 2 with one
+# bare line and no receipt on macOS and Linux (a rename destination: exit 1 in the
+# system's words), and a failure at staging on Windows. It is a failed hunk now: exit 1,
+# a FAIL row, `d/f.txt/x cannot be written: d/f.txt is a file, not a directory`, nothing made.
+# Windows is shown by the Go test and a probe of the built binary. The pair: a create
+# below a directory that does not exist yet makes it.
+R340=$(mktemp -d "$WORK/r340-XXXXXX"); mkdir "$R340/d"; printf 'a\n' > "$R340/d/f.txt"
+e340() { env XDG_STATE_HOME="$R340/state" "$MRW" --root "$R340" "$@" 2>&1; }
+out=$(printf '%s\n' '@@ d/f.txt/x 0 create' 'x' | e340 write --no-check -); rc340=$?
+{ [ "$rc340" = 1 ] && grep -qF 'd/f.txt is a file, not a directory' <<<"$out" && grep -q 'FAIL' <<<"$out" \
+  && [ -f "$R340/d/f.txt" ] && [ ! -e "$R340/d/f.txt/x" ] && [ "$(ls "$R340/d")" = f.txt ]; } \
+  && ok "a create below a file exits 1 with a receipt and makes nothing" || bad "create below a file: exit $rc340 [$out]"
+out=$(e340 read --quiet d/f.txt); printf 'g\n' > "$R340/g.txt"; out=$(e340 read --quiet g.txt)
+out=$(printf '%s\n' '@@ g.txt - rename' 'd/f.txt/x' | e340 write --no-check -); rc340=$?
+{ [ "$rc340" = 1 ] && grep -qF 'd/f.txt/x cannot be written: d/f.txt is a file, not a directory' <<<"$out" && [ -f "$R340/g.txt" ]; } \
+  && ok "a rename to a destination below a file is refused in the same words" || bad "rename below a file: exit $rc340 [$out]"
+out=$(printf '%s\n' '@@ d/new/x.txt 0 create' 'x' | e340 write --no-check -); rc340=$?
+{ [ "$rc340" = 0 ] && [ "$(cat "$R340/d/new/x.txt")" = x ]; } \
+  && ok "the pair: a create below a missing directory makes it" || bad "create below a missing directory: exit $rc340 [$out]"
+rm -rf "$R340"
+
 
 # 334. The Stage 8 pilot (ADR-193 T4): an agent passed the file it meant to edit as
 # --format=search_replace's FILE, so mrw read source as the document and refused

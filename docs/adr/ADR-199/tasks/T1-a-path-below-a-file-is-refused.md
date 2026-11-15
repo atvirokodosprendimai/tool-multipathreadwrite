@@ -44,7 +44,7 @@ Decisions 1-4 of the record.
    - the check removed from the rename destination, so the rename case goes red on its words;
    - the check refusing a prefix that does not exist, so the missing-directory case goes red;
    - the check testing `IsRegular` where it tests "not a directory", so the FIFO case goes red;
-   - the check using `Lstat` alone, so the link-to-a-directory case goes red;
+   - the check using `Lstat` alone, so the create below a missing directory under a link to a directory goes red; a parent that exists ending the check whatever it is, so the create below a file goes red;
    - the boundary judgement of the prefix removed: SURVIVES, declared uncovered (the record's Risks row says why).
    [proof: mutation]
 3. [S3] The contract section, through the built binary: `create` of `d/f.txt/x` exits 1, prints a FAIL row naming `d/f.txt is a file, not a directory`, and makes nothing; the pair: `create` of `d/new/x.txt` exits 0 and makes the file. [proof: acceptance]
@@ -85,8 +85,26 @@ out=$(go test ./internal/apply/ -count=1 -v -run '^(TestAPathBelowAFileIsRefused
 | 4 — it is used | no telemetry (ADR-009); the evidence is issue #644's measurements |
 
 ## Mutation Log
+- 2026-11-15 · 58365dc0* · mutant killed · exit 1 · `internal/apply/apply.go` · the check is not made where a load fails, so the replace below a file case must go red · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · covers:a path below a non-directory is refused on its hunk
+- 2026-11-15 · 58365dc0* · mutant killed · exit 1 · `internal/apply/apply.go` · the check is not made where a file reports as missing, so the Windows-shaped cases must go red · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · covers:a path below a non-directory is refused on its hunk
+- 2026-11-15 · 58365dc0* · mutant killed · exit 1 · `internal/apply/pathop.go` · the check is not made for a rename destination, so the rename case must go red on its words · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · covers:a rename destination below one is refused in mrw's words
+- 2026-11-15 · 58365dc0* · mutant killed · exit 1 · `internal/apply/apply.go` · a prefix that does not exist is treated as an obstruction, so the create below a missing directory must go red · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · covers:a path below a directory, a missing directory or a link to a directory applies
+- 2026-11-15 · 58365dc0* · mutant killed · exit 1 · `internal/apply/apply.go` · only a regular file or a link counts, so the FIFO case must go red · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · covers:a path below a non-directory is refused on its hunk
+- 2026-11-15 · 58365dc0* · mutant killed · exit 1 · `internal/apply/apply.go` · the prefix is judged by the link itself, so the create below a missing directory under a link to a directory must go red · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · covers:a path below a directory, a missing directory or a link to a directory applies
+- 2026-11-15 · 58365dc0* · mutant killed · exit 1 · `internal/apply/apply.go` · a parent that exists ends the check whatever it is, so the create below a file case must go red · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · covers:a path below a non-directory is refused on its hunk
 
 ## Verification Log
+- 2026-11-15 · 58365dc0* · exit 1 · `set -o pipefail …` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:1097 · test-lock-sha256:6af3851a85641b0ca90979ca22321234caab0b97e3ed2b98eb8a624b2a73840d · test-lock-file:docs/adr/locks/6af3851a85641b0ca90979ca22321234caab0b97e3ed2b98eb8a624b2a73840d.lock
+  ```
+  ```
+- 2026-11-15 · 58365dc0* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:210086
+- 2026-11-15 · 58365dc0* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:230696
+- 2026-11-15 · 58365dc0* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:243588
+- 2026-11-15 · 58365dc0* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:287867
+- 2026-11-15 · 58365dc0* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:213435
+- 2026-11-15 · 58365dc0* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:194771
+- 2026-11-15 · 58365dc0* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:208329
+- 2026-11-15 · 58365dc0* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:210749
 
 ## Invariants
 
