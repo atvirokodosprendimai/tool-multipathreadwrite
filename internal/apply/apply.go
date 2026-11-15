@@ -1757,7 +1757,7 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 				return false
 			}
 			if !strings.Contains(orig[at-1], h.Anchor) {
-				fail(h, "%s", anchorMiss(h.Anchor, at, orig))
+				fail(h, "%s", anchorMiss(h.Anchor, at, orig, path))
 				return false
 			}
 			return true
@@ -1818,7 +1818,7 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 			// "mrw does not tell you what it has not shown you", false on the
 			// one path that had this guard first (ADR-028).
 			if h.Anchor != "" && !strings.Contains(orig[start-1], h.Anchor) {
-				fail(h, "%s", anchorMiss(h.Anchor, start, orig))
+				fail(h, "%s", anchorMiss(h.Anchor, start, orig, path))
 				continue
 			}
 			// ADR-035. A replace addressing more than one line must say what it
@@ -2652,19 +2652,43 @@ func trim(s string) string {
 // no such advice: re-anchoring on the addressed line would edit the wrong one.
 // The line it quotes is the one the caller was served (ADR-028), quoted as the
 // anchor is: exactly, so an indent the anchor keeps is not shown trimmed away.
-func anchorMiss(anchor string, n int, orig []string) string {
+//
+// It ends with where the anchor is (ADR-197): the lines of path that hold it,
+// the first anchorMissLines and a count of the rest, or that none does. Line
+// numbers only, as the ambiguous-pattern refusal gives them: no content of a
+// line the caller may not have been served, and the read guard still judges a
+// hunk moved to one of them.
+func anchorMiss(anchor string, n int, orig []string, path string) string {
 	line := orig[n-1]
 	msg := fmt.Sprintf("anchor %q not in line %d: %q", anchor, n, clip(line))
-	if !strings.Contains(strings.ReplaceAll(line, `"`, ""), anchor) {
-		return msg
-	}
-	for _, l := range orig {
-		if strings.Contains(l, anchor) {
-			return msg
+	var at []int
+	more := 0
+	for i, l := range orig {
+		if !strings.Contains(l, anchor) {
+			continue
+		}
+		if len(at) < anchorMissLines {
+			at = append(at, i+1)
+		} else {
+			more++
 		}
 	}
-	return msg + `; the line holds the anchor without its double quotes, and a " inside anchor="…" is read as the header's quoting: write anchor='…' in single quotes, or each " as \" inside double quotes`
+	switch {
+	case len(at) == 1:
+		return fmt.Sprintf("%s; the anchor is in line %d", msg, at[0])
+	case len(at) > 1 && more == 0:
+		return fmt.Sprintf("%s; the anchor is in %s", msg, joinInts(at))
+	case len(at) > 1:
+		return fmt.Sprintf("%s; the anchor is in %s and %d more", msg, joinInts(at), more)
+	case strings.Contains(strings.ReplaceAll(line, `"`, ""), anchor):
+		return msg + `; the line holds the anchor without its double quotes, and a " inside anchor="…" is read as the header's quoting: write anchor='…' in single quotes, or each " as \" inside double quotes`
+	}
+	return fmt.Sprintf("%s; no line of %s holds it", msg, path)
 }
+
+// anchorMissLines is how many lines holding a missed anchor the refusal names
+// before it counts the rest: a short anchor such as `}` is in hundreds.
+const anchorMissLines = 5
 
 // clip bounds a line for a message WITHOUT trimming it. It is what trim is
 // built on, and the difference matters in exactly one place: a message that

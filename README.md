@@ -337,6 +337,9 @@ from the `NNN| content` a read printed; one typed from memory can be wrong in
 the same way the address is. `sha=` and `lines=` do not stand in for it: `sha=`
 pins the whole file and `lines=` the count, neither which lines (ADR-164). Both
 are optional and are checked on every op, insertions included.
+An anchor that is not in the addressed line is refused, and the refusal ends with
+where it is: `; the anchor is in line N` (the first five lines, then a count), or
+`; no line of PATH holds it` (ADR-197).
 
 Addresses are 1-based and inclusive; `$` is the last line, and `A,+N` is the line `A` plus the `N` lines AFTER it. A read CLAMPS a relative end at the last line; a write REFUSES one that runs past it. `/from/,/to/` means the same on both paths: the end is the first match
 at or after the start. A write refuses unless the start matches exactly once, or

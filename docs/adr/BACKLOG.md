@@ -1015,6 +1015,31 @@ verdict), written with the record on 2026-11-03, before any code or run.
   the failure ADR-195 refuses for `--create`. The caller names the file and can inspect it, which is why ADR-195
   left it out; whether it should be refused too is its own record.
 
+## From ADR-197 (an anchor miss names the lines that hold the anchor)
+
+- **The 30-day reading (pre-registered 2026-11-15, before any code):** 30 days after the release that ships ADR-197,
+  run `python3 -I docs/bench/anchor-miss-study/scan.py --since <release date>`. The clause is kept if fewer than half
+  of the anchor misses are followed by a read (104 of 140 on 2026-11-15, all transcripts to that date); at half or more
+  it goes back to Zy. The share is an upper bound: some of those reads the guard requires anyway (ADR-002, ADR-052).
+- **A failed check says whether its output names a line the write changed (withdrawn from ADR-197's first draft)**
+  (2026-11-15): 49 failed-check results in 116 transcripts, 26 followed by a read; the count cannot tell
+  `write --check` from `mrw check`. What a record needs first, from the two challenges: the lines a write produced
+  are `newSpan`, unexported, and `FileResult.Spans` is filled only for a quote-licensed file (`apply.go:69, 724-730`),
+  the carry ADR-194 T2 (blocked) owns; `go test` prints bare file names for `t.Errorf`, root-relative paths for
+  compile errors and absolute ones for panics (measured, go 1.27.4), and 212 of this repository's 576 `_test.go` files
+  share a name with another, so a rule for bare names has to be chosen and its yield measured on real logs
+  (`-fullpath` exists); a file the check changed (ADR-112 drift) gets no attribution; where the points fall in
+  `mrw_write`'s elision order; a renamed file and a delete-only hunk; `write --then` steps, which do run on written
+  lines.
+- **`expected removal differs` names where the expected text is (deferred from ADR-197)** (2026-11-15): the anchor
+  miss's twin for a delete's expected body (`apply.go:1942`). Not counted in any scan yet; count it first.
+- **A SEARCH or old side that matched nothing, or several times (deferred from ADR-197)** (2026-11-15): seven
+  matched-nothing results in 116 transcripts, each followed by a read; the matched-N-times refusals name no lines
+  (`searchreplace.go:134`, `applypatch.go:259`) while the native pattern refusal does. Its own record if the count
+  grows; ADR-193 leads Claude with search_replace.
+- **Undo a write whose check failed (deferred from ADR-197)** (2026-11-15): before any record, count how often a caller
+  reverts by hand after exit 3. ADR-080 and ADR-187 keep the write; turnpack undoes it by default.
+
 ## Post-v1.77.1 cleanup and decisions (2026-10-28)
 
 Zy asked to fix and clean up the reproducible issues, re-examine the open work,

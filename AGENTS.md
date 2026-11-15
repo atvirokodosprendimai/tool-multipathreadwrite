@@ -438,6 +438,8 @@ body over lines nobody looked at, and the receipt cannot show it because the
 damage falls outside the lines the hunk named. Take the anchor from the
 `NNN| content` your read printed — one typed from memory can be wrong exactly as
 the address is wrong. `sha=` and `lines=` do not stand in for it: `sha=` pins the whole file, not which lines the range covers (ADR-164).
+An anchor that is not in the addressed line is refused, and the refusal ends with where it is — `; the anchor is in line N`, the first five
+lines and a count of the rest — or `; no line of PATH holds it` (ADR-197): read the named line if you were not served it, and address that.
 
 Or address by pattern, when you would otherwise read the file only to learn a
 line number:

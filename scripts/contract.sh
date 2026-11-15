@@ -11135,6 +11135,21 @@ out2=$(printf '@@ e.txt 0 create body=0\n' | e336 write --no-check -); rc336b=$?
   && ok "the pair: a lone newline is created, and the body=0 plan makes the empty file" || bad "pair: exit $rc336/$rc336b [$out] [$out2]"
 rm -rf "$R336"
 
+# 337. ADR-197: an anchor= that is not in the addressed line is usually a wrong
+# range, and the refusal quoted the wrong line without saying where the right one
+# is. It now ends with the line that holds the anchor; nothing is written. The
+# pair: the same plan addressed to the line it named applies.
+R337=$(mktemp -d "$WORK/r337-XXXXXX"); printf 'a\nb\nfunc target() {\n  body\n}\nz\n' > "$R337/f.txt"
+e337() { env XDG_STATE_HOME="$R337/state" "$MRW" --root "$R337" "$@" 2>&1; }
+out=$(e337 read f.txt)
+out=$(printf '%s\n' '@@ f.txt 2-3 replace anchor="func target"' 'x' 'y' | e337 write --no-check -); rc337=$?
+{ [ "$rc337" = 1 ] && grep -qF 'not in line 2: "b"; the anchor is in line 3' <<<"$out" && [ "$(sed -n 2p "$R337/f.txt")" = b ]; } \
+  && ok "an anchor miss names the line that holds the anchor and writes nothing" || bad "anchor miss: exit $rc337 [$out]"
+out=$(printf '%s\n' '@@ f.txt 3-4 replace anchor="func target"' 'x' 'y' | e337 write --no-check -); rc337=$?
+{ [ "$rc337" = 0 ] && [ "$(sed -n 3p "$R337/f.txt")" = x ] && [ "$(sed -n 2p "$R337/f.txt")" = b ]; } \
+  && ok "the pair: the plan re-addressed to that line applies" || bad "re-addressed plan: exit $rc337 [$out]"
+rm -rf "$R337"
+
 # 334. The Stage 8 pilot (ADR-193 T4): an agent passed the file it meant to edit as
 # --format=search_replace's FILE, so mrw read source as the document and refused
 # "no hunks", which named neither the marker nor the mistake. A document with no
