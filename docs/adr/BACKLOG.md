@@ -1116,3 +1116,20 @@ change an exit code, a trust boundary, or any registered measurement window.
 The exponent timing-test entry above retains its recurrence trigger. ADR-169's
 14-day adoption reading is due 2026-11-06; ADR-177–179's first 30-day window ends
 2026-11-27, anchored to v1.77.0. v1.77.1 does not reset either window.
+
+## From ADR-198 (a refusal reason spells a plan's path as its row does)
+
+- **`rooted`'s identity error keeps the platform's spelling** (2026-11-15): `mrw cannot read the file identity of P`
+  (`internal/rooted/hardlink.go:38`) reaches a write's reason through `apply.go:591` with `P` as Windows spells it.
+  ADR-198 converts only what `internal/apply` formats; `rooted` serves the read side too, whose refusals no record
+  has converted. Read from the code, not measured on Windows. Take it with the read side's spelling, if that is ever
+  reported (issue #642 names the class).
+- **`mrw skill --dir`'s refusal keeps the platform's spelling** (measured 2026-11-15, Windows 11, d6526b90):
+  `mrw skill --dir skills` over a hand-written file prints `skills\mrw\SKILL.md was not written by …`. The words are
+  built in `cmd/mrw/skill168.go`, not in `internal/apply`, and no receipt converter runs there. With an absolute
+  `--dir` the path is absolute and stays as the system spells it.
+- **A stopped commit's raw error mixes spellings on Windows** (read from the code by the go-reviewer pass on #643, not
+  measured): the error begins with the file as the platform spells it (`apply.go:1021, 1177`, `pathop.go:439`) and
+  after ADR-198 holds `/` paths behind it. `mrw_write`'s `error:` line (`internal/mcp/tools.go:1191`) and a CLI
+  `--json` refusal (`cmd/mrw/main.go:1974`) print it raw; the plain exit-2 line converts its start. Converting the
+  start in the engine would make `exitTwoLine` print the path twice, so the fix belongs on those two surfaces.

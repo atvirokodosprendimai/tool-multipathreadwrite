@@ -657,7 +657,7 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 					if i == 0 {
 						r.Status = StatusFailed
 						r.Reason = fmt.Sprintf("%s names the same file as %s (plan line %d); one file, one spelling per plan",
-							path, prior.path, prior.line)
+							path, asPlan(prior.path), prior.line)
 					}
 					results[h.Index] = r
 				}
@@ -1093,12 +1093,12 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 		// (Windows CI on #300, TestAStagingAbortKeepsAPreExistingDanglingSymlink).
 		if d := danglingLink(filepath.Dir(w.renameTo)); d != "" {
 			discard(0)
-			return refuseStage(w.file.Path, fmt.Errorf("rename dest %s is under %s, a link to nothing; mrw will not make its target", w.destRel, d), true)
+			return refuseStage(w.file.Path, fmt.Errorf("rename dest %s is under %s, a link to nothing; mrw will not make its target", asPlan(w.destRel), d), true)
 		}
 		dir := rooted.RealAsFarAsItExists(filepath.Dir(w.renameTo))
 		if _, err := tr.rel(dir); err != nil {
 			discard(0)
-			return refuseStage(w.file.Path, fmt.Errorf("rename dest %s: %w", w.destRel, err), true)
+			return refuseStage(w.file.Path, fmt.Errorf("rename dest %s: %w", asPlan(w.destRel), err), true)
 		}
 		w.renameTo = filepath.Join(dir, filepath.Base(w.renameTo))
 		sf := dirsOnly(missingDirs(dir))
@@ -1211,7 +1211,7 @@ func writtenSoFar(files []FileResult) string {
 	var names []string
 	for _, f := range files {
 		if f.Written {
-			names = append(names, f.Path)
+			names = append(names, asPlan(f.Path))
 		}
 	}
 	if len(names) == 0 {
@@ -1324,7 +1324,7 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 	}
 	if pathLevel && !editRename && (lineLevel || len(hs) != 1) {
 		for _, h := range hs {
-			fail(h, "unlink/rename cannot mix with other hunks on %s", path)
+			fail(h, "unlink/rename cannot mix with other hunks on %s", asPlan(path))
 		}
 		return nil, false, ""
 	}
@@ -1384,14 +1384,14 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 		case !known && len(hs) == 1 && hs[0].Op == "create":
 			// A create never overwrites, so the read the generic refusal asks for
 			// would not let it apply: say what is true (ADR-142).
-			fail(hs[0], "create: %s already exists — a create never overwrites; read it and use replace or delete, or unlink it first", path)
+			fail(hs[0], "create: %s already exists — a create never overwrites; read it and use replace or delete, or unlink it first", asPlan(path))
 		case !known:
 			if pathLevel && !lineLevel {
 				failK(lead, refusal.NotRead, "%s has not been read: mrw does not know what it currently holds. %s "+
 					"takes no line address — read the path, or pass --force", path, hs[0].Op)
 			} else {
 				failK(lead, refusal.NotRead, "%s has not been read: mrw does not know what it currently holds, and a "+
-					"line address means nothing without that. Run `mrw read %s` first, or pass --force", path, path)
+					"line address means nothing without that. Run `mrw read %s` first, or pass --force", path, asPlan(path))
 			}
 		case recorded.SHA != shaBefore:
 			// The dangerous case, and the reason the ledger is written on WRITE
@@ -1428,7 +1428,7 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 		}
 		failK(h, refusal.NotRead, "%s of %s has not been read: mrw served %s. A line address means nothing in lines "+
 			"you have not seen — read them, or pass --force (a line --max-cols served cut is not read: read it whole, or --quiet)",
-			addrString(from, to), path, obs.Served())
+			addrString(from, to), asPlan(path), obs.Served())
 		return false
 	}
 
@@ -1471,7 +1471,7 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 		if h.SHA != "" {
 			switch {
 			case !existed:
-				fail(h, "sha=%s given but %s does not exist%s", h.SHA, path, servedAs(root, path, opt.Seen))
+				fail(h, "sha=%s given but %s does not exist%s", h.SHA, asPlan(path), servedAs(root, path, opt.Seen))
 				continue
 			case !strings.HasPrefix(shaBefore, h.SHA):
 				fail(h, "file changed: sha is %s, plan expected %s", shaShown(shaBefore, h.SHA), h.SHA)
@@ -1576,7 +1576,7 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 			}
 			created, createdAt = true, h.SrcLine
 			if existed {
-				fail(h, "create: %s already exists (%d lines) — use replace or delete", path, total)
+				fail(h, "create: %s already exists (%d lines) — use replace or delete", asPlan(path), total)
 				continue
 			}
 			resolved = append(resolved, h.resolveTo(1, 0, "insert"))
@@ -1624,7 +1624,7 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 				// ADR-013's objection that the order moves when code does.
 				if n := h.Occurrence; n > 0 && len(at) > 0 {
 					if n > len(at) {
-						fail(h, "pattern %s matched %d line(s) in %s (%s), fewer than occurrence %d", re, len(at), path, joinInts(at), n)
+						fail(h, "pattern %s matched %d line(s) in %s (%s), fewer than occurrence %d", re, len(at), asPlan(path), joinInts(at), n)
 						return 0, false
 					}
 					// Not obs.Whole(): a file mrw wrote is wholly licensed but
@@ -1639,7 +1639,7 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 						if len(unread) > 0 {
 							fail(h, "%s also matches %s of %s before occurrence %d, and they have not been read: "+
 								"mrw served %s — read them, or pass --force",
-								re, joinInts(unread), path, n, obs.Served())
+								re, joinInts(unread), asPlan(path), n, obs.Served())
 							return 0, false
 						}
 					}
@@ -1649,13 +1649,13 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 				case 1:
 					return at[0], true
 				case 0:
-					fail(h, "%spattern %s matched no line in %s", which, re, path)
+					fail(h, "%spattern %s matched no line in %s", which, re, asPlan(path))
 				default:
 					// Naming the lines is what lets the caller act: narrow the
 					// pattern, address by number, or pick one. A refusal that
 					// only says "ambiguous" leaves them guessing.
 					fail(h, "%spattern %s matched %d lines in %s (%s) — narrow it, address by line number, or pick one with occurrence=N",
-						which, re, len(at), path, joinInts(at))
+						which, re, len(at), asPlan(path), joinInts(at))
 				}
 				return 0, false
 			}
@@ -1687,10 +1687,10 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 				}
 				if to == 0 {
 					if len(at) == 0 {
-						fail(h, "end pattern %s matched no line in %s", h.EndPat, path)
+						fail(h, "end pattern %s matched no line in %s", h.EndPat, asPlan(path))
 					} else {
 						fail(h, "end pattern %s matched only above the start line %d (%s) in %s",
-							h.EndPat, from, joinInts(at), path)
+							h.EndPat, from, joinInts(at), asPlan(path))
 					}
 					continue
 				}
@@ -2683,7 +2683,7 @@ func anchorMiss(anchor string, n int, orig []string, path string) string {
 	case strings.Contains(strings.ReplaceAll(line, `"`, ""), anchor):
 		return msg + `; the line holds the anchor without its double quotes, and a " inside anchor="…" is read as the header's quoting: write anchor='…' in single quotes, or each " as \" inside double quotes`
 	}
-	return fmt.Sprintf("%s; no line of %s holds it", msg, path)
+	return fmt.Sprintf("%s; no line of %s holds it", msg, asPlan(path))
 }
 
 // anchorMissLines is how many lines holding a missed anchor the refusal names
@@ -2897,7 +2897,7 @@ func foldClashes(in []Input, exists func(string) bool) map[int]string {
 			continue
 		}
 		out[n] = fmt.Sprintf("%s may name the same file as %s (plan line %d) on a case-insensitive filesystem; one file, one spelling per plan",
-			name, prior.name, prior.line)
+			asPlan(name), asPlan(prior.name), prior.line)
 	}
 	return out
 }

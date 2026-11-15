@@ -11150,6 +11150,23 @@ out=$(printf '%s\n' '@@ f.txt 3-4 replace anchor="func target"' 'x' 'y' | e337 w
   && ok "the pair: the plan re-addressed to that line applies" || bad "re-addressed plan: exit $rc337 [$out]"
 rm -rf "$R337"
 
+# 338. ADR-198: a refusal reason spells a plan's path with "/" as its row does, on
+# Windows. Here, where "/" is the separator, nothing is converted: a file whose name
+# holds a backslash is named as it is. The pair: a file in a directory is named with
+# its slash. The conversion itself is driven by the Go test with `\` as the separator
+# and by a probe on Windows; this row guards the other half of the decision.
+R338=$(mktemp -d "$WORK/r338-XXXXXX"); mkdir "$R338/sub"
+printf 'a\nb\nc\n' > "$R338"/'a\b.txt'; printf 'a\nb\nc\n' > "$R338/sub/f.txt"
+e338() { env XDG_STATE_HOME="$R338/state" "$MRW" --root "$R338" "$@" 2>&1; }
+out=$(e338 read 'a\b.txt' sub/f.txt)
+out=$(printf '%s\n' '@@ a\b.txt 2 replace anchor="nowhere"' 'x' | e338 write --no-check -); rc338=$?
+{ [ "$rc338" = 1 ] && grep -qF 'no line of a\b.txt holds it' <<<"$out" && [ "$(sed -n 2p "$R338"/'a\b.txt')" = b ]; } \
+  && ok "a name holding a backslash is not rewritten in a reason" || bad "backslash name: exit $rc338 [$out]"
+out=$(printf '%s\n' '@@ sub/f.txt 2 replace anchor="nowhere"' 'x' | e338 write --no-check -); rc338=$?
+{ [ "$rc338" = 1 ] && grep -qF 'no line of sub/f.txt holds it' <<<"$out" && [ "$(sed -n 2p "$R338/sub/f.txt")" = b ]; } \
+  && ok "the pair: a path in a directory is named with its slash" || bad "directory name: exit $rc338 [$out]"
+rm -rf "$R338"
+
 # 334. The Stage 8 pilot (ADR-193 T4): an agent passed the file it meant to edit as
 # --format=search_replace's FILE, so mrw read source as the document and refused
 # "no hunks", which named neither the marker nor the mistake. A document with no

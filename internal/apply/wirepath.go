@@ -1,8 +1,11 @@
 package apply
 
 import (
+	"path/filepath"
 	"slices"
 	"strings"
+
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 )
 
 // Slashed returns res with every root-relative path spelled with "/" where
@@ -45,6 +48,24 @@ func Slashed(res Result, sep rune) Result {
 // Slash spells p's sep separators as "/".
 func Slash(p string, sep rune) string {
 	return strings.ReplaceAll(p, string(sep), "/")
+}
+
+// reasonSep is the separator asPlan converts a path from: the platform's, and
+// a variable so a test can drive `\` on any platform (ADR-198).
+var reasonSep = filepath.Separator
+
+// asPlan spells a cleaned root-relative path with "/" as a plan and its row do.
+// A refusal site that puts a plan's path into a reason formats it through
+// here, where mrw knows which argument is a path; text it did not format, a
+// path as the caller typed it and the `attrib -r` command are never passed
+// (ADR-198). A rooted path is returned as it is: a site that runs before the
+// plan's absolute paths are refused (foldClashes) can hold one, and it is the
+// caller's spelling of a place outside the plan (the Codex review of #643).
+func asPlan(p string) string {
+	if rooted.IsRooted(p) {
+		return p
+	}
+	return Slash(p, reasonSep)
 }
 
 // SlashIn spells the root-relative path p with "/" where sep separated it, in
