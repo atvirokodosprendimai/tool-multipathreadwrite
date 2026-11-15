@@ -3,6 +3,7 @@ package apply
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -86,6 +87,27 @@ func TestARefusedDestinationOrSourceBeginsAsTheRowDoes(t *testing.T) {
 		r := reasonOf(t, root, Input{Path: "f0.txt", Op: "rename", Body: []string{typed}, Lines: -1})
 		if !strings.HasPrefix(r, typed+" resolves to ") {
 			t.Errorf("reason %q, want it to begin %q", r, typed+" resolves to ")
+		}
+	})
+	// No link is needed for a device name, which rooted refuses on Windows
+	// (ADR-081), so this runs where the cases above skip: a Windows session
+	// without the symlink privilege (the probe of #645). Elsewhere nul is an
+	// ordinary name and the rename applies.
+	t.Run("on Windows, a device name in a destination and in a source, with no link", func(t *testing.T) {
+		if runtime.GOOS != "windows" {
+			t.Skip("a device name is refused on Windows only")
+		}
+		root := t.TempDir()
+		write(t, root, "f0.txt", "a\nb\n")
+		dev := filepath.Join("d", "nul", `a\b.txt`)
+		const devRow = "d/nul/a/b.txt"
+		r := reasonOf(t, root, Input{Path: "f0.txt", Op: "rename", Body: []string{dev}, Lines: -1})
+		if !strings.HasPrefix(r, devRow+` leads to "nul"`) {
+			t.Errorf("rename: reason %q, want it to begin %q", r, devRow+` leads to "nul"`)
+		}
+		r = reasonOf(t, root, Input{Path: "g.txt", Op: "create", From: dev, FromStart: 1, FromEnd: 1, Lines: -1})
+		if want := "from=" + devRow + ": " + devRow + ` leads to "nul"`; !strings.HasPrefix(r, want) {
+			t.Errorf("from=: reason %q, want it to begin %q", r, want)
 		}
 	})
 

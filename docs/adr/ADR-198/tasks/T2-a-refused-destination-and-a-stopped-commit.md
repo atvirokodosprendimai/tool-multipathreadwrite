@@ -88,8 +88,26 @@ a=$(go test ./internal/apply/ -count=1 -v -run '^(TestARefusedDestinationOrSourc
 | 4 — it is used | no telemetry (ADR-009); the evidence is the Windows probe of 0d49d6e8 (`d\nul\x leads to "nul"`) and, for the error line, the code read by two reviews; that line has not been seen on Windows |
 
 ## Mutation Log
+- 2026-11-15 · bfeae770* · mutant killed · exit 1 · `internal/apply/pathop.go` · the destination site prints the rooted error as it is, so the refused destination case must go red · acceptance-sha256:6bf1f9f7692ec54d5d492c3d605878303575b1b5985e457ffb11b7b06f692b0f · covers:a refused destination begins with the path as the row spells it
+- 2026-11-15 · bfeae770* · mutant killed · exit 1 · `internal/apply/fromcopy.go` · the source site converts P after from= and not the start of the error, so the refused source case must go red · acceptance-sha256:6bf1f9f7692ec54d5d492c3d605878303575b1b5985e457ffb11b7b06f692b0f · covers:a refused source begins with it after from=
+- 2026-11-15 · bfeae770* · mutant killed · exit 1 · `internal/apply/wirepath.go` · SlashLead replaces the separator in the whole text, so the outside directory named with a backslash must go red · acceptance-sha256:6bf1f9f7692ec54d5d492c3d605878303575b1b5985e457ffb11b7b06f692b0f · covers:text that does not begin with the path is kept whole
+- 2026-11-15 · bfeae770* · mutant killed · exit 1 · `internal/apply/wirepath.go` · SlashLead matches a longer name that begins with the path, so the longer-name case must go red · acceptance-sha256:6bf1f9f7692ec54d5d492c3d605878303575b1b5985e457ffb11b7b06f692b0f · covers:text that does not begin with the path is kept whole
+- 2026-11-15 · bfeae770* · mutant killed · exit 1 · `cmd/mrw/main.go` · the CLI converts against the shown result, whose paths are already slashed, so the json error case must go red · acceptance-sha256:6bf1f9f7692ec54d5d492c3d605878303575b1b5985e457ffb11b7b06f692b0f · covers:the CLI json error and its stderr line begin with it
+- 2026-11-15 · bfeae770* · mutant killed · exit 1 · `internal/mcp/tools.go` · mrw_write converts against the slashed result, so the mcp error case must go red · acceptance-sha256:6bf1f9f7692ec54d5d492c3d605878303575b1b5985e457ffb11b7b06f692b0f · covers:the mrw_write error field and line begin with it
 
 ## Verification Log
+- 2026-11-15 · bfeae770* · exit 1 · `set -o pipefail …` · acceptance-sha256:6bf1f9f7692ec54d5d492c3d605878303575b1b5985e457ffb11b7b06f692b0f · ms:3601 · test-lock-sha256:bfd1c0fa3f1fc8565d3132267dc5497261cda0caf19c1c9870782a35ab5a91e7 · test-lock-file:docs/adr/locks/bfd1c0fa3f1fc8565d3132267dc5497261cda0caf19c1c9870782a35ab5a91e7.lock
+  ```
+  ```
+- 2026-11-15 · bfeae770* · exit 0 · `set -o pipefail …` · acceptance-sha256:6bf1f9f7692ec54d5d492c3d605878303575b1b5985e457ffb11b7b06f692b0f · ms:239412
+- 2026-11-15 · bfeae770* · exit 0 · `set -o pipefail …` · acceptance-sha256:6bf1f9f7692ec54d5d492c3d605878303575b1b5985e457ffb11b7b06f692b0f · ms:199907
+- 2026-11-15 · bfeae770* · exit 0 · `set -o pipefail …` · acceptance-sha256:6bf1f9f7692ec54d5d492c3d605878303575b1b5985e457ffb11b7b06f692b0f · ms:184558
+- 2026-11-15 · bfeae770* · exit 0 · `set -o pipefail …` · acceptance-sha256:6bf1f9f7692ec54d5d492c3d605878303575b1b5985e457ffb11b7b06f692b0f · ms:178731
+- 2026-11-15 · bfeae770* · exit 0 · `set -o pipefail …` · acceptance-sha256:6bf1f9f7692ec54d5d492c3d605878303575b1b5985e457ffb11b7b06f692b0f · ms:186802
+- 2026-11-15 · bfeae770* · exit 0 · `set -o pipefail …` · acceptance-sha256:6bf1f9f7692ec54d5d492c3d605878303575b1b5985e457ffb11b7b06f692b0f · ms:192046
+- 2026-11-15 · bfeae770* · exit 0 · `set -o pipefail …` · acceptance-sha256:6bf1f9f7692ec54d5d492c3d605878303575b1b5985e457ffb11b7b06f692b0f · ms:181993
+- 2026-11-15 · bfeae770* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:6bf1f9f7692ec54d5d492c3d605878303575b1b5985e457ffb11b7b06f692b0f · ms:0 · test-lock-sha256:50e1aff56c98c8ae1c1cc14502df9c9e2461602abd5b26c9a1c93f9955e25e74 · test-lock-file:docs/adr/locks/50e1aff56c98c8ae1c1cc14502df9c9e2461602abd5b26c9a1c93f9955e25e74.lock · test-lock-kind:replace
+- 2026-11-15 · bfeae770* · exit 0 · `set -o pipefail …` · acceptance-sha256:6bf1f9f7692ec54d5d492c3d605878303575b1b5985e457ffb11b7b06f692b0f · ms:176409
 
 ## Invariants
 
