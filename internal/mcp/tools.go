@@ -840,7 +840,7 @@ func filesFrom(root, name string) ([]string, error) {
 		return nil, fmt.Errorf("%s is %d bytes, over the %d a list may be", label, fi.Size(), maxSpecList)
 	}
 	lr := &io.LimitedReader{R: f, N: maxSpecList + 1}
-	specs, err := speclist.Parse(lr, label)
+	specs, err := speclist.Parse(lr, label, nil)
 	if err == nil && lr.N == 0 {
 		return nil, fmt.Errorf("%s grew past the %d a list may be while it was read", label, maxSpecList)
 	}

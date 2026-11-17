@@ -11,10 +11,11 @@ README must be regenerated.
 | ID | Title | Status | Depends-on | Acceptance |
 |----|-------|--------|------------|------------|
 | T1 | mrw_read takes max_lines, stat and files_from | done | none | `docs/adr/ADR-117-mrw-read-takes-max-lines-stat-and-files-from/tasks/T1-read-args.md` fence |
+| T2 | a spec list drops a leading byte order mark and says so | done | T1 | `docs/adr/ADR-117-mrw-read-takes-max-lines-stat-and-files-from/tasks/T2-a-list-drops-a-leading-byte-order-mark.md` fence |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 
 ## Notes
 
 - Engine go/no-go: ADR-117 owns no engine package.
-- Contract section §217.
+- Contract sections §217 and §341 (T2).
