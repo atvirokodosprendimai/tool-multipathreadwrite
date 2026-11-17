@@ -11,34 +11,30 @@ import (
 	"testing"
 )
 
-// ADR-078 T1. A padded-path refusal suggested `mrw read -- ' x'`, and cmd.exe
-// keeps single quotes as characters, so pasting it there named a path with
-// quotes in it. On Windows the refusal also names the cmd.exe form, and that
-// form, run through cmd.exe, serves the file.
+// ADR-078 T1, retargeted by ADR-196. A padded-path refusal used to name a
+// cmd.exe form, since cmd.exe keeps single quotes as characters. The refusal is
+// gone: a name with a leading space reaches the read as typed, from Go and from
+// cmd.exe alike, apostrophe included.
 func TestThePaddedPathFixNamesTheCmdExeForm(t *testing.T) {
 	root := t.TempDir()
 	if err := os.WriteFile(filepath.Join(root, " x"), []byte("padded\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	out, code := runIn(t, root, "read", " x")
-	want := `(in cmd.exe: mrw read -- " x")`
-	if code != exitUsage || !strings.Contains(out, want) {
-		t.Fatalf("exit %d, want the cmd.exe form %s:\n%s", code, want, out)
+	if out, code := runIn(t, root, "read", " x"); code != 0 || !strings.Contains(out, "| padded") {
+		t.Fatalf("exit %d, want 0 serving \" x\":\n%s", code, out)
 	}
-	// The name's own apostrophe survives: rewriting every ' in the POSIX form
-	// turned it into a quote (the review of #239).
 	if err := os.WriteFile(filepath.Join(root, " O'Brien"), []byte("apostrophe\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if out, code := runIn(t, root, "read", " O'Brien"); code != exitUsage || !strings.Contains(out, `(in cmd.exe: mrw read -- " O'Brien")`) {
-		t.Fatalf("exit %d, the cmd.exe form lost the apostrophe:\n%s", code, out)
+	if out, code := runIn(t, root, "read", " O'Brien"); code != 0 || !strings.Contains(out, "| apostrophe") {
+		t.Fatalf("exit %d, want 0 serving \" O'Brien\":\n%s", code, out)
 	}
 	exe := mrwExe(t)
 	c := exec.Command("cmd")
-	c.SysProcAttr = &syscall.SysProcAttr{CmdLine: `cmd /s /c ""` + exe + `" -C "` + root + `" read -- " x""`}
+	c.SysProcAttr = &syscall.SysProcAttr{CmdLine: `cmd /s /c ""` + exe + `" -C "` + root + `" read " x""`}
 	c.Env = append(os.Environ(), "XDG_STATE_HOME="+t.TempDir())
 	b, err := c.CombinedOutput()
 	if err != nil || !strings.Contains(string(b), "| padded") {
-		t.Errorf("the cmd.exe form did not serve the file: %v\n%s", err, b)
+		t.Errorf("cmd.exe did not serve \" x\": %v\n%s", err, b)
 	}
 }

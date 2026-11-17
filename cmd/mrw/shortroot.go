@@ -14,8 +14,8 @@ import (
 // Before the subcommand -C is --root, and after `read` it is --context, so
 // `mrw -C 3 read f` reads under a directory named 3 — refused when there is
 // none, and silent when there is one. The parser says which value --root got
-// but not which alias carried it, so argv is walked here with the classifier
-// refusePaddedFlagValues uses. The last option wins, as it does in the parser,
+// but not which alias carried it, so argv is walked here with flagRole, the
+// parser's own classification. The last option wins, as it does in the parser,
 // and an empty token is passed over, as the parser passes over it.
 func shortRoot(root *cli.Command, argv []string) (string, bool) {
 	kinds := flagKinds(root)

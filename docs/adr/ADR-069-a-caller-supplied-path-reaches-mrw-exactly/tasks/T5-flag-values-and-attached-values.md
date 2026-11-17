@@ -121,6 +121,9 @@ grep -q '^# 134\. ' scripts/contract.sh \
   PASS
   ok  	github.com/atvirokodosprendimai/tool-multipathreadwrite/cmd/mrw	0.190s
   ```
+- 2026-11-10 · f3aabb9d* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:952c7f98a81a29366f41769ec0a63d9fde0e327265ebeb4ca0d92442431f015d · ms:0 · test-lock-sha256:ba06df091ab6f37cb69f10b66895c249c9a6b3e904da0272498f2dcdc10a700d · test-lock-file:docs/adr/locks/ba06df091ab6f37cb69f10b66895c249c9a6b3e904da0272498f2dcdc10a700d.lock · test-lock-kind:replace
+- 2026-11-10 · 012f56e3* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:952c7f98a81a29366f41769ec0a63d9fde0e327265ebeb4ca0d92442431f015d · ms:0 · test-lock-sha256:adaa87dbbf468a58b9fa669b430d9f5800a16c8278e25fe8f9ea18eca8183900 · test-lock-file:docs/adr/locks/adaa87dbbf468a58b9fa669b430d9f5800a16c8278e25fe8f9ea18eca8183900.lock · test-lock-kind:replace
+- 2026-11-10 · 47338f2c* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:952c7f98a81a29366f41769ec0a63d9fde0e327265ebeb4ca0d92442431f015d · ms:0 · test-lock-sha256:b03f5f0c55b974341fced0590de869025ad5ec356390b3176dc551bf2b178bed · test-lock-file:docs/adr/locks/b03f5f0c55b974341fced0590de869025ad5ec356390b3176dc551bf2b178bed.lock · test-lock-kind:replace
 
 ## Mutation Log
 (empty until execute)

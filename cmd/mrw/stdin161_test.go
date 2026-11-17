@@ -82,20 +82,21 @@ func TestReadingStandardInputLicensesNothing(t *testing.T) {
 			t.Errorf("mrw %s: exit %d stdout %q, want 2 and nothing:\n%s", strings.Join(args, " "), c, o, e)
 		}
 	}
-	// The refusals made before parsing say why, not a panic (Codex re-review of T8).
+	// The refusals say why, not a panic (Codex re-review of T8). Since ADR-196
+	// they are read's own: v3.14.0 parses on past a lone -.
 	for args, want := range map[string]string{
-		"read - - --stat":    "after a lone -",
-		"read - --max-lines": "needs a value",
-		"read - ./-":         "after a lone -",
+		"read - - --stat":    "names nothing else",
+		"read - --max-lines": "flag needs an argument: --max-lines",
+		"read - ./-":         "names nothing else",
 	} {
 		if _, e, c := run(in, strings.Fields(args)...); c != 2 || !strings.Contains(e, want) || strings.Contains(e, "panic") {
 			t.Errorf("mrw %s: exit %d, want 2 saying %q:\n%s", args, c, want, e)
 		}
 	}
 
-	// The flag parser stops at a lone - and drops what follows, flags included:
-	// `write - --dry-run` wrote the plan. A lone - moves last before parsing, so
-	// every flag after it is honoured; a - that is a flag's value is not moved.
+	// urfave/cli v3.14.0 keeps a lone - and parses on, so every flag after it
+	// is honoured: `write - --dry-run` is a dry run (ADR-196; v3.11.0 dropped
+	// the flag, which ADR-161's lift worked around).
 	subTree(t, root, map[string]string{"w.txt": "one\n"})
 	if _, e, c := run("", "read", "w.txt"); c != 0 {
 		t.Fatalf("read w.txt: exit %d\n%s", c, e)
@@ -108,41 +109,20 @@ func TestReadingStandardInputLicensesNothing(t *testing.T) {
 	}
 }
 
-// ADR-161: the tokens that stop the parser — a lone -, a dash before a
-// non-letter — move last, a lone - after the rest, so the flags after them are
-// parsed; a flag's value (an inherited root flag's included), a token before the
-// subcommand, one after --, and one already last stay. A second lone - is
-// refused, and so is a move that would make - the value of a flag left without one.
+// ADR-161 T8, retargeted by ADR-196 (the name is the done task's): the lift
+// is gone, since urfave/cli v3.14.0 keeps a lone - and reads the flags after
+// it. They are honoured where they stand, and a path after - is refused by
+// the command's own rule, writing nothing.
 func TestALoneDashMovesLast(t *testing.T) {
-	root := rootCommand()
-	for _, c := range []struct{ in, want string }{
-		{"mrw write - --dry-run", "mrw write --dry-run -"},
-		{"mrw write - --then vet --no-check", "mrw write --then vet --no-check -"},
-		{"mrw -C dir read - --grep b", "mrw -C dir read --grep b -"},
-		{"mrw --root dir read - -C 1", "mrw --root dir read -C 1 -"},
-		{"mrw read -:2 --max-lines 1", "mrw read -:2 --max-lines 1"},
-		{"mrw iter -1= clear", "mrw iter -1= clear"},
-		{"mrw write --dry-run -", "mrw write --dry-run -"},
-		{"mrw write --root - --dry-run", "mrw write --root - --dry-run"},
-		{"mrw read --files-from - a.go", "mrw read --files-from - a.go"},
-		{"mrw read --grep - x", "mrw read --grep - x"},
-		{"mrw read -- - x", "mrw read -- - x"},
-		{"mrw - read", "mrw - read"},
-	} {
-		got, err := liftLoneDash(root, strings.Fields(c.in))
-		if err != nil || strings.Join(got, " ") != c.want {
-			t.Errorf("%s: got %q (%v), want %q", c.in, strings.Join(got, " "), err, c.want)
-		}
+	root, run := subRun(t)
+	subTree(t, root, map[string]string{"w.txt": "one\n"})
+	if _, e, c := run("", "read", "w.txt"); c != 0 {
+		t.Fatalf("read w.txt: exit %d\n%s", c, e)
 	}
-	for _, in := range []string{"mrw read - - --stat", "mrw write --json - - --dry-run", "mrw write --dry-run - --create",
-		"mrw read - -1= --stat", "mrw read - -- x", "mrw -- read - x", "mrw iter add - x"} {
-		if _, err := liftLoneDash(root, strings.Fields(in)); err == nil {
-			t.Errorf("%s: moved, want a refusal", in)
-		}
+	if o, e, c := run("@@ w.txt 1 replace\nONE\n", "write", "-", "--dry-run", "--terse"); c != 0 || subFile(t, root, "w.txt") != "one\n" || !strings.Contains(o, "dry") {
+		t.Errorf("write - --dry-run --terse: exit %d, w.txt %q:\n%s%s", c, subFile(t, root, "w.txt"), o, e)
 	}
-	// A padded ' - ' is not a lone -: ADR-069 T9's guard judges it where it stands.
-	padded := []string{"mrw", "write", " - ", "--dry-run"}
-	if got, err := liftLoneDash(root, padded); err != nil || strings.Join(got, "|") != strings.Join(padded, "|") {
-		t.Errorf("a padded - was moved or refused: %q %v", got, err)
+	if o, e, c := run("@@ w.txt 1 replace\nONE\n", "write", "-", "w.txt"); c != 2 || subFile(t, root, "w.txt") != "one\n" {
+		t.Errorf("write - w.txt: exit %d, w.txt %q; want 2 and nothing written:\n%s%s", c, subFile(t, root, "w.txt"), o, e)
 	}
 }

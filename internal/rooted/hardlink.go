@@ -30,6 +30,14 @@ func errNotComparable(path string) error {
 	return fmt.Errorf("%s has more than one name, and mrw cannot tell whether one is a file in its own state directory; %w", path, ErrOwnState)
 }
 
+// errNoIdentity is the refusal when a file's identity cannot be read — Windows
+// will not open `$MFT` to say whose it is — so the comparison cannot finish and
+// ADR-134 Decision 4 refuses; it says that, and not that the file has a second
+// name, which nothing has learnt (the Windows field test of v1.86.4, ADR-196 T7).
+func errNoIdentity(path string, err error) error {
+	return fmt.Errorf("mrw cannot read the file identity of %s (%w), so it cannot tell whether it is a file in its own state directory; %w", path, err, ErrOwnState)
+}
+
 // stateLinks answers whether a file is a second name of a file in THIS
 // checkout's state directory — the ledger, the ack store, the locks, the files
 // that license a write or hold a checkpoint. The identities of those that HAVE
@@ -168,7 +176,7 @@ func (s *stateLinks) refusal(fi os.FileInfo, path, shown string) error {
 	key, n, err := identity(fi, path)
 	switch {
 	case err != nil:
-		return errNotComparable(shown)
+		return errNoIdentity(shown, err)
 	case n <= 1:
 		return nil
 	}
@@ -205,14 +213,19 @@ func hardLinkRefusal(root, q, shown string) error {
 	return s.refusal(fi, q, shown)
 }
 
-// InStateOrLinked is InState, and true as well for a regular file that is a
-// second name of a file in root's state directory (ADR-134). The CLI opens a
-// plan and a --files-from list from a path that never passed Resolve, so the
-// refusal ADR-077 gave them by spelling needs the identity test too.
-func InStateOrLinked(root, p string) bool {
-	if InState(p) {
-		return true
+// OwnStateRefusal refuses abs, shown to the caller as shown, when it is inside
+// root's state directory (InState) or is a second name of a file in it
+// (ADR-134), with the reason that held. The CLI opens a plan and a --files-from
+// list from a path that never passed Resolve, so the refusal ADR-077 gave them
+// by spelling needs the identity test too; it replaced InStateOrLinked, whose
+// one bool printed one sentence for every reason (ADR-196 T7).
+func OwnStateRefusal(root, abs, shown string) error {
+	if InState(abs) {
+		return fmt.Errorf("%s is inside mrw's own state directory; %w", shown, ErrOwnState)
 	}
-	abs, err := Abs(root)
-	return err == nil && hardLinkRefusal(abs, RealAsFarAsItExists(p), p) != nil
+	r, err := Abs(root)
+	if err != nil {
+		return nil //nolint:nilerr // no root to resolve against: Resolve answers the same way, and the open says why
+	}
+	return hardLinkRefusal(r, RealAsFarAsItExists(abs), shown)
 }

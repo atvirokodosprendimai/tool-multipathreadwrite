@@ -6,6 +6,7 @@
 **Owner:** Zy
 **Spec:** None — no spec stage
 **Cross-references:** ADR-077, ADR-123, ADR-131, ADR-007, ADR-002, docs/adr/BACKLOG.md
+**Amended in part by:** ADR-196 Decision 10 (T7, 2026-11-11): `rooted.InStateOrLinked` became `rooted.OwnStateRefusal`, which returns the reason, and a file whose identity cannot be read is refused with that reason (`errNoIdentity`) rather than as "has more than one name". Decision 4 is unchanged.
 **Invalidates:** None — it closes a gap in ADR-077's promise; no accepted clause says a hard link to the ledger is served
 **Governs:** `internal/rooted/rooted.go`, `internal/rooted/hardlink.go`, `internal/rooted/identity_unix.go`, `internal/rooted/identity_windows.go`, `internal/state/state.go`, `cmd/mrw/main.go`, `scripts/contract.sh`, `AGENTS.md`, `docs/adr/BACKLOG.md`
 **Enforced-by:** `internal/rooted/hardlink134_test.go::TestAHardLinkToMrwsStateIsRefused`

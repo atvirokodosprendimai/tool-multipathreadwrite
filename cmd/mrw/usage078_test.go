@@ -88,17 +88,17 @@ func TestContextWithNoPatternIsRefused(t *testing.T) {
 	}
 }
 
-// ADR-078 T1. The padded-path fix quoted a name with bare single quotes, so a
-// name holding one — ` O'Brien` — was offered as ' O'Brien', which a POSIX
-// shell reads as another name; the review of #239 found its cmd.exe twin. The
-// quote is closed and reopened around it.
+// ADR-078 T1, retargeted by ADR-196. The padded-path refusal offered a fix
+// that had to quote a name's own apostrophe (the review of #239). The refusal
+// is gone: urfave/cli v3.14.0 hands ` O'Brien` to the read as typed, so the
+// name, apostrophe and leading space included, is the file served.
 func TestThePaddedPathFixQuotesAnApostrophe(t *testing.T) {
 	root := t.TempDir()
-	if err := os.WriteFile(filepath.Join(root, " O'Brien"), []byte("x\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, " O'Brien"), []byte("apostrophe\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	out, code := runIn(t, root, "read", " O'Brien")
-	if want := `mrw read -- ' O'\''Brien'`; code != exitUsage || !strings.Contains(out, want) {
-		t.Errorf("exit %d, want %s:\n%s", code, want, out)
+	if code != 0 || !strings.Contains(out, "| apostrophe") {
+		t.Errorf("exit %d, want 0 serving the file named ` O'Brien`:\n%s", code, out)
 	}
 }

@@ -93,7 +93,7 @@ func resolveSources(root string, in []Input, opt Options) (map[int]copied, map[i
 		}
 		start, end, why := sourceSpan(i, len(f.text.lines))
 		if why != "" {
-			fail("", 0, 0, "from=%s: %s", p, why)
+			fail("", 0, 0, "from=%s: %s", asPlan(p), why)
 			continue
 		}
 		if reason := sourceGate(opt, p, f, start, end); reason != "" {
@@ -166,39 +166,42 @@ func loadSource(root, p string) *sourceFile {
 	f := &sourceFile{}
 	full, err := rooted.Resolve(root, p)
 	if err != nil {
-		f.why = fmt.Sprintf("from=%s: %v", p, err)
+		// err is rooted's and begins with p as the platform spells it: the
+		// source is spelled as the row spells it, and so is that start, so the
+		// line holds one spelling (ADR-198 Decision 6).
+		f.why = fmt.Sprintf("from=%s: %s", asPlan(p), reasonOf(err, p))
 		return f
 	}
 	f.full = full
 	info, err := os.Stat(full)
 	switch {
 	case os.IsNotExist(err):
-		f.why = fmt.Sprintf("from=%s does not exist before the plan, so it has no original to copy", p)
+		f.why = fmt.Sprintf("from=%s does not exist before the plan, so it has no original to copy", asPlan(p))
 		return f
 	case err != nil:
-		f.why = fmt.Sprintf("from=%s: %v", p, err)
+		f.why = fmt.Sprintf("from=%s: %v", asPlan(p), err)
 		return f
 	case info.IsDir():
-		f.why = fmt.Sprintf("from=%s is a directory; a copy takes lines of a file", p)
+		f.why = fmt.Sprintf("from=%s is a directory; a copy takes lines of a file", asPlan(p))
 		return f
 	case !info.Mode().IsRegular():
-		f.why = fmt.Sprintf("from=%s is %s", p, lines.NotRegular)
+		f.why = fmt.Sprintf("from=%s is %s", asPlan(p), lines.NotRegular)
 		return f
 	case info.Size() > maxLoadBytes:
-		f.why = fmt.Sprintf("from=%s is %d bytes, over the %d-byte limit mrw reads (ADR-104, ADR-107)", p, info.Size(), maxLoadBytes)
+		f.why = fmt.Sprintf("from=%s is %d bytes, over the %d-byte limit mrw reads (ADR-104, ADR-107)", asPlan(p), info.Size(), maxLoadBytes)
 		return f
 	}
 	t, existed, err := readLines(full)
 	var over errOverLoadLimit
 	switch {
 	case errors.As(err, &over):
-		f.why = fmt.Sprintf("from=%s: %v", p, err)
+		f.why = fmt.Sprintf("from=%s: %v", asPlan(p), err)
 	case err != nil:
-		f.why = fmt.Sprintf("from=%s: %v", p, err)
+		f.why = fmt.Sprintf("from=%s: %v", asPlan(p), err)
 	case !existed:
-		f.why = fmt.Sprintf("from=%s does not exist before the plan, so it has no original to copy", p)
+		f.why = fmt.Sprintf("from=%s does not exist before the plan, so it has no original to copy", asPlan(p))
 	case t.foreign != "":
-		f.why = fmt.Sprintf("from=%s %s: mrw copies UTF-8 text line by line", p, t.foreign)
+		f.why = fmt.Sprintf("from=%s %s: mrw copies UTF-8 text line by line", asPlan(p), t.foreign)
 	}
 	if f.why != "" {
 		return f
@@ -222,7 +225,7 @@ func sourceGate(opt Options, p string, f *sourceFile, start, end int) string {
 	switch {
 	case !known:
 		return fmt.Sprintf("%s has not been read: lines %s cannot be copied from a file mrw has not served. Run `mrw read %s:%d-%d` first",
-			p, addrString(start, end), p, start, end)
+			p, addrString(start, end), asPlan(p), start, end)
 	case obs.SHA != f.sha:
 		return fmt.Sprintf("%s changed since mrw last saw it (recorded %s, now %s): re-read lines %s before copying them",
 			p, short(obs.SHA), short(f.sha), addrString(start, end))
@@ -232,7 +235,7 @@ func sourceGate(opt Options, p string, f *sourceFile, start, end int) string {
 		// No provenance in the text: after a --quiet read mrw wrote nothing and no
 		// --sub plan ran, and obs.Served() would say one did (Codex re-check of 8c00f465).
 		return fmt.Sprintf("lines %s of %s have not been shown to you. Read them first: a file mrw wrote, a --sub plan and a --quiet read license an edit and show nothing, and a line --max-cols served cut is not read: read it whole",
-			addrString(start, end), p)
+			addrString(start, end), asPlan(p))
 	}
 	return ""
 }

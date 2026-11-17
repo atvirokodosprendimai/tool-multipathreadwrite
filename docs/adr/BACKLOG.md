@@ -1015,6 +1015,31 @@ verdict), written with the record on 2026-11-03, before any code or run.
   the failure ADR-195 refuses for `--create`. The caller names the file and can inspect it, which is why ADR-195
   left it out; whether it should be refused too is its own record.
 
+## From ADR-197 (an anchor miss names the lines that hold the anchor)
+
+- **The 30-day reading (pre-registered 2026-11-15, before any code):** 30 days after the release that ships ADR-197,
+  run `python3 -I docs/bench/anchor-miss-study/scan.py --since <release date>`. The clause is kept if fewer than half
+  of the anchor misses are followed by a read (104 of 140 on 2026-11-15, all transcripts to that date); at half or more
+  it goes back to Zy. The share is an upper bound: some of those reads the guard requires anyway (ADR-002, ADR-052).
+- **A failed check says whether its output names a line the write changed (withdrawn from ADR-197's first draft)**
+  (2026-11-15): 49 failed-check results in 116 transcripts, 26 followed by a read; the count cannot tell
+  `write --check` from `mrw check`. What a record needs first, from the two challenges: the lines a write produced
+  are `newSpan`, unexported, and `FileResult.Spans` is filled only for a quote-licensed file (`apply.go:69, 724-730`),
+  the carry ADR-194 T2 (blocked) owns; `go test` prints bare file names for `t.Errorf`, root-relative paths for
+  compile errors and absolute ones for panics (measured, go 1.27.4), and 212 of this repository's 576 `_test.go` files
+  share a name with another, so a rule for bare names has to be chosen and its yield measured on real logs
+  (`-fullpath` exists); a file the check changed (ADR-112 drift) gets no attribution; where the points fall in
+  `mrw_write`'s elision order; a renamed file and a delete-only hunk; `write --then` steps, which do run on written
+  lines.
+- **`expected removal differs` names where the expected text is (deferred from ADR-197)** (2026-11-15): the anchor
+  miss's twin for a delete's expected body (`apply.go:1942`). Not counted in any scan yet; count it first.
+- **A SEARCH or old side that matched nothing, or several times (deferred from ADR-197)** (2026-11-15): seven
+  matched-nothing results in 116 transcripts, each followed by a read; the matched-N-times refusals name no lines
+  (`searchreplace.go:134`, `applypatch.go:259`) while the native pattern refusal does. Its own record if the count
+  grows; ADR-193 leads Claude with search_replace.
+- **Undo a write whose check failed (deferred from ADR-197)** (2026-11-15): before any record, count how often a caller
+  reverts by hand after exit 3. ADR-080 and ADR-187 keep the write; turnpack undoes it by default.
+
 ## Post-v1.77.1 cleanup and decisions (2026-10-28)
 
 Zy asked to fix and clean up the reproducible issues, re-examine the open work,
@@ -1091,3 +1116,37 @@ change an exit code, a trust boundary, or any registered measurement window.
 The exponent timing-test entry above retains its recurrence trigger. ADR-169's
 14-day adoption reading is due 2026-11-06; ADR-177–179's first 30-day window ends
 2026-11-27, anchored to v1.77.0. v1.77.1 does not reset either window.
+
+## From ADR-198 (a refusal reason spells a plan's path as its row does)
+
+- **`rooted`'s identity error keeps the platform's spelling — closed as a boundary** (Zy, 2026-11-15, accepted with the
+  ADR-198 amendment): `mrw cannot read the file identity of P` (`internal/rooted/hardlink.go:38`) reaches a write's
+  reason through `apply.go:591` with `P` as Windows spells it. The path stands inside the sentence, which Decision 6's
+  start-of-text rule does not reach, and `rooted` serves the read side too, whose refusals no record has converted.
+  Read from the code, not measured on Windows. Nothing to build.
+- **`mrw skill --dir`'s refusal keeps the platform's spelling — closed as a boundary** (Zy, 2026-11-15: *"agree"*):
+  measured 2026-11-15 on Windows 11 at d6526b90, `mrw skill --dir skills` over a hand-written file prints
+  `skills\mrw\SKILL.md was not written by …`. The path is relative to the working directory and starts with the
+  directory as typed; ADR-198's Out of Scope now lists it as permanent. Nothing to build.
+- **A stopped commit's raw error mixes spellings on Windows — taken by ADR-198 T2** (read from the code by the
+  go-reviewer pass on #643, not measured): the error begins with the file as the platform spells it (`apply.go:1021,
+  1177`, `pathop.go:439`) and after ADR-198 holds `/` paths behind it. `mrw_write`'s `error:` line
+  (`internal/mcp/tools.go:1191`) and a CLI `--json` refusal (`cmd/mrw/main.go:1974`) printed it raw; the plain exit-2
+  line converts its start. Converting the start in the engine would make `exitTwoLine` print the path twice, so T2
+  converts it on those two surfaces (Decision 7).
+
+## From ADR-199 (a path below something that is not a directory is refused on its hunk)
+
+- **A prefix the same plan writes as a file** (measured 2026-11-15, macOS, `dev (0d49d6e)`): `create d/n.txt` beside
+  `create d/n.txt/x` exits 2, `d/n.txt appeared before commit`, nothing written. ADR-199 judges the tree as it is
+  when the plan is judged, where that prefix does not exist; `nestedPath` (`internal/apply/pathop.go:181-192`) refuses
+  nesting only between rename destinations and written files. The fix is the same nesting rule for every file a plan
+  makes. ADR-198 T2's test uses this plan to reach a stopped write, so the two are changed together.
+- **A path below a link that does not lead to a directory** (measured 2026-11-15, macOS, `dev (0d49d6e)`): `create d/dl/x`,
+  `d/dl` a link to nothing, exits 2 at staging, `mkdirat d/dl: file exists`; below a link to a file or a link loop,
+  exit 2 with one line and no receipt; a rename to a destination under a link to nothing is refused at staging, exit 1,
+  in ADR-106's words. Two levels below a link to nothing (`e/dl/a/b/c.txt`) the write applies and makes the link's
+  target, which ADR-106 says a rename will not do. ADR-199 leaves all of these: two builds that judged a link refused a
+  plan that applies today (`create newdir/y.txt` beside `create d/ln/x.txt`, `d/ln` a link to `../newdir`; on Windows
+  also the two-level form, where "path not found" reads as "not a directory"), and one judged a link out of the root by
+  what lay outside. A rule needs to follow the link itself, know which directories the plan makes, and stay in the root.

@@ -29,8 +29,8 @@ var coreRules = []struct {
 		[]string{"start it with (?i)", "--stat prints only length, size and sha", "--max-cols N (CLI) cuts a line to a window round the match and does not record it as read", "--no-numbers drops the numbers"}},
 	{7, []string{"mrw write --create PATH < content", "@@ path 0 create"},
 		[]string{"mrw write --create PATH < content", "@@ path 0 create makes a new file"}},
-	{8, []string{"BEFORE the subcommand", "-C N is context lines", "after --"},
-		[]string{"before the subcommand", "goes after --"}},
+	{8, []string{"BEFORE the subcommand", "-C N is context lines", "as typed"},
+		[]string{"before the subcommand", "reaches mrw as typed"}},
 }
 
 // ADR-141. The short form an agent is handed: exactly eight numbered rules in

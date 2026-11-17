@@ -1,0 +1,13 @@
+check@2	1bb497e3e13a1105cf24e3359fa3ef75de08b66ff8a2839cd7f9ea97824d9eb3
+body	cmd/mrw/error198_test.go	TestAStoppedWritesErrorBeginsAsTheRowDoes	322d350f5fe788e74211f8bb90ffb6be19461eb12373156a0a1aab06c9eefd0e
+body	cmd/mrw/error198_test.go	an error that begins with no path of the result is printed as it is	3ba6f05a62feb1310f5e1ec0d72333987d30862f689a9c36155fed15917bbd03
+body	cmd/mrw/error198_test.go	without --json the exit-2 line is what it was	2d33b307dcc7f653ba77786166b69967bc77774cefa9d239101c467060deea93
+body	internal/apply/lead198_test.go	TestARefusedDestinationOrSourceBeginsAsTheRowDoes	ef1f972b4cea03a8898a3f66a4d1e626e1b8be7a2ada5d32654ad135d2ab618f
+body	internal/apply/lead198_test.go	a from= source	dad9dc09bb1e10980f89d979fc32548193a8181c49d5b2b25b783d7564961257
+body	internal/apply/lead198_test.go	a rename destination	0d65b7a206c24179b6f0c479f9592e8703f282dbe0fb16aafccc31d873253401
+body	internal/apply/lead198_test.go	on Windows, a device name in a destination and in a source, with no link	c89035c2bf554a7213ba9ca5e2094d363e1fb0f122c1f4aed8b8ff8ca8e99df2
+body	internal/apply/lead198_test.go	the function converts only an exact path at the start	0daeda83bd49e59b6428e2b15ac9d6a3f2a5848d39d8e2312999fe490c282874
+body	internal/apply/reason198_test.go	TestAReasonSpellsAPlansPathAsItsRowDoes	82523b94f3afa461a47e37502aecadcf2891f750eacd17648648c8585401f21a
+body	internal/apply/reason198_test.go	kept: a path as typed, absolute paths, from=X	9959e48e4191e19ae3cc21539226bfaa03538de9d7287d15be00a2b66b6b8524
+body	internal/apply/reason198_test.go	kept: with / as the separator a name holding a backslash is named as it is	ee8ca1f60570edf55a6ac12ecadd15d89afb5dfc3e327308a70f33ecb43f82d3
+body	internal/mcp/error198_test.go	TestAStoppedWritesErrorBeginsAsTheRowDoesOnMCP	62e9dffa65d491afdf5c09b9da66536c96745c83d345f6f707cb54dcf85d5f32

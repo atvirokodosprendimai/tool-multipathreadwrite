@@ -133,7 +133,7 @@ func planPathOp(root, path, full string, h hunk, orig []string, existed bool, sh
 	if h.SHA != "" {
 		switch {
 		case !existed:
-			fail(h, "sha=%s given but %s does not exist%s", h.SHA, path, miss)
+			fail(h, "sha=%s given but %s does not exist%s", h.SHA, asPlan(path), miss)
 			return false
 		case !strings.HasPrefix(shaBefore, h.SHA):
 			fail(h, "file changed: sha is %s, plan expected %s", shaShown(shaBefore, h.SHA), h.SHA)
@@ -162,37 +162,37 @@ func planPathOp(root, path, full string, h hunk, orig []string, existed bool, sh
 		}
 		// ADR-076: `d/` names a directory; cleaned, it made a FILE named d.
 		if rooted.SpelledAsDirectory(raw) {
-			fail(h, "rename dest %s %v; a rename names the file it makes, such as %s", raw, rooted.ErrNotADirectory, filepath.Join(filepath.Clean(raw), filepath.Base(path)))
+			fail(h, "rename dest %s %v; a rename names the file it makes, such as %s", raw, rooted.ErrNotADirectory, asPlan(filepath.Join(filepath.Clean(raw), filepath.Base(path))))
 			return false
 		}
 		dest := filepath.Clean(raw)
 		if dest == path || dest == "." {
-			fail(h, "rename dest %s is the source", dest)
+			fail(h, "rename dest %s is the source", asPlan(dest))
 			return false
 		}
 		if destCount[dest] > 1 {
-			fail(h, "rename dest %s is named by more than one hunk", dest)
+			fail(h, "rename dest %s is named by more than one hunk", asPlan(dest))
 			return false
 		}
 		if produced[dest] {
-			fail(h, "rename dest %s is also written by another hunk in this plan", dest)
+			fail(h, "rename dest %s is also written by another hunk in this plan", asPlan(dest))
 			return false
 		}
 		for other := range destCount {
 			if other != dest && nestedPath(dest, other) {
-				fail(h, "rename dest %s nests with rename dest %s", dest, other)
+				fail(h, "rename dest %s nests with rename dest %s", asPlan(dest), asPlan(other))
 				return false
 			}
 		}
 		for p := range produced {
 			if nestedPath(dest, p) {
-				fail(h, "rename dest %s nests with %s written by another hunk in this plan", dest, p)
+				fail(h, "rename dest %s nests with %s written by another hunk in this plan", asPlan(dest), asPlan(p))
 				return false
 			}
 		}
 		destFull, err := resolve(root, dest)
 		if err != nil {
-			fail(h, "%s", err.Error())
+			fail(h, "%s", reasonOf(err, dest))
 			return false
 		}
 		// ADR-066: only "does not exist" clears a destination. Acting on
@@ -209,22 +209,30 @@ func planPathOp(root, path, full string, h hunk, orig []string, existed bool, sh
 				// a/X.txt on disk under a receipt naming A/X.txt (the in-process
 				// review of #346).
 				if filepath.Dir(dest) != filepath.Dir(path) {
-					fail(h, "rename dest %s respells the directory %s: a rename changes only the name, so spell the directory as the source does", dest, filepath.Dir(path))
+					fail(h, "rename dest %s respells the directory %s: a rename changes only the name, so spell the directory as the source does", asPlan(dest), asPlan(filepath.Dir(path)))
 					return false
 				}
 			case theSource:
-				fail(h, "rename dest %s is the source", dest)
+				fail(h, "rename dest %s is the source", asPlan(dest))
 				return false
 			case otherSpelling:
-				fail(h, "rename source %s is not spelled that way in its directory: name it as the directory lists it", path)
+				fail(h, "rename source %s is not spelled that way in its directory: name it as the directory lists it", asPlan(path))
 				return false
 			default:
-				fail(h, "rename dest %s already exists — unlink it in this plan, or pick another path", dest)
+				fail(h, "rename dest %s already exists — unlink it in this plan, or pick another path", asPlan(dest))
 				return false
 			}
-		} else if err != nil && !os.IsNotExist(err) {
-			fail(h, "rename dest %s cannot be used: %v", dest, err)
-			return false
+		} else if err != nil {
+			// ADR-199: a destination below a file, whichever way the system
+			// reports it, is the plan's to refuse in mrw's words.
+			if why := belowAFile(root, dest, destFull); why != "" {
+				fail(h, "%s", why)
+				return false
+			}
+			if !os.IsNotExist(err) {
+				fail(h, "rename dest %s cannot be used: %v", asPlan(dest), err)
+				return false
+			}
 		}
 	}
 	out[h.Index] = HunkResult{
@@ -358,7 +366,7 @@ func commitPathOps(tr *tree, res *Result, pathOps []pending) (string, error) {
 			// ADR-129: a respelling's destination is the source; anything
 			// else there is a file that appeared after validation.
 			if respelling(from, w.renameTo) != respelled {
-				return fmt.Errorf("rename dest %s appeared before commit", w.destRel)
+				return fmt.Errorf("rename dest %s appeared before commit", asPlan(w.destRel))
 			}
 			respell = true
 		}

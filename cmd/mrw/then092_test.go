@@ -313,21 +313,19 @@ func TestAValueWithACommaIsOneStep(t *testing.T) {
 	}
 }
 
-// ADR-092 with ADR-069. An attached --then-sh value ending in whitespace is
-// refused as every flag's is; the separate form is kept as typed and runs.
+// ADR-092 with ADR-196. A --then-sh value ending in whitespace is kept as
+// typed, attached or separate: the parser hands both to the step as given.
 func TestAPaddedThenValueFollowsTheArgumentGuard(t *testing.T) {
 	t.Setenv("MRW_SHELL", "on")
 	needShell(t)
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	root := stepsTree(t, "exit 0")
 	plan := primed(t, root)
-	if err := refusePaddedFlagValues(rootCommand(), []string{"-C", root, "write", "--then-sh=echo p >> log ", plan}); err == nil {
-		t.Error("an attached --then-sh value ending in whitespace was not refused")
+	if out, code := writeIn(t, root, "--no-check", "--then-sh=echo a >> log ", plan); code != 0 || logOf(t, root) != "a\n" {
+		t.Errorf("the attached form did not run as typed: exit %d, log %q:\n%s", code, logOf(t, root), out)
 	}
-	if err := refusePaddedFlagValues(rootCommand(), []string{"-C", root, "write", "--then-sh", "echo p >> log ", plan}); err != nil {
-		t.Errorf("the separate form was refused: %v", err)
-	}
-	if out, code := writeIn(t, root, "--no-check", "--then-sh", "echo p >> log ", plan); code != 0 || logOf(t, root) != "p\n" {
+	plan = primed(t, root)
+	if out, code := writeIn(t, root, "--no-check", "--then-sh", "echo p >> log ", plan); code != 0 || logOf(t, root) != "a\np\n" {
 		t.Errorf("the separate form did not run as typed: exit %d, log %q:\n%s", code, logOf(t, root), out)
 	}
 }

@@ -8,9 +8,9 @@ import (
 )
 
 // ADR-164 T5. -v and -o get a pointer, in every shape a caller meets them:
-// `--grep -v a f` (no match, patternFlagHint), `--grep -v ' a' f` (refused for
-// the padded value before the read runs, which -i shared), `read -v f` and
-// `read -o f` (usageError). -z still gets none: it has no honest pointer.
+// `--grep -v a f` and `--grep -v ' a' f` (no match, patternFlagHint; the padded
+// path reaches the read as typed since ADR-196, so it no longer stops first),
+// `read -v f` and `read -o f` (usageError). -z still gets none.
 func TestAnInvertedGrepSaysThereIsNone(t *testing.T) {
 	root := t.TempDir()
 	if err := os.WriteFile(filepath.Join(root, "f.txt"), []byte("needle\n"), 0o644); err != nil {
@@ -24,8 +24,8 @@ func TestAnInvertedGrepSaysThereIsNone(t *testing.T) {
 		want []string
 	}{
 		{[]string{"read", "--grep", "-v", "a", "f.txt"}, 1, []string{"no file matched /-v/", inverted}},
-		{[]string{"read", "--grep", "-v", " a", "f.txt"}, 2, []string{"has edge whitespace", inverted}},
-		{[]string{"read", "--grep", "-i", " a", "f.txt"}, 2, []string{"has edge whitespace", "(?i)"}},
+		{[]string{"read", "--grep", "-v", " a", "f.txt"}, 1, []string{"no file matched /-v/", inverted}},
+		{[]string{"read", "--grep", "-i", " a", "f.txt"}, 1, []string{"no file matched /-i/", "(?i)"}},
 		{[]string{"read", "-v", "f.txt"}, 2, []string{"flag provided but not defined: -v", inverted}},
 		{[]string{"read", "-o", "f.txt"}, 2, []string{"flag provided but not defined: -o", matchOnly}},
 	} {
@@ -41,8 +41,8 @@ func TestAnInvertedGrepSaysThereIsNone(t *testing.T) {
 	}
 	// The pointer follows the parsed pattern: the last --grep, attached or not
 	// (Codex, review of #463).
-	if out, code := runIn(t, root, "read", "--grep=-v", " a", "f.txt"); code != 2 || !strings.Contains(out, inverted) {
-		t.Errorf("--grep=-v ' a': exit %d, want 2 with the pointer:\n%s", code, out)
+	if out, code := runIn(t, root, "read", "--grep=-v", " a", "f.txt"); code != 1 || !strings.Contains(out, inverted) {
+		t.Errorf("--grep=-v ' a': exit %d, want 1 with the pointer:\n%s", code, out)
 	}
 	if out, _ := runIn(t, root, "read", "--grep", "-v", "--grep=needle", " a", "f.txt"); strings.Contains(out, inverted) {
 		t.Errorf("a superseded --grep -v still named the inverted match:\n%s", out)

@@ -94,6 +94,7 @@ grep -q '^# 128\. ' scripts/contract.sh \
 - 2026-09-25 · c43095d* · exit 0 · `set -o pipefail …` · acceptance-sha256:46fe9123080575a15e79a83e67cf199efcd4046e1956e5f7474b9c939d8f8f2a · ms:29393
 - 2026-09-25 · c43095d* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:46fe9123080575a15e79a83e67cf199efcd4046e1956e5f7474b9c939d8f8f2a · ms:0 · test-lock-sha256:7710236ac2e4834c41b02eabac22769c6f2b21e8f95d80af5c751f5638bd5be3 · test-lock-b64:Y2hlY2sJMWJiNDk3ZTNlMTNhMTEwNWNmMjRlMzM1OWZhM2VmNzVkZTA4YjY2ZmY4YTI4MzljZDdmOWVhOTc4MjRkOWViMwpib2R5CWNtZC9tcncvcGFkZGVkYXJnX3Rlc3QuZ28JVGVzdEFQYWRkZWRQb3NpdGlvbmFsV2l0aG91dERhc2hEYXNoSXNSZWZ1c2VkCTFhMWJiNjQxMzFlZGJhZjY4OGJmMzE2YmJkMTNhMTA1OWEwYjRiM2Y3ZjFhMjYwYjhiNzE4NGYxZDNjYTdiMzE · test-lock-kind:replace
 - 2026-09-25 · c43095d* · exit 0 · `set -o pipefail …` · acceptance-sha256:46fe9123080575a15e79a83e67cf199efcd4046e1956e5f7474b9c939d8f8f2a · ms:30650
+- 2026-11-10 · f3aabb9d* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:46fe9123080575a15e79a83e67cf199efcd4046e1956e5f7474b9c939d8f8f2a · ms:0 · test-lock-sha256:4f66128cf3c3a072b5d6fcd8db9a2a307b254aa4f19e6b1fe9ab9ce5c7f57a08 · test-lock-file:docs/adr/locks/4f66128cf3c3a072b5d6fcd8db9a2a307b254aa4f19e6b1fe9ab9ce5c7f57a08.lock · test-lock-kind:replace
 
 ## Mutation Log
 (empty until execute)

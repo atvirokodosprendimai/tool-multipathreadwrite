@@ -72,6 +72,12 @@ func win32Device(p string) string {
 	return ""
 }
 
+// DeviceBase reports whether name, taken before its first dot with trailing
+// spaces dropped, is a Windows device name (CON, NUL, COM1, …). It lets a path
+// no root resolves, a plan file or a --files-from list, be judged by the same
+// list Resolve uses (ADR-196 T4).
+func DeviceBase(name string) bool { return isReservedBase(name) }
+
 // isReservedBase is Go's isReservedBaseName: the device names themselves. The
 // case is folded in ASCII only, byte for byte: strings.ToUpper maps "ı" to "I",
 // which shortened "ıı" from four bytes to two, and slicing the result by the

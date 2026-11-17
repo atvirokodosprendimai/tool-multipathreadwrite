@@ -79,7 +79,7 @@ func TestEveryCheckRefusalIsAJSONDocumentUnderJSON(t *testing.T) {
 		root string
 		args []string
 	}{
-		{"edge whitespace", root, []string{"x.go "}},
+		{"a padded path not there (as typed since ADR-196)", root, []string{"x.go "}},
 		{"--full with a PATH", root, []string{"--full", "x.go"}},
 		{"an unreadable working set", unreadable, nil},
 		{"a path outside the root", root, []string{"../outside"}},

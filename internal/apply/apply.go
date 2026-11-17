@@ -657,7 +657,7 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 					if i == 0 {
 						r.Status = StatusFailed
 						r.Reason = fmt.Sprintf("%s names the same file as %s (plan line %d); one file, one spelling per plan",
-							path, prior.path, prior.line)
+							path, asPlan(prior.path), prior.line)
 					}
 					results[h.Index] = r
 				}
@@ -692,6 +692,19 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			refuseFile(results, path, hs, 0, openRefusal(path, err))
 			failed = append(failed, FileResult{Path: path})
 			continue
+		}
+		// ADR-199: a path below something that is not a directory cannot be
+		// opened (macOS and Linux: "not a directory", which causeOf does not
+		// name) or is reported as missing (Windows). It is a fact about the
+		// plan and the tree, so it is a failed hunk. Only a path that could
+		// not be found is looked at, after the boundary, the clash and
+		// same-file refusals above.
+		if err != nil || !existed {
+			if why := belowAFile(root, path, full); why != "" {
+				refuseFile(results, path, hs, 0, why)
+				failed = append(failed, FileResult{Path: path})
+				continue
+			}
 		}
 		if err != nil {
 			return res, fmt.Errorf("%s: %w", path, err)
@@ -740,7 +753,7 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 				for _, h := range hs {
 					results[h.Index] = HunkResult{
 						Path: path, Addr: h.SrcAddr, Op: h.SrcOp, SrcLine: h.SrcLine,
-						Status: StatusFailed, Reason: err.Error(),
+						Status: StatusFailed, Reason: reasonOf(err, destRel),
 					}
 				}
 				failed = append(failed, fr)
@@ -767,7 +780,7 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 				for _, h := range hs {
 					results[h.Index] = HunkResult{
 						Path: path, Addr: h.SrcAddr, Op: h.SrcOp, SrcLine: h.SrcLine,
-						Status: StatusFailed, Reason: err.Error(),
+						Status: StatusFailed, Reason: reasonOf(err, destRel),
 					}
 				}
 				failed = append(failed, fr)
@@ -1093,12 +1106,12 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 		// (Windows CI on #300, TestAStagingAbortKeepsAPreExistingDanglingSymlink).
 		if d := danglingLink(filepath.Dir(w.renameTo)); d != "" {
 			discard(0)
-			return refuseStage(w.file.Path, fmt.Errorf("rename dest %s is under %s, a link to nothing; mrw will not make its target", w.destRel, d), true)
+			return refuseStage(w.file.Path, fmt.Errorf("rename dest %s is under %s, a link to nothing; mrw will not make its target", asPlan(w.destRel), d), true)
 		}
 		dir := rooted.RealAsFarAsItExists(filepath.Dir(w.renameTo))
 		if _, err := tr.rel(dir); err != nil {
 			discard(0)
-			return refuseStage(w.file.Path, fmt.Errorf("rename dest %s: %w", w.destRel, err), true)
+			return refuseStage(w.file.Path, fmt.Errorf("rename dest %s: %w", asPlan(w.destRel), err), true)
 		}
 		w.renameTo = filepath.Join(dir, filepath.Base(w.renameTo))
 		sf := dirsOnly(missingDirs(dir))
@@ -1211,7 +1224,7 @@ func writtenSoFar(files []FileResult) string {
 	var names []string
 	for _, f := range files {
 		if f.Written {
-			names = append(names, f.Path)
+			names = append(names, asPlan(f.Path))
 		}
 	}
 	if len(names) == 0 {
@@ -1324,7 +1337,7 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 	}
 	if pathLevel && !editRename && (lineLevel || len(hs) != 1) {
 		for _, h := range hs {
-			fail(h, "unlink/rename cannot mix with other hunks on %s", path)
+			fail(h, "unlink/rename cannot mix with other hunks on %s", asPlan(path))
 		}
 		return nil, false, ""
 	}
@@ -1384,14 +1397,14 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 		case !known && len(hs) == 1 && hs[0].Op == "create":
 			// A create never overwrites, so the read the generic refusal asks for
 			// would not let it apply: say what is true (ADR-142).
-			fail(hs[0], "create: %s already exists — a create never overwrites; read it and use replace or delete, or unlink it first", path)
+			fail(hs[0], "create: %s already exists — a create never overwrites; read it and use replace or delete, or unlink it first", asPlan(path))
 		case !known:
 			if pathLevel && !lineLevel {
 				failK(lead, refusal.NotRead, "%s has not been read: mrw does not know what it currently holds. %s "+
 					"takes no line address — read the path, or pass --force", path, hs[0].Op)
 			} else {
 				failK(lead, refusal.NotRead, "%s has not been read: mrw does not know what it currently holds, and a "+
-					"line address means nothing without that. Run `mrw read %s` first, or pass --force", path, path)
+					"line address means nothing without that. Run `mrw read %s` first, or pass --force", path, asPlan(path))
 			}
 		case recorded.SHA != shaBefore:
 			// The dangerous case, and the reason the ledger is written on WRITE
@@ -1428,7 +1441,7 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 		}
 		failK(h, refusal.NotRead, "%s of %s has not been read: mrw served %s. A line address means nothing in lines "+
 			"you have not seen — read them, or pass --force (a line --max-cols served cut is not read: read it whole, or --quiet)",
-			addrString(from, to), path, obs.Served())
+			addrString(from, to), asPlan(path), obs.Served())
 		return false
 	}
 
@@ -1471,7 +1484,7 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 		if h.SHA != "" {
 			switch {
 			case !existed:
-				fail(h, "sha=%s given but %s does not exist%s", h.SHA, path, servedAs(root, path, opt.Seen))
+				fail(h, "sha=%s given but %s does not exist%s", h.SHA, asPlan(path), servedAs(root, path, opt.Seen))
 				continue
 			case !strings.HasPrefix(shaBefore, h.SHA):
 				fail(h, "file changed: sha is %s, plan expected %s", shaShown(shaBefore, h.SHA), h.SHA)
@@ -1576,7 +1589,7 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 			}
 			created, createdAt = true, h.SrcLine
 			if existed {
-				fail(h, "create: %s already exists (%d lines) — use replace or delete", path, total)
+				fail(h, "create: %s already exists (%d lines) — use replace or delete", asPlan(path), total)
 				continue
 			}
 			resolved = append(resolved, h.resolveTo(1, 0, "insert"))
@@ -1624,7 +1637,7 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 				// ADR-013's objection that the order moves when code does.
 				if n := h.Occurrence; n > 0 && len(at) > 0 {
 					if n > len(at) {
-						fail(h, "pattern %s matched %d line(s) in %s (%s), fewer than occurrence %d", re, len(at), path, joinInts(at), n)
+						fail(h, "pattern %s matched %d line(s) in %s (%s), fewer than occurrence %d", re, len(at), asPlan(path), joinInts(at), n)
 						return 0, false
 					}
 					// Not obs.Whole(): a file mrw wrote is wholly licensed but
@@ -1639,7 +1652,7 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 						if len(unread) > 0 {
 							fail(h, "%s also matches %s of %s before occurrence %d, and they have not been read: "+
 								"mrw served %s — read them, or pass --force",
-								re, joinInts(unread), path, n, obs.Served())
+								re, joinInts(unread), asPlan(path), n, obs.Served())
 							return 0, false
 						}
 					}
@@ -1649,13 +1662,13 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 				case 1:
 					return at[0], true
 				case 0:
-					fail(h, "%spattern %s matched no line in %s", which, re, path)
+					fail(h, "%spattern %s matched no line in %s", which, re, asPlan(path))
 				default:
 					// Naming the lines is what lets the caller act: narrow the
 					// pattern, address by number, or pick one. A refusal that
 					// only says "ambiguous" leaves them guessing.
 					fail(h, "%spattern %s matched %d lines in %s (%s) — narrow it, address by line number, or pick one with occurrence=N",
-						which, re, len(at), path, joinInts(at))
+						which, re, len(at), asPlan(path), joinInts(at))
 				}
 				return 0, false
 			}
@@ -1687,10 +1700,10 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 				}
 				if to == 0 {
 					if len(at) == 0 {
-						fail(h, "end pattern %s matched no line in %s", h.EndPat, path)
+						fail(h, "end pattern %s matched no line in %s", h.EndPat, asPlan(path))
 					} else {
 						fail(h, "end pattern %s matched only above the start line %d (%s) in %s",
-							h.EndPat, from, joinInts(at), path)
+							h.EndPat, from, joinInts(at), asPlan(path))
 					}
 					continue
 				}
@@ -1757,7 +1770,7 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 				return false
 			}
 			if !strings.Contains(orig[at-1], h.Anchor) {
-				fail(h, "%s", anchorMiss(h.Anchor, at, orig))
+				fail(h, "%s", anchorMiss(h.Anchor, at, orig, path))
 				return false
 			}
 			return true
@@ -1818,7 +1831,7 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 			// "mrw does not tell you what it has not shown you", false on the
 			// one path that had this guard first (ADR-028).
 			if h.Anchor != "" && !strings.Contains(orig[start-1], h.Anchor) {
-				fail(h, "%s", anchorMiss(h.Anchor, start, orig))
+				fail(h, "%s", anchorMiss(h.Anchor, start, orig, path))
 				continue
 			}
 			// ADR-035. A replace addressing more than one line must say what it
@@ -2652,19 +2665,43 @@ func trim(s string) string {
 // no such advice: re-anchoring on the addressed line would edit the wrong one.
 // The line it quotes is the one the caller was served (ADR-028), quoted as the
 // anchor is: exactly, so an indent the anchor keeps is not shown trimmed away.
-func anchorMiss(anchor string, n int, orig []string) string {
+//
+// It ends with where the anchor is (ADR-197): the lines of path that hold it,
+// the first anchorMissLines and a count of the rest, or that none does. Line
+// numbers only, as the ambiguous-pattern refusal gives them: no content of a
+// line the caller may not have been served, and the read guard still judges a
+// hunk moved to one of them.
+func anchorMiss(anchor string, n int, orig []string, path string) string {
 	line := orig[n-1]
 	msg := fmt.Sprintf("anchor %q not in line %d: %q", anchor, n, clip(line))
-	if !strings.Contains(strings.ReplaceAll(line, `"`, ""), anchor) {
-		return msg
-	}
-	for _, l := range orig {
-		if strings.Contains(l, anchor) {
-			return msg
+	var at []int
+	more := 0
+	for i, l := range orig {
+		if !strings.Contains(l, anchor) {
+			continue
+		}
+		if len(at) < anchorMissLines {
+			at = append(at, i+1)
+		} else {
+			more++
 		}
 	}
-	return msg + `; the line holds the anchor without its double quotes, and a " inside anchor="…" is read as the header's quoting: write anchor='…' in single quotes, or each " as \" inside double quotes`
+	switch {
+	case len(at) == 1:
+		return fmt.Sprintf("%s; the anchor is in line %d", msg, at[0])
+	case len(at) > 1 && more == 0:
+		return fmt.Sprintf("%s; the anchor is in %s", msg, joinInts(at))
+	case len(at) > 1:
+		return fmt.Sprintf("%s; the anchor is in %s and %d more", msg, joinInts(at), more)
+	case strings.Contains(strings.ReplaceAll(line, `"`, ""), anchor):
+		return msg + `; the line holds the anchor without its double quotes, and a " inside anchor="…" is read as the header's quoting: write anchor='…' in single quotes, or each " as \" inside double quotes`
+	}
+	return fmt.Sprintf("%s; no line of %s holds it", msg, asPlan(path))
 }
+
+// anchorMissLines is how many lines holding a missed anchor the refusal names
+// before it counts the rest: a short anchor such as `}` is in hundreds.
+const anchorMissLines = 5
 
 // clip bounds a line for a message WITHOUT trimming it. It is what trim is
 // built on, and the difference matters in exactly one place: a message that
@@ -2873,7 +2910,7 @@ func foldClashes(in []Input, exists func(string) bool) map[int]string {
 			continue
 		}
 		out[n] = fmt.Sprintf("%s may name the same file as %s (plan line %d) on a case-insensitive filesystem; one file, one spelling per plan",
-			name, prior.name, prior.line)
+			asPlan(name), asPlan(prior.name), prior.line)
 	}
 	return out
 }
@@ -2920,6 +2957,86 @@ func foldKey(name string) string {
 		b.WriteRune(least)
 	}
 	return b.String()
+}
+
+// belowAFile is the refusal for a cleaned root-relative path that lies below
+// something that is itself not a directory, or "" when there is none
+// (ADR-199). full is the path as resolve returned it. The obstruction is the
+// shortest proper prefix that the boundary accepts and whose own entry is
+// neither a directory nor a link: a file, or a FIFO or a device.
+//
+// A link is never the obstruction. One that leads to a directory is walked
+// through, so a file below it is found; one that leads anywhere else (a file,
+// nothing, itself) ends the search and the path is left to what happens today.
+// Where a link leads is the system's to say, differently on each platform (on
+// Windows "the path was not found" is also "not a directory", and a junction
+// is an irregular file), and another hunk of the plan may make the directory a
+// link leads to. A prefix the boundary refuses, or one that cannot be examined,
+// ends the search too, so the refusals that exist for those keep their place.
+//
+// The nearest ancestor of full that exists is found first, by Lstat alone,
+// upwards from its parent, and when it is a directory nothing more is done:
+// every create of a new file and every rename to a new name comes here, and a
+// plan that makes its own directories does so for every file. Judging each
+// prefix through the boundary for those cost such a plan a tenth more on
+// macOS and a quarter more on Windows (measured on 2,000 creates). full has
+// passed the boundary, and these are the names resolving it walked.
+func belowAFile(root, path, full string) string {
+	if rooted.IsRooted(path) {
+		return ""
+	}
+	if nearestIsDir(filepath.Dir(full)) {
+		return ""
+	}
+	parts := strings.Split(path, string(filepath.Separator))
+	for i := 1; i < len(parts); i++ {
+		anc := filepath.Join(parts[:i]...)
+		full, err := resolve(root, anc)
+		if err != nil {
+			return ""
+		}
+		entry, err := os.Lstat(full)
+		if err != nil {
+			return ""
+		}
+		mode := entry.Mode()
+		switch {
+		case mode.IsDir():
+			continue
+		case mode&(os.ModeSymlink|os.ModeIrregular) != 0:
+			// A link, or on Windows a junction or another reparse point: go on
+			// to what lies below it. If it does not lead to a directory, the
+			// next prefix cannot be examined and the search ends there.
+			continue
+		case mode.IsRegular():
+			return fmt.Sprintf("%s cannot be written: %s is a file, not a directory", asPlan(path), asPlan(anc))
+		default:
+			return fmt.Sprintf("%s cannot be written: %s is not a directory", asPlan(path), asPlan(anc))
+		}
+	}
+	return ""
+}
+
+// nearestIsDir reports whether the nearest ancestor of a path that can be
+// examined, the path itself included, is itself a directory. Anything else
+// there (a file, a link, wherever it leads) is false: the caller then looks at
+// each prefix with care, asking the boundary first. The entry is read with
+// Lstat and never followed, so a link is not judged by what it leads to before
+// the boundary has been asked about it (the Codex review of #646). A name
+// that cannot be examined is passed over like one that does not exist: on
+// unix a path below a file answers "not a directory" for every level under
+// it, and the file is found above.
+func nearestIsDir(dir string) bool {
+	for {
+		if entry, err := os.Lstat(dir); err == nil {
+			return entry.IsDir()
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return false
+		}
+		dir = parent
+	}
 }
 
 // refuseFile fails hs[at] with reason and skips the file's other hunks: one

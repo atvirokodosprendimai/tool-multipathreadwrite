@@ -7,8 +7,8 @@ Read the parts you need, then put the changes in one plan. mrw validates the who
 before changing any file, including checking that it has read the existing lines you want
 to edit. If validation fails, no files change. The output tells you what happened to each edit.
 
-**Status: stable at v1.84.0 (2026-11-04), the tag cut from `c449792d`.**
-See [updating mrw](UPDATE.md) and the [release validation](docs/break/campaign-v1.84.0.txt)
+**Status: stable at v1.87.0 (2026-11-15), the tag cut from `43aaad5e`.**
+See [updating mrw](UPDATE.md) and the [release validation](docs/break/campaign-v1.87.0.txt)
 when choosing or upgrading a binary. Keep a benchmark's chosen version pinned.
 
 ## Quick start
@@ -97,7 +97,7 @@ Two other ways in:
   tap's formula is generated and pushed by CI from the release's four archives and their checksums
   (ADR-172), so it serves the published binary; `release-smoke-brew.yml`, run by hand after a release,
   installs from the tap and checks the binary against `SHA256SUMS.txt`.
-- **`go install`** (Go 1.26.10 or newer, `go.mod`):
+- **`go install`** (Go 1.27.4 or newer, `go.mod`):
   `go install github.com/atvirokodosprendimai/tool-multipathreadwrite/cmd/mrw@latest`, or `@<tag>`, or
   `@<commit>`. That build is compiled by your Go and carries no release stamp: `mrw version` reports
   the module version Go recorded for it, the tag or a pseudo-version ending in the commit
@@ -167,7 +167,7 @@ would allow every write ([docs/agents.md](docs/agents.md) §7, ADR-168, ADR-174)
 
 ### From source
 
-Go 1.26.10 or newer (`go.mod`). One dependency, no cgo:
+Go 1.27.4 or newer (`go.mod`). One dependency, no cgo:
 
 ```sh
 go build -o bin/mrw ./cmd/mrw          # Linux, macOS
@@ -337,6 +337,11 @@ from the `NNN| content` a read printed; one typed from memory can be wrong in
 the same way the address is. `sha=` and `lines=` do not stand in for it: `sha=`
 pins the whole file and `lines=` the count, neither which lines (ADR-164). Both
 are optional and are checked on every op, insertions included.
+An anchor that is not in the addressed line is refused, and the refusal ends with
+where it is: `; the anchor is in line N` or `lines N, M, …` (the first five, then
+a count), or `; no line of PATH holds it` (ADR-197). A line that holds the anchor
+once its double quotes are gone, when no line holds it as written, ends with how
+to quote it instead.
 
 Addresses are 1-based and inclusive; `$` is the last line, and `A,+N` is the line `A` plus the `N` lines AFTER it. A read CLAMPS a relative end at the last line; a write REFUSES one that runs past it. `/from/,/to/` means the same on both paths: the end is the first match
 at or after the start. A write refuses unless the start matches exactly once, or
@@ -410,8 +415,8 @@ These are gates, not a tour of the records behind them.
   pre-registered default question (BACKLOG) is decided on.
 - **Check miss refuses.** An in-root `mrw check` miss is exit 2 and names the
   path — not a silent whole-project PASS. Under `--json` every refusal `mrw check` makes once its flags
-  are parsed is one document, `{"error": …}`, with no `exit_code`; a flag the parser rejects, or an
-  attached flag value with edge whitespace, is refused before that and prints nothing on stdout. When no
+  are parsed is one document, `{"error": …}`, with no `exit_code`; a flag the parser rejects is
+  refused before that and prints nothing on stdout. When no
   check could run the receipt says `"ran": false` and `"exit_code": -1`, the value every check or step
   with no exit status carries, never 0 (ADR-100, ADR-101).
 - **The process is the verdict.** A check that prints `PASS` and exits 1 is a

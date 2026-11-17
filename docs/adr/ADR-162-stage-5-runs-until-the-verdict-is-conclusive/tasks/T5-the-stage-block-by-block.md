@@ -111,3 +111,4 @@ go run ./cmd/bench look $R > /tmp/adr162-look.txt \
 - 2026-10-17 · human-observed · S3 approved: Zy said 'Go all, redo the benchmark' on 2026-10-17, given with Stage 5's price (up to 5 blocks, 1,146 attempts at most, about 38 hours quoted; the pilot measured 68 s per attempt with grading), and after the pilot 'Proceed as designed'. mrw v1.68.0, the plugin at v3.8.40 (the pilot's tag), Claude Code 2.1.302 (the pilot's CLI).
 - 2026-10-21 · 6353ec98* · exit 0 · `set -o pipefail …` · acceptance-sha256:bf4eca9a150bf62a6f1d93f4aa387c5c6abf27f52567bc3c8f0fe680cc4329ea · ms:688
 - 2026-10-21 · 6353ec98* · exit 0 · `set -o pipefail …` · acceptance-sha256:bf4eca9a150bf62a6f1d93f4aa387c5c6abf27f52567bc3c8f0fe680cc4329ea · ms:2384
+- 2026-11-10 · c6a787e1 · exit 0 · `set -o pipefail …` · acceptance-sha256:bf4eca9a150bf62a6f1d93f4aa387c5c6abf27f52567bc3c8f0fe680cc4329ea · ms:3426

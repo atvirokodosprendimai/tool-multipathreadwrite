@@ -24,8 +24,8 @@ README must be regenerated.
 | T1 | the instance's container and the shims | done | — | `go test ./internal/bench/ -run '^(TestStage6ShimsRunInTheInstanceContainer…)$'` |
 | T2 | configuration W, the declared check and the stage's caps | done | — | `go test ./internal/bench/ -run '^(TestConfigurationWIsPPlusTheWorkLine…)$'` |
 | T3 | the baseline, the surviving pool and the block plan | done | — | `go test ./internal/bench/ -run '^(TestTheBaselineRecordsGreenRedAndTime…)$'` |
-| T4 | the baseline pilot, the whole-pool baseline, then the agent pilot | pending | — | `jq … docs/bench/stage-6-pilot/baseline.json …` |
-| T5 | the stage, block by block, and its results | pending | — | `go run ./cmd/bench verify --stage stage6 --tasks "$t" …` |
+| T4 | the baseline pilot, the whole-pool baseline, then the agent pilot | blocked | — | `jq … docs/bench/stage-6-pilot/baseline.json …` |
+| T5 | the stage, block by block, and its results | blocked | — | `go run ./cmd/bench verify --stage stage6 --tasks "$t" …` |
 | T6 | the side arms G and C, read against P | done | — | `go test ./internal/bench/ -run '^(TestConfigurationGRunsTheHooksThroughTheBinaryAndPThroughNode…)$'` |
 
 ## Contract Coupling
@@ -41,4 +41,5 @@ README must be regenerated.
 ## Notes
 
 - Zy, 2026-10-19: "Draft now, run after". T1 to T3 are hermetic code and may be built while Stage 5 runs; anything that pulls or runs an image (T1 S1, T4, T5) starts only after Stage 5 closes (ADR-162 T5's `bench look` exits 0, or Zy ends it), on Zy's word.
+- T4 and T5 are `blocked`, not run: Stage 5 closed on 2026-10-21 (ADR-162 T5's `bench look` exits 0), and Zy has not given the word to run Stage 6, which pulls images and spends paid attempts. Zy, 2026-11-10, closing the open work: *"do all of it and lets close it"*. They run only on Zy's word, with the price stated first.
 - The registration ("Pre-registered for ADR-163" in `docs/adr/BACKLOG.md`) is committed with this record, before any code or run.

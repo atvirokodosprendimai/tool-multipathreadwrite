@@ -76,8 +76,10 @@ func TestAnUnknownFlagNamingNoSubcommandIsRefusedAsBefore(t *testing.T) {
 			t.Errorf("%q: %v", argv, err)
 		}
 	}
-	if err := refusePaddedFlagValues(rootCommand(), []string{"--instructions= "}); err == nil || !strings.Contains(err.Error(), "ends in whitespace") {
-		t.Errorf("a padded attached value is no longer refused first: %v", err)
+	// A padded attached value reaches the parser as typed (ADR-196), which
+	// refuses the undefined flag and names the subcommand, as for the bare flag.
+	if _, err := runSplit(t, "--instructions= "); err == nil || exitCode(err) != exitUsage || !strings.Contains(err.Error(), "instructions") {
+		t.Errorf("--instructions= : %v (exit %d), want the usage refusal naming the subcommand", err, exitCode(err))
 	}
 	// Only urfave's not-defined text is read (Decision 4): a message without that
 	// prefix — a reworded one after an upgrade — names nothing, even when its
