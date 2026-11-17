@@ -1,7 +1,6 @@
 # Task ADR-192-T3: the release, the re-probe, the canary, a preflight and an uncounted pilot freeze the sentence
 
 **Depends-on:** T1, T2
-**Blocked-on:** a tag that contains ADR-191's merge (`git tag --contains 1f01dcdc | grep -q .`)
 **Covers:** none — no spec
 **Estimated scope:** M (multi-file)
 **Owner:** Zy
