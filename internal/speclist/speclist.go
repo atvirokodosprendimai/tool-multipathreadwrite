@@ -17,8 +17,9 @@ const MaxLine = 8 * 1024 * 1024
 // character is "#", is skipped; every other line is a spec as written, edge
 // spaces kept (ADR-069). label names the list in every error, so each surface
 // keeps its own word for it ("--files-from x", "files_from x"). A list that
-// holds no spec is an error, never an empty read.
-func Parse(r io.Reader, label string) ([]string, error) {
+// holds no spec is an error, never an empty read. notes, when not nil, takes
+// a line about what Parse changed in the list as written (ADR-117 T2).
+func Parse(r io.Reader, label string, notes io.Writer) ([]string, error) {
 	var out []string
 	sc := bufio.NewScanner(r)
 	sc.Buffer(make([]byte, 0, 64*1024), MaxLine)
@@ -26,6 +27,16 @@ func Parse(r io.Reader, label string) ([]string, error) {
 	for sc.Scan() {
 		n++
 		line := sc.Text()
+		// A list saved by Notepad, or piped by PowerShell with a UTF-8
+		// preamble, starts with a byte order mark that no spec means (ADR-117 T2).
+		if n == 1 {
+			if rest, ok := strings.CutPrefix(line, "\xef\xbb\xbf"); ok {
+				line = rest
+				if notes != nil {
+					_, _ = fmt.Fprintf(notes, "mrw: %s: dropped the byte order mark at the start of the list\n", label)
+				}
+			}
+		}
 		if t := strings.TrimSpace(line); t == "" || strings.HasPrefix(t, "#") {
 			continue
 		}
