@@ -729,6 +729,22 @@ start on or after the tag's date and within 14 days of it — Claude Code, Codex
 - **Inconclusive** on a host with fewer: the window is extended once by 14 days; still inconclusive,
   the numbers go to Zy, who decides.
 
+**Measured 2026-11-17**, eleven days after the reading was due (the cohort is fixed by when a session starts, so
+the delay does not change it), with `scan.py` as it was at `e61e2d4b`, the commit that registered the bar. The
+scanner has no date filter, so the cohort was handed to it as a directory of links: the sessions whose first
+timestamp falls on 2026-10-23 through 2026-11-06 (UTC), v1.74.0's tag date and the 14 days after it.
+
+| Host | Sessions | mrw-served chars | Guard calls | `unchanged` answers | Bytes withheld | Share | Argument chars typed |
+|------|----------|------------------|-------------|---------------------|----------------|-------|----------------------|
+| Claude Code | 46, with 187 subagent transcripts | 19,918,021 | 27 | 6 | 95 | 0.0005% | 745 |
+| Codex | 48 | 859,974 | 0 | 0 | 0 | 0% | 0 |
+| Cursor IDE | not measured | | | | | | |
+
+Claude Code is below 1.0% with more than 1,000,000 served chars. Cursor IDE could not be cut to the cohort: its
+sessions come from one database, and the registered scanner cannot select them by date. The bar deprecates only
+when both hosts are below it, so the numbers go to Zy: measure Cursor IDE with a date filter added to the scanner,
+or decide on Claude Code's number alone.
+
 ## Findings filed from memoryd (2026-10-21)
 
 - **quality-harness cannot see writes made through mrw (filed 2026-10-02 by quality-harness, open).**
@@ -1121,10 +1137,10 @@ change an exit code, a trust boundary, or any registered measurement window.
   red/green history or mass-relock old records to silence the route.
 
 The exponent timing-test entry above retains its recurrence trigger. ADR-169's
-14-day adoption reading was due 2026-11-06 and had not been run by 2026-11-17 (the
-cohort's transcripts are still on disk); ADR-177–179's first 30-day window ends
-2026-11-27, anchored to v1.77.0, and v1.77.1 does not reset either window. ADR-197's
-30-day reading is due 2026-12-15, anchored to v1.87.0.
+14-day adoption reading was due 2026-11-06 and was measured on 2026-11-17: the numbers
+are under "Pre-registered for ADR-169 (adoption)" above, and the verdict is with Zy.
+ADR-177–179's first 30-day window ends 2026-11-27, anchored to v1.77.0, and v1.77.1
+does not reset either window. ADR-197's 30-day reading is due 2026-12-15, anchored to v1.87.0.
 
 ## From ADR-198 (a refusal reason spells a plan's path as its row does)
 
