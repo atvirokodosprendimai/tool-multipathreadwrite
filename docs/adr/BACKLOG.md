@@ -1150,3 +1150,10 @@ The exponent timing-test entry above retains its recurrence trigger. ADR-169's
   plan that applies today (`create newdir/y.txt` beside `create d/ln/x.txt`, `d/ln` a link to `../newdir`; on Windows
   also the two-level form, where "path not found" reads as "not a directory"), and one judged a link out of the root by
   what lay outside. A rule needs to follow the link itself, know which directories the plan makes, and stay in the root.
+
+## From ADR-117 (mrw_read takes max_lines, stat and files_from)
+
+- **`mrw_read` does not say that a `files_from` list began with a byte order mark (deferred from ADR-117 T2)**
+  (2026-11-17): the mark is dropped on both surfaces, but only the CLI says so, on standard error. An MCP
+  caller has no standard error and the server's log is not the caller's, so the note would be a line in
+  the answer. Arm when an MCP caller meets a list with the mark and is misled by the silence.

@@ -11209,6 +11209,23 @@ out=$(printf '%s\n' '@@ d/new/x.txt 0 create' 'x' | e340 write --no-check -); rc
   && ok "the pair: a create below a missing directory makes it" || bad "create below a missing directory: exit $rc340 [$out]"
 rm -rf "$R340"
 
+# 341. ADR-117 T2: a --files-from list saved with a UTF-8 byte order mark (Notepad, a
+# PowerShell pipe with a preamble) served its first spec with the mark in front of the
+# path: UNREADABLE, exit 1. The mark is dropped from the first line and standard error
+# says so. The pair: a mark at the start of a later line is that spec's own, so its path
+# is not found and nothing is said about a mark.
+R341=$(mktemp -d "$WORK/r341-XXXXXX"); printf 'x\n' > "$R341/a.txt"; printf 'y\n' > "$R341/b.txt"
+e341() { env XDG_STATE_HOME="$WORK/s341" "$MRW" --root "$R341" read --files-from - 2>"$WORK/e341"; }
+out=$(printf '\xef\xbb\xbfa.txt\nb.txt\n' | e341); rc341=$?
+{ [ "$rc341" = 0 ] && grep -q '^==> a.txt' <<<"$out" && grep -q '^==> b.txt' <<<"$out" \
+  && grep -qxF 'mrw: --files-from -: dropped the byte order mark at the start of the list' "$WORK/e341"; } \
+  && ok "a list that starts with a byte order mark serves its first spec and says the mark was dropped" || bad "bom list: exit $rc341 [$out] [$(cat "$WORK/e341")]"
+out=$(printf 'a.txt\n\xef\xbb\xbfb.txt\n' | e341); rc341=$?
+{ [ "$rc341" = 1 ] && grep -q '^==> a.txt' <<<"$out" && grep -q 'UNREADABLE' <<<"$out" \
+  && ! grep -q 'dropped the byte order mark' "$WORK/e341"; } \
+  && ok "the pair: a mark on a later line is the spec's own, unread and unremarked" || bad "bom on a later line: exit $rc341 [$out] [$(cat "$WORK/e341")]"
+rm -rf "$R341"
+
 
 # 334. The Stage 8 pilot (ADR-193 T4): an agent passed the file it meant to edit as
 # --format=search_replace's FILE, so mrw read source as the document and refused
