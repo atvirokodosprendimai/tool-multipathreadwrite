@@ -900,6 +900,12 @@ Zy, 2026-10-27: *"yes, go, address these, measure, plan, implement verify, udupa
 - **`--outline` and `--no-comments` beyond Go (and Markdown for outline)** (2026-10-27): other languages would go through ast-grep rules, a configuration surface. Arm when ADR-179 T2's or T8's measurement shows another language over the bar its task names (ADR-179: other languages).
 - **The new read flags and `--terse` on `mrw_read` and `mrw_write`** (2026-10-27): CLI only. Arm when a shell-less host asks (ADR-179: these flags on the MCP tools).
 - **`TestAnExponentIsReducedExactlyAndInLinearTime` fails under a loaded full suite** (2026-10-28): at the v1.77.0 release, `go test ./...` on `a508f6a2` failed twice locally at load 15-21 on 10 cores, only this test (`internal/mcp/surface128_test.go:257`), with 1M-to-4M ratios 6.4/7.1/7.2 and 3.7/9.5/9.9 in one run; it passed alone three times at load 21, a third full run passed, and CI passed. The noise guard (skip when ratios disagree threefold) did not fire on the first run. Arm when it fails again in a full run on a tree that does not touch `internal/mcp` (no ADR; found at the v1.77.0 release).
+- **Two more timing bounds failed once under load and passed alone** (2026-11-15, the v1.87.0 release):
+  `TestTheRulesHookHangInMatchingStillExitsZero` (`cmd/mrw/leftovers_stress_test.go`) took 2.87 s against its 2.5 s
+  bound in a local `go test ./...` at load 14-16 on 10 cores, then passed alone three times and in the next full run;
+  `TestShimCallsTakeTurnsAndNeverTouchTheIndex` (`internal/bench/container_test.go`) failed CI's `race` job once on
+  #645 and passed when the job ran again. Neither change touched the hook or the bench shim. Arm, for either one, when
+  it fails again in a full run (no ADR; found at the v1.87.0 release).
 
 ## From ADR-184
 
@@ -1017,8 +1023,9 @@ verdict), written with the record on 2026-11-03, before any code or run.
 
 ## From ADR-197 (an anchor miss names the lines that hold the anchor)
 
-- **The 30-day reading (pre-registered 2026-11-15, before any code):** 30 days after the release that ships ADR-197,
-  run `python3 -I docs/bench/anchor-miss-study/scan.py --since <release date>`. The clause is kept if fewer than half
+- **The 30-day reading (pre-registered 2026-11-15, before any code):** 30 days after the release that ships ADR-197
+  (v1.87.0, tagged 2026-11-15, so the reading is due 2026-12-15), run
+  `python3 -I docs/bench/anchor-miss-study/scan.py --since 2026-11-15`. The clause is kept if fewer than half
   of the anchor misses are followed by a read (104 of 140 on 2026-11-15, all transcripts to that date); at half or more
   it goes back to Zy. The share is an upper bound: some of those reads the guard requires anyway (ADR-002, ADR-052).
 - **A failed check says whether its output names a line the write changed (withdrawn from ADR-197's first draft)**
@@ -1114,8 +1121,10 @@ change an exit code, a trust boundary, or any registered measurement window.
   red/green history or mass-relock old records to silence the route.
 
 The exponent timing-test entry above retains its recurrence trigger. ADR-169's
-14-day adoption reading is due 2026-11-06; ADR-177–179's first 30-day window ends
-2026-11-27, anchored to v1.77.0. v1.77.1 does not reset either window.
+14-day adoption reading was due 2026-11-06 and had not been run by 2026-11-17 (the
+cohort's transcripts are still on disk); ADR-177–179's first 30-day window ends
+2026-11-27, anchored to v1.77.0, and v1.77.1 does not reset either window. ADR-197's
+30-day reading is due 2026-12-15, anchored to v1.87.0.
 
 ## From ADR-198 (a refusal reason spells a plan's path as its row does)
 
