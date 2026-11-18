@@ -23,8 +23,9 @@ printing them (`mrw read --quiet f.go:40-60`). Narrow another command's output w
 ## Read before write
 
 A write needs a current read licence for the lines it changes. Being served lines
-10–12 does not license line 50. A file mrw just wrote is wholly known;
-`--stat` and `--outline` license nothing.
+10–12 does not license line 50. A file mrw just wrote is wholly known, though its
+line numbers can move, and a write made only of SEARCH/REPLACE blocks licenses the
+lines it wrote; `--stat` and `--outline` license nothing.
 
 ## Prepare the plan
 

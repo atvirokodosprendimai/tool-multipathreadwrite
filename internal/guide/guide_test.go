@@ -161,7 +161,7 @@ func TestInstructionsSayAWrittenFileIsWhollyKnown(t *testing.T) {
 }
 
 // ADR-161 Decision 4. The full contract opens with ADR-037's five sentences and
-// then the recipes: twenty numbered label lines ending in ":" (nine from ADR-161,
+// then the recipes: twenty-one numbered label lines ending in ":" (nine from ADR-161,
 // the tenth ADR-167's, the eleventh ADR-169's, the twelfth ADR-177's, the thirteenth ADR-178's, the fourteenth to the twentieth ADR-179's, the twenty-first ADR-200's), each followed by its command indented two spaces, no
 // prose between; recipe 1 is the sub write,
 // recipe 6 carries ADR-092's caveat on its label, no recipe reaches for perl,

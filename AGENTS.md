@@ -52,7 +52,7 @@ through a new ADR that supersedes the old one and updates its contract rows in t
    written, `NOTHING WRITTEN` when the undo put everything back. — ADR-001, ADR-066
 2. **mrw will not edit a file it has not read**, and the guard is per *line*,
    not per file; a file mrw just wrote is wholly known, so a chain of edits
-   needs no re-read, though its line numbers have moved. — ADR-002, ADR-005, ADR-200
+   needs no re-read, though its line numbers can move. A write made only of SEARCH/REPLACE blocks licenses the lines it wrote. — ADR-002, ADR-005, ADR-190, ADR-200
 3. **A check's verdict comes from the process, never its output.** A check that
    prints `PASS` and exits 1 is a failure. — ADR-003
 4. **Nothing is left in the working tree** by a failed run — except, when an
@@ -164,7 +164,7 @@ mrw read --grep P --count . && mrw read 'f.go:/P/' -C 3 --max-lines 40
 mrw read 'a.go:/func A/,+12' b.go:40-60 && mrw write "$TMPDIR/plan.txt"
 # 6. a step after the write, in the same call (--then-sh's caveat is below, under the write rules)
 mrw write - --then NAME
-# 7. license lines you already know, without them in your context (/dev/null licenses nothing; a file mrw just wrote is wholly licensed, but its line numbers have moved: recipe 21)
+# 7. license lines you already know, without them in your context (/dev/null licenses nothing; a file mrw just wrote keeps a whole-file licence, or only its written lines after a write made only of search_replace blocks, but its line numbers can move: recipe 21)
 mrw read --quiet f.go:40-60
 # 8. a file of long lines (logs, JSONL), each line cut to a window round the match
 mrw read --grep P --max-cols 200 f.jsonl
@@ -192,7 +192,7 @@ mrw read --grep P .
 mrw write --terse plan.txt
 # 20. by reference what you were already served: only in a session alone in its checkout whose host runs mrw seen --forget on start, resume, clear and compaction, with reads made under --max-chars below the host's limit
 mrw read --if-served f.go=8dc37337 f.go:40-60
-# 21. a second edit to a file you just wrote, with no read between: its line numbers moved, so name the line by a pattern and say what it holds
+# 21. a second edit to a file you just wrote, with no read between: its line numbers can have moved, so name the line by a pattern and say what it holds
 printf '%s\n' '@@ f.go /^func B\(/ replace anchor="func B("' 'func B(x int) {' | mrw write -
 ```
 
