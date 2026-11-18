@@ -395,7 +395,9 @@ never `x`; an attached flag value (`--files-from='list '`) is that value with it
 v3.11.0 trimmed both, and mrw refused them (ADR-069); since v3.12.0 the parser hands them over byte for
 byte, and mrw requires v3.14.0 (ADR-196). A stray space is therefore a name that is not there, reported
 UNREADABLE with its spelling (on Windows, whose ordinary paths drop a trailing dot or space, REFUSED). `--files-from`, the working set, a rename destination and the foreign
-formats keep the path as written too.
+formats keep the path as written too, with one exception (ADR-117 T3): every UTF-8 byte order mark (U+FEFF) at the very start of a `--files-from`
+list is dropped, and standard error says so, with the count when there are several; `mrw_read`'s `files_from` drops them without a note. A first
+entry whose file name does begin with one is written `./NAME`, or put after a comment line.
 
 ### 2. One plan, not N writes
 

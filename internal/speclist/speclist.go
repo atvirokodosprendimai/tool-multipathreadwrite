@@ -13,12 +13,17 @@ import (
 // MaxLine is the longest one spec in a list may be.
 const MaxLine = 8 * 1024 * 1024
 
+// mark is the UTF-8 byte order mark.
+const mark = "\xef\xbb\xbf"
+
 // Parse reads the specs in r. A blank line, or one whose first non-space
 // character is "#", is skipped; every other line is a spec as written, edge
-// spaces kept (ADR-069). label names the list in every error, so each surface
-// keeps its own word for it ("--files-from x", "files_from x"). A list that
-// holds no spec is an error, never an empty read. notes, when not nil, takes
-// a line about what Parse changed in the list as written (ADR-117 T2).
+// spaces kept (ADR-069), except that the UTF-8 byte order marks at the head
+// of the first line are dropped (ADR-117 T2, T3). label names the list in
+// every error, so each surface keeps its own word for it ("--files-from x",
+// "files_from x"). A list that holds no spec is an error, never an empty
+// read. notes, when not nil, takes a line about what Parse changed in the
+// list as written.
 func Parse(r io.Reader, label string, notes io.Writer) ([]string, error) {
 	var out []string
 	sc := bufio.NewScanner(r)
@@ -28,13 +33,18 @@ func Parse(r io.Reader, label string, notes io.Writer) ([]string, error) {
 		n++
 		line := sc.Text()
 		// A list saved by Notepad, or piped by PowerShell with a UTF-8
-		// preamble, starts with a byte order mark that no spec means (ADR-117 T2).
+		// preamble, starts with a byte order mark that no spec means (ADR-117
+		// T2); Windows PowerShell 5.1 can pipe two, so every one goes (T3).
 		if n == 1 {
-			if rest, ok := strings.CutPrefix(line, "\xef\xbb\xbf"); ok {
-				line = rest
-				if notes != nil {
-					_, _ = fmt.Fprintf(notes, "mrw: %s: dropped the byte order mark at the start of the list\n", label)
-				}
+			marks := 0
+			for strings.HasPrefix(line, mark) {
+				line, marks = line[len(mark):], marks+1
+			}
+			if notes != nil && marks == 1 {
+				_, _ = fmt.Fprintf(notes, "mrw: %s: dropped the byte order mark at the start of the list\n", label)
+			}
+			if notes != nil && marks > 1 {
+				_, _ = fmt.Fprintf(notes, "mrw: %s: dropped %d byte order marks at the start of the list\n", label, marks)
 			}
 		}
 		if t := strings.TrimSpace(line); t == "" || strings.HasPrefix(t, "#") {
