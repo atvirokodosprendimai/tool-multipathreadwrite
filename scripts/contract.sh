@@ -11383,6 +11383,42 @@ grep -q '^stale-number pricing: .* 3 landed writes; 1 with a numbered hunk' "$R3
   && ok "ADR-200: mrw stats prints the stale-number pricing block" || bad "no block: $(tail -4 "$R343/stats.out")"
 rm -rf "$R343"
 
+# 344. ADR-201: a FIFO where mrw keeps one of its own state files held the command,
+# since opening one for reading waits for a writer that never comes. With a FIFO at
+# the `root` marker of a checkout's state directory, `mrw read` ran until the limit
+# killed it (`bounded` reports that as 124); it now serves the file and leaves the marker a regular file holding
+# the root. With a FIFO at the `root` of another directory under the same state home,
+# `mrw seen --prune --dry-run` returned only when killed; it now exits 0, keeps that
+# directory, and still reports a dead one beside it. The pair: before either FIFO
+# the read and the dry run both answer, and the dead directory is the one a prune
+# would remove.
+R344=$(mktemp -d "$WORK/r344-XXXXXX"); C344="$R344/c"; X344="$R344/state"
+mkdir -p "$C344" "$X344"; printf 'a\nb\n' > "$C344/f.txt"
+bounded 10 "$WORK/r344a" env XDG_STATE_HOME="$X344" "$MRW" -C "$C344" read f.txt; want 0 "$?" "ADR-201: the file is served before any FIFO"
+bounded 10 "$WORK/p344a" env XDG_STATE_HOME="$X344" "$MRW" -C "$C344" seen --prune --dry-run; want 0 "$?" "ADR-201: the dry run answers before any FIFO"
+bounded 10 "$WORK/s344" env XDG_STATE_HOME="$X344" "$MRW" -C "$C344" seen; want 0 "$?" "ADR-201: mrw seen names the state directory"
+D344=$(sed -n '1p' "$WORK/s344")
+if [ -d "$D344" ]; then
+  rm -f "$D344/root" && mkfifo "$D344/root" && [ -p "$D344/root" ] \
+    && ok "ADR-201: the marker is now a FIFO" || bad "could not put a FIFO at the marker: $D344"
+  bounded 10 "$WORK/r344b" env XDG_STATE_HOME="$X344" "$MRW" -C "$C344" read f.txt; want 0 "$?" "ADR-201: a read with a FIFO at the root marker returns, not killed at the limit"
+  grep -q '2| b$' "$WORK/r344b" && ok "ADR-201: and serves the file" || bad "no content served: $(head -c 300 "$WORK/r344b")"
+  [ -f "$D344/root" ] && ! [ -p "$D344/root" ] && [ "$(cat "$D344/root")" = "$(cd "$C344" && pwd -P)" ] \
+    && ok "ADR-201: and the marker is a regular file holding the root" || bad "marker is not a regular file holding the root: $(ls -ld "$D344/root")"
+else
+  bad "ADR-201: mrw seen did not name a state directory: $(head -c 300 "$WORK/s344")"
+fi
+mkdir -p "$X344/mrw/dead344" "$X344/mrw/odd344"
+printf '%s\n' "$R344/gone344" > "$X344/mrw/dead344/root"
+mkfifo "$X344/mrw/odd344/root" && [ -p "$X344/mrw/odd344/root" ] \
+  && ok "ADR-201: another directory's marker is now a FIFO" || bad "could not put a FIFO at $X344/mrw/odd344/root"
+bounded 10 "$WORK/p344" env XDG_STATE_HOME="$X344" "$MRW" -C "$C344" seen --prune --dry-run; want 0 "$?" "ADR-201: a dry run with a FIFO at another directory's marker returns, not killed at the limit"
+[ -d "$X344/mrw/odd344" ] && [ -p "$X344/mrw/odd344/root" ] && ok "ADR-201: and that directory and its FIFO are still there" || bad "odd344 or its FIFO is gone"
+[ -d "$X344/mrw/dead344" ] && ok "ADR-201: and a dry run removed nothing" || bad "the dry run removed dead344"
+grep -q 'would remove.*dead344' "$WORK/p344" && ! grep -q 'would remove.*odd344' "$WORK/p344" \
+  && ok "ADR-201 pair: the dead directory beside it is the one it would remove" || bad "dry run: $(head -c 400 "$WORK/p344")"
+rm -rf "$R344"
+
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
 # killed process is a zombie until its adopter reaps it, and pgrep lists

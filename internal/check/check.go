@@ -975,7 +975,7 @@ const maxTailLineBytes = 4096
 // Lines split as the whole-file split did: on "\n", a trailing "\r" kept, a final
 // line without "\n" counted, and a lone empty line read as no output.
 func lastLines(path string, n int) (tail []string, earlier int, cut bool) {
-	f, err := os.Open(path)
+	f, _, err := regular.Open(path)
 	if err != nil {
 		return nil, 0, false
 	}

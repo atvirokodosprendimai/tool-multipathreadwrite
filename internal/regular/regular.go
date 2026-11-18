@@ -9,6 +9,7 @@ package regular
 
 import (
 	"errors"
+	"io"
 	"io/fs"
 	"os"
 	"syscall"
@@ -50,4 +51,55 @@ func Open(path string) (*os.File, fs.FileInfo, error) {
 		return nil, nil, ErrNotRegular
 	}
 	return f, fi, nil
+}
+
+// ReadFile reads the regular file at path whole, opening it without blocking
+// (ADR-201): a FIFO, a socket or a device is refused with ErrNotRegular and a
+// directory with EISDIR, so a state file replaced by one cannot hold the caller.
+// Every error is an *fs.PathError naming path, wrapping ErrNotRegular or the
+// system's error, so errors.Is(err, fs.ErrNotExist) holds for a missing file and
+// statehint.About still recognises a state failure by its path.
+func ReadFile(path string) ([]byte, error) {
+	f, _, err := Open(path)
+	if err != nil {
+		return nil, pathError("open", path, err)
+	}
+	defer func() { _ = f.Close() }()
+	b, err := io.ReadAll(f)
+	if err != nil {
+		return nil, pathError("read", path, err)
+	}
+	return b, nil
+}
+
+// OpenIn is Open through an *os.Root (ADR-201): name is opened without blocking
+// beneath root, and a FIFO, a socket or a device is closed and refused with an
+// *fs.PathError wrapping ErrNotRegular. A directory is returned, as Open does.
+func OpenIn(root *os.Root, name string) (*os.File, fs.FileInfo, error) {
+	f, err := root.OpenFile(name, os.O_RDONLY|syscall.O_NONBLOCK, 0)
+	if err != nil {
+		if fi, serr := root.Stat(name); serr == nil && !fi.Mode().IsRegular() && !fi.IsDir() {
+			return nil, nil, &fs.PathError{Op: "open", Path: name, Err: ErrNotRegular}
+		}
+		return nil, nil, err
+	}
+	fi, err := f.Stat()
+	if err != nil {
+		_ = f.Close()
+		return nil, nil, err
+	}
+	if !fi.Mode().IsRegular() && !fi.IsDir() {
+		_ = f.Close()
+		return nil, nil, &fs.PathError{Op: "open", Path: name, Err: ErrNotRegular}
+	}
+	return f, fi, nil
+}
+
+// pathError gives err the path it was about, unless it already names one.
+func pathError(op, path string, err error) error {
+	var pe *fs.PathError
+	if errors.As(err, &pe) {
+		return err
+	}
+	return &fs.PathError{Op: op, Path: path, Err: err}
 }

@@ -2,6 +2,7 @@
 
 **Status:** Accepted
 **Accepted:** 2026-10-01 by Zy — "work on the deffered ones", on the ADR-108 deferrals in `docs/adr/BACKLOG.md` "From ADR-108", of which the FIFO race is this record's scope. The record's text was drafted after that instruction and not shown to Zy before execution: this line is the session's reading of it, stated so it can be checked
+**Superseded in part:** 2026-11-18 by ADR-201, in one Out of Scope clause: `check.lastLines` and `authoring`'s loaders are no longer out of scope, and mrw's own state files are read without blocking too. Every decision of this record stands.
 **Date:** 2026-10-01
 **Owner:** Zy
 **Spec:** None — no spec stage
