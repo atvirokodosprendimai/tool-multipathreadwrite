@@ -1441,3 +1441,38 @@ counted from today's ledger: each needs state the ledger or the writer does not 
 - The refusal: waits for the reading above.
 - A receipt row naming where the numbers moved: waits for the same reading.
 - The narrower rule, width B: waits for a record that decides what a write carries into the ledger.
+
+## Pre-registered for an undo of mrw's own write (E6) — written before the scanner is changed
+
+**Why now.** Claude Code's `/rewind` restores files its own edit tools changed and does not track a file only
+shell commands changed, which is every mrw write (`docs/comparison.md`, re-checked 2026-11-18). An entry above
+("Undo a write whose check failed", deferred from ADR-197) asks for a count before any record: how often a
+caller reverts by hand after a write. This is that count, widened from "after exit 3" to "after any landed
+write", since the motive is now the missing rewind and not only a failed check.
+
+**What would be built if the count earns it**, so the count is of the right thing: `mrw undo`, which puts
+back the files of the last landed write when each still has the sha that write left. Nothing here builds it.
+
+**E6, the count** (`docs/bench/effect-study/scan.py`, per session, in transcript order).
+- *Written files.* The paths a landed mrw write of the session changed, as E5 tracks them.
+- *A path revert.* A later shell command that runs `git checkout`, `git restore` or `git checkout HEAD --`
+  with an argument that names a written file (not `--staged`, not `-b`/`-B`, not a branch switch with no path).
+  Counted once per command; the paths it names stop being written files.
+- *A tree revert.* A later shell command that runs `git checkout .` or `-- .`, `git restore .`,
+  `git reset --hard`, or `git stash` (not `pop`, `apply`, `list`, `show`, `drop`), after the session's first
+  landed mrw write. Counted once per command, reported apart: nothing ties it to a file mrw wrote.
+- *Near.* A path revert within **5** tool calls of the landed write that last changed that path: the shape
+  "undo what I just wrote". The rest are later clean-ups.
+- *L* = shell calls whose mrw write landed (E5's landed plan calls plus its landed calls with no typed plan).
+- *Runs.* Entries before **2026-11-19T00:00:00Z**, with and without this repository's sessions. The verdict
+  is read on the run without them. Revert counts were not looked at in any earlier run on this corpus.
+
+**Verdict, the first rule that applies.** INSUFFICIENT if L < 1,000. **RECORD** if near path reverts are at
+least **25** and at least **0.5%** of L: an undo record is drafted for Zy, with this count as its evidence.
+Otherwise **STOP**: no record; the deferred entry above is closed with the numbers.
+
+**What it cannot see.** A revert made by writing the old lines back through mrw or the host's Edit; a host
+rewind, which leaves no shell command; whether `git checkout` was the right tool (it also throws away
+earlier uncommitted work in that file, which an undo of one write would keep, and that difference is the
+case for the feature, not something this counts). A `git stash` may have nothing to do with mrw. The
+scanner reads a shell command as text, with the limits E5's README section lists.
