@@ -20,14 +20,14 @@
    "median": 2.0,
    "n": 44935,
    "p90": 8,
-   "share_of_one": 32.618
+   "share_of_one": 32.607
   },
   "sites_per_shell_call_running_mrw": {
    "mean": 3.69,
    "median": 2.0,
    "n": 45505,
    "p90": 8,
-   "share_of_one": 33.357
+   "share_of_one": 33.346
   },
   "tokens": {
    "cache_read": 30880849852,
@@ -57,12 +57,12 @@
   "hunks_typed": 28563,
   "tag_collisions": {
    "files": 5219,
-   "lines": 428478,
-   "lines_same_2hex_as_different_neighbour": 2789,
-   "lines_same_2hex_as_different_neighbour_pct": 0.651,
+   "lines": 428549,
+   "lines_same_2hex_as_different_neighbour": 2787,
+   "lines_same_2hex_as_different_neighbour_pct": 0.65,
    "lines_same_3hex_as_different_neighbour": 238,
    "lines_same_3hex_as_different_neighbour_pct": 0.056,
-   "lines_with_identical_neighbour": 1768,
+   "lines_with_identical_neighbour": 1772,
    "lines_with_identical_neighbour_pct": 0.413
   }
  },

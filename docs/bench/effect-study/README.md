@@ -46,8 +46,8 @@ In plain words:
   distinct miss line counted once per session). On this repository's files,
   0.65% of lines share a 2-hex tag with a different neighbouring line.
 - **E3, missed.** The host's own edit tools are 5.3% of file-changing calls in the 30 before a
-  compaction and 5.9% in the 30 after: six tenths of a point, against a bar of five. This measures which tool
-  changed a file, not rule-following in general.
+  compaction and 5.9% in the 30 after: six tenths of a point, against a bar of five. This measures which
+  tool was called to change a file, a failed edit and a dry run included, not rule-following in general.
 - **E4, missed.** 12 refusals in 15,422 write calls had no candidate cause in the session's own
   transcript. Counting every refusal that did not follow the session's own `Edit` of that path, the
   most the scanner's classes allow, gives 51, or 0.33%, still under the bar.
@@ -85,8 +85,10 @@ transcript with no entry in the window is not counted. It prints aggregates only
   calls before it and the 30 after, whatever else lies between; five or more on each side.
 - **E4.** For each `PATH changed since mrw last saw it`, the scanner walks back to the last mrw answer
   that served lines of PATH (its header and a range, or a quiet read's licence line) or wrote it (a
-  receipt row under a summary that says applied, so not a dry run), and looks at what the session did
-  since, including what that same shell call ran after its last mrw call.
+  receipt row under a summary that says applied, so not a dry run; for a `--quiet` write, which prints
+  no row, a hunk header for PATH in the command), and looks at what the session did since, including
+  what that same shell call ran after its last mrw call. A `--json` answer is read as the plain one:
+  a read's document as its content, a write's as its rows and summary. An `Edit`/`Write` of that path is
   a cause. A shell command that can rewrite files (a formatter, a git command that moves the tree,
   `sed -i`, `adr-verify`, `mv`, `cp`, `tee`, a Python or npm script) or an `Agent` call is a candidate
   only: nothing ties it to PATH.
@@ -104,16 +106,17 @@ transcript with no entry in the window is not counted. It prints aggregates only
   counted, nor is one built by a script.
 - E2 (a) reads this repository only. Code with more repeated lines has more identical neighbours,
   which no tag or anchor separates.
-- E3 cannot see a rule broken in prose or a refusal; it sees which tool changed a file.
+- E3 cannot see a rule broken in prose or a refusal; it sees which tool was called, whether or not the call changed a file.
 - E4's classes are a look-back, not a proof. "Nothing found" misses causes the transcript does not
   show (an editor, a hook), and a candidate may be a command or an agent that never touched the path,
-  hiding another writer. A `--json` receipt and a `--quiet` write are not recognised as the last time
-  mrw wrote a path. The second E4 row is the figure that does not depend on the candidates.
+  hiding another writer. A `--quiet` write whose plan is a file names no path the scanner can see, so
+  it is not recognised as the last time mrw wrote one. The second E4 row is the figure that does not
+  depend on the candidates.
 
 ## Run it
 
 ```sh
-python3 -I docs/bench/effect-study/test_scan.py                 # 44 checks on synthetic transcripts
+python3 -I docs/bench/effect-study/test_scan.py                 # 47 checks on synthetic transcripts
 python3 -I docs/bench/effect-study/scan.py --until 2026-11-18T10:00:00Z --repo . > results.json
 python3 -I docs/bench/effect-study/scan.py --until 2026-11-18T10:00:00Z --skip tool-multipathreadwrite
 ```

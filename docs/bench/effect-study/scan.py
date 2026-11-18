@@ -44,6 +44,7 @@ PATTERN = r"/(?:[^/\\\n]|\\.)*/"
 ADDR = r"(" + PATTERN + r"(?:,(?:" + PATTERN + r"|\+?\d+|\$))?|\S+)"
 HUNK = re.compile(
     r"^@@ " + PATH + r" " + ADDR + r" (replace|insert-after|insert-before|delete|create|unlink|rename)\b(.*)$", re.M)
+HUNK_PATH = re.compile(r"^@@ (" + PATH + r") ", re.M)
 ANCHOR = re.compile(
     r"""anchor=(?:"((?:[^"\\]|\\.)*)"|'([^']*)'|(.*?))(?=\s+(?:body|lines|sha|occurrence|from|raw)=|\s*$)""")
 ANCHOR_MISS = re.compile(r'^.*anchor ".*" not in line \d+.*$', re.M)
@@ -233,6 +234,7 @@ def scan_session(path, since, until, t):
             subs = subcommands(cmd) if cmd else set()
             if not subs:
                 continue
+            text = unfolded(text)
             for miss in ANCHOR_MISS.findall(text):
                 t.c["anchor_miss_lines"] += 1
                 misses.add(miss)
@@ -244,7 +246,7 @@ def scan_session(path, since, until, t):
             t.mrw_call_sites.append(sites)           # a call that served or changed nothing is a call of zero
             request_sites[mid][0] += sites
             request_sites[mid][2] = True
-            trail.append(("mrwres", text))
+            trail.append(("mrwres", text, cmd))
             for m in CHANGED.finditer(text):
                 t.c["changed_since_refusals"] += 1
                 t.c["changed_since_" + cause(trail, m.group(1).strip())] += 1
@@ -267,19 +269,55 @@ def scan_session(path, since, until, t):
     return any_entry
 
 
-def shows(text, rel):
+def unfolded(text):
+    """Return an mrw answer with a `--json` document in it rewritten as the lines the plain answer prints.
+
+    A read's document becomes its content. A write's becomes a row per written file, a FAIL row per
+    refused hunk and the summary line, so the patterns for plain answers read both alike.
+    """
+    at = 0 if text.startswith("{") else text.find("\n{") + 1
+    if at == 0 and not text.startswith("{"):
+        return text
+    try:
+        doc, _ = json.JSONDecoder().raw_decode(text[at:])
+    except ValueError:
+        return text
+    if not isinstance(doc, dict):
+        return text
+    if isinstance(doc.get("content"), str):
+        return text[:at] + doc["content"]
+    if not isinstance(doc.get("hunks"), list):
+        return text
+    rows = []
+    for f in doc.get("files") or []:
+        if isinstance(f, dict) and f.get("written"):
+            rows.append("ok   %s  " % f.get("path"))
+    for h in doc["hunks"]:
+        if isinstance(h, dict) and h.get("reason"):
+            rows.append("FAIL %s %s %s: %s" % (h.get("path"), h.get("addr"), h.get("op"), h["reason"]))
+    rows.append("%d hunk(s), %d file(s), %d failed — %s" % (
+        len(doc["hunks"]), len(doc.get("files") or []), doc.get("failed") or 0,
+        "applied" if doc.get("applied") else "nothing written"))
+    return text[:at] + "\n".join(rows) + "\n"
+
+
+def shows(text, rel, cmd=""):
     """Report whether an mrw answer served lines of rel or wrote it.
 
     A read: rel's header with a line count, then a range line, or the licence line a quiet read
-    prints. A write: rel's receipt row in an answer whose summary says applied, which a dry run's
-    does not.
+    prints. A write: an answer whose summary says applied, which a dry run's does not, with rel's
+    receipt row, or, for a quiet write that prints no row, with rel in a hunk header of the command.
     """
     q = re.escape(rel)
     if re.search(r"^==> " + q + r"\s+\d+L\b[^\n]*\n@@ ", text, re.M):
         return True
     if re.search(r"^==> " + q + r"\s+\d+L\b", text, re.M) and "-- licensed " in text:
         return True
-    return "— applied" in text and re.search(r"^(?:ok\s+|created |replaced )" + q + r"\s", text, re.M) is not None
+    if "— applied" not in text:
+        return False
+    if re.search(r"^(?:ok\s+|created |replaced )" + q + r"\s", text, re.M):
+        return True
+    return any(m.group(1).strip("\"'") == rel for m in HUNK_PATH.finditer(cmd))
 
 
 def cause(trail, rel):
@@ -290,7 +328,7 @@ def cause(trail, rel):
     """
     start, first = 0, None
     for i in range(len(trail) - 2, -1, -1):          # the last entry is the refusal's own answer
-        if trail[i][0] == "mrwres" and shows(trail[i][1], rel):
+        if trail[i][0] == "mrwres" and shows(trail[i][1], rel, trail[i][2]):
             start = i + 1
             # The shell call that produced the answer may have gone on to rewrite files
             # (`mrw read f && gofmt -w .`): what it ran after its last mrw call counts.
@@ -452,17 +490,26 @@ def main():
     """Parse the flags, scan, print."""
     ap = argparse.ArgumentParser(prog="scan.py", description=__doc__.split("\n")[0])
     ap.add_argument("--root", default=os.path.expanduser("~/.claude/projects"))
-    ap.add_argument("--since", type=parse_time, help="an ISO time; a bare date is midnight UTC")
-    ap.add_argument("--until", type=parse_time, help="an ISO time, exclusive")
+    ap.add_argument("--since", help="an ISO time; a bare date is midnight UTC")
+    ap.add_argument("--until", help="an ISO time, exclusive")
     ap.add_argument("--repo")
     ap.add_argument("--skip", action="append", default=[], help="leave out transcripts whose path holds this text")
     a = ap.parse_args()
+    try:                                             # no message here may echo a value or print a traceback:
+        since, until = parse_time(a.since), parse_time(a.until)      # either could name a path or a session
+    except ValueError:
+        sys.exit("scan.py: --since and --until take an ISO time")
     try:
-        out = run(a.root, a.since, a.until, a.repo, a.skip)
-    except Exception as err:                         # a traceback would print this checkout's path
-        sys.exit("scan.py: stopped on %s; nothing printed" % type(err).__name__)
-    json.dump(out, sys.stdout, indent=1, sort_keys=True)
-    sys.stdout.write("\n")
+        out = run(a.root, since, until, a.repo, a.skip)
+        json.dump(out, sys.stdout, indent=1, sort_keys=True)
+        sys.stdout.write("\n")
+        sys.stdout.flush()
+    except Exception as err:
+        try:
+            sys.stdout.close()
+        except OSError:
+            pass
+        sys.exit("scan.py: stopped on %s" % type(err).__name__)
 
 
 if __name__ == "__main__":

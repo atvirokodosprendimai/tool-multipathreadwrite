@@ -252,6 +252,36 @@ def test_changed_edges():
     check("edge causes", (r["changed_since_refusals"], r["own_edit"], r["own_shell"], r["nothing_found"]), (3, 2, 0, 1))
 
 
+def test_json_and_quiet():
+    """A --json answer counts as the plain one does, and a quiet write refreshes the paths its plan names."""
+    read_doc = json.dumps({"content": served("f.go"), "receipt": {"problems": 0}}, indent=2)
+    wrote = json.dumps({"dry_run": False, "applied": True, "failed": 0,
+                        "files": [{"path": "g.go", "written": True}],
+                        "hunks": [{"path": "g.go", "addr": "1", "op": "replace", "status": "ok"},
+                                  {"path": "g.go", "addr": "2", "op": "replace", "status": "ok"}]}, indent=2)
+    refused = json.dumps({"dry_run": False, "applied": False, "failed": 1, "files": [{"path": "f.go", "written": False}],
+                          "hunks": [{"path": "f.go", "addr": "1", "op": "replace", "status": "fail",
+                                     "reason": "f.go changed since mrw last saw it (recorded a, now b)"}]}, indent=2)
+    miss = json.dumps({"applied": False, "failed": 1, "files": [], "hunks": [
+        {"path": "a.go", "addr": "1-3", "op": "replace", "status": "fail",
+         "reason": 'anchor "func A" not in line 1: "x"; the anchor is in line 2'}]}, indent=2)
+    e = [use("m1", "t1", "Edit", {"file_path": "/r/f.go"})]                  # before the JSON read: no cause
+    e += bash("m2", "t2", "mrw read --json f.go:1", read_doc)
+    e += bash("m3", "t3", "mrw write --json p.txt", "mrw: a note on stderr\n" + refused)   # nothing_found
+    e += bash("m4", "t4", "mrw write --json p.txt", wrote)                   # two hunks; wrote g.go
+    e += bash("m5", "t5", "mrw write p.txt", refusal("g.go"))                # nothing_found: the JSON write refreshed it
+    e += bash("m6", "t6", "mrw write --json p.txt", miss)
+    e += bash("m7", "t7", "mrw read h.go:1", served("h.go"))
+    e.append(use("m8", "t8", "Edit", {"file_path": "/r/h.go"}))
+    e += bash("m9", "t9", "mrw write --quiet - <<'EOF'\n@@ h.go 1 replace\nx\nEOF", OK1)   # a quiet write of h.go
+    e += bash("m10", "t10", "mrw write p.txt", refusal("h.go"))              # nothing_found: the Edit came before it
+    r = scan_of(e)
+    check("json causes", (r["E4"]["changed_since_refusals"], r["E4"]["own_edit"], r["E4"]["nothing_found"]), (3, 0, 3))
+    check("a json miss is a miss", r["E2"]["anchor_miss_lines"], 1)
+    sites = r["E1"]["sites_per_shell_call_running_mrw"]
+    check("json sites", (sites["n"], sites["mean"]), (8, round((1 + 1 + 2 + 0 + 1 + 1 + 1 + 0) / 8, 2)))
+
+
 def test_window():
     """--since/--until: by the entry's time; undated entries; a transcript with nothing in the window."""
     undated = {"type": "assistant", "message": {"id": "u0", "usage": U, "content": []}}
@@ -276,7 +306,7 @@ def test_window():
 def main():
     """Run every case and print the mismatches."""
     for case in (test_cost, test_sites, test_shell, test_plan, test_plan_edges, test_tags, test_compaction,
-                 test_changed, test_changed_edges, test_window):
+                 test_changed, test_changed_edges, test_json_and_quiet, test_window):
         case()
     for b in BAD:
         print("FAIL " + b)
