@@ -32,10 +32,12 @@ func TestACountersFileThatStaysBusyIsNotOverwritten(t *testing.T) {
 		tally, _ := Load(root)
 		return all{tally, len(Recent(root)), LoadPricing(root), LoadNumbering(root)}
 	}
+	// Two of each: a save from zero would write one, which must not look like the history.
+	record()
 	record()
 	before := load()
-	if before.t.Plans() != 1 || before.r != 1 || before.p.Candidates != 1 || before.n.Landed != 1 {
-		t.Fatalf("the fixture did not record one of each: %+v", before)
+	if before.t.Plans() != 2 || before.r != 2 || before.p.Candidates != 2 || before.n.Landed != 2 {
+		t.Fatalf("the fixture did not record two of each: %+v", before)
 	}
 
 	real := openRegular
@@ -47,7 +49,7 @@ func TestACountersFileThatStaysBusyIsNotOverwritten(t *testing.T) {
 		t.Errorf("a busy counters file was overwritten or counted: %+v, want %+v", after, before)
 	}
 	record()
-	if after := load(); after.t.Plans() != 2 || after.r != 2 || after.p.Candidates != 2 || after.n.Landed != 2 {
+	if after := load(); after.t.Plans() != 3 || after.r != 3 || after.p.Candidates != 3 || after.n.Landed != 3 {
 		t.Errorf("once the file opens again the counts go on from the history: %+v", after)
 	}
 }
