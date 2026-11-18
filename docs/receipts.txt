@@ -258,3 +258,7 @@ run bytes
 run last
 run output_file
 run pruned_logs
+stats numbering
+stats numbering.landed_writes
+stats numbering.numbered_candidates
+stats numbering.numbered_would_refuse

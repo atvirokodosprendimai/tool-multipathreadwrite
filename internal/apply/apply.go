@@ -62,6 +62,11 @@ type HunkResult struct {
 	// --strict-balance would have refused it. Unexported: not receipt fields.
 	singleLineCode bool
 	wrapTail       bool
+	// staleNumbered and staleUnshown are ADR-200's marks: the hunk is a numbered
+	// candidate, and a line it addresses is not shown in the ledger's record.
+	// Counted, never acted on. Unexported: not receipt fields.
+	staleNumbered bool
+	staleUnshown  bool
 	// newSpan is where a replace or insert put its body in the written file,
 	// and quotedFile says every hunk on the file was licensed by a quote with
 	// no fresh ledger entry behind it (ADR-190): the writer then records spans,
@@ -267,6 +272,13 @@ type Result struct {
 	// because a refused hunk is not ok.
 	StrictSingleLine  int `json:"-"`
 	StrictWouldRefuse int `json:"-"`
+	// StaleNumbered and StaleUnshown are ADR-200's counts, and like the two
+	// above are NOT receipt fields: the validated hunks that are numbered candidates
+	// (a numbered address, no anchor=, a file mrw wrote and holds whole), and
+	// those among them addressing a line the ledger does not show. Nothing is
+	// refused by them; mrw only counts what a stale-number guard would.
+	StaleNumbered int `json:"-"`
+	StaleUnshown  int `json:"-"`
 }
 
 // pending is one file the run is about to commit: a content write, an unlink,
@@ -328,6 +340,8 @@ type hunk struct {
 	SrcAddr string
 	SrcLine int
 	Index   int
+	// staleNumbered and staleUnshown carry ADR-200's marks to the result.
+	staleNumbered, staleUnshown bool
 }
 
 // resolveTo returns a copy of h with its address and op rewritten to the form
@@ -414,6 +428,11 @@ type Options struct {
 	// Preview fills HunkResult.Before and After for each ok replace hunk
 	// (ADR-164). A plan maker's dry run sets it; nothing else does.
 	Preview bool
+
+	// Computed says mrw made the plan from the file as it is in this call
+	// (--sub, --rewrite, a foreign format): its numbers are the file's own, so
+	// ADR-200 does not count its hunks as numbered candidates.
+	Computed bool
 }
 
 // Apply validates every hunk against the working tree rooted at root and, if
@@ -428,6 +447,17 @@ type Options struct {
 func Apply(root string, in []Input, opt Options) (Result, error) {
 	res, err := apply(root, in, opt)
 	for _, h := range res.Hunks {
+		// ADR-200 Decision 2: the marks are those of every hunk that passed
+		// validation, whatever became of it at commit. A guard at validation
+		// would have stopped the whole plan, so a partial commit whose marked
+		// hunk never reached disk still counts. A plan that failed validation
+		// lands nothing and is not counted by the writer.
+		if h.staleNumbered {
+			res.StaleNumbered++
+		}
+		if h.staleUnshown {
+			res.StaleUnshown++
+		}
 		if h.Status != StatusOK {
 			continue
 		}
@@ -1792,7 +1822,9 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 			if !covered(h, min(max(start, 1), total), min(max(start, 1), total)) || !guard(start) {
 				continue
 			}
-			resolved = append(resolved, h.resolveTo(start+1, start, "insert"))
+			rh := h.resolveTo(start+1, start, "insert")
+			rh.staleNumbered, rh.staleUnshown = staleMarks(h, obs, haveObs, opt, quoted, total, start, start)
+			resolved = append(resolved, rh)
 		case "insert-before":
 			if start < 1 || start > total+1 {
 				fail(h, "line %d is out of range (file has %d lines)", start, total)
@@ -1801,7 +1833,9 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 			if !covered(h, min(max(start, 1), total), min(max(start, 1), total)) || !guard(start) {
 				continue
 			}
-			resolved = append(resolved, h.resolveTo(start, start-1, "insert"))
+			rh := h.resolveTo(start, start-1, "insert")
+			rh.staleNumbered, rh.staleUnshown = staleMarks(h, obs, haveObs, opt, quoted, total, start, start)
+			resolved = append(resolved, rh)
 		case "replace", "delete":
 			// A reversed range is caught at PARSE time when both ends are
 			// literal, but $ resolves here — so `$-1` on a 5-line file arrived
@@ -1961,7 +1995,9 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 					continue
 				}
 			}
-			resolved = append(resolved, h.resolveTo(start, end, h.Op))
+			rh := h.resolveTo(start, end, h.Op)
+			rh.staleNumbered, rh.staleUnshown = staleMarks(h, obs, haveObs, opt, quoted, total, start, end)
+			resolved = append(resolved, rh)
 		default:
 			fail(h, "unsupported op %q", h.Op)
 		}
@@ -2012,6 +2048,7 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 		cursor = h.Start
 
 		r := HunkResult{Path: path, Addr: h.SrcAddr, Op: h.SrcOp, SrcLine: h.SrcLine, Status: StatusOK}
+		r.staleNumbered, r.staleUnshown = h.staleNumbered, h.staleUnshown
 		// The lines this hunk CONSUMES, for the balance delta: an insert
 		// consumes none, so its original net is zero by construction — which
 		// is exactly why a balanced insert in the wrong place is invisible to
@@ -2650,6 +2687,39 @@ func srcAddrOf(i Input) string {
 		s += " occurrence=" + strconv.Itoa(i.Occurrence)
 	}
 	return s
+}
+
+// staleMarks is ADR-200's predicate, taken where apply holds the selected
+// observation, the op as the caller wrote it and the resolved bounds. It marks
+// and never refuses. numbered: the hunk addresses lines by number alone, names
+// at least one, carries no anchor= and no quote, in a write judged against a
+// ledger, not forced and not computed by mrw, whose record of the file is
+// whole and written-shaped, so a number from an earlier read can name another
+// line in it. unshown: one of the lines it addresses (every line of a range;
+// the line an insert names) is not shown in that record.
+func staleMarks(h hunk, obs Seen, haveObs bool, opt Options, quoted map[int]int, total, start, end int) (bool, bool) {
+	if !haveObs || opt.Force || opt.Computed || !obs.Written || !obs.Whole() {
+		return false, false
+	}
+	if _, q := quoted[h.Index]; q || h.Anchor != "" || h.StartPat != nil || (h.Start == EOF && h.End == EOF) {
+		return false, false
+	}
+	switch h.Op {
+	case "insert-after":
+		// insert-after 0 is the top of the file: no line is named.
+		if start < 1 {
+			return false, false
+		}
+	case "insert-before":
+		// Line 1 and one past the last line are positions, not lines.
+		if start < 2 || start > total {
+			return false, false
+		}
+	case "replace", "delete":
+	default:
+		return false, false
+	}
+	return true, unshown(obs, start, end) != 0
 }
 
 func trim(s string) string {

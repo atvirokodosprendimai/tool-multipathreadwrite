@@ -701,7 +701,7 @@ size is the form that gets quoted out of the population it was measured on.`,
 				enc := json.NewEncoder(os.Stdout)
 				enc.SetIndent("", "  ")
 				enc.SetEscapeHTML(false) // <, > and & stay themselves: ==> is not a different header to a raw reader (#496)
-				return enc.Encode(statsReceipt{Plans: t.Plans(), Counts: counts, Landed: t.Landed(), Failed: t["failed_check"], Pricing: authoring.LoadPricing(root)})
+				return enc.Encode(statsReceipt{Plans: t.Plans(), Counts: counts, Landed: t.Landed(), Failed: t["failed_check"], Pricing: authoring.LoadPricing(root), Numbering: authoring.LoadNumbering(root)})
 			}
 			total := t.Plans()
 			if total == 0 {
@@ -739,6 +739,16 @@ size is the form that gets quoted out of the population it was measured on.`,
 					pr.Held, pr.Broke+pr.Held, 100*rate)
 			} else {
 				fmt.Printf("  no checked refusals yet — pre-registered bar: under 5%% false positives in every corpus, 50 refusals total (BACKLOG)\n")
+			}
+			// ADR-200: how many landings a guard on stale line numbers would
+			// have refused, beside the bar written before the count existed.
+			nb := authoring.LoadNumbering(root)
+			fmt.Printf("\nstale-number pricing: this root's count since the counter began: %d landed writes; %d with a numbered hunk, no anchor=, on a file mrw holds whole as written; %d where a line it addresses was not shown in that record\n",
+				nb.Landed, nb.Candidates, nb.WouldRefuse)
+			if nb.Landed > 0 {
+				fmt.Printf("  would-refuse share of landed writes %.1f%% — pre-registered threshold: at most 5%% of landed writes, read 2026-12-18 (BACKLOG)\n", 100*float64(nb.WouldRefuse)/float64(nb.Landed))
+			} else {
+				fmt.Printf("  no landed writes counted yet — pre-registered threshold: at most 5%% of landed writes, read 2026-12-18 (BACKLOG)\n")
 			}
 			fmt.Printf("\n%d plan(s) recorded in this checkout. The rate is valid for THIS population;\n"+
 				"a number from one repository and one family of callers is not a general one.\n", total)
@@ -2278,6 +2288,9 @@ held or went unchecked.`,
 					EchoPad:       cmd.Int("echo-pad"),
 					Preview:       cmd.Bool("dry-run") && planned, // ADR-164: a plan maker's dry run shows each change
 					StrictBalance: cmd.Bool("strict-balance"),
+					// ADR-200: a plan mrw built from the file as it is (--sub,
+					// --rewrite, a foreign format) is not a typed one.
+					Computed: planned || format == "apply_patch" || format == "search_replace",
 				},
 			})
 			if err != nil {
@@ -2481,11 +2494,12 @@ type checkReceipt struct {
 // statsReceipt is `mrw stats --json` (ADR-054): every vocabulary key in counts,
 // zero included, and the derived pair. Named so ADR-111's test can hold its keys.
 type statsReceipt struct {
-	Plans   int               `json:"plans"`
-	Counts  map[string]int    `json:"counts"`
-	Landed  int               `json:"landed"`
-	Failed  int               `json:"failed_check_of_landed"`
-	Pricing authoring.Pricing `json:"pricing"`
+	Plans     int                 `json:"plans"`
+	Counts    map[string]int      `json:"counts"`
+	Landed    int                 `json:"landed"`
+	Failed    int                 `json:"failed_check_of_landed"`
+	Pricing   authoring.Pricing   `json:"pricing"`
+	Numbering authoring.Numbering `json:"numbering"`
 }
 
 // checkRefusal is a `mrw check --json` refusal (ADR-100): the error, and the

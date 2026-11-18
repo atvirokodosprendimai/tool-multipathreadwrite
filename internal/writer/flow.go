@@ -203,6 +203,12 @@ func (p *Prepared) Land() (*Landed, error) {
 			_ = authoring.Record(root, authoring.Applied)
 		}
 	}
+	// ADR-200: every call that left anything on disk is counted here, once,
+	// before a check runs and by no other phase: a clean commit, a commit whose
+	// ledger update failed, and a partial commit alike.
+	if MutationOf(res) != None {
+		_ = authoring.RecordNumbering(root, res.StaleNumbered, res.StaleUnshown)
+	}
 	return l, nil
 }
 
