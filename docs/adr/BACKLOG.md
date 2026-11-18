@@ -1249,9 +1249,156 @@ at a neighbouring compaction, which the bar does not. No bar moved; no verdict c
 
 - **E1 is met.** Done 2026-11-18: `scripts/measure.sh` prints "requests if batched" rows beside its calls rows, and `docs/measure.md` says what the two ends are and quotes this reading with its limits.
   The share says where the cost sits, not which of requests and bytes moves it; neither was varied.
-- **E2 is met on its second arm.** Open: a draft record for a line tag as a plan address, for Zy. The
+- **E2 is met on its second arm.** Drafted as ADR-200 (Proposed), which measures before it builds; its two challenges turned it from a line tag to the stale number. The
   2.23% is a ratio of result lines to hunks typed, not a refusal rate, and the 22.3% is exposure, not a
   measured rate of wrong single-line replaces; the record has to price both.
 - **E3 closes.** The host's edit tools gain six tenths of a point after a compaction on this corpus.
 - **E4 closes.** Even counting every such refusal that did not follow the session's own `Edit` of the
   path, 51 or 0.33% of write calls, the bar is not reached.
+
+## Pre-registered for ADR-200 (a line number alone does not say which line a replace means) — written before the scanner is changed
+
+ADR-200 is the draft record E2 earned above. It builds nothing until this is read.
+
+**Amended 2026-11-18, before any run.** The first version of this entry (pushed as 7511e669) registered
+one ratio, anchor misses on single-line addresses over anchored single-line replaces. Two challenges of
+the draft showed that its two counts were different populations, and that it did not observe the failure
+that matters: a number carried across the session's own write, which lands on the shifted line (reproduced
+on v1.88.0, in the record's Context). The scanner had not been changed and nothing had been run by this
+session. One challenger disclosed a raw `rg` over the transcripts, with no de-duplication or window, whose
+output it did not report; the measures below were written without it.
+
+**M1, the stale number** (ADR-200 T1). Hunks with a numeric address sent to a file after the session's
+own mrw write moved that file's numbers at or above the address, with no read of the addressed line
+between. Where both the line that had the number and the line that has it now were served, and the hunk
+has a body: **stale** when the body's first line resembles the first by a `difflib` ratio at least 0.2
+above the second, **renumbered** in the reverse case, **unclassified** otherwise.
+*Bar.* M1 is met when stale hunks are **at least 10** and **at least 2.0% of the classified after-shift
+hunks**, in the run without this repository's sessions. Fewer than 100 classified hunks is "insufficient",
+not a miss.
+
+**M2, the wrong number in a served range.** Single-line `replace` attempts carrying `anchor=`, typed
+inline and joined to their own result row by path, address and plan line: the share refused for the
+anchor, split by the refusal's ending (on another line, on no line, the quoting case).
+*Bar.* M2 is met when refusals that name the anchor **on another line** are **at least 1.0% of joined
+attempts**, on **at least 200** joined attempts, in the run without this repository's sessions. Fewer than
+200 is "insufficient", not a miss. This is a rate among callers that chose to anchor.
+
+**What each outcome does** is ADR-200's Decision 3: M1 met, the receipt says where the numbers moved
+and a hunk at a moved number is refused once; M2 alone met, a second record chooses among a required
+anchor, a tag and a receipt quote; neither met, the record is withdrawn with the numbers; either
+"insufficient", the record waits and says so.
+
+**Deferred from ADR-200**, each with what it waits for:
+- A guard on `insert-after`, `insert-before` and `from=` addresses: waits for M1's count by op.
+- The choice among anchor, tag and receipt quote: waits for M2's split.
+- Tags over `mrw_read` and its checkpoints: wait for a record that chooses the tag.
+- Any change to `internal/read`, `internal/plan`, `internal/apply` or `internal/seen` for ADR-200: waits
+  for T1's reading and Zy's acceptance.
+
+**Amended again 2026-11-18, before any run, and this replaces M1, M2 and "What each outcome does" above.**
+Zy, asked to choose among three ways on for ADR-200, answered *"make improvement to ours solution. Make it
+best"*; this session reads that as the guard, and says so in the record. A second Codex xhigh challenge had
+shown that M1's `difflib` label is unreliable (the record's own reproduction comes out unclassified), that
+M2's join key is absent on `ok` rows, and that "refused once" was not a contract. The scanner had still not
+been changed and nothing had been run. M1 and M2 are withdrawn unrun. What is measured instead is the
+guard's price, which needs no guess at what a caller meant.
+
+**The rule priced (ADR-200 Decision 1), in two widths.** A hunk whose op is `replace`, `delete`,
+`insert-after` or `insert-before`, whose address is a line number (`N`, `N-M`, `N,+K`; not `$`, not line 0,
+not a pattern) and which carries no `anchor=`, sent to a file the session's own mrw write has changed, is
+refused when a line it addresses was not shown by an mrw read since that write.
+- *Width A* (no new ledger state): every line of a written file is unshown until a read serves it.
+- *Width B*: a line shown before the write stays shown when the write left it where it was: it is above
+  the first hunk of that write that added or removed lines, and inside no range the write replaced. A hunk
+  of the earlier write addressed by pattern, or whose line count the scanner cannot read, moves every line.
+
+**E5, the count** (`docs/bench/effect-study/scan.py`, by session, in transcript order).
+- *Plans counted.* Plans typed into the shell command that runs `mrw write` (a heredoc or a quoted string).
+  A plan in a file is not counted, and the number of `mrw write` calls that name a plan file is reported.
+- *W* = `mrw write` shell calls with at least one typed hunk whose answer says `applied`.
+- *Shown.* The line numbers an mrw read answer printed under a file's `==>` header. A read under `--quiet`
+  shows nothing. A shell command that pipes or redirects an mrw read's output makes every written file it
+  names UNCERTAIN until that file's next write, since the transcript cannot show what reached the caller.
+- *R_A*, *R_B* = calls of W with at least one hunk the rule refuses at that width, on a file that is not
+  UNCERTAIN. *U* = calls of W not in R_A with a candidate hunk on an UNCERTAIN file.
+- *Reported beside them, not part of the verdict:* the calls of W with any anchorless numbered hunk on a
+  written file whatever was read since (the ceiling); refused hunks by op; refused hunks on a file the
+  session itself created; shell commands that run `mrw write` more than once (a second plan in one command
+  is judged against the state before the command, so this count bounds what that misses).
+- *Runs.* The same window as E1-E4 (entries before 2026-11-18T10:00:00Z), with and without this
+  repository's sessions. The verdict is read on the run without them.
+
+**Verdict, the first rule that applies.** INSUFFICIENT if W < 200. **BUILD A** if R_A ≤ 5% of W and
+R_A + U ≤ 10% of W. Otherwise **BUILD B** if R_B ≤ 5% of W and R_B + U ≤ 10% of W. Otherwise **STOP**:
+nothing is built and Zy reads the numbers. 5% is ADR-009's bar for a refusal rate the format may cost.
+
+**How the scanner reads what the rule leaves open**, written 2026-11-18 with the scanner and its synthetic
+tests, before any run over transcripts:
+- `N-$` is a numbered address, judged on line N. An insert at line 0 is not one.
+- A read whose output is captured (`$(mrw read …)`) is piped; `2>` alone is not a redirect.
+- A hunk is a *candidate* on an UNCERTAIN file only when the lines the transcript shows would refuse it:
+  what a piped read did print is shown. U is counted per width, U_A and U_B, and the verdict uses the
+  width's own.
+- In one shell command, reads that all come before the first write are applied before the plan is judged;
+  otherwise the plan is judged on the state before the command, and the reads are applied after it.
+- The host's own Edit or Write of a file ends its tracking: mrw refuses that file until it is read again,
+  and a read is not a write's licence.
+- A landed write with no typed plan (a plan file, `--create`, a plan maker) marks the files its receipt
+  rows name as written, with nothing shown at either width.
+- Not seen, each making R larger than the engine's would be: lines licensed by the host's Read through
+  `mrw hook read`, a read with `-N`, and a walk (`--grep`) whose piped output names no file.
+
+**What this does not measure.** The benefit. How often a stale number is sent and lands is still unknown
+(the measure withdrawn above could not tell). The guard is built on a reproduced failure and a priced
+refusal, not on a counted harm, and ADR-200 says so. After a release that carries it, the count that needs
+no guess is refusals of a guarded hunk whose `anchor=` missed and was found on another line (ADR-197).
+
+**Deferred from ADR-200**, replacing the list above: a guard on `from=` source addresses (they are already
+refused unless shown, ADR-167); the last line of a multi-line range (ADR-035); a tag beside the served line
+number (waits for evidence the anchor guard does not reach the failure).
+
+**Measured 2026-11-18 for ADR-200 (E5): STOP, on three runs.** The entry above is on the branch
+`adr-200-anchor-guard` as `4d1e6e38` and the scanner with its reading rules as `8b154037`; that branch is
+kept on the remote, since a squash merge does not carry them. The first run was read at `8b154037`. Two
+Codex reviews (gpt-6.2-sol: twelve findings, then eight) and one check of this session's own found
+counting defects in both directions. Those with a bounded fix were fixed, each with a test that fails on
+the scanner before it, and the scanner was run again at `2d4316b8` and at `18b48da7`, the rule and the bars
+untouched each time. The third run is the reading; the first two are kept beside it
+(`results-e5-first-run*.json`, `results-e5-second-run*.json`). Entries before 2026-11-18T10:00:00Z, one
+run of each column.
+
+| without this repository | first run | second run | **third run** | bar |
+|---|---|---|---|---|
+| W, landed write calls with a typed plan | 6,700 | 6,700 | **6,700** | at least 200 |
+| R_A, refused at width A | 395 (5.90%) | 394 (5.88%) | **339 (5.06%)** | at most 5% |
+| R_B, refused at width B | 348 (5.19%) | 346 (5.16%) | **303 (4.52%)** | at most 5% |
+| U_A, uncertain at width A | 835 (12.46%) | 876 (13.07%) | **931 (13.90%)** | |
+| U_B, uncertain at width B | 787 (11.75%) | 831 (12.40%) | **874 (13.04%)** | |
+| R_A + U_A | 18.36% | 18.96% | **18.96%** | at most 10% |
+| R_B + U_B | 16.94% | 17.57% | **17.57%** | at most 10% |
+| verdict | STOP | STOP | **STOP** | |
+
+Third run, all sessions: W 9,183; R_A 551 (6.00%); R_B 498 (5.42%); U_A 1,164; U_B 1,095. Beside the
+verdict, without this repository: 2,670 calls sent an anchorless numbered hunk to a written file (39.9% of
+W); the hunks refused at width A are 306 `replace`, 44 `delete`, 239 `insert-after` and 31 `insert-before`,
+620 in all, 276 of them on a file the session's own `create` or `--create` made; 1,093 shell commands ran
+`mrw write` more than once, landed or not; 2,736 landed write calls had no plan the scanner could read and
+were not judged.
+
+**What the three runs say.** From the first run to the third the refused share fell by 0.84 points at
+width A and 0.67 at width B, as the scanner was corrected: at width A it is now over the 5% bar by 0.06
+points, at width B under it. Between the second and third runs the refused counts fell by 55 and 43 and
+the uncertain counts rose by the same numbers, so refused with uncertain is 18.96% and 17.57% on both.
+The pre-registered rule charges every uncertain call against the 10% bound, and so returns STOP. It does
+not say the guard would cost that much: at width B the bound leaves room for 32 of the 874 uncertain
+calls to be refusals, and the transcripts cannot say how many are. By the rule written before the first
+run, nothing is built and the numbers go to Zy.
+
+Of the 2,670 calls with an anchorless numbered hunk on a written file, at width A the scanner classed 339
+as refused, 931 as uncertain and 1,400 as neither. Width B refuses 36 fewer calls than width A. Whether a
+rule that treats the lines of a file the caller itself created as known to it would pass was not priced;
+this corpus has now been seen, so pricing it needs its own entry and entries after the cut-off. A transcript
+cannot settle the uncertain share: the ledger records what a piped read served, and the transcript does
+not. A count taken from the ledger itself, as `mrw stats` prices `--strict-balance` (ADR-056), would have
+none. The limits that remain, each with its direction, are in `docs/bench/effect-study/README.md`.

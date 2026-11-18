@@ -1,0 +1,30 @@
+{
+ "E5": {
+  "ceiling_calls": 3647,
+  "ceiling_pct": 39.715,
+  "chained_write_commands": 798,
+  "landed_calls_with_no_typed_plan": 3627,
+  "landed_plan_calls": 9183,
+  "refused_a_pct": 6.61,
+  "refused_b_pct": 5.87,
+  "refused_calls_a": 607,
+  "refused_calls_b": 539,
+  "refused_hunks_by_op": {
+   "delete": 73,
+   "insert-after": 388,
+   "insert-before": 46,
+   "replace": 445
+  },
+  "refused_hunks_on_created": 380,
+  "uncertain_calls_a": 1048,
+  "uncertain_calls_b": 992,
+  "verdict": "STOP"
+ },
+ "corpus": {
+  "compactions": 199,
+  "mrw_write_calls": 15422,
+  "requests": 97605,
+  "transcripts": 942,
+  "unreadable": 0
+ }
+}
