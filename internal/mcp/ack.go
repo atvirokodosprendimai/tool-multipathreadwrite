@@ -523,14 +523,23 @@ func readPending(root string) (map[string]pending, error) {
 	return loadPending(root)
 }
 
+// readPendingFile is regular.ReadFile, as a variable so a test can hold the
+// store busy. It never falls back to a blocking open (ADR-201).
+var readPendingFile = regular.ReadFile
+
+// loadPending reads the store. A store that is missing, that is not a regular
+// file (a FIFO there is read without blocking and is refused) or that will not
+// parse is an empty one, which licenses nothing and which the next save
+// replaces; a read that failed for another reason is an error, so nothing is
+// saved over a store that could not be read (ADR-201).
 func loadPending(root string) (map[string]pending, error) {
 	p, err := pendingPath(root)
 	if err != nil {
 		return nil, err
 	}
-	b, err := os.ReadFile(p)
+	b, err := readPendingFile(p)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, os.ErrNotExist) || errors.Is(err, regular.ErrNotRegular) {
 			return map[string]pending{}, nil
 		}
 		return nil, err

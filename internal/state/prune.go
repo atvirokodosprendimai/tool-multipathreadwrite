@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/regular"
 )
 
 // Entry is one per-root state directory under the state base, described well
@@ -462,7 +464,7 @@ func isDead(path string) bool {
 
 // readAll reads one file inside an entry through its handle.
 func readAll(sub *os.Root, name string) ([]byte, error) {
-	f, err := sub.Open(name)
+	f, _, err := regular.OpenIn(sub, name)
 	if err != nil {
 		return nil, err
 	}

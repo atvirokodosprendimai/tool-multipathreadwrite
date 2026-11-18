@@ -53,6 +53,13 @@ func About(err error) bool {
 func about(err error, base string) bool {
 	var pe *fs.PathError
 	if errors.As(err, &pe) {
+		// A lock that could not be taken names its lock file (ADR-201), which
+		// is under base. It is not a state directory that cannot be written:
+		// the hint would send the caller to fix a directory that is fine, and
+		// a read would serve and exit 0 where it has always exited 2.
+		if pe.Op == "lock" {
+			return false
+		}
 		return within(pe.Path, base) || (pe.Op == "mkdir" || pe.Op == "open" || pe.Op == "openat") && within(base, pe.Path)
 	}
 	var le *os.LinkError

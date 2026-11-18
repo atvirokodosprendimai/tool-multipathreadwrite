@@ -20,6 +20,7 @@ import (
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/check"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/guide"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/regular"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/state"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/writer"
 )
@@ -303,7 +304,7 @@ func commas(n int64) string {
 // lastChars characters. Like read, it splits on CR only when the whole file
 // holds no LF. Nothing is held but one line's first lastScanBytes.
 func scanLog(path string) (lines int, size int64, last string) {
-	f, err := os.Open(path)
+	f, _, err := regular.Open(path)
 	if err != nil {
 		return 0, 0, ""
 	}

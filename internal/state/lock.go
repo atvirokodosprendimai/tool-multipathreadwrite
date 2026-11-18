@@ -1,13 +1,17 @@
 package state
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/regular"
 )
 
 // Hold opens the lock file name in root's state directory and takes it
@@ -32,11 +36,11 @@ func Hold(root, name string) (func(), error) {
 	}
 	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0o600)
 	if err != nil {
-		return nil, err
+		return nil, lockError(path, err)
 	}
 	if err := lock(f); err != nil {
 		_ = f.Close()
-		return nil, err
+		return nil, lockError(path, err)
 	}
 	var once sync.Once
 	return func() {
@@ -56,6 +60,10 @@ func HoldWithin(root, name string, wait time.Duration) (func(), error) {
 	}
 	return HoldFileWithin(path, wait)
 }
+
+// tryLockFile is tryLock, as a variable so a test can make the lock itself
+// fail on a platform where a lock on any file it can build succeeds.
+var tryLockFile = tryLock
 
 // HoldFileWithin takes the lock file at path exclusively, making its directory
 // if need be. It tries the lock without blocking and retries with a growing
@@ -78,15 +86,15 @@ func HoldFileWithin(path string, wait time.Duration) (func(), error) {
 	}
 	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0o600)
 	if err != nil {
-		return nil, err
+		return nil, lockError(path, err)
 	}
 	deadline := time.Now().Add(wait)
 	pause := 10 * time.Millisecond
 	for {
-		ok, err := tryLock(f)
+		ok, err := tryLockFile(f)
 		if err != nil {
 			_ = f.Close()
-			return nil, err
+			return nil, lockError(path, err)
 		}
 		if ok {
 			break
@@ -110,9 +118,22 @@ func HoldFileWithin(path string, wait time.Duration) (func(), error) {
 	}, nil
 }
 
-// holderOf reads the pid the lock's last taker wrote beside it, or "".
+// lockError gives an error from opening or locking the lock file at path the
+// path it was about (ADR-201), as an *fs.PathError the CLI's state hint
+// recognises; one that already names a path is returned as it is.
+func lockError(path string, err error) error {
+	var pe *fs.PathError
+	if errors.As(err, &pe) {
+		return err
+	}
+	return &fs.PathError{Op: "lock", Path: path, Err: err}
+}
+
+// holderOf reads the pid the lock's last taker wrote beside it, or "". The file
+// is read without blocking: a FIFO there is no holder, and must not defeat the
+// wait that has just run out (ADR-201).
 func holderOf(path string) string {
-	b, err := os.ReadFile(path + ".holder")
+	b, err := regular.ReadFile(path + ".holder")
 	if err != nil {
 		return ""
 	}

@@ -8,7 +8,7 @@
 **Consumes:** `regular.Open` (ADR-109); `internal/apply/tree.go`'s open through an `*os.Root` and `internal/authoring`'s opener variable (#663) as patterns
 **Data dependency:** none — hermetic
 **Proof map:** v1
-**Rests-on:** `a FIFO at a state file returns at once with its decided outcome`, `a counter that could not be read is not overwritten`, `a lock error names its file`, `a regular file reads as before on every platform`, `the built binary is not held by a FIFO at a marker`, `the engine packages this record does not own are untouched`
+**Rests-on:** `a FIFO at a state file returns at once with its decided outcome`, `a counter that could not be read is not overwritten`, `a lock error names its file`, `a regular file reads as before on every platform`, `the engine packages this record does not own are untouched`
 
 ## Goal
 
@@ -30,7 +30,7 @@ And:
 - **a lock error names its file.** Taking a lock whose file is a FIFO either takes it (and a second taker with a zero wait is refused, so it is a lock) or returns an error that is an `*fs.PathError` naming the lock file. The test says which the platform gave.
 - **a regular file reads as before on every platform**: `regular.ReadFile` returns a regular file's bytes, `fs.ErrNotExist` for a missing one, and an error for a directory; none of these tests is unix-only.
 
-`regular.ReadFile` and `regular.OpenIn` return path-bearing errors (`*fs.PathError`), so `statehint.About` still recognises a state failure.
+`regular.ReadFile` returns path-bearing errors (`*fs.PathError` with the full path), so `statehint.About` still recognises a state failure. `regular.OpenIn`'s errors carry the name inside its `*os.Root`, as that root's own errors do; its one caller discards the error. A lock error is path-bearing and is deliberately NOT a state-directory failure to `statehint.About`: an unlockable ledger lock keeps exiting 2, with its file named.
 
 ## Affected Files
 
@@ -98,8 +98,66 @@ go test -count=1 -v ./internal/regular ./internal/state ./internal/writer ./inte
 | 4 — it is used | telemetry is refused by ADR-009; the evidence for building it is three hangs reproduced on v1.89.0 and the four files #662 and #663 already fixed |
 
 ## Mutation Log
+- 2026-11-18 · 3316a5ee* · mutant killed · exit 1 · `internal/state/state.go` · the marker is read blocking, so Dir with a FIFO at the marker must reach its deadline · acceptance-sha256:b9da4be7be3d4babc4a30272871dca8a242cf03a8c1c80b235665e8a4115c614 · covers:a FIFO at a state file returns at once with its decided outcome
+- 2026-11-18 · 3316a5ee* · mutant killed · exit 1 · `internal/state/prune.go` · the prune read opens blocking, so Entries with a FIFO marker must reach its deadline · acceptance-sha256:b9da4be7be3d4babc4a30272871dca8a242cf03a8c1c80b235665e8a4115c614 · covers:a FIFO at a state file returns at once with its decided outcome
+- 2026-11-18 · 3316a5ee* · mutant killed · exit 1 · `internal/state/lock.go` · the holder is read blocking, so a refused lock with a FIFO holder must reach its deadline · acceptance-sha256:b9da4be7be3d4babc4a30272871dca8a242cf03a8c1c80b235665e8a4115c614 · covers:a FIFO at a state file returns at once with its decided outcome
+- 2026-11-18 · 3316a5ee* · mutant killed · exit 1 · `internal/writer/writes.go` · a FIFO counter is a failed read, so the bump over a FIFO must not leave 1 and go red · acceptance-sha256:b9da4be7be3d4babc4a30272871dca8a242cf03a8c1c80b235665e8a4115c614 · covers:a FIFO at a state file returns at once with its decided outcome
+- 2026-11-18 · 3316a5ee* · mutant killed · exit 1 · `internal/mcp/ack.go` · the pending store is read blocking, so loadPending with a FIFO must reach its deadline · acceptance-sha256:b9da4be7be3d4babc4a30272871dca8a242cf03a8c1c80b235665e8a4115c614 · covers:a FIFO at a state file returns at once with its decided outcome
+- 2026-11-18 · 3316a5ee* · mutant killed · exit 1 · `internal/mcp/ack.go` · a pending store that is not a regular file is an error, so the empty-store case must go red · acceptance-sha256:b9da4be7be3d4babc4a30272871dca8a242cf03a8c1c80b235665e8a4115c614 · covers:a FIFO at a state file returns at once with its decided outcome
+- 2026-11-18 · 3316a5ee* · mutant killed · exit 1 · `cmd/mrw/run177.go` · scanLog opens blocking, so a FIFO log must reach its deadline · acceptance-sha256:b9da4be7be3d4babc4a30272871dca8a242cf03a8c1c80b235665e8a4115c614 · covers:a FIFO at a state file returns at once with its decided outcome
+- 2026-11-18 · 3316a5ee* · mutant killed · exit 1 · `internal/regular/regular.go` · OpenIn opens blocking, so its FIFO case must reach its deadline · acceptance-sha256:b9da4be7be3d4babc4a30272871dca8a242cf03a8c1c80b235665e8a4115c614 · covers:a FIFO at a state file returns at once with its decided outcome
+- 2026-11-18 · 3316a5ee* · mutant killed · exit 1 · `internal/writer/writes.go` · the bump writes over a counter it could not read, so 7 must become 1 and go red · acceptance-sha256:b9da4be7be3d4babc4a30272871dca8a242cf03a8c1c80b235665e8a4115c614 · covers:a counter that could not be read is not overwritten
+- 2026-11-18 · 3316a5ee* · mutant killed · exit 1 · `internal/writer/writes.go` · a counter that does not parse is a failed read, so it must not be bumped to 1 and go red · acceptance-sha256:b9da4be7be3d4babc4a30272871dca8a242cf03a8c1c80b235665e8a4115c614 · covers:a counter that could not be read is not overwritten
+- 2026-11-18 · 3316a5ee* · mutant killed · exit 1 · `internal/state/lock.go` · a lock error is returned bare, so the lock case must find no path and go red · acceptance-sha256:b9da4be7be3d4babc4a30272871dca8a242cf03a8c1c80b235665e8a4115c614 · covers:a lock error names its file
+- 2026-11-18 · 3316a5ee* · mutant survived · exit 0 · `internal/regular/regular.go` · a directory is read as a file, so the directory control must go red · acceptance-sha256:b9da4be7be3d4babc4a30272871dca8a242cf03a8c1c80b235665e8a4115c614 · covers:a regular file reads as before on every platform
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
+- 2026-11-18 · 3316a5ee* · mutant killed · exit 1 · `internal/seen/seen.go` · an engine package this record does not own is changed, so the byte-identical clause must go red · acceptance-sha256:b9da4be7be3d4babc4a30272871dca8a242cf03a8c1c80b235665e8a4115c614 · covers:the engine packages this record does not own are untouched
+- 2026-11-18 · 3316a5ee* · mutant killed · exit 1 · `internal/check/check.go` · lastLines opens blocking, so a FIFO log must reach its deadline · acceptance-sha256:b9da4be7be3d4babc4a30272871dca8a242cf03a8c1c80b235665e8a4115c614 · covers:a FIFO at a state file returns at once with its decided outcome
+- 2026-11-18 · 3316a5ee* · mutant killed · exit 1 · `internal/regular/regular.go` · a regular file is read short, so the regular-file control must go red · acceptance-sha256:b9da4be7be3d4babc4a30272871dca8a242cf03a8c1c80b235665e8a4115c614 · covers:a regular file reads as before on every platform
+- 2026-11-18 · 3316a5ee* · mutant killed · exit 1 · `internal/state/lock.go` · a lock error is returned bare, so the made-to-fail lock must find no path and go red on every unix · acceptance-sha256:b9da4be7be3d4babc4a30272871dca8a242cf03a8c1c80b235665e8a4115c614 · covers:a lock error names its file
+- 2026-11-18 · 3316a5ee* · mutant killed · exit 1 · `internal/writer/writes.go` · the bump writes over a counter it could not read: the busy case and the write-only case must both go red · acceptance-sha256:b9da4be7be3d4babc4a30272871dca8a242cf03a8c1c80b235665e8a4115c614 · covers:a counter that could not be read is not overwritten
+- 2026-11-18 · 3316a5ee* · mutant killed · exit 1 · `internal/mcp/ack.go` · a non-regular pending store is an error, so the hold over a FIFO must fail and go red · acceptance-sha256:b9da4be7be3d4babc4a30272871dca8a242cf03a8c1c80b235665e8a4115c614 · covers:a FIFO at a state file returns at once with its decided outcome
 
 ## Verification Log
+- 2026-11-18 · 3316a5ee* · exit 1 · `set -o pipefail …` · acceptance-sha256:b9da4be7be3d4babc4a30272871dca8a242cf03a8c1c80b235665e8a4115c614 · ms:15770 · test-lock-sha256:95b6b5957ed20d5328b85900b6de750722a4f80699c9bf135f60bb31bd0ce8b4 · test-lock-file:docs/adr/locks/95b6b5957ed20d5328b85900b6de750722a4f80699c9bf135f60bb31bd0ce8b4.lock
+  ```
+  --- last 10 line(s) of stderr (of 17 after folding 17 raw)
+  internal/regular/readfile201_unix_test.go:33:17: undefined: OpenIn
+  # github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/writer [github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/writer.test]
+  internal/writer/writes201_test.go:35:10: undefined: readCounter
+  internal/writer/writes201_test.go:36:21: undefined: readCounter
+  internal/writer/writes201_test.go:37:2: undefined: readCounter
+  internal/writer/writes201_test.go:44:2: undefined: readCounter
+  # github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/mcp [github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/mcp.test]
+  internal/mcp/pending201_unix_test.go:82:11: undefined: readPendingFile
+  internal/mcp/pending201_unix_test.go:83:22: undefined: readPendingFile
+  internal/mcp/pending201_unix_test.go:84:3: undefined: readPendingFile
+  ```
+- 2026-11-18 · 3316a5ee* · exit 0 · `set -o pipefail …` · acceptance-sha256:b9da4be7be3d4babc4a30272871dca8a242cf03a8c1c80b235665e8a4115c614 · ms:619
+- 2026-11-18 · 3316a5ee* · exit 0 · `set -o pipefail …` · acceptance-sha256:b9da4be7be3d4babc4a30272871dca8a242cf03a8c1c80b235665e8a4115c614 · ms:9009
+- 2026-11-18 · 3316a5ee* · exit 0 · `set -o pipefail …` · acceptance-sha256:b9da4be7be3d4babc4a30272871dca8a242cf03a8c1c80b235665e8a4115c614 · ms:8870
+- 2026-11-18 · 3316a5ee* · exit 0 · `set -o pipefail …` · acceptance-sha256:b9da4be7be3d4babc4a30272871dca8a242cf03a8c1c80b235665e8a4115c614 · ms:6868
+- 2026-11-18 · 3316a5ee* · exit 0 · `set -o pipefail …` · acceptance-sha256:b9da4be7be3d4babc4a30272871dca8a242cf03a8c1c80b235665e8a4115c614 · ms:5149
+- 2026-11-18 · 3316a5ee* · exit 0 · `set -o pipefail …` · acceptance-sha256:b9da4be7be3d4babc4a30272871dca8a242cf03a8c1c80b235665e8a4115c614 · ms:4397
+- 2026-11-18 · 3316a5ee* · exit 0 · `set -o pipefail …` · acceptance-sha256:b9da4be7be3d4babc4a30272871dca8a242cf03a8c1c80b235665e8a4115c614 · ms:3425
+- 2026-11-18 · 3316a5ee* · exit 0 · `set -o pipefail …` · acceptance-sha256:b9da4be7be3d4babc4a30272871dca8a242cf03a8c1c80b235665e8a4115c614 · ms:2665
+- 2026-11-18 · 3316a5ee* · exit 0 · `set -o pipefail …` · acceptance-sha256:b9da4be7be3d4babc4a30272871dca8a242cf03a8c1c80b235665e8a4115c614 · ms:2758
+- 2026-11-18 · 3316a5ee* · exit 0 · `set -o pipefail …` · acceptance-sha256:b9da4be7be3d4babc4a30272871dca8a242cf03a8c1c80b235665e8a4115c614 · ms:2159
+- 2026-11-18 · 3316a5ee* · exit 0 · `set -o pipefail …` · acceptance-sha256:b9da4be7be3d4babc4a30272871dca8a242cf03a8c1c80b235665e8a4115c614 · ms:2473
+- 2026-11-18 · 3316a5ee* · exit 0 · `set -o pipefail …` · acceptance-sha256:b9da4be7be3d4babc4a30272871dca8a242cf03a8c1c80b235665e8a4115c614 · ms:2057
+- 2026-11-18 · 3316a5ee* · exit 0 · `set -o pipefail …` · acceptance-sha256:b9da4be7be3d4babc4a30272871dca8a242cf03a8c1c80b235665e8a4115c614 · ms:2408
+- 2026-11-18 · 3316a5ee* · exit 0 · `set -o pipefail …` · acceptance-sha256:b9da4be7be3d4babc4a30272871dca8a242cf03a8c1c80b235665e8a4115c614 · ms:2156
+- 2026-11-18 · 3316a5ee* · exit 0 · `set -o pipefail …` · acceptance-sha256:b9da4be7be3d4babc4a30272871dca8a242cf03a8c1c80b235665e8a4115c614 · ms:3791
+- 2026-11-18 · 3316a5ee* · exit 0 · `set -o pipefail …` · acceptance-sha256:b9da4be7be3d4babc4a30272871dca8a242cf03a8c1c80b235665e8a4115c614 · ms:3812
+- 2026-11-18 · 3316a5ee* · exit 0 · `set -o pipefail …` · acceptance-sha256:b9da4be7be3d4babc4a30272871dca8a242cf03a8c1c80b235665e8a4115c614 · ms:3269
+- 2026-11-18 · 3316a5ee* · exit 0 · `set -o pipefail …` · acceptance-sha256:b9da4be7be3d4babc4a30272871dca8a242cf03a8c1c80b235665e8a4115c614 · ms:1526
+- 2026-11-18 · 3316a5ee* · exit 0 · `set -o pipefail …` · acceptance-sha256:b9da4be7be3d4babc4a30272871dca8a242cf03a8c1c80b235665e8a4115c614 · ms:1971
+- 2026-11-18 · 3316a5ee* · exit 0 · `set -o pipefail …` · acceptance-sha256:b9da4be7be3d4babc4a30272871dca8a242cf03a8c1c80b235665e8a4115c614 · ms:2011
+- 2026-11-18 · 3316a5ee* · exit 0 · `set -o pipefail …` · acceptance-sha256:b9da4be7be3d4babc4a30272871dca8a242cf03a8c1c80b235665e8a4115c614 · ms:2078
+- 2026-11-18 · 3316a5ee* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:b9da4be7be3d4babc4a30272871dca8a242cf03a8c1c80b235665e8a4115c614 · ms:0 · test-lock-sha256:085634ae084411c79bda5a405529efcc529ccdfd48b7cfe36040cf68fb9e7ec4 · test-lock-file:docs/adr/locks/085634ae084411c79bda5a405529efcc529ccdfd48b7cfe36040cf68fb9e7ec4.lock · test-lock-kind:replace
+- 2026-11-18 · 3316a5ee* · exit 0 · `set -o pipefail …` · acceptance-sha256:b9da4be7be3d4babc4a30272871dca8a242cf03a8c1c80b235665e8a4115c614 · ms:840
 
 ## Invariants
 
@@ -109,6 +167,8 @@ go test -count=1 -v ./internal/regular ./internal/state ./internal/writer ./inte
 
 ## Risks
 
+- That the built binary is not held is proved by contract §344 in the contract gate, not by this fence, which only checks that the section is there: the row was run against the binary of this task (9 pass) and against v1.89.0 (both bounded commands killed at the limit).
+- The Mutation Log's one `survived` row is a mutant of a branch that no longer exists: `ReadFile` first refused a directory itself, the mutant showed the read fails for a directory anyway, and the branch was removed.
 - The busy case is driven through a variable on the opener, as #663 did; a real lease is not taken in a test.
 - The FIFO tests are unix-only: Windows has no FIFO in a directory. The controls for a regular file, a missing file and a directory run on Windows.
 - `flock` on a FIFO differs by platform; the lock case accepts either outcome the Goal names and reports which.
