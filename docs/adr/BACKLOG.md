@@ -1182,3 +1182,76 @@ does not reset either window. ADR-197's 30-day reading is due 2026-12-15, anchor
   (2026-11-17): the mark is dropped on both surfaces, but only the CLI says so, on standard error. An MCP
   caller has no standard error and the server's log is not the caller's, so the note would be a line in
   the answer. Arm when an MCP caller meets a list with the mark and is misled by the silence.
+
+## Pre-registered for four ideas from the 2026-11-18 research reading — written before any run over real transcripts
+
+Source: memoryd craft/34fd8f89 (papers read 2026-11-18). Zy, 2026-11-18: *"Ok go, build experiments"*. Each
+idea gets a measurement and a bar here before `docs/bench/effect-study/scan.py` is run on anything but its
+synthetic fixtures. The scanner prints aggregates only. No bar below is met by building anything: a met bar
+earns a draft record for Zy, a missed one closes its entry with the numbers.
+
+Corpus for E1 to E4: the Claude Code transcripts on one Mac, top-level and subagent, counted by each entry's
+own timestamp. Token figures called "recorded" are the transcripts' `usage` fields, once per message id;
+"priced" weights them input 1, output 5, cache write 1.25 (5-minute) and 2 (1-hour), cache read 0.1, which
+is an assumption about the price ratios and is printed beside the raw classes.
+
+**E1. Is the lever turns, not bytes?** (arXiv 2607.12161: cache traffic about 80% of billed cost.)
+*Measure.* The share of priced cost in each token class; and, per request, the number of file sites acted
+on: specs in an `mrw read`, hunks in a plan given to `mrw write`, and `Read`/`Edit`/`Write` calls in one
+assistant message. *Bar.* `scripts/measure.sh` gains a requests column, and `docs/measure.md` says bytes
+are the smaller part, only if cache write plus cache read is **at least 60% of priced cost**. Below it the
+entry closes. Transcripts carry no success label: cost per solved task is what the stage runs under
+`docs/bench/` measure, and this entry does not replace them. Sites per request are observational.
+
+**E2. A short content tag beside each line number, usable as a plan address** (hashline; no independent
+replication found). *Measure.* (a) Over this repository's tracked text files, the share of lines whose
+2-hex-digit tag equals the tag of the line above or below, split into identical lines, which no tag or
+anchor can tell apart, and different lines, which is the tag's own failure. (b) In transcripts: plan hunks
+typed, the share that are a single-line `replace` with no `anchor=`, the characters typed inside
+`anchor="…"`, and refusals that are an anchor miss. A file that drifted is already refused by its sha, so
+only mis-addressing in an unchanged file is the tag's to catch. *Bar.* A record is drafted only if the
+different-line neighbour collision is **at most 1.0%** AND one of: anchor text is **at least 1.0% of
+recorded output tokens** (chars/4), or anchor misses are **at least 1.0% of anchored hunks** while
+unanchored single-line replaces are **at least 20% of hunks**.
+
+**E3. Do the working rules slip after a compaction?** (arXiv 2610.31778.) *Measure.* In each session that
+used `mrw write` before a compaction, the share of file-changing calls that are the host's own `Edit`,
+`Write` or `MultiEdit` in the 30 file-changing calls before the compaction and the 30 after, paired per
+compaction. Read-before-write refusals are not counted: the `--forget` hook causes them by design. *Bar.*
+`docs/agents.md` §8 gains "print `mrw instructions --core` after a compaction" only if the after share
+exceeds the before share by **at least 5 percentage points**, pooled over **at least 20** compactions with
+five or more file-changing calls on each side. The instructions file is reloaded after a compaction here,
+so a small effect is the expected result.
+
+**E4. Does a file-wide licence cost re-reads when someone else writes?** Probed on v1.88.0: a change made
+outside mrw to line 55 refuses a write to line 5 of the same file, read earlier, until it is read again.
+*Measure.* Refusals that say `changed since mrw last saw it`, split by what the same session did to that
+path since its last mrw read or write of it: its own `Edit`/`Write`; its own shell command that rewrites
+files (a formatter, `git checkout`/`stash`/`pull`/`merge`/`rebase`, `sed -i`); or nothing found, which is
+another writer or a cause the transcript does not show. *Bar.* A record for a licence that survives on
+unchanged lines is drafted only if the "nothing found" refusals are **at least 0.5% of `mrw write` calls**.
+
+**Measured 2026-11-18** (`docs/bench/effect-study/`, 942 transcripts with an entry before
+2026-11-18T10:00:00Z, 97,605 requests, 15,422 shell calls that run `mrw write`; two runs, identical
+counts; the bars above were pushed as ee6fd224 before the first run). These are the numbers of the
+scanner as corrected after two Codex reviews of #656, the first of which found the first run counted `mrw read --grep
+write` as a write, measured E2's collisions per pair where the bar says per line, and cut E3's windows
+at a neighbouring compaction, which the bar does not. No bar moved; no verdict changed.
+
+| | measured | bar | |
+|---|---|---|---|
+| E1 cache write + read, share of priced cost | 92.2% | at least 60% | **met** |
+| E2 lines with the same 2-hex tag as a different neighbour | 0.65% | at most 1.0% | met |
+| E2 anchor text, share of output tokens | 0.16% | at least 1.0% | missed |
+| E2 anchor-miss lines per anchored hunk typed; bare single-line replaces per hunk typed | 2.23%; 22.3% | at least 1.0%; at least 20% | **met** |
+| E3 host edit share before / after a compaction (167 pairs) | 5.31% / 5.90% | +5 points | **missed** |
+| E4 refusals with no cause found, per `mrw write` call | 0.08% (12) | at least 0.5% | **missed** |
+
+- **E1 is met.** Open: a requests column in `scripts/measure.sh` and the sentence in `docs/measure.md`.
+  The share says where the cost sits, not which of requests and bytes moves it; neither was varied.
+- **E2 is met on its second arm.** Open: a draft record for a line tag as a plan address, for Zy. The
+  2.23% is a ratio of result lines to hunks typed, not a refusal rate, and the 22.3% is exposure, not a
+  measured rate of wrong single-line replaces; the record has to price both.
+- **E3 closes.** The host's edit tools gain six tenths of a point after a compaction on this corpus.
+- **E4 closes.** Even counting every such refusal that did not follow the session's own `Edit` of the
+  path, 51 or 0.33% of write calls, the bar is not reached.

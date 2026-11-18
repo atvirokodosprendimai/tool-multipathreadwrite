@@ -1,0 +1,93 @@
+{
+ "E1": {
+  "cache_share_pct": 91.959,
+  "priced_share_pct": {
+   "cache_read": 73.649,
+   "cache_write_1h": 10.596,
+   "cache_write_5m": 7.714,
+   "input": 0.006,
+   "output": 8.035
+  },
+  "sites_per_request_native_only": {
+   "mean": 1.31,
+   "median": 1.0,
+   "n": 1700,
+   "p90": 2,
+   "share_of_one": 83.647
+  },
+  "sites_per_request_with_mrw": {
+   "mean": 3.7,
+   "median": 2.0,
+   "n": 33968,
+   "p90": 8,
+   "share_of_one": 33.013
+  },
+  "sites_per_shell_call_running_mrw": {
+   "mean": 3.64,
+   "median": 2.0,
+   "n": 34414,
+   "p90": 8,
+   "share_of_one": 33.815
+  },
+  "tokens": {
+   "cache_read": 22744237702,
+   "cache_write_1h": 163620289,
+   "cache_write_5m": 190578350,
+   "input": 180839,
+   "output": 49625423
+  },
+  "weights": {
+   "cache_read": 0.1,
+   "cache_write_1h": 2.0,
+   "cache_write_5m": 1.25,
+   "input": 1.0,
+   "output": 5.0
+  }
+ },
+ "E2": {
+  "anchor_chars": 312167,
+  "anchor_miss_lines": 152,
+  "anchor_miss_lines_per_anchored_hunk_pct": 1.741,
+  "anchor_misses_distinct": 151,
+  "anchor_misses_distinct_per_anchored_hunk_pct": 1.729,
+  "anchor_share_of_output_pct": 0.157,
+  "anchored_hunks": 8732,
+  "bare_single_line_replaces": 4778,
+  "bare_single_line_share_pct": 22.131,
+  "hunks_typed": 21590,
+  "tag_collisions": null
+ },
+ "E3": {
+  "after": {
+   "calls": 3550,
+   "native": 264
+  },
+  "before": {
+   "calls": 3650,
+   "native": 238
+  },
+  "compactions_before_any_mrw_write": 1,
+  "compactions_paired": 124,
+  "compactions_too_few_calls": 19,
+  "mean_paired_difference_pp": 0.794,
+  "native_share_after_pct": 7.437,
+  "native_share_before_pct": 6.521,
+  "window": 30
+ },
+ "E4": {
+  "changed_since_refusals": 15,
+  "not_own_edit_per_mrw_write_pct": 0.133,
+  "nothing_found": 1,
+  "nothing_found_per_mrw_write_pct": 0.009,
+  "own_edit": 0,
+  "own_shell": 14,
+  "own_subagent": 0
+ },
+ "corpus": {
+  "compactions": 144,
+  "mrw_write_calls": 11251,
+  "requests": 73694,
+  "transcripts": 769,
+  "unreadable": 0
+ }
+}
