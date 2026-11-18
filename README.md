@@ -359,7 +359,7 @@ These are gates, not a tour of the records behind them.
   when the undo put everything back.
 - **Per-line licence.** Being served lines 1–5 does not license line 40.
   `--stat` and a match that printed nothing observe nothing.
-  A file mrw just wrote is wholly known: a chain of edits needs no re-read.
+  A file mrw just wrote is wholly known: a chain of edits needs no re-read, though its line numbers have moved.
 - **One writer at a time.** Writers on one checkout take turns (ADR-075). A writer waits up to 120 s for the
   one before it, then is refused, exit 2, nothing applied, naming the holder's pid; `MRW_WRITE_LOCK_TIMEOUT`
   sets the wait in seconds, `0` for one try (ADR-110).

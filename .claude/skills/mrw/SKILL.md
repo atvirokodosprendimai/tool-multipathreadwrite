@@ -11,16 +11,16 @@ description: >-
   heredocs. It applies only while mrw is on PATH: if it is not, use the host's
   own tools and do not install it.
 metadata:
-  mrw-version: "v1.89.0 (03d5e57)"
+  mrw-version: "dev (77b5c30, dirty)"
   generated-by: "mrw skill"
-  content-sha256: "ae57dd95ed613542ef24033b7f2ce5bc0bba28ce67fbc945b145c1e6ee81977e"
+  content-sha256: "5cbada8d14705ccfca220554cd4c4bc812a7c03be8bf02b375aa8c3b8a1e4397"
 ---
 
 # mrw
 
 The eight rules that matter most; read them once a session, and after a compaction only if lost:
 1. Use mrw for every file read, edit and create: one read of every site, one plan, one write (mrw write PLANFILE); one change at many sites: mrw write --grep P --sub R.
-2. Read before you write, per line: writing a line mrw never served you is refused, except in a file mrw just wrote. After a multi-line body, read on past your range until the enclosing structure closes.
+2. Read before you write, per line: writing a line mrw never served you is refused, except in a file mrw just wrote, whose numbers moved. After a multi-line body, read on past your range until the enclosing structure closes.
 3. A plan that fails validation writes nothing: read the refusal, which names file, plan line and reason; never --force. A commit that fails reports what reached disk.
 4. A hunk is @@ PATH N-M replace anchor="TEXT", @@ PATH N insert-after or @@ PATH N-M delete, then its lines; anchor=, required on a multi-line replace, is copied from line N as read; omit body= unless mrw instructions names your case.
 5. For a write: exit 0 fine, 1 a hunk failed and nothing was written, 2 usage or filesystem, 3 applied but the check did not pass. A read exits 1 when a range cannot be served; a range your own --max-lines or --max-matches withheld is not one: exits 0 (capped). Never read an exit code through a pipe: head's status replaces it.
@@ -41,7 +41,7 @@ Recipes:
   mrw read 'a.go:/func A/,+12' b.go:40-60 && mrw write "$TMPDIR/plan.txt"
 6. a step after the write, in the same call (NAME is a step in .quality-harness.json; a write runs no check unless --check asks for it; --then-sh and mrw run run any shell command they are given, so both are off unless MRW_SHELL=on is in mrw's environment (a step the project declares in .quality-harness.json runs with --then NAME); with them off, allowing mrw still runs the project's declared check and steps and no ad-hoc shell, but that is not containment: mrw writes any file its user can, .quality-harness.json included.):
   mrw write - --then NAME
-7. license lines you already know, without them in your context (a read into /dev/null licenses nothing; a file mrw just wrote needs no re-read):
+7. license lines you already know, without them in your context (a read into /dev/null licenses nothing; a file mrw just wrote is wholly licensed, but its line numbers have moved (recipe 21)):
   mrw read --quiet f.go:40-60
 8. a file of long lines (logs, JSONL), each line cut to a window round the match:
   mrw read --grep P --max-cols 200 f.jsonl
@@ -69,7 +69,9 @@ Recipes:
   mrw write --terse plan.txt
 20. answer by reference what you were already served, with --if-served PATH=SHA — only in a session alone in its checkout, whose host runs mrw seen --forget on start, resume, clear and compaction, and whose reads were made under --max-chars below the host's output limit, since a line recorded as shown may never have reached you (anywhere else, recipe 11):
   mrw read --if-served f.go=8dc37337 f.go:40-60
+21. a second edit to a file you just wrote, with no read between: its line numbers moved, so name the line by a pattern and say what it holds (a number is right again only after you read it again):
+  printf '%s\n' '@@ f.go /^func B\(/ replace anchor="func B("' 'func B(x int) {' | mrw write -
 
-`mrw instructions` prints the whole contract. This file was printed by `mrw skill` from mrw v1.89.0 (03d5e57); when `mrw version` prints another version, `mrw skill --dir <the directory holding this mrw folder>` replaces it.
+`mrw instructions` prints the whole contract. This file was printed by `mrw skill` from mrw dev (77b5c30, dirty); when `mrw version` prints another version, `mrw skill --dir <the directory holding this mrw folder>` replaces it.
 
 A host's per-path rules for its Edit and Write tools do not reach mrw, which writes wherever its user can: their absence is not permission, and mrw is not a way to reach a path the host refused you.

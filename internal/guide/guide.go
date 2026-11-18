@@ -53,7 +53,7 @@ func Recipes() string {
   mrw read 'a.go:/func A/,+12' b.go:40-60 && mrw write "$TMPDIR/plan.txt"
 6. a step after the write, in the same call (NAME is a step in .quality-harness.json; a write runs no check unless --check asks for it; ` + ThenShCaveat() + `):
   mrw write - --then NAME
-7. license lines you already know, without them in your context (a read into /dev/null licenses nothing; a file mrw just wrote needs no re-read):
+7. license lines you already know, without them in your context (a read into /dev/null licenses nothing; a file mrw just wrote is wholly licensed, but its line numbers have moved (recipe 21)):
   mrw read --quiet f.go:40-60
 8. a file of long lines (logs, JSONL), each line cut to a window round the match:
   mrw read --grep P --max-cols 200 f.jsonl
@@ -80,7 +80,9 @@ func Recipes() string {
 19. a write receipt of one line per file, every failure and advisory still printed in full:
   mrw write --terse plan.txt
 20. answer by reference what you were already served, with --if-served PATH=SHA — only in a session alone in its checkout, whose host runs mrw seen --forget on start, resume, clear and compaction, and whose reads were made under --max-chars below the host's output limit, since a line recorded as shown may never have reached you (anywhere else, recipe 11):
-  mrw read --if-served f.go=8dc37337 f.go:40-60`
+  mrw read --if-served f.go=8dc37337 f.go:40-60
+21. a second edit to a file you just wrote, with no read between: its line numbers moved, so name the line by a pattern and say what it holds (a number is right again only after you read it again):
+  printf '%s\n' '@@ f.go /^func B\(/ replace anchor="func B("' 'func B(x int) {' | mrw write -`
 }
 
 // CLI is Shared plus the why, the operator traps that only the shell
@@ -148,7 +150,7 @@ mrw skill prints the core and the recipes as an Agent Skills SKILL.md, and mrw s
 func Core() string {
 	return `The eight rules that matter most; read them once a session, and after a compaction only if lost:
 1. Use mrw for every file read, edit and create: one read of every site, one plan, one write (mrw write PLANFILE); one change at many sites: mrw write --grep P --sub R.
-2. Read before you write, per line: writing a line mrw never served you is refused, except in a file mrw just wrote. After a multi-line body, read on past your range until the enclosing structure closes.
+2. Read before you write, per line: writing a line mrw never served you is refused, except in a file mrw just wrote, whose numbers moved. After a multi-line body, read on past your range until the enclosing structure closes.
 3. A plan that fails validation writes nothing: read the refusal, which names file, plan line and reason; never --force. A commit that fails reports what reached disk.
 4. A hunk is @@ PATH N-M replace anchor="TEXT", @@ PATH N insert-after or @@ PATH N-M delete, then its lines; anchor=, required on a multi-line replace, is copied from line N as read; omit body= unless mrw instructions names your case.
 5. For a write: exit 0 fine, 1 a hunk failed and nothing was written, 2 usage or filesystem, 3 applied but the check did not pass. A read exits 1 when a range cannot be served; a range your own --max-lines or --max-matches withheld is not one: exits 0 (capped). Never read an exit code through a pipe: head's status replaces it.
