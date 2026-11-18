@@ -1358,26 +1358,37 @@ no guess is refusals of a guarded hunk whose `anchor=` missed and was found on a
 refused unless shown, ADR-167); the last line of a multi-line range (ADR-035); a tag beside the served line
 number (waits for evidence the anchor guard does not reach the failure).
 
-**Measured 2026-11-18 for ADR-200 (E5): STOP.** The entry above was pushed as `4d1e6e38` and the scanner
-with its reading rules as `8b154037`, both before the run; one run of each column, entries before
-2026-11-18T10:00:00Z (`docs/bench/effect-study/results-e5.json` and its `-without-this-repository` twin).
+**Measured 2026-11-18 for ADR-200 (E5): STOP, on two runs.** The entry above is on the branch
+`adr-200-anchor-guard` as `4d1e6e38` and the scanner with its reading rules as `8b154037`; that branch is
+kept on the remote, since a squash merge does not carry them. The first run was read at `8b154037`. A
+Codex review of it (gpt-6.2-sol, twelve findings) and one check of this session's own found counting
+defects in both directions; the ones with a bounded fix were fixed, each with a test that fails on the
+first scanner, and the scanner was run again at `2d4316b8` with the rule and the bars untouched. The
+second run is the reading; the first is kept beside it (`results-e5-first-run*.json`). Entries before
+2026-11-18T10:00:00Z, one run of each column.
 
-| | all | without this repository | bar |
-|---|---|---|---|
-| W, landed write calls with a typed plan | 9,183 | 6,700 | at least 200 |
-| R_A, refused at width A | 607 (6.61%) | **395 (5.90%)** | at most 5% |
-| R_B, refused at width B | 539 (5.87%) | **348 (5.19%)** | at most 5% |
-| U_A / U_B, uncertain | 1,048 / 992 | **835 (12.46%) / 787 (11.75%)** | R + U at most 10% |
-| ceiling: any anchorless numbered hunk on a written file | 3,647 (39.7%) | 2,673 (39.9%) | |
-| refused hunks: replace / delete / insert-after / insert-before | 445 / 73 / 388 / 46 | 286 / 49 / 255 / 34 | |
-| refused hunks on a file the session created | 380 | 239 | |
-| shell commands that run `mrw write` more than once | 798 | 526 | |
-| landed write calls with no typed plan (not judged) | 3,627 | 2,736 | |
+| | all | without this repository | first run, without | bar |
+|---|---|---|---|---|
+| W, landed write calls with a typed plan | 9,183 | 6,700 | 6,700 | at least 200 |
+| R_A, refused at width A | 603 (6.57%) | **394 (5.88%)** | 395 (5.90%) | at most 5% |
+| R_B, refused at width B | 536 (5.84%) | **346 (5.16%)** | 348 (5.19%) | at most 5% |
+| U_A, uncertain at width A | 1,112 | **876 (13.07%)** | 835 (12.46%) | R_A + U_A at most 10% |
+| U_B, uncertain at width B | 1,057 | **831 (12.40%)** | 787 (11.75%) | R_B + U_B at most 10% |
+| calls with any anchorless numbered hunk on a written file | 3,644 (39.7%) | 2,670 (39.9%) | 2,673 | |
+| refused hunks at width A: replace / delete / insert-after / insert-before | 462 / 76 / 387 / 46 | 300 / 53 / 259 / 34 | 286 / 49 / 255 / 34 | |
+| of those, on a file the session's own `create` or `--create` made | 388 | 249 | 239 | |
+| shell commands that run `mrw write` more than once, landed or not | 1,623 | 1,093 | | |
+| landed write calls with no plan the scanner could read (not judged) | 3,627 | 2,736 | 2,736 | |
 
-Both widths miss the 5% bar, narrowly, and the uncertain calls alone are over the 10% bound: a read piped
-through `cut`, `head` or `tail` is common enough that the transcript cannot say what the ledger held. By
-the rule written before the run, nothing is built and the numbers go to Zy. What they show beside the
-verdict: six in ten numbered hunks sent to a written file followed a read of their lines (the ceiling against
-R_A); width B saves little (47 calls of 395); and 239 of the 624 refused hunks are on a file the session
-itself created, where the caller typed every line and no number is stale. A rule that counts the lines a
-caller's own body wrote as known to it was not priced here and would need its own entry.
+Read on the column without this repository. The refused share misses 5% by 0.88 points at width A and
+0.16 at width B. Refused and uncertain together are 18.96% and 17.57% against 10%, so no reading of the
+uncertain calls brings either width under its bound. By the rule written before the run, nothing is built
+and the numbers go to Zy.
+
+What the counts say beside the verdict, at their own grain. Of the 2,670 calls that sent an anchorless
+numbered hunk to a written file, 1,400 had every such line shown since the write, 394 did not and 876
+could not be told. Width B refuses 48 fewer calls than width A. 249 of the 646 hunks refused at width A
+are on a file the session created through mrw; whether a rule that treats a caller's own written lines as
+known to it would pass was not priced, and this corpus has now been seen, so pricing it needs its own
+entry and entries after the cut-off. The limits that remain, each with its direction, are in
+`docs/bench/effect-study/README.md`.

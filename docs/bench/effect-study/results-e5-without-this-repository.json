@@ -1,23 +1,23 @@
 {
  "E5": {
-  "ceiling_calls": 2673,
-  "ceiling_pct": 39.896,
-  "chained_write_commands": 526,
+  "ceiling_calls": 2670,
+  "ceiling_pct": 39.851,
+  "chained_write_commands": 1093,
   "landed_calls_with_no_typed_plan": 2736,
   "landed_plan_calls": 6700,
-  "refused_a_pct": 5.896,
-  "refused_b_pct": 5.194,
-  "refused_calls_a": 395,
-  "refused_calls_b": 348,
+  "refused_a_pct": 5.881,
+  "refused_b_pct": 5.164,
+  "refused_calls_a": 394,
+  "refused_calls_b": 346,
   "refused_hunks_by_op": {
-   "delete": 49,
-   "insert-after": 255,
+   "delete": 53,
+   "insert-after": 259,
    "insert-before": 34,
-   "replace": 286
+   "replace": 300
   },
-  "refused_hunks_on_created": 239,
-  "uncertain_calls_a": 835,
-  "uncertain_calls_b": 787,
+  "refused_hunks_on_created": 249,
+  "uncertain_calls_a": 876,
+  "uncertain_calls_b": 831,
   "verdict": "STOP"
  },
  "corpus": {

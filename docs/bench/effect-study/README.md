@@ -61,31 +61,53 @@ A numbered hunk sent after mrw's own write of a file lands on whatever line now 
 (reproduced on v1.88.0; ADR-200, a draft). The guard considered is to refuse such a hunk unless it carries
 `anchor=` or its lines were shown since the write. E5 prices it: of the write calls that landed, how many
 it would have refused. The rule, two widths of it and the verdict were pre-registered in
-`docs/adr/BACKLOG.md` ("Pre-registered for ADR-200") and pushed before the run.
+`docs/adr/BACKLOG.md` ("Pre-registered for ADR-200") and pushed before the first run.
 
 | | all | without this repository | bar |
 |---|---|---|---|
 | landed write calls with a typed plan | 9,183 | 6,700 | at least 200 |
-| refused, width A (a write forgets every shown line) | 6.61% (607) | **5.90%** (395) | at most 5% |
-| refused, width B (lines the write left in place stay shown) | 5.87% (539) | **5.19%** (348) | at most 5% |
-| uncertain, A / B | 1,048 / 992 | 12.46% / 11.75% (835 / 787) | refused + uncertain at most 10% |
+| refused, width A (a write forgets every shown line) | 6.57% (603) | **5.88%** (394) | at most 5% |
+| refused, width B (lines the write left in place stay shown) | 5.84% (536) | **5.16%** (346) | at most 5% |
+| uncertain, width A | 1,112 | 13.07% (876) | refused + uncertain at most 10% |
+| uncertain, width B | 1,057 | 12.40% (831) | refused + uncertain at most 10% |
 
-**Verdict: STOP.** Both widths miss, and the uncertain share alone is over its bound. Nothing is built from
-this reading. It prices the refusal only; how often a stale number is sent and lands is not measured.
+**Verdict: STOP.** Both widths miss the refused bar, and refused with uncertain is 18.96% and 17.57%
+against 10%. Nothing is built from this reading. It prices the refusal only; how often a stale number is
+sent and lands is not measured.
+
+This is the second run. The first (`results-e5-first-run*.json`: 5.90%, 5.19%, 12.46%, 11.75%, also STOP)
+was reviewed, the scanner's defects with a bounded fix were fixed, and it was run again with the rule and
+the bars untouched.
 
 Method. Per session, a file is tracked from the session's own first landed mrw write to it. A read answer
 shows the line numbers it printed under that file's header. A later plan typed into the shell command
-that runs `mrw write` is judged hunk by hunk on the state before it: `replace`, `delete`, `insert-after`
-and `insert-before` with a numbered address and no `anchor=`. At width B a landed plan's own hunks say
-which lines moved. The reading rules the pre-registration left open are listed there, written with the
-scanner and before the run.
+that runs `mrw write` (each heredoc a plan of its own, or quoted strings one a line) is judged hunk by
+hunk on the state before it: `replace`, `delete`, `insert-after` and `insert-before` with a numbered
+address and no `anchor=`. At width B a landed plan's own hunks say which lines moved. The reading rules
+the pre-registration left open are listed there.
 
-Limits. A plan in a file, a plan maker and `--create` are not judged (3,627 landed calls). A read piped
-or captured makes its files uncertain, since the ledger records more than the transcript shows. Lines
-the host's own Read licensed through `mrw hook read`, a read under `-N` and a walk whose piped output
-names no file are not seen, each making the refused count larger than the engine's would be. A second
-plan in one shell command is judged on the state before the command (798 such commands).
-
+Limits, each with the way it moves the counts. The scanner reads a shell command and its answer as text,
+not as a shell would:
+- *Not judged:* a plan in a file, a plan maker, `--create`, and any typed plan the parser missed (3,627
+  landed calls together; they are not told apart). Lowers W and both counts.
+- *One answer per shell call.* `applied` anywhere in the answer counts the call as landed, and every plan
+  typed in the command is judged, so a plan that was refused beside one that landed is judged too. Raises
+  the counts. A second plan in one command is judged on the state before the command (1,623 commands run
+  `mrw write` more than once). Lowers them.
+- *Quoted plans.* Quoted strings are joined one a line and every `\n` in them is a line break; the last
+  hunk's body is taken as unknown, which at width B moves every line. Raises R_B and U_B. A `from=` body
+  is unknown the same way.
+- *Options are matched as text:* an `anchor=` inside another option's value reads as an anchor (lowers),
+  and `body="1"` is not read as a count (raises R_B).
+- *Paths are compared as typed.* `dir/../f`, a path through `--root`, a name with a space in a receipt
+  row and a terse rename's destination are not matched to the file they name. Either direction.
+- *The host's Edit or Write ends a file's tracking when it is called,* whether or not it succeeded. Lowers.
+- *A read piped or captured* makes the files it names uncertain, since the ledger records more than the
+  transcript shows; one captured inside a subshell that changes directory is missed. A numbered line
+  under a header in any mrw answer counts as shown, whichever command printed it. Lowers.
+- *Not seen:* lines the host's own Read licensed through `mrw hook read`, a read under `-N`, and a walk
+  whose piped output names no file. Raises.
+- *An `insert-before` one past the last line* names no line and is judged as if it did. Raises.
 ## Method
 
 `scan.py` reads every `*.jsonl` under `~/.claude/projects`, subagent transcripts included, and counts
@@ -147,7 +169,7 @@ transcript with no entry in the window is not counted. It prints aggregates only
 ## Run it
 
 ```sh
-python3 -I docs/bench/effect-study/test_scan.py                 # 87 checks on synthetic transcripts
+python3 -I docs/bench/effect-study/test_scan.py                 # 99 checks on synthetic transcripts
 python3 -I docs/bench/effect-study/scan.py --until 2026-11-18T10:00:00Z --repo . > results.json
 python3 -I docs/bench/effect-study/scan.py --until 2026-11-18T10:00:00Z --skip tool-multipathreadwrite
 ```
@@ -158,5 +180,6 @@ Give `--until` a time in the past: a live session keeps appending to its transcr
 
 - `scan.py`: the scanner. `test_scan.py`: its self-test.
 - `results.json`, `results-without-this-repository.json`: the two runs above.
-- `results-e5.json`, `results-e5-without-this-repository.json`: E5's two runs, the corpus line and E5 only.
-  `results.json` was not regenerated: its E2 tag count reads the tree, which has changed since.
+- `results-e5.json`, `results-e5-without-this-repository.json`: E5's second run, the corpus line and E5 only.
+  `results-e5-first-run*.json`: the first. `results.json` was not regenerated: its E2 tag count reads the
+  tree, which has changed since.
