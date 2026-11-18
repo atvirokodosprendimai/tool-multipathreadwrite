@@ -1249,9 +1249,34 @@ at a neighbouring compaction, which the bar does not. No bar moved; no verdict c
 
 - **E1 is met.** Open: a requests column in `scripts/measure.sh` and the sentence in `docs/measure.md`.
   The share says where the cost sits, not which of requests and bytes moves it; neither was varied.
-- **E2 is met on its second arm.** Open: a draft record for a line tag as a plan address, for Zy. The
+- **E2 is met on its second arm.** Drafted as ADR-200 (Proposed), which measures before it builds. The
   2.23% is a ratio of result lines to hunks typed, not a refusal rate, and the 22.3% is exposure, not a
   measured rate of wrong single-line replaces; the record has to price both.
 - **E3 closes.** The host's edit tools gain six tenths of a point after a compaction on this corpus.
 - **E4 closes.** Even counting every such refusal that did not follow the session's own `Edit` of the
   path, 51 or 0.33% of write calls, the bar is not reached.
+
+## Pre-registered for ADR-200 (a served line carries a tag a plan can cite) — written with the record, before the scanner is changed
+
+ADR-200 is the draft record E2 earned above. It builds nothing until this is read.
+
+**Measure** (ADR-200 T1). `docs/bench/effect-study/scan.py`, extended: among the hunks typed, the
+single-line `replace` hunks that carry `anchor=` (address `N`, `$` or `N-N`); and among anchor-miss lines,
+those whose refused address is a single line. The ratio of the second to the first, over the same corpus
+and window as effect-study (entries before 2026-11-18T10:00:00Z), all transcripts and without this
+repository's.
+
+**Bar.** The tasks for the read's tag and the plan's address are written only if single-line anchor
+misses are **at least 1.0% of anchored single-line replaces, on at least 200 such replaces**, in the run
+without this repository's sessions, which provoke refusals on purpose. Below either number ADR-200 is
+withdrawn with the reading. The ratio is biased: a caller that anchors a single line is not a sample of
+those that do not, and a miss may be a stale memory of a moved line. It is a floor for building, not the
+rate of wrong unanchored replaces, which nothing here observes.
+
+**Deferred from ADR-200**, each with what it waits for:
+- A receipt row quoting the line a single-line `replace` removed: waits for a count of single-line
+  replaces followed, in the same session, by a write that puts the removed text back.
+- A tag on `insert-after`/`insert-before` addresses, and tags over `mrw_read`: wait for ADR-200's own
+  Decisions 2 and 3 to be accepted and built.
+- Any change to `internal/read`, `internal/plan` or `internal/apply` for ADR-200: waits for T1's reading
+  and Zy's acceptance.
