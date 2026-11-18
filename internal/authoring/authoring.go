@@ -214,7 +214,9 @@ func load(root string) (Tally, error) {
 	if err != nil {
 		return t, nil
 	}
-	f, err := os.Open(p)
+	// regular.Open on every counters file, not os.Open: a FIFO at the path
+	// would hold the write being recorded, under this package's lock.
+	f, _, err := regular.Open(p)
 	if err != nil {
 		return t, nil
 	}
@@ -297,7 +299,7 @@ func recent(root string) []RecentEntry {
 	if err != nil {
 		return nil
 	}
-	f, err := os.Open(p)
+	f, _, err := regular.Open(p)
 	if err != nil {
 		return nil
 	}
@@ -431,7 +433,7 @@ func loadPricing(root string) Pricing {
 	if err != nil {
 		return p
 	}
-	f, err := os.Open(path)
+	f, _, err := regular.Open(path)
 	if err != nil {
 		return p
 	}
