@@ -11226,6 +11226,30 @@ out=$(printf 'a.txt\n\xef\xbb\xbfb.txt\n' | e341); rc341=$?
   && ok "the pair: a mark on a later line is the spec's own, unread and unremarked" || bad "bom on a later line: exit $rc341 [$out] [$(cat "$WORK/e341")]"
 rm -rf "$R341"
 
+# 342. ADR-117 T3: T2 dropped one mark, so a list Windows PowerShell 5.1 piped with two
+# still served its first spec with a mark in front of the path, under a note that said
+# the mark was gone. Every mark at the head of the list is dropped and counted. The pair:
+# two marks at the start of a later line are that spec's own. And a file whose name does
+# begin with the mark is still reached, by a first entry written ./NAME.
+R342=$(mktemp -d "$WORK/r342-XXXXXX"); printf 'x\n' > "$R342/a.txt"; printf 'y\n' > "$R342/b.txt"
+M342=$(printf '\357\273\277'); printf 'marked\n' > "$R342/${M342}a.txt"
+e342() { env XDG_STATE_HOME="$WORK/s342" "$MRW" --root "$R342" read --files-from - 2>"$WORK/e342"; }
+out=$(printf '%s%sb.txt\n' "$M342" "$M342" | e342); rc342=$?
+{ [ "$rc342" = 0 ] && grep -q '^==> b.txt' <<<"$out" \
+  && grep -qxF 'mrw: --files-from -: dropped 2 byte order marks at the start of the list' "$WORK/e342"; } \
+  && ok "a list that starts with two byte order marks serves its first spec and counts them" || bad "two-mark list: exit $rc342 [$out] [$(cat "$WORK/e342")]"
+out=$(printf 'a.txt\n%s%sb.txt\n' "$M342" "$M342" | e342); rc342=$?
+{ [ "$rc342" = 1 ] && grep -q '^==> a.txt' <<<"$out" && grep -q 'UNREADABLE' <<<"$out" \
+  && ! grep -q 'byte order mark' "$WORK/e342"; } \
+  && ok "the pair: two marks on a later line are the spec's own, unread and unremarked" || bad "two marks on a later line: exit $rc342 [$out] [$(cat "$WORK/e342")]"
+out=$(printf './%sa.txt\n' "$M342" | e342); rc342=$?
+{ [ "$rc342" = 0 ] && grep -q 'marked' <<<"$out" && ! grep -q 'byte order mark' "$WORK/e342"; } \
+  && ok "a first entry written ./NAME reaches a file whose name begins with the mark" || bad "./ before a marked name: exit $rc342 [$out] [$(cat "$WORK/e342")]"
+out=$(printf '%sa.txt\n' "$M342" | e342); rc342=$?
+{ [ "$rc342" = 0 ] && grep -q '^ *1| x$' <<<"$out" && ! grep -q 'marked' <<<"$out"; } \
+  && ok "the pair: the same entry without ./ loses its mark and serves the unmarked file" || bad "marked name without ./: exit $rc342 [$out] [$(cat "$WORK/e342")]"
+rm -rf "$R342"
+
 
 # 334. The Stage 8 pilot (ADR-193 T4): an agent passed the file it meant to edit as
 # --format=search_replace's FILE, so mrw read source as the document and refused

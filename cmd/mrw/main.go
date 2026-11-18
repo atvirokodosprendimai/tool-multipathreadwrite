@@ -3530,8 +3530,10 @@ func flagRole(tok string, kinds map[string]bool) (role tokenRole, consumesNext b
 // faithfully reports a file named "a.go\nb.go" as unreadable.
 //
 // Blank lines are skipped and a leading '#' is a comment, so a generated list
-// can carry provenance without the reader stripping it. Nothing else is
-// interpreted: each remaining line is a spec, parsed exactly as an argv one is.
+// can carry provenance without the reader stripping it, and the UTF-8 byte
+// order marks at the head of the list are dropped and named (ADR-117 T2, T3).
+// Nothing else is interpreted: each remaining line is a spec, parsed exactly
+// as an argv one is.
 func specList(root, name string) ([]string, error) {
 	var r io.Reader
 	if name == "-" {
