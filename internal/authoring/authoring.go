@@ -29,6 +29,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/regular"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/state"
 )
 
@@ -568,4 +569,88 @@ func RecordPricing(root string, candidate, wouldRefuse bool, outcome PricingOutc
 func LoadPricing(root string) (p Pricing) {
 	lockedRead(root, func() { p = loadPricing(root) })
 	return p
+}
+
+// ── ADR-200: counting what a stale-number guard would refuse ───────────────
+
+// numberingFile is the counters file beside the pricing one.
+const numberingFile = "numbering"
+
+// Numbering is the three counters ADR-200's pre-registration reads: landed
+// writes since this file began, those carrying a numbered hunk a guard on
+// stale line numbers would judge, and those where an addressed line was not
+// shown in the ledger's record. Counts only; nothing ADR-009 refuses.
+type Numbering struct {
+	Landed      int `json:"landed_writes"`
+	Candidates  int `json:"numbered_candidates"`
+	WouldRefuse int `json:"numbered_would_refuse"`
+}
+
+// recordNumbering adds one landing, and one candidate landing and one
+// would-refuse landing when the counts say so: a write with two candidates is
+// still one landing.
+func recordNumbering(root string, candidates, unshown int) {
+	n := loadNumbering(root)
+	n.Landed++
+	if candidates > 0 {
+		n.Candidates++
+	}
+	if unshown > 0 {
+		n.WouldRefuse++
+	}
+	path, err := state.Path(root, numberingFile)
+	if err != nil {
+		return
+	}
+	_ = state.Write(path, fmt.Appendf(nil, "landed_writes %d\nnumbered_candidates %d\nnumbered_would_refuse %d\n", n.Landed, n.Candidates, n.WouldRefuse), 0o600)
+}
+
+// loadNumbering reads the counters. It fails open: absent or garbage is zero.
+func loadNumbering(root string) Numbering {
+	var n Numbering
+	path, err := state.Path(root, numberingFile)
+	if err != nil {
+		return n
+	}
+	// regular.Open, not os.Open: a FIFO left at this path would hold the
+	// landing that is being counted, under the tally's lock, with no receipt.
+	f, _, err := regular.Open(path)
+	if err != nil {
+		return n
+	}
+	defer func() { _ = f.Close() }()
+	sc := bufio.NewScanner(f)
+	for sc.Scan() {
+		fields := strings.Fields(sc.Text())
+		if len(fields) != 2 {
+			continue
+		}
+		v, err := strconv.Atoi(fields[1])
+		if err != nil || v < 0 {
+			continue
+		}
+		switch fields[0] {
+		case "landed_writes":
+			n.Landed = v
+		case "numbered_candidates":
+			n.Candidates = v
+		case "numbered_would_refuse":
+			n.WouldRefuse = v
+		}
+	}
+	return n
+}
+
+// RecordNumbering counts one landed write (ADR-200) with the number of numbered
+// candidate hunks it carried and how many of them addressed an unshown line,
+// under the tally's lock. It never fails a write.
+func RecordNumbering(root string, candidates, unshown int) error {
+	_ = locked(root, func() { recordNumbering(root, candidates, unshown) })
+	return nil
+}
+
+// LoadNumbering reads the counters under the tally's lock; it fails open.
+func LoadNumbering(root string) (n Numbering) {
+	lockedRead(root, func() { n = loadNumbering(root) })
+	return n
 }

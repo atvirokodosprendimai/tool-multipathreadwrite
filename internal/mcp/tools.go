@@ -1030,7 +1030,10 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	}
 	prep, err := writer.Prepare(writer.Request{Root: root, In: in, Check: mode, Steps: steps, StepFlag: "then",
 		Opts: apply.Options{DryRun: a.DryRun, EchoPad: a.EchoPad, StrictBalance: a.StrictBalance, NoForce: true,
-			Preview: a.DryRun && (a.hasGrep() || a.hasAst())}}) // ADR-164: a plan maker's dry run shows each change
+			// ADR-200: a plan built from the file as it is (grep with sub, ast_grep
+			// with rewrite, a foreign format) is not a typed one.
+			Computed: planning || (strings.TrimSpace(a.Format) != "" && strings.TrimSpace(a.Format) != "plan"),
+			Preview:  a.DryRun && (a.hasGrep() || a.hasAst())}}) // ADR-164: a plan maker's dry run shows each change
 	if err != nil {
 		return errorResult(gateRefusal(err)), nil
 	}

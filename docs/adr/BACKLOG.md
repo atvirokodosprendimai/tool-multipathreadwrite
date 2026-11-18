@@ -1402,3 +1402,42 @@ this corpus has now been seen, so pricing it needs its own entry and entries aft
 cannot settle the uncertain share: the ledger records what a piped read served, and the transcript does
 not. A count taken from the ledger itself, as `mrw stats` prices `--strict-balance` (ADR-056), would have
 none. The limits that remain, each with its direction, are in `docs/bench/effect-study/README.md`.
+
+## Pre-registered for ADR-200's count (the stale-number pricing in `mrw stats`) — written before the code
+
+ADR-200, drafted on 2026-11-18, amended the same day from two challenges and accepted by Zy that evening, builds a count and no
+refusal. E5 above priced the refusal from transcripts and stopped on calls a transcript cannot class. The
+count is taken from the ledger a guard would be judged on: landings; landings with a numbered hunk, no
+`anchor=`, on a file whose ledger record is whole and written-shaped; and of those, the landings where an
+addressed line is not shown in that record. It is a different population from E5's (every landing, not
+only those with a typed plan) and is not comparable to E5's 5.06%. "A numbered hunk" is short for ADR-200
+Decision 1's candidate: forced, computed, quoted and position-only hunks are not counted.
+
+**The unit.** A root: a directory mrw was run with, which is where the counters live. A session that runs
+mrw from a subdirectory of a checkout counts there.
+
+**The reading.** Taken once, on **2026-12-18** (or the first session after it, the date recorded), on
+Zy's Mac: for every root named by a `root` marker in mrw's state, `mrw --root R stats --json`, keeping the
+roots whose `numbering.landed_writes` is at least **200**, and leaving out this repository's checkout, its
+worktrees and its clones (their sessions send stale numbers on purpose). The reading records, per root, the
+three counters, the mrw version, and whether `mrw hook read` was installed for it. Fewer than **two** roots
+kept: "insufficient", and one more reading is taken on **2027-01-17**, the same way.
+
+**The threshold.** `numbered_would_refuse` is **at most 5%** of `landed_writes` in **every** root kept.
+5% is this entry's own choice, the figure ADR-009 used for another refusal rate; nothing derives it.
+
+**What each outcome does.** Met: a new record may build the refusal on ADR-200's predicate and cite the
+count. Missed: the guard as designed is withdrawn. Insufficient twice: ADR-200 records that and the count
+stays.
+
+**What the count cannot say.** How many counted hunks named the wrong line. Whether a miss is the guard
+or its proxy: a whole-file `--quiet` read, a `--sub` plan sent in a later call, a plain rename, a host
+Read where the hook is absent and an unacknowledged MCP read are all counted, a file last written by
+quoted hunks is not, and three counters do not separate them. Path-only, computed and forced landings are
+in the denominator. A narrower rule (lines a write left in place; a file the caller created) cannot be
+counted from today's ledger: each needs state the ledger or the writer does not record, and its own record.
+
+**Deferred from ADR-200:**
+- The refusal: waits for the reading above.
+- A receipt row naming where the numbers moved: waits for the same reading.
+- The narrower rule, width B: waits for a record that decides what a write carries into the ledger.

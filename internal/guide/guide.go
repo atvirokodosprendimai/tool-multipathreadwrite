@@ -120,6 +120,7 @@ Ops: replace, insert-after, insert-before, delete, create, unlink, rename.
 @@ path 0 create makes a new file; empty is body=0. A new file is not a reason to skip mrw.
 A multi-line replace requires anchor= taken from the served first line. sha= and lines= do not stand in for it.
 A file mrw just wrote is wholly known: it produced every line, so a chain of edits to it needs no re-read, until something else changes it.
+After a write that changes how many lines a file has, a number from an earlier read names another line, or none, wherever the write added or removed lines above it or removed that line: read the file again, address by pattern, or give anchor=.
 A --format=search_replace block whose SEARCH side quotes every line it replaces, exactly and matching once in the file, needs no read: mrw checks the quote against the file when it writes (ADR-190). Use it after a compaction, or for a file you saw with your host's own tools. For a multi-line block, end SEARCH and REPLACE with the same line (the closer you keep), or read the line after the range. A line the block does not quote, and any native hunk, still needs its read.
 Read these rules once a session. After a compaction, re-read the lines you will edit (the ledger survives it and still licenses lines you no longer hold, but does not require the re-read); read the rules again only if they are gone from your context.
 Read every site in one call: mrw read a.go:40-60 'b.go:/func Start/,+12' c.go:$
