@@ -1230,3 +1230,22 @@ path since its last mrw read or write of it: its own `Edit`/`Write`; its own she
 files (a formatter, `git checkout`/`stash`/`pull`/`merge`/`rebase`, `sed -i`); or nothing found, which is
 another writer or a cause the transcript does not show. *Bar.* A record for a licence that survives on
 unchanged lines is drafted only if the "nothing found" refusals are **at least 0.5% of `mrw write` calls**.
+
+**Measured 2026-11-18** (`docs/bench/effect-study/`, 965 transcripts with an entry before
+2026-11-18T10:00:00Z, 97,605 requests, 16,100 `mrw write` calls; two runs, identical counts; the bars
+above were pushed as ee6fd224 before the first run):
+
+| | measured | bar | |
+|---|---|---|---|
+| E1 cache write + read, share of priced cost | 92.2% | at least 60% | **met** |
+| E2 different neighbours, same 2-hex tag | 0.33% | at most 1.0% | met |
+| E2 anchor text, share of output tokens | 0.16% | at least 1.0% | missed |
+| E2 anchor misses per anchored hunk; bare single-line replaces per hunk | 2.52%; 22.6% | at least 1.0%; at least 20% | **met** |
+| E3 host edit share before / after a compaction (159 pairs) | 4.72% / 4.90% | +5 points | **missed** |
+| E4 refusals with no cause found, per `mrw write` | 0.14% (23) | at least 0.5% | **missed** |
+
+- **E1 is met.** Open: a requests column in `scripts/measure.sh` and the sentence in `docs/measure.md`.
+- **E2 is met on its second arm.** Open: a draft record for a line tag as a plan address, for Zy. The
+  22.6% is exposure, not a measured rate of wrong single-line replaces; the record has to price that.
+- **E3 closes.** The rules do not slip after a compaction on this corpus.
+- **E4 closes.** 20 of the 23 are in this repository's own shared checkout.

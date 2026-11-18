@@ -1,0 +1,99 @@
+{
+ "E1": {
+  "cache_share_pct": 92.176,
+  "priced_share_pct": {
+   "cache_read": 73.983,
+   "cache_write_1h": 10.106,
+   "cache_write_5m": 8.087,
+   "input": 0.006,
+   "output": 7.819
+  },
+  "sites_per_mrw_call": {
+   "mean": 4.26,
+   "median": 2,
+   "n": 40121,
+   "p90": 9,
+   "share_of_one": 38.314
+  },
+  "sites_per_request_native_only": {
+   "mean": 1.3,
+   "median": 1.0,
+   "n": 1862,
+   "p90": 2,
+   "share_of_one": 83.835
+  },
+  "sites_per_request_with_mrw": {
+   "mean": 4.37,
+   "median": 2.0,
+   "n": 39176,
+   "p90": 9,
+   "share_of_one": 37.13
+  },
+  "tokens": {
+   "cache_read": 30880849852,
+   "cache_write_1h": 210914912,
+   "cache_write_5m": 270036599,
+   "input": 238514,
+   "output": 65270868
+  },
+  "weights": {
+   "cache_read": 0.1,
+   "cache_write_1h": 2.0,
+   "cache_write_5m": 1.25,
+   "input": 1.0,
+   "output": 5.0
+  }
+ },
+ "E2": {
+  "anchor_chars": 416127,
+  "anchor_miss_per_anchored_hunk_pct": 2.524,
+  "anchor_misses": 286,
+  "anchor_share_of_output_pct": 0.159,
+  "anchored_hunks": 11329,
+  "bare_single_line_replaces": 6243,
+  "bare_single_line_share_pct": 22.585,
+  "hunks_typed": 27642,
+  "tag_collisions": {
+   "different_pairs_same_2hex": 1407,
+   "different_pairs_same_3hex": 120,
+   "different_same_2hex_pct": 0.33,
+   "different_same_3hex_pct": 0.028,
+   "files": 5214,
+   "identical_pairs": 853,
+   "identical_pct": 0.2,
+   "pairs": 427117
+  }
+ },
+ "E3": {
+  "after": {
+   "calls": 4045,
+   "native": 198
+  },
+  "before": {
+   "calls": 4192,
+   "native": 198
+  },
+  "compactions_before_any_mrw_write": 9,
+  "compactions_paired": 159,
+  "compactions_too_few_calls": 31,
+  "mean_paired_difference_pp": -0.02,
+  "native_share_after_pct": 4.895,
+  "native_share_before_pct": 4.723,
+  "window": 30
+ },
+ "E4": {
+  "changed_since_refusals": 55,
+  "nothing_found": 23,
+  "nothing_found_per_mrw_write_pct": 0.143,
+  "own_edit": 0,
+  "own_shell": 21,
+  "own_subagent": 11
+ },
+ "corpus": {
+  "compactions": 199,
+  "mrw_write_calls": 16100,
+  "requests": 97605,
+  "transcripts": 965,
+  "unreadable": 0
+ }
+}
