@@ -128,6 +128,31 @@ not as a shell would:
 - *`N-$` is judged on line N alone, and an `insert-before` one past the last line as if it named a line.*
   The first lowers, the second raises.
 
+## E6, 2026-11-19: how often a session reverts by hand what mrw just wrote
+
+Claude Code's `/rewind` does not track a file only shell commands changed, which is every mrw write. Before
+any record for an `mrw undo`, the backlog asked for a count: how often a session reverts a file with git
+after mrw wrote it. Pre-registered in `docs/adr/BACKLOG.md` ("Pre-registered for an undo of mrw's own
+write") and pushed before the scanner was changed.
+
+| | all | without this repository | bar |
+|---|---|---|---|
+| shell calls whose mrw write landed | 13,213 | 9,686 | at least 1,000 |
+| near path reverts (within 5 tool calls) | 0.09% (12) | **0.08%** (8) | at least 25 and 0.5% |
+| path reverts, near or late | 38 | 21 | |
+| tree reverts | 123 | 84 | |
+
+**Verdict: STOP.** No undo record is drafted from this count.
+
+Method. A file is written when a landed mrw write of the session changed it (E5's tracking). A path revert
+is a later shell command running `git checkout` or `git restore` with an argument naming that file; near
+means within five tool calls of the write that last changed it. A tree revert is `git checkout .`,
+`git restore .`, `git reset --hard` or `git stash` after the session's first landed write.
+
+Limits. A revert made by writing the old lines back through mrw or the host's Edit is not seen, nor is a
+host rewind. A path is matched as typed, or by its suffix. A tree revert may have nothing to do with mrw.
+The command is read as text, with E5's limits.
+
 ## Method
 
 `scan.py` reads every `*.jsonl` under `~/.claude/projects`, subagent transcripts included, and counts
@@ -189,7 +214,7 @@ transcript with no entry in the window is not counted. It prints aggregates only
 ## Run it
 
 ```sh
-python3 -I docs/bench/effect-study/test_scan.py                 # 106 checks on synthetic transcripts
+python3 -I docs/bench/effect-study/test_scan.py                 # 132 checks on synthetic transcripts
 python3 -I docs/bench/effect-study/scan.py --until 2026-11-18T10:00:00Z --repo . > results.json
 python3 -I docs/bench/effect-study/scan.py --until 2026-11-18T10:00:00Z --skip tool-multipathreadwrite
 ```
@@ -203,3 +228,4 @@ Give `--until` a time in the past: a live session keeps appending to its transcr
 - `results-e5.json`, `results-e5-without-this-repository.json`: E5's third run, the corpus line and E5 only.
   `results-e5-first-run*.json`, `results-e5-second-run*.json`: the two before it. `results.json` was not
   regenerated: its E2 tag count reads the tree, which has changed since.
+- `results-e6.json`, `results-e6-without-this-repository.json`: E6's run, the corpus line and E6 only.
