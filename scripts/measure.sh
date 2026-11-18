@@ -215,10 +215,15 @@ EOF
   # and each request re-reads the session's whole context. The rows above are
   # the end where every call is its own request. These two are the other end,
   # the fewest requests the baseline can need: every Read in one request and
-  # every Edit in the next, plus one for the search a windowed read needs
-  # first. At that end mrw's 2 is a tie. A real host sits between the two; the
-  # script does not guess where (docs/measure.md has one dated reading).
-  local wholereq=2 windowreq=3 mrwreq=2
+  # every Edit in the next, which ties mrw's 2. A windowed read needs one more
+  # request first, for the search that finds the window, unless every spec is a
+  # whole file (shape C), where there is nothing to search for. A real host sits
+  # between the two ends; the script does not guess where (docs/measure.md has
+  # one dated reading).
+  local wholereq=2 windowreq=2 mrwreq=2
+  for s in "${specs[@]}"; do
+    case $s in *:*) windowreq=3 ;; esac
+  done
   printf '  %-38s %10s %10s   %s\n' "requests if batched, whole-file" \
     "$wholereq" "$mrwreq" "$(fewer "$wholereq" "$mrwreq")"
   printf '  %-38s %10s %10s   %s\n' "requests if batched, windowed" \
@@ -373,8 +378,10 @@ measure_find '^package '
 # way to see what the overhead actually IS.
 #
 # It answers two questions the ratio columns cannot. First, mrw's cost against a
-# windowed read is a FLAT ~13% — the line-number gutter, which is what makes a
-# served line addressable by a later write — and it does not grow with the span.
+# windowed read is the line-number gutter, which is what makes a served line
+# addressable by a later write: about 13% of these 53-byte lines, a little more
+# once the numbers reach five digits (15% on the 20,000-line span), and it does
+# not otherwise grow with the span.
 # Second, the SAVING is not a property of file size at all: it is the part of the
 # file you were never going to look at, so it collapses as the span approaches
 # the whole file.
@@ -501,6 +508,7 @@ verify
 
 rule
 echo "Round trips are the floor: mrw is 2 calls for any N. The calls rows count one"
-echo "request per call; a host that batches every Read and every Edit needs 2 too"
-echo "(3 with a search), which the 'requests if batched' rows show. Bytes depend on how"
-echo "much of each file the task needs — measure YOUR shape before quoting a number."
+echo "request per call. A host that batches every Read and every Edit needs 2 too, a"
+echo "tie; 3 when a search or a verification step has to come first or last, which the"
+echo "'requests if batched' rows show. Bytes depend on how much of each file the task"
+echo "needs — measure YOUR shape before quoting a number."

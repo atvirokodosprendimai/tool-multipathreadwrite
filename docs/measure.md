@@ -65,7 +65,7 @@ tree grew and because shapes A and B now serve exactly the sites they count. Sha
 | | requests if batched | 2 / 3 | 2 | same to 1.5× fewer |
 | **C.** 1 site, whole small file | bytes (window *is* the whole file) | 36,313 | 43,378 | **1.2× MORE** |
 | | calls | 2 / 3 | 2 | same to 1.5× fewer |
-| | requests if batched | 2 / 3 | 2 | same to 1.5× fewer |
+| | requests if batched | 2 / 2 | 2 | the same |
 | **D.** 1 site in **every** Go file — 730 sites, 730 files | calls (reads + edits) | 1,460 | 2 | **730.0× fewer** |
 | | requests if batched | 2 / 3 | 2 | same to 1.5× fewer |
 | | bytes vs whole | 4,753,254 | 66,410 | 71.6× less |
@@ -100,17 +100,19 @@ The arithmetic does not depend on this repository:
 **Calls are not requests, and the script prints both ends.** A host can issue
 several tool calls within one model turn. The *calls* rows are the end where every
 call is its own request. The *requests if batched* rows are the other end: every
-Read in one request, every Edit in the next, and one more for the search a windowed
-read needs first. At that end the baseline needs 2 or 3 requests for any N and
-mrw's 2 is a tie. Fewer calls alone do not establish fewer model turns or lower
-cost; the agent benchmark measures actual turns and cost.
+Read in one request and every Edit in the next, which is 2 for any N and ties mrw's 2.
+A windowed read needs one request more, for the search that finds the window (not in
+shape C, where the window is the whole file), and shape G one more for the
+verification: 3 against mrw's 2. Fewer calls alone do not establish fewer model turns
+or lower cost; the agent benchmark measures actual turns and cost.
 
 Where real sessions sit between those ends was read once, on one machine
 (`docs/bench/effect-study/`, 942 Claude Code transcripts, entries before
 2026-11-18T10:00:00Z): a request that used only the host's `Read`, `Edit` and
 `Write` acted on 1.3 file sites on average, and a shell call that ran mrw on 3.7,
-with a third of those calls at one site. So neither end is what happened: hosts
-batched little, and mrw's two-call floor is a floor, not what callers did. The
+with a third of those calls at one site. Those are sites per request and per call,
+not requests per task: the study does not group calls into tasks, so it does not say
+how close to either end a whole task came. The
 same reading put 92% of what the token classes would cost, at assumed price
 weights, in cache writes and cache reads: each request re-reads the session's
 context. That says where the cost sits. It does not say whether requests or bytes
