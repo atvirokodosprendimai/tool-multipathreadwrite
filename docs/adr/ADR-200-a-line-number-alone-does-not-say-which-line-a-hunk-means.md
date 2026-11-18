@@ -1,7 +1,7 @@
 # ADR-200: A line number alone does not say which line a hunk means; mrw counts what a guard would refuse
 
-**Status:** Proposed
-**Drafted for:** Zy, 2026-11-18. Asked "Should I merge #661 and draft that record?" after the reading below, with the recommendation to count would-be refusals inside mrw and report them in `mrw stats`, Zy answered *"Ues do not stop, continue"*. That approves the draft and the work on its branch. The predicate and the bar did not exist when Zy answered, so they await Zy's reading, and nothing here merges before it.
+**Status:** Accepted
+**Accepted:** 2026-11-18 by Zy. Shown the record as written in #662 at `c7497893` (the predicate, the bar and its one reading date, the named overcounts, and that nothing is refused) and asked "Do you accept ADR-200 as written in #662?", Zy answered *"Accept"*. Earlier the same day, asked whether to draft it, Zy had answered *"Ues do not stop, continue"*, which approved the draft and the work on its branch and not yet its content.
 **Date:** 2026-11-18
 **Amended:** 2026-11-18, before acceptance. The first draft chose a line tag; the second measured two rates from transcripts (M1, M2), which two challenges showed could not be read; the third priced an anchor guard from transcripts (E5) and its pre-registered verdict was STOP on three runs, because 13% of landed write calls could not be classed. This is the fourth form: a count taken inside mrw, from the ledger a guard would be judged on. Amended again the same day, before any code, from an adr-challenger pass and a Codex xhigh challenge (gpt-6.2-sol), each finding checked against the code: the status went back to Proposed; the predicate is stated on the ledger shape and not on "mrw wrote it"; `apply_patch` joined the computed plans; the landing is counted in one place; the over- and undercounts are named; the bar names its unit, its date and what a miss cannot say.
 **Owner:** Zy

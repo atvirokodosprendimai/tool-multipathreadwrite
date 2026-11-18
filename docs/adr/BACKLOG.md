@@ -1405,7 +1405,7 @@ none. The limits that remain, each with its direction, are in `docs/bench/effect
 
 ## Pre-registered for ADR-200's count (the stale-number pricing in `mrw stats`) — written before the code
 
-ADR-200, as drafted on 2026-11-18 and amended the same day from two challenges, builds a count and no
+ADR-200, drafted on 2026-11-18, amended the same day from two challenges and accepted by Zy that evening, builds a count and no
 refusal. E5 above priced the refusal from transcripts and stopped on calls a transcript cannot class. The
 count is taken from the ledger a guard would be judged on: landings; landings with a numbered hunk, no
 `anchor=`, on a file whose ledger record is whole and written-shaped; and of those, the landings where an
