@@ -1386,12 +1386,14 @@ W); the hunks refused at width A are 306 `replace`, 44 `delete`, 239 `insert-aft
 `mrw write` more than once, landed or not; 2,736 landed write calls had no plan the scanner could read and
 were not judged.
 
-**What the three runs say.** The refused share sits at the 5% line and moved by 0.8 points as the
-scanner was corrected: at width A it is over by 0.06 points, at width B under. The verdict does not rest
-on it. Refused and uncertain together are 18.96% and 17.57% against 10% on the second and third runs,
-because each correction moved calls between the two and not out of them, so no reading of the uncertain
-calls brings either width under its bound. By the rule written before the first run, nothing is built and
-the numbers go to Zy.
+**What the three runs say.** From the first run to the third the refused share fell by 0.84 points at
+width A and 0.67 at width B, as the scanner was corrected: at width A it is now over the 5% bar by 0.06
+points, at width B under it. Between the second and third runs the refused counts fell by 55 and 43 and
+the uncertain counts rose by the same numbers, so refused with uncertain is 18.96% and 17.57% on both.
+The pre-registered rule charges every uncertain call against the 10% bound, and so returns STOP. It does
+not say the guard would cost that much: at width B the bound leaves room for 32 of the 874 uncertain
+calls to be refusals, and the transcripts cannot say how many are. By the rule written before the first
+run, nothing is built and the numbers go to Zy.
 
 Of the 2,670 calls with an anchorless numbered hunk on a written file, at width A the scanner classed 339
 as refused, 931 as uncertain and 1,400 as neither. Width B refuses 36 fewer calls than width A. Whether a

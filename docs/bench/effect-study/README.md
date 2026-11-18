@@ -73,15 +73,17 @@ it would have refused. The rule, two widths of it and the verdict were pre-regis
 | refused + uncertain, width A / B | 18.68% / 17.35% | **18.96% / 17.57%** | at most 10% |
 
 **Verdict: STOP**, read on the column without this repository. Width A misses the refused bar by 0.06
-points and width B meets it; both fail the bound on refused with uncertain by more than seven points.
-Nothing is built from this reading. It prices the refusal only; how often a stale number is sent and
-lands is not measured.
+points and width B meets it; the pre-registered rule also charges every uncertain call against a 10%
+bound, and both widths fail that by more than seven points. Nothing is built from this reading. It does
+not say the guard would cost 18%: the uncertain calls are ones the transcript cannot class. It prices the
+refusal only; how often a stale number is sent and lands is not measured.
 
 This is the third run. The first and second (`results-e5-first-run*.json`, `results-e5-second-run*.json`;
 without this repository 5.90% and 5.19%, then 5.88% and 5.16%; STOP both times) were each reviewed, the
 scanner's defects with a bounded fix were fixed, and it was run again with the rule and the bars
-untouched. The refused share moved by 0.8 points across the corrections; refused with uncertain did not
-move between the second and third runs, since the corrections moved calls between the two.
+untouched. From the first run to the third the refused share fell by 0.84 points at width A and 0.67 at
+width B. Between the second and third the refused counts fell by 55 and 43 and the uncertain counts rose
+by the same numbers.
 
 Method. Per session, a file is tracked from the session's own first landed mrw write to it. A read answer
 shows the line numbers it printed under that file's header. A later plan typed into the shell command
@@ -95,18 +97,22 @@ not as a shell would:
 - *Not judged:* a plan in a file, a plan maker, `--create`, and any typed plan the parser missed (3,627
   landed calls together; they are not told apart). Lowers W and both counts.
 - *One answer per shell call.* `— applied` anywhere in the answer counts the call as landed, and every
-  plan typed in the command is judged, so a plan that was refused beside one that landed is judged too:
-  raises the counts.
+  plan typed in the command is judged, so a plan that was refused beside one that landed is judged too.
+  Raises refused with uncertain; a refusal it adds can take a call out of uncertain.
 - *A second plan in one command* is judged on the state before the command (1,623 commands run `mrw
-  write` more than once). It misses a refusal where the first plan's write moved the line, and invents
-  one where a read between the two showed it.
-- *Reads on both sides of a write in one command* are not applied: the written files those reads name
-  become uncertain before the plan is judged and stay so after. Moves calls from refused, or from
-  neither, to uncertain.
+  write` more than once), so a refusal is missed where the first plan's write moved the line.
+- *Reads on both sides of a write in one command, or between two writes,* are not applied: the written
+  files those reads name become uncertain before the plan is judged and stay so after. Moves calls from
+  refused, or from neither, to uncertain.
 - *Quoted plans.* Quoted strings are joined one a line and every `\n` in them is a line break; the last
-  hunk's body is taken as unknown unless it declares a count, which at width B moves every line. Raises
-  R_B and U_B. A `from=` body is unknown the same way.
-- *Options are matched as text outside quoted values.* `body=@PATH` is an unknown body: raises R_B and U_B.
+  hunk's body is taken as unknown unless it declares a count, which at width B moves every line. A
+  `from=` or `body=@PATH` body is unknown the same way. Raises refused with uncertain at width B; a
+  refusal it adds can take a call out of uncertain.
+- *Options are matched as text.* A quoted count beside another quoted option (`body="1" anchor="x y"`)
+  loses both, and a key inside a quoted `body=` value is read as an option. Either direction.
+- *Command discovery has two passes.* The scanner's older pass decides whether a call ran mrw at all and
+  does not know a dashed heredoc delimiter, so a plan under one whose body holds a heredoc opener can
+  hide the write. Lowers W and both counts.
 - *Paths are compared as typed.* `dir/../f`, a path through `--root`, a name with a space in a receipt
   row and a terse rename's destination are not matched to the file they name. Either direction.
 - *The host's Edit or Write ends a file's tracking when it is called,* whether or not it succeeded. Lowers.
@@ -114,8 +120,9 @@ not as a shell would:
   records more than the transcript shows. A quoted spec is looked for among all the command's quoted
   strings, which can put another file in doubt: moves refused to uncertain. A capture inside a subshell
   that changes directory is missed: moves uncertain to refused.
-- *A numbered line under a file's header in any answer of a call that ran mrw* counts as shown, whichever
-  command printed it. Lowers both.
+- *A numbered line under a file's header in an answer the scanner reads as a read's* counts as shown,
+  whichever command printed it. Lowers refused; it can raise uncertain where it clears a call's only
+  certain refusal.
 - *Not seen:* lines the host's own Read licensed through `mrw hook read`, a read under `-N`, and a walk
   whose piped output names no file. Raises.
 - *`N-$` is judged on line N alone, and an `insert-before` one past the last line as if it named a line.*
