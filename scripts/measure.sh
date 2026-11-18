@@ -156,6 +156,19 @@ measure() {
   out=$("$MRW" read "${specs[@]}")
   ranged=$("$MRW" read "${specs[@]}" | wc -c | tr -d ' ')
 
+  # ONE SPAN PER SITE, or the arithmetic below is about something else. A start
+  # pattern serves every line it matches, so a spec written for one function
+  # quietly became two when a second one took the same prefix (`^func Record`
+  # also matched RecordWithin; `^const \(` matched both blocks in main.go), and
+  # the script went on counting 2 sites for 3 spans. Found by the Codex review
+  # of #657. A spec that drifts now stops the run instead of bending a ratio.
+  local spans
+  spans=$(printf '%s\n' "$out" | grep -c '^@@ ') || true
+  [ "$spans" = "${#specs[@]}" ] || {
+    echo "measure.sh: $label: ${#specs[@]} spec(s) served $spans span(s); a start pattern matches more than one line, or none." >&2
+    exit 2
+  }
+
   # The SECOND baseline, and the one that decides whether the byte claim means
   # anything: Read takes offset/limit, so an agent that already knows the line
   # ranges reads only those lines. That is not hypothetical, it is the
@@ -299,7 +312,7 @@ echo "mrw measurement — $(git rev-parse --short HEAD)$([ -n "$(git status --po
 
 # Shape A: scattered sites in large files. The case mrw is built for.
 measure "A. Scattered sites, large files" \
-  'cmd/mrw/main.go:/^const \(/,/^\)/' \
+  'cmd/mrw/main.go:/^	exitNotApplied  = 1/,/^\)/' \
   'internal/apply/apply.go:/READ BEFORE MODIFY/,/^	}$/' \
   'internal/read/read.go:/^func merge/,/^}/' \
   'internal/check/check.go:/^func scope\(/,/^}/'
@@ -310,7 +323,7 @@ measure "A. Scattered sites, large files" \
 # and iter.go outgrew that description as features landed, and the label follows
 # what the script now measures rather than what it was picked for.
 measure "B. Two sites, mid-sized files" \
-  'internal/seen/seen.go:/^func Record/,/^}/' \
+  'internal/seen/seen.go:/^func Record\(/,/^}/' \
   'internal/iter/iter.go:/^func Load/,/^}/'
 
 # Shape C: the case where mrw LOSES, and it belongs in the same output as the
@@ -433,7 +446,7 @@ verify() {
   # mrw-check-*.log files there, which would reach outside $SCRATCH: give it one
   # of its own. TMP and TEMP are what Go reads on Windows.
   local tmp; tmp=$(mktemp -d "$SCRATCH/tmp-XXXXXX")
-  receipt=$(printf '%b' "$plan" | TMPDIR="$tmp" TMP="$tmp" TEMP="$tmp" "$MRW" -C "$dir" write --then vet --then funcs -) || {
+  receipt=$(printf '%b' "$plan" | TMPDIR="$tmp" TMP="$tmp" TEMP="$tmp" "$MRW" -C "$dir" write --check --then vet --then funcs -) || {
     echo "G: mrw write --then did not exit 0 — a failed run is not a measurement" >&2; exit 2; }
   local mrwbytes named
   mrwbytes=$(printf '%s\n' "$receipt" | wc -c | tr -d ' ')
