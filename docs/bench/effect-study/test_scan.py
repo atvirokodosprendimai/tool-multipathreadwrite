@@ -157,15 +157,19 @@ def test_tags():
     with tempfile.TemporaryDirectory() as repo:
         with open(os.path.join(repo, "t.txt"), "w", encoding="utf-8") as fh:
             fh.write("line13\nline18\nother0\na\na\n")       # sha1 of line13 and line18 both begin "40"
+        with open(os.path.join(repo, "u.txt"), "w", encoding="utf-8") as fh:
+            fh.write("line13\nline18\nline13\n")             # the middle line collides on both sides: once
+        with open(os.path.join(repo, "v.txt"), "w", encoding="utf-8") as fh:
+            fh.write("row3\nrow13")                          # both begin "21f"; no final newline
         git = ["git", "-C", repo]
         subprocess.run(git + ["init", "-q"], check=True)
-        subprocess.run(git + ["add", "t.txt"], check=True)
+        subprocess.run(git + ["add", "t.txt", "u.txt", "v.txt"], check=True)
         tc = scan.tag_collisions(repo)
-    check("lines", tc["lines"], 5)
+    check("lines", tc["lines"], 10)
     check("identical neighbours", tc["lines_with_identical_neighbour"], 2)
-    check("different neighbours, same 2 hex", tc["lines_same_2hex_as_different_neighbour"], 2)
-    check("different neighbours, same 3 hex", tc["lines_same_3hex_as_different_neighbour"], 0)
-    check("2 hex share", tc["lines_same_2hex_as_different_neighbour_pct"], 40.0)
+    check("different neighbours, same 2 hex", tc["lines_same_2hex_as_different_neighbour"], 7)
+    check("different neighbours, same 3 hex", tc["lines_same_3hex_as_different_neighbour"], 2)
+    check("2 hex share", tc["lines_same_2hex_as_different_neighbour_pct"], 70.0)
 
 
 def test_compaction():
@@ -206,6 +210,48 @@ def test_changed():
     check("not an own edit per write", r["E4"]["not_own_edit_per_mrw_write_pct"], 75.0)
 
 
+def test_shell():
+    """What counts as a shell call that runs mrw: not quoted text, not a heredoc body; a quoted root does."""
+    e = bash("m1", "t1", 'echo "x; mrw write p"', "x; mrw write p\n")
+    e += bash("m2", "t2", "cat > note.txt <<'EOF'\nmrw write p\nEOF", "")
+    e += bash("m3", "t3", 'mrw --root "/tmp/some dir" write p', OK1)
+    e += bash("m4", "t4", 'out="$(mrw read a.go:1)"', "")                         # a read that printed nothing
+    e.append(use("m4", "t5", "Read", {"file_path": "/r/c.go"}))
+    r = scan_of(e)
+    check("only the real write is a write call", r["corpus"]["mrw_write_calls"], 1)
+    check("a call of zero sites is a call", r["E1"]["sites_per_shell_call_running_mrw"],
+          {"n": 2, "mean": 0.5, "median": 0.5, "p90": 0, "share_of_one": 50.0})
+    check("a request whose mrw call served nothing is still an mrw request",
+          (r["E1"]["sites_per_request_with_mrw"]["n"], r["E1"]["sites_per_request_native_only"]["n"]), (2, 0))
+
+
+def test_plan_edges():
+    """E2 (b): a pattern address with a space; the same miss text in two files is two misses."""
+    plan = "mrw write - <<'EOF'\n@@ f.go /^func A/,/^}/ replace anchor=\"func A\"\nx\nEOF"
+    miss = ('FAIL a.go 1 replace (plan line 1): anchor "a" not in line 1: "x"; the anchor is in line 2\n'
+            'FAIL b.go 1 replace (plan line 3): anchor "a" not in line 1: "x"; the anchor is in line 2\n')
+    r = scan_of(bash("m1", "t1", plan, miss))["E2"]
+    check("a spaced pattern address is a hunk", (r["hunks_typed"], r["anchored_hunks"], r["anchor_chars"]), (1, 1, 6))
+    check("misses in two files are distinct", (r["anchor_miss_lines"], r["anchor_misses_distinct"]), (2, 2))
+
+
+def test_changed_edges():
+    """E4: a dry run and a bare header refresh nothing; a formatter before the read is no cause; spaced paths."""
+    dry = "ok   f.go 1 replace  -1 +1\n1 hunk(s), 1 file(s), 0 failed, 0 advisories — dry run, nothing written\n"
+    e = bash("m1", "t1", "mrw read f.go:1", served("f.go"))
+    e.append(use("m2", "t2", "Edit", {"file_path": "/r/f.go"}))
+    e += bash("m3", "t3", "mrw write --dry-run --force p.txt", dry)
+    e += bash("m4", "t4", "mrw read --stat f.go", "==> f.go  3L  9B  sha bbbbbbbb\n")
+    e += bash("m5", "t5", "mrw write p.txt", refusal("f.go"))                # own_edit, through both
+    e += bash("m6", "t6", "gofmt -w . ; mrw read g.go:1", served("g.go"))
+    e += bash("m7", "t7", "mrw write p.txt", refusal("g.go"))                # nothing_found: gofmt ran first
+    e += bash("m8", "t8", "mrw read 'dir/a b.go:1'", served("dir/a b.go"))
+    e.append(use("m9", "t9", "Edit", {"file_path": "/r/dir/a b.go"}))
+    e += bash("m10", "t10", "mrw write p.txt", refusal("dir/a b.go"))        # own_edit, path with a space
+    r = scan_of(e)["E4"]
+    check("edge causes", (r["changed_since_refusals"], r["own_edit"], r["own_shell"], r["nothing_found"]), (3, 2, 0, 1))
+
+
 def test_window():
     """--since/--until: by the entry's time; undated entries; a transcript with nothing in the window."""
     undated = {"type": "assistant", "message": {"id": "u0", "usage": U, "content": []}}
@@ -214,7 +260,12 @@ def test_window():
     e = [undated, naive, dated]
     check("no bound counts all", scan_of(e)["corpus"]["requests"], 3)
     r = scan_of(e, since=scan.parse_time("2026-11-01"))
-    check("an undated entry before any dated one is left out under a bound", r["corpus"]["requests"], 2)
+    check("an undated entry is left out under a bound", r["corpus"]["requests"], 2)
+    r = scan_of([dated, undated], until=scan.parse_time("2026-12-01"))
+    check("an undated entry after a dated one is left out too", r["corpus"]["requests"], 1)
+    text_only = {"type": "user", "timestamp": "2026-11-03T00:00:00Z", "message": {"content": "hello"}}
+    check("a transcript of one plain entry in the window is counted",
+          scan_of([text_only], since=scan.parse_time("2026-11-01"))["corpus"]["transcripts"], 1)
     r = scan_of(e, until=scan.parse_time("2026-11-02T12:00:00Z"))
     check("until is exclusive and a zone-less time is UTC", r["corpus"]["requests"], 1)
     r = scan_of(e, since=scan.parse_time("2027-01-01"))
@@ -224,7 +275,8 @@ def test_window():
 
 def main():
     """Run every case and print the mismatches."""
-    for case in (test_cost, test_sites, test_plan, test_tags, test_compaction, test_changed, test_window):
+    for case in (test_cost, test_sites, test_shell, test_plan, test_plan_edges, test_tags, test_compaction,
+                 test_changed, test_changed_edges, test_window):
         case()
     for b in BAD:
         print("FAIL " + b)

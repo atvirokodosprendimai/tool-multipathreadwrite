@@ -9,25 +9,25 @@
    "output": 8.035
   },
   "sites_per_request_native_only": {
-   "mean": 1.3,
+   "mean": 1.31,
    "median": 1.0,
-   "n": 1740,
+   "n": 1700,
    "p90": 2,
-   "share_of_one": 83.851
+   "share_of_one": 83.647
   },
   "sites_per_request_with_mrw": {
-   "mean": 4.34,
+   "mean": 3.7,
    "median": 2.0,
-   "n": 29401,
-   "p90": 9,
-   "share_of_one": 37.71
+   "n": 33968,
+   "p90": 8,
+   "share_of_one": 33.031
   },
   "sites_per_shell_call_running_mrw": {
-   "mean": 4.22,
+   "mean": 3.64,
    "median": 2.0,
-   "n": 30200,
-   "p90": 9,
-   "share_of_one": 39.089
+   "n": 34414,
+   "p90": 8,
+   "share_of_one": 33.832
   },
   "tokens": {
    "cache_read": 22744237702,
@@ -45,22 +45,22 @@
   }
  },
  "E2": {
-  "anchor_chars": 310820,
-  "anchor_miss_lines": 155,
-  "anchor_miss_lines_per_anchored_hunk_pct": 1.783,
-  "anchor_misses_distinct": 149,
-  "anchor_misses_distinct_per_anchored_hunk_pct": 1.714,
+  "anchor_chars": 312167,
+  "anchor_miss_lines": 152,
+  "anchor_miss_lines_per_anchored_hunk_pct": 1.741,
+  "anchor_misses_distinct": 151,
+  "anchor_misses_distinct_per_anchored_hunk_pct": 1.729,
   "anchor_share_of_output_pct": 0.157,
-  "anchored_hunks": 8695,
-  "bare_single_line_replaces": 4781,
-  "bare_single_line_share_pct": 22.689,
-  "hunks_typed": 21072,
+  "anchored_hunks": 8732,
+  "bare_single_line_replaces": 4778,
+  "bare_single_line_share_pct": 22.131,
+  "hunks_typed": 21590,
   "tag_collisions": null
  },
  "E3": {
   "after": {
    "calls": 3550,
-   "native": 263
+   "native": 264
   },
   "before": {
    "calls": 3650,
@@ -69,25 +69,25 @@
   "compactions_before_any_mrw_write": 1,
   "compactions_paired": 124,
   "compactions_too_few_calls": 19,
-  "mean_paired_difference_pp": 0.767,
-  "native_share_after_pct": 7.408,
+  "mean_paired_difference_pp": 0.794,
+  "native_share_after_pct": 7.437,
   "native_share_before_pct": 6.521,
   "window": 30
  },
  "E4": {
-  "changed_since_refusals": 16,
-  "not_own_edit_per_mrw_write_pct": 0.142,
+  "changed_since_refusals": 15,
+  "not_own_edit_per_mrw_write_pct": 0.133,
   "nothing_found": 1,
   "nothing_found_per_mrw_write_pct": 0.009,
   "own_edit": 0,
-  "own_shell": 15,
+  "own_shell": 14,
   "own_subagent": 0
  },
  "corpus": {
   "compactions": 144,
-  "mrw_write_calls": 11279,
+  "mrw_write_calls": 11251,
   "requests": 73694,
-  "transcripts": 762,
+  "transcripts": 769,
   "unreadable": 0
  }
 }

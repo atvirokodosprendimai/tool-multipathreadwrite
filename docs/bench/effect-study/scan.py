@@ -5,8 +5,7 @@ Stdlib only. Run: python3 -I scan.py [--root DIR] [--since ISO] [--until ISO] [-
 It reads every Claude Code transcript (*.jsonl) under DIR (default ~/.claude/projects),
 subagent transcripts included, and prints one JSON document of aggregates: no path,
 file content, project name or session id. --since/--until count an entry by its own
-timestamp; an entry with none takes the last one seen in its transcript, and is left
-out when a bound is given and none has been seen. --repo names a git checkout whose
+timestamp, and leave out an entry that has none. --repo names a git checkout whose
 tracked text files E2(a) reads.
 
 E1  priced cost by token class; file sites acted on per shell call and per request
@@ -33,17 +32,22 @@ WEIGHTS = {"input": 1.0, "output": 5.0, "cache_write_5m": 1.25, "cache_write_1h"
 NATIVE_CHANGE = {"Edit", "Write", "MultiEdit", "NotebookEdit"}
 NATIVE_SITE = NATIVE_CHANGE | {"Read"}
 # mrw at a command position (not inside a quoted string or another command's arguments),
-# its global flags, then the subcommand: the first word that is not a flag.
+# its global flags, then the subcommand: the first word that is not a flag. It is matched
+# on the command with heredoc bodies dropped and quoted strings folded to one word.
 MRW_CALL = re.compile(
-    r"(?:^|[;&|(\n]|\$\()\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*(?:[^\s\"'=;&|()]*/)?mrw"
+    r"(?:^|[;&|(\n]|\$\()\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*(?:[^\s=;&|()]*/)?mrw"
     r"(?:\s+(?:--root|-C)(?:=|\s+)\S+)*\s+(read|write)\b")
+HEREDOC = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_]\w*)\1([^\n]*)\n.*?\n[ \t]*\2[ \t]*(?=\n|$)", re.S)
+QUOTED = re.compile(r'"(?:[^"\\]|\\.)*"|\'[^\']*\'')
 PATH = r"""(?:"[^"\n]*"|'[^'\n]*'|\S+)"""
+PATTERN = r"/(?:[^/\\\n]|\\.)*/"
+ADDR = r"(" + PATTERN + r"(?:,(?:" + PATTERN + r"|\+?\d+|\$))?|\S+)"
 HUNK = re.compile(
-    r"^@@ " + PATH + r" (\S+) (replace|insert-after|insert-before|delete|create|unlink|rename)\b(.*)$", re.M)
+    r"^@@ " + PATH + r" " + ADDR + r" (replace|insert-after|insert-before|delete|create|unlink|rename)\b(.*)$", re.M)
 ANCHOR = re.compile(
     r"""anchor=(?:"((?:[^"\\]|\\.)*)"|'([^']*)'|(.*?))(?=\s+(?:body|lines|sha|occurrence|from|raw)=|\s*$)""")
-ANCHOR_MISS = re.compile(r'anchor ".*" not in line \d+.*')
-CHANGED = re.compile(r"(\S+) changed since mrw last saw it")
+ANCHOR_MISS = re.compile(r'^.*anchor ".*" not in line \d+.*$', re.M)
+CHANGED = re.compile(r"(?:: |^)([^:\n]+?) changed since mrw last saw it", re.M)
 SUMMARY = re.compile(r"^(\d+) hunk\(s\), \d+ file\(s\)", re.M)
 WINDOW = 30
 REWRITERS = re.compile(
@@ -52,9 +56,29 @@ REWRITERS = re.compile(
     r"|\bmv\b|\bcp\b|\btee\b|python3?\b|npm run")
 
 
+def folded(cmd):
+    """Return cmd with heredoc bodies dropped and each quoted string folded to the word Q.
+
+    A double-quoted string that holds a command substitution, or names the mrw binary, keeps
+    its text, so `out="$(mrw read f)"` and `"$t/mrw" read f` are still seen.
+    """
+    def fold(m):
+        s = m.group(0)
+        return s[1:-1] if s[0] == '"' and ("$(" in s or s.endswith('mrw"')) else "Q"
+    return QUOTED.sub(fold, HEREDOC.sub(r"<<H\3", cmd))
+
+
 def subcommands(cmd):
     """Return the set of mrw subcommands ("read", "write") a shell command runs."""
-    return {m.group(1) for m in MRW_CALL.finditer(cmd)}
+    return {m.group(1) for m in MRW_CALL.finditer(folded(cmd))}
+
+
+def after_mrw(cmd):
+    """Return what a shell command runs after its last mrw call, or all of it when it has none."""
+    text, end = folded(cmd), 0
+    for m in MRW_CALL.finditer(text):
+        end = m.end()
+    return text[end:]
 
 
 def when(o):
@@ -81,9 +105,9 @@ def text_of(content):
 def events(path, since, until):
     """Yield the transcript's entries in order as tuples.
 
+    ("seen",) for every entry in the window, then for what it holds:
     ("usage", msg_id, usage) · ("use", msg_id, tool_id, name, input) · ("res", tool_id, text) · ("compact",)
     """
-    last = None
     with open(path, "r", encoding="utf-8", errors="replace") as fh:
         for line in fh:
             try:
@@ -92,10 +116,14 @@ def events(path, since, until):
                 continue
             if not isinstance(o, dict):
                 continue
-            last = when(o) or last
             if since or until:
-                if last is None or (since and last < since) or (until and last >= until):
+                ts = when(o)
+                if ts is None:
+                    yield ("undated",)
                     continue
+                if (since and ts < since) or (until and ts >= until):
+                    continue
+            yield ("seen",)
             if o.get("type") == "system" and o.get("subtype") == "compact_boundary":
                 yield ("compact",)
                 continue
@@ -157,10 +185,15 @@ def scan_session(path, since, until, t):
     usage, uses, seen_use, misses = {}, {}, set(), set()
     order = []          # ("native"|"mrw"|"compact",) in order: file-changing calls and compactions
     trail = []          # every tool call and mrw answer in order, for E4's look-back
-    request_sites = collections.defaultdict(lambda: [0, 0])   # msg id -> [mrw sites, native sites]
+    request_sites = collections.defaultdict(lambda: [0, 0, False])   # msg id -> [mrw sites, host sites, mrw ran]
     any_entry = False
     for ev in events(path, since, until):
+        if ev[0] == "undated":
+            # Not reported: a live session keeps appending undated entries, so the count is not the window's.
+            continue
         any_entry = True
+        if ev[0] == "seen":
+            continue
         if ev[0] == "usage":
             usage[ev[1]] = ev[2]
         elif ev[0] == "compact":
@@ -185,7 +218,7 @@ def scan_session(path, since, until, t):
                 if "write" in subs:
                     order.append(("mrw",))
                     t.c["mrw_write_calls"] += 1
-                trail.append(("bash", cmd))
+                trail.append(("bash", cmd, after_mrw(cmd)))
             plan = cmd if "write" in subs else inp.get("content") if name == "Write" else ""
             if isinstance(plan, str) and plan:
                 n, bare, anchored, chars = hunks_in(plan)
@@ -208,13 +241,13 @@ def scan_session(path, since, until, t):
                 sites += sum(1 for ln in text.split("\n") if ln.startswith("@@ "))
             if "write" in subs:
                 sites += sum(int(m.group(1)) for m in SUMMARY.finditer(text))
-            if sites:
-                t.mrw_call_sites.append(sites)
-                request_sites[mid][0] += sites
+            t.mrw_call_sites.append(sites)           # a call that served or changed nothing is a call of zero
+            request_sites[mid][0] += sites
+            request_sites[mid][2] = True
             trail.append(("mrwres", text))
             for m in CHANGED.finditer(text):
                 t.c["changed_since_refusals"] += 1
-                t.c["changed_since_" + cause(trail, m.group(1))] += 1
+                t.c["changed_since_" + cause(trail, m.group(1).strip())] += 1
     t.c["anchor_misses_distinct"] += len(misses)
     for u in usage.values():
         cc = u.get("cache_creation") if isinstance(u.get("cache_creation"), dict) else {}
@@ -225,8 +258,8 @@ def scan_session(path, since, until, t):
         t.tokens["cache_write_1h"] += h1
         t.tokens["cache_write_5m"] += max((u.get("cache_creation_input_tokens") or 0) - h1, 0)
     t.c["requests"] += len(usage)
-    for mrw_sites, native_sites in request_sites.values():
-        if mrw_sites:
+    for mrw_sites, native_sites, ran in request_sites.values():
+        if ran:
             t.mrw_request_sites.append(mrw_sites + native_sites)
         elif native_sites:
             t.native_request_sites.append(native_sites)
@@ -235,10 +268,18 @@ def scan_session(path, since, until, t):
 
 
 def shows(text, rel):
-    """Report whether an mrw answer served or wrote rel: a header with a line count, or a receipt row."""
+    """Report whether an mrw answer served lines of rel or wrote it.
+
+    A read: rel's header with a line count, then a range line, or the licence line a quiet read
+    prints. A write: rel's receipt row in an answer whose summary says applied, which a dry run's
+    does not.
+    """
     q = re.escape(rel)
-    return re.search(r"^==> " + q + r"\s+\d+L\b|^ok\s+" + q + r"\s|^(?:created|replaced|removed) " + q + r"\s",
-                     text, re.M) is not None
+    if re.search(r"^==> " + q + r"\s+\d+L\b[^\n]*\n@@ ", text, re.M):
+        return True
+    if re.search(r"^==> " + q + r"\s+\d+L\b", text, re.M) and "-- licensed " in text:
+        return True
+    return "— applied" in text and re.search(r"^(?:ok\s+|created |replaced )" + q + r"\s", text, re.M) is not None
 
 
 def cause(trail, rel):
@@ -247,20 +288,23 @@ def cause(trail, rel):
     own_edit is the host's Edit/Write of that path. own_shell and own_subagent are candidates
     only: a shell command that can rewrite files, or an Agent call, with nothing tying it to rel.
     """
-    start = 0
+    start, first = 0, None
     for i in range(len(trail) - 2, -1, -1):          # the last entry is the refusal's own answer
         if trail[i][0] == "mrwres" and shows(trail[i][1], rel):
+            start = i + 1
             # The shell call that produced the answer may have gone on to rewrite files
-            # (`mrw read f && gofmt -w .`), so the look-back starts at that call.
-            start = i - 1 if i and trail[i - 1][0] == "bash" else i + 1
+            # (`mrw read f && gofmt -w .`): what it ran after its last mrw call counts.
+            if i and trail[i - 1][0] == "bash":
+                first = trail[i - 1][2]
             break
-    found = "nothing_found"
-    for kind, payload in trail[start:-1]:
+    found = "own_shell" if first and REWRITERS.search(first) else "nothing_found"
+    for entry in trail[start:-1]:
+        kind, payload = entry[0], entry[1]
         if kind == "native" and same_path(payload, rel):
             return "own_edit"
         if kind == "agent" and found == "nothing_found":
             found = "own_subagent"
-        elif kind == "bash" and found != "own_shell" and REWRITERS.search(payload):
+        elif kind == "bash" and found != "own_shell" and REWRITERS.search(folded(payload)):
             found = "own_shell"
     return found
 
@@ -406,14 +450,18 @@ def run(root, since=None, until=None, repo=None, skip=()):
 
 def main():
     """Parse the flags, scan, print."""
-    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap = argparse.ArgumentParser(prog="scan.py", description=__doc__.split("\n")[0])
     ap.add_argument("--root", default=os.path.expanduser("~/.claude/projects"))
-    ap.add_argument("--since")
-    ap.add_argument("--until")
+    ap.add_argument("--since", type=parse_time, help="an ISO time; a bare date is midnight UTC")
+    ap.add_argument("--until", type=parse_time, help="an ISO time, exclusive")
     ap.add_argument("--repo")
     ap.add_argument("--skip", action="append", default=[], help="leave out transcripts whose path holds this text")
     a = ap.parse_args()
-    json.dump(run(a.root, parse_time(a.since), parse_time(a.until), a.repo, a.skip), sys.stdout, indent=1, sort_keys=True)
+    try:
+        out = run(a.root, a.since, a.until, a.repo, a.skip)
+    except Exception as err:                         # a traceback would print this checkout's path
+        sys.exit("scan.py: stopped on %s; nothing printed" % type(err).__name__)
+    json.dump(out, sys.stdout, indent=1, sort_keys=True)
     sys.stdout.write("\n")
 
 

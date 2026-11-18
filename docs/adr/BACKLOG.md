@@ -1231,10 +1231,10 @@ files (a formatter, `git checkout`/`stash`/`pull`/`merge`/`rebase`, `sed -i`); o
 another writer or a cause the transcript does not show. *Bar.* A record for a licence that survives on
 unchanged lines is drafted only if the "nothing found" refusals are **at least 0.5% of `mrw write` calls**.
 
-**Measured 2026-11-18** (`docs/bench/effect-study/`, 934 transcripts with an entry before
-2026-11-18T10:00:00Z, 97,605 requests, 15,516 shell calls that run `mrw write`; two runs, identical
+**Measured 2026-11-18** (`docs/bench/effect-study/`, 942 transcripts with an entry before
+2026-11-18T10:00:00Z, 97,605 requests, 15,422 shell calls that run `mrw write`; two runs, identical
 counts; the bars above were pushed as ee6fd224 before the first run). These are the numbers of the
-scanner as corrected after the Codex review of #656, which found the first run counted `mrw read --grep
+scanner as corrected after two Codex reviews of #656, the first of which found the first run counted `mrw read --grep
 write` as a write, measured E2's collisions per pair where the bar says per line, and cut E3's windows
 at a neighbouring compaction, which the bar does not. No bar moved; no verdict changed.
 
@@ -1243,15 +1243,15 @@ at a neighbouring compaction, which the bar does not. No bar moved; no verdict c
 | E1 cache write + read, share of priced cost | 92.2% | at least 60% | **met** |
 | E2 lines with the same 2-hex tag as a different neighbour | 0.65% | at most 1.0% | met |
 | E2 anchor text, share of output tokens | 0.16% | at least 1.0% | missed |
-| E2 anchor-miss lines per anchored hunk typed; bare single-line replaces per hunk typed | 2.28%; 23.1% | at least 1.0%; at least 20% | **met** |
-| E3 host edit share before / after a compaction (168 pairs) | 5.32% / 5.85% | +5 points | **missed** |
+| E2 anchor-miss lines per anchored hunk typed; bare single-line replaces per hunk typed | 2.23%; 22.3% | at least 1.0%; at least 20% | **met** |
+| E3 host edit share before / after a compaction (167 pairs) | 5.31% / 5.90% | +5 points | **missed** |
 | E4 refusals with no cause found, per `mrw write` call | 0.08% (12) | at least 0.5% | **missed** |
 
 - **E1 is met.** Open: a requests column in `scripts/measure.sh` and the sentence in `docs/measure.md`.
   The share says where the cost sits, not which of requests and bytes moves it; neither was varied.
 - **E2 is met on its second arm.** Open: a draft record for a line tag as a plan address, for Zy. The
-  2.28% is a ratio of result lines to hunks typed, not a refusal rate, and the 23.1% is exposure, not a
+  2.23% is a ratio of result lines to hunks typed, not a refusal rate, and the 22.3% is exposure, not a
   measured rate of wrong single-line replaces; the record has to price both.
-- **E3 closes.** The host's edit tools gain half a point after a compaction on this corpus.
+- **E3 closes.** The host's edit tools gain six tenths of a point after a compaction on this corpus.
 - **E4 closes.** Even counting every such refusal that did not follow the session's own `Edit` of the
-  path, 52 or 0.34% of write calls, the bar is not reached.
+  path, 51 or 0.33% of write calls, the bar is not reached.
