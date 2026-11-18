@@ -57,13 +57,13 @@
   "hunks_typed": 28563,
   "tag_collisions": {
    "files": 5219,
-   "lines": 428549,
+   "lines": 428587,
    "lines_same_2hex_as_different_neighbour": 2787,
    "lines_same_2hex_as_different_neighbour_pct": 0.65,
    "lines_same_3hex_as_different_neighbour": 238,
    "lines_same_3hex_as_different_neighbour_pct": 0.056,
-   "lines_with_identical_neighbour": 1772,
-   "lines_with_identical_neighbour_pct": 0.413
+   "lines_with_identical_neighbour": 1776,
+   "lines_with_identical_neighbour_pct": 0.414
   }
  },
  "E3": {

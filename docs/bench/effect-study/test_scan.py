@@ -233,6 +233,8 @@ def test_plan_edges():
     r = scan_of(bash("m1", "t1", plan, miss))["E2"]
     check("a spaced pattern address is a hunk", (r["hunks_typed"], r["anchored_hunks"], r["anchor_chars"]), (1, 1, 6))
     check("misses in two files are distinct", (r["anchor_miss_lines"], r["anchor_misses_distinct"]), (2, 2))
+    check("miss ratios", (r["anchor_miss_lines_per_anchored_hunk_pct"], r["anchor_misses_distinct_per_anchored_hunk_pct"]),
+          (200.0, 200.0))
 
 
 def test_changed_edges():
@@ -266,6 +268,7 @@ def test_json_and_quiet():
         {"path": "a.go", "addr": "1-3", "op": "replace", "status": "fail",
          "reason": 'anchor "func A" not in line 1: "x"; the anchor is in line 2'}]}, indent=2)
     e = [use("m1", "t1", "Edit", {"file_path": "/r/f.go"})]                  # before the JSON read: no cause
+    e.append(use("m1b", "t1b", "Edit", {"file_path": "/r/g.go"}))           # before the JSON write of g.go: no cause
     e += bash("m2", "t2", "mrw read --json f.go:1", read_doc)
     e += bash("m3", "t3", "mrw write --json p.txt", "mrw: a note on stderr\n" + refused)   # nothing_found
     e += bash("m4", "t4", "mrw write --json p.txt", wrote)                   # two hunks; wrote g.go
@@ -278,6 +281,10 @@ def test_json_and_quiet():
     r = scan_of(e)
     check("json causes", (r["E4"]["changed_since_refusals"], r["E4"]["own_edit"], r["E4"]["nothing_found"]), (3, 0, 3))
     check("a json miss is a miss", r["E2"]["anchor_miss_lines"], 1)
+    both = "mrw: note\n" + read_doc + "\n" + OK1 + refusal("k.go")
+    r2 = scan_of(bash("m1", "t1", "mrw read --json f.go:1 && mrw write p.txt", both))
+    check("what follows a json document is kept", (r2["E1"]["sites_per_shell_call_running_mrw"]["mean"],
+                                                   r2["E4"]["changed_since_refusals"]), (2.0, 1))
     sites = r["E1"]["sites_per_shell_call_running_mrw"]
     check("json sites", (sites["n"], sites["mean"]), (8, round((1 + 1 + 2 + 0 + 1 + 1 + 1 + 0) / 8, 2)))
 

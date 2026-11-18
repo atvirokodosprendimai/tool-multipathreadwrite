@@ -269,25 +269,14 @@ def scan_session(path, since, until, t):
     return any_entry
 
 
-def unfolded(text):
-    """Return an mrw answer with a `--json` document in it rewritten as the lines the plain answer prints.
-
-    A read's document becomes its content. A write's becomes a row per written file, a FAIL row per
-    refused hunk and the summary line, so the patterns for plain answers read both alike.
-    """
-    at = 0 if text.startswith("{") else text.find("\n{") + 1
-    if at == 0 and not text.startswith("{"):
-        return text
-    try:
-        doc, _ = json.JSONDecoder().raw_decode(text[at:])
-    except ValueError:
-        return text
+def as_plain(doc):
+    """Return the plain lines a `--json` document stands for, or None when it is not an mrw answer."""
     if not isinstance(doc, dict):
-        return text
+        return None
     if isinstance(doc.get("content"), str):
-        return text[:at] + doc["content"]
+        return doc["content"]
     if not isinstance(doc.get("hunks"), list):
-        return text
+        return None
     rows = []
     for f in doc.get("files") or []:
         if isinstance(f, dict) and f.get("written"):
@@ -298,7 +287,29 @@ def unfolded(text):
     rows.append("%d hunk(s), %d file(s), %d failed — %s" % (
         len(doc["hunks"]), len(doc.get("files") or []), doc.get("failed") or 0,
         "applied" if doc.get("applied") else "nothing written"))
-    return text[:at] + "\n".join(rows) + "\n"
+    return "\n".join(rows) + "\n"
+
+
+def unfolded(text):
+    """Return an mrw answer with each `--json` document in it rewritten as the lines the plain answer prints.
+
+    A read's document becomes its content. A write's becomes a row per written file, a FAIL row per
+    refused hunk and the summary line, so the patterns for plain answers read both alike. What
+    stands before, between and after the documents is kept.
+    """
+    out, at = [], 0
+    for m in re.finditer(r"^\{", text, re.M):
+        if m.start() < at:
+            continue                                 # a brace inside a document already taken
+        try:
+            doc, used = json.JSONDecoder().raw_decode(text[m.start():])
+        except ValueError:
+            continue
+        plain = as_plain(doc)
+        if plain is not None:
+            out.append(text[at:m.start()] + plain)
+            at = m.start() + used
+    return "".join(out) + text[at:]
 
 
 def shows(text, rel, cmd=""):
@@ -486,9 +497,17 @@ def run(root, since=None, until=None, repo=None, skip=()):
     return report(t, files, unreadable, repo)
 
 
+class Quiet(argparse.ArgumentParser):
+    """A parser whose usage error names no argument: a value could be a path or a session."""
+
+    def error(self, message):
+        """Exit with a fixed line."""
+        sys.exit("scan.py: bad arguments; see --help")
+
+
 def main():
     """Parse the flags, scan, print."""
-    ap = argparse.ArgumentParser(prog="scan.py", description=__doc__.split("\n")[0])
+    ap = Quiet(prog="scan.py", description=__doc__.split("\n")[0])
     ap.add_argument("--root", default=os.path.expanduser("~/.claude/projects"))
     ap.add_argument("--since", help="an ISO time; a bare date is midnight UTC")
     ap.add_argument("--until", help="an ISO time, exclusive")
