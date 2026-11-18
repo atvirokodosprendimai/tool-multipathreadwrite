@@ -106,6 +106,7 @@ set -o pipefail
 - 2026-11-18 · 5c00e088* · mutant killed · exit 1 · `docs/receipts.txt` · a shipped key is missing from the list, so the receipts test and the fence grep must go red · acceptance-sha256:f040c2c6b510562907c72f179f188e336cb53e2981f1d33d004a4c9b918a3374 · covers:no shipped receipt key disappears
 - 2026-11-18 · 5c00e088* · mutant killed · exit 1 · `internal/guide/guide.go` · the instructions lose the sentence, so the guide test must go red · acceptance-sha256:f040c2c6b510562907c72f179f188e336cb53e2981f1d33d004a4c9b918a3374 · covers:the instructions and AGENTS.md say numbers move
 - 2026-11-18 · 5c00e088* · mutant killed · exit 1 · `internal/seen/seen.go` · an engine package this record does not own is changed, so the byte-identical clause must go red · acceptance-sha256:f040c2c6b510562907c72f179f188e336cb53e2981f1d33d004a4c9b918a3374 · covers:the engine packages this record does not own are untouched
+- 2026-11-18 · c5956f54* · mutant killed · exit 1 · `internal/apply/apply.go` · a written record licensed in part is a candidate, so that case must go red · acceptance-sha256:f040c2c6b510562907c72f179f188e336cb53e2981f1d33d004a4c9b918a3374 · covers:a candidate is marked and nothing is refused
 
 ## Verification Log
 - 2026-11-18 · 5c00e088* · exit 1 · `set -o pipefail …` · acceptance-sha256:f040c2c6b510562907c72f179f188e336cb53e2981f1d33d004a4c9b918a3374 · ms:3800 · test-lock-sha256:287db49aee92dcba9c6271b985f17b77ddf8495316190acdb81ae7fe358b6606 · test-lock-file:docs/adr/locks/287db49aee92dcba9c6271b985f17b77ddf8495316190acdb81ae7fe358b6606.lock
@@ -138,6 +139,7 @@ set -o pipefail
 - 2026-11-18 · 5c00e088* · exit 0 · `set -o pipefail …` · acceptance-sha256:f040c2c6b510562907c72f179f188e336cb53e2981f1d33d004a4c9b918a3374 · ms:4294
 - 2026-11-18 · 5c00e088* · exit 0 · `set -o pipefail …` · acceptance-sha256:f040c2c6b510562907c72f179f188e336cb53e2981f1d33d004a4c9b918a3374 · ms:2408
 - 2026-11-18 · 5c00e088* · exit 0 · `set -o pipefail …` · acceptance-sha256:f040c2c6b510562907c72f179f188e336cb53e2981f1d33d004a4c9b918a3374 · ms:2326
+- 2026-11-18 · c5956f54* · exit 0 · `set -o pipefail …` · acceptance-sha256:f040c2c6b510562907c72f179f188e336cb53e2981f1d33d004a4c9b918a3374 · ms:2352
 
 ## Invariants
 
@@ -151,7 +153,7 @@ set -o pipefail
 - A partial commit and a commit whose ledger update failed are landings `Land` records on its own branches. If no fault hook reaches them from `internal/writer`'s tests, the task says so here and in the pull request as uncovered, and does not claim them.
 - `--rewrite` needs `ast-grep` on PATH; where it is absent the test skips that one case and says so.
 - The landed-writes counter starts at this release, so it is smaller than the tally's.
-- Two named behaviours have no mutant. "The mark fails the hunk" has no line to mutate: every case of the apply test compares status, reason and bytes with the same plan run with no ledger. Setting `Computed` for `search_replace` cannot be observed by the count, since its hunks are quoted and never candidates; the flag is set there so the four computing branches read alike.
+- Named behaviours with no mutant. "The mark fails the hunk" has no line to mutate: every case of the apply test compares status, reason and bytes with the same plan run with no ledger. Setting `Computed` for `search_replace` and for `--rewrite` (CLI and MCP) cannot be observed by the count: a `search_replace` hunk is quoted and a rewrite hunk carries `anchor=`, so neither is ever a candidate. The flag is set there so the computing branches read alike, and the `--rewrite` case of the stats test shows only that such a write is a landing.
 - The ledger-error branch of `Land` is counted by the same single call and is driven by no test here. The partial commit is driven in `internal/apply`'s test (the marks survive) and not through `Land`.
 
 ## Stop Condition

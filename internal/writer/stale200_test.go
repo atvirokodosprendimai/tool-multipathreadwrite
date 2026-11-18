@@ -15,9 +15,6 @@ import (
 // ADR-200 T1. A landing is counted once, in Land, before its check runs: not
 // again by Settle, and not at all for a dry run or a refusal.
 func TestALandingIsCountedOnceInLand(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("the checks are POSIX shell lines")
-	}
 	const body = "package a\nfunc A() {}\nfunc B() {}\n"
 	// a.go is known the way a write leaves it: wholly licensed, nothing shown.
 	tree := func(t *testing.T, harness string) string {
@@ -38,6 +35,9 @@ func TestALandingIsCountedOnceInLand(t *testing.T) {
 	counts := func(root string) authoring.Numbering { return authoring.LoadNumbering(root) }
 
 	t.Run("a landing is counted before its check and not again after it", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("the check is a POSIX shell line")
+		}
 		root := tree(t, `{"check":"exit 0"}`)
 		p, err := Prepare(Request{Root: root, In: numbered})
 		if err != nil {
@@ -64,6 +64,9 @@ func TestALandingIsCountedOnceInLand(t *testing.T) {
 		}
 	})
 	t.Run("a landing whose check cannot start is counted", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("the check is a POSIX shell line")
+		}
 		root := tree(t, `{"check":"exit 0"}`)
 		t.Setenv("TMPDIR", filepath.Join(t.TempDir(), "missing"))
 		p, err := Prepare(Request{Root: root, In: numbered})
