@@ -1,0 +1,18 @@
+{
+ "E6": {
+  "landed_write_calls": 13220,
+  "near_path_reverts": 13,
+  "near_pct": 0.098,
+  "near_window_calls": 5,
+  "path_reverts": 39,
+  "tree_reverts": 143,
+  "verdict": "STOP"
+ },
+ "corpus": {
+  "compactions": 202,
+  "mrw_write_calls": 15909,
+  "requests": 100569,
+  "transcripts": 1018,
+  "unreadable": 0
+ }
+}

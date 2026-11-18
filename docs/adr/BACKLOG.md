@@ -1060,8 +1060,8 @@ verdict), written with the record on 2026-11-03, before any code or run.
   matched-nothing results in 116 transcripts, each followed by a read; the matched-N-times refusals name no lines
   (`searchreplace.go:134`, `applypatch.go:259`) while the native pattern refusal does. Its own record if the count
   grows; ADR-193 leads Claude with search_replace.
-- **Undo a write whose check failed (deferred from ADR-197)** (2026-11-15): before any record, count how often a caller
-  reverts by hand after exit 3. ADR-080 and ADR-187 keep the write; turnpack undoes it by default.
+- **Undo a write whose check failed (deferred from ADR-197). CLOSED 2026-11-19 by E6 below: STOP** (2026-11-15): before any record, count how often a caller
+  reverts by hand after exit 3. ADR-080 and ADR-187 keep the write; turnpack undoes it by default. Counted for any landed write, not only exit 3: 9 near reverts found in 9,686 landed writes outside this repository, where the bar needed 49.
 
 ## Post-v1.77.1 cleanup and decisions (2026-10-28)
 
@@ -1441,3 +1441,62 @@ counted from today's ledger: each needs state the ledger or the writer does not 
 - The refusal: waits for the reading above.
 - A receipt row naming where the numbers moved: waits for the same reading.
 - The narrower rule, width B: waits for a record that decides what a write carries into the ledger.
+
+## Pre-registered for an undo of mrw's own write (E6) — written before the scanner is changed
+
+**Why now.** Claude Code's `/rewind` restores files its own edit tools changed and does not track a file only
+shell commands changed, which is every mrw write (`docs/comparison.md`, re-checked 2026-11-18). An entry above
+("Undo a write whose check failed", deferred from ADR-197) asks for a count before any record: how often a
+caller reverts by hand after a write. This is that count, widened from "after exit 3" to "after any landed
+write", since the motive is now the missing rewind and not only a failed check.
+
+**What would be built if the count earns it**, so the count is of the right thing: `mrw undo`, which puts
+back the files of the last landed write when each still has the sha that write left. Nothing here builds it.
+
+**E6, the count** (`docs/bench/effect-study/scan.py`, per session, in transcript order).
+- *Written files.* The paths a landed mrw write of the session changed, as E5 tracks them.
+- *A path revert.* A later shell command that runs `git checkout`, `git restore` or `git checkout HEAD --`
+  with an argument that names a written file (not `--staged`, not `-b`/`-B`, not a branch switch with no path).
+  Counted once per command; the paths it names stop being written files.
+- *A tree revert.* A later shell command that runs `git checkout .` or `-- .`, `git restore .`,
+  `git reset --hard`, or `git stash` (not `pop`, `apply`, `list`, `show`, `drop`), after the session's first
+  landed mrw write. Counted once per command, reported apart: nothing ties it to a file mrw wrote.
+- *Near.* A path revert within **5** tool calls of the landed write that last changed that path: the shape
+  "undo what I just wrote". The rest are later clean-ups.
+- *L* = shell calls whose mrw write landed (E5's landed plan calls plus its landed calls with no typed plan).
+- *Runs.* Entries before **2026-11-19T00:00:00Z**, with and without this repository's sessions. The verdict
+  is read on the run without them. Revert counts were not looked at in any earlier run on this corpus.
+
+**Verdict, the first rule that applies.** INSUFFICIENT if L < 1,000. **RECORD** if near path reverts are at
+least **25** and at least **0.5%** of L: an undo record is drafted for Zy, with this count as its evidence.
+Otherwise **STOP**: no record; the deferred entry above is closed with the numbers.
+
+**What it cannot see.** A revert made by writing the old lines back through mrw or the host's Edit; a host
+rewind, which leaves no shell command; whether `git checkout` was the right tool (it also throws away
+earlier uncommitted work in that file, which an undo of one write would keep, and that difference is the
+case for the feature, not something this counts). A `git stash` may have nothing to do with mrw. The
+scanner reads a shell command as text, with the limits E5's README section lists.
+
+**Measured 2026-11-19 for E6: STOP, on two runs.** The entry above was committed as `49e84765` and the
+scanner with its synthetic tests as `42983e36`, in that order, before the first run. A Codex review of it
+(gpt-6.2-sol, seven findings) found the scanner too loose and too tight in places; the bounded ones were
+fixed, each with a test, and the scanner was run again at `3af83569` with the rule and the bar untouched.
+A final pass found four more in those fixes; they were fixed and it was run a third time at `a5baadfd`,
+which gave the same counts in the deciding column. That is the reading; the first run is kept beside it
+(`results-e6-first-run*.json`). Entries before 2026-11-19T00:00:00Z.
+
+| without this repository | first run | **second run** | bar |
+|---|---|---|---|
+| L, shell calls whose mrw write landed | 9,686 | **9,686** | at least 1,000 |
+| near path reverts (within 5 tool calls of the write) | 8 (0.08%) | **9 (0.09%)** | at least 25, and at least 0.5% of L, which at this L is 49 |
+| path reverts, near or late | 21 | **22** | |
+| tree reverts (`git stash`, `reset --hard`, `checkout .`, `restore .`) | 84 | **95** | |
+| verdict | STOP | **STOP** | |
+
+Third run, all sessions: L 13,220; near 13; path reverts 39; tree reverts 143. This column includes the
+session that ran the scan, whose transcript was still being written, so its L moved by a few between runs.
+
+The scanner found nine near path reverts where the bar needs 49. Counting every path revert it found as
+near would give 22. By the rule written before the run, no undo record is drafted. The tree reverts are
+counted apart and decide nothing: nothing ties a `git stash` to a file mrw wrote. What the count cannot
+see is in the entry above and in the README's limits; the aggregates do not say how large any of them is.

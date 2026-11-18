@@ -13,6 +13,7 @@ E2  (a) lines whose tag equals a neighbour's; (b) hunks, anchors and anchor miss
 E3  host Edit/Write share of file-changing calls before and after a compaction
 E4  "changed since mrw last saw it" refusals, by what the session itself did since
 E5  landed write calls an anchor requirement on unshown numbered lines would refuse (ADR-200)
+E6  shell reverts (git checkout, restore, reset --hard, stash) of files a landed mrw write changed
 
 Limits are in README.md. Every count is of transcript entries, not of incidents.
 """
@@ -275,6 +276,8 @@ class Guard:
         self.written, self.created, self.uncertain = set(), set(), set()
         self.shown_a = collections.defaultdict(set)
         self.shown_b = collections.defaultdict(set)
+        self.on_write = None    # called with each path a landed write changed (E6)
+        self.on_landing = None  # called once for a write call that landed, paths known or not (E6)
 
     def native(self, file_path):
         """The host's own tool was called to change a file: nothing mrw showed of it stands."""
@@ -375,6 +378,8 @@ class Guard:
         self.written.add(rel)
         self.uncertain.discard(rel)
         self.shown_a[rel] = set()
+        if self.on_write:
+            self.on_write(rel)
 
     def answer(self, cmd, text):
         """Fold one shell call that ran mrw, and its answer, into the counts and the state.
@@ -395,6 +400,8 @@ class Guard:
             self.doubt(cmd, read_args(cmd, False))
         self.t.c["e5_chained_write_commands"] += len(writes) > 1
         if writes and "— applied" in text:
+            if self.on_landing:
+                self.on_landing()
             if hunks:
                 self.judge(hunks)
             else:
@@ -404,6 +411,72 @@ class Guard:
             self.doubt(cmd, read_args(cmd, False))        # a write clears the doubt; these reads put it back
         elif reads and not before:
             self.served(text, cmd)
+
+
+GIT_REVERT = re.compile(
+    r"(?:^|[;&|(\n]|\$\()\s*git(?:\s+-C\s+\S+)*\s+(checkout|restore|reset|stash)(?=[\s;&|()<>]|$)([^;&|\n]*)")
+NEAR = 5
+
+
+class Reverts:
+    """E6: shell reverts of files a landed mrw write of the session changed.
+
+    A path revert is `git checkout` or `git restore` naming a written file; it is near when it
+    comes within NEAR tool calls of the write that last changed that file. A tree revert is
+    `git checkout .`, `git restore .`, `git reset --hard` or `git stash` after the session's
+    first landed write, counted apart since nothing ties it to a file mrw wrote.
+    """
+
+    def __init__(self, t):
+        self.t = t
+        self.calls = 0
+        self.ordinal = {}       # tool call id -> its count among the session's tool calls
+        self.landing = 0        # the count of the call whose answer is being read
+        self.written = {}       # path -> the count of the tool call whose write last changed it
+        self.any = False
+
+    def wrote(self, rel):
+        """A landed mrw write changed rel; an answer that arrives late does not replace a newer call's."""
+        self.written[rel] = max(self.written.get(rel, 0), self.landing)
+
+    def landed(self):
+        """A write landed, whether or not the scanner knows which files it changed."""
+        self.any = True
+
+    def call(self, tid):
+        """One more tool call."""
+        self.calls += 1
+        self.ordinal[tid] = self.calls
+
+    def answered(self, tid):
+        """The answer about to be read belongs to this call: a write it reports landed then."""
+        self.landing = self.ordinal.get(tid, self.calls)
+
+    def shell(self, cmd):
+        """Count one shell command's reverts, at most one path revert and one tree revert."""
+        hit, near, tree = False, False, False
+        for m in GIT_REVERT.finditer(shell_of(cmd)):
+            verb, args = m.group(1), m.group(2).split()
+            if verb == "stash":
+                tree |= not args or args[0] not in ("pop", "apply", "list", "show", "drop")
+                continue
+            if verb == "reset":
+                tree |= "--hard" in args
+                continue
+            opts = args[:args.index("--")] if "--" in args else args
+            staged = any(o == "--staged" or (o.startswith("-") and not o.startswith("--") and "S" in o) for o in opts)
+            if "-b" in opts or "-B" in opts or (verb == "restore" and staged):
+                continue
+            names = args[args.index("--") + 1:] if "--" in args else [a for a in args if not a.startswith("-")]
+            tree |= "." in names
+            for name in names:                       # `HEAD` or a branch among them names no written file
+                for rel in [r for r in self.written if name == r or name.endswith("/" + r)]:
+                    hit = True
+                    near |= self.calls - self.written.pop(rel) <= NEAR
+        c = self.t.c
+        c["e6_path_reverts"] += hit
+        c["e6_near_path_reverts"] += near
+        c["e6_tree_reverts"] += tree and self.any
 
 
 class Totals:
@@ -428,6 +501,9 @@ def scan_session(path, since, until, t):
     request_sites = collections.defaultdict(lambda: [0, 0, False])   # msg id -> [mrw sites, host sites, mrw ran]
     any_entry = False
     guard = Guard(t)
+    reverts = Reverts(t)
+    guard.on_write = reverts.wrote
+    guard.on_landing = reverts.landed
     for ev in events(path, since, until):
         if ev[0] == "undated":
             # Not reported: a live session keeps appending undated entries, so the count is not the window's.
@@ -446,6 +522,7 @@ def scan_session(path, since, until, t):
                 continue
             seen_use.add(tid)
             uses[tid] = (mid, name, inp)
+            reverts.call(tid)
             cmd = inp.get("command") if name == "Bash" and isinstance(inp.get("command"), str) else ""
             subs = subcommands(cmd) if cmd else set()
             if name in NATIVE_SITE:
@@ -461,6 +538,7 @@ def scan_session(path, since, until, t):
                     order.append(("mrw",))
                     t.c["mrw_write_calls"] += 1
                 trail.append(("bash", cmd, after_mrw(cmd)))
+                reverts.shell(cmd)
             plan = cmd if "write" in subs else inp.get("content") if name == "Write" else ""
             if isinstance(plan, str) and plan:
                 n, bare, anchored, chars = hunks_in(plan)
@@ -476,6 +554,7 @@ def scan_session(path, since, until, t):
             if not subs:
                 continue
             text = unfolded(text)
+            reverts.answered(tid)
             guard.answer(cmd, text)
             for miss in ANCHOR_MISS.findall(text):
                 t.c["anchor_miss_lines"] += 1
@@ -705,6 +784,24 @@ def guard_report(c):
             "verdict": guard_verdict(w, r_a, u_a, r_b, u_b)}
 
 
+def revert_verdict(landed, near):
+    """The verdict pre-registered in docs/adr/BACKLOG.md (Pre-registered for an undo, E6), first rule that applies."""
+    if landed < 1000:
+        return "INSUFFICIENT"
+    if near >= 25 and 200 * near >= landed:
+        return "RECORD"
+    return "STOP"
+
+
+def revert_report(c):
+    """E6's part of the JSON document."""
+    landed = c["e5_landed_plan_calls"] + c["e5_landed_calls_with_no_typed_plan"]
+    return {"landed_write_calls": landed, "path_reverts": c["e6_path_reverts"],
+            "near_path_reverts": c["e6_near_path_reverts"], "near_pct": pct(c["e6_near_path_reverts"], landed),
+            "tree_reverts": c["e6_tree_reverts"], "near_window_calls": NEAR,
+            "verdict": revert_verdict(landed, c["e6_near_path_reverts"])}
+
+
 def report(t, files, unreadable, repo):
     """Build the JSON document."""
     priced = {k: t.tokens[k] * w for k, w in WEIGHTS.items()}
@@ -743,6 +840,7 @@ def report(t, files, unreadable, repo):
                "not_own_edit_per_mrw_write_pct": pct(c["changed_since_refusals"] - c["changed_since_own_edit"],
                                                      c["mrw_write_calls"])},
         "E5": guard_report(c),
+        "E6": revert_report(c),
     }
 
 
