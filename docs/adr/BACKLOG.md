@@ -1405,27 +1405,38 @@ none. The limits that remain, each with its direction, are in `docs/bench/effect
 
 ## Pre-registered for ADR-200's count (the stale-number pricing in `mrw stats`) — written before the code
 
-ADR-200, as accepted on 2026-11-18, builds a count and no refusal. E5 above priced the refusal from
-transcripts and stopped on what a transcript cannot hold. The count is taken from the ledger, in every
-checkout that runs a release carrying it: landed writes; landed writes with a numbered hunk, no `anchor=`,
-on a file mrw wrote; and of those, the writes where an addressed line was not shown since.
+ADR-200, as drafted on 2026-11-18 and amended the same day from two challenges, builds a count and no
+refusal. E5 above priced the refusal from transcripts and stopped on calls a transcript cannot class. The
+count is taken from the ledger a guard would be judged on: landings; landings with a numbered hunk, no
+`anchor=`, on a file whose ledger record is whole and written-shaped; and of those, the landings where an
+addressed line is not shown in that record. It is a different population from E5's (every landing, not
+only those with a typed plan) and is not comparable to E5's 5.06%.
 
-**The reading.** `mrw stats --json` `numbering`, on or after **2026-12-18**, in each checkout on Zy's
-machines that has counted at least **200** landed writes, this repository's own left out (its sessions
-send stale numbers on purpose). At least **two** such checkouts, or the reading is "insufficient" and
-waits a further thirty days once.
+**The unit.** A root: a directory mrw was run with, which is where the counters live. A session that runs
+mrw from a subdirectory of a checkout counts there.
 
-**The bar.** Would-refuse writes are **at most 5%** of landed writes in **every** checkout read (ADR-009's
-bar for what the format may cost in refusals).
+**The reading.** Taken once, on **2026-12-18** (or the first session after it, the date recorded), on
+Zy's Mac: for every root named by a `root` marker in mrw's state, `mrw --root R stats --json`, keeping the
+roots whose `numbering.landed_writes` is at least **200**, and leaving out this repository's checkout, its
+worktrees and its clones (their sessions send stale numbers on purpose). The reading records, per root, the
+three counters, the mrw version, and whether `mrw hook read` was installed for it. Fewer than **two** roots
+kept: "insufficient", and one more reading is taken on **2027-01-17**, the same way.
+
+**The threshold.** `numbered_would_refuse` is **at most 5%** of `landed_writes` in **every** root kept.
+5% is this entry's own choice, the figure ADR-009 used for another refusal rate; nothing derives it.
 
 **What each outcome does.** Met: a new record may build the refusal on ADR-200's predicate and cite the
-count. Missed: the guard as designed is withdrawn; a narrower rule (lines the write left in place, or
-lines of a file the caller created) needs its own entry and its own count. Insufficient twice: ADR-200
-records that and the count stays.
+count. Missed: the guard as designed is withdrawn. Insufficient twice: ADR-200 records that and the count
+stays.
 
-**What it does not measure.** The benefit: how often a counted hunk named the wrong line. A refusal built
-later can count that without a guess, as refusals whose `anchor=` was then found on another line (ADR-197).
+**What the count cannot say.** How many counted hunks named the wrong line. Whether a miss is the guard
+or its proxy: a whole-file `--quiet` read, a `--sub` plan sent in a later call, a plain rename, a host
+Read where the hook is absent and an unacknowledged MCP read are all counted, a file last written by
+quoted hunks is not, and three counters do not separate them. Path-only, computed and forced landings are
+in the denominator. A narrower rule (lines a write left in place; a file the caller created) cannot be
+counted from today's ledger: each needs state the ledger or the writer does not record, and its own record.
 
 **Deferred from ADR-200:**
 - The refusal: waits for the reading above.
 - A receipt row naming where the numbers moved: waits for the same reading.
+- The narrower rule, width B: waits for a record that decides what a write carries into the ledger.

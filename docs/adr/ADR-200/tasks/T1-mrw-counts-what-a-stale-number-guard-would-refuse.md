@@ -2,24 +2,29 @@
 
 **Depends-on:** none
 **Covers:** none — no spec
-**Estimated scope:** M
+**Estimated scope:** L
 **Owner:** unassigned
-**Produces:** `apply.Result.StaleNumbered` and `StaleUnshown`; `apply.Options.Computed`; `authoring.Numbering`, `RecordNumbering`, `LoadNumbering`; the `stale-number pricing:` block and `numbering` in `mrw stats`; contract §343; the sentence in `mrw instructions` and `AGENTS.md`
-**Consumes:** ADR-056's pricing path (`internal/writer/flow.go`, `internal/authoring`), `seen.Observation.ServedLine`
+**Produces:** `apply.Result.StaleNumbered` and `StaleUnshown` (not receipt keys); `apply.Options.Computed`; `authoring.Numbering`, `RecordNumbering(root, candidates, unshown int)`, `LoadNumbering`; the `stale-number pricing:` block and `numbering` in `mrw stats`; contract §343; the sentence in `mrw instructions` and `AGENTS.md`
+**Consumes:** ADR-056's marks and stats block as a pattern (`internal/apply/apply.go`, `internal/authoring`, `cmd/mrw`), `seen.Observation.ServedLine`, `writer.MutationOf`
 **Data dependency:** none — hermetic
 **Proof map:** v1
-**Rests-on:** `a candidate is marked and nothing is refused`, `a landed write is counted once`, `stats prints the three counts`, `the contract row drives the binary`, `the instructions say numbers move`
+**Rests-on:** `a candidate is marked and nothing is refused`, `a landing is counted once in Land`, `a computed plan is not counted on either surface`, `stats prints three distinct counts`, `no shipped receipt key disappears`, `the instructions and AGENTS.md say numbers move`, `the engine packages this record does not own are untouched`
 
 ## Goal
 
-ADR-200 Decisions 1 to 4. A write that sends a numbered hunk with no `anchor=` to a file mrw wrote is counted, and counted again when a line it addresses was not shown since that write. Nothing a caller sends is refused that was not refused before, and no receipt of a write changes.
+ADR-200 Decisions 1 to 4. A landing that sends a numbered hunk with no `anchor=` to a file whose ledger record is whole-file written-shaped is counted, and counted again when a line it addresses is not shown in that record. Nothing a caller sends is refused that was not refused before, and no write's receipt, exit code or file bytes change.
 
-**The predicate** (Decision 1), on a hunk that is `ok`, in a write with a ledger, not forced, whose plan mrw did not compute in this call:
+**The predicate** (Decision 1), on a hunk that passed validation, in a write with a ledger, not forced, with `Options.Computed` false:
 - op `replace`, `delete`, `insert-after` or `insert-before`;
-- address typed in line numbers: not a pattern, not `$` alone, not line 0;
+- address typed in numbers (`N`, `N-M`, `N-$`, `N,+K`): no start pattern, not `$` alone;
+- it names a line: not `insert-after 0`, not `insert-before 1`, not `insert-before` one past the last line;
 - no `anchor=`, and not a quoted hunk (ADR-190);
-- the file's observation is `Written` with no spans.
-It is *unshown* when any addressed line, or for an insert the line it names, is not `ServedLine`.
+- the observation apply selected for the file is `Written` and `Whole()`.
+It is *unshown* when any line it addresses is not `ServedLine` in that observation: every line of a `replace` or `delete` range; for `insert-after N` and `insert-before N`, line N.
+
+**`Options.Computed`** is set true by exactly the branches that build a plan from the file as it is, and by nothing else: CLI `--sub`, `--rewrite`, `--format=apply_patch`, `--format=search_replace` (`cmd/mrw/main.go`); MCP `grep`+`sub`, `ast_grep`+`rewrite`, and `format` (`internal/mcp/tools.go`). A native plan, typed or filed, leaves it false.
+
+**The record call** is one, in `Land` (`internal/writer/flow.go`), for any result with `MutationOf(res) != None`, before a check runs; `Settle` and `Verify` make none. `RecordNumbering` takes the two counts and adds one landing, one candidate landing when candidates > 0, one would-refuse landing when unshown > 0.
 
 ## Affected Files
 
@@ -29,38 +34,38 @@ It is *unshown* when any addressed line, or for an insert the line it names, is 
 | `internal/apply/apply.go` | edit | the marks, `Options.Computed`, the two result counts |
 | `internal/authoring/numbering200_test.go` | new | the red test for the counters |
 | `internal/authoring/authoring.go` | edit | `Numbering` and its file |
-| `internal/writer/flow.go` | edit | record each landed write |
-| `cmd/mrw/stale200_test.go` | new | the red test for the stats block |
-| `cmd/mrw/main.go` | edit | the block, `numbering`, `Computed` for a plan maker |
-| `internal/mcp/tools.go` | edit | `Computed` for a plan maker |
+| `internal/writer/stale200_test.go` | new | the red test for the one call site |
+| `internal/writer/flow.go` | edit | record each landing in `Land` |
+| `cmd/mrw/stale200_test.go` | new | the red test for the stats block and the CLI's `Computed` |
+| `cmd/mrw/main.go` | edit | the block, `numbering`, `Computed` |
+| `internal/mcp/stale200_test.go` | new | the red test for `mrw_write` |
+| `internal/mcp/tools.go` | edit | `Computed` |
 | `internal/guide/stale200_test.go` | new | the red test for the sentence |
 | `internal/guide/guide.go` | edit | the sentence |
+| `cmd/opencode/mrw-plugin/src/index.ts` | edit | the stats description names the block |
 | `docs/receipts.txt` | edit | the four keys |
 | `scripts/contract.sh` | edit | §343 |
 | `AGENTS.md` | edit | the sentence, and the stats bullet |
-| `docs/adr/BACKLOG.md` | edit | the bar, before the code |
 
 ## Ordered Steps
 
-1. [S1] Write the four tests and see them RED: `TestANumberedHunkAfterMrwsOwnWriteIsCountedNotRefused` (the record's reproduction lands exactly as before, with the same file bytes and hunk status, and the result counts one candidate, one unshown; then one case per clause of the predicate), `TestNumberingCountsALandedWriteOnce`, `TestStatsPrintsTheStaleNumberPricing`, `TestInstructionsSayNumbersMoveAfterAWrite`. [proof: acceptance]
-2. [S2] Apply marks the hunks and sums them on the result. Mutants, each killed: a hunk with `anchor=` is a candidate; a shown line is unshown; a computed plan is counted; an insert names the line after the one it gives. [proof: mutation]
-3. [S3] `authoring.Numbering` and the record call in `internal/writer/flow.go`, on every path that lands. Mutants, each killed: a write with two candidates counts two; a dry run is counted. [proof: mutation]
-4. [S4] `mrw stats` prints the block and `--json` carries `numbering`; the keys are in `docs/receipts.txt`; a plan maker's write sets `Computed` on the CLI and over MCP. Mutant, killed: the block prints the candidates where it says would-refuse. [proof: mutation]
-5. [S5] Contract §343 drives the built binary: the reproduction, then `mrw stats --json` shows one would-refuse write; paired with the same second hunk carrying `anchor=`, which leaves the would-refuse count where it was. [proof: acceptance]
-6. [S6] `mrw instructions` and `AGENTS.md` say that numbers move after a write that adds or removes lines. [proof: acceptance]
+1. [S1] Write the six tests and see them RED. [proof: acceptance]
+2. [S2] Apply marks the hunks and sums them on the result. Fixture for the shown clauses: after a write, a read of line 4 only, which leaves the record written with line 4 shown and 3 and 5 not. Mutants, each killed by `TestANumberedHunkAfterMrwsOwnWriteIsCountedNotRefused`: a hunk with `anchor=` is a candidate; a shown line is unshown (the line-4 fixture); `insert-after N` is judged on line N+1 (line 4 shown, `insert-after 4` against `insert-after 3`); a computed plan is counted; a range is unshown only when its first line is; the mark fails the hunk. [proof: mutation]
+3. [S3] `authoring.Numbering` and the one record call in `Land`. Mutants, each killed: `RecordNumbering` adds the candidate count instead of one (`TestNumberingCountsALandedWriteOnce`, counts 2 and 2); the call is made in `Settle` as well (`TestALandingIsCountedOnceInLand`, a write with a passing check); a dry run is counted (`TestStatsPrintsTheStaleNumberPricing`). [proof: mutation]
+4. [S4] `mrw stats` prints the block and `--json` carries `numbering`; the keys are in `docs/receipts.txt`; each computing branch sets `Computed` on the CLI and over MCP. The stats fixture has three distinct values: three landings, two with a candidate, one unshown. Mutants, each killed: the block prints the candidates where it says would-refuse; the CLI's `apply_patch` branch does not set `Computed`; MCP's `sub` branch does not. [proof: mutation]
+5. [S5] Contract §343 drives the built binary: the reproduction, then `mrw stats --json` shows `numbered_would_refuse` 1; then `@@ f.txt 5 replace anchor="d"`, which lands, moves `landed_writes` by one and leaves `numbered_candidates` and `numbered_would_refuse` where they were. [proof: acceptance]
+6. [S6] `mrw instructions` and `AGENTS.md` say that after a write that adds or removes lines, a number from an earlier read names another line. [proof: acceptance]
 
 ## Acceptance
 
 ```bash
 set -o pipefail
-go test -count=1 ./internal/apply ./internal/authoring ./internal/guide ./cmd/mrw -run 'TestANumberedHunkAfterMrwsOwnWriteIsCountedNotRefused|TestNumberingCountsALandedWriteOnce|TestStatsPrintsTheStaleNumberPricing|TestInstructionsSayNumbersMoveAfterAWrite' >/dev/null \
-  && grep -q 'func TestANumberedHunkAfterMrwsOwnWriteIsCountedNotRefused' internal/apply/stale200_test.go \
-  && grep -q 'func TestNumberingCountsALandedWriteOnce' internal/authoring/numbering200_test.go \
-  && grep -q 'func TestStatsPrintsTheStaleNumberPricing' cmd/mrw/stale200_test.go \
-  && grep -q 'func TestInstructionsSayNumbersMoveAfterAWrite' internal/guide/stale200_test.go \
+[ "$(go test -count=1 -v ./internal/apply ./internal/authoring ./internal/writer ./internal/guide ./internal/mcp ./cmd/mrw -run '^(TestANumberedHunkAfterMrwsOwnWriteIsCountedNotRefused|TestNumberingCountsALandedWriteOnce|TestALandingIsCountedOnceInLand|TestStatsPrintsTheStaleNumberPricing|TestAnMcpWriteIsCountedAndAComputedPlanIsNot|TestInstructionsSayNumbersMoveAfterAWrite|TestNoShippedReceiptFieldDisappears)$' | grep -c '^--- PASS: ')" -eq 7 ] \
   && grep -q '^# 343\. ' scripts/contract.sh \
   && grep -q 'numbered_would_refuse' docs/receipts.txt \
   && grep -q 'StaleUnshown' internal/apply/apply.go \
+  && grep -q 'a number from an earlier read names another line' AGENTS.md \
+  && grep -q 'a number from an earlier read names another line' internal/guide/guide.go \
   && git diff --quiet "$(git merge-base HEAD origin/main)" -- go.mod go.sum internal/plan internal/read internal/check internal/state internal/seen \
   && [ -z "$(git status --porcelain --untracked-files=all -- internal/plan internal/read internal/check internal/state internal/seen)" ]
 ```
@@ -69,19 +74,21 @@ go test -count=1 ./internal/apply ./internal/authoring ./internal/guide ./cmd/mr
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `TestANumberedHunkAfterMrwsOwnWriteIsCountedNotRefused` | `internal/apply/stale200_test.go` | the reproduction lands unchanged and is counted; each clause of the predicate | none | S1, S2 |
-| `TestNumberingCountsALandedWriteOnce` | `internal/authoring/numbering200_test.go` | three counters, one landed write counted once whatever its hunks | none | S1, S3 |
-| `TestStatsPrintsTheStaleNumberPricing` | `cmd/mrw/stale200_test.go` | the block and the JSON keys after a real write through the CLI; a `--sub` write is not a candidate; a dry run counts nothing | none | S1, S3, S4 |
+| `TestANumberedHunkAfterMrwsOwnWriteIsCountedNotRefused` | `internal/apply/stale200_test.go` | the reproduction lands with the same status and file bytes and counts one candidate, one unshown; then one case per clause: each op, `N-$` and `N,+K`, `$` alone, the three position-only inserts, `anchor=`, a pattern, a quoted hunk, `Computed`, `Force`, no ledger, a whole read since the write, a partial licence, a whole-file `--quiet`-shaped record, the line-4 fixture for shown, range and insert, an alias observation | none | S1, S2 |
+| `TestNumberingCountsALandedWriteOnce` | `internal/authoring/numbering200_test.go` | three counters; counts of 2 and 2 add one each; 2 and 0 add a candidate landing only; 0 and 0 a landing only; a garbage file reads as zero | none | S1, S3 |
+| `TestALandingIsCountedOnceInLand` | `internal/writer/stale200_test.go` | a landing is counted before its check and not again after it; a landing whose check cannot start is counted; a dry run and a refusal are not; `landed_writes` moves with the tally's landed count | none | S1, S3 |
+| `TestStatsPrintsTheStaleNumberPricing` | `cmd/mrw/stale200_test.go` | the block and the JSON keys with three distinct values after real CLI writes; `--sub`, `--rewrite` where ast-grep is present, `--format=apply_patch` and `--format=search_replace` writes add a landing and no candidate; a native plan given with no format is counted | none | S1, S3, S4 |
+| `TestAnMcpWriteIsCountedAndAComputedPlanIsNot` | `internal/mcp/stale200_test.go` | `mrw_write` with `plan` is counted; with `grep`+`sub` and with `format` it adds a landing and no candidate | none | S1, S4 |
 | `TestInstructionsSayNumbersMoveAfterAWrite` | `internal/guide/stale200_test.go` | the sentence is in the full instructions | none | S1, S6 |
 
 ## Reachability
 
 | Rung | How this task shows it |
 |------|------------------------|
-| 1 — exists | the four tests and §343 |
-| 2 — something selects it | every landed write goes through `internal/writer/flow.go`, which records it |
-| 3 — the caller can discover it | `mrw stats`, `docs/receipts.txt`, `AGENTS.md` |
-| 4 — it is used | telemetry is refused by ADR-009; the evidence for building it is the reproduced failure and E5's reading, whose uncertain share only the ledger can settle |
+| 1 — exists | the six tests and §343 |
+| 2 — something selects it | every landing goes through `Land`, which records it |
+| 3 — the caller can discover it | `mrw stats`, `docs/receipts.txt`, `AGENTS.md`, the opencode plugin's description |
+| 4 — it is used | telemetry is refused by ADR-009; the evidence for building it is the reproduced failure and E5's reading, which stopped on calls only the ledger can class |
 
 ## Mutation Log
 
@@ -89,13 +96,15 @@ go test -count=1 ./internal/apply ./internal/authoring ./internal/guide ./cmd/mr
 
 ## Invariants
 
-- No write is refused, and no write receipt changes, because of this task.
+- No write is refused, and no write's receipt, exit code or file bytes change, because of this task.
 - The counters hold counts only: no path, no content.
-- A counter that cannot be read or written never fails a write.
+- A counter that cannot be read or written never changes a write's verdict.
+- `internal/seen`, `internal/plan`, `internal/read`, `internal/check` and `internal/state` are byte-identical to main.
 
 ## Risks
 
-- The marks are computed where apply already holds the observation; a hunk judged without one (no ledger, `--force`) is not a candidate.
+- A partial commit and a commit whose ledger update failed are landings `Land` records on its own branches. If no fault hook reaches them from `internal/writer`'s tests, the task says so here and in the pull request as uncovered, and does not claim them.
+- `--rewrite` needs `ast-grep` on PATH; where it is absent the test skips that one case and says so.
 - The landed-writes counter starts at this release, so it is smaller than the tally's.
 
 ## Stop Condition
@@ -106,3 +115,4 @@ The fence exits 0, `adr-debt` reports nothing broken or unreceipted, and every g
 
 - The refusal (deferred: docs/adr/BACKLOG.md)
 - A receipt row naming where the numbers moved (deferred: docs/adr/BACKLOG.md)
+- The narrower rule, width B (deferred: docs/adr/BACKLOG.md)
