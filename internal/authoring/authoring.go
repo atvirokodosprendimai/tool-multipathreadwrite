@@ -160,7 +160,10 @@ func record(root string, o Outcome) error {
 	if name == "" {
 		return nil // an Outcome outside the vocabulary is not persisted
 	}
-	t, _ := load(root) // a corrupt tally is discarded, not repaired
+	t, err := load(root) // a corrupt tally is discarded, not repaired
+	if errors.Is(err, errBusy) {
+		return nil
+	}
 	if t == nil {
 		t = Tally{}
 	}
@@ -178,7 +181,10 @@ func reclassify(root string, from, to Outcome) error {
 	if a == "" || b == "" {
 		return nil
 	}
-	t, _ := load(root)
+	t, err := load(root)
+	if errors.Is(err, errBusy) {
+		return nil
+	}
 	if t == nil {
 		t = Tally{}
 	}
@@ -207,26 +213,36 @@ func save(root string, t Tally) error {
 	return nil
 }
 
-// openCounters opens one of this package's files for a fail-open read.
-// regular.Open and not os.Open: a FIFO at the path would hold the write being
-// recorded, under this package's lock, after its files had reached disk. One
-// case goes back to a blocking open: on Linux a regular file under another
-// process's lease answers EWOULDBLOCK to a non-blocking open, and reading that
-// as "no counters yet" would let the save that follows overwrite the history;
-// a blocking open waits for the lease to break, as it did before.
+// errBusy is openCounters' answer for a file that exists and could not be
+// opened now. A record path that gets it leaves the file as it is.
+var errBusy = errors.New("the counters file is held by another process")
+
+// openRegular is regular.Open, as a variable so a test can hold a file busy.
+var openRegular = regular.Open
+
+// openCounters opens one of this package's files for a fail-open read, without
+// blocking: a FIFO at the path would hold the write being recorded, under this
+// package's lock, after its files had reached disk. On Linux a regular file
+// under another process's lease answers EWOULDBLOCK to a non-blocking open.
+// Read as "no counters yet", that would let the save that follows overwrite
+// the history, so it is tried again for a fifth of a second and then reported
+// as errBusy: the one count is lost and the history is kept. It never falls
+// back to a blocking open, which a FIFO swapped in meanwhile would hold.
 func openCounters(path string) (*os.File, error) {
-	f, _, err := regular.Open(path)
-	if errors.Is(err, syscall.EWOULDBLOCK) {
-		if fi, serr := os.Lstat(path); serr == nil && fi.Mode().IsRegular() {
-			return os.Open(path)
+	for range 10 {
+		f, _, err := openRegular(path)
+		if !errors.Is(err, syscall.EWOULDBLOCK) {
+			return f, err
 		}
+		time.Sleep(20 * time.Millisecond)
 	}
-	return f, err
+	return nil, errBusy
 }
 
 // load reads the tally. It FAILS OPEN: an unreadable or malformed file yields
 // an empty tally and no error, because a caller's next move on "the tally is
-// broken" is the same as on "there is no tally yet".
+// broken" is the same as on "there is no tally yet". The one error it returns
+// is errBusy, with an empty tally, which a record path must not save.
 func load(root string) (Tally, error) {
 	t := Tally{}
 	p, err := state.Path(root, file)
@@ -235,6 +251,9 @@ func load(root string) (Tally, error) {
 	}
 	f, err := openCounters(p)
 	if err != nil {
+		if errors.Is(err, errBusy) {
+			return t, errBusy
+		}
 		return t, nil
 	}
 	defer func() { _ = f.Close() }()
@@ -293,7 +312,10 @@ type RecentEntry struct {
 // RecentWindow. Like Record it never fails a write: every error path returns
 // and the cost of being wrong is a lost entry.
 func recordRecent(root string, advisories int) {
-	entries := recent(root)
+	entries, busy := recent(root)
+	if busy {
+		return
+	}
 	entries = append(entries, RecentEntry{Unix: time.Now().Unix(), Op: "write", Advisories: advisories})
 	if len(entries) > RecentWindow {
 		entries = entries[len(entries)-RecentWindow:]
@@ -311,14 +333,15 @@ func recordRecent(root string, advisories int) {
 
 // recent reads the ring, oldest first. It FAILS OPEN like Load: an absent,
 // unreadable or malformed file is an empty ring, and a torn line is skipped.
-func recent(root string) []RecentEntry {
+// busy says the file is there and could not be opened now.
+func recent(root string) (entries []RecentEntry, busy bool) {
 	p, err := state.Path(root, recentFile)
 	if err != nil {
-		return nil
+		return nil, false
 	}
 	f, err := openCounters(p)
 	if err != nil {
-		return nil
+		return nil, errors.Is(err, errBusy)
 	}
 	defer func() { _ = f.Close() }()
 	var out []RecentEntry
@@ -338,7 +361,7 @@ func recent(root string) []RecentEntry {
 	if len(out) > RecentWindow {
 		out = out[len(out)-RecentWindow:]
 	}
-	return out
+	return out, false
 }
 
 // Pattern reports how many of the given entries carried an advisory, how many
@@ -402,7 +425,10 @@ func recordPricing(root string, candidate, wouldRefuse bool, outcome PricingOutc
 	if !candidate {
 		return
 	}
-	p := loadPricing(root)
+	p, busy := loadPricing(root)
+	if busy {
+		return
+	}
 	p.Candidates++
 	if wouldRefuse {
 		p.WouldRefuse++
@@ -444,15 +470,15 @@ func (p Pricing) lines() []struct {
 }
 
 // loadPricing reads the counters. It fails open: absent or garbage is zero.
-func loadPricing(root string) Pricing {
-	var p Pricing
+// busy says the file is there and could not be opened now.
+func loadPricing(root string) (p Pricing, busy bool) {
 	path, err := state.Path(root, pricingFile)
 	if err != nil {
-		return p
+		return p, false
 	}
 	f, err := openCounters(path)
 	if err != nil {
-		return p
+		return p, errors.Is(err, errBusy)
 	}
 	defer func() { _ = f.Close() }()
 	sc := bufio.NewScanner(f)
@@ -478,7 +504,7 @@ func loadPricing(root string) Pricing {
 			p.Unchecked = n
 		}
 	}
-	return p
+	return p, false
 }
 
 // FalsePositiveRate is held / (broke + held); ok is false when nothing
@@ -546,6 +572,9 @@ func Reclassify(root string, from, to Outcome) error {
 // open: an unreadable or malformed file is an empty tally and no error.
 func Load(root string) (t Tally, err error) {
 	lockedRead(root, func() { t, err = load(root) })
+	if errors.Is(err, errBusy) {
+		err = nil
+	}
 	return t, err
 }
 
@@ -573,7 +602,7 @@ func RecordRecent(root string, advisories int) error {
 
 // Recent reads the ring under the tally's lock, oldest first; it fails open.
 func Recent(root string) (entries []RecentEntry) {
-	lockedRead(root, func() { entries = recent(root) })
+	lockedRead(root, func() { entries, _ = recent(root) })
 	return entries
 }
 
@@ -586,7 +615,7 @@ func RecordPricing(root string, candidate, wouldRefuse bool, outcome PricingOutc
 
 // LoadPricing reads the counters under the tally's lock; it fails open.
 func LoadPricing(root string) (p Pricing) {
-	lockedRead(root, func() { p = loadPricing(root) })
+	lockedRead(root, func() { p, _ = loadPricing(root) })
 	return p
 }
 
@@ -609,7 +638,10 @@ type Numbering struct {
 // would-refuse landing when the counts say so: a write with two candidates is
 // still one landing.
 func recordNumbering(root string, candidates, unshown int) {
-	n := loadNumbering(root)
+	n, busy := loadNumbering(root)
+	if busy {
+		return
+	}
 	n.Landed++
 	if candidates > 0 {
 		n.Candidates++
@@ -625,15 +657,15 @@ func recordNumbering(root string, candidates, unshown int) {
 }
 
 // loadNumbering reads the counters. It fails open: absent or garbage is zero.
-func loadNumbering(root string) Numbering {
-	var n Numbering
+// busy says the file is there and could not be opened now.
+func loadNumbering(root string) (n Numbering, busy bool) {
 	path, err := state.Path(root, numberingFile)
 	if err != nil {
-		return n
+		return n, false
 	}
 	f, err := openCounters(path)
 	if err != nil {
-		return n
+		return n, errors.Is(err, errBusy)
 	}
 	defer func() { _ = f.Close() }()
 	sc := bufio.NewScanner(f)
@@ -655,7 +687,7 @@ func loadNumbering(root string) Numbering {
 			n.WouldRefuse = v
 		}
 	}
-	return n
+	return n, false
 }
 
 // RecordNumbering counts one landed write (ADR-200) with the number of numbered
@@ -668,6 +700,6 @@ func RecordNumbering(root string, candidates, unshown int) error {
 
 // LoadNumbering reads the counters under the tally's lock; it fails open.
 func LoadNumbering(root string) (n Numbering) {
-	lockedRead(root, func() { n = loadNumbering(root) })
+	lockedRead(root, func() { n, _ = loadNumbering(root) })
 	return n
 }
