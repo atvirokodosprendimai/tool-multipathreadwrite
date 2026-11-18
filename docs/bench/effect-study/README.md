@@ -55,6 +55,37 @@ In plain words:
 What follows from the bars: E1 earns a requests column in `scripts/measure.sh` and a sentence in
 `docs/measure.md`; E2 earns a draft record for Zy; E3 and E4 close.
 
+## E5, added the same day: what a guard on stale line numbers would cost
+
+A numbered hunk sent after mrw's own write of a file lands on whatever line now has the number
+(reproduced on v1.88.0; ADR-200, a draft). The guard considered is to refuse such a hunk unless it carries
+`anchor=` or its lines were shown since the write. E5 prices it: of the write calls that landed, how many
+it would have refused. The rule, two widths of it and the verdict were pre-registered in
+`docs/adr/BACKLOG.md` ("Pre-registered for ADR-200") and pushed before the run.
+
+| | all | without this repository | bar |
+|---|---|---|---|
+| landed write calls with a typed plan | 9,183 | 6,700 | at least 200 |
+| refused, width A (a write forgets every shown line) | 6.61% (607) | **5.90%** (395) | at most 5% |
+| refused, width B (lines the write left in place stay shown) | 5.87% (539) | **5.19%** (348) | at most 5% |
+| uncertain, A / B | 1,048 / 992 | 12.46% / 11.75% (835 / 787) | refused + uncertain at most 10% |
+
+**Verdict: STOP.** Both widths miss, and the uncertain share alone is over its bound. Nothing is built from
+this reading. It prices the refusal only; how often a stale number is sent and lands is not measured.
+
+Method. Per session, a file is tracked from the session's own first landed mrw write to it. A read answer
+shows the line numbers it printed under that file's header. A later plan typed into the shell command
+that runs `mrw write` is judged hunk by hunk on the state before it: `replace`, `delete`, `insert-after`
+and `insert-before` with a numbered address and no `anchor=`. At width B a landed plan's own hunks say
+which lines moved. The reading rules the pre-registration left open are listed there, written with the
+scanner and before the run.
+
+Limits. A plan in a file, a plan maker and `--create` are not judged (3,627 landed calls). A read piped
+or captured makes its files uncertain, since the ledger records more than the transcript shows. Lines
+the host's own Read licensed through `mrw hook read`, a read under `-N` and a walk whose piped output
+names no file are not seen, each making the refused count larger than the engine's would be. A second
+plan in one shell command is judged on the state before the command (798 such commands).
+
 ## Method
 
 `scan.py` reads every `*.jsonl` under `~/.claude/projects`, subagent transcripts included, and counts
@@ -116,7 +147,7 @@ transcript with no entry in the window is not counted. It prints aggregates only
 ## Run it
 
 ```sh
-python3 -I docs/bench/effect-study/test_scan.py                 # 49 checks on synthetic transcripts
+python3 -I docs/bench/effect-study/test_scan.py                 # 87 checks on synthetic transcripts
 python3 -I docs/bench/effect-study/scan.py --until 2026-11-18T10:00:00Z --repo . > results.json
 python3 -I docs/bench/effect-study/scan.py --until 2026-11-18T10:00:00Z --skip tool-multipathreadwrite
 ```
@@ -127,3 +158,5 @@ Give `--until` a time in the past: a live session keeps appending to its transcr
 
 - `scan.py`: the scanner. `test_scan.py`: its self-test.
 - `results.json`, `results-without-this-repository.json`: the two runs above.
+- `results-e5.json`, `results-e5-without-this-repository.json`: E5's two runs, the corpus line and E5 only.
+  `results.json` was not regenerated: its E2 tag count reads the tree, which has changed since.

@@ -310,10 +310,139 @@ def test_window():
     check("a skipped folder is not read", scan_of(e, skip=["p" + os.sep])["corpus"]["transcripts"], 0)
 
 
+def plan_call(tid, plan, out=OK1, cmd="mrw write --terse - <<'EOF'\n%s\nEOF"):
+    """A shell call that pipes a typed plan to mrw write, and its answer."""
+    return bash("m" + tid, tid, cmd % plan, out)
+
+
+def shown(tid, path, lines, cmd=None):
+    """An mrw read of path that printed the given line numbers."""
+    body = "".join(" %d| x\n" % n for n in lines)
+    return bash("m" + tid, tid, cmd or "mrw read %s" % path, "==> %s  9L  9B  sha aaaaaaaa\n@@ %d-%d\n%s" % (
+        path, lines[0], lines[-1], body))
+
+
+def e5(entries):
+    """Scan entries and return E5's counts that a case compares."""
+    r = scan_of(entries)["E5"]
+    return (r["landed_plan_calls"], r["refused_calls_a"], r["refused_calls_b"], r["uncertain_calls_a"])
+
+
+def test_guard():
+    """E5: the reproduced failure is refused at both widths; what shows, anchors or names by pattern is not."""
+    start = shown("r0", "f.txt", [1, 2, 3, 4, 5]) + plan_call("w0", "@@ f.txt 1 insert-after\nNEW")
+    check("a first write to a file is not refused", e5(start), (1, 0, 0, 0))
+    check("a stale number after an insert is refused at both widths",
+          e5(start + plan_call("w1", "@@ f.txt 4 replace\nD")), (2, 1, 1, 0))
+    check("a read of the line between is enough",
+          e5(start + shown("r1", "f.txt", [4]) + plan_call("w1", "@@ f.txt 4 replace\nD")), (2, 0, 0, 0))
+    check("a read of another line is not",
+          e5(start + shown("r1", "f.txt", [5]) + plan_call("w1", "@@ f.txt 4 replace\nD")), (2, 1, 1, 0))
+    check("an anchor answers it",
+          e5(start + plan_call("w1", "@@ f.txt 4 replace anchor=\"c\"\nD")), (2, 0, 0, 0))
+    check("a pattern, the last line and line 0 are not numbers",
+          e5(start + plan_call("w1", "@@ f.txt /^c$/ replace\nD\n@@ f.txt $ replace\nE\n@@ f.txt 0 insert-after\nT")),
+          (2, 0, 0, 0))
+    check("another file is not tracked",
+          e5(start + plan_call("w1", "@@ g.txt 4 replace\nD")), (2, 0, 0, 0))
+    r = scan_of(start + plan_call("w1", "@@ f.txt 4 delete\n@@ f.txt 2 insert-before\nQ\n@@ f.txt 5,+1 replace\nZ"))["E5"]
+    check("each op is counted, a call once", (r["refused_calls_a"], r["refused_hunks_by_op"], r["ceiling_calls"]),
+          (1, {"replace": 1, "delete": 1, "insert-after": 0, "insert-before": 1}, 1))
+
+
+def test_guard_widths():
+    """E5: width B keeps a line shown before a write that left it in place; width A does not."""
+    read = shown("r0", "f.txt", [1, 2, 3, 4, 5])
+    same = read + plan_call("w0", "@@ f.txt 4 replace\nD")
+    check("above an equal replace: A refuses, B does not",
+          e5(same + plan_call("w1", "@@ f.txt 2 replace\nB")), (2, 1, 0, 0))
+    check("below an equal replace: the same",
+          e5(same + plan_call("w1", "@@ f.txt 5 replace\nE")), (2, 1, 0, 0))
+    check("the replaced line itself was not shown",
+          e5(same + plan_call("w1", "@@ f.txt 4 replace\nD2")), (2, 1, 1, 0))
+    grew = read + plan_call("w0", "@@ f.txt 3 replace\nC\nC2")
+    check("above a replace that grew: B keeps it",
+          e5(grew + plan_call("w1", "@@ f.txt 2 replace\nB")), (2, 1, 0, 0))
+    check("below a replace that grew: B refuses",
+          e5(grew + plan_call("w1", "@@ f.txt 5 replace\nE")), (2, 1, 1, 0))
+    after = read + plan_call("w0", "@@ f.txt 3 insert-after\nN")
+    check("the line an insert-after names stays; the next moves",
+          (e5(after + plan_call("w1", "@@ f.txt 3 replace\nC")), e5(after + plan_call("w2", "@@ f.txt 4 replace\nD"))),
+          ((2, 1, 0, 0), (2, 1, 1, 0)))
+    before = read + plan_call("w0", "@@ f.txt 3 insert-before\nN")
+    check("an insert-before moves the line it names",
+          (e5(before + plan_call("w1", "@@ f.txt 2 replace\nB")), e5(before + plan_call("w2", "@@ f.txt 3 replace\nC"))),
+          ((2, 1, 0, 0), (2, 1, 1, 0)))
+    check("a delete moves from its first line",
+          e5(read + plan_call("w0", "@@ f.txt 3 delete") + plan_call("w1", "@@ f.txt 3 replace\nD")), (2, 1, 1, 0))
+    check("a delete with its expected body still moves the lines below",
+          e5(read + plan_call("w0", "@@ f.txt 3 delete\nc") + plan_call("w1", "@@ f.txt 4 replace\nD")), (2, 1, 1, 0))
+    check("a declared body count is the body",
+          e5(read + plan_call("w0", "@@ f.txt 3 replace body=1\nC") + plan_call("w1", "@@ f.txt 5 replace\nE")), (2, 1, 0, 0))
+    check("a hunk by pattern moves every line",
+          e5(read + plan_call("w0", "@@ f.txt /^c$/ replace\nC") + plan_call("w1", "@@ f.txt 1 replace\nA")), (2, 1, 1, 0))
+    check("a body the plan does not hold moves every line",
+          e5(read + plan_call("w0", "@@ f.txt 5 insert-after from=g.txt:1-2") + plan_call("w1", "@@ f.txt 1 replace\nA")),
+          (2, 1, 1, 0))
+
+
+def test_guard_state():
+    """E5: what counts as landed, shown, uncertain or no longer tracked."""
+    start = shown("r0", "f.txt", [1, 2, 3, 4, 5]) + plan_call("w0", "@@ f.txt 1 insert-after\nNEW")
+    stale = "@@ f.txt 4 replace\nD"
+    check("a dry run and a refused write are not landed",
+          e5(start + plan_call("w1", stale, "1 hunk(s), 1 file(s), 0 failed, 0 advisories — dry run, nothing written\n")
+             + plan_call("w2", stale, "1 hunk(s), 1 file(s), 1 failed, 0 advisories — NOTHING WRITTEN\n")), (1, 0, 0, 0))
+    piped = shown("r1", "f.txt", [1], "mrw read f.txt | head -1")
+    check("a piped read makes the file uncertain", e5(start + piped + plan_call("w1", stale)), (2, 0, 0, 1))
+    check("what a piped read printed is shown", e5(start + piped + plan_call("w1", "@@ f.txt 1 replace\nA")), (2, 0, 0, 0))
+    check("a captured read is piped", e5(start + shown("r1", "f.txt", [1], 'out="$(mrw read f.txt)"')
+                                         + plan_call("w1", stale)), (2, 0, 0, 1))
+    check("stderr sent away is not a pipe", e5(start + shown("r1", "f.txt", [5], "mrw read f.txt:5 2>/dev/null")
+                                               + plan_call("w1", stale)), (2, 1, 1, 0))
+    check("a range is refused when any line of it is unshown",
+          e5(start + shown("r1", "f.txt", [4]) + plan_call("w1", "@@ f.txt 4-5 delete")), (2, 1, 1, 0))
+    check("a second write forgets what was shown after the first",
+          e5(start + shown("r1", "f.txt", [4]) + plan_call("w1", "@@ f.txt /^e$/ replace\nE") + plan_call("w2", stale)),
+          (3, 1, 1, 0))
+    check("a call with a certain refusal is not also uncertain",
+          e5(start + plan_call("wg", "@@ g.txt 0 insert-after\nG") + shown("r1", "g.txt", [1], "mrw read g.txt | head -1")
+             + plan_call("w1", stale + "\n@@ g.txt 2 replace\nB")), (3, 1, 1, 0))
+    check("a piped read of another file leaves this one certain",
+          e5(start + shown("r1", "g.txt", [1], "mrw read g.txt | head -1") + plan_call("w1", stale)), (2, 1, 1, 0))
+    check("the next write ends the doubt",
+          e5(start + piped + plan_call("w1", "@@ f.txt /^c$/ replace\nC") + plan_call("w2", stale)), (3, 1, 1, 0))
+    check("the host's edit of the file ends the tracking",
+          e5(start + [use("mE", "tE", "Edit", {"file_path": "/r/f.txt"})] + plan_call("w1", stale)), (2, 0, 0, 0))
+    check("a read before the write in one command counts",
+          e5(start + plan_call("w1", stale, "==> f.txt  6L  9B  sha aaaaaaaa\n@@ 4-4\n 4| c\n" + OK1,
+                               "mrw read f.txt:4 && mrw write - <<'EOF'\n%s\nEOF")), (2, 0, 0, 0))
+    check("a read after the write in one command shows the new lines",
+          e5(start + plan_call("w1", "@@ f.txt /^c$/ replace\nC", OK1 + "==> f.txt  6L  9B  sha aaaaaaaa\n@@ 4-4\n 4| C\n",
+                               "mrw write - <<'EOF'\n%s\nEOF\nmrw read f.txt:4") + plan_call("w2", stale)), (3, 0, 0, 0))
+    check("a plan typed as quoted words is read",
+          e5(start + plan_call("w1", "", OK1, "printf '%%s\\n' '@@ f.txt 4 replace' 'D' | mrw write -%s")), (2, 1, 1, 0))
+    made = bash("mc", "tc", "printf 'a\\nb\\n' | mrw write --create n.txt", "created n.txt  0L -> 2L  sha aaaaaaaa\n" + OK1)
+    r = scan_of(made + plan_call("w1", "@@ n.txt 2 replace\nB"))["E5"]
+    check("a file the session created is counted apart",
+          (r["landed_plan_calls"], r["refused_calls_a"], r["refused_hunks_on_created"], r["landed_calls_with_no_typed_plan"]),
+          (1, 1, 1, 1))
+    filed = bash("mp", "tp", "mrw write --terse plan.txt", "ok   f.txt  1 hunk(s)  -0 +1  sha aaaaaaaa\n" + OK1)
+    check("a plan in a file still marks what it wrote",
+          e5(shown("r0", "f.txt", [1, 2, 3]) + filed + plan_call("w1", "@@ f.txt 2 replace\nB")), (1, 1, 1, 0))
+    two = plan_call("w1", "@@ g.txt 1 insert-after\nN", OK1 + OK1,
+                    "mrw write - <<'EOF'\n%s\nEOF\nmrw write - <<'EOF'\n@@ g.txt 3 replace\nC\nEOF")
+    check("two writes in one command are counted as chained", scan_of(two)["E5"]["chained_write_commands"], 1)
+    check("the verdict's rules", [scan.guard_verdict(*a) for a in (
+        (199, 0, 0, 0, 0), (200, 10, 10, 99, 99), (200, 11, 0, 10, 10), (200, 10, 11, 10, 11), (200, 11, 0, 11, 0))],
+        ["INSUFFICIENT", "BUILD A", "BUILD B", "STOP", "STOP"])
+
+
 def main():
     """Run every case and print the mismatches."""
     for case in (test_cost, test_sites, test_shell, test_plan, test_plan_edges, test_tags, test_compaction,
-                 test_changed, test_changed_edges, test_json_and_quiet, test_window):
+                 test_changed, test_changed_edges, test_json_and_quiet, test_window, test_guard, test_guard_widths,
+                 test_guard_state):
         case()
     for b in BAD:
         print("FAIL " + b)
