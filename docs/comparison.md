@@ -39,7 +39,7 @@ Source: vendor docs and git-apply(1), 2026-09-12. Not a live bake-off.
 
 ¹ Claude Code only, and by model since the 2026-09-12 scan. The tools reference says Opus 4.6,
 Haiku 4.5 and older models must read a file before editing it; that newer models may edit an
-unread file when no permission prompt would be needed and the Read tool is available; and that a
+unread file when reading it would need no permission prompt and the Read tool is available; and that a
 shell command it recognises (`cat`, `grep`, `head` and the like) on one file, with no pipe or
 redirect, counts as the read when it printed the file's text.
 
@@ -55,23 +55,25 @@ redirect, counts as the read when it printed the file's text.
    mutated the target (`delta.exact=false`). `--format=apply_patch` compiles
    that grammar into a native plan so we do not copy the sequential leak.
 3. **Claude Edit / Write** (Cursor `StrReplace` is the same shape) — closest on
-   license instinct. Unique `old_string` or refuse. Per-file atomic. Not a plan.
+   license instinct. Unique `old_string` or refuse, unless `replace_all`. Per-file atomic. Not a plan.
    MultiEdit was removed in Claude Code 2.0. Its read rule is file-level and now
    depends on the model (note 1). Probed 2026-11-18 in Claude Code 2.1.326, auto
    mode, a Claude 5 model, on scratch files: an Edit of a file never opened with
    Read applied; a Write over an existing unread file applied; and after the shell
    inserted a line above the target, the Edit still applied, with a note that the
    file had changed on disk, where the 2026-09-12 scan recorded a stale-mtime
-   refusal. The reference documents that last behaviour: an `old_string` that still
-   matches once applies. Addressing by string is why an inserted line does not move
-   its target; a line number does move. mrw refuses a file anyone else changed, and
-   a multi-line `replace` must carry `anchor=` (ADR-035), but after mrw's own write
-   a single-line `replace` with no anchor is applied to whatever line now has the
-   number.
+   refusal. The reference documents that last behaviour: the edit can apply when
+   `old_string` still matches exactly once and the file could be read without a
+   prompt. Addressing by string is why an inserted line does not move its target; a
+   line number does move. By default mrw refuses a hunk to a file whose content is
+   not what it recorded (`--force` and a quoted SEARCH/REPLACE hunk aside), and a
+   multi-line `replace` must carry `anchor=` (ADR-035); but after its own write of a
+   file it knew whole, an otherwise valid single-line `replace` with no anchor is
+   applied to whatever line now has the number.
 4. **Shell edits** — not in the 2026-09-12 scan, and what an agent with only a
    shell tool uses. `sed -i` over many files is one call. Nothing is licensed,
-   nothing is refused for being unread, and a `sed` expression that matches nothing
-   exits 0 with the file unchanged: the write that changes nothing, unseen. A
+   nothing is refused for being unread, and a `sed -i` substitution that matches
+   nothing exits 0 having changed no text: the write that changes nothing, unseen. A
    `cat > file <<'EOF'` replaces the whole file. Claude Code's
    [checkpoints](https://code.claude.com/docs/en/checkpointing.md) do not track a
    file only shell commands changed, which is true of an mrw write as well.
