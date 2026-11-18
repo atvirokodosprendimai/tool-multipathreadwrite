@@ -48,7 +48,7 @@ By where the plan came from:
 
 By what the ledger holds for the file (the observation apply selected, alias lookup included):
 - whole-file written-shaped (`Written` with no spans): an mrw write, **or a whole-file `--quiet` read**; the ledger cannot tell them apart (ADR-182). Counted. After such a record, a partial `--quiet` read or a `--sub` read adds nothing to it (`merge`, `internal/seen/seen.go`), so a plan from `mrw read --sub` sent in a later call is counted although its numbers are current: an overcount.
-- a whole read on the CLI since the write: the record is no longer written-shaped. Not a candidate. An MCP read acknowledged in full leaves the record written-shaped with every line shown: a candidate, and never unshown.
+- a CLI read that served and recorded the whole file since the write: the record is no longer written-shaped. Not a candidate. A whole-file `--quiet` read keeps it written-shaped with nothing shown. MCP reads acknowledged for every line of the version on disk leave it written-shaped with every line shown: a candidate, and never unshown; lines of a page never acknowledged stay unshown.
 - lines licensed in part (`--quiet` or `--sub` on a file with no whole record, ADR-161): not a candidate.
 - a file last written by quoted hunks only: recorded as read spans, not written (`internal/writer/writer.go`). A later numbered hunk on those lines is not counted though its numbers moved: an undercount.
 - a plain `rename`: the destination is recorded written though no number moved. Counted: an overcount.

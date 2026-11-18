@@ -11348,10 +11348,15 @@ rm -rf "$R330"
 # run adds nothing.
 R343=$(mktemp -d "$WORK/r343-XXXXXX"); printf 'a\nb\nc\nd\ne\n' > "$R343/f.txt"
 e343() { env XDG_STATE_HOME="$R343/state" "$MRW" -C "$R343" "$@" 2>&1; }
-n343() { e343 stats --json | tr -d ' \n'; }
-# The answer is captured before it is matched: grep -q on a live pipe can close it
-# before mrw has finished writing.
-has343() { s343=$(n343); case "$s343" in *"$1"*) return 0 ;; esac; return 1; }
+# The answer is captured, and its exit status read, before it is matched: grep -q on
+# a live pipe can close it before mrw has finished writing, and a pipe reports tr's
+# status, not mrw's.
+has343() {
+  r343=$(e343 stats --json) || { s343="stats --json exited $?: $r343"; return 1; }
+  s343=$(printf '%s' "$r343" | tr -d ' \n')
+  case "$s343" in *"$1"*) return 0 ;; esac
+  return 1
+}
 e343 read f.txt > "$R343/read.out"
 want 0 "$?" "ADR-200: the whole-file read that the numbers come from"
 has343 '"numbering":{"landed_writes":0,"numbered_candidates":0,"numbered_would_refuse":0}' \
