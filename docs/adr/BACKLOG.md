@@ -1333,6 +1333,22 @@ refused when a line it addresses was not shown by an mrw read since that write.
 R_A + U ≤ 10% of W. Otherwise **BUILD B** if R_B ≤ 5% of W and R_B + U ≤ 10% of W. Otherwise **STOP**:
 nothing is built and Zy reads the numbers. 5% is ADR-009's bar for a refusal rate the format may cost.
 
+**How the scanner reads what the rule leaves open**, written 2026-11-18 with the scanner and its synthetic
+tests, before any run over transcripts:
+- `N-$` is a numbered address, judged on line N. An insert at line 0 is not one.
+- A read whose output is captured (`$(mrw read …)`) is piped; `2>` alone is not a redirect.
+- A hunk is a *candidate* on an UNCERTAIN file only when the lines the transcript shows would refuse it:
+  what a piped read did print is shown. U is counted per width, U_A and U_B, and the verdict uses the
+  width's own.
+- In one shell command, reads that all come before the first write are applied before the plan is judged;
+  otherwise the plan is judged on the state before the command, and the reads are applied after it.
+- The host's own Edit or Write of a file ends its tracking: mrw refuses that file until it is read again,
+  and a read is not a write's licence.
+- A landed write with no typed plan (a plan file, `--create`, a plan maker) marks the files its receipt
+  rows name as written, with nothing shown at either width.
+- Not seen, each making R larger than the engine's would be: lines licensed by the host's Read through
+  `mrw hook read`, a read with `-N`, and a walk (`--grep`) whose piped output names no file.
+
 **What this does not measure.** The benefit. How often a stale number is sent and lands is still unknown
 (the measure withdrawn above could not tell). The guard is built on a reproduced failure and a priced
 refusal, not on a counted harm, and ADR-200 says so. After a release that carries it, the count that needs

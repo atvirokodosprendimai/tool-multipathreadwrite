@@ -12,6 +12,7 @@ E1  priced cost by token class; file sites acted on per shell call and per reque
 E2  (a) lines whose tag equals a neighbour's; (b) hunks, anchors and anchor misses
 E3  host Edit/Write share of file-changing calls before and after a compaction
 E4  "changed since mrw last saw it" refusals, by what the session itself did since
+E5  landed write calls an anchor requirement on unshown numbered lines would refuse (ADR-200)
 
 Limits are in README.md. Every count is of transcript entries, not of incidents.
 """
@@ -167,6 +168,190 @@ def same_path(native, rel):
     return isinstance(native, str) and (native == rel or native.endswith("/" + rel))
 
 
+HEREDOC_BODY = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_]\w*)\1[^\n]*\n(.*?)\n[ \t]*\2[ \t]*(?=\n|$)", re.S)
+READ_HEAD = re.compile(r"^==> (.+?)  \d+L\b")
+NUMBERED = re.compile(r"^\s*(\d+)\| ")
+RECEIPT_ROW = re.compile(r"^(?:ok\s+|wrote |created |replaced )(\S+)", re.M)
+LINE_OPS = ("replace", "delete", "insert-after", "insert-before")
+EVERY = float("inf")
+
+
+def plans_in(cmd):
+    """Return the plan text typed in a shell command: its heredoc bodies, then its quoted strings one a line."""
+    bodies = [m.group(3) for m in HEREDOC_BODY.finditer(cmd)]
+    rest = HEREDOC_BODY.sub("", cmd)
+    words = [m.group(0)[1:-1].replace("\\n", "\n") for m in QUOTED.finditer(rest)]
+    return "\n".join(bodies + words)
+
+
+def numbers(addr):
+    """Return (first, last) for an address typed in line numbers, or None; `N-$` is read as its first line."""
+    m = re.fullmatch(r"(\d+)(?:-(\d+|\$)|,\+(\d+))?", addr)
+    if not m:
+        return None
+    a = int(m.group(1))
+    if m.group(3):
+        return a, a + int(m.group(3))
+    return a, int(m.group(2)) if m.group(2) and m.group(2) != "$" else a
+
+
+def typed_hunks(text):
+    """Return (path, address, op, rest of header, body lines or None) for each hunk header in a plan text."""
+    out, lines = [], text.split("\n")
+    heads = [i for i, ln in enumerate(lines) if HUNK.match(ln)]
+    for k, i in enumerate(heads):
+        m = HUNK.match(lines[i])
+        path = HUNK_PATH.match(lines[i]).group(1).strip("\"'")
+        rest = m.group(3)
+        declared = re.search(r"\bbody=(\S+)", rest)
+        if declared:
+            body = int(declared.group(1)) if declared.group(1).isdigit() else None
+        elif "from=" in rest:
+            body = None
+        else:
+            body = (heads[k + 1] if k + 1 < len(heads) else len(lines)) - i - 1
+        out.append((path[2:] if path.startswith("./") else path, m.group(1), m.group(2), rest, body))
+    return out
+
+
+def read_is_piped(cmd):
+    """Report whether a shell command sends an mrw read's output anywhere but the caller."""
+    text = folded(cmd)
+    for m in MRW_CALL.finditer(text):
+        if m.group(1) != "read":
+            continue
+        if "$(" in text[max(m.start() - 1, 0):m.start() + 3]:
+            return True
+        tail = re.split(r";|&&|\|\||\n", text[m.end():], maxsplit=1)[0]
+        if re.search(r"\|(?!\|)|>", re.sub(r"2>\s*\S+", "", tail)):
+            return True
+    return False
+
+
+class Guard:
+    """E5: which landed write calls an anchor requirement on unshown numbered lines would refuse.
+
+    Width A forgets every shown line of a file at each write to it. Width B keeps a line shown
+    before the write that the write left where it was. A file is tracked from the session's own
+    first mrw write to it; the host's Edit or Write of it ends the tracking, since mrw then refuses
+    the file until it is read again.
+    """
+
+    def __init__(self, t):
+        self.t = t
+        self.written, self.created, self.uncertain = set(), set(), set()
+        self.shown_a = collections.defaultdict(set)
+        self.shown_b = collections.defaultdict(set)
+
+    def native(self, file_path):
+        """The host's own tool changed a file."""
+        for rel in [r for r in self.written if same_path(file_path, r)]:
+            self.written.discard(rel)
+            self.created.discard(rel)
+            self.uncertain.discard(rel)
+            self.shown_a.pop(rel, None)
+
+    def served(self, text, cmd):
+        """An mrw read answer: remember the line numbers it printed under each file."""
+        if read_is_piped(cmd):
+            self.uncertain |= {rel for rel in self.written if rel in cmd}
+        cur = None
+        for ln in text.split("\n"):
+            head = READ_HEAD.match(ln)
+            if head:
+                cur = head.group(1)
+                continue
+            num = NUMBERED.match(ln)
+            if num and cur is not None:
+                self.shown_b[cur].add(int(num.group(1)))
+                self.shown_a[cur].add(int(num.group(1)))
+
+    def judge(self, hunks):
+        """Count one landed write call's typed hunks against the state before it."""
+        c = self.t.c
+        c["e5_landed_plan_calls"] += 1
+        hit = collections.Counter()
+        for path, addr, op, rest, _ in hunks:
+            span = numbers(addr)
+            if op not in LINE_OPS or span is None or span[0] < 1 or ANCHOR.search(rest) or path not in self.written:
+                continue
+            hit["ceiling"] += 1
+            lines = range(span[0], span[1] + 1)
+            doubt = "_uncertain" if path in self.uncertain else ""
+            if any(n not in self.shown_a[path] for n in lines):
+                hit["a" + doubt] += 1
+                if not doubt:
+                    c["e5_refused_hunks_" + op] += 1
+                    c["e5_refused_hunks_on_created"] += path in self.created
+            if any(n not in self.shown_b[path] for n in lines):
+                hit["b" + doubt] += 1
+        c["e5_ceiling_calls"] += bool(hit["ceiling"])
+        c["e5_refused_calls_a"] += bool(hit["a"])
+        c["e5_uncertain_calls_a"] += bool(hit["a_uncertain"]) and not hit["a"]
+        c["e5_refused_calls_b"] += bool(hit["b"])
+        c["e5_uncertain_calls_b"] += bool(hit["b_uncertain"]) and not hit["b"]
+
+    def landed(self, hunks, text):
+        """A write that applied: forget what it moved, and track every file it changed."""
+        by_path = collections.defaultdict(list)
+        for h in hunks:
+            by_path[h[0]].append(h)
+        for path, hs in by_path.items():
+            if any(h[2] in ("unlink", "rename") for h in hs):
+                self.native("/" + path)
+                self.shown_b.pop(path, None)
+                continue
+            moved, gone = EVERY, set()
+            for _, addr, op, _, body in hs:
+                span = numbers(addr)
+                if op == "create":
+                    self.created.add(path)
+                if op not in LINE_OPS or span is None or body is None:
+                    moved = 0
+                    continue
+                a, b = span
+                if op == "insert-after":
+                    moved = min(moved, a + 1)
+                elif op == "insert-before" or op == "delete" or body != b - a + 1:
+                    moved = min(moved, a)
+                if op in ("replace", "delete"):
+                    gone |= set(range(a, b + 1))
+            self.shown_b[path] = {n for n in self.shown_b[path] if n < moved and n not in gone}
+            self.mark(path)
+        for m in RECEIPT_ROW.finditer(text):
+            rel = m.group(1)
+            if rel not in by_path:                       # a plan file, --create or a plan maker wrote it
+                self.shown_b.pop(rel, None)
+                if text[m.start():m.start() + 8] == "created ":
+                    self.created.add(rel)
+                self.mark(rel)
+
+    def mark(self, rel):
+        """Record that mrw wrote rel: nothing of it has been shown since."""
+        self.written.add(rel)
+        self.uncertain.discard(rel)
+        self.shown_a[rel] = set()
+
+    def answer(self, cmd, text):
+        """Fold one shell call that ran mrw, and its answer, into the counts and the state."""
+        calls = [m.group(1) for m in MRW_CALL.finditer(folded(cmd))]
+        hunks = typed_hunks(plans_in(cmd)) if "write" in calls else []
+        applied = "— applied" in text
+        reads_first = "read" in calls and "write" in calls and calls.index("write") > max(
+            i for i, s in enumerate(calls) if s == "read")
+        if reads_first:
+            self.served(text, cmd)
+        if "write" in calls and applied:
+            if hunks:
+                self.judge(hunks)
+                self.t.c["e5_chained_write_commands"] += calls.count("write") > 1
+            else:
+                self.t.c["e5_landed_calls_with_no_typed_plan"] += 1
+            self.landed(hunks, text)
+        if "read" in calls and not reads_first:
+            self.served(text, cmd)
+
+
 class Totals:
     """Counts across every transcript."""
 
@@ -188,6 +373,7 @@ def scan_session(path, since, until, t):
     trail = []          # every tool call and mrw answer in order, for E4's look-back
     request_sites = collections.defaultdict(lambda: [0, 0, False])   # msg id -> [mrw sites, host sites, mrw ran]
     any_entry = False
+    guard = Guard(t)
     for ev in events(path, since, until):
         if ev[0] == "undated":
             # Not reported: a live session keeps appending undated entries, so the count is not the window's.
@@ -213,6 +399,7 @@ def scan_session(path, since, until, t):
             if name in NATIVE_CHANGE:
                 order.append(("native",))
                 trail.append(("native", inp.get("file_path")))
+                guard.native(inp.get("file_path"))
             elif name in ("Agent", "Task"):
                 trail.append(("agent", None))
             elif cmd:
@@ -235,6 +422,7 @@ def scan_session(path, since, until, t):
             if not subs:
                 continue
             text = unfolded(text)
+            guard.answer(cmd, text)
             for miss in ANCHOR_MISS.findall(text):
                 t.c["anchor_miss_lines"] += 1
                 misses.add(miss)
@@ -436,6 +624,33 @@ def spread(xs):
             "p90": xs[int(0.9 * (len(xs) - 1))], "share_of_one": pct(sum(1 for x in xs if x == 1), len(xs))}
 
 
+def guard_verdict(w, r_a, u_a, r_b, u_b):
+    """The verdict pre-registered in docs/adr/BACKLOG.md (Pre-registered for ADR-200), first rule that applies."""
+    if w < 200:
+        return "INSUFFICIENT"
+    if 20 * r_a <= w and 10 * (r_a + u_a) <= w:
+        return "BUILD A"
+    if 20 * r_b <= w and 10 * (r_b + u_b) <= w:
+        return "BUILD B"
+    return "STOP"
+
+
+def guard_report(c):
+    """E5's part of the JSON document."""
+    w = c["e5_landed_plan_calls"]
+    r_a, u_a, r_b, u_b = (c["e5_refused_calls_a"], c["e5_uncertain_calls_a"],
+                          c["e5_refused_calls_b"], c["e5_uncertain_calls_b"])
+    return {"landed_plan_calls": w,
+            "refused_calls_a": r_a, "uncertain_calls_a": u_a, "refused_a_pct": pct(r_a, w),
+            "refused_calls_b": r_b, "uncertain_calls_b": u_b, "refused_b_pct": pct(r_b, w),
+            "ceiling_calls": c["e5_ceiling_calls"], "ceiling_pct": pct(c["e5_ceiling_calls"], w),
+            "refused_hunks_by_op": {op: c["e5_refused_hunks_" + op] for op in LINE_OPS},
+            "refused_hunks_on_created": c["e5_refused_hunks_on_created"],
+            "chained_write_commands": c["e5_chained_write_commands"],
+            "landed_calls_with_no_typed_plan": c["e5_landed_calls_with_no_typed_plan"],
+            "verdict": guard_verdict(w, r_a, u_a, r_b, u_b)}
+
+
 def report(t, files, unreadable, repo):
     """Build the JSON document."""
     priced = {k: t.tokens[k] * w for k, w in WEIGHTS.items()}
@@ -473,6 +688,7 @@ def report(t, files, unreadable, repo):
                "nothing_found_per_mrw_write_pct": pct(c["changed_since_nothing_found"], c["mrw_write_calls"]),
                "not_own_edit_per_mrw_write_pct": pct(c["changed_since_refusals"] - c["changed_since_own_edit"],
                                                      c["mrw_write_calls"])},
+        "E5": guard_report(c),
     }
 
 
