@@ -500,11 +500,59 @@ def test_guard_state():
         ["INSUFFICIENT", "BUILD A", "BUILD B", "STOP", "STOP", "BUILD B"])
 
 
+def e6(entries):
+    """Scan entries and return E6's counts that a case compares."""
+    r = scan_of(entries)["E6"]
+    return (r["landed_write_calls"], r["path_reverts"], r["near_path_reverts"], r["tree_reverts"])
+
+
+def sh(tid, cmd):
+    """A shell call that runs no mrw, and its empty answer."""
+    return bash("m" + tid, tid, cmd, "")
+
+
+def test_reverts():
+    """E6: a shell revert of a file mrw just wrote is counted, near or late; a tree revert apart."""
+    wrote = plan_call("w0", "@@ f.txt 1 replace\nA")
+    check("a revert of the file just written is a near path revert",
+          e6(wrote + sh("g1", "git checkout -- f.txt")), (1, 1, 1, 0))
+    check("git restore counts, with ./ and an absolute path",
+          (e6(wrote + sh("g1", "git restore ./f.txt")), e6(wrote + sh("g2", "git checkout HEAD -- /r/f.txt"))),
+          ((1, 1, 1, 0), (1, 1, 1, 0)))
+    check("a revert of a file mrw did not write is nothing",
+          e6(wrote + sh("g1", "git checkout -- g.txt")), (1, 0, 0, 0))
+    late = wrote + [x for i in range(6) for x in sh("n%d" % i, "ls")] + sh("g1", "git checkout -- f.txt")
+    check("a revert more than five calls later is a path revert, not near", e6(late), (1, 1, 0, 0))
+    edge = wrote + [x for i in range(4) for x in sh("n%d" % i, "ls")] + sh("g1", "git checkout -- f.txt")
+    check("the fifth call after the write is still near", e6(edge), (1, 1, 1, 0))
+    for cmd in ("git checkout -b fix f.txt", "git restore --staged f.txt", "git checkout main",
+                "echo 'git checkout -- f.txt'", "echo \"x; git checkout -- f.txt\"",
+                "cat <<'EOF'\ngit checkout -- f.txt\nEOF", "git stash pop", "git stash list", "git reset HEAD f.txt"):
+        check("not a revert: " + cmd, e6(wrote + sh("g1", cmd)), (1, 0, 0, 0))
+    for cmd in ("git stash", "git stash push -m x", "git reset --hard", "git checkout .", "git checkout -- .",
+                "git restore ."):
+        check("a tree revert: " + cmd, e6(wrote + sh("g1", cmd)), (1, 0, 0, 1))
+    check("a tree revert before any write is nothing", e6(sh("g1", "git stash") + wrote), (1, 0, 0, 0))
+    check("a command is counted once, and a reverted file is no longer written",
+          e6(wrote + sh("g1", "git checkout -- f.txt && git checkout -- f.txt") + sh("g2", "git checkout -- f.txt")),
+          (1, 1, 1, 0))
+    check("a path revert beside a tree revert is the path revert",
+          e6(wrote + sh("g1", "git checkout -- f.txt; git stash")), (1, 1, 1, 0))
+    refused = plan_call("w0", "@@ f.txt 1 replace\nA", "1 hunk(s), 1 file(s), 1 failed, 0 advisories — NOTHING WRITTEN\n")
+    check("a refused write leaves nothing to revert", e6(refused + sh("g1", "git checkout -- f.txt")), (0, 0, 0, 0))
+    filed = bash("mp", "tp", "mrw write --terse plan.txt", "ok   f.txt  1 hunk(s)  -0 +1  sha aaaaaaaa\n" + OK1)
+    check("a write with no typed plan is a landing, and its file can be reverted",
+          e6(filed + sh("g1", "git restore f.txt")), (1, 1, 1, 0))
+    check("the verdict's rules", [scan.revert_verdict(*a) for a in (
+        (999, 500), (1000, 25), (1000, 24), (6000, 29), (6000, 30), (5000, 25))],
+        ["INSUFFICIENT", "RECORD", "STOP", "STOP", "RECORD", "RECORD"])
+
+
 def main():
     """Run every case and print the mismatches."""
     for case in (test_cost, test_sites, test_shell, test_plan, test_plan_edges, test_tags, test_compaction,
                  test_changed, test_changed_edges, test_json_and_quiet, test_window, test_guard, test_guard_widths,
-                 test_guard_state):
+                 test_guard_state, test_reverts):
         case()
     for b in BAD:
         print("FAIL " + b)
