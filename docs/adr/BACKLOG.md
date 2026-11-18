@@ -1247,7 +1247,7 @@ at a neighbouring compaction, which the bar does not. No bar moved; no verdict c
 | E3 host edit share before / after a compaction (167 pairs) | 5.31% / 5.90% | +5 points | **missed** |
 | E4 refusals with no cause found, per `mrw write` call | 0.08% (12) | at least 0.5% | **missed** |
 
-- **E1 is met.** Open: a requests column in `scripts/measure.sh` and the sentence in `docs/measure.md`.
+- **E1 is met.** Done 2026-11-18: `scripts/measure.sh` prints "requests if batched" rows beside its calls rows, and `docs/measure.md` says what the two ends are and quotes this reading with its limits.
   The share says where the cost sits, not which of requests and bytes moves it; neither was varied.
 - **E2 is met on its second arm.** Open: a draft record for a line tag as a plan address, for Zy. The
   2.23% is a ratio of result lines to hunks typed, not a refusal rate, and the 22.3% is exposure, not a

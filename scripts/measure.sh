@@ -211,6 +211,18 @@ EOF
     "$wholecalls" "$mrwcalls" "$(fewer "$wholecalls" "$mrwcalls")"
   printf '  %-38s %10s %10s   %s\n' "calls, windowed (search+reads+edits)" \
     "$windowcalls" "$mrwcalls" "$(fewer "$windowcalls" "$mrwcalls")"
+  # CALLS ARE NOT REQUESTS. A host may send several tool calls in one request,
+  # and each request re-reads the session's whole context. The rows above are
+  # the end where every call is its own request. These two are the other end,
+  # the fewest requests the baseline can need: every Read in one request and
+  # every Edit in the next, plus one for the search a windowed read needs
+  # first. At that end mrw's 2 is a tie. A real host sits between the two; the
+  # script does not guess where (docs/measure.md has one dated reading).
+  local wholereq=2 windowreq=3 mrwreq=2
+  printf '  %-38s %10s %10s   %s\n' "requests if batched, whole-file" \
+    "$wholereq" "$mrwreq" "$(fewer "$wholereq" "$mrwreq")"
+  printf '  %-38s %10s %10s   %s\n' "requests if batched, windowed" \
+    "$windowreq" "$mrwreq" "$(fewer "$windowreq" "$mrwreq")"
 }
 
 # measure_find: shape F. A–D count a windowed search as +1 CALL and 0 bytes.
@@ -474,6 +486,9 @@ verify() {
     "$sepcalls" "$mrwcalls" "$(fewer "$sepcalls" "$mrwcalls")"
   printf '  %-38s %10s %10s   %s\n' "calls, one && chain to verify" \
     "$chaincalls" "$mrwcalls" "$(fewer "$chaincalls" "$mrwcalls")"
+  # The same floor as in A–D: all reads, then all edits, then the chain.
+  printf '  %-38s %10s %10s   %s\n' "requests if batched (+ the chain)" \
+    "3" "$mrwcalls" "$(fewer 3 "$mrwcalls")"
   printf '  %-38s %10s %10s   %s\n' "bytes of verify output, separate" \
     "$sep" "$mrwbytes" "$(ratio "$sep" "$mrwbytes") output"
   printf '  %-38s %10s %10s   %s\n' "bytes of verify output, && chain" \
@@ -485,5 +500,7 @@ verify() {
 verify
 
 rule
-echo "Round trips are the floor: mrw is 2 calls for any N. Bytes depend on how"
+echo "Round trips are the floor: mrw is 2 calls for any N. The calls rows count one"
+echo "request per call; a host that batches every Read and every Edit needs 2 too"
+echo "(3 with a search), which the 'requests if batched' rows show. Bytes depend on how"
 echo "much of each file the task needs — measure YOUR shape before quoting a number."
