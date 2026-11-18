@@ -160,6 +160,8 @@ go test -count=1 -v ./internal/regular ./internal/state ./internal/writer ./inte
 - 2026-11-18 · 3316a5ee* · exit 0 · `set -o pipefail …` · acceptance-sha256:b9da4be7be3d4babc4a30272871dca8a242cf03a8c1c80b235665e8a4115c614 · ms:840
 - 2026-11-18 · 4606e39b* · exit 0 · `set -o pipefail …` · acceptance-sha256:b9da4be7be3d4babc4a30272871dca8a242cf03a8c1c80b235665e8a4115c614 · ms:637
 - 2026-11-18 · 4606e39b* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:b9da4be7be3d4babc4a30272871dca8a242cf03a8c1c80b235665e8a4115c614 · ms:0 · test-lock-sha256:88d40746597cb5285bf592200048892477e308270ddb5c68c878ec9ea4d75c58 · test-lock-file:docs/adr/locks/88d40746597cb5285bf592200048892477e308270ddb5c68c878ec9ea4d75c58.lock · test-lock-kind:replace
+- 2026-11-18 · 78ae51a9* · exit 0 · `set -o pipefail …` · acceptance-sha256:b9da4be7be3d4babc4a30272871dca8a242cf03a8c1c80b235665e8a4115c614 · ms:1831
+- 2026-11-18 · 78ae51a9* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:b9da4be7be3d4babc4a30272871dca8a242cf03a8c1c80b235665e8a4115c614 · ms:0 · test-lock-sha256:59f57cccfae9fedc950cf70faf241097d5d51e7c07f59bc30a67b33d2a581a73 · test-lock-file:docs/adr/locks/59f57cccfae9fedc950cf70faf241097d5d51e7c07f59bc30a67b33d2a581a73.lock · test-lock-kind:replace
 
 ## Invariants
 

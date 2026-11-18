@@ -158,9 +158,16 @@ func TestAFifoAtAStateFileDoesNotHoldMrw(t *testing.T) {
 		if release != nil {
 			release()
 		}
-		var pe *fs.PathError
-		if !errors.As(herr, &pe) || pe.Path != path || pe.Op == "lock" {
-			t.Errorf("a directory at the lock file returned %v, want the open's own *fs.PathError naming %s", herr, path)
+		// The error is the open's own: the same *fs.PathError os.OpenFile gives
+		// for this directory, not one wrapped again.
+		_, oerr := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0o600)
+		var want *fs.PathError
+		if !errors.As(oerr, &want) {
+			t.Fatalf("opening a directory read-write gave %v, want a *fs.PathError", oerr)
+		}
+		pe, direct := herr.(*fs.PathError)
+		if !direct || pe.Path != want.Path || pe.Op != want.Op || !errors.Is(pe.Err, want.Err) {
+			t.Errorf("a directory at the lock file returned %v, want the open's own error %v", herr, oerr)
 		}
 	})
 }
