@@ -743,7 +743,7 @@ size is the form that gets quoted out of the population it was measured on.`,
 			// ADR-200: how many landings a guard on stale line numbers would
 			// have refused, beside the bar written before the count existed.
 			nb := authoring.LoadNumbering(root)
-			fmt.Printf("\nstale-number pricing: this root's count since the counter began: %d landed writes; %d with a numbered hunk ADR-200 counts (validated, in a plan the caller wrote, its numbered start naming a line, no anchor= or quote, not forced, on a file mrw holds whole as written); %d where a line it addresses was not shown in that record\n",
+			fmt.Printf("\nstale-number pricing: this root's count since the counter began: %d landed writes; %d with a numbered hunk ADR-200 counts (a replace, delete or insert that passed validation, in a plan the caller wrote, its numbered start naming a line and not only a position, no anchor= or quote, not forced, on a file mrw holds whole as written); %d where a line it addresses was not shown in that record (at least one such hunk)\n",
 				nb.Landed, nb.Candidates, nb.WouldRefuse)
 			if nb.Landed > 0 {
 				fmt.Printf("  would-refuse share of landed writes %.1f%% — pre-registered threshold: at most 5%% of landed writes, read 2026-12-18 (BACKLOG)\n", 100*float64(nb.WouldRefuse)/float64(nb.Landed))

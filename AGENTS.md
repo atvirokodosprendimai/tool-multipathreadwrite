@@ -508,7 +508,7 @@ whole list arrives as one argument and the regex swallows the rest of the line.
 - **Read before write is ENFORCED, and it is per LINE.** Being served lines
   10-12 does not license an edit at line 50. The one exception is a file mrw
   itself just wrote: it produced every line, so the whole file is licensed
-  until something else changes it (ADR-002, ADR-005 §4). After a write that changes how many lines a file has, a number from an earlier read names another line, or none, wherever the write added or removed lines above it or removed that line (ADR-200): read the file again, address by pattern, or give `anchor=`. A read whose answer
+  until something else changes it (ADR-002, ADR-005 §4). After a write, a number from an earlier read names another line, or none, wherever the write changed how many lines come before the line it named, or removed that line (ADR-200): read the file again, address by pattern, or give `anchor=`. A read whose answer
   goes to the null device (`>/dev/null`, cmd.exe's `>NUL`) licenses nothing and says so on
   stderr, and names each file whose served lines an earlier read or write still licenses, where a
   write is judged on that licence (ADR-133, ADR-148); PowerShell's `> $null` and `| Out-Null` are
@@ -753,8 +753,8 @@ and #73, one release apart.
   `strict-balance pricing:` block (ADR-056) — landed writes with a single-line
   code replace, how many the flag would have refused, and whether those broke,
   held (the false positive) or went unchecked, beside the pre-registered bar. A
-  `stale-number pricing:` block (ADR-200) counts the landings whose plan, written by the caller and not computed by mrw in the call (`--sub`, `--rewrite`, a foreign format), held a validated hunk with a numbered start that names a line, no `anchor=` and no quote, not forced, on a
-  file whose ledger record is whole and written-shaped; and, of those, the landings where an addressed line is not shown in that record. Nothing is refused.
+  `stale-number pricing:` block (ADR-200) counts the landings whose plan, written by the caller and not computed by mrw in the call (`--sub`, `--rewrite`, a foreign format), held a `replace`, `delete`, `insert-after` or `insert-before` that passed validation with a numbered start naming a line (not `$`, and not a position only: `insert-after 0`, `insert-before 1`, `insert-before` one past the last line), no `anchor=` and no quote, not forced, on a
+  file whose ledger record is whole and written-shaped; and, of those, the landings where at least one such hunk addressed a line not shown in that record. It does not ask whether an earlier write moved any line. Nothing is refused.
   `--json` carries `pricing` and `numbering`; `--reset` empties neither, and the plain blocks are printed once the tally holds a plan again. Refused-apply is deliberately one
   bucket and not three: a failed guard, an unread line and a path outside the
   root all land in it, because splitting them would mean matching on free-form

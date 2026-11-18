@@ -22,11 +22,13 @@ package authoring
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/regular"
@@ -205,6 +207,23 @@ func save(root string, t Tally) error {
 	return nil
 }
 
+// openCounters opens one of this package's files for a fail-open read.
+// regular.Open and not os.Open: a FIFO at the path would hold the write being
+// recorded, under this package's lock, after its files had reached disk. One
+// case goes back to a blocking open: on Linux a regular file under another
+// process's lease answers EWOULDBLOCK to a non-blocking open, and reading that
+// as "no counters yet" would let the save that follows overwrite the history;
+// a blocking open waits for the lease to break, as it did before.
+func openCounters(path string) (*os.File, error) {
+	f, _, err := regular.Open(path)
+	if errors.Is(err, syscall.EWOULDBLOCK) {
+		if fi, serr := os.Lstat(path); serr == nil && fi.Mode().IsRegular() {
+			return os.Open(path)
+		}
+	}
+	return f, err
+}
+
 // load reads the tally. It FAILS OPEN: an unreadable or malformed file yields
 // an empty tally and no error, because a caller's next move on "the tally is
 // broken" is the same as on "there is no tally yet".
@@ -214,9 +233,7 @@ func load(root string) (Tally, error) {
 	if err != nil {
 		return t, nil
 	}
-	// regular.Open on every counters file, not os.Open: a FIFO at the path
-	// would hold the write being recorded, under this package's lock.
-	f, _, err := regular.Open(p)
+	f, err := openCounters(p)
 	if err != nil {
 		return t, nil
 	}
@@ -299,7 +316,7 @@ func recent(root string) []RecentEntry {
 	if err != nil {
 		return nil
 	}
-	f, _, err := regular.Open(p)
+	f, err := openCounters(p)
 	if err != nil {
 		return nil
 	}
@@ -433,7 +450,7 @@ func loadPricing(root string) Pricing {
 	if err != nil {
 		return p
 	}
-	f, _, err := regular.Open(path)
+	f, err := openCounters(path)
 	if err != nil {
 		return p
 	}
@@ -614,9 +631,7 @@ func loadNumbering(root string) Numbering {
 	if err != nil {
 		return n
 	}
-	// regular.Open, not os.Open: a FIFO left at this path would hold the
-	// landing that is being counted, under the tally's lock, with no receipt.
-	f, _, err := regular.Open(path)
+	f, err := openCounters(path)
 	if err != nil {
 		return n
 	}

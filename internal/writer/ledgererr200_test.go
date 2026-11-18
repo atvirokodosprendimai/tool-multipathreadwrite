@@ -3,7 +3,6 @@ package writer
 import (
 	"os"
 	"path/filepath"
-	"runtime"
 	"testing"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/apply"
@@ -13,11 +12,10 @@ import (
 
 // ADR-200 Decision 2: a commit whose ledger update failed is a landing, and
 // Land counts it once like any other. The branch was named as driven by no
-// test when T1 merged; this drives it.
+// test when T1 merged; this drives it. No skip for root or Windows: the ledger
+// is refused by its missing owner-write bit, which state.WriteSynced checks
+// itself, not by the operating system's permissions.
 func TestALandingWhoseLedgerUpdateFailsIsCountedOnce(t *testing.T) {
-	if runtime.GOOS == "windows" || os.Geteuid() == 0 {
-		t.Skip("a read-only file does not stop this user from writing it")
-	}
 	const body = "a\nb\nc\n"
 	root := checkout(t)
 	if err := os.WriteFile(filepath.Join(root, "f.txt"), []byte(body), 0o644); err != nil {
@@ -41,8 +39,11 @@ func TestALandingWhoseLedgerUpdateFailsIsCountedOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 	l, err := p.Land()
-	if err != nil || l.LedgerErr == nil || MutationOf(l.Res) == None {
-		t.Fatalf("want a landing whose ledger update failed: err %v, ledger err %v, mutation %v", err, l.LedgerErr, MutationOf(l.Res))
+	if err != nil {
+		t.Fatalf("Land: %v", err)
+	}
+	if l.LedgerErr == nil || MutationOf(l.Res) == None {
+		t.Fatalf("want a landing whose ledger update failed: ledger err %v, mutation %v", l.LedgerErr, MutationOf(l.Res))
 	}
 	if got, _ := os.ReadFile(filepath.Join(root, "f.txt")); string(got) != "a\nB\nc\n" {
 		t.Fatalf("the write did not land: %q", got)
