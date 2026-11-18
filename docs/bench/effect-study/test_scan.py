@@ -531,7 +531,8 @@ def test_reverts():
                 "cat <<'EOF'\ngit checkout -- f.txt\nEOF", "git stash pop", "git stash list", "git reset HEAD f.txt"):
         check("not a revert: " + cmd, e6(wrote + sh("g1", cmd)), (1, 0, 0, 0))
     for cmd in ("git stash", "git stash push -m x", "git reset --hard", "git checkout .", "git checkout -- .",
-                "git restore ."):
+                "git restore .", "git stash; echo done", "(git stash)", "git stash>/dev/null",
+                "git stash branch x", "git stash clear"):
         check("a tree revert: " + cmd, e6(wrote + sh("g1", cmd)), (1, 0, 0, 1))
     check("a tree revert before any write is nothing", e6(sh("g1", "git stash") + wrote), (1, 0, 0, 0))
     check("a command is counted once, and a reverted file is no longer written",
@@ -555,6 +556,17 @@ def test_reverts():
     filed = bash("mp", "tp", "mrw write --terse plan.txt", "ok   f.txt  1 hunk(s)  -0 +1  sha aaaaaaaa\n" + OK1)
     check("a write with no typed plan is a landing, and its file can be reverted",
           e6(filed + sh("g1", "git restore f.txt")), (1, 1, 1, 0))
+    check("a staged flag among the options is the exclusion; the same text after -- is a path",
+          (e6(wrote + sh("g1", "git restore -SW f.txt")), e6(wrote + sh("g2", "git restore -- f.txt -S"))),
+          ((1, 0, 0, 0), (1, 1, 1, 0)))
+    w1 = use("m1", "t1", "Bash", {"command": "mrw write --terse - <<'EOF'\n@@ f.txt 1 replace\nA\nEOF"})
+    w2 = use("m2", "t2", "Bash", {"command": "mrw write --terse - <<'EOF'\n@@ f.txt 2 replace\nB\nEOF"})
+    overlap = [w1, w2, res("t2", OK1), res("t1", OK1)] + [x for i in range(4) for x in sh("n%d" % i, "ls")]
+    check("an older call's late answer does not replace a newer write's place in the window",
+          e6(overlap + sh("g1", "git checkout -- f.txt")), (2, 1, 1, 0))
+    quiet = bash("mq", "tq", "mrw write --quiet plan.txt", OK1)
+    check("a landed write whose files are unknown still opens the tree count",
+          e6(quiet + sh("g1", "git stash")), (1, 0, 0, 1))
     check("the verdict's rules", [scan.revert_verdict(*a) for a in (
         (999, 500), (1000, 25), (1000, 24), (6000, 29), (6000, 30), (5000, 25))],
         ["INSUFFICIENT", "RECORD", "STOP", "STOP", "RECORD", "RECORD"])

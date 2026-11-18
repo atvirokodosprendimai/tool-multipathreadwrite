@@ -277,6 +277,7 @@ class Guard:
         self.shown_a = collections.defaultdict(set)
         self.shown_b = collections.defaultdict(set)
         self.on_write = None    # called with each path a landed write changed (E6)
+        self.on_landing = None  # called once for a write call that landed, paths known or not (E6)
 
     def native(self, file_path):
         """The host's own tool was called to change a file: nothing mrw showed of it stands."""
@@ -399,6 +400,8 @@ class Guard:
             self.doubt(cmd, read_args(cmd, False))
         self.t.c["e5_chained_write_commands"] += len(writes) > 1
         if writes and "— applied" in text:
+            if self.on_landing:
+                self.on_landing()
             if hunks:
                 self.judge(hunks)
             else:
@@ -411,7 +414,7 @@ class Guard:
 
 
 GIT_REVERT = re.compile(
-    r"(?:^|[;&|(\n]|\$\()\s*git(?:\s+-C\s+\S+)*\s+(checkout|restore|reset|stash)(?=\s|$)([^;&|\n]*)")
+    r"(?:^|[;&|(\n]|\$\()\s*git(?:\s+-C\s+\S+)*\s+(checkout|restore|reset|stash)(?=[\s;&|()<>]|$)([^;&|\n]*)")
 NEAR = 5
 
 
@@ -433,8 +436,11 @@ class Reverts:
         self.any = False
 
     def wrote(self, rel):
-        """A landed mrw write changed rel."""
-        self.written[rel] = self.landing
+        """A landed mrw write changed rel; an answer that arrives late does not replace a newer call's."""
+        self.written[rel] = max(self.written.get(rel, 0), self.landing)
+
+    def landed(self):
+        """A write landed, whether or not the scanner knows which files it changed."""
         self.any = True
 
     def call(self, tid):
@@ -457,7 +463,9 @@ class Reverts:
             if verb == "reset":
                 tree |= "--hard" in args
                 continue
-            if "-b" in args or "-B" in args or (verb == "restore" and ("--staged" in args or "-S" in args)):
+            opts = args[:args.index("--")] if "--" in args else args
+            staged = any(o == "--staged" or (o.startswith("-") and not o.startswith("--") and "S" in o) for o in opts)
+            if "-b" in opts or "-B" in opts or (verb == "restore" and staged):
                 continue
             names = args[args.index("--") + 1:] if "--" in args else [a for a in args if not a.startswith("-")]
             tree |= "." in names
@@ -495,6 +503,7 @@ def scan_session(path, since, until, t):
     guard = Guard(t)
     reverts = Reverts(t)
     guard.on_write = reverts.wrote
+    guard.on_landing = reverts.landed
     for ev in events(path, since, until):
         if ev[0] == "undated":
             # Not reported: a live session keeps appending undated entries, so the count is not the window's.
