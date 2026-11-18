@@ -90,6 +90,7 @@ out=$(go test ./internal/speclist/ -count=1 -v -run '^TestAListDropsEveryLeading
 - 2026-11-18 · 808d18eb* · exit 0 · `set -o pipefail …` · acceptance-sha256:6304dc91bf7440ee741e504e01b4edb04ae2d6067fe928c2e5abcb04e9850b1f · ms:31065
 - 2026-11-18 · 808d18eb* · exit 0 · `set -o pipefail …` · acceptance-sha256:6304dc91bf7440ee741e504e01b4edb04ae2d6067fe928c2e5abcb04e9850b1f · ms:32383
 - 2026-11-18 · 808d18eb* · exit 0 · `set -o pipefail …` · acceptance-sha256:6304dc91bf7440ee741e504e01b4edb04ae2d6067fe928c2e5abcb04e9850b1f · ms:38519
+- 2026-11-18 · f09dbc26* · exit 0 · `set -o pipefail …` · acceptance-sha256:6304dc91bf7440ee741e504e01b4edb04ae2d6067fe928c2e5abcb04e9850b1f · ms:33231
 
 ## Invariants
 
