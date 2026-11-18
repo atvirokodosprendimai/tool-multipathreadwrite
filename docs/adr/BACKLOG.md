@@ -1410,7 +1410,8 @@ refusal. E5 above priced the refusal from transcripts and stopped on calls a tra
 count is taken from the ledger a guard would be judged on: landings; landings with a numbered hunk, no
 `anchor=`, on a file whose ledger record is whole and written-shaped; and of those, the landings where an
 addressed line is not shown in that record. It is a different population from E5's (every landing, not
-only those with a typed plan) and is not comparable to E5's 5.06%.
+only those with a typed plan) and is not comparable to E5's 5.06%. "A numbered hunk" is short for ADR-200
+Decision 1's candidate: forced, computed, quoted and position-only hunks are not counted.
 
 **The unit.** A root: a directory mrw was run with, which is where the counters live. A session that runs
 mrw from a subdirectory of a checkout counts there.

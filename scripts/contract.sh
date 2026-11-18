@@ -11349,28 +11349,33 @@ rm -rf "$R330"
 R343=$(mktemp -d "$WORK/r343-XXXXXX"); printf 'a\nb\nc\nd\ne\n' > "$R343/f.txt"
 e343() { env XDG_STATE_HOME="$R343/state" "$MRW" -C "$R343" "$@" 2>&1; }
 n343() { e343 stats --json | tr -d ' \n'; }
+# The answer is captured before it is matched: grep -q on a live pipe can close it
+# before mrw has finished writing.
+has343() { s343=$(n343); case "$s343" in *"$1"*) return 0 ;; esac; return 1; }
 e343 read f.txt > "$R343/read.out"
 want 0 "$?" "ADR-200: the whole-file read that the numbers come from"
-n343 | grep -q '"numbering":{"landed_writes":0,"numbered_candidates":0,"numbered_would_refuse":0}' \
-  && ok "ADR-200: stats --json carries numbering at zero before any write" || bad "numbering absent or not zero: $(n343)"
+has343 '"numbering":{"landed_writes":0,"numbered_candidates":0,"numbered_would_refuse":0}' \
+  && ok "ADR-200: stats --json carries numbering at zero before any write" || bad "numbering absent or not zero: $s343"
 printf '@@ f.txt 1 insert-after\nNEW\n' | e343 write - > "$R343/w1.out"
 want 0 "$?" "ADR-200: a write that adds a line lands"
 printf '@@ f.txt 4 replace\nD-CHANGED\n' | e343 write - > "$R343/w2.out"
 want 0 "$?" "ADR-200: the numbered replace from the earlier read is not refused"
 [ "$(sed -n '4p' "$R343/f.txt")" = "D-CHANGED" ] && [ "$(sed -n '5p' "$R343/f.txt")" = "d" ] \
   && ok "ADR-200: it landed on the line the number now names" || bad "f.txt is $(tr '\n' '|' < "$R343/f.txt")"
-n343 | grep -q '"numbering":{"landed_writes":2,"numbered_candidates":1,"numbered_would_refuse":1}' \
-  && ok "ADR-200: two landings, one numbered candidate, one with a line not shown" || bad "numbering is $(n343)"
+has343 '"numbering":{"landed_writes":2,"numbered_candidates":1,"numbered_would_refuse":1}' \
+  && ok "ADR-200: two landings, one numbered candidate, one with a line not shown" || bad "numbering is $s343"
 printf '@@ f.txt 5 replace anchor="d"\nD2\n' | e343 write - > "$R343/w3.out"
 want 0 "$?" "ADR-200 pair: a replace with anchor= lands"
-n343 | grep -q '"numbering":{"landed_writes":3,"numbered_candidates":1,"numbered_would_refuse":1}' \
-  && ok "ADR-200 pair: it adds a landing and no candidate" || bad "numbering is $(n343)"
+has343 '"numbering":{"landed_writes":3,"numbered_candidates":1,"numbered_would_refuse":1}' \
+  && ok "ADR-200 pair: it adds a landing and no candidate" || bad "numbering is $s343"
 printf '@@ f.txt 3 replace\nB2\n' | e343 write --dry-run - > "$R343/w4.out"
 want 0 "$?" "ADR-200 pair: a dry run of a numbered replace"
-n343 | grep -q '"numbering":{"landed_writes":3,"numbered_candidates":1,"numbered_would_refuse":1}' \
-  && ok "ADR-200 pair: a dry run counts nothing" || bad "numbering is $(n343)"
-e343 stats | grep -q '^stale-number pricing: .* 3 landed writes; 1 with a numbered hunk' \
-  && ok "ADR-200: mrw stats prints the stale-number pricing block" || bad "no block: $(e343 stats | tail -4)"
+has343 '"numbering":{"landed_writes":3,"numbered_candidates":1,"numbered_would_refuse":1}' \
+  && ok "ADR-200 pair: a dry run counts nothing" || bad "numbering is $s343"
+e343 stats > "$R343/stats.out"
+want 0 "$?" "ADR-200: mrw stats exits 0"
+grep -q '^stale-number pricing: .* 3 landed writes; 1 with a numbered hunk' "$R343/stats.out" \
+  && ok "ADR-200: mrw stats prints the stale-number pricing block" || bad "no block: $(tail -4 "$R343/stats.out")"
 rm -rf "$R343"
 
 # Nothing this run started may outlive it. Checked after the last row, so every

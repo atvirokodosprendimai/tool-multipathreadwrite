@@ -29,6 +29,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/regular"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/state"
 )
 
@@ -611,7 +612,9 @@ func loadNumbering(root string) Numbering {
 	if err != nil {
 		return n
 	}
-	f, err := os.Open(path)
+	// regular.Open, not os.Open: a FIFO left at this path would hold the
+	// landing that is being counted, under the tally's lock, with no receipt.
+	f, _, err := regular.Open(path)
 	if err != nil {
 		return n
 	}

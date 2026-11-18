@@ -2701,7 +2701,8 @@ func staleMarks(h hunk, obs Seen, haveObs bool, opt Options, quoted map[int]int,
 	if !haveObs || opt.Force || opt.Computed || !obs.Written || !obs.Whole() {
 		return false, false
 	}
-	if _, q := quoted[h.Index]; q || h.Anchor != "" || h.StartPat != nil || (h.Start == EOF && h.End == EOF) {
+	// A start of `$` names the last line wherever it is: `$` alone and `$-N`.
+	if _, q := quoted[h.Index]; q || h.Anchor != "" || h.StartPat != nil || h.Start == EOF {
 		return false, false
 	}
 	switch h.Op {

@@ -107,6 +107,7 @@ set -o pipefail
 - 2026-11-18 · 5c00e088* · mutant killed · exit 1 · `internal/guide/guide.go` · the instructions lose the sentence, so the guide test must go red · acceptance-sha256:f040c2c6b510562907c72f179f188e336cb53e2981f1d33d004a4c9b918a3374 · covers:the instructions and AGENTS.md say numbers move
 - 2026-11-18 · 5c00e088* · mutant killed · exit 1 · `internal/seen/seen.go` · an engine package this record does not own is changed, so the byte-identical clause must go red · acceptance-sha256:f040c2c6b510562907c72f179f188e336cb53e2981f1d33d004a4c9b918a3374 · covers:the engine packages this record does not own are untouched
 - 2026-11-18 · c5956f54* · mutant killed · exit 1 · `internal/apply/apply.go` · a written record licensed in part is a candidate, so that case must go red · acceptance-sha256:f040c2c6b510562907c72f179f188e336cb53e2981f1d33d004a4c9b918a3374 · covers:a candidate is marked and nothing is refused
+- 2026-11-18 · 1bfcaace* · mutant killed · exit 1 · `internal/apply/apply.go` · a start of $ with a numbered end is a candidate, so the $-N case must go red · acceptance-sha256:f040c2c6b510562907c72f179f188e336cb53e2981f1d33d004a4c9b918a3374 · covers:a candidate is marked and nothing is refused
 
 ## Verification Log
 - 2026-11-18 · 5c00e088* · exit 1 · `set -o pipefail …` · acceptance-sha256:f040c2c6b510562907c72f179f188e336cb53e2981f1d33d004a4c9b918a3374 · ms:3800 · test-lock-sha256:287db49aee92dcba9c6271b985f17b77ddf8495316190acdb81ae7fe358b6606 · test-lock-file:docs/adr/locks/287db49aee92dcba9c6271b985f17b77ddf8495316190acdb81ae7fe358b6606.lock
@@ -140,6 +141,8 @@ set -o pipefail
 - 2026-11-18 · 5c00e088* · exit 0 · `set -o pipefail …` · acceptance-sha256:f040c2c6b510562907c72f179f188e336cb53e2981f1d33d004a4c9b918a3374 · ms:2408
 - 2026-11-18 · 5c00e088* · exit 0 · `set -o pipefail …` · acceptance-sha256:f040c2c6b510562907c72f179f188e336cb53e2981f1d33d004a4c9b918a3374 · ms:2326
 - 2026-11-18 · c5956f54* · exit 0 · `set -o pipefail …` · acceptance-sha256:f040c2c6b510562907c72f179f188e336cb53e2981f1d33d004a4c9b918a3374 · ms:2352
+- 2026-11-18 · 1bfcaace* · exit 0 · `set -o pipefail …` · acceptance-sha256:f040c2c6b510562907c72f179f188e336cb53e2981f1d33d004a4c9b918a3374 · ms:2924
+- 2026-11-18 · 1bfcaace* · exit 0 · `set -o pipefail …` · acceptance-sha256:f040c2c6b510562907c72f179f188e336cb53e2981f1d33d004a4c9b918a3374 · ms:3746
 
 ## Invariants
 

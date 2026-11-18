@@ -43,6 +43,7 @@ func TestANumberedHunkAfterMrwsOwnWriteIsCountedNotRefused(t *testing.T) {
 		{"N-$", with(del(4, 5), func(i *Input) { i.End = EOF }), wrote(), Options{}, 1, 1},
 		{"N,+K", with(del(4, 4), func(i *Input) { i.RelEnd = 1 }), wrote(), Options{}, 1, 1},
 		{"$ alone", with(rep(5, ""), func(i *Input) { i.Start, i.End = EOF, EOF }), wrote(), Options{}, 0, 0},
+		{"$-N starts at the last line", with(del(5, 5), func(i *Input) { i.Start, i.End = EOF, 5 }), wrote(), Options{}, 0, 0},
 		{"insert-after 0", ins("insert-after", 0), wrote(), Options{}, 0, 0},
 		{"insert-before 1", ins("insert-before", 1), wrote(), Options{}, 0, 0},
 		{"insert-before one past the last line", ins("insert-before", 6), wrote(), Options{}, 0, 0},
@@ -132,14 +133,12 @@ func TestANumberedHunkAfterMrwsOwnWriteIsCountedNotRefused(t *testing.T) {
 		clean := Input{Path: "a.txt", Start: 1, End: 1, Op: "replace", Body: []string{"A"}, Lines: -1}
 		res, err := Apply(root, []Input{clean, rep(4, "")}, Options{Seen: map[string]Seen{"a.txt": {SHA: sha}, "f.txt": *wrote()}})
 		commitRenameFn = real
-		landed := 0
+		landed := map[string]bool{}
 		for _, f := range res.Files {
-			if f.Written {
-				landed++
-			}
+			landed[f.Path] = f.Written
 		}
-		if err == nil || landed != 1 {
-			t.Fatalf("err %v, %d file(s) written: the fixture is not a partial commit", err, landed)
+		if err == nil || !landed["a.txt"] || landed["f.txt"] {
+			t.Fatalf("err %v, written %v: the fixture must land a.txt and not the candidate's f.txt", err, landed)
 		}
 		if res.StaleNumbered != 1 || res.StaleUnshown != 1 {
 			t.Errorf("numbered %d unshown %d, want 1 and 1: a guard at validation would have stopped this plan", res.StaleNumbered, res.StaleUnshown)
