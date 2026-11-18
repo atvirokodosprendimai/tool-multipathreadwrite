@@ -37,9 +37,11 @@ Source: vendor docs and git-apply(1), 2026-09-12. Not a live bake-off.
 | MCP fs / Desktop Commander | — | — | — | — | — | — |
 | Shell edits (`sed -i`, a heredoc, a script) | — | — | — | — | yes | — |
 
-¹ By model since the 2026-09-12 scan. The tools reference says Opus 4.6, Haiku 4.5 and older
-models must read a file before editing it, that newer models may edit an unread file when no
-permission prompt would be needed, and that a shell `cat` or `grep` of the file counts as the read.
+¹ Claude Code only, and by model since the 2026-09-12 scan. The tools reference says Opus 4.6,
+Haiku 4.5 and older models must read a file before editing it; that newer models may edit an
+unread file when no permission prompt would be needed and the Read tool is available; and that a
+shell command it recognises (`cat`, `grep`, `head` and the like) on one file, with no pipe or
+redirect, counts as the read when it printed the file's text.
 
 ## Closest four
 
@@ -62,13 +64,15 @@ permission prompt would be needed, and that a shell `cat` or `grep` of the file 
    file had changed on disk, where the 2026-09-12 scan recorded a stale-mtime
    refusal. The reference documents that last behaviour: an `old_string` that still
    matches once applies. Addressing by string is why an inserted line does not move
-   its target; a line number does move, and mrw checks a numbered hunk's line only
-   where an `anchor=` is given or required.
+   its target; a line number does move. mrw refuses a file anyone else changed, and
+   a multi-line `replace` must carry `anchor=` (ADR-035), but after mrw's own write
+   a single-line `replace` with no anchor is applied to whatever line now has the
+   number.
 4. **Shell edits** — not in the 2026-09-12 scan, and what an agent with only a
    shell tool uses. `sed -i` over many files is one call. Nothing is licensed,
    nothing is refused for being unread, and a `sed` expression that matches nothing
    exits 0 with the file unchanged: the write that changes nothing, unseen. A
-   heredoc replaces the whole file. Claude Code's
+   `cat > file <<'EOF'` replaces the whole file. Claude Code's
    [checkpoints](https://code.claude.com/docs/en/checkpointing.md) do not track a
    file only shell commands changed, which is true of an mrw write as well.
 
