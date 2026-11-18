@@ -410,7 +410,8 @@ class Guard:
             self.served(text, cmd)
 
 
-GIT_REVERT = re.compile(r"(?:^|[;&|(\n]|\$\()\s*git\s+(checkout|restore|reset|stash)\b([^;&|\n]*)")
+GIT_REVERT = re.compile(
+    r"(?:^|[;&|(\n]|\$\()\s*git(?:\s+-C\s+\S+)*\s+(checkout|restore|reset|stash)(?=\s|$)([^;&|\n]*)")
 NEAR = 5
 
 
@@ -426,17 +427,24 @@ class Reverts:
     def __init__(self, t):
         self.t = t
         self.calls = 0
-        self.written = {}       # path -> the count of tool calls when a write last changed it
+        self.ordinal = {}       # tool call id -> its count among the session's tool calls
+        self.landing = 0        # the count of the call whose answer is being read
+        self.written = {}       # path -> the count of the tool call whose write last changed it
         self.any = False
 
     def wrote(self, rel):
         """A landed mrw write changed rel."""
-        self.written[rel] = self.calls
+        self.written[rel] = self.landing
         self.any = True
 
-    def call(self):
+    def call(self, tid):
         """One more tool call."""
         self.calls += 1
+        self.ordinal[tid] = self.calls
+
+    def answered(self, tid):
+        """The answer about to be read belongs to this call: a write it reports landed then."""
+        self.landing = self.ordinal.get(tid, self.calls)
 
     def shell(self, cmd):
         """Count one shell command's reverts, at most one path revert and one tree revert."""
@@ -444,12 +452,12 @@ class Reverts:
         for m in GIT_REVERT.finditer(shell_of(cmd)):
             verb, args = m.group(1), m.group(2).split()
             if verb == "stash":
-                tree |= not args or args[0] not in ("pop", "apply", "list", "show", "drop", "branch", "clear")
+                tree |= not args or args[0] not in ("pop", "apply", "list", "show", "drop")
                 continue
             if verb == "reset":
                 tree |= "--hard" in args
                 continue
-            if "-b" in args or "-B" in args or (verb == "restore" and "--staged" in args and "--worktree" not in args):
+            if "-b" in args or "-B" in args or (verb == "restore" and ("--staged" in args or "-S" in args)):
                 continue
             names = args[args.index("--") + 1:] if "--" in args else [a for a in args if not a.startswith("-")]
             tree |= "." in names
@@ -460,7 +468,7 @@ class Reverts:
         c = self.t.c
         c["e6_path_reverts"] += hit
         c["e6_near_path_reverts"] += near
-        c["e6_tree_reverts"] += tree and self.any and not hit
+        c["e6_tree_reverts"] += tree and self.any
 
 
 class Totals:
@@ -505,7 +513,7 @@ def scan_session(path, since, until, t):
                 continue
             seen_use.add(tid)
             uses[tid] = (mid, name, inp)
-            reverts.call()
+            reverts.call(tid)
             cmd = inp.get("command") if name == "Bash" and isinstance(inp.get("command"), str) else ""
             subs = subcommands(cmd) if cmd else set()
             if name in NATIVE_SITE:
@@ -537,6 +545,7 @@ def scan_session(path, since, until, t):
             if not subs:
                 continue
             text = unfolded(text)
+            reverts.answered(tid)
             guard.answer(cmd, text)
             for miss in ANCHOR_MISS.findall(text):
                 t.c["anchor_miss_lines"] += 1

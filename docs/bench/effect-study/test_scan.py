@@ -525,7 +525,8 @@ def test_reverts():
     check("a revert more than five calls later is a path revert, not near", e6(late), (1, 1, 0, 0))
     edge = wrote + [x for i in range(4) for x in sh("n%d" % i, "ls")] + sh("g1", "git checkout -- f.txt")
     check("the fifth call after the write is still near", e6(edge), (1, 1, 1, 0))
-    for cmd in ("git checkout -b fix f.txt", "git restore --staged f.txt", "git checkout main",
+    for cmd in ("git checkout -b fix f.txt", "git restore --staged f.txt", "git restore -S f.txt",
+                "git restore --staged --worktree f.txt", "git checkout-index f.txt", "git checkout main",
                 "echo 'git checkout -- f.txt'", "echo \"x; git checkout -- f.txt\"",
                 "cat <<'EOF'\ngit checkout -- f.txt\nEOF", "git stash pop", "git stash list", "git reset HEAD f.txt"):
         check("not a revert: " + cmd, e6(wrote + sh("g1", cmd)), (1, 0, 0, 0))
@@ -536,8 +537,19 @@ def test_reverts():
     check("a command is counted once, and a reverted file is no longer written",
           e6(wrote + sh("g1", "git checkout -- f.txt && git checkout -- f.txt") + sh("g2", "git checkout -- f.txt")),
           (1, 1, 1, 0))
-    check("a path revert beside a tree revert is the path revert",
-          e6(wrote + sh("g1", "git checkout -- f.txt; git stash")), (1, 1, 1, 0))
+    check("a later git command in the chain is read, and git -C is git",
+          (e6(wrote + sh("g1", "git checkout main && git checkout -- f.txt")),
+           e6(wrote + sh("g2", "git -C /r checkout -- f.txt"))), ((1, 1, 1, 0), (1, 1, 1, 0)))
+    two = plan_call("w0", "@@ f.txt 1 replace\nA\n@@ g.txt 1 replace\nB", "2 hunk(s), 2 file(s), 0 failed, 0 advisories — applied\n")
+    check("two written files reverted in one command are one revert, and both are no longer written",
+          e6(two + sh("g1", "git checkout -- f.txt g.txt") + sh("g2", "git checkout -- g.txt")), (1, 1, 1, 0))
+    check("a path revert and a tree revert in one command are counted apart",
+          e6(wrote + sh("g1", "git checkout -- f.txt; git stash")), (1, 1, 1, 1))
+    slow = ([use("mw", "tw", "Bash", {"command": "mrw write --terse - <<'EOF'\n@@ f.txt 1 replace\nA\nEOF"})]
+            + [use("mr%d" % i, "tr%d" % i, "Read", {"file_path": "/r/x"}) for i in range(5)] + [res("tw", OK1)])
+    check("the window counts from the write's own call, not from when its answer arrived",
+          (e6(slow + sh("g1", "git checkout -- f.txt")), e6(slow[:5] + [slow[-1]] + sh("g2", "git checkout -- f.txt"))),
+          ((1, 1, 0, 0), (1, 1, 1, 0)))
     refused = plan_call("w0", "@@ f.txt 1 replace\nA", "1 hunk(s), 1 file(s), 1 failed, 0 advisories — NOTHING WRITTEN\n")
     check("a refused write leaves nothing to revert", e6(refused + sh("g1", "git checkout -- f.txt")), (0, 0, 0, 0))
     filed = bash("mp", "tp", "mrw write --terse plan.txt", "ok   f.txt  1 hunk(s)  -0 +1  sha aaaaaaaa\n" + OK1)
