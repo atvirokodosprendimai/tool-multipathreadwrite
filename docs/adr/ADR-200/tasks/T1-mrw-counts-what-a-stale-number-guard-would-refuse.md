@@ -144,6 +144,7 @@ set -o pipefail
 - 2026-11-18 · 1bfcaace* · exit 0 · `set -o pipefail …` · acceptance-sha256:f040c2c6b510562907c72f179f188e336cb53e2981f1d33d004a4c9b918a3374 · ms:2924
 - 2026-11-18 · 1bfcaace* · exit 0 · `set -o pipefail …` · acceptance-sha256:f040c2c6b510562907c72f179f188e336cb53e2981f1d33d004a4c9b918a3374 · ms:3746
 - 2026-11-18 · b1d1687e* · exit 0 · `set -o pipefail …` · acceptance-sha256:f040c2c6b510562907c72f179f188e336cb53e2981f1d33d004a4c9b918a3374 · ms:2238
+- 2026-11-18 · de2bea18* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:f040c2c6b510562907c72f179f188e336cb53e2981f1d33d004a4c9b918a3374 · ms:0 · test-lock-sha256:24da95d6cfd2f16ba2f530580f364eef21d7b1d4d96422ed2a9e657f4c3c9a93 · test-lock-file:docs/adr/locks/24da95d6cfd2f16ba2f530580f364eef21d7b1d4d96422ed2a9e657f4c3c9a93.lock · test-lock-kind:replace
 
 ## Invariants
 
