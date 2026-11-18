@@ -5,19 +5,19 @@
   "chained_write_commands": 1623,
   "landed_calls_with_no_typed_plan": 3627,
   "landed_plan_calls": 9183,
-  "refused_a_pct": 6.566,
-  "refused_b_pct": 5.837,
-  "refused_calls_a": 603,
-  "refused_calls_b": 536,
+  "refused_a_pct": 6.0,
+  "refused_b_pct": 5.423,
+  "refused_calls_a": 551,
+  "refused_calls_b": 498,
   "refused_hunks_by_op": {
-   "delete": 76,
-   "insert-after": 387,
-   "insert-before": 46,
-   "replace": 462
+   "delete": 66,
+   "insert-after": 383,
+   "insert-before": 43,
+   "replace": 472
   },
-  "refused_hunks_on_created": 388,
-  "uncertain_calls_a": 1112,
-  "uncertain_calls_b": 1057,
+  "refused_hunks_on_created": 427,
+  "uncertain_calls_a": 1164,
+  "uncertain_calls_b": 1095,
   "verdict": "STOP"
  },
  "corpus": {

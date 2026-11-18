@@ -1358,37 +1358,45 @@ no guess is refusals of a guarded hunk whose `anchor=` missed and was found on a
 refused unless shown, ADR-167); the last line of a multi-line range (ADR-035); a tag beside the served line
 number (waits for evidence the anchor guard does not reach the failure).
 
-**Measured 2026-11-18 for ADR-200 (E5): STOP, on two runs.** The entry above is on the branch
+**Measured 2026-11-18 for ADR-200 (E5): STOP, on three runs.** The entry above is on the branch
 `adr-200-anchor-guard` as `4d1e6e38` and the scanner with its reading rules as `8b154037`; that branch is
-kept on the remote, since a squash merge does not carry them. The first run was read at `8b154037`. A
-Codex review of it (gpt-6.2-sol, twelve findings) and one check of this session's own found counting
-defects in both directions; the ones with a bounded fix were fixed, each with a test that fails on the
-first scanner, and the scanner was run again at `2d4316b8` with the rule and the bars untouched. The
-second run is the reading; the first is kept beside it (`results-e5-first-run*.json`). Entries before
-2026-11-18T10:00:00Z, one run of each column.
+kept on the remote, since a squash merge does not carry them. The first run was read at `8b154037`. Two
+Codex reviews (gpt-6.2-sol: twelve findings, then eight) and one check of this session's own found
+counting defects in both directions. Those with a bounded fix were fixed, each with a test that fails on
+the scanner before it, and the scanner was run again at `2d4316b8` and at `18b48da7`, the rule and the bars
+untouched each time. The third run is the reading; the first two are kept beside it
+(`results-e5-first-run*.json`, `results-e5-second-run*.json`). Entries before 2026-11-18T10:00:00Z, one
+run of each column.
 
-| | all | without this repository | first run, without | bar |
+| without this repository | first run | second run | **third run** | bar |
 |---|---|---|---|---|
-| W, landed write calls with a typed plan | 9,183 | 6,700 | 6,700 | at least 200 |
-| R_A, refused at width A | 603 (6.57%) | **394 (5.88%)** | 395 (5.90%) | at most 5% |
-| R_B, refused at width B | 536 (5.84%) | **346 (5.16%)** | 348 (5.19%) | at most 5% |
-| U_A, uncertain at width A | 1,112 | **876 (13.07%)** | 835 (12.46%) | R_A + U_A at most 10% |
-| U_B, uncertain at width B | 1,057 | **831 (12.40%)** | 787 (11.75%) | R_B + U_B at most 10% |
-| calls with any anchorless numbered hunk on a written file | 3,644 (39.7%) | 2,670 (39.9%) | 2,673 | |
-| refused hunks at width A: replace / delete / insert-after / insert-before | 462 / 76 / 387 / 46 | 300 / 53 / 259 / 34 | 286 / 49 / 255 / 34 | |
-| of those, on a file the session's own `create` or `--create` made | 388 | 249 | 239 | |
-| shell commands that run `mrw write` more than once, landed or not | 1,623 | 1,093 | | |
-| landed write calls with no plan the scanner could read (not judged) | 3,627 | 2,736 | 2,736 | |
+| W, landed write calls with a typed plan | 6,700 | 6,700 | **6,700** | at least 200 |
+| R_A, refused at width A | 395 (5.90%) | 394 (5.88%) | **339 (5.06%)** | at most 5% |
+| R_B, refused at width B | 348 (5.19%) | 346 (5.16%) | **303 (4.52%)** | at most 5% |
+| U_A, uncertain at width A | 835 (12.46%) | 876 (13.07%) | **931 (13.90%)** | |
+| U_B, uncertain at width B | 787 (11.75%) | 831 (12.40%) | **874 (13.04%)** | |
+| R_A + U_A | 18.36% | 18.96% | **18.96%** | at most 10% |
+| R_B + U_B | 16.94% | 17.57% | **17.57%** | at most 10% |
+| verdict | STOP | STOP | **STOP** | |
 
-Read on the column without this repository. The refused share misses 5% by 0.88 points at width A and
-0.16 at width B. Refused and uncertain together are 18.96% and 17.57% against 10%, so no reading of the
-uncertain calls brings either width under its bound. By the rule written before the run, nothing is built
-and the numbers go to Zy.
+Third run, all sessions: W 9,183; R_A 551 (6.00%); R_B 498 (5.42%); U_A 1,164; U_B 1,095. Beside the
+verdict, without this repository: 2,670 calls sent an anchorless numbered hunk to a written file (39.9% of
+W); the hunks refused at width A are 306 `replace`, 44 `delete`, 239 `insert-after` and 31 `insert-before`,
+620 in all, 276 of them on a file the session's own `create` or `--create` made; 1,093 shell commands ran
+`mrw write` more than once, landed or not; 2,736 landed write calls had no plan the scanner could read and
+were not judged.
 
-What the counts say beside the verdict, at their own grain. Of the 2,670 calls that sent an anchorless
-numbered hunk to a written file, 1,400 had every such line shown since the write, 394 did not and 876
-could not be told. Width B refuses 48 fewer calls than width A. 249 of the 646 hunks refused at width A
-are on a file the session created through mrw; whether a rule that treats a caller's own written lines as
-known to it would pass was not priced, and this corpus has now been seen, so pricing it needs its own
-entry and entries after the cut-off. The limits that remain, each with its direction, are in
-`docs/bench/effect-study/README.md`.
+**What the three runs say.** The refused share sits at the 5% line and moved by 0.8 points as the
+scanner was corrected: at width A it is over by 0.06 points, at width B under. The verdict does not rest
+on it. Refused and uncertain together are 18.96% and 17.57% against 10% on the second and third runs,
+because each correction moved calls between the two and not out of them, so no reading of the uncertain
+calls brings either width under its bound. By the rule written before the first run, nothing is built and
+the numbers go to Zy.
+
+Of the 2,670 calls with an anchorless numbered hunk on a written file, at width A the scanner classed 339
+as refused, 931 as uncertain and 1,400 as neither. Width B refuses 36 fewer calls than width A. Whether a
+rule that treats the lines of a file the caller itself created as known to it would pass was not priced;
+this corpus has now been seen, so pricing it needs its own entry and entries after the cut-off. A transcript
+cannot settle the uncertain share: the ledger records what a piped read served, and the transcript does
+not. A count taken from the ledger itself, as `mrw stats` prices `--strict-balance` (ADR-056), would have
+none. The limits that remain, each with its direction, are in `docs/bench/effect-study/README.md`.

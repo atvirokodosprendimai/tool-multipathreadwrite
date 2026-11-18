@@ -66,18 +66,22 @@ it would have refused. The rule, two widths of it and the verdict were pre-regis
 | | all | without this repository | bar |
 |---|---|---|---|
 | landed write calls with a typed plan | 9,183 | 6,700 | at least 200 |
-| refused, width A (a write forgets every shown line) | 6.57% (603) | **5.88%** (394) | at most 5% |
-| refused, width B (lines the write left in place stay shown) | 5.84% (536) | **5.16%** (346) | at most 5% |
-| uncertain, width A | 1,112 | 13.07% (876) | refused + uncertain at most 10% |
-| uncertain, width B | 1,057 | 12.40% (831) | refused + uncertain at most 10% |
+| refused, width A (a write forgets every shown line) | 6.00% (551) | **5.06%** (339) | at most 5% |
+| refused, width B (lines the write left in place stay shown) | 5.42% (498) | **4.52%** (303) | at most 5% |
+| uncertain, width A | 1,164 | 13.90% (931) | |
+| uncertain, width B | 1,095 | 13.04% (874) | |
+| refused + uncertain, width A / B | 18.68% / 17.35% | **18.96% / 17.57%** | at most 10% |
 
-**Verdict: STOP.** Both widths miss the refused bar, and refused with uncertain is 18.96% and 17.57%
-against 10%. Nothing is built from this reading. It prices the refusal only; how often a stale number is
-sent and lands is not measured.
+**Verdict: STOP**, read on the column without this repository. Width A misses the refused bar by 0.06
+points and width B meets it; both fail the bound on refused with uncertain by more than seven points.
+Nothing is built from this reading. It prices the refusal only; how often a stale number is sent and
+lands is not measured.
 
-This is the second run. The first (`results-e5-first-run*.json`: 5.90%, 5.19%, 12.46%, 11.75%, also STOP)
-was reviewed, the scanner's defects with a bounded fix were fixed, and it was run again with the rule and
-the bars untouched.
+This is the third run. The first and second (`results-e5-first-run*.json`, `results-e5-second-run*.json`;
+without this repository 5.90% and 5.19%, then 5.88% and 5.16%; STOP both times) were each reviewed, the
+scanner's defects with a bounded fix were fixed, and it was run again with the rule and the bars
+untouched. The refused share moved by 0.8 points across the corrections; refused with uncertain did not
+move between the second and third runs, since the corrections moved calls between the two.
 
 Method. Per session, a file is tracked from the session's own first landed mrw write to it. A read answer
 shows the line numbers it printed under that file's header. A later plan typed into the shell command
@@ -90,24 +94,33 @@ Limits, each with the way it moves the counts. The scanner reads a shell command
 not as a shell would:
 - *Not judged:* a plan in a file, a plan maker, `--create`, and any typed plan the parser missed (3,627
   landed calls together; they are not told apart). Lowers W and both counts.
-- *One answer per shell call.* `applied` anywhere in the answer counts the call as landed, and every plan
-  typed in the command is judged, so a plan that was refused beside one that landed is judged too. Raises
-  the counts. A second plan in one command is judged on the state before the command (1,623 commands run
-  `mrw write` more than once). Lowers them.
+- *One answer per shell call.* `— applied` anywhere in the answer counts the call as landed, and every
+  plan typed in the command is judged, so a plan that was refused beside one that landed is judged too:
+  raises the counts.
+- *A second plan in one command* is judged on the state before the command (1,623 commands run `mrw
+  write` more than once). It misses a refusal where the first plan's write moved the line, and invents
+  one where a read between the two showed it.
+- *Reads on both sides of a write in one command* are not applied: the written files those reads name
+  become uncertain before the plan is judged and stay so after. Moves calls from refused, or from
+  neither, to uncertain.
 - *Quoted plans.* Quoted strings are joined one a line and every `\n` in them is a line break; the last
-  hunk's body is taken as unknown, which at width B moves every line. Raises R_B and U_B. A `from=` body
-  is unknown the same way.
-- *Options are matched as text:* an `anchor=` inside another option's value reads as an anchor (lowers),
-  and `body="1"` is not read as a count (raises R_B).
+  hunk's body is taken as unknown unless it declares a count, which at width B moves every line. Raises
+  R_B and U_B. A `from=` body is unknown the same way.
+- *Options are matched as text outside quoted values.* `body=@PATH` is an unknown body: raises R_B and U_B.
 - *Paths are compared as typed.* `dir/../f`, a path through `--root`, a name with a space in a receipt
   row and a terse rename's destination are not matched to the file they name. Either direction.
 - *The host's Edit or Write ends a file's tracking when it is called,* whether or not it succeeded. Lowers.
-- *A read piped or captured* makes the files it names uncertain, since the ledger records more than the
-  transcript shows; one captured inside a subshell that changes directory is missed. A numbered line
-  under a header in any mrw answer counts as shown, whichever command printed it. Lowers.
+- *A read piped, redirected or captured* makes the written files it names uncertain, since the ledger
+  records more than the transcript shows. A quoted spec is looked for among all the command's quoted
+  strings, which can put another file in doubt: moves refused to uncertain. A capture inside a subshell
+  that changes directory is missed: moves uncertain to refused.
+- *A numbered line under a file's header in any answer of a call that ran mrw* counts as shown, whichever
+  command printed it. Lowers both.
 - *Not seen:* lines the host's own Read licensed through `mrw hook read`, a read under `-N`, and a walk
   whose piped output names no file. Raises.
-- *An `insert-before` one past the last line* names no line and is judged as if it did. Raises.
+- *`N-$` is judged on line N alone, and an `insert-before` one past the last line as if it named a line.*
+  The first lowers, the second raises.
+
 ## Method
 
 `scan.py` reads every `*.jsonl` under `~/.claude/projects`, subagent transcripts included, and counts
@@ -169,7 +182,7 @@ transcript with no entry in the window is not counted. It prints aggregates only
 ## Run it
 
 ```sh
-python3 -I docs/bench/effect-study/test_scan.py                 # 99 checks on synthetic transcripts
+python3 -I docs/bench/effect-study/test_scan.py                 # 106 checks on synthetic transcripts
 python3 -I docs/bench/effect-study/scan.py --until 2026-11-18T10:00:00Z --repo . > results.json
 python3 -I docs/bench/effect-study/scan.py --until 2026-11-18T10:00:00Z --skip tool-multipathreadwrite
 ```
@@ -180,6 +193,6 @@ Give `--until` a time in the past: a live session keeps appending to its transcr
 
 - `scan.py`: the scanner. `test_scan.py`: its self-test.
 - `results.json`, `results-without-this-repository.json`: the two runs above.
-- `results-e5.json`, `results-e5-without-this-repository.json`: E5's second run, the corpus line and E5 only.
-  `results-e5-first-run*.json`: the first. `results.json` was not regenerated: its E2 tag count reads the
-  tree, which has changed since.
+- `results-e5.json`, `results-e5-without-this-repository.json`: E5's third run, the corpus line and E5 only.
+  `results-e5-first-run*.json`, `results-e5-second-run*.json`: the two before it. `results.json` was not
+  regenerated: its E2 tag count reads the tree, which has changed since.
