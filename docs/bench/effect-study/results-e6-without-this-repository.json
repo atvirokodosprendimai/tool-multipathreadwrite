@@ -1,11 +1,11 @@
 {
  "E6": {
   "landed_write_calls": 9686,
-  "near_path_reverts": 8,
-  "near_pct": 0.083,
+  "near_path_reverts": 9,
+  "near_pct": 0.093,
   "near_window_calls": 5,
-  "path_reverts": 21,
-  "tree_reverts": 84,
+  "path_reverts": 22,
+  "tree_reverts": 95,
   "verdict": "STOP"
  },
  "corpus": {

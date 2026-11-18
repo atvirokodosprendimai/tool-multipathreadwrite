@@ -1061,7 +1061,7 @@ verdict), written with the record on 2026-11-03, before any code or run.
   (`searchreplace.go:134`, `applypatch.go:259`) while the native pattern refusal does. Its own record if the count
   grows; ADR-193 leads Claude with search_replace.
 - **Undo a write whose check failed (deferred from ADR-197). CLOSED 2026-11-19 by E6 below: STOP** (2026-11-15): before any record, count how often a caller
-  reverts by hand after exit 3. ADR-080 and ADR-187 keep the write; turnpack undoes it by default. Counted for any landed write, not only exit 3: 8 near reverts in 9,686 landed writes outside this repository.
+  reverts by hand after exit 3. ADR-080 and ADR-187 keep the write; turnpack undoes it by default. Counted for any landed write, not only exit 3: 9 near reverts found in 9,686 landed writes outside this repository, where the bar needed 49.
 
 ## Post-v1.77.1 cleanup and decisions (2026-10-28)
 
@@ -1477,19 +1477,24 @@ earlier uncommitted work in that file, which an undo of one write would keep, an
 case for the feature, not something this counts). A `git stash` may have nothing to do with mrw. The
 scanner reads a shell command as text, with the limits E5's README section lists.
 
-**Measured 2026-11-19 for E6: STOP.** The entry above was pushed as `49e84765` and the scanner with its
-synthetic tests as `42983e36`, both before the run. One run of each column, entries before
-2026-11-19T00:00:00Z (`docs/bench/effect-study/results-e6.json` and its `-without-this-repository` twin).
+**Measured 2026-11-19 for E6: STOP, on two runs.** The entry above was committed as `49e84765` and the
+scanner with its synthetic tests as `42983e36`, in that order, before the first run. A Codex review of it
+(gpt-6.2-sol, seven findings) found the scanner too loose and too tight in places; the bounded ones were
+fixed, each with a test, and the scanner was run again at `3af83569` with the rule and the bar untouched.
+The second run is the reading; the first is kept beside it (`results-e6-first-run*.json`). Entries before
+2026-11-19T00:00:00Z, one run of each column.
 
-| | all | without this repository | bar |
+| without this repository | first run | **second run** | bar |
 |---|---|---|---|
-| L, shell calls whose mrw write landed | 13,213 | 9,686 | at least 1,000 |
-| near path reverts (within 5 tool calls of the write) | 12 (0.09%) | **8 (0.08%)** | at least 25 and 0.5% of L |
-| path reverts, near or late | 38 | 21 | |
-| tree reverts (`git stash`, `reset --hard`, `checkout .`, `restore .`) | 123 | 84 | |
+| L, shell calls whose mrw write landed | 9,686 | **9,686** | at least 1,000 |
+| near path reverts (within 5 tool calls of the write) | 8 (0.08%) | **9 (0.09%)** | at least 25, and at least 0.5% of L, which at this L is 49 |
+| path reverts, near or late | 21 | **22** | |
+| tree reverts (`git stash`, `reset --hard`, `checkout .`, `restore .`) | 84 | **95** | |
+| verdict | STOP | **STOP** | |
 
-A session reverted a file with git within five calls of mrw writing it eight times in 9,686 landed writes,
-a sixth of the bar's rate and a third of its count. By the rule written before the run, no undo record is
-drafted. The tree reverts are counted apart and decide nothing: nothing ties a `git stash` to a file mrw
-wrote. What the count cannot see is in the entry above; a revert made by writing the old lines back is the
-largest of them.
+Second run, all sessions: L 13,217; near 13; path reverts 39; tree reverts 143.
+
+The scanner found nine near path reverts where the bar needs 49. Counting every path revert it found as
+near would give 22. By the rule written before the run, no undo record is drafted. The tree reverts are
+counted apart and decide nothing: nothing ties a `git stash` to a file mrw wrote. What the count cannot
+see is in the entry above and in the README's limits; the aggregates do not say how large any of them is.

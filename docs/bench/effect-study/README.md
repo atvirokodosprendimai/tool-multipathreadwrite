@@ -133,25 +133,42 @@ not as a shell would:
 Claude Code's `/rewind` does not track a file only shell commands changed, which is every mrw write. Before
 any record for an `mrw undo`, the backlog asked for a count: how often a session reverts a file with git
 after mrw wrote it. Pre-registered in `docs/adr/BACKLOG.md` ("Pre-registered for an undo of mrw's own
-write") and pushed before the scanner was changed.
+write") and committed before the scanner was changed.
 
 | | all | without this repository | bar |
 |---|---|---|---|
-| shell calls whose mrw write landed | 13,213 | 9,686 | at least 1,000 |
-| near path reverts (within 5 tool calls) | 0.09% (12) | **0.08%** (8) | at least 25 and 0.5% |
-| path reverts, near or late | 38 | 21 | |
-| tree reverts | 123 | 84 | |
+| shell calls whose mrw write landed | 13,217 | 9,686 | at least 1,000 |
+| near path reverts (within 5 tool calls) | 0.10% (13) | **0.09%** (9) | at least 25 and 0.5%, which is 49 here |
+| path reverts, near or late | 39 | 22 | |
+| tree reverts | 143 | 95 | |
 
-**Verdict: STOP.** No undo record is drafted from this count.
+**Verdict: STOP.** No undo record is drafted from this count. This is the second run; the first
+(`results-e6-first-run*.json`: 8 near, 21 path reverts, 84 tree reverts without this repository, also STOP)
+was reviewed, the scanner's bounded defects were fixed, and it was run again with the rule and the bar
+untouched.
 
 Method. A file is written when a landed mrw write of the session changed it (E5's tracking). A path revert
-is a later shell command running `git checkout` or `git restore` with an argument naming that file; near
-means within five tool calls of the write that last changed it. A tree revert is `git checkout .`,
-`git restore .`, `git reset --hard` or `git stash` after the session's first landed write.
+is a later shell command running `git checkout` or `git restore`, with or without `git -C DIR`, with an
+argument naming that file; near means within five tool calls of the call whose write last changed it. A
+tree revert is `git checkout .`, `git restore .`, `git reset --hard` or `git stash` after the session's
+first landed write, counted apart from a path revert in the same command.
 
-Limits. A revert made by writing the old lines back through mrw or the host's Edit is not seen, nor is a
-host rewind. A path is matched as typed, or by its suffix. A tree revert may have nothing to do with mrw.
-The command is read as text, with E5's limits.
+Limits, each with its direction. The command is read as text, not as a shell would:
+- *Not seen at all:* a revert made by writing the old lines back through mrw or the host's Edit, and a
+  host rewind. Lowers.
+- *Paths are matched as typed, or by suffix.* A quoted file name is lost; a revert typed from inside a
+  subdirectory does not match a path the plan gave from the root (lowers); a file named `f` matches
+  `other/f` (raises).
+- *Arguments are not parsed as git parses them.* `git checkout f` where `f` is a branch, or an option's
+  operand that is also a written file's name, counts (raises). A command the shell skipped
+  (`true || git checkout -- f`) or that failed counts (raises).
+- *Written files come from the plan's hunks and the receipt's rows.* A typed `unlink` or `rename`, a
+  receipt row whose name has a space, a quiet write of a plan in a file, and a partial commit leave a
+  landed write with files the scanner does not know (lowers). One `applied` in a chained command credits
+  every plan typed in it (raises).
+- *A revert in the same shell command as the write* is read before the write's answer, so it is not
+  matched (lowers).
+- *A tree revert* may have nothing to do with mrw, and `git stash create` or `store` count as one.
 
 ## Method
 
@@ -214,7 +231,7 @@ transcript with no entry in the window is not counted. It prints aggregates only
 ## Run it
 
 ```sh
-python3 -I docs/bench/effect-study/test_scan.py                 # 132 checks on synthetic transcripts
+python3 -I docs/bench/effect-study/test_scan.py                 # 138 checks on synthetic transcripts
 python3 -I docs/bench/effect-study/scan.py --until 2026-11-18T10:00:00Z --repo . > results.json
 python3 -I docs/bench/effect-study/scan.py --until 2026-11-18T10:00:00Z --skip tool-multipathreadwrite
 ```
@@ -228,4 +245,5 @@ Give `--until` a time in the past: a live session keeps appending to its transcr
 - `results-e5.json`, `results-e5-without-this-repository.json`: E5's third run, the corpus line and E5 only.
   `results-e5-first-run*.json`, `results-e5-second-run*.json`: the two before it. `results.json` was not
   regenerated: its E2 tag count reads the tree, which has changed since.
-- `results-e6.json`, `results-e6-without-this-repository.json`: E6's run, the corpus line and E6 only.
+- `results-e6.json`, `results-e6-without-this-repository.json`: E6's second run, the corpus line and E6 only.
+  `results-e6-first-run*.json`: the first.
