@@ -159,7 +159,7 @@ set -o pipefail
 - `--rewrite` needs `ast-grep` on PATH; where it is absent the test skips that one case and says so.
 - The landed-writes counter starts at this release, so it is smaller than the tally's.
 - Named behaviours with no mutant. "The mark fails the hunk" has no line to mutate: every case of the apply test compares status, reason and bytes with the same plan run with no ledger. Setting `Computed` for `search_replace` and for `--rewrite` (CLI and MCP) cannot be observed by the count: a `search_replace` hunk is quoted and a rewrite hunk carries `anchor=`, so neither is ever a candidate. The flag is set there so the computing branches read alike, and the `--rewrite` case of the stats test shows only that such a write is a landing.
-- The ledger-error branch of `Land` is counted by the same single call and is driven by no test here. The partial commit is driven in `internal/apply`'s test (the marks survive) and not through `Land`.
+- The ledger-error branch of `Land` was driven by no test when T1 merged; `internal/writer/ledgererr200_test.go::TestALandingWhoseLedgerUpdateFailsIsCountedOnce` drives it since the follow-up. The partial commit is driven in `internal/apply`'s test (the marks survive) and not through `Land`.
 
 ## Stop Condition
 
