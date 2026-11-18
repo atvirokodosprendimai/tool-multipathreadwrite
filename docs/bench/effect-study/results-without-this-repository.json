@@ -8,26 +8,26 @@
    "input": 0.006,
    "output": 8.035
   },
-  "sites_per_mrw_call": {
-   "mean": 4.23,
-   "median": 2,
-   "n": 30261,
-   "p90": 9,
-   "share_of_one": 39.014
-  },
   "sites_per_request_native_only": {
    "mean": 1.3,
    "median": 1.0,
-   "n": 1738,
+   "n": 1740,
    "p90": 2,
-   "share_of_one": 83.89
+   "share_of_one": 83.851
   },
   "sites_per_request_with_mrw": {
    "mean": 4.34,
-   "median": 2,
-   "n": 29459,
+   "median": 2.0,
+   "n": 29401,
    "p90": 9,
-   "share_of_one": 37.703
+   "share_of_one": 37.71
+  },
+  "sites_per_shell_call_running_mrw": {
+   "mean": 4.22,
+   "median": 2.0,
+   "n": 30200,
+   "p90": 9,
+   "share_of_one": 39.089
   },
   "tokens": {
    "cache_read": 22744237702,
@@ -45,46 +45,49 @@
   }
  },
  "E2": {
-  "anchor_chars": 306550,
-  "anchor_miss_per_anchored_hunk_pct": 1.787,
-  "anchor_misses": 156,
-  "anchor_share_of_output_pct": 0.154,
-  "anchored_hunks": 8732,
-  "bare_single_line_replaces": 4630,
-  "bare_single_line_share_pct": 21.892,
-  "hunks_typed": 21149,
+  "anchor_chars": 310820,
+  "anchor_miss_lines": 155,
+  "anchor_miss_lines_per_anchored_hunk_pct": 1.783,
+  "anchor_misses_distinct": 149,
+  "anchor_misses_distinct_per_anchored_hunk_pct": 1.714,
+  "anchor_share_of_output_pct": 0.157,
+  "anchored_hunks": 8695,
+  "bare_single_line_replaces": 4781,
+  "bare_single_line_share_pct": 22.689,
+  "hunks_typed": 21072,
   "tag_collisions": null
  },
  "E3": {
   "after": {
-   "calls": 3151,
-   "native": 187
+   "calls": 3550,
+   "native": 263
   },
   "before": {
-   "calls": 3220,
-   "native": 187
+   "calls": 3650,
+   "native": 238
   },
   "compactions_before_any_mrw_write": 1,
-  "compactions_paired": 120,
-  "compactions_too_few_calls": 23,
-  "mean_paired_difference_pp": -0.138,
-  "native_share_after_pct": 5.935,
-  "native_share_before_pct": 5.807,
+  "compactions_paired": 124,
+  "compactions_too_few_calls": 19,
+  "mean_paired_difference_pp": 0.767,
+  "native_share_after_pct": 7.408,
+  "native_share_before_pct": 6.521,
   "window": 30
  },
  "E4": {
   "changed_since_refusals": 16,
-  "nothing_found": 3,
-  "nothing_found_per_mrw_write_pct": 0.026,
+  "not_own_edit_per_mrw_write_pct": 0.142,
+  "nothing_found": 1,
+  "nothing_found_per_mrw_write_pct": 0.009,
   "own_edit": 0,
-  "own_shell": 10,
-  "own_subagent": 3
+  "own_shell": 15,
+  "own_subagent": 0
  },
  "corpus": {
   "compactions": 144,
-  "mrw_write_calls": 11570,
+  "mrw_write_calls": 11279,
   "requests": 73694,
-  "transcripts": 786,
+  "transcripts": 762,
   "unreadable": 0
  }
 }

@@ -1,6 +1,7 @@
 """Self-test for scan.py on synthetic transcripts whose answers are known.
 
 Run: python3 -I docs/bench/effect-study/test_scan.py   (exit 0 green, 1 red)
+Each case is its own small transcript, so a count has one cause.
 """
 import json
 import os
@@ -13,12 +14,17 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import scan  # noqa: E402
 
 N = [0]
+BAD = []
+CHECKS = [0]
+U = {"input_tokens": 100, "output_tokens": 200, "cache_read_input_tokens": 10000,
+     "cache_creation_input_tokens": 400, "cache_creation": {"ephemeral_1h_input_tokens": 300}}
+OK1 = "1 hunk(s), 1 file(s), 0 failed, 0 advisories — applied\n"
 
 
 def stamp():
-    """Return the next timestamp, one second after the last."""
+    """Return the next timestamp, one second after the last, in November 2026."""
     N[0] += 1
-    return "2026-11-01T00:%02d:%02dZ" % (N[0] // 60, N[0] % 60)
+    return "2026-11-01T%02d:%02d:%02dZ" % (N[0] // 3600, N[0] // 60 % 60, N[0] % 60)
 
 
 def use(mid, tid, name, inp, usage=None):
@@ -40,106 +46,190 @@ def bash(mid, tid, cmd, out, usage=None):
     return [use(mid, tid, "Bash", {"command": cmd}, usage), res(tid, out)]
 
 
-def session():
-    """Build one transcript: every number the asserts below name is planted here."""
-    u = {"input_tokens": 100, "output_tokens": 200, "cache_read_input_tokens": 10000,
-         "cache_creation_input_tokens": 400, "cache_creation": {"ephemeral_1h_input_tokens": 300}}
-    e = []
-    # m1: one mrw read of three ranges. The usage repeats on a second line of the same message.
-    e += bash("m1", "t1", "mrw read a.go:1-3 b.go:5 b.go:9", "==> a.go  9L\n@@ 1-3\n 1| x\n==> b.go  9L\n@@ 5-5\n@@ 9-9\n", u)
-    e.append({"type": "assistant", "timestamp": stamp(), "message": {"id": "m1", "usage": u, "content": []}})
-    # m2: a plan of three hunks: one anchored, one bare single-line replace, one insert.
-    plan = ('mrw write - <<\'EOF\'\n@@ a.go 1-3 replace anchor="func A"\nx\n@@ b.go 5 replace\ny\n'
-            '@@ b.go 9 insert-after\nz\nEOF')
-    e += bash("m2", "t2", plan, "ok a.go\n3 hunk(s), 2 file(s), 0 failed, 0 advisories — applied\n", u)
-    # m3: a request of two host reads, no mrw.
-    e.append(use("m3", "t3", "Read", {"file_path": "/r/c.go"}, u))
-    e.append(use("m3", "t4", "Read", {"file_path": "/r/d.go"}))
-    # five mrw writes, a compaction, then five host edits. Before: 0 of 5. After, within the window:
-    # these five, the Edit of f.go and four mrw writes further down, so 6 of 10.
-    for i in range(5):
-        e += bash("w%d" % i, "tw%d" % i, "mrw write --terse p%d.txt" % i,
-                  "1 hunk(s), 1 file(s), 0 failed, 0 advisories — applied\n")
-    e.append({"type": "system", "subtype": "compact_boundary", "timestamp": stamp()})
-    for i in range(5):
-        e.append(use("n%d" % i, "tn%d" % i, "Edit", {"file_path": "/r/e%d.go" % i}))
-    # an anchor miss.
-    e += bash("m4", "t5", "mrw write p.txt", 'FAIL a.go 1-3 replace: anchor "func A" not in line 1: "x"\n')
-    # three changed-since refusals: after the session's own Edit, after its own gofmt, and after nothing.
-    e += bash("m5", "t6", "mrw read f.go:1", "==> f.go  3L\n@@ 1-1\n 1| x\n")
-    e.append(use("m6", "t7", "Edit", {"file_path": "/r/f.go"}))
-    e += bash("m7", "t8", "mrw write p.txt", "FAIL f.go 1 replace: f.go changed since mrw last saw it (recorded a, now b)\n")
-    e += bash("m8", "t9", "mrw read g.go:1", "==> g.go  3L\n@@ 1-1\n 1| x\n")
-    e += bash("m9", "t10", "gofmt -w .", "")
-    e += bash("m10", "t11", "mrw write p.txt", "FAIL g.go 1 replace: g.go changed since mrw last saw it (recorded a, now b)\n")
-    e += bash("m11", "t12", "mrw read h.go:1", "==> h.go  3L\n@@ 1-1\n 1| x\n")
-    e += bash("m12", "t13", "mrw write p.txt", "FAIL h.go 1 replace: h.go changed since mrw last saw it (recorded a, now b)\n")
-    return e
+def compact():
+    """A compaction boundary."""
+    return {"type": "system", "subtype": "compact_boundary", "timestamp": stamp()}
 
 
-def check(name, got, want, bad):
-    """Compare one number and remember a mismatch."""
-    if got != want:
-        bad.append("%s = %r, want %r" % (name, got, want))
+def writes(prefix, n):
+    """n mrw writes of one hunk each."""
+    out = []
+    for i in range(n):
+        out += bash("%s%d" % (prefix, i), "t%s%d" % (prefix, i), "mrw write --terse p%d.txt" % i, OK1)
+    return out
 
 
-def main():
-    """Scan the synthetic corpus and compare every planted number."""
-    bad = []
+def edits(prefix, n):
+    """n host Edit calls."""
+    return [use("%s%d" % (prefix, i), "t%s%d" % (prefix, i), "Edit", {"file_path": "/r/e%d.go" % i}) for i in range(n)]
+
+
+def scan_of(entries, **kw):
+    """Write entries as one transcript in a fresh folder and scan it."""
     with tempfile.TemporaryDirectory() as d:
         os.mkdir(os.path.join(d, "p"))
         with open(os.path.join(d, "p", "s.jsonl"), "w", encoding="utf-8") as fh:
-            for o in session():
-                fh.write(json.dumps(o) + "\n")
-            fh.write("not json\n")
-        repo = os.path.join(d, "repo")
-        os.mkdir(repo)
+            for o in entries:
+                fh.write((o if isinstance(o, str) else json.dumps(o)) + "\n")
+        return scan.run(d, **kw)
+
+
+def check(name, got, want):
+    """Compare one value and remember a mismatch."""
+    CHECKS[0] += 1
+    if got != want:
+        BAD.append("%s = %r, want %r" % (name, got, want))
+
+
+def refusal(path):
+    """The line mrw prints for a file changed since it was read."""
+    return "FAIL %s 1 replace: %s changed since mrw last saw it (recorded a, now b)\n" % (path, path)
+
+
+def served(path):
+    """The answer of a one-line read of path."""
+    return "==> %s  3L  9B  sha aaaaaaaa\n@@ 1-1\n 1| x\n" % path
+
+
+def test_cost():
+    """E1: usage counts once per message id, on entries with and without a tool call."""
+    e = bash("m1", "t1", "mrw read a.go:1-3 b.go:5 b.go:9", "==> a.go  9L\n@@ 1-3\n 1| x\n==> b.go  9L\n@@ 5-5\n@@ 9-9\n", U)
+    e.append({"type": "assistant", "timestamp": stamp(), "message": {"id": "m1", "usage": U, "content": []}})
+    e.append({"type": "assistant", "timestamp": stamp(),               # usage with no tool call at all
+              "message": {"id": "m2", "usage": U, "content": [{"type": "text", "text": "hi"}]}})
+    e.append("not json")
+    r = scan_of(e)
+    check("requests", r["corpus"]["requests"], 2)
+    tok = r["E1"]["tokens"]
+    check("tokens", (tok["input"], tok["output"], tok["cache_read"], tok["cache_write_1h"], tok["cache_write_5m"]),
+          (200, 400, 20000, 600, 200))
+    # priced: 200 + 2000 + 2000 + 1200 + 250 = 5650; cache = 3450
+    check("cache_share_pct", r["E1"]["cache_share_pct"], round(100 * 3450 / 5650, 3))
+    check("three ranges in one read", r["E1"]["sites_per_shell_call_running_mrw"],
+          {"n": 1, "mean": 3.0, "median": 3.0, "p90": 3, "share_of_one": 0.0})
+
+
+def test_sites():
+    """E1: sites per shell call and per request; a repeated tool call counts once; a mixed request keeps both."""
+    e = bash("m1", "t1", "mrw read a.go:1", served("a.go"))                       # 1 site
+    e += bash("m2", "t2", "mrw write p.txt", "3 hunk(s), 2 file(s), 0 failed, 0 advisories — applied\n")  # 3
+    e.append(use("m3", "t3", "Read", {"file_path": "/r/c.go"}))
+    e.append(use("m3", "t3", "Read", {"file_path": "/r/c.go"}))                   # the same call again
+    e.append(use("m3", "t4", "Read", {"file_path": "/r/d.go"}))
+    e.append(use("m4", "t5", "Edit", {"file_path": "/r/d.go"}))                   # mixed: 1 host + 1 mrw site
+    e += bash("m4", "t6", "mrw read b.go:1", served("b.go"))
+    e += bash("m5", "t7", "mrw read --grep write f.go", "==> f.go  3L\n@@ 1-1\n 1| write\n")   # a read, not a write
+    e += bash("m6", "t8", 'echo "mrw write p"', "mrw write p\n")                  # no mrw call at all
+    r = scan_of(e)
+    check("shell calls running mrw", r["E1"]["sites_per_shell_call_running_mrw"],
+          {"n": 4, "mean": 1.5, "median": 1.0, "p90": 1, "share_of_one": 75.0})
+    check("requests with mrw", r["E1"]["sites_per_request_with_mrw"],
+          {"n": 4, "mean": 1.75, "median": 1.5, "p90": 2, "share_of_one": 50.0})
+    check("requests with host tools only", r["E1"]["sites_per_request_native_only"],
+          {"n": 1, "mean": 2.0, "median": 2.0, "p90": 2, "share_of_one": 0.0})
+    check("mrw_write_calls", r["corpus"]["mrw_write_calls"], 1)
+
+
+def test_plan():
+    """E2 (b): hunks, anchors in each spelling, single-line replaces, misses."""
+    plan = ("mrw write - <<'EOF'\n"
+            '@@ a.go 1-3 replace anchor="func A"\nx\n'
+            "@@ a.go 7-9 replace anchor='func B'\nx\n"
+            "@@ a.go 12-14 replace anchor=func C body=1\nx\n"
+            "@@ b.go 5 replace\ny\n"
+            "@@ b.go 6-6 replace\ny\n"
+            '@@ "c d.go" 9 insert-after\nz\n'
+            "EOF")
+    miss = 'FAIL a.go 1-3 replace (plan line 1): anchor "func A" not in line 1: "x"; the anchor is in line 2\n'
+    e = bash("m1", "t1", plan, miss) + bash("m2", "t2", "mrw write p.txt", miss)   # the same miss, sent twice
+    e.append(use("m3", "t3", "Write", {"file_path": "/tmp/p.txt", "content": "@@ a.go 2 replace\nq\n"}))
+    r = scan_of(e)["E2"]
+    check("hunks_typed", r["hunks_typed"], 7)
+    check("anchored_hunks", r["anchored_hunks"], 3)
+    check("anchor_chars", r["anchor_chars"], 18)
+    check("bare_single_line_replaces", r["bare_single_line_replaces"], 3)
+    check("anchor_miss_lines", r["anchor_miss_lines"], 2)
+    check("anchor_misses_distinct", r["anchor_misses_distinct"], 1)
+
+
+def test_tags():
+    """E2 (a): per line, with no phantom line after a final newline."""
+    with tempfile.TemporaryDirectory() as repo:
         with open(os.path.join(repo, "t.txt"), "w", encoding="utf-8") as fh:
-            fh.write("a\na\nb\nc")                      # pairs: a/a identical, a/b, b/c
-        git = ["git", "-C", repo, "-c", "user.name=t", "-c", "user.email=t@example.invalid"]
+            fh.write("line13\nline18\nother0\na\na\n")       # sha1 of line13 and line18 both begin "40"
+        git = ["git", "-C", repo]
         subprocess.run(git + ["init", "-q"], check=True)
         subprocess.run(git + ["add", "t.txt"], check=True)
-        r = scan.run(d, repo=repo)
-        late = scan.run(d, since=scan.parse_time("2027-01-01"))
-        skipped = scan.run(d, skip=["p" + os.sep])
+        tc = scan.tag_collisions(repo)
+    check("lines", tc["lines"], 5)
+    check("identical neighbours", tc["lines_with_identical_neighbour"], 2)
+    check("different neighbours, same 2 hex", tc["lines_same_2hex_as_different_neighbour"], 2)
+    check("different neighbours, same 3 hex", tc["lines_same_3hex_as_different_neighbour"], 0)
+    check("2 hex share", tc["lines_same_2hex_as_different_neighbour_pct"], 40.0)
 
-    check("transcripts", r["corpus"]["transcripts"], 1, bad)
-    check("requests", r["corpus"]["requests"], 3, bad)          # m1, m2, m3 carry usage; m1's repeat counts once
-    tok = r["E1"]["tokens"]
-    check("input", tok["input"], 300, bad)
-    check("output", tok["output"], 600, bad)
-    check("cache_read", tok["cache_read"], 30000, bad)
-    check("cache_write_1h", tok["cache_write_1h"], 900, bad)
-    check("cache_write_5m", tok["cache_write_5m"], 300, bad)
-    # priced: 300 + 3000 + 3000 + 1800 + 375 = 8475; cache = 5175
-    check("cache_share_pct", r["E1"]["cache_share_pct"], round(100 * 5175 / 8475, 3), bad)
-    check("sites_per_mrw_call", r["E1"]["sites_per_mrw_call"]["n"], 10, bad)     # 4 reads + m2 + 5 writes
-    check("sites_per_mrw_call p90", r["E1"]["sites_per_mrw_call"]["p90"], 3, bad)
-    check("native-only requests", r["E1"]["sites_per_request_native_only"], {
-        "n": 7, "mean": round(8 / 7, 2), "median": 1, "p90": 1, "share_of_one": round(100 * 6 / 7, 3)}, bad)
-    check("hunks_typed", r["E2"]["hunks_typed"], 3, bad)
-    check("anchored_hunks", r["E2"]["anchored_hunks"], 1, bad)
-    check("bare_single_line_replaces", r["E2"]["bare_single_line_replaces"], 1, bad)
-    check("anchor_chars", r["E2"]["anchor_chars"], len("func A"), bad)
-    check("anchor_misses", r["E2"]["anchor_misses"], 1, bad)
-    tc = r["E2"]["tag_collisions"]
-    check("pairs", tc["pairs"], 3, bad)
-    check("identical_pairs", tc["identical_pairs"], 1, bad)
-    check("compactions_paired", r["E3"]["compactions_paired"], 1, bad)
-    check("native_share_before_pct", r["E3"]["native_share_before_pct"], 0.0, bad)
-    check("native_share_after_pct", r["E3"]["native_share_after_pct"], 60.0, bad)
-    check("mean_paired_difference_pp", r["E3"]["mean_paired_difference_pp"], 60.0, bad)
-    check("mrw_write_calls", r["corpus"]["mrw_write_calls"], 10, bad)             # m2, five, m4, m7, m10, m12
-    check("changed_since_refusals", r["E4"]["changed_since_refusals"], 3, bad)
-    check("own_edit", r["E4"]["own_edit"], 1, bad)
-    check("own_shell", r["E4"]["own_shell"], 1, bad)
-    check("nothing_found", r["E4"]["nothing_found"], 1, bad)
-    check("a window after the corpus is empty", late["corpus"]["requests"], 0, bad)
-    check("a skipped folder is not read", skipped["corpus"]["transcripts"], 0, bad)
-    for b in bad:
+
+def test_compaction():
+    """E3: the window is 30 calls each side, and a neighbouring compaction does not cut it."""
+    r = scan_of(writes("w", 35) + [compact()] + edits("n", 35))["E3"]
+    check("window before", r["before"], {"native": 0, "calls": 30})
+    check("window after", r["after"], {"native": 30, "calls": 30})
+    check("paired difference", r["mean_paired_difference_pp"], 100.0)
+    r = scan_of(writes("a", 6) + [compact()] + writes("b", 4) + [compact()] + edits("n", 6))["E3"]
+    check("both neighbouring compactions pair", r["compactions_paired"], 2)
+    check("before, pooled", r["before"], {"native": 0, "calls": 16})         # 6, then 10
+    check("after, pooled", r["after"], {"native": 12, "calls": 16})          # 6 of 10, then 6 of 6
+    r = scan_of(edits("n", 6) + [compact()] + writes("w", 6))["E3"]
+    check("a compaction before any mrw write is left out", (r["compactions_paired"], r["compactions_before_any_mrw_write"]), (0, 1))
+    r = scan_of(writes("w", 6) + [compact()] + edits("n", 4))["E3"]
+    check("fewer than five on a side is left out", (r["compactions_paired"], r["compactions_too_few_calls"]), (0, 1))
+
+
+def test_changed():
+    """E4: the cause is looked for since mrw last served the path, and only an Edit of it is certain."""
+    e = bash("m1", "t1", "mrw read f.go:1", served("f.go"))
+    e.append(use("m2", "t2", "Edit", {"file_path": "/r/f.go"}))
+    e += bash("m3", "t3", "mrw read f.go:1", "==> f.go  UNREADABLE  open f.go: permission denied\n")   # serves nothing
+    e += bash("m4", "t4", "mrw write p.txt", refusal("f.go"))                # own_edit
+    e += bash("m5", "t5", "mrw read g.go:1 && gofmt -w .", served("g.go"))
+    e += bash("m6", "t6", "mrw write p.txt", refusal("g.go"))                # own_shell: gofmt in the read's command
+    e += bash("m7", "t7", "mrw read h.go:1", served("h.go"))
+    e.append(use("m8", "t8", "Agent", {"prompt": "x"}))
+    e += bash("m9", "t9", "mrw write p.txt", refusal("h.go"))                # own_subagent
+    e += bash("m10", "t10", "gofmt -w .", "")                                # before the read: not a cause
+    e += bash("m11", "t11", "mrw read i.go:1", served("i.go"))
+    e += bash("m12", "t12", "mrw write p.txt", refusal("i.go"))              # nothing_found
+    r = scan_of(e)
+    check("refusals", r["E4"]["changed_since_refusals"], 4)
+    check("causes", (r["E4"]["own_edit"], r["E4"]["own_shell"], r["E4"]["own_subagent"], r["E4"]["nothing_found"]),
+          (1, 1, 1, 1))
+    check("nothing found per write", r["E4"]["nothing_found_per_mrw_write_pct"], 25.0)
+    check("not an own edit per write", r["E4"]["not_own_edit_per_mrw_write_pct"], 75.0)
+
+
+def test_window():
+    """--since/--until: by the entry's time; undated entries; a transcript with nothing in the window."""
+    undated = {"type": "assistant", "message": {"id": "u0", "usage": U, "content": []}}
+    naive = {"type": "assistant", "timestamp": "2026-11-02T00:00:00", "message": {"id": "u1", "usage": U, "content": []}}
+    dated = {"type": "assistant", "timestamp": "2026-11-03T00:00:00Z", "message": {"id": "u2", "usage": U, "content": []}}
+    e = [undated, naive, dated]
+    check("no bound counts all", scan_of(e)["corpus"]["requests"], 3)
+    r = scan_of(e, since=scan.parse_time("2026-11-01"))
+    check("an undated entry before any dated one is left out under a bound", r["corpus"]["requests"], 2)
+    r = scan_of(e, until=scan.parse_time("2026-11-02T12:00:00Z"))
+    check("until is exclusive and a zone-less time is UTC", r["corpus"]["requests"], 1)
+    r = scan_of(e, since=scan.parse_time("2027-01-01"))
+    check("a transcript with nothing in the window is not counted", (r["corpus"]["transcripts"], r["corpus"]["requests"]), (0, 0))
+    check("a skipped folder is not read", scan_of(e, skip=["p" + os.sep])["corpus"]["transcripts"], 0)
+
+
+def main():
+    """Run every case and print the mismatches."""
+    for case in (test_cost, test_sites, test_plan, test_tags, test_compaction, test_changed, test_window):
+        case()
+    for b in BAD:
         print("FAIL " + b)
-    print("%d check(s), %d failed" % (30, len(bad)))
-    return 1 if bad else 0
+    print("%d check(s), %d failed" % (CHECKS[0], len(BAD)))
+    return 1 if BAD else 0
 
 
 if __name__ == "__main__":

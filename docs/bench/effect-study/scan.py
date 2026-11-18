@@ -5,12 +5,14 @@ Stdlib only. Run: python3 -I scan.py [--root DIR] [--since ISO] [--until ISO] [-
 It reads every Claude Code transcript (*.jsonl) under DIR (default ~/.claude/projects),
 subagent transcripts included, and prints one JSON document of aggregates: no path,
 file content, project name or session id. --since/--until count an entry by its own
-timestamp. --repo names a git checkout whose tracked text files E2(a) reads.
+timestamp; an entry with none takes the last one seen in its transcript, and is left
+out when a bound is given and none has been seen. --repo names a git checkout whose
+tracked text files E2(a) reads.
 
-E1  priced cost by token class; file sites acted on per request
-E2  (a) line-tag collisions with a neighbouring line; (b) hunks, anchors and anchor misses
+E1  priced cost by token class; file sites acted on per shell call and per request
+E2  (a) lines whose tag equals a neighbour's; (b) hunks, anchors and anchor misses
 E3  host Edit/Write share of file-changing calls before and after a compaction
-E4  "changed since mrw last saw it" refusals, by what the session itself did to the path
+E4  "changed since mrw last saw it" refusals, by what the session itself did since
 
 Limits are in README.md. Every count is of transcript entries, not of incidents.
 """
@@ -30,11 +32,17 @@ import sys
 WEIGHTS = {"input": 1.0, "output": 5.0, "cache_write_5m": 1.25, "cache_write_1h": 2.0, "cache_read": 0.1}
 NATIVE_CHANGE = {"Edit", "Write", "MultiEdit", "NotebookEdit"}
 NATIVE_SITE = NATIVE_CHANGE | {"Read"}
-MRW_WRITE = re.compile(r"\bmrw\b[^|;&\n]*\bwrite\b")
-MRW_READ = re.compile(r"\bmrw\b[^|;&\n]*\bread\b")
-HUNK = re.compile(r"^@@ (\S+) (\S+) (replace|insert-after|insert-before|delete|create|unlink|rename)\b(.*)$", re.M)
-ANCHOR = re.compile(r'anchor="((?:[^"\\]|\\.)*)"|anchor=([^\s"]\S*)')
-ANCHOR_MISS = re.compile(r'anchor ".*" not in line \d+')
+# mrw at a command position (not inside a quoted string or another command's arguments),
+# its global flags, then the subcommand: the first word that is not a flag.
+MRW_CALL = re.compile(
+    r"(?:^|[;&|(\n]|\$\()\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*(?:[^\s\"'=;&|()]*/)?mrw"
+    r"(?:\s+(?:--root|-C)(?:=|\s+)\S+)*\s+(read|write)\b")
+PATH = r"""(?:"[^"\n]*"|'[^'\n]*'|\S+)"""
+HUNK = re.compile(
+    r"^@@ " + PATH + r" (\S+) (replace|insert-after|insert-before|delete|create|unlink|rename)\b(.*)$", re.M)
+ANCHOR = re.compile(
+    r"""anchor=(?:"((?:[^"\\]|\\.)*)"|'([^']*)'|(.*?))(?=\s+(?:body|lines|sha|occurrence|from|raw)=|\s*$)""")
+ANCHOR_MISS = re.compile(r'anchor ".*" not in line \d+.*')
 CHANGED = re.compile(r"(\S+) changed since mrw last saw it")
 SUMMARY = re.compile(r"^(\d+) hunk\(s\), \d+ file\(s\)", re.M)
 WINDOW = 30
@@ -44,15 +52,21 @@ REWRITERS = re.compile(
     r"|\bmv\b|\bcp\b|\btee\b|python3?\b|npm run")
 
 
+def subcommands(cmd):
+    """Return the set of mrw subcommands ("read", "write") a shell command runs."""
+    return {m.group(1) for m in MRW_CALL.finditer(cmd)}
+
+
 def when(o):
-    """Return the entry's timestamp as an aware datetime, or None."""
+    """Return the entry's timestamp as an aware datetime, or None; a zone-less one is read as UTC."""
     t = o.get("timestamp")
     if not isinstance(t, str):
         return None
     try:
-        return datetime.datetime.fromisoformat(t.replace("Z", "+00:00"))
+        d = datetime.datetime.fromisoformat(t.replace("Z", "+00:00"))
     except ValueError:
         return None
+    return d if d.tzinfo else d.replace(tzinfo=datetime.timezone.utc)
 
 
 def text_of(content):
@@ -79,8 +93,9 @@ def events(path, since, until):
             if not isinstance(o, dict):
                 continue
             last = when(o) or last
-            if last is not None and ((since and last < since) or (until and last >= until)):
-                continue
+            if since or until:
+                if last is None or (since and last < since) or (until and last >= until):
+                    continue
             if o.get("type") == "system" and o.get("subtype") == "compact_boundary":
                 yield ("compact",)
                 continue
@@ -106,11 +121,14 @@ def hunks_in(text):
     n = bare = anchored = chars = 0
     for m in HUNK.finditer(text):
         n += 1
-        found = ANCHOR.search(m.group(4))
+        found = ANCHOR.search(m.group(3))
         if found:
             anchored += 1
-            chars += len(found.group(1) if found.group(1) is not None else found.group(2))
-        elif m.group(3) == "replace" and re.fullmatch(r"\d+|\$", m.group(2)):
+            chars += len(next(g for g in found.groups() if g is not None))
+            continue
+        addr = m.group(1)
+        span = re.fullmatch(r"(\d+)-(\d+)", addr)
+        if m.group(2) == "replace" and (re.fullmatch(r"\d+|\$", addr) or (span and span.group(1) == span.group(2))):
             bare += 1
     return n, bare, anchored, chars
 
@@ -135,12 +153,14 @@ class Totals:
 
 
 def scan_session(path, since, until, t):
-    """Fold one transcript into t."""
-    usage, uses, seen_use = {}, {}, set()
-    order = []          # ("native"|"mrw", ...) file-changing calls and ("compact",) in order
-    trail = []          # every tool call in order: (kind, payload), for E4's look-back
+    """Fold one transcript into t; report whether any entry of it was in the window."""
+    usage, uses, seen_use, misses = {}, {}, set(), set()
+    order = []          # ("native"|"mrw"|"compact",) in order: file-changing calls and compactions
+    trail = []          # every tool call and mrw answer in order, for E4's look-back
     request_sites = collections.defaultdict(lambda: [0, 0])   # msg id -> [mrw sites, native sites]
+    any_entry = False
     for ev in events(path, since, until):
+        any_entry = True
         if ev[0] == "usage":
             usage[ev[1]] = ev[2]
         elif ev[0] == "compact":
@@ -153,6 +173,7 @@ def scan_session(path, since, until, t):
             seen_use.add(tid)
             uses[tid] = (mid, name, inp)
             cmd = inp.get("command") if name == "Bash" and isinstance(inp.get("command"), str) else ""
+            subs = subcommands(cmd) if cmd else set()
             if name in NATIVE_SITE:
                 request_sites[mid][1] += 1
             if name in NATIVE_CHANGE:
@@ -161,11 +182,11 @@ def scan_session(path, since, until, t):
             elif name in ("Agent", "Task"):
                 trail.append(("agent", None))
             elif cmd:
-                if MRW_WRITE.search(cmd):
+                if "write" in subs:
                     order.append(("mrw",))
                     t.c["mrw_write_calls"] += 1
                 trail.append(("bash", cmd))
-            plan = cmd if cmd and MRW_WRITE.search(cmd) else inp.get("content") if name == "Write" else ""
+            plan = cmd if "write" in subs else inp.get("content") if name == "Write" else ""
             if isinstance(plan, str) and plan:
                 n, bare, anchored, chars = hunks_in(plan)
                 t.c["hunks_typed"] += n
@@ -176,13 +197,16 @@ def scan_session(path, since, until, t):
             _, tid, text = ev
             mid, name, inp = uses.get(tid, (None, "", {}))
             cmd = inp.get("command") if name == "Bash" and isinstance(inp.get("command"), str) else ""
-            if not cmd or "mrw" not in cmd:
+            subs = subcommands(cmd) if cmd else set()
+            if not subs:
                 continue
-            t.c["anchor_misses"] += len(ANCHOR_MISS.findall(text))
+            for miss in ANCHOR_MISS.findall(text):
+                t.c["anchor_miss_lines"] += 1
+                misses.add(miss)
             sites = 0
-            if MRW_READ.search(cmd):
+            if "read" in subs:
                 sites += sum(1 for ln in text.split("\n") if ln.startswith("@@ "))
-            if MRW_WRITE.search(cmd):
+            if "write" in subs:
                 sites += sum(int(m.group(1)) for m in SUMMARY.finditer(text))
             if sites:
                 t.mrw_call_sites.append(sites)
@@ -191,6 +215,7 @@ def scan_session(path, since, until, t):
             for m in CHANGED.finditer(text):
                 t.c["changed_since_refusals"] += 1
                 t.c["changed_since_" + cause(trail, m.group(1))] += 1
+    t.c["anchor_misses_distinct"] += len(misses)
     for u in usage.values():
         cc = u.get("cache_creation") if isinstance(u.get("cache_creation"), dict) else {}
         h1 = cc.get("ephemeral_1h_input_tokens") or 0
@@ -202,55 +227,84 @@ def scan_session(path, since, until, t):
     t.c["requests"] += len(usage)
     for mrw_sites, native_sites in request_sites.values():
         if mrw_sites:
-            t.mrw_request_sites.append(mrw_sites)
+            t.mrw_request_sites.append(mrw_sites + native_sites)
         elif native_sites:
             t.native_request_sites.append(native_sites)
     around_compactions(order, t)
+    return any_entry
+
+
+def shows(text, rel):
+    """Report whether an mrw answer served or wrote rel: a header with a line count, or a receipt row."""
+    q = re.escape(rel)
+    return re.search(r"^==> " + q + r"\s+\d+L\b|^ok\s+" + q + r"\s|^(?:created|replaced|removed) " + q + r"\s",
+                     text, re.M) is not None
 
 
 def cause(trail, rel):
-    """Say what the session itself did to rel since mrw last showed or wrote it."""
-    marks = ("==> " + rel + " ", "   " + rel + " ", "created " + rel + " ")
+    """Say what the session itself did since mrw last served or wrote rel.
+
+    own_edit is the host's Edit/Write of that path. own_shell and own_subagent are candidates
+    only: a shell command that can rewrite files, or an Agent call, with nothing tying it to rel.
+    """
     start = 0
-    for i in range(len(trail) - 2, -1, -1):          # the last entry is the refusal's own result
-        if trail[i][0] == "mrwres" and any(k in trail[i][1] for k in marks):
-            start = i + 1
+    for i in range(len(trail) - 2, -1, -1):          # the last entry is the refusal's own answer
+        if trail[i][0] == "mrwres" and shows(trail[i][1], rel):
+            # The shell call that produced the answer may have gone on to rewrite files
+            # (`mrw read f && gofmt -w .`), so the look-back starts at that call.
+            start = i - 1 if i and trail[i - 1][0] == "bash" else i + 1
             break
     found = "nothing_found"
     for kind, payload in trail[start:-1]:
         if kind == "native" and same_path(payload, rel):
             return "own_edit"
-        if kind == "agent":
+        if kind == "agent" and found == "nothing_found":
             found = "own_subagent"
-        elif kind == "bash" and found == "nothing_found" and not MRW_WRITE.search(payload) \
-                and not MRW_READ.search(payload) and REWRITERS.search(payload):
+        elif kind == "bash" and found != "own_shell" and REWRITERS.search(payload):
             found = "own_shell"
     return found
 
 
 def around_compactions(order, t):
-    """Pair the file-changing calls before and after each compaction that follows an mrw write."""
-    cuts = [i for i, e in enumerate(order) if e[0] == "compact"]
-    for k, i in enumerate(cuts):
-        lo = cuts[k - 1] + 1 if k else 0
-        hi = cuts[k + 1] if k + 1 < len(cuts) else len(order)
-        if not any(e[0] == "mrw" for e in order[:i]):
+    """Pair the 30 file-changing calls before and after each compaction that follows an mrw write."""
+    calls = [e[0] for e in order if e[0] != "compact"]
+    at, seen = [], 0                                 # at[k]: how many calls precede compaction k
+    for e in order:
+        if e[0] == "compact":
+            at.append(seen)
+        else:
+            seen += 1
+    for i in at:
+        if "mrw" not in calls[:i]:
             t.c["compactions_before_any_mrw_write"] += 1
             continue
-        before, after = order[lo:i][-WINDOW:], order[i + 1:hi][:WINDOW]
+        before, after = calls[max(i - WINDOW, 0):i], calls[i:i + WINDOW]
         if len(before) < 5 or len(after) < 5:
             t.c["compactions_too_few_calls"] += 1
             continue
         t.c["compactions_paired"] += 1
-        b = sum(e[0] == "native" for e in before)
-        a = sum(e[0] == "native" for e in after)
+        b, a = before.count("native"), after.count("native")
         t.before.update(native=b, calls=len(before))
         t.after.update(native=a, calls=len(after))
         t.pair_diffs.append(a / len(after) - b / len(before))
 
 
+def tag_lines(data, c):
+    """Count in c the lines of one file whose neighbour is identical, or different with the same tag."""
+    lines = data.split(b"\n")
+    if lines and lines[-1] == b"":
+        lines.pop()                                  # a final newline ends the last line, it starts none
+    tags = [hashlib.sha1(ln).hexdigest() for ln in lines]
+    for i, ln in enumerate(lines):
+        near = [j for j in (i - 1, i + 1) if 0 <= j < len(lines)]
+        c["lines"] += 1
+        c["lines_with_identical_neighbour"] += any(lines[j] == ln for j in near)
+        c["lines_same_2hex_as_different_neighbour"] += any(lines[j] != ln and tags[j][:2] == tags[i][:2] for j in near)
+        c["lines_same_3hex_as_different_neighbour"] += any(lines[j] != ln and tags[j][:3] == tags[i][:3] for j in near)
+
+
 def tag_collisions(repo):
-    """Count neighbouring line pairs in repo's tracked text files that share a tag."""
+    """Count, over repo's tracked text files, the lines a 2- or 3-hex tag cannot tell from a neighbour."""
     c = collections.Counter()
     try:
         names = subprocess.run(["git", "-C", repo, "ls-files", "-z"], capture_output=True, check=True).stdout
@@ -266,17 +320,13 @@ def tag_collisions(repo):
             continue
         if b"\0" in data[:8192]:
             continue
-        lines = data.split(b"\n")
-        tags = [hashlib.sha1(ln).hexdigest() for ln in lines]
         c["files"] += 1
-        for i in range(len(lines) - 1):
-            c["pairs"] += 1
-            if lines[i] == lines[i + 1]:
-                c["identical_pairs"] += 1
-            else:
-                c["different_pairs_same_2hex"] += tags[i][:2] == tags[i + 1][:2]
-                c["different_pairs_same_3hex"] += tags[i][:3] == tags[i + 1][:3]
-    return dict(c)
+        tag_lines(data, c)
+    out = dict(c)
+    for k in ("lines_with_identical_neighbour", "lines_same_2hex_as_different_neighbour",
+              "lines_same_3hex_as_different_neighbour"):
+        out[k + "_pct"] = pct(c[k], c["lines"])
+    return out
 
 
 def pct(a, b):
@@ -289,7 +339,7 @@ def spread(xs):
     if not xs:
         return {"n": 0}
     xs = sorted(xs)
-    return {"n": len(xs), "mean": round(statistics.fmean(xs), 2), "median": statistics.median(xs),
+    return {"n": len(xs), "mean": round(statistics.fmean(xs), 2), "median": float(statistics.median(xs)),
             "p90": xs[int(0.9 * (len(xs) - 1))], "share_of_one": pct(sum(1 for x in xs if x == 1), len(xs))}
 
 
@@ -298,13 +348,13 @@ def report(t, files, unreadable, repo):
     priced = {k: t.tokens[k] * w for k, w in WEIGHTS.items()}
     total = sum(priced.values())
     c = t.c
-    out = {
+    return {
         "corpus": {"transcripts": files, "unreadable": unreadable, "requests": c["requests"],
                    "mrw_write_calls": c["mrw_write_calls"], "compactions": c["compactions"]},
         "E1": {"weights": WEIGHTS, "tokens": dict(t.tokens),
                "priced_share_pct": {k: pct(v, total) for k, v in priced.items()},
                "cache_share_pct": pct(priced["cache_read"] + priced["cache_write_5m"] + priced["cache_write_1h"], total),
-               "sites_per_mrw_call": spread(t.mrw_call_sites),
+               "sites_per_shell_call_running_mrw": spread(t.mrw_call_sites),
                "sites_per_request_with_mrw": spread(t.mrw_request_sites),
                "sites_per_request_native_only": spread(t.native_request_sites)},
         "E2": {"hunks_typed": c["hunks_typed"], "anchored_hunks": c["anchored_hunks"],
@@ -312,8 +362,10 @@ def report(t, files, unreadable, repo):
                "bare_single_line_share_pct": pct(c["bare_single_line_replaces"], c["hunks_typed"]),
                "anchor_chars": c["anchor_chars"],
                "anchor_share_of_output_pct": pct(c["anchor_chars"] / 4.0, t.tokens["output"]),
-               "anchor_misses": c["anchor_misses"],
-               "anchor_miss_per_anchored_hunk_pct": pct(c["anchor_misses"], c["anchored_hunks"]),
+               "anchor_miss_lines": c["anchor_miss_lines"],
+               "anchor_misses_distinct": c["anchor_misses_distinct"],
+               "anchor_miss_lines_per_anchored_hunk_pct": pct(c["anchor_miss_lines"], c["anchored_hunks"]),
+               "anchor_misses_distinct_per_anchored_hunk_pct": pct(c["anchor_misses_distinct"], c["anchored_hunks"]),
                "tag_collisions": tag_collisions(repo) if repo else None},
         "E3": {"window": WINDOW, "compactions_paired": c["compactions_paired"],
                "compactions_before_any_mrw_write": c["compactions_before_any_mrw_write"],
@@ -325,15 +377,10 @@ def report(t, files, unreadable, repo):
         "E4": {"changed_since_refusals": c["changed_since_refusals"],
                "own_edit": c["changed_since_own_edit"], "own_shell": c["changed_since_own_shell"],
                "own_subagent": c["changed_since_own_subagent"], "nothing_found": c["changed_since_nothing_found"],
-               "nothing_found_per_mrw_write_pct": pct(c["changed_since_nothing_found"], c["mrw_write_calls"])},
+               "nothing_found_per_mrw_write_pct": pct(c["changed_since_nothing_found"], c["mrw_write_calls"]),
+               "not_own_edit_per_mrw_write_pct": pct(c["changed_since_refusals"] - c["changed_since_own_edit"],
+                                                     c["mrw_write_calls"])},
     }
-    tc = out["E2"]["tag_collisions"]
-    if tc:
-        different = tc.get("pairs", 0) - tc.get("identical_pairs", 0)
-        tc["identical_pct"] = pct(tc.get("identical_pairs", 0), tc.get("pairs", 0))
-        tc["different_same_2hex_pct"] = pct(tc.get("different_pairs_same_2hex", 0), different)
-        tc["different_same_3hex_pct"] = pct(tc.get("different_pairs_same_3hex", 0), different)
-    return out
 
 
 def parse_time(s):
@@ -350,9 +397,8 @@ def run(root, since=None, until=None, repo=None, skip=()):
     for path in sorted(glob.glob(os.path.join(root, "**", "*.jsonl"), recursive=True)):
         if any(s in os.path.relpath(path, root) for s in skip):
             continue
-        files += 1
         try:
-            scan_session(path, since, until, t)
+            files += scan_session(path, since, until, t)
         except OSError:
             unreadable += 1
     return report(t, files, unreadable, repo)
