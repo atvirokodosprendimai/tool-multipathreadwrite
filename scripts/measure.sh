@@ -302,7 +302,7 @@ measure "A. Scattered sites, large files" \
   'cmd/mrw/main.go:/^const \(/,/^\)/' \
   'internal/apply/apply.go:/READ BEFORE MODIFY/,/^	}$/' \
   'internal/read/read.go:/^func merge/,/^}/' \
-  'internal/check/check.go:/^func command/,/^}/'
+  'internal/check/check.go:/^func scope\(/,/^}/'
 
 # Shape B: the same shape as A with half the sites — which is what isolates the
 # two axes, since the round-trip saving halves with N while the byte saving does
