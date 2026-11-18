@@ -11,9 +11,9 @@ description: >-
   heredocs. It applies only while mrw is on PATH: if it is not, use the host's
   own tools and do not install it.
 metadata:
-  mrw-version: "dev (b854a8a, dirty)"
+  mrw-version: "dev (29e154d, dirty)"
   generated-by: "mrw skill"
-  content-sha256: "5b0c27655decf99943999f6381a601a6cd5f7ed0bb320ba1c74c3e7b77838177"
+  content-sha256: "57b459eb5e733d0f87bdda9471d9ae0b3a148ea703318c407f7816062aa2a55f"
 ---
 
 # mrw
@@ -41,7 +41,7 @@ Recipes:
   mrw read 'a.go:/func A/,+12' b.go:40-60 && mrw write "$TMPDIR/plan.txt"
 6. a step after the write, in the same call (NAME is a step in .quality-harness.json; a write runs no check unless --check asks for it; --then-sh and mrw run run any shell command they are given, so both are off unless MRW_SHELL=on is in mrw's environment (a step the project declares in .quality-harness.json runs with --then NAME); with them off, allowing mrw still runs the project's declared check and steps and no ad-hoc shell, but that is not containment: mrw writes any file its user can, .quality-harness.json included.):
   mrw write - --then NAME
-7. license lines you already know, without them in your context (a read into /dev/null licenses nothing; a file mrw just wrote keeps a whole-file licence, or only its written lines after a write made only of search_replace blocks, but its line numbers can move (recipe 21)):
+7. license lines you already know, without them in your context (a read into /dev/null licenses nothing; a file mrw just wrote keeps a whole-file licence, unless every hunk on it was a search_replace block (the write then adds the lines it wrote to the licence it had), but its line numbers can move (recipe 21)):
   mrw read --quiet f.go:40-60
 8. a file of long lines (logs, JSONL), each line cut to a window round the match:
   mrw read --grep P --max-cols 200 f.jsonl
@@ -72,6 +72,6 @@ Recipes:
 21. a second edit to a file you just wrote, with no read between: its line numbers can have moved, so name the line by a pattern and say what it holds (read again before you reuse a number you are not sure of):
   printf '%s\n' '@@ f.go /^func B\(/ replace anchor="func B("' 'func B(x int) {' | mrw write -
 
-`mrw instructions` prints the whole contract. This file was printed by `mrw skill` from mrw dev (b854a8a, dirty); when `mrw version` prints another version, `mrw skill --dir <the directory holding this mrw folder>` replaces it.
+`mrw instructions` prints the whole contract. This file was printed by `mrw skill` from mrw dev (29e154d, dirty); when `mrw version` prints another version, `mrw skill --dir <the directory holding this mrw folder>` replaces it.
 
 A host's per-path rules for its Edit and Write tools do not reach mrw, which writes wherever its user can: their absence is not permission, and mrw is not a way to reach a path the host refused you.

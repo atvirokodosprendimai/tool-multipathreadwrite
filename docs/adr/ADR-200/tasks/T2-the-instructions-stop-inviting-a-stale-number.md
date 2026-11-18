@@ -14,8 +14,8 @@
 
 ADR-200 Decision 4 says the instructions state what is true today. T1 added one sentence to the full text. The two places an agent meets first still granted the licence without the warning: rule 2 of the core ("except in a file mrw just wrote") and recipe 7 ("a file mrw just wrote needs no re-read"). That is the instruction that produces the chained numbered edit the record is about.
 
-- Rule 2 says the file's numbers can move, inside the core's 300 words. It does not carry the search_replace exception: the core has one word to spare.
-- Recipe 7 says the file keeps a whole-file licence, or only its written lines after a write made only of search_replace blocks, and that its line numbers can move, and points at recipe 21. The full text's sentence on a written file carries the same exception.
+- Rule 2 says the file's numbers can move, inside the core's 300 words. It keeps the phrase ADR-141's test pins, "except in a file mrw just wrote", and so stays the short form: the exact licence is in recipe 7 and the full text.
+- Recipe 7 says the file keeps a whole-file licence unless every hunk on it was a search_replace block, when the write adds the lines it wrote to what was licensed before; that its line numbers can move; and points at recipe 21. The full text's sentence on a written file carries the same exception.
 - Recipe 21 is the second edit to a file just written: a hunk whose address is a pattern and which carries `anchor=`. It holds no line number.
 - `AGENTS.md` rule 2 and its recipe list, and `README.md`'s per-line licence bullet, say the same.
 
@@ -74,6 +74,9 @@ go test -count=1 -v ./internal/guide ./cmd/mrw -run '^(TestTheInstructionsDoNotI
 - 2026-11-18 · b854a8a9* · mutant killed · exit 1 · `internal/guide/guide.go` · recipe 7 invites the chained edit again, so its wording check must go red · acceptance-sha256:af0502a3551784b2a45332d33c8f8f77129edd5757540a8e69565e927029e652 · covers:recipe 7 points at recipe 21
 - 2026-11-18 · b854a8a9* · mutant killed · exit 1 · `internal/guide/guide.go` · recipe 21 addresses by number, so the pattern-and-anchor check must go red · acceptance-sha256:af0502a3551784b2a45332d33c8f8f77129edd5757540a8e69565e927029e652 · covers:recipe 21 addresses by content
 - 2026-11-18 · b854a8a9* · mutant killed · exit 1 · `internal/guide/guide.go` · recipe 21 loses the backslash, so its pattern is not a regular expression and applying it must go red · acceptance-sha256:af0502a3551784b2a45332d33c8f8f77129edd5757540a8e69565e927029e652 · covers:recipe 21 addresses by content
+- 2026-11-19 · 29e154df* · mutant killed · exit 1 · `internal/guide/guide.go` · recipe 21 prints nothing into mrw write, so running it as printed must go red · acceptance-sha256:af0502a3551784b2a45332d33c8f8f77129edd5757540a8e69565e927029e652 · covers:recipe 21 addresses by content
+- 2026-11-19 · 29e154df* · mutant killed · exit 1 · `internal/guide/guide.go` · recipe 21 writes the line it found, so the fixed expected file must go red · acceptance-sha256:af0502a3551784b2a45332d33c8f8f77129edd5757540a8e69565e927029e652 · covers:recipe 21 addresses by content
+- 2026-11-19 · 29e154df* · mutant killed · exit 1 · `internal/guide/guide.go` · recipe 21 says a reread is the only way again, so its wording check must go red · acceptance-sha256:af0502a3551784b2a45332d33c8f8f77129edd5757540a8e69565e927029e652 · covers:recipe 21 addresses by content
 
 ## Verification Log
 - 2026-11-18 · 77b5c30a* · exit 1 · `set -o pipefail …` · acceptance-sha256:d075696f2056b1a9104fffcfdfb9e546d2bdd12e92aaf836d8fa1b3a94155851 · ms:589 · test-lock-sha256:6bb72f4ef7f4bbd999e85fc609068eac9c89a603c234ed3644c26e0de86ee03d · test-lock-file:docs/adr/locks/6bb72f4ef7f4bbd999e85fc609068eac9c89a603c234ed3644c26e0de86ee03d.lock
@@ -90,6 +93,12 @@ go test -count=1 -v ./internal/guide ./cmd/mrw -run '^(TestTheInstructionsDoNotI
 - 2026-11-18 · b854a8a9* · exit 0 · `set -o pipefail …` · acceptance-sha256:af0502a3551784b2a45332d33c8f8f77129edd5757540a8e69565e927029e652 · ms:2565
 - 2026-11-18 · b854a8a9* · exit 0 · `set -o pipefail …` · acceptance-sha256:af0502a3551784b2a45332d33c8f8f77129edd5757540a8e69565e927029e652 · ms:2581
 - 2026-11-19 · b854a8a9* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:af0502a3551784b2a45332d33c8f8f77129edd5757540a8e69565e927029e652 · ms:0 · test-lock-sha256:9ded7e8077e1508c5543e6ece12d91bba6ba75451452f6fe22542b90beca0e39 · test-lock-file:docs/adr/locks/9ded7e8077e1508c5543e6ece12d91bba6ba75451452f6fe22542b90beca0e39.lock · test-lock-kind:replace
+- 2026-11-19 · 29e154df* · exit 0 · `set -o pipefail …` · acceptance-sha256:af0502a3551784b2a45332d33c8f8f77129edd5757540a8e69565e927029e652 · ms:1034
+- 2026-11-19 · 29e154df* · exit 0 · `set -o pipefail …` · acceptance-sha256:af0502a3551784b2a45332d33c8f8f77129edd5757540a8e69565e927029e652 · ms:2649
+- 2026-11-19 · 29e154df* · exit 0 · `set -o pipefail …` · acceptance-sha256:af0502a3551784b2a45332d33c8f8f77129edd5757540a8e69565e927029e652 · ms:2647
+- 2026-11-19 · 29e154df* · exit 0 · `set -o pipefail …` · acceptance-sha256:af0502a3551784b2a45332d33c8f8f77129edd5757540a8e69565e927029e652 · ms:2714
+- 2026-11-19 · 29e154df* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:af0502a3551784b2a45332d33c8f8f77129edd5757540a8e69565e927029e652 · ms:0 · test-lock-sha256:98fd7b17445fd9de0e9a88ebfd5a7e5ce3f487878ba664605526691d928c4b27 · test-lock-file:docs/adr/locks/98fd7b17445fd9de0e9a88ebfd5a7e5ce3f487878ba664605526691d928c4b27.lock · test-lock-kind:replace
+- 2026-11-19 · 29e154df* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:af0502a3551784b2a45332d33c8f8f77129edd5757540a8e69565e927029e652 · ms:0 · test-lock-sha256:98fd7b17445fd9de0e9a88ebfd5a7e5ce3f487878ba664605526691d928c4b27 · test-lock-file:docs/adr/locks/98fd7b17445fd9de0e9a88ebfd5a7e5ce3f487878ba664605526691d928c4b27.lock · test-lock-kind:replace
 
 ## Invariants
 

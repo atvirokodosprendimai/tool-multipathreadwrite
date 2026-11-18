@@ -53,7 +53,7 @@ func Recipes() string {
   mrw read 'a.go:/func A/,+12' b.go:40-60 && mrw write "$TMPDIR/plan.txt"
 6. a step after the write, in the same call (NAME is a step in .quality-harness.json; a write runs no check unless --check asks for it; ` + ThenShCaveat() + `):
   mrw write - --then NAME
-7. license lines you already know, without them in your context (a read into /dev/null licenses nothing; a file mrw just wrote keeps a whole-file licence, or only its written lines after a write made only of search_replace blocks, but its line numbers can move (recipe 21)):
+7. license lines you already know, without them in your context (a read into /dev/null licenses nothing; a file mrw just wrote keeps a whole-file licence, unless every hunk on it was a search_replace block (the write then adds the lines it wrote to the licence it had), but its line numbers can move (recipe 21)):
   mrw read --quiet f.go:40-60
 8. a file of long lines (logs, JSONL), each line cut to a window round the match:
   mrw read --grep P --max-cols 200 f.jsonl
@@ -121,7 +121,7 @@ A path reaches mrw as typed, spaces included: mrw read 'x ' reads the file named
 Ops: replace, insert-after, insert-before, delete, create, unlink, rename.
 @@ path 0 create makes a new file; empty is body=0. A new file is not a reason to skip mrw.
 A multi-line replace requires anchor= taken from the served first line. sha= and lines= do not stand in for it.
-A file mrw just wrote is wholly known: it produced every line, so a chain of edits to it needs no re-read, until something else changes it. The exception is a write made only of search_replace blocks, which licenses the lines it wrote (ADR-190).
+A file mrw just wrote is wholly known: it produced every line, so a chain of edits to it needs no re-read, until something else changes it. The exception is a file whose every hunk in the write was a search_replace block: the write adds the lines it wrote to what was licensed before, and no more (ADR-190).
 After a write, a number from an earlier read names another line, or none, wherever the write changed how many lines come before the line it named, or removed that line: read the file again, address by pattern, or give anchor=.
 A --format=search_replace block whose SEARCH side quotes every line it replaces, exactly and matching once in the file, needs no read: mrw checks the quote against the file when it writes (ADR-190). Use it after a compaction, or for a file you saw with your host's own tools. For a multi-line block, end SEARCH and REPLACE with the same line (the closer you keep), or read the line after the range. A line the block does not quote, and any native hunk, still needs its read.
 Read these rules once a session. After a compaction, re-read the lines you will edit (the ledger survives it and still licenses lines you no longer hold, but does not require the re-read); read the rules again only if they are gone from your context.

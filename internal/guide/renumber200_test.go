@@ -35,10 +35,10 @@ func TestTheInstructionsDoNotInviteAStaleNumber(t *testing.T) {
 	if strings.Contains(seven, "needs no re-read") || !strings.Contains(seven, "its line numbers can move (recipe 21)") {
 		t.Errorf("recipe 7 still says a written file needs no re-read, or does not point at recipe 21:\n%s", seven)
 	}
-	if !strings.Contains(seven, "keeps a whole-file licence, or only its written lines after a write made only of search_replace blocks") {
+	if !strings.Contains(seven, "keeps a whole-file licence, unless every hunk on it was a search_replace block (the write then adds the lines it wrote to the licence it had)") {
 		t.Errorf("recipe 7 does not say what licence a written file keeps:\n%s", seven)
 	}
-	if !strings.Contains(twentyOne, "a file you just wrote") || !strings.Contains(twentyOne, "line numbers can have moved") {
+	if !strings.Contains(twentyOne, "a file you just wrote") || !strings.Contains(twentyOne, "line numbers can have moved") || !strings.Contains(twentyOne, "read again before you reuse a number you are not sure of") || strings.Contains(twentyOne, "only after") {
 		t.Errorf("there is no recipe 21 for a second edit to a file just written:\n%s", twentyOne)
 	}
 	// The command names its line by content twice: a pattern address, and an

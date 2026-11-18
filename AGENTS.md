@@ -52,7 +52,7 @@ through a new ADR that supersedes the old one and updates its contract rows in t
    written, `NOTHING WRITTEN` when the undo put everything back. — ADR-001, ADR-066
 2. **mrw will not edit a file it has not read**, and the guard is per *line*,
    not per file; a file mrw just wrote is wholly known, so a chain of edits
-   needs no re-read, though its line numbers can move. A write made only of SEARCH/REPLACE blocks licenses the lines it wrote. — ADR-002, ADR-005, ADR-190, ADR-200
+   needs no re-read, though its line numbers can move. A file whose every hunk in the write was a SEARCH/REPLACE block gains the lines written, not the whole file. — ADR-002, ADR-005, ADR-190, ADR-200
 3. **A check's verdict comes from the process, never its output.** A check that
    prints `PASS` and exits 1 is a failure. — ADR-003
 4. **Nothing is left in the working tree** by a failed run — except, when an
@@ -164,7 +164,7 @@ mrw read --grep P --count . && mrw read 'f.go:/P/' -C 3 --max-lines 40
 mrw read 'a.go:/func A/,+12' b.go:40-60 && mrw write "$TMPDIR/plan.txt"
 # 6. a step after the write, in the same call (--then-sh's caveat is below, under the write rules)
 mrw write - --then NAME
-# 7. license lines you already know, without them in your context (/dev/null licenses nothing; a file mrw just wrote keeps a whole-file licence, or only its written lines after a write made only of search_replace blocks, but its line numbers can move: recipe 21)
+# 7. license lines you already know, without them in your context (/dev/null licenses nothing; a file mrw just wrote keeps a whole-file licence, unless every hunk on it was a search_replace block (the write then adds the lines it wrote to the licence it had), but its line numbers can move: recipe 21)
 mrw read --quiet f.go:40-60
 # 8. a file of long lines (logs, JSONL), each line cut to a window round the match
 mrw read --grep P --max-cols 200 f.jsonl
