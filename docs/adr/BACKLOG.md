@@ -1249,34 +1249,49 @@ at a neighbouring compaction, which the bar does not. No bar moved; no verdict c
 
 - **E1 is met.** Done 2026-11-18: `scripts/measure.sh` prints "requests if batched" rows beside its calls rows, and `docs/measure.md` says what the two ends are and quotes this reading with its limits.
   The share says where the cost sits, not which of requests and bytes moves it; neither was varied.
-- **E2 is met on its second arm.** Drafted as ADR-200 (Proposed), which measures before it builds. The
+- **E2 is met on its second arm.** Drafted as ADR-200 (Proposed), which measures before it builds; its two challenges turned it from a line tag to the stale number. The
   2.23% is a ratio of result lines to hunks typed, not a refusal rate, and the 22.3% is exposure, not a
   measured rate of wrong single-line replaces; the record has to price both.
 - **E3 closes.** The host's edit tools gain six tenths of a point after a compaction on this corpus.
 - **E4 closes.** Even counting every such refusal that did not follow the session's own `Edit` of the
   path, 51 or 0.33% of write calls, the bar is not reached.
 
-## Pre-registered for ADR-200 (a served line carries a tag a plan can cite) — written with the record, before the scanner is changed
+## Pre-registered for ADR-200 (a line number alone does not say which line a replace means) — written before the scanner is changed
 
 ADR-200 is the draft record E2 earned above. It builds nothing until this is read.
 
-**Measure** (ADR-200 T1). `docs/bench/effect-study/scan.py`, extended: among the hunks typed, the
-single-line `replace` hunks that carry `anchor=` (address `N`, `$` or `N-N`); and among anchor-miss lines,
-those whose refused address is a single line. The ratio of the second to the first, over the same corpus
-and window as effect-study (entries before 2026-11-18T10:00:00Z), all transcripts and without this
-repository's.
+**Amended 2026-11-18, before any run.** The first version of this entry (pushed as 7511e669) registered
+one ratio, anchor misses on single-line addresses over anchored single-line replaces. Two challenges of
+the draft showed that its two counts were different populations, and that it did not observe the failure
+that matters: a number carried across the session's own write, which lands on the shifted line (reproduced
+on v1.88.0, in the record's Context). The scanner had not been changed and nothing had been run by this
+session. One challenger disclosed a raw `rg` over the transcripts, with no de-duplication or window, whose
+output it did not report; the measures below were written without it.
 
-**Bar.** The tasks for the read's tag and the plan's address are written only if single-line anchor
-misses are **at least 1.0% of anchored single-line replaces, on at least 200 such replaces**, in the run
-without this repository's sessions, which provoke refusals on purpose. Below either number ADR-200 is
-withdrawn with the reading. The ratio is biased: a caller that anchors a single line is not a sample of
-those that do not, and a miss may be a stale memory of a moved line. It is a floor for building, not the
-rate of wrong unanchored replaces, which nothing here observes.
+**M1, the stale number** (ADR-200 T1). Hunks with a numeric address sent to a file after the session's
+own mrw write moved that file's numbers at or above the address, with no read of the addressed line
+between. Where both the line that had the number and the line that has it now were served, and the hunk
+has a body: **stale** when the body's first line resembles the first by a `difflib` ratio at least 0.2
+above the second, **renumbered** in the reverse case, **unclassified** otherwise.
+*Bar.* M1 is met when stale hunks are **at least 10** and **at least 2.0% of the classified after-shift
+hunks**, in the run without this repository's sessions. Fewer than 100 classified hunks is "insufficient",
+not a miss.
+
+**M2, the wrong number in a served range.** Single-line `replace` attempts carrying `anchor=`, typed
+inline and joined to their own result row by path, address and plan line: the share refused for the
+anchor, split by the refusal's ending (on another line, on no line, the quoting case).
+*Bar.* M2 is met when refusals that name the anchor **on another line** are **at least 1.0% of joined
+attempts**, on **at least 200** joined attempts, in the run without this repository's sessions. Fewer than
+200 is "insufficient", not a miss. This is a rate among callers that chose to anchor.
+
+**What each outcome does** is ADR-200's Decision 3: M1 met, the receipt says where the numbers moved
+and a hunk at a moved number is refused once; M2 alone met, a second record chooses among a required
+anchor, a tag and a receipt quote; neither met, the record is withdrawn with the numbers; either
+"insufficient", the record waits and says so.
 
 **Deferred from ADR-200**, each with what it waits for:
-- A receipt row quoting the line a single-line `replace` removed: waits for a count of single-line
-  replaces followed, in the same session, by a write that puts the removed text back.
-- A tag on `insert-after`/`insert-before` addresses, and tags over `mrw_read`: wait for ADR-200's own
-  Decisions 2 and 3 to be accepted and built.
-- Any change to `internal/read`, `internal/plan` or `internal/apply` for ADR-200: waits for T1's reading
-  and Zy's acceptance.
+- A guard on `insert-after`, `insert-before` and `from=` addresses: waits for M1's count by op.
+- The choice among anchor, tag and receipt quote: waits for M2's split.
+- Tags over `mrw_read` and its checkpoints: wait for a record that chooses the tag.
+- Any change to `internal/read`, `internal/plan`, `internal/apply` or `internal/seen` for ADR-200: waits
+  for T1's reading and Zy's acceptance.
