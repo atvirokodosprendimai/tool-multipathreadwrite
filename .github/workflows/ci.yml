@@ -120,6 +120,15 @@ jobs:
       - name: Contract
         run: ./scripts/contract.sh
 
+      # scripts/measure.sh is what the README and docs/measure.md tell a reader to
+      # re-run instead of quoting a number. It names functions in this tree by
+      # pattern, and nothing ran it: a rename in #467 left it exiting 1 on main
+      # for four weeks (2026-10-20 to #657). Its figures are not asserted here,
+      # only that it runs to the end; the script stops itself when a spec serves
+      # a different number of spans than the sites it counts.
+      - name: Measurement script runs
+        run: ./scripts/measure.sh
+
   # The race detector is its own job, running BESIDE `test` rather than after
   # it. Both are required by `build`, so the bar is unchanged; splitting them
   # means a red run says which question failed. mrw's apply path writes files
