@@ -11419,6 +11419,22 @@ grep -q 'would remove.*dead344' "$WORK/p344" && ! grep -q 'would remove.*odd344'
   && ok "ADR-201 pair: the dead directory beside it is the one it would remove" || bad "dry run: $(head -c 400 "$WORK/p344")"
 rm -rf "$R344"
 
+# 345. ADR-140 on standard input: `cmd | mrw read --grep -v PATTERN -` takes -v as the
+# pattern and PATTERN as a second thing to read. The refusal names the flag and what
+# mrw spells instead, where it used to say only that a read of standard input names
+# nothing else (148 of 160 such refusals in transcripts outside this repository had
+# this shape, 2026-11-19). The pair: the form it points to is served.
+printf 'alpha\nbeta\n' | "$MRW" read --grep -v beta - > "$WORK/o345" 2> "$WORK/e345"
+want 2 "$?" "ADR-140 stdin: --grep -v PATTERN - is refused as usage"
+grep -q -- '--grep took "-v" as its pattern' "$WORK/e345" && grep -q 'there is no inverted match' "$WORK/e345" && [ ! -s "$WORK/o345" ] \
+  && ok "ADR-140 stdin: the refusal names the flag and says there is no inverted match" || bad "refusal: $(head -c 300 "$WORK/e345")"
+printf 'alpha\nbeta\n' | "$MRW" read --grep -i BETA - > "$WORK/o345b" 2> "$WORK/e345b"
+want 2 "$?" "ADR-140 stdin: --grep -i PATTERN - is refused as usage"
+grep -q '(?i)' "$WORK/e345b" && ok "ADR-140 stdin: and points at (?i)" || bad "refusal: $(head -c 300 "$WORK/e345b")"
+printf 'alpha\nbeta\n' | "$MRW" read --grep '(?i)BETA' - > "$WORK/o345c" 2> "$WORK/e345c"
+want 0 "$?" "ADR-140 stdin pair: the form the refusal points to is served"
+grep -q 'beta' "$WORK/o345c" && ok "ADR-140 stdin pair: with the matching line" || bad "served: $(head -c 300 "$WORK/o345c")"
+
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
 # killed process is a zombie until its adopter reaps it, and pgrep lists

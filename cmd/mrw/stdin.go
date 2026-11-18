@@ -33,6 +33,12 @@ func stdinSpec(posArgs []string) bool {
 // nothing: standard input is not a file a plan can name (ADR-161).
 func stdinRead(cmd *cli.Command, pattern string, grepSet bool, posArgs []string, projections []read.Projection) error {
 	if len(posArgs) != 1 {
+		// `cmd | mrw read --grep -v PATTERN -`: --grep took grep's flag as its
+		// pattern and PATTERN became a second thing to read. Say that, with what
+		// mrw spells instead, as a read of files does (ADR-140, ADR-164).
+		if hint := patternFlagHint(pattern); grepSet && hint != "" {
+			return cli.Exit(fmt.Sprintf("--grep took %q as its pattern, so what followed it was read as a second thing to read beside -; %s", pattern, hint), exitUsage)
+		}
 		return cli.Exit("- reads standard input, and a read of it names nothing else: read the files in another call", exitUsage)
 	}
 	for _, f := range []string{"sub", "quiet", "stat", "count", "files-from", "ast-grep", "exclude", "no-ignore", "json", "if-changed", "outline", "if-served"} {
