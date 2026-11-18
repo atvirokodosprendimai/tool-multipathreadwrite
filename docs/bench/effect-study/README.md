@@ -137,15 +137,17 @@ write") and committed before the scanner was changed.
 
 | | all | without this repository | bar |
 |---|---|---|---|
-| shell calls whose mrw write landed | 13,217 | 9,686 | at least 1,000 |
-| near path reverts (within 5 tool calls) | 0.10% (13) | **0.09%** (9) | at least 25 and 0.5%, which is 49 here |
+| shell calls whose mrw write landed | 13,220 | 9,686 | at least 1,000 |
+| near path reverts (within 5 tool calls) | 0.10% (13) | **0.09%** (9) | at least 25 and 0.5%; in the deciding column, without this repository, that is 49 |
 | path reverts, near or late | 39 | 22 | |
 | tree reverts | 143 | 95 | |
 
-**Verdict: STOP.** No undo record is drafted from this count. This is the second run; the first
+**Verdict: STOP.** No undo record is drafted from this count. This is the third run. The first
 (`results-e6-first-run*.json`: 8 near, 21 path reverts, 84 tree reverts without this repository, also STOP)
 was reviewed, the scanner's bounded defects were fixed, and it was run again with the rule and the bar
-untouched.
+untouched; a final pass found four more in those fixes, and the third run after them gave the second's
+counts in the deciding column. The all-sessions column includes the session that ran the scan, so its
+first row moved by a few between runs.
 
 Method. A file is written when a landed mrw write of the session changed it (E5's tracking). A path revert
 is a later shell command running `git checkout` or `git restore`, with or without `git -C DIR`, with an
@@ -160,14 +162,18 @@ Limits, each with its direction. The command is read as text, not as a shell wou
   subdirectory does not match a path the plan gave from the root (lowers); a file named `f` matches
   `other/f` (raises).
 - *Arguments are not parsed as git parses them.* `git checkout f` where `f` is a branch, or an option's
-  operand that is also a written file's name, counts (raises). A command the shell skipped
-  (`true || git checkout -- f`) or that failed counts (raises).
+  operand that is also a written file's name, counts. A command the shell skipped
+  (`true || git checkout -- f`) or that failed counts. Each raises the count by one, and also takes the
+  files it names out of tracking, which can hide a later real revert of them.
 - *Written files come from the plan's hunks and the receipt's rows.* A typed `unlink` or `rename`, a
-  receipt row whose name has a space, a quiet write of a plan in a file, and a partial commit leave a
-  landed write with files the scanner does not know (lowers). One `applied` in a chained command credits
-  every plan typed in it (raises).
-- *A revert in the same shell command as the write* is read before the write's answer, so it is not
-  matched (lowers).
+  receipt row whose name has a space and a quiet write of a plan in a file leave a landed write with files
+  the scanner does not know (lowers). A `PARTIALLY APPLIED` write leaves files on disk and is not in L, and
+  its files are not tracked (lowers). One `applied` in a chained command credits every plan typed in it
+  (raises).
+- *A revert in the same shell command as the write* is read before the write's answer. For a file not yet
+  tracked it is not matched (lowers); for one already tracked it is counted against the earlier write, and
+  the file is then tracked again from the new one.
+- *Two writes whose answers arrive out of order* are placed by their own calls, not by which landed first.
 - *A tree revert* may have nothing to do with mrw, and `git stash create` or `store` count as one.
 
 ## Method
@@ -231,7 +237,7 @@ transcript with no entry in the window is not counted. It prints aggregates only
 ## Run it
 
 ```sh
-python3 -I docs/bench/effect-study/test_scan.py                 # 138 checks on synthetic transcripts
+python3 -I docs/bench/effect-study/test_scan.py                 # 146 checks on synthetic transcripts
 python3 -I docs/bench/effect-study/scan.py --until 2026-11-18T10:00:00Z --repo . > results.json
 python3 -I docs/bench/effect-study/scan.py --until 2026-11-18T10:00:00Z --skip tool-multipathreadwrite
 ```
@@ -245,5 +251,5 @@ Give `--until` a time in the past: a live session keeps appending to its transcr
 - `results-e5.json`, `results-e5-without-this-repository.json`: E5's third run, the corpus line and E5 only.
   `results-e5-first-run*.json`, `results-e5-second-run*.json`: the two before it. `results.json` was not
   regenerated: its E2 tag count reads the tree, which has changed since.
-- `results-e6.json`, `results-e6-without-this-repository.json`: E6's second run, the corpus line and E6 only.
-  `results-e6-first-run*.json`: the first.
+- `results-e6.json`, `results-e6-without-this-repository.json`: E6's third run, the corpus line and E6 only.
+  `results-e6-first-run*.json`: the first. The second run's deciding column equals the third's.

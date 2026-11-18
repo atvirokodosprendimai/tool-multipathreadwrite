@@ -1481,8 +1481,9 @@ scanner reads a shell command as text, with the limits E5's README section lists
 scanner with its synthetic tests as `42983e36`, in that order, before the first run. A Codex review of it
 (gpt-6.2-sol, seven findings) found the scanner too loose and too tight in places; the bounded ones were
 fixed, each with a test, and the scanner was run again at `3af83569` with the rule and the bar untouched.
-The second run is the reading; the first is kept beside it (`results-e6-first-run*.json`). Entries before
-2026-11-19T00:00:00Z, one run of each column.
+A final pass found four more in those fixes; they were fixed and it was run a third time at `a5baadfd`,
+which gave the same counts in the deciding column. That is the reading; the first run is kept beside it
+(`results-e6-first-run*.json`). Entries before 2026-11-19T00:00:00Z.
 
 | without this repository | first run | **second run** | bar |
 |---|---|---|---|
@@ -1492,7 +1493,8 @@ The second run is the reading; the first is kept beside it (`results-e6-first-ru
 | tree reverts (`git stash`, `reset --hard`, `checkout .`, `restore .`) | 84 | **95** | |
 | verdict | STOP | **STOP** | |
 
-Second run, all sessions: L 13,217; near 13; path reverts 39; tree reverts 143.
+Third run, all sessions: L 13,220; near 13; path reverts 39; tree reverts 143. This column includes the
+session that ran the scan, whose transcript was still being written, so its L moved by a few between runs.
 
 The scanner found nine near path reverts where the bar needs 49. Counting every path revert it found as
 near would give 22. By the rule written before the run, no undo record is drafted. The tree reverts are
