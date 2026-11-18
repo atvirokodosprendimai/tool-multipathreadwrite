@@ -142,6 +142,27 @@ func TestAFifoAtAStateFileDoesNotHoldMrw(t *testing.T) {
 			t.Errorf("a lock that failed returned %v, want a *fs.PathError with Op lock naming %s and wrapping the cause", herr, path)
 		}
 	})
+
+	t.Run("a lock file that cannot be opened keeps its own error", func(t *testing.T) {
+		// A directory where the lock file should be: the open fails with an
+		// *fs.PathError of its own, which is passed on and not relabelled "lock".
+		root := t.TempDir()
+		path, err := Path(root, "h.lock")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.MkdirAll(path, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		release, herr := HoldWithin(root, "h.lock", 0)
+		if release != nil {
+			release()
+		}
+		var pe *fs.PathError
+		if !errors.As(herr, &pe) || pe.Path != path || pe.Op == "lock" {
+			t.Errorf("a directory at the lock file returned %v, want the open's own *fs.PathError naming %s", herr, path)
+		}
+	})
 }
 
 // ADR-201 T1. Another directory's FIFO marker leaves it unidentified and kept,

@@ -11385,8 +11385,8 @@ rm -rf "$R343"
 
 # 344. ADR-201: a FIFO where mrw keeps one of its own state files held the command,
 # since opening one for reading waits for a writer that never comes. With a FIFO at
-# the `root` marker of a checkout's state directory, `mrw read` exited 0 only after
-# being killed; it now serves the file and leaves the marker a regular file holding
+# the `root` marker of a checkout's state directory, `mrw read` ran until the limit
+# killed it (`bounded` reports that as 124); it now serves the file and leaves the marker a regular file holding
 # the root. With a FIFO at the `root` of another directory under the same state home,
 # `mrw seen --prune --dry-run` returned only when killed; it now exits 0, keeps that
 # directory, and still reports a dead one beside it. The pair: before either FIFO
@@ -11409,9 +11409,12 @@ else
   bad "ADR-201: mrw seen did not name a state directory: $(head -c 300 "$WORK/s344")"
 fi
 mkdir -p "$X344/mrw/dead344" "$X344/mrw/odd344"
-printf '%s\n' "$R344/gone344" > "$X344/mrw/dead344/root"; mkfifo "$X344/mrw/odd344/root"
+printf '%s\n' "$R344/gone344" > "$X344/mrw/dead344/root"
+mkfifo "$X344/mrw/odd344/root" && [ -p "$X344/mrw/odd344/root" ] \
+  && ok "ADR-201: another directory's marker is now a FIFO" || bad "could not put a FIFO at $X344/mrw/odd344/root"
 bounded 10 "$WORK/p344" env XDG_STATE_HOME="$X344" "$MRW" -C "$C344" seen --prune --dry-run; want 0 "$?" "ADR-201: a dry run with a FIFO at another directory's marker returns, not killed at the limit"
-[ -d "$X344/mrw/odd344" ] && ok "ADR-201: and that directory is still there" || bad "odd344 is gone"
+[ -d "$X344/mrw/odd344" ] && [ -p "$X344/mrw/odd344/root" ] && ok "ADR-201: and that directory and its FIFO are still there" || bad "odd344 or its FIFO is gone"
+[ -d "$X344/mrw/dead344" ] && ok "ADR-201: and a dry run removed nothing" || bad "the dry run removed dead344"
 grep -q 'would remove.*dead344' "$WORK/p344" && ! grep -q 'would remove.*odd344' "$WORK/p344" \
   && ok "ADR-201 pair: the dead directory beside it is the one it would remove" || bad "dry run: $(head -c 400 "$WORK/p344")"
 rm -rf "$R344"

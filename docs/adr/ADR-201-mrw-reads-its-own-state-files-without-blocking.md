@@ -61,14 +61,14 @@ Not in the class:
 
 1. **Every read in the "blocking today" list opens without blocking.** `regular.ReadFile(path)` reads a regular file whole; `regular.OpenIn(root, name)` opens through an `*os.Root`. Both refuse a FIFO, a socket, a device and, for `ReadFile`, a directory, with an `*fs.PathError` that names the path and wraps `regular.ErrNotRegular` or the system's error.
 2. **What each site does with a file that is not regular.**
-   - the marker: `state.Dir` rewrites it, as it does today for any marker it cannot read or that names another root, and returns the directory.
+   - the marker: `state.Dir` rewrites it, as it does today for any marker it cannot read or that names another root, and returns the directory. `state.Write` replaces a target only when it has its owner-write bit (ADR-105), so a FIFO without one stays a FIFO; the command still answers.
    - another directory's marker: `describe` keeps the directory as unidentified.
    - a lock's holder: unknown; the refusal keeps its "another process" wording.
    - the write counter: zero, and the bump writes 1 over it, as for a missing counter.
-   - the pending store: an empty store, as for one that will not parse. It licenses nothing, the next save replaces it, and `mrw seen --forget` goes on to empty the ledger (ADR-175). An error here would refuse every `mrw_read` until someone deleted the file.
+   - the pending store: an empty store, as for one that will not parse. It licenses nothing, the next save replaces it, and `mrw seen --forget` goes on to empty the ledger (ADR-175). An error here would refuse every `mrw_read` until someone deleted the file. A directory there is not a FIFO: it is the read error it is today, and `--forget` exits 2 before the ledger, as today.
    - a check's or a run's log: no lines. A run's receipt then says `0 lines · 0 bytes` for output it cannot see, with the log path and the command's exit code unchanged.
-3. **A read that failed for another reason is not saved over.** The write counter and the pending store are read and then saved. When the read fails for a reason other than "missing" or "not a regular file" (a file under another process's lease, a permission), the counter is not written and the landing reports no generation, which ADR-127 allows as best effort and which today resets a valid counter to 1; the pending store returns its error, as today. A counter whose content does not parse still reads as zero.
-4. **A lock that cannot be taken says which file, and nothing else about it changes.** `Hold` and `HoldFileWithin` wrap an error from opening or locking the lock file in an `*fs.PathError` whose operation is `lock` and whose path is the lock's. `statehint.About` does not take such an error for a state directory that cannot be written: a read whose ledger lock cannot be taken keeps exiting 2, where ADR-166's path would serve it and exit 0, and the hint would send the caller to fix a directory that is fine. Waiting for a holder is unchanged (ADR-110).
+3. **A read that failed for another reason is not saved over.** The write counter and the pending store are read and then saved. When the read fails for a reason other than "missing" or "not a regular file" (a file under another process's lease, a permission), the counter is not written and the landing reports no generation; today that case resets a valid counter to 1. The pending store returns its error, as today. A counter whose content does not parse still reads as zero. ADR-127's count of other writers is best effort and stays so: a landing whose bump was skipped is not counted by a check that was running, so that check's advisory can say one fewer than landed, where today the reset makes it say nothing.
+4. **A lock that cannot be taken says which file.** `Hold` and `HoldFileWithin` give an error from locking the lock file as an `*fs.PathError` whose operation is `lock` and whose path is the lock's. An error from opening it is already an `*fs.PathError` with its own operation and is passed on as it is. The two keep the outcomes they have today: an open failure (a directory where the lock file should be) is a state directory that cannot be used, so a read is served and says nothing was recorded (ADR-166); a lock failure exits 2, and `statehint.About` does not take it for the first kind, since the hint would send the caller to fix a directory that is fine. Waiting for a holder is unchanged (ADR-110).
 5. **Nothing falls back to a blocking open, and ADR-109's clause is superseded.** A read of mrw's own state is a loader like any other.
 6. **What would make this decision wrong.** A site where failing at once leads somewhere worse than the wait did: Decision 2 states each outcome and T1 tests it. A platform where the non-blocking open of a regular state file fails where the blocking one worked: Go ignores `O_NONBLOCK` on Windows, and T1 adds controls for a regular file, a missing file and a directory that run there.
 
@@ -103,7 +103,7 @@ None — one task.
 ## Consequences
 
 - **Positive:** no file mrw keeps can hold a command or swallow the receipt of a write that landed, and a lock that fails names itself.
-- **Negative:** on Linux a state file under another process's lease is read as unreadable for that call where a blocking open would have waited; for the write counter that is one landing without a generation.
+- **Negative:** on Linux a state file under another process's lease is read as unreadable for that call where a blocking open would have waited; for the write counter that is one landing without a generation, and a running check's count of other writers one short.
 - **Neutral:** no receipt key or exit code is added. One error text gains a path.
 
 ## Out of Scope
@@ -111,7 +111,8 @@ None — one task.
 - The measurement tools' reads (`internal/bench`, `internal/curve`, `cmd/bench`, `cmd/curve`, `cmd/nativebench`) (permanent: boundary: they are not the served binary and read files their own run wrote)
 - A plan file or a `--files-from` list that is a pipe (permanent: boundary: ADR-109, a pipe is a legitimate input there)
 - A state directory that is itself replaced or made unreadable (permanent: boundary: an unusable state directory is already named as mrw's, with how to set `XDG_STATE_HOME`, by ADR-164; that is a different failure from a file inside a usable one)
-- Waiting on a lock another process holds (permanent: boundary: ADR-110 bounds the write lock's wait; a wait is not a content read)
+- Waiting on a lock another process holds, and the open of a lock file under another process's lease, which waits before the write lock's bounded wait begins (permanent: boundary: ADR-110 bounds the wait for a holder; a lock file is opened to be locked, not read, and both revisions open it the same way)
+- A command under `mrw run` that replaces its own log with something that is not a file (permanent: boundary: ADR-177 reports the path it created; the receipt says zero lines and zero bytes for it, and the command's exit code is kept)
 
 ## Risks
 
