@@ -1402,3 +1402,30 @@ this corpus has now been seen, so pricing it needs its own entry and entries aft
 cannot settle the uncertain share: the ledger records what a piped read served, and the transcript does
 not. A count taken from the ledger itself, as `mrw stats` prices `--strict-balance` (ADR-056), would have
 none. The limits that remain, each with its direction, are in `docs/bench/effect-study/README.md`.
+
+## Pre-registered for ADR-200's count (the stale-number pricing in `mrw stats`) — written before the code
+
+ADR-200, as accepted on 2026-11-18, builds a count and no refusal. E5 above priced the refusal from
+transcripts and stopped on what a transcript cannot hold. The count is taken from the ledger, in every
+checkout that runs a release carrying it: landed writes; landed writes with a numbered hunk, no `anchor=`,
+on a file mrw wrote; and of those, the writes where an addressed line was not shown since.
+
+**The reading.** `mrw stats --json` `numbering`, on or after **2026-12-18**, in each checkout on Zy's
+machines that has counted at least **200** landed writes, this repository's own left out (its sessions
+send stale numbers on purpose). At least **two** such checkouts, or the reading is "insufficient" and
+waits a further thirty days once.
+
+**The bar.** Would-refuse writes are **at most 5%** of landed writes in **every** checkout read (ADR-009's
+bar for what the format may cost in refusals).
+
+**What each outcome does.** Met: a new record may build the refusal on ADR-200's predicate and cite the
+count. Missed: the guard as designed is withdrawn; a narrower rule (lines the write left in place, or
+lines of a file the caller created) needs its own entry and its own count. Insufficient twice: ADR-200
+records that and the count stays.
+
+**What it does not measure.** The benefit: how often a counted hunk named the wrong line. A refusal built
+later can count that without a guess, as refusals whose `anchor=` was then found on another line (ADR-197).
+
+**Deferred from ADR-200:**
+- The refusal: waits for the reading above.
+- A receipt row naming where the numbers moved: waits for the same reading.
