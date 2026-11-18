@@ -168,7 +168,7 @@ def same_path(native, rel):
     return isinstance(native, str) and (native == rel or native.endswith("/" + rel))
 
 
-HEREDOC_BODY = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_]\w*)\1[^\n]*\n(.*?)\n[ \t]*\2[ \t]*(?=\n|$)", re.S)
+HEREDOC_BODY = re.compile(r"<<(-?)\s*(['\"]?)([A-Za-z_][\w.-]*)\2[^\n]*\n(.*?)\n[ \t]*\3[ \t]*(?=\n|$)", re.S)
 READ_HEAD = re.compile(r"^==> (.+?)  \d+L\b")
 NUMBERED = re.compile(r"^\s*(\d+)\| ")
 RECEIPT_ROW = re.compile(r"^(?:ok\s+|wrote |created |replaced )(\S+)", re.M)
@@ -177,11 +177,21 @@ EVERY = float("inf")
 
 
 def plans_in(cmd):
-    """Return the plan text typed in a shell command: its heredoc bodies, then its quoted strings one a line."""
-    bodies = [m.group(3) for m in HEREDOC_BODY.finditer(cmd)]
-    rest = HEREDOC_BODY.sub("", cmd)
-    words = [m.group(0)[1:-1].replace("\\n", "\n") for m in QUOTED.finditer(rest)]
-    return "\n".join(bodies + words)
+    """Return the hunks typed in a shell command: those of each heredoc body, then those of its quoted strings.
+
+    Each heredoc is a plan of its own. Quoted strings are read one a line; the last hunk among them
+    has no known body unless it declares one, since a later quoted string (`echo "done"`) is not told
+    from a body line.
+    """
+    hunks = []
+    for m in HEREDOC_BODY.finditer(cmd):
+        body = m.group(4)
+        hunks += typed_hunks(re.sub(r"(?m)^\t+", "", body) if m.group(1) else body)
+    words = [m.group(0)[1:-1].replace("\\n", "\n") for m in QUOTED.finditer(HEREDOC_BODY.sub("", cmd))]
+    quoted = typed_hunks("\n".join(words))
+    if quoted and not re.search(r"\bbody=\d", quoted[-1][3]):
+        quoted[-1] = quoted[-1][:4] + (None,)
+    return hunks + quoted
 
 
 def numbers(addr):
@@ -196,36 +206,45 @@ def numbers(addr):
 
 
 def typed_hunks(text):
-    """Return (path, address, op, rest of header, body lines or None) for each hunk header in a plan text."""
-    out, lines = [], text.split("\n")
-    heads = [i for i, ln in enumerate(lines) if HUNK.match(ln)]
-    for k, i in enumerate(heads):
+    """Return (path, address, op, rest of header, body lines or None) for each hunk header in a plan text.
+
+    A header that declares `body=N` takes its next N lines, whatever they look like.
+    """
+    out, lines, i = [], text.split("\n"), 0
+    while i < len(lines):
         m = HUNK.match(lines[i])
+        if not m:
+            i += 1
+            continue
         path = HUNK_PATH.match(lines[i]).group(1).strip("\"'")
         rest = m.group(3)
         declared = re.search(r"\bbody=(\S+)", rest)
-        if declared:
-            body = int(declared.group(1)) if declared.group(1).isdigit() else None
-        elif "from=" in rest:
-            body = None
+        j = i + 1
+        if declared and declared.group(1).isdigit():
+            body = int(declared.group(1))
+            j += body
         else:
-            body = (heads[k + 1] if k + 1 < len(heads) else len(lines)) - i - 1
+            while j < len(lines) and not HUNK.match(lines[j]):
+                j += 1
+            body = None if declared or "from=" in rest else j - i - 1
         out.append((path[2:] if path.startswith("./") else path, m.group(1), m.group(2), rest, body))
+        i = j
     return out
 
 
-def read_is_piped(cmd):
-    """Report whether a shell command sends an mrw read's output anywhere but the caller."""
-    text = folded(cmd)
+def piped_reads(cmd):
+    """Return the argument text of each mrw read in a shell command whose output does not reach the caller."""
+    text, out = folded(cmd), []
     for m in MRW_CALL.finditer(text):
         if m.group(1) != "read":
             continue
-        if "$(" in text[max(m.start() - 1, 0):m.start() + 3]:
-            return True
         tail = re.split(r";|&&|\|\||\n", text[m.end():], maxsplit=1)[0]
-        if re.search(r"\|(?!\|)|>", re.sub(r"2>\s*\S+", "", tail)):
-            return True
-    return False
+        if "$(" in text[max(m.start() - 1, 0):m.start() + 3] or re.search(
+                r"\|(?!\|)|>", re.sub(r"2>\s*\S+", "", tail)):
+            out.append(tail)
+    return out
+
+
 
 
 class Guard:
@@ -244,17 +263,22 @@ class Guard:
         self.shown_b = collections.defaultdict(set)
 
     def native(self, file_path):
-        """The host's own tool changed a file."""
-        for rel in [r for r in self.written if same_path(file_path, r)]:
+        """The host's own tool was called to change a file: nothing mrw showed of it stands."""
+        for rel in [r for r in set(self.written) | set(self.shown_b) if same_path(file_path, r)]:
             self.written.discard(rel)
             self.created.discard(rel)
             self.uncertain.discard(rel)
             self.shown_a.pop(rel, None)
+            self.shown_b.pop(rel, None)
+
+    def doubt(self, cmd, tails):
+        """Make uncertain each written file a piped read names; a quoted spec is looked for in the whole command."""
+        for tail in tails:
+            self.uncertain |= {rel for rel in self.written if rel in tail or ("Q" in tail and rel in cmd)}
 
     def served(self, text, cmd):
         """An mrw read answer: remember the line numbers it printed under each file."""
-        if read_is_piped(cmd):
-            self.uncertain |= {rel for rel in self.written if rel in cmd}
+        self.doubt(cmd, piped_reads(cmd))
         cur = None
         for ln in text.split("\n"):
             head = READ_HEAD.match(ln)
@@ -306,6 +330,9 @@ class Guard:
                 span = numbers(addr)
                 if op == "create":
                     self.created.add(path)
+                if span is not None and "$" in addr:     # `N-$`: everything from N on is replaced or gone
+                    moved = min(moved, span[0])
+                    continue
                 if op not in LINE_OPS or span is None or body is None:
                     moved = 0
                     continue
@@ -333,22 +360,30 @@ class Guard:
         self.shown_a[rel] = set()
 
     def answer(self, cmd, text):
-        """Fold one shell call that ran mrw, and its answer, into the counts and the state."""
+        """Fold one shell call that ran mrw, and its answer, into the counts and the state.
+
+        Reads that all come before the first write are applied before the plan is judged, and reads
+        that all come after the last write after it. Reads on both sides cannot be told apart in one
+        answer: none is applied, and the written files the command names become uncertain.
+        """
         calls = [m.group(1) for m in MRW_CALL.finditer(folded(cmd))]
-        hunks = typed_hunks(plans_in(cmd)) if "write" in calls else []
-        applied = "— applied" in text
-        reads_first = "read" in calls and "write" in calls and calls.index("write") > max(
-            i for i, s in enumerate(calls) if s == "read")
-        if reads_first:
+        writes = [i for i, s in enumerate(calls) if s == "write"]
+        reads = [i for i, s in enumerate(calls) if s == "read"]
+        hunks = plans_in(cmd) if writes else []
+        before = bool(reads) and bool(writes) and reads[-1] < writes[0]
+        mixed = bool(reads) and bool(writes) and not before and reads[0] < writes[-1]
+        if before:
             self.served(text, cmd)
-        if "write" in calls and applied:
+        self.t.c["e5_chained_write_commands"] += len(writes) > 1
+        if writes and "— applied" in text:
             if hunks:
                 self.judge(hunks)
-                self.t.c["e5_chained_write_commands"] += calls.count("write") > 1
             else:
                 self.t.c["e5_landed_calls_with_no_typed_plan"] += 1
             self.landed(hunks, text)
-        if "read" in calls and not reads_first:
+        if mixed:
+            self.doubt(cmd, [cmd])
+        elif reads and not before:
             self.served(text, cmd)
 
 

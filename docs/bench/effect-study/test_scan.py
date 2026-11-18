@@ -377,6 +377,18 @@ def test_guard_widths():
           e5(read + plan_call("w0", "@@ f.txt 3 delete") + plan_call("w1", "@@ f.txt 3 replace\nD")), (2, 1, 1, 0))
     check("a delete with its expected body still moves the lines below",
           e5(read + plan_call("w0", "@@ f.txt 3 delete\nc") + plan_call("w1", "@@ f.txt 4 replace\nD")), (2, 1, 1, 0))
+    check("a quoted word after the heredoc is not a body line",
+          e5(read + plan_call("w0", "@@ f.txt 4 replace\nD", OK1, "cd \"d\" && mrw write - <<'EOF'\n%s\nEOF\necho \"exit $?\"")
+             + plan_call("w1", "@@ f.txt 5 replace\nE")), (2, 1, 0, 0))
+    check("two heredocs are two plans",
+          e5(read + plan_call("w0", "@@ f.txt 4 replace\nD", OK1 + OK1,
+                              "mrw write - <<'EOF'\n%s\nEOF\nmrw write - <<'EOF'\n@@ g.txt 0 insert-after\nG\nEOF")
+             + plan_call("w1", "@@ f.txt 5 replace\nE")), (2, 1, 0, 0))
+    quoted = "printf '%%s\\n' '@@ f.txt 4 replace%s' 'D' | mrw write - && echo 'done'"
+    check("the last hunk typed as quoted words has no known body",
+          e5(read + plan_call("w0", "", OK1, quoted) + plan_call("w1", "@@ f.txt 5 replace\nE")), (2, 1, 1, 0))
+    check("unless it declares one",
+          e5(read + plan_call("w0", " body=1", OK1, quoted) + plan_call("w1", "@@ f.txt 5 replace\nE")), (2, 1, 0, 0))
     check("a declared body count is the body",
           e5(read + plan_call("w0", "@@ f.txt 3 replace body=1\nC") + plan_call("w1", "@@ f.txt 5 replace\nE")), (2, 1, 0, 0))
     check("a hunk by pattern moves every line",
@@ -433,9 +445,36 @@ def test_guard_state():
     two = plan_call("w1", "@@ g.txt 1 insert-after\nN", OK1 + OK1,
                     "mrw write - <<'EOF'\n%s\nEOF\nmrw write - <<'EOF'\n@@ g.txt 3 replace\nC\nEOF")
     check("two writes in one command are counted as chained", scan_of(two)["E5"]["chained_write_commands"], 1)
+    r = scan_of(start + piped + plan_call("w1", stale))["E5"]
+    check("an uncertain call is counted at each width", (r["uncertain_calls_a"], r["uncertain_calls_b"]), (1, 1))
+    check("a piped read of one file leaves another the command read plainly certain",
+          e5(start + bash("mr", "tr", "mrw read f.txt:1; mrw read g.txt | head -1", "==> f.txt  6L  9B  sha aaaaaaaa\n@@ 1-1\n 1| a\n")
+             + plan_call("w1", stale)), (2, 1, 1, 0))
+    both = bash("mb", "tb", "mrw read f.txt:4 && mrw write - <<'EOF'\n@@ f.txt /^e$/ replace\nE\nEOF\nmrw read f.txt:1",
+                "==> f.txt  6L  9B  sha aaaaaaaa\n@@ 4-4\n 4| c\n" + OK1 + "==> f.txt  6L  9B  sha bbbbbbbb\n@@ 1-1\n 1| a\n")
+    check("reads on both sides of a write show nothing and leave the file uncertain",
+          e5(start + both + plan_call("w2", stale)), (3, 0, 0, 1))
+    read5 = shown("r9", "h.txt", [1, 2, 3, 4, 5])
+    check("the host's edit forgets what was shown before any write, at width B too",
+          e5(read5 + [use("mE", "tE", "Edit", {"file_path": "/r/h.txt"})] + plan_call("w0", "@@ h.txt 5 replace\\nE")
+             + plan_call("w1", "@@ h.txt 2 replace\nB")), (2, 1, 1, 0))
+    check("a replace to the last line moves everything from its first",
+          e5(read5 + plan_call("w0", "@@ h.txt 3-$ replace anchor=\"c\"\nX") + plan_call("w1", "@@ h.txt 4 replace\nD")),
+          (2, 1, 1, 0))
+    check("a counted body is not read for headers",
+          e5(read5 + plan_call("w0", "@@ h.txt 3 replace body=2\n@@ h.txt 1 delete\nX") + plan_call("w1", "@@ h.txt 2 replace\nB")),
+          (2, 1, 0, 0))
+    check("a delimiter with a dash, and tabs a dashed heredoc strips",
+          (e5(start + plan_call("w1", stale, OK1, "mrw write - <<'PLAN-1'\n%s\nPLAN-1")),
+           e5(start + plan_call("w1", "\t@@ f.txt 4 replace\n\tD", OK1, "mrw write - <<-EOF\n%s\n\tEOF"))),
+          ((2, 1, 1, 0), (2, 1, 1, 0)))
+    check("a second write in a command is counted as chained whether or not it landed",
+          scan_of(plan_call("w1", "@@ g.txt 1 replace\nN", "nothing\n",
+                            "mrw write - <<'EOF'\n%s\nEOF\nmrw write - <<'EOF'\n@@ g.txt 3 replace\nC\nEOF"))["E5"]["chained_write_commands"], 1)
     check("the verdict's rules", [scan.guard_verdict(*a) for a in (
-        (199, 0, 0, 0, 0), (200, 10, 10, 99, 99), (200, 11, 0, 10, 10), (200, 10, 11, 10, 11), (200, 11, 0, 11, 0))],
-        ["INSUFFICIENT", "BUILD A", "BUILD B", "STOP", "STOP"])
+        (199, 0, 0, 0, 0), (200, 10, 10, 99, 99), (200, 11, 0, 10, 10), (200, 10, 11, 10, 11), (200, 11, 0, 11, 0),
+        (200, 10, 11, 10, 10))],
+        ["INSUFFICIENT", "BUILD A", "BUILD B", "STOP", "STOP", "BUILD B"])
 
 
 def main():
