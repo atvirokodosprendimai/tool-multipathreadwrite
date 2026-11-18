@@ -1295,3 +1295,49 @@ anchor, a tag and a receipt quote; neither met, the record is withdrawn with the
 - Tags over `mrw_read` and its checkpoints: wait for a record that chooses the tag.
 - Any change to `internal/read`, `internal/plan`, `internal/apply` or `internal/seen` for ADR-200: waits
   for T1's reading and Zy's acceptance.
+
+**Amended again 2026-11-18, before any run, and this replaces M1, M2 and "What each outcome does" above.**
+Zy, asked to choose among three ways on for ADR-200, answered *"make improvement to ours solution. Make it
+best"*; this session reads that as the guard, and says so in the record. A second Codex xhigh challenge had
+shown that M1's `difflib` label is unreliable (the record's own reproduction comes out unclassified), that
+M2's join key is absent on `ok` rows, and that "refused once" was not a contract. The scanner had still not
+been changed and nothing had been run. M1 and M2 are withdrawn unrun. What is measured instead is the
+guard's price, which needs no guess at what a caller meant.
+
+**The rule priced (ADR-200 Decision 1), in two widths.** A hunk whose op is `replace`, `delete`,
+`insert-after` or `insert-before`, whose address is a line number (`N`, `N-M`, `N,+K`; not `$`, not line 0,
+not a pattern) and which carries no `anchor=`, sent to a file the session's own mrw write has changed, is
+refused when a line it addresses was not shown by an mrw read since that write.
+- *Width A* (no new ledger state): every line of a written file is unshown until a read serves it.
+- *Width B*: a line shown before the write stays shown when the write left it where it was: it is above
+  the first hunk of that write that added or removed lines, and inside no range the write replaced. A hunk
+  of the earlier write addressed by pattern, or whose line count the scanner cannot read, moves every line.
+
+**E5, the count** (`docs/bench/effect-study/scan.py`, by session, in transcript order).
+- *Plans counted.* Plans typed into the shell command that runs `mrw write` (a heredoc or a quoted string).
+  A plan in a file is not counted, and the number of `mrw write` calls that name a plan file is reported.
+- *W* = `mrw write` shell calls with at least one typed hunk whose answer says `applied`.
+- *Shown.* The line numbers an mrw read answer printed under a file's `==>` header. A read under `--quiet`
+  shows nothing. A shell command that pipes or redirects an mrw read's output makes every written file it
+  names UNCERTAIN until that file's next write, since the transcript cannot show what reached the caller.
+- *R_A*, *R_B* = calls of W with at least one hunk the rule refuses at that width, on a file that is not
+  UNCERTAIN. *U* = calls of W not in R_A with a candidate hunk on an UNCERTAIN file.
+- *Reported beside them, not part of the verdict:* the calls of W with any anchorless numbered hunk on a
+  written file whatever was read since (the ceiling); refused hunks by op; refused hunks on a file the
+  session itself created; shell commands that run `mrw write` more than once (a second plan in one command
+  is judged against the state before the command, so this count bounds what that misses).
+- *Runs.* The same window as E1-E4 (entries before 2026-11-18T10:00:00Z), with and without this
+  repository's sessions. The verdict is read on the run without them.
+
+**Verdict, the first rule that applies.** INSUFFICIENT if W < 200. **BUILD A** if R_A ≤ 5% of W and
+R_A + U ≤ 10% of W. Otherwise **BUILD B** if R_B ≤ 5% of W and R_B + U ≤ 10% of W. Otherwise **STOP**:
+nothing is built and Zy reads the numbers. 5% is ADR-009's bar for a refusal rate the format may cost.
+
+**What this does not measure.** The benefit. How often a stale number is sent and lands is still unknown
+(the measure withdrawn above could not tell). The guard is built on a reproduced failure and a priced
+refusal, not on a counted harm, and ADR-200 says so. After a release that carries it, the count that needs
+no guess is refusals of a guarded hunk whose `anchor=` missed and was found on another line (ADR-197).
+
+**Deferred from ADR-200**, replacing the list above: a guard on `from=` source addresses (they are already
+refused unless shown, ADR-167); the last line of a multi-line range (ADR-035); a tag beside the served line
+number (waits for evidence the anchor guard does not reach the failure).
