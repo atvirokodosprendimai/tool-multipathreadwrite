@@ -382,13 +382,13 @@ def test_guard_widths():
              + plan_call("w1", "@@ f.txt 5 replace\nE")), (2, 1, 0, 0))
     check("two heredocs are two plans",
           e5(read + plan_call("w0", "@@ f.txt 4 replace\nD", OK1 + OK1,
-                              "mrw write - <<'EOF'\n%s\nEOF\nmrw write - <<'EOF'\n@@ g.txt 0 insert-after\nG\nEOF")
+                              "mrw write - <<'EOF'\n%s\nEOF\necho x\nmrw write - <<'EOF'\npreamble\n@@ g.txt 0 insert-after\nG\nEOF")
              + plan_call("w1", "@@ f.txt 5 replace\nE")), (2, 1, 0, 0))
     quoted = "printf '%%s\\n' '@@ f.txt 4 replace%s' 'D' | mrw write - && echo 'done'"
     check("the last hunk typed as quoted words has no known body",
-          e5(read + plan_call("w0", "", OK1, quoted) + plan_call("w1", "@@ f.txt 5 replace\nE")), (2, 1, 1, 0))
+          e5(read + plan_call("w0", "", OK1, quoted) + plan_call("w1", "@@ f.txt 2 replace\nB")), (2, 1, 1, 0))
     check("unless it declares one",
-          e5(read + plan_call("w0", " body=1", OK1, quoted) + plan_call("w1", "@@ f.txt 5 replace\nE")), (2, 1, 0, 0))
+          e5(read + plan_call("w0", " body=1", OK1, quoted) + plan_call("w1", "@@ f.txt 2 replace\nB")), (2, 1, 0, 0))
     check("a declared body count is the body",
           e5(read + plan_call("w0", "@@ f.txt 3 replace body=1\nC") + plan_call("w1", "@@ f.txt 5 replace\nE")), (2, 1, 0, 0))
     check("a hunk by pattern moves every line",
@@ -447,6 +447,25 @@ def test_guard_state():
     check("two writes in one command are counted as chained", scan_of(two)["E5"]["chained_write_commands"], 1)
     r = scan_of(start + piped + plan_call("w1", stale))["E5"]
     check("an uncertain call is counted at each width", (r["uncertain_calls_a"], r["uncertain_calls_b"]), (1, 1))
+    r = scan_of(shown("r0", "f.txt", [1, 2, 3, 4, 5]) + plan_call("w0", "@@ f.txt 4 replace\nD") + piped
+                + plan_call("w1", "@@ f.txt 2 replace\nB"))["E5"]
+    check("and the widths can differ: a line the write left in place is shown at width B",
+          (r["uncertain_calls_a"], r["uncertain_calls_b"], r["refused_calls_a"], r["refused_calls_b"]), (1, 0, 0, 0))
+    for other in ("mrw read 'g.txt:1' | head -1", "mrw read g.txt | sed -n '1p'"):
+        check("a piped read's doubt stays with the files it names: " + other,
+              e5(start + bash("mr", "tr", "mrw read f.txt:1; " + other, "==> f.txt  6L  9B  sha aaaaaaaa\n@@ 1-1\n 1| a\n")
+                 + plan_call("w1", stale)), (2, 1, 1, 0))
+    check("with reads on both sides, the plan in that command is judged uncertain, not refused",
+          e5(start + plan_call("w1", stale, "==> f.txt  6L  9B  sha aaaaaaaa\n@@ 4-4\n 4| c\n" + OK1,
+                               "mrw read f.txt:4 && mrw write - <<'EOF'\n%s\nEOF\nmrw read g.txt:1")), (2, 0, 0, 1))
+    check("a command-shaped line in a plan body is not a command",
+          e5(start + plan_call("w1", "@@ f.txt 4 replace\nmrw read f.txt", "==> f.txt  6L  9B  sha aaaaaaaa\n@@ 4-4\n 4| c\n" + OK1,
+                               "mrw read f.txt:4 && mrw write - <<'PLAN-1'\n%s\nPLAN-1")), (2, 0, 0, 0))
+    check("a key inside another option's value is not that option",
+          ([h[4] for h in scan.typed_hunks("@@ h.txt 3 replace anchor='literal body=2 here'\nC\n@@ h.txt 5 replace\nE")],
+           e5(start + plan_call("w1", "@@ f.txt 4 replace body=@\"anchor=x\"")),
+           [h[4] for h in scan.typed_hunks("@@ h.txt 3 replace body=\"1\"\nC")]),
+          ([1, 1], (2, 1, 1, 0), [1]))
     check("a piped read of one file leaves another the command read plainly certain",
           e5(start + bash("mr", "tr", "mrw read f.txt:1; mrw read g.txt | head -1", "==> f.txt  6L  9B  sha aaaaaaaa\n@@ 1-1\n 1| a\n")
              + plan_call("w1", stale)), (2, 1, 1, 0))
@@ -456,13 +475,17 @@ def test_guard_state():
           e5(start + both + plan_call("w2", stale)), (3, 0, 0, 1))
     read5 = shown("r9", "h.txt", [1, 2, 3, 4, 5])
     check("the host's edit forgets what was shown before any write, at width B too",
-          e5(read5 + [use("mE", "tE", "Edit", {"file_path": "/r/h.txt"})] + plan_call("w0", "@@ h.txt 5 replace\\nE")
+          e5(read5 + [use("mE", "tE", "Edit", {"file_path": "/r/h.txt"})] + plan_call("w0", "@@ h.txt 5 replace\nE")
              + plan_call("w1", "@@ h.txt 2 replace\nB")), (2, 1, 1, 0))
-    check("a replace to the last line moves everything from its first",
-          e5(read5 + plan_call("w0", "@@ h.txt 3-$ replace anchor=\"c\"\nX") + plan_call("w1", "@@ h.txt 4 replace\nD")),
+    check("a replace to the last line moves everything from its first, and nothing above it",
+          (e5(read5 + plan_call("w0", "@@ h.txt 3-$ replace anchor=\"c\"\nX") + plan_call("w1", "@@ h.txt 4 replace\nD")),
+           e5(read5 + plan_call("w0", "@@ h.txt 3-$ replace anchor=\"c\"\nX") + plan_call("w1", "@@ h.txt 2 replace\nB"))),
+          ((2, 1, 1, 0), (2, 1, 0, 0)))
+    check("unless its body is unknown, which moves every line",
+          e5(read5 + plan_call("w0", "@@ h.txt 3-$ replace anchor=\"c\" from=g.txt:1") + plan_call("w1", "@@ h.txt 2 replace\nB")),
           (2, 1, 1, 0))
     check("a counted body is not read for headers",
-          e5(read5 + plan_call("w0", "@@ h.txt 3 replace body=2\n@@ h.txt 1 delete\nX") + plan_call("w1", "@@ h.txt 2 replace\nB")),
+          e5(read5 + plan_call("w0", "@@ h.txt 3 replace body=2 raw=true\n@@ h.txt 1 delete\nX") + plan_call("w1", "@@ h.txt 2 replace\nB")),
           (2, 1, 0, 0))
     check("a delimiter with a dash, and tabs a dashed heredoc strips",
           (e5(start + plan_call("w1", stale, OK1, "mrw write - <<'PLAN-1'\n%s\nPLAN-1")),

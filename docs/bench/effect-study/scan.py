@@ -168,7 +168,8 @@ def same_path(native, rel):
     return isinstance(native, str) and (native == rel or native.endswith("/" + rel))
 
 
-HEREDOC_BODY = re.compile(r"<<(-?)\s*(['\"]?)([A-Za-z_][\w.-]*)\2[^\n]*\n(.*?)\n[ \t]*\3[ \t]*(?=\n|$)", re.S)
+HEREDOC_BODY = re.compile(r"<<(-?)\s*(['\"]?)([A-Za-z_][\w.-]*)\2([^\n]*)\n(.*?)\n[ \t]*\3[ \t]*(?=\n|$)", re.S)
+MASK = re.compile(r"""(?<!body=)(?:"(?:[^"\\]|\\.)*"|'[^']*')""")
 READ_HEAD = re.compile(r"^==> (.+?)  \d+L\b")
 NUMBERED = re.compile(r"^\s*(\d+)\| ")
 RECEIPT_ROW = re.compile(r"^(?:ok\s+|wrote |created |replaced )(\S+)", re.M)
@@ -176,22 +177,31 @@ LINE_OPS = ("replace", "delete", "insert-after", "insert-before")
 EVERY = float("inf")
 
 
+def shell_of(cmd):
+    """Return cmd as E5 reads it for commands: every heredoc body dropped, each quoted string folded as in folded()."""
+    def fold(m):
+        s = m.group(0)
+        return s[1:-1] if s[0] == '"' and ("$(" in s or s.endswith('mrw"')) else "Q"
+    return QUOTED.sub(fold, HEREDOC_BODY.sub(r"<<H\4", cmd))
+
+
+def quoted_words(cmd):
+    """Return the text of each quoted string in a shell command outside its heredoc bodies."""
+    return [m.group(0)[1:-1] for m in QUOTED.finditer(HEREDOC_BODY.sub(r"<<H\4", cmd))]
+
+
 def plans_in(cmd):
     """Return the hunks typed in a shell command: those of each heredoc body, then those of its quoted strings.
 
     Each heredoc is a plan of its own. Quoted strings are read one a line; the last hunk among them
-    has no known body unless it declares one, since a later quoted string (`echo "done"`) is not told
-    from a body line.
+    has no known body unless it declares a count, since a later quoted string (`echo "done"`) is not
+    told from a body line.
     """
     hunks = []
     for m in HEREDOC_BODY.finditer(cmd):
-        body = m.group(4)
+        body = m.group(5)
         hunks += typed_hunks(re.sub(r"(?m)^\t+", "", body) if m.group(1) else body)
-    words = [m.group(0)[1:-1].replace("\\n", "\n") for m in QUOTED.finditer(HEREDOC_BODY.sub("", cmd))]
-    quoted = typed_hunks("\n".join(words))
-    if quoted and not re.search(r"\bbody=\d", quoted[-1][3]):
-        quoted[-1] = quoted[-1][:4] + (None,)
-    return hunks + quoted
+    return hunks + typed_hunks("\n".join(w.replace("\\n", "\n") for w in quoted_words(cmd)), open_end=True)
 
 
 def numbers(addr):
@@ -205,10 +215,12 @@ def numbers(addr):
     return a, int(m.group(2)) if m.group(2) and m.group(2) != "$" else a
 
 
-def typed_hunks(text):
-    """Return (path, address, op, rest of header, body lines or None) for each hunk header in a plan text.
+def typed_hunks(text, open_end=False):
+    """Return (path, address, op, header options, body lines or None) for each hunk header in a plan text.
 
-    A header that declares `body=N` takes its next N lines, whatever they look like.
+    The options are returned with every quoted value folded to Q, so a key is looked for only where
+    it is an option. A header that declares `body=N` takes its next N lines, whatever they look like.
+    With open_end, the last hunk's body is unknown unless it declared a count.
     """
     out, lines, i = [], text.split("\n"), 0
     while i < len(lines):
@@ -217,34 +229,36 @@ def typed_hunks(text):
             i += 1
             continue
         path = HUNK_PATH.match(lines[i]).group(1).strip("\"'")
-        rest = m.group(3)
-        declared = re.search(r"\bbody=(\S+)", rest)
+        opts = MASK.sub("Q", m.group(3))
+        declared = re.search(r'(?:^|\s)body=(?:"(\d+)"|(\d+))(?=\s|$)', opts)
         j = i + 1
-        if declared and declared.group(1).isdigit():
-            body = int(declared.group(1))
+        if declared:
+            body = int(declared.group(1) or declared.group(2))
             j += body
         else:
             while j < len(lines) and not HUNK.match(lines[j]):
                 j += 1
-            body = None if declared or "from=" in rest else j - i - 1
-        out.append((path[2:] if path.startswith("./") else path, m.group(1), m.group(2), rest, body))
+            unknown = re.search(r"(?:^|\s)(?:body|from)=", opts) or (open_end and j >= len(lines))
+            body = None if unknown else j - i - 1
+        out.append((path[2:] if path.startswith("./") else path, m.group(1), m.group(2), opts, body))
         i = j
     return out
 
 
-def piped_reads(cmd):
-    """Return the argument text of each mrw read in a shell command whose output does not reach the caller."""
-    text, out = folded(cmd), []
+def read_args(cmd, piped_only):
+    """Return each mrw read's own arguments in a shell command, up to a pipe or a redirect.
+
+    With piped_only, only the reads whose output does not reach the caller: piped, redirected or captured.
+    """
+    text, out = shell_of(cmd), []
     for m in MRW_CALL.finditer(text):
         if m.group(1) != "read":
             continue
         tail = re.split(r";|&&|\|\||\n", text[m.end():], maxsplit=1)[0]
-        if "$(" in text[max(m.start() - 1, 0):m.start() + 3] or re.search(
-                r"\|(?!\|)|>", re.sub(r"2>\s*\S+", "", tail)):
-            out.append(tail)
+        own = re.split(r"\|(?!\|)|>", re.sub(r"2>\s*\S+", "", tail), maxsplit=1)
+        if len(own) > 1 or "$(" in text[max(m.start() - 1, 0):m.start() + 3] or not piped_only:
+            out.append(own[0])
     return out
-
-
 
 
 class Guard:
@@ -271,14 +285,16 @@ class Guard:
             self.shown_a.pop(rel, None)
             self.shown_b.pop(rel, None)
 
-    def doubt(self, cmd, tails):
-        """Make uncertain each written file a piped read names; a quoted spec is looked for in the whole command."""
-        for tail in tails:
-            self.uncertain |= {rel for rel in self.written if rel in tail or ("Q" in tail and rel in cmd)}
+    def doubt(self, cmd, args):
+        """Make uncertain each written file one of these reads names; a quoted spec is looked for among the quoted strings."""
+        quoted = " ".join(quoted_words(cmd))
+        for own in args:
+            names = own + " " + quoted if "Q" in own else own
+            self.uncertain |= {rel for rel in self.written if rel in names}
 
     def served(self, text, cmd):
         """An mrw read answer: remember the line numbers it printed under each file."""
-        self.doubt(cmd, piped_reads(cmd))
+        self.doubt(cmd, read_args(cmd, True))
         cur = None
         for ln in text.split("\n"):
             head = READ_HEAD.match(ln)
@@ -297,7 +313,8 @@ class Guard:
         hit = collections.Counter()
         for path, addr, op, rest, _ in hunks:
             span = numbers(addr)
-            if op not in LINE_OPS or span is None or span[0] < 1 or ANCHOR.search(rest) or path not in self.written:
+            if (op not in LINE_OPS or span is None or span[0] < 1 or re.search(r"(?:^|\s)anchor=", rest)
+                    or path not in self.written):
                 continue
             hit["ceiling"] += 1
             lines = range(span[0], span[1] + 1)
@@ -330,11 +347,11 @@ class Guard:
                 span = numbers(addr)
                 if op == "create":
                     self.created.add(path)
-                if span is not None and "$" in addr:     # `N-$`: everything from N on is replaced or gone
-                    moved = min(moved, span[0])
-                    continue
                 if op not in LINE_OPS or span is None or body is None:
                     moved = 0
+                    continue
+                if "$" in addr:                          # `N-$`: everything from N on is replaced or gone
+                    moved = min(moved, span[0])
                     continue
                 a, b = span
                 if op == "insert-after":
@@ -366,7 +383,7 @@ class Guard:
         that all come after the last write after it. Reads on both sides cannot be told apart in one
         answer: none is applied, and the written files the command names become uncertain.
         """
-        calls = [m.group(1) for m in MRW_CALL.finditer(folded(cmd))]
+        calls = [m.group(1) for m in MRW_CALL.finditer(shell_of(cmd))]
         writes = [i for i, s in enumerate(calls) if s == "write"]
         reads = [i for i, s in enumerate(calls) if s == "read"]
         hunks = plans_in(cmd) if writes else []
@@ -374,6 +391,8 @@ class Guard:
         mixed = bool(reads) and bool(writes) and not before and reads[0] < writes[-1]
         if before:
             self.served(text, cmd)
+        elif mixed:
+            self.doubt(cmd, read_args(cmd, False))
         self.t.c["e5_chained_write_commands"] += len(writes) > 1
         if writes and "— applied" in text:
             if hunks:
@@ -382,7 +401,7 @@ class Guard:
                 self.t.c["e5_landed_calls_with_no_typed_plan"] += 1
             self.landed(hunks, text)
         if mixed:
-            self.doubt(cmd, [cmd])
+            self.doubt(cmd, read_args(cmd, False))        # a write clears the doubt; these reads put it back
         elif reads and not before:
             self.served(text, cmd)
 
