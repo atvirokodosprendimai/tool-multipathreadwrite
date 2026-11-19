@@ -1607,12 +1607,18 @@ made through `mrw_write` or another host.
 
 ## E6's verdict, set aside by the owner (2026-11-19)
 
+**Then left standing.** The owner agreed to an undo on 2026-11-19 and, the same day, stopped it after three
+designs were rejected at the record stage (ADR-204, Withdrawn). E6's STOP is the state of things again.
+
 "Pre-registered for an undo of mrw's own write (E6)" above measured STOP: 9 near path reverts in 9,686
 landed writes outside this repository, against a bar of 25 and 0.5%. On 2026-11-19 Zy agreed to an undo
 scoped to mrw's own writes (*"ok, re proposal on mrw - agreed"*, then *"good, go on with mrw undo"*). The
 bar was not met and is not claimed to be: the owner decided past it. ADR-204 builds it.
 
 ## Pre-registered for ADR-204 (Decision 11) — written before the code
+
+**Not taken.** ADR-204 was withdrawn by Zy on 2026-11-19 before any code, so no release carries `mrw undo`
+and this reading has nothing to read. Kept as written for the record.
 
 Read once, 30 days after the tag date of the first release that carries `mrw undo`, on Zy's Mac, over
 Claude Code transcripts since that tag, this repository's sessions left out, with the effect-study scanner
