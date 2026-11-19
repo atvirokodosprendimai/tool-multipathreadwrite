@@ -204,7 +204,9 @@ func TestAModernWriteKeepsItsDecorationWhenACallRunsDuringItsCheck(t *testing.T)
 }
 
 // The loop is released only by a write whose check or step will run: a write
-// with neither keeps its place in the answer order (the review of #327).
+// with neither keeps its place in the answer order (the review of #327). With
+// check: true a check is due after any write that lands, prose or not and with
+// or without a command in the tree (ADR-205).
 func TestTheLoopIsReleasedOnlyWhenACheckOrStepRuns(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("the check is a POSIX shell line")
@@ -218,7 +220,8 @@ func TestTheLoopIsReleasedOnlyWhenACheckOrStepRuns(t *testing.T) {
 		{"a code write whose check runs", `{"check":"true"}`, map[string]any{"plan": goEdit113, "check": true}, true},
 		{"no check argument", `{"check":"true"}`, map[string]any{"plan": goEdit113}, false},
 		{"check: false", `{"check":"true"}`, map[string]any{"plan": goEdit113, "check": false}, false},
-		{"a prose write", `{"check":"true"}`, map[string]any{"plan": "@@ notes.md 2 replace\nline 2\n", "check": true}, false},
+		{"a prose write whose check runs", `{"check":"true"}`, map[string]any{"plan": "@@ notes.md 2 replace\nline 2\n", "check": true}, true},
+		{"a tree with no check to run", ``, map[string]any{"plan": "@@ notes.md 2 replace\nline 2\n", "check": true}, true},
 		{"a dry run", `{"check":"true"}`, map[string]any{"plan": goEdit113, "dry_run": true, "check": true}, false},
 	} {
 		root := checkTree113(t, tc.harness)

@@ -55,7 +55,7 @@ func TestAWriteThatRemovesCodeRunsTheWholeCheckThroughVerify(t *testing.T) {
 		if err := seen.Record(root, obs); err != nil {
 			t.Fatal(err)
 		}
-		p, err := Prepare(Request{Root: root, In: tc.in})
+		p, err := Prepare(Request{Root: root, In: tc.in, Check: CheckDemand})
 		if err != nil {
 			t.Fatalf("%s: %v", name, err)
 		}

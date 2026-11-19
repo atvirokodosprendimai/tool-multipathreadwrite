@@ -688,10 +688,11 @@ func tools() []tool {
 				"or nothing: if any hunk fails validation, nothing is written. Every address resolves against " +
 				"the ORIGINAL file, so several hunks in one file need no offset arithmetic. mrw " +
 				"will not edit a line it has not served you — read it with mrw_read first. If you " +
-				"can run shell commands, prefer the CLI `mrw write`. With check: true, after a write that touches code this tool " +
-				"runs the project's check and returns its verdict in `check`: a check that " +
-				"ran and failed is not an error — the write applied, and the tree is changed and unverified. " +
-				"Without check: true no check runs (ADR-187); then runs steps declared in .quality-harness.json after the write. " +
+				"can run shell commands, prefer the CLI `mrw write`. With check: true, after any write that lands, a " +
+				"prose-only one included, this tool runs the project's check and returns its verdict in `check`: a check that " +
+				"ran and failed is not an error — the write applied, and the tree is changed and unverified — while one that " +
+				"could not run (no check declared or inferred, no shell) is an error with the applied receipt (ADR-205). " +
+				"Without check: true no check runs (ADR-187); then runs steps declared in .quality-harness.json after the write, and after a passing check when check: true. " +
 				"The write lands before the check runs, so after a lost answer read " +
 				"the files before re-sending the plan. Prefer THIS tool with no shell; it needs no --json because " +
 				"its answer is already structured.",
@@ -709,16 +710,18 @@ func tools() []tool {
 					"check": map[string]any{
 						"type":    "boolean",
 						"default": false,
-						"description": "Run the project's check after a write that lands and touches a file that is " +
-							"not prose, when .quality-harness.json declares one or a go.mod infers it. Default false " +
+						"description": "Run the project's check after any write that lands, prose-only included, as `mrw write --check` " +
+							"does: .quality-harness.json declares it or a go.mod infers it, and with neither the answer is an error " +
+							"with the applied receipt and `check.ran` false (ADR-205). Default false " +
 							"(ADR-187): no check runs and the harness is not read unless `then` names a step. " +
 							"The verdict is the receipt's `check`.",
 					},
 					"then": map[string]any{
 						"type":  "array",
 						"items": map[string]any{"type": "string"},
-						"description": "Names of steps declared in .quality-harness.json \"steps\", run in order after a " +
-							"write that landed and whose check, when one ran, passed — the CLI's --then. A name the project " +
+						"description": "Names of steps declared in .quality-harness.json \"steps\", run in order — the CLI's --then. With check: true " +
+							"they run after a write that landed and whose check passed, and are not run when that check fails or cannot run; " +
+							"without check they run on their own after the write that landed (not when its read ledger could not be updated). A name the project " +
 							"did not declare refuses the write. A step that ran and failed is data; one that could not start " +
 							"is an error. Verdicts are the receipt's `then`. No ad-hoc command: --then-sh is CLI-only.",
 						"examples": []any{[]any{"vet"}},

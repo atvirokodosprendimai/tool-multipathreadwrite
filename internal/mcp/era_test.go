@@ -247,7 +247,8 @@ func jsonInner(s string) string {
 // to keep the 4096-byte bound; and once by ADR-173, whose read receipt gained `capped`: that key in the
 // transcript's one read answer, nothing else; and once by ADR-187, whose write description and `check` property
 // (its default and its text) no longer say the check runs by default: those three strings and the outputSchema `check` description in tools/list, nothing
-// else; and once by ADR-189, whose read gutter is as wide as its block needs: the transcript's one read answer's served lines, nothing else;
+// else; and once by ADR-205, whose check: true runs the check on any write: the write description, `check`'s input description, the outputSchema `check` and `then` descriptions, the routing sentence and the instructions' CLI-only list, nothing else;
+// and once by ADR-189, whose read gutter is as wide as its block needs: the transcript's one read answer's served lines, nothing else;
 // before that no answer to a call had changed: the transcript
 // held only initialize, tools/list and that read.
 func TestALegacyResultIsUnchangedByTheModernPath(t *testing.T) {

@@ -1750,7 +1750,7 @@ want 0 "$rc" "the CLI applies the plan and emits a receipt"
 
 fixture
 R_MCP=$R
-# ADR-113: mrw_write runs the check by default; check: false matches the CLI's --no-check above.
+# ADR-113, since ADR-187 and ADR-205: mrw_write runs a check only with check: true; check: false (sent here) runs none and matches the CLI's --no-check above.
 req=$(printf '%s' "$PLAN" | python3 -c 'import json,sys; print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":sys.stdin.read(),"check":False}}}))')
 mcpout=$(printf '%s\n' "$req" | "$MRW" -C "$R_MCP" mcp --enable 2>"$WORK/mcp.err"); rc=$?
 want 0 "$rc" "mrw mcp applies the same plan over a real pipe"
@@ -2333,7 +2333,7 @@ import json,sys
 i=json.loads(sys.argv[1])["result"]["instructions"]
 # ADR-075: "one writer per checkout" replaced "serialized" — the CLI's writes
 # take turns too, so serialized writes are no longer this surface's advantage.
-for w in ("--context","--check","--root","shell","one writer per checkout","ONE fixed checkout","ack","LICENSES NOTHING"):
+for w in ("--context","--then-sh","--root","shell","one writer per checkout","ONE fixed checkout","ack","LICENSES NOTHING"):
     assert w in i, "the instructions never mention %r" % w
 # The routing must come BEFORE the format details. It is no longer literally
 # first: it is merged into the WHEN TO REACH paragraph, because a separate
@@ -2380,6 +2380,7 @@ PY
 missing=""
 grep -q -- '--files-from' <<<"$(m read --help 2>&1)"  || missing="$missing read:--files-from"
 grep -q -- '--check'      <<<"$(m write --help 2>&1)" || missing="$missing write:--check"
+grep -qE -- '^ +--then-sh ' <<<"$(m write --help 2>&1)" || missing="$missing write:--then-sh"
 grep -q -- '--root'       <<<"$(m --help 2>&1)"       || missing="$missing root:--root"
 [ -z "$missing" ] \
   && ok "and every flag the wire recommends exists on the SUBCOMMAND it names" \
@@ -5433,12 +5434,13 @@ else
   ok "default 0 prints no pad"
 fi
 
-# 89. ADR-054: a write to a non-prose path runs the project's check by default;
-# --no-check opts out; a prose-only plan does not spawn it; a tree with no
-# check command still exits 0. The declared check is `exit 3` so a run that
-# happened (3) and one that did not (0) are one code apart and nothing else
-# produces either. Pair: .go without --check -> 3 / .md without --check -> 0 /
-# .go --no-check -> 0 / no harness, no go.mod -> 0 / --check --no-check -> 2.
+# 89. ADR-054, as ADR-187 and ADR-205 left it: no check runs unless asked for.
+# A write without --check does not spawn one (a prose-only plan and a tree with
+# no check command both exit 0 below), --check demands it on a .go write, and
+# --no-check is accepted and says no. The declared check is `exit 3` so a run
+# that happened (3) and one that did not (0) are one code apart and nothing else
+# produces either. Pair: .go --check -> 3 / .md without --check -> 0 /
+# .go --no-check -> 0 / no harness, no go.mod, no flag -> 0 / --check --no-check -> 2.
 R=$(mktemp -d "$WORK/r89-XXXXXX")
 printf '{"check":"exit 3"}\n' > "$R/.quality-harness.json"
 printf 'package a\nfunc A() {}\n' > "$R/a.go"
@@ -8306,10 +8308,11 @@ printf 'one\nTWO\nthree\nfour\nfive\n' > "$R/f212.txt"
 m write --no-check --format=search_replace "$R/p212b.sr" > /dev/null 2>&1; want 0 $? "search_replace over a file changed after its read applies, since it quotes the lines it replaces"
 grep -qx FOUR "$R/f212.txt" && ok "and the quoted line changed" || bad "f212.txt: $(cat "$R/f212.txt")"
 
-# 213. ADR-113: mrw_write runs the project's check after a write that touches
-# code and returns its verdict in the receipt, by the rule `mrw write` uses. A
-# check that ran and failed leaves the write applied and the call not isError,
-# and is counted failed_check. The pair: check: false runs none, and applies.
+# 213. ADR-113, ADR-205: mrw_write with check: true runs the project's check after
+# a write that lands, whatever the files, as `mrw write --check` does, and returns
+# its verdict in the receipt. A check that ran and failed leaves the write applied
+# and the call not isError, and is counted failed_check. The pair: check: false
+# runs none, and applies.
 fixture
 printf '{"check":"echo boom213; exit 3"}\n' > "$R/.quality-harness.json"
 m read a.go >"$WORK/served.out"
@@ -11606,6 +11609,42 @@ printf 'one\n\357\273\277two\n' | "$MRW" read - > "$WORK/o351b" 2> "$WORK/e351b"
 want 0 "$?" "stdin mark pair: a mark on line 2 is read"
 grep -q "$(printf '\357\273\277')two" "$WORK/o351b" && grep -q '^==> -  2L  11B' "$WORK/o351b" && ! grep -q 'byte order mark' "$WORK/e351b" \
   && ok "stdin mark pair: and is content, kept and not named" || bad "served: $(head -c 200 "$WORK/o351b") / $(head -c 200 "$WORK/e351b")"
+
+# 352. ADR-205: mrw_write with check: true runs the project's check after ANY
+# write that lands, as `mrw write --check` does, so a prose-only write leaves the
+# check's marker; the pair, the same write without check, runs none. Each case is
+# its own tree, so one case's marker cannot satisfy the other. The check counts
+# every time it is started (`runs`) and then greps notes.md for the edited text
+# before it writes the marker: one run and one marker say it ran once, after the
+# edit; a run before the edit would leave two runs, or a run and no marker. The two
+# servers run without the step-depth and result-size variables a caller may
+# have exported, which would refuse the write or elide the receipt.
+req352() {
+  python3 -c 'import json,sys; print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":json.loads(sys.argv[1])}}))' "$1"
+}
+mk352() {
+  mkdir -p "$1"; printf '# notes\nline two\n' > "$1/notes.md"
+  printf '%s\n' '{"check":"echo run >> runs; grep -qx \"line 2\" notes.md && echo ran >> marker"}' > "$1/.quality-harness.json"
+  "$MRW" --root "$1" read notes.md > "$WORK/served352" 2>&1
+}
+R352a="$WORK/r352a"; mk352 "$R352a"
+out=$(req352 '{"plan":"@@ notes.md 2 replace anchor=\"line two\"\nline 2\n","check":true}' | env -u MRW_STEP_DEPTH -u MRW_MAX_RESULT_CHARS "$MRW" -C "$R352a" mcp --enable 2>/dev/null)
+python3 - "$out" <<'PY' && ok "mrw_write check: true on a prose-only plan: applied, check ran, exit 0, not isError" || bad "prose write with check: true: $(head -c 400 <<<"$out")"
+import json, sys
+r = json.loads(sys.argv[1])["result"]
+sc = r["structuredContent"]
+c = sc.get("check") or {}
+sys.exit(0 if c.get("ran") is True and c.get("exit_code") == 0 and sc.get("applied") is True and not r.get("isError") else 1)
+PY
+[ "$(wc -l < "$R352a/marker" 2>/dev/null | tr -d ' ')" = 1 ] && [ "$(wc -l < "$R352a/runs" 2>/dev/null | tr -d ' ')" = 1 ] && [ "$(sed -n 2p "$R352a/notes.md")" = "line 2" ] && ok "and the check ran once and left its marker, after the edit landed" || bad "marker: $(cat "$R352a/marker" "$R352a/runs" 2>&1 | head -c 100)"
+R352b="$WORK/r352b"; mk352 "$R352b"
+out=$(req352 '{"plan":"@@ notes.md 2 replace anchor=\"line two\"\nline 2\n"}' | env -u MRW_STEP_DEPTH -u MRW_MAX_RESULT_CHARS "$MRW" -C "$R352b" mcp --enable 2>/dev/null)
+python3 - "$out" <<'PY' && ok "the pair: the same plan without check lands with no check key" || bad "prose write without check: $(head -c 400 <<<"$out")"
+import json, sys
+sc = json.loads(sys.argv[1])["result"]["structuredContent"]
+sys.exit(0 if "check" not in sc and sc.get("applied") is True else 1)
+PY
+[ ! -e "$R352b/marker" ] && [ ! -e "$R352b/runs" ] && [ "$(sed -n 2p "$R352b/notes.md")" = "line 2" ] && ok "and the check was never started" || bad "check started without check: true: $(ls "$R352b")"
 
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A

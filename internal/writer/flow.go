@@ -23,17 +23,17 @@ import (
 // BEFORE the check (ADR-072), so a write killed during its check is still
 // printed and counted. Each phase returns facts; the surfaces render them.
 
-// CheckMode says whether a write's check runs (ADR-054).
+// CheckMode says whether a write's check runs (ADR-054, ADR-205).
 type CheckMode int
 
 const (
-	// CheckAuto runs the check when the write landed, touched a file that is
-	// not prose, and the tree declares or infers a check.
-	CheckAuto CheckMode = iota
-	// CheckOff runs none: --no-check, or mrw_write's check: false.
-	CheckOff
-	// CheckDemand runs it even on prose, and reports a tree with no command
-	// as a check that could not run: --check.
+	// CheckOff runs none: the zero value, so a Request that names no mode
+	// runs no check, and mrw_write without check: true or `mrw write` without
+	// --check (ADR-187, ADR-205).
+	CheckOff CheckMode = iota
+	// CheckDemand makes a check due after any write that lands, prose
+	// included, and reports a tree with no command as a check that could not
+	// run: --check, and mrw_write's check: true.
 	CheckDemand
 )
 
@@ -102,7 +102,7 @@ func Prepare(req Request) (*Prepared, error) {
 	if err := ResolveSteps(p.cfg, req.Steps, req.StepFlag); err != nil {
 		return nil, p.refuse(StageSteps, err)
 	}
-	if req.Check != CheckOff && !req.Opts.DryRun && p.wanted(touchesCode(req.In)) {
+	if req.Check != CheckOff && !req.Opts.DryRun {
 		if err := check.DepthRefusal("a check is"); err != nil {
 			return nil, p.refuse(StageDepth, err)
 		}
@@ -113,13 +113,6 @@ func Prepare(req Request) (*Prepared, error) {
 func (p *Prepared) refuse(s Stage, err error) error {
 	_ = authoring.Record(p.req.Root, authoring.RefusedApply)
 	return &Refusal{Stage: s, Err: err}
-}
-
-// wanted is ADR-054's rule given whether a write touches a file a check could
-// cover: CheckDemand demands it, and otherwise a code path and a command must
-// exist. The depth gate and CheckDue share it, so they cannot disagree.
-func (p *Prepared) wanted(code bool) bool {
-	return p.req.Check == CheckDemand || (code && (p.cfg.Check != "" || p.cfg.ScopedCheck != ""))
 }
 
 // Landed is a write that reached the apply: its receipt, and how the landing went.
@@ -253,14 +246,10 @@ func NewerUntold(root string, res apply.Result) string {
 	return seen.NewerNotice(writer)
 }
 
-// CheckDue says whether this write's check runs: only on a real landing and
-// not under CheckOff, and then by ADR-054's rule over what it touched.
+// CheckDue says whether this write's check runs: on a real landing, and not
+// under CheckOff (ADR-205: whatever the files are).
 func (l *Landed) CheckDue() bool {
-	if !l.Res.Applied || l.Res.Failed > 0 || l.p.req.Check == CheckOff {
-		return false
-	}
-	_, code := CheckPaths(l.Res.Files)
-	return l.p.wanted(code)
+	return l.Res.Applied && l.Res.Failed == 0 && l.p.req.Check != CheckOff
 }
 
 // Verified is what followed a clean landing: the check, what changed while
@@ -291,7 +280,7 @@ func (l *Landed) Verify(ctx context.Context) Verified {
 	root, res, cfg, steps := l.p.req.Root, l.Res, l.p.cfg, l.p.req.Steps
 	var v Verified
 	if l.CheckDue() {
-		written, _ := CheckPaths(res.Files)
+		written := CheckPaths(res.Files)
 		// ADR-112: the baseline is what the write left on disk, taken now.
 		before := Before(root, res)
 		var opts []check.Option
@@ -366,9 +355,9 @@ func (l *Landed) Settle(v Verified) {
 // CheckPaths is the check's working set after a write. Unlinked and rename
 // sources are gone, so confine cannot Stat them; their parent directory still
 // exists and is what the check can honour. A rename dest is a Written file of
-// its own. The source's extension still sets code: a .go renamed to .txt
-// removed code.
-func CheckPaths(files []apply.FileResult) (paths []string, code bool) {
+// its own. Whether the write touched code no longer decides whether a check is
+// due (ADR-205), so the paths are all it answers.
+func CheckPaths(files []apply.FileResult) (paths []string) {
 	seen := map[string]bool{}
 	add := func(p string) {
 		if p == "" || seen[p] {
@@ -384,15 +373,13 @@ func CheckPaths(files []apply.FileResult) (paths []string, code bool) {
 				dir = "."
 			}
 			add(dir)
-			code = code || !apply.IsProse(f.Path)
 			continue
 		}
 		if f.Written {
 			add(f.Path)
-			code = code || !apply.IsProse(f.Path)
 		}
 	}
-	return paths, code
+	return paths
 }
 
 // removedCode says whether the write took a Go or module file away, by unlink
@@ -410,22 +397,6 @@ func removedCode(files []apply.FileResult) bool {
 			return true
 		}
 		if filepath.Ext(f.Path) == ".go" {
-			return true
-		}
-	}
-	return false
-}
-
-// touchesCode says whether a plan names a path a check could cover, judged
-// before the apply as CheckPaths judges after it: every hunk path, an unlink
-// target and a rename source by their own extension, and every rename
-// destination (ADR-095).
-func touchesCode(in []apply.Input) bool {
-	for _, h := range in {
-		if !apply.IsProse(h.Path) {
-			return true
-		}
-		if h.Op == "rename" && len(h.Body) == 1 && !apply.IsProse(h.Body[0]) {
 			return true
 		}
 	}

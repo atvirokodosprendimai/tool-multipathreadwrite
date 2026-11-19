@@ -7,7 +7,8 @@ import (
 
 // ADR-187. mrw_write runs no check unless check: true: with no check argument,
 // and with check: false, a code write in a tree whose check fails lands and
-// carries no check; check: true runs it by ADR-054's rule and reports it failed.
+// carries no check; check: true runs it, as --check does since ADR-205 (ADR-054's
+// code-only gating is gone), and reports it failed.
 func TestAnMCPWriteRunsNoCheckUnlessAskedFor(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("the checks are POSIX shell lines")

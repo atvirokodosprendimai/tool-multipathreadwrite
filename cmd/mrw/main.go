@@ -729,7 +729,7 @@ size is the form that gets quoted out of the population it was measured on.`,
 			landed, failed := t.Landed(), t["failed_check"]
 			if landed > 0 {
 				fmt.Printf("\nlanded writes: %d; failed_check %d of those (%.1f%%). Landed = applied + partially_applied + failed_check + check_not_run:\n"+
-					"the tree changed. It is not \"wrote and was checked\" — --no-check and prose-only plans count as applied, and a partial commit ran no check.\n",
+					"the tree changed. It is not \"wrote and was checked\" — a plan written with no check and no step asked for (no --check or --then; over MCP, no check: true or then) counts as applied, and a partial commit ran no check.\n",
 					landed, failed, 100*float64(failed)/float64(landed))
 			}
 			// ADR-055: the window, always, and the pattern line when it holds.
@@ -2413,9 +2413,9 @@ held or went unchecked.`,
 					fmt.Println(pattern)
 				}
 			}
-			// ADR-054: the check runs by default, but only when the plan
-			// touched a file a check could plausibly cover AND a command
-			// exists; --check demands it. Verify runs it, the drift (ADR-112)
+			// ADR-187, ADR-205: the check runs only when asked, and --check
+			// demands it on any plan, prose included; a tree with no command
+			// is then check_not_run. Verify runs it, the drift (ADR-112)
 			// and the steps (ADR-092), and moves the count to the verdict.
 			v := land.Verify(ctx)
 			if v.CheckErr != nil {

@@ -33,8 +33,8 @@ func TestAPlainWriteIgnoresAMalformedStepsBlock(t *testing.T) {
 	}
 }
 
-// The same promise through mrw_write, whose check: true is ADR-054's rule
-// (writer.CheckAuto): the malformed steps block is not read, and the check runs.
+// The same promise through mrw_write, whose check: true is a demand, as
+// --check is (writer.CheckDemand): the malformed steps block is not read, and the check runs.
 func TestAnMCPWriteWithCheckIgnoresAMalformedStepsBlock(t *testing.T) {
 	needShell(t)
 	t.Setenv("XDG_STATE_HOME", t.TempDir())

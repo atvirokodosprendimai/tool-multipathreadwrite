@@ -1016,11 +1016,12 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// ADR-113: the gates, the landing's count, the check, the drift and the
 	// pricing are the sequence `mrw write` runs (internal/writer/flow.go), so
 	// the two surfaces cannot decide one outcome two ways. ADR-187: no check
-	// unless check: true, which runs it by ADR-054's rule (a non-prose write,
-	// a check declared or inferred); without it the harness is not read.
+	// unless check: true; ADR-205: check: true makes one due after any write
+	// that lands, as --check does, and a tree with no command answers as a
+	// check that could not run. Without it the harness is not read.
 	mode := writer.CheckOff
 	if a.Check != nil && *a.Check {
-		mode = writer.CheckAuto
+		mode = writer.CheckDemand
 	}
 	// ADR-115: `then` names steps declared in .quality-harness.json; Prepare
 	// resolves them and refuses a name the project did not declare.
@@ -2838,8 +2839,8 @@ func undeclaredRefusal(name string, args json.RawMessage) string {
 // TestTheRefusalRoutesOnlyToFlagsTheCLIHas applies).
 var cliRoute = map[string]string{
 	"mrw_read": "`mrw read` in a shell has what this tool does not, such as --context and --no-numbers.",
-	"mrw_write": "This tool runs the project's check after a write that touches code when check is true, and the declared steps named in then " +
-		"(ADR-187, ADR-115); `mrw write` in a shell also takes --then-sh for an ad-hoc step.",
+	"mrw_write": "This tool runs the project's check after any write that lands when check is true, and the declared steps named in then " +
+		"(ADR-205, ADR-115); `mrw write` in a shell also takes --then-sh for an ad-hoc step.",
 }
 
 // quoteAll quotes each name and joins them with commas, in the order given.

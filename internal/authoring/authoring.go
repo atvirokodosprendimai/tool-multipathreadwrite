@@ -129,8 +129,9 @@ func Vocabulary() []string {
 // plus partially_applied (some files written, then the commit failed — exit
 // 2, ADR-102), plus failed_check (written, then the check failed — exit 3),
 // plus check_not_run (written, and no check ran — exit 2, or 3 when it was stopped before it started). It is NOT
-// "wrote and was checked": --no-check and a prose-only plan both record
-// applied and sit here as successes, and a partial commit ran no check. A
+// "wrote and was checked": a plan written with no check and no step asked for
+// (ADR-187) records applied and sits here as a success; a step that failed or
+// could not start is counted as the check is; and a partial commit ran no check. A
 // reader who takes failed_check over Landed as "of those we verified" misreads
 // the rate in the direction that flatters the tool, which is why the derived
 // line names the denominator (ADR-054).
