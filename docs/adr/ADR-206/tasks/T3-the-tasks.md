@@ -82,6 +82,8 @@ go test -count=1 -v ./internal/bench -run '^(TestStage9ClassesHoldTheirRules|Tes
 - 2026-11-19 · 116949f6* · exit 0 · `set -o pipefail …` · acceptance-sha256:1d61ca84c62f96b42a7c4fb5b7ee0279fae0ea81768fb4777bb7506a83cb927a · ms:77278
 - 2026-11-19 · 116949f6* · exit 0 · `set -o pipefail …` · acceptance-sha256:1d61ca84c62f96b42a7c4fb5b7ee0279fae0ea81768fb4777bb7506a83cb927a · ms:85051
 - 2026-11-19 · 116949f6* · exit 0 · `set -o pipefail …` · acceptance-sha256:1d61ca84c62f96b42a7c4fb5b7ee0279fae0ea81768fb4777bb7506a83cb927a · ms:77384
+- 2026-11-19 · e3afed96* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:1d61ca84c62f96b42a7c4fb5b7ee0279fae0ea81768fb4777bb7506a83cb927a · ms:0 · test-lock-sha256:dd1df16ad5e9887deb881fac7fb9eaf832ea4fc25480f9d1bb687802b961f5aa · test-lock-file:docs/adr/locks/dd1df16ad5e9887deb881fac7fb9eaf832ea4fc25480f9d1bb687802b961f5aa.lock · test-lock-kind:replace
+- 2026-11-19 · e3afed96* · exit 0 · `set -o pipefail …` · acceptance-sha256:1d61ca84c62f96b42a7c4fb5b7ee0279fae0ea81768fb4777bb7506a83cb927a · ms:90258
 
 ## Invariants
 
