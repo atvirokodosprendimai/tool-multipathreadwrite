@@ -1415,10 +1415,10 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 					return exitWith(err)
 				}
 				specs = make([]read.Spec, 0, len(args))
-				for _, a := range args {
+				for i, a := range args {
 					sp, err := read.ParseSpec(a)
 					if err != nil {
-						return exitWith(err)
+						return exitWith(splitSpec(args, i, err))
 					}
 					if len(projections) > 0 && len(sp.Ranges) > 0 {
 						return cli.Exit(fmt.Sprintf("%s: --json-path prints values, and an address names lines: give the file alone", a), exitUsage)

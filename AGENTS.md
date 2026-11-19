@@ -295,6 +295,9 @@ mrw read 'internal/apply/apply.go:/^func Apply/,/^}/' \
          'cmd/mrw/main.go:$'
 ```
 
+Quote a spec whose pattern holds a space: unquoted, `f.go:/func Foo/` reaches mrw as two arguments, and the refusal of the
+first, `pattern "/func" is never closed`, says the shell split it when the arguments after it complete it, and prints the spec whole in single quotes (not on a Windows build, which may be answering cmd.exe).
+
 Quote a JSON path for the shell, since `$`, `"` and `[` mean something to most of them. Measured on Windows 11 for
 ADR-157 (2026-10-14): pwsh 7 takes `'t.json:$["k"]'`; Windows PowerShell 5.1 needs `'t.json:$[\"k\"]'`, since it strips
 the inner quotes from the first form (`--%` does not help); cmd needs `"t.json:$[\"k\"]"`; Git Bash and other POSIX shells take
