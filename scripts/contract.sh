@@ -2333,7 +2333,7 @@ import json,sys
 i=json.loads(sys.argv[1])["result"]["instructions"]
 # ADR-075: "one writer per checkout" replaced "serialized" — the CLI's writes
 # take turns too, so serialized writes are no longer this surface's advantage.
-for w in ("--context","--check","--root","shell","one writer per checkout","ONE fixed checkout","ack","LICENSES NOTHING"):
+for w in ("--context","--then-sh","--root","shell","one writer per checkout","ONE fixed checkout","ack","LICENSES NOTHING"):
     assert w in i, "the instructions never mention %r" % w
 # The routing must come BEFORE the format details. It is no longer literally
 # first: it is merged into the WHEN TO REACH paragraph, because a separate
