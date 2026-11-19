@@ -91,7 +91,7 @@ go test -count=1 -v ./internal/mcp ./internal/writer -run '^(TestMrwWriteCheckTr
 
 ## Risks
 
-- The fence's `# 351.` clause is a marker; the contract gate proves the section.
+- The fence's `# 352.` clause is a marker; the contract gate proves the section.
 
 ## Stop Condition
 
