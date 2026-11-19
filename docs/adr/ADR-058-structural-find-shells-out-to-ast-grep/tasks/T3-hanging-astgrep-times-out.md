@@ -19,7 +19,7 @@ A present `ast-grep` that never returns is killed at 2 s. The process exits 2. T
 | File | Change | Why |
 |------|--------|-----|
 | `internal/read/astgrep.go` | edit | `CommandContext` with a 2 s deadline; timeout error distinct from missing binary. |
-| `cmd/mrw/astgrep_timeout_test.go` | create | Red: fake sleeps 30 s; 3 s test deadline. |
+| `cmd/mrw/astgrep_timeout_test.go` | create | Red: fake sleeps 30 s; the test's own deadline, a hang guard (3 s at first, 15 s since issue #687). |
 | `scripts/contract.sh` | edit | **§111**, under perl alarm. |
 
 ## Ordered Steps
@@ -48,7 +48,7 @@ go test ./cmd/mrw/ -count=1 -v \
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `TestAHangingAstGrepTimesOut` | `cmd/mrw/astgrep_timeout_test.go` | hang returns within 2 s, exit 2, names timed out, not missing, not zero hits | — | S1, S2 |
+| `TestAHangingAstGrepTimesOut` | `cmd/mrw/astgrep_timeout_test.go` | a hang ends in the timeout result well before the fake's 30 s (a 15 s guard; the 2 s bound's timing is contract §111's), exit 2, names timed out, not missing, not zero hits | — | S1, S2 |
 
 ## Reachability
 
@@ -100,3 +100,4 @@ Stop if the bound must be a flag or must change `--grep`.
 - 2026-09-15 · bfbd2cc* · exit 0 · `set -o pipefail …` · acceptance-sha256:43b02241b66bd8b8bb6bb1160bab54124784f9780722df7047554a4664483a1c · ms:2605
 - 2026-09-15 · bfbd2cc* · exit 0 · `set -o pipefail …` · acceptance-sha256:43b02241b66bd8b8bb6bb1160bab54124784f9780722df7047554a4664483a1c · ms:2599
 - 2026-11-19 · c0d7c0de* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:43b02241b66bd8b8bb6bb1160bab54124784f9780722df7047554a4664483a1c · ms:0 · test-lock-sha256:25903b4eaa304a141ea4c827301cc5080a0a8024ffe6b66035d5b4545a68fab3 · test-lock-file:docs/adr/locks/25903b4eaa304a141ea4c827301cc5080a0a8024ffe6b66035d5b4545a68fab3.lock · test-lock-kind:replace
+- 2026-11-19 · 9a613767* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:43b02241b66bd8b8bb6bb1160bab54124784f9780722df7047554a4664483a1c · ms:0 · test-lock-sha256:0902963347ac5eb903727fb1da520cb95c434878c527f9ce126f8b243db61a72 · test-lock-file:docs/adr/locks/0902963347ac5eb903727fb1da520cb95c434878c527f9ce126f8b243db61a72.lock · test-lock-kind:replace

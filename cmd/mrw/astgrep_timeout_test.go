@@ -12,12 +12,13 @@ import (
 	"time"
 )
 
-// A hanging ast-grep on PATH is killed at 2 s (ADR-058 Decision 5). Without
-// the bound the fake sleeps 30 s and this test is ended by its own 15 s
-// deadline — that is the red. The deadline is a hang guard, not a measure of
-// the bound: at 3 s it failed on a loaded Windows runner whose kill at 2 s had
-// not been observed yet (issue #687), so it outlasts slow scheduling and still
-// ends well inside the hang.
+// A hanging ast-grep on PATH is stopped by a 2 s bound (ADR-058 Decision 5):
+// on Windows its job is terminated then, on unix it is sent SIGTERM then and
+// killed a second later if it ignores it. Without the bound the fake sleeps
+// 30 s and this test is ended by its own 15 s deadline — that is the red. The
+// deadline is a hang guard, not a measure of the bound: at 3 s it failed on a
+// loaded Windows runner where the read had not yet returned (issue #687), so
+// it outlasts slow scheduling and still ends well inside the hang.
 func TestAHangingAstGrepTimesOut(t *testing.T) {
 	root := grepTree(t, map[string]string{"a.go": "package a\n"})
 	installHangingAstGrep(t)
@@ -41,7 +42,7 @@ func TestAHangingAstGrepTimesOut(t *testing.T) {
 
 	select {
 	case <-time.After(15 * time.Second):
-		t.Fatal("ast-grep still running at 15 s; the 2 s bound never fired")
+		t.Fatal("the read had not returned at 15 s: the bound on a hanging ast-grep did not end it")
 	case got := <-done:
 		elapsed := time.Since(started)
 		if elapsed < 500*time.Millisecond {
