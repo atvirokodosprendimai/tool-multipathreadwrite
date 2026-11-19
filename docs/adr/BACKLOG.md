@@ -1616,18 +1616,29 @@ bar was not met and is not claimed to be: the owner decided past it. ADR-204 bui
 
 Read once, 30 days after the tag date of the first release that carries `mrw undo`, on Zy's Mac, over
 Claude Code transcripts since that tag, this repository's sessions left out, with the effect-study scanner
-extended and committed before it runs. A shell call is counted once, by its tool-use id; a call whose
-command holds more than one mrw command is reported apart, as `mixed`, and is in no count:
-- `restored`: the command is `mrw undo` with neither `--dry-run` nor `--forget`, and its answer holds the
-  undo receipt's summary line for a restore.
-- `refused`: the same command, its answer holding the refusal's line.
-- `landed`: the answer reports a write that landed (E5's rule; an undo receipt is not a landing).
-**Reading.** Fewer than 1,000 `landed` (E6's own floor): no reading, taken again 30 days later, once; if
-still under, it is recorded as inconclusive and goes to Zy. `restored` under one per 1,000 `landed`: it goes
-back to Zy with the choice of removing the command. Otherwise it stays. `refused` is reported with no bar.
-1 per 1,000 is this entry's choice: E6 found 0.93 near reverts per 1,000.
+extended and committed before it runs. Shell calls only (a write over MCP is not counted), each once by
+its tool-use id; a call whose command holds more than one mrw command is reported apart, as `mixed`, and is
+in no count:
+- `kept`: a call running `mrw write` whose answer reports a landing (E5's rule) and holds no
+  `mrw: undo: not kept:` line.
+- `not_kept`, by reason: the same with that line, grouped by the words after it up to the first colon.
+- `restored`: a call running `mrw undo` with neither `--dry-run` nor `--forget` whose answer holds the
+  restore's summary line (plain) or `"outcome":"restored"` (`--json`).
+- `refused`: the same command with the refusal's line or outcome.
+**Reading.** Fewer than 1,000 `kept` in the window (E6's own floor): no reading; it is taken once more
+over the 60 days since the tag, and if still under it is recorded as inconclusive and goes to Zy.
+`restored` under one per 1,000 `kept`: it goes back to Zy with the choice of removing the command.
+Otherwise it stays. The share of `not_kept` among landings, by reason, and `refused` are reported with no
+bar. 1 per 1,000 is this entry's choice: E6 found 0.93 near reverts per 1,000 landed writes.
 
 ## From ADR-204
 
-- More than one kept write, and a redo: the owner chose one kept write on 2026-11-19. Waits for a request and a record.
+- Undo of a write that unlinks, renames, goes through a link or changes a hard-linked name: needs the
+  entry kinds, link text and link counts the second design review listed. Waits for the reading above
+  showing how many landings keep nothing for those reasons, and a record.
+- Undo on Windows: needs a store whose privacy can be shown there, and rules for attributes and held files.
+  Waits for a Windows user asking, and a record.
+- More than one kept write, and a redo: the owner chose one kept write on 2026-11-19. Waits for a request
+  and a record.
 - An undo over MCP: a host with no shell cannot run `mrw undo`. Waits for such a host asking, and a record.
+
