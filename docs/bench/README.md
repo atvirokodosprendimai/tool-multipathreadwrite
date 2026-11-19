@@ -242,26 +242,42 @@ bench mine    --kind wide-rename|check-coupled --repo DIR --commit SHA [--n N] [
 
 - `--mrw-sha256 HEX` (`run` and `canary`): the file at `--mrw` must have this SHA-256, or the run does not start and the
   message names both hashes. The verified bytes are held and written to each attempt's `bin/mrw`, the path PATH and
-  configuration H's read hook use, in place of a link to `--mrw`; `mrw version` is read from those bytes. The hash is
-  recorded as `mrw_sha256` in `run.json` and in the receipt of each configuration that carries mrw. A run that pins refuses a
-  canary that was not made with the same hash; a run that pins nothing takes a canary made with either build.
+  configuration H's read hook use, in place of a link to `--mrw`; `mrw version` and, when no file is given, `mrw
+  instructions` are run from those bytes, never from the file at `--mrw`. The hash is recorded as `mrw_sha256` in
+  `run.json` and in the receipt of each configuration that carries mrw. After each attempt bench hashes that `bin/mrw`
+  again; one that is no longer the pin is recorded as the receipt's `mrw_sha256_after`, and `bench verify` fails on it.
+  A run that pins refuses a canary that was not made with the same hash, the same instruction source and the same model
+  (a canary made with an instruction file is not accepted by a run whose instructions come from the binary, nor the
+  reverse); a run that pins nothing takes a canary made with either build.
 - `--mrw-instructions FILE` (`run` and `canary`): the file's bytes are appended to the prompt in place of what the binary's
   `instructions` prints (H's and S's added text still follows). Its SHA-256 is recorded as `mrw_instructions_sha256` in
-  `run.json` and `canary.json`, and a run that gives a file refuses a canary that was given another.
-- `--keep-state-file PATH` (`run`): `PATH`, relative to the attempt's state home (`XDG_STATE_HOME`), is copied to
-  `<attempt id>.kept` beside the receipt before the scratch directory is removed, and its SHA-256 is the receipt's
-  `kept_state_file_sha256`. An attempt that left no such file keeps nothing and has no key. A link is not followed out of the state home.
+  `run.json` and `canary.json`.
+- `--keep-state-file PATH` (`run`, and only with a configuration that carries mrw: configuration A has no state home and
+  keeps nothing): `PATH`, relative to the attempt's state home (`XDG_STATE_HOME`), is copied to `<attempt id>.kept` beside
+  the receipt before grading and before the scratch directory is removed, and its SHA-256 is the receipt's
+  `kept_state_file_sha256`. An attempt that left no such file keeps nothing and has no key. The agent has run by then, so
+  nothing there is trusted: a state home that is a link, a file that is a link or not regular, or one that changed while it
+  was opened is not kept, and the receipt's `kept_note` says why.
 - `--keep-diff` (`run`): the attempt tree's `git diff` against its base commit, files the attempt created included, is
-  saved as `<attempt id>.diff` and hashed as `kept_diff_sha256`.
-- `--max-spend USD` (`run`): before each attempt the run sums `total_cost_usd` over every receipt in its directory,
-  replacements and excluded attempts included, and stops with exit status 3 when the sum has reached the figure, or when
-  three receipts record no cost (a missing cost is not zero). The figure is part of the plan: a second invocation with another
-  one is refused as another plan. It stops on what was recorded and is not a ceiling: the run can pass the figure by one
-  attempt's cost, and an attempt interrupted before its receipt spent something no receipt shows.
+  saved as `<attempt id>.diff` and hashed as `kept_diff_sha256`. It is taken before grading, from an index of its own, so
+  the tree the oracle reads is not touched. It holds every edit the agent made, those it committed too, while the oracle
+  compares the tree with `HEAD`: the grade is the oracle's, and the diff is what the agent changed. With it on, `bench
+  verify` wants a diff, or a `kept_note` saying why not, for every attempt that had a tree.
+- Each kept file and each diff is bounded at 16 MiB: over it nothing is kept and `kept_note` says so, and `bench verify`
+  reads with the same bound. A kept state file may be absent (the attempt did not make it) but then its receipt names none.
+- `--max-spend USD` (`run`): before each attempt, and once more after the last, the run sums `total_cost_usd` over every
+  receipt in its directory, replacements and excluded attempts included, and stops with exit status 3 when the sum has
+  reached the figure (compared to a billionth of a dollar, so 0.10 and 0.70 reach 0.80), or when three receipts record no
+  cost (a missing cost is not zero). The figure is part of the plan: a second invocation with another one is refused as
+  another plan. It stops on what was recorded and is not a ceiling: the run can pass the figure by one attempt's cost, and
+  an attempt interrupted before its receipt spent something no receipt shows. One run directory takes one bench process:
+  two on the same directory can each pass the figure.
 
 `run.json` also records `bench_revision`, the bench build's own revision, and every receipt records `init_model`, the model
-the CLI's init line named. A resume checks each receipt it reads back as `bench verify` does, and `bench verify` checks each
-receipt's `mrw_sha256` against `run.json`'s and each kept file against its receipt's hash.
+the CLI's init line named. Because `bench_revision` is part of the plan, a run directory can be resumed only by the bench
+build that started it, and a directory written before these keys existed cannot be resumed by this bench. A resume checks
+each receipt it reads back for its identity, its `mrw_sha256` and its kept files, and `bench verify` checks the same and
+each kept file against its receipt's hash.
 
 `bench analyze` prints one row per stage, model and task source, sorted by stage,
 so two stages are never pooled, with the verdict of

@@ -129,11 +129,15 @@ type Receipt struct {
 	*ShimCounts
 
 	// ADR-206 Decisions 2 and 5: the hash of the mrw the attempt ran (a
-	// configuration that carries mrw, when the run pins it), the hashes of what it
-	// kept beside the receipt, and the model the CLI's init line named.
+	// configuration that carries mrw, when the run pins it), what bin/mrw hashed
+	// to afterwards if that was not the pin, the hashes of what it kept beside
+	// the receipt, why something asked for was not kept, and the model the CLI's
+	// init line named.
 	MrwSHA256           string `json:"mrw_sha256,omitempty"`
+	MrwSHA256After      string `json:"mrw_sha256_after,omitempty"`
 	KeptStateFileSHA256 string `json:"kept_state_file_sha256,omitempty"`
 	KeptDiffSHA256      string `json:"kept_diff_sha256,omitempty"`
+	KeptNote            string `json:"kept_note,omitempty"`
 	InitModel           string `json:"init_model,omitempty"`
 
 	interrupted bool // stopped by a signal to bench: no receipt is written for it
@@ -268,6 +272,9 @@ func Run(o RunOptions) (err error) {
 	}
 	if err := resolvePins(&o); err != nil {
 		return err
+	}
+	if o.KeepStateFile != "" && !runsMrw(o) {
+		return errors.New("--keep-state-file needs a configuration that carries mrw: only its attempts have a state home")
 	}
 	if o.Budget == 0 {
 		o.Budget = DefaultBudget
@@ -434,6 +441,9 @@ func Run(o RunOptions) (err error) {
 				if !readsBack(p, r, at.ID, at.Task.ID, at.Config.Name, at.Model, at.Repeat) {
 					return fmt.Errorf("%s.receipt.json does not read back as attempt %s%s", at.ID, at.ID, hashNote(p, r, at.Config.Name))
 				}
+				if why := keptProblem(p, outDir(o, at.Config), r); why != "" {
+					return fmt.Errorf("%s.receipt.json: %s", at.ID, why)
+				}
 			case exists(base + ".started"):
 				r.Exclusion = "" // started and never finished: neither it nor a replacement runs
 			default:
@@ -491,6 +501,11 @@ func Run(o RunOptions) (err error) {
 			return err
 		}
 		image = ""
+	}
+	// The last attempt's cost counts too: a run that spent its figure on the
+	// last attempt says so, and is not reported as a completed run under it.
+	if err := spendStop(o); err != nil {
+		return err
 	}
 	return nil
 }
@@ -700,7 +715,7 @@ func Verify(dir, stage string, tasks, repeats int) error {
 						missing = append(missing, id+" (its receipt does not read back as this attempt"+hashNote(p, r, c)+")")
 						continue
 					}
-					if why := keptProblem(p, arm.dir, r); why != "" {
+					if why := receiptProblem(p, arm.dir, r); why != "" {
 						missing = append(missing, id+" ("+why+")")
 						continue
 					}
@@ -714,7 +729,7 @@ func Verify(dir, stage string, tasks, repeats int) error {
 							missing = append(missing, next+" (the replacement an excluded attempt is owed"+hashNote(p, r, c)+")")
 							break
 						}
-						if why := keptProblem(p, arm.dir, r); why != "" {
+						if why := receiptProblem(p, arm.dir, r); why != "" {
 							missing = append(missing, next+" ("+why+")")
 							break
 						}
@@ -754,6 +769,7 @@ func checkCanary(path, cli string, o RunOptions) error {
 
 		MrwSHA256             string `json:"mrw_sha256"`
 		MrwInstructionsSHA256 string `json:"mrw_instructions_sha256"`
+		Model                 string `json:"model"`
 	}
 	if err := json.Unmarshal(b, &c); err != nil {
 		return fmt.Errorf("canary %s: %w", path, err)
@@ -761,13 +777,20 @@ func checkCanary(path, cli string, o RunOptions) error {
 	if !c.Pass || c.CLIVersion != cli {
 		return fmt.Errorf("canary %s: pass %v for CLI %q; this CLI is %q, and a stage needs a passing canary for it", path, c.Pass, c.CLIVersion, cli)
 	}
-	// A run that pins is judged on a canary of the same bytes and the same
-	// instructions (ADR-206 Decision 2); one that pins nothing takes either.
+	// A run that pins is judged on a canary made with the same bytes, the same
+	// instruction source (a file, or none: the binary's own) and the model it
+	// runs (ADR-206 Decision 2); one that pins nothing takes either build.
+	pins := o.mrwSHA != "" || o.instrSHA != ""
 	if o.mrwSHA != "" && c.MrwSHA256 != o.mrwSHA {
 		return fmt.Errorf("canary %s ran mrw %q; this run pins %s", path, c.MrwSHA256, o.mrwSHA)
 	}
-	if o.instrSHA != "" && c.MrwInstructionsSHA256 != o.instrSHA {
-		return fmt.Errorf("canary %s was given instructions %q; this run pins %s", path, c.MrwInstructionsSHA256, o.instrSHA)
+	if pins && c.MrwInstructionsSHA256 != o.instrSHA {
+		return fmt.Errorf("canary %s was given instructions %q; this run's are %q (none: the binary's own)", path, c.MrwInstructionsSHA256, o.instrSHA)
+	}
+	for _, m := range o.Models {
+		if (pins || c.Model != "") && c.Model != m {
+			return fmt.Errorf("canary %s is for model %q; this run is for %q", path, c.Model, m)
+		}
 	}
 	// A profiled stage needs a canary that ran under the profile, tested each
 	// of its configurations and loaded its plugin (ADR-162 Decision 2; the
@@ -1022,6 +1045,13 @@ func runAttempt(o RunOptions, a attempt, order int, cli, mrwVersion string) (r R
 	} else if runErr != nil {
 		r.ExitCode = -1
 	}
+	// ADR-206 Decisions 2 and 5: what the attempt ran and left, taken now, before
+	// anything grades the tree or reads the transcript, so no later step can
+	// change it or lose it.
+	if a.Config.Mrw {
+		r.MrwSHA256After = o.mrwAfter(scratch)
+	}
+	o.keep(&r, scratch, tree, baseSHA, base)
 	b, err := os.ReadFile(base + ".transcript.jsonl")
 	if err != nil {
 		r.Exclusion, r.Note = ExclusionSetup, err.Error()
@@ -1054,13 +1084,6 @@ func runAttempt(o RunOptions, a attempt, order int, cli, mrwVersion string) (r R
 			r.Exclusion, r.Note = ExclusionSetup, "hook files: "+err.Error()
 		}
 	}
-	// ADR-206 Decision 5: what the attempt left, taken before grading and
-	// before the scratch is removed.
-	if o.KeepStateFile != "" {
-		if r.KeptStateFileSHA256, err = keepStateFile(filepath.Join(scratch, "state"), o.KeepStateFile, base); err != nil {
-			r.Exclusion, r.Note = ExclusionSetup, "kept state file: "+err.Error()
-		}
-	}
 	var v Verdict
 	if a.Task.swe != nil {
 		v, err = o.SWE.grade(a.Task, tree, scratch, a.ID)
@@ -1084,11 +1107,6 @@ func runAttempt(o RunOptions, a attempt, order int, cli, mrwVersion string) (r R
 	r.SilentMisEdit = !r.IsError && (len(v.Outside) > 0 || len(v.Structure) > 0)
 	if r.Diff, err = diffStat(tree); err != nil {
 		r.Note = "diffstat: " + err.Error()
-	}
-	if o.KeepDiff {
-		if r.KeptDiffSHA256, err = keepDiff(tree, baseSHA, base); err != nil {
-			r.Exclusion, r.Note = ExclusionSetup, "kept diff: "+err.Error()
-		}
 	}
 	if a.Config.Mrw {
 		r.HookRefused, r.HookReads = hookCounts(filepath.Join(scratch, "hook.log"))
@@ -1266,7 +1284,7 @@ func invocation(o RunOptions, a attempt, scratch string) ([]string, []string, er
 			return nil, nil, err
 		}
 		path = bin + ":" + path
-		text, err := o.instructions()
+		text, err := o.instructions(filepath.Join(bin, "mrw"))
 		if err != nil {
 			return nil, nil, err
 		}

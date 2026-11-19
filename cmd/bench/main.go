@@ -99,11 +99,16 @@ func main() {
 		os.Exit(2)
 	}
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "bench:", err)
-		// A run stopped at a boundary is resumable, not failed (ADR-162); one
-		// stopped on its recorded spend exits with a status of its own (ADR-206).
-		os.Exit(bench.ExitCode(err))
+		os.Exit(report(err, os.Stderr))
 	}
+}
+
+// report prints err and returns the status bench exits with. A run stopped at a
+// boundary is resumable, not failed (ADR-162); one stopped on its recorded
+// spend exits with a status of its own (ADR-206).
+func report(err error, w io.Writer) int {
+	fmt.Fprintln(w, "bench:", err)
+	return bench.ExitCode(err)
 }
 
 // hookCmd is bench hook: the Bash hook of configurations B and H, H's with
@@ -170,7 +175,11 @@ func runPinFlags(fs *flag.FlagSet, o *bench.RunOptions) {
 	fs.Float64Var(&o.MaxSpend, "max-spend", 0, "ADR-206: stop, with exit status 3, once the receipts record this many USD, or three of them record no cost; part of the plan, so it cannot be raised for the directory; 0 for no stop")
 }
 
-func run(args []string) error {
+func run(args []string) error { return runWith(args, bench.Run) }
+
+// runWith is bench run with the stage's start given, so a test sees what the
+// flags made of the options without starting one.
+func runWith(args []string, start func(bench.RunOptions) error) error {
 	fs, o, models, tasksDir := stageFlags("run")
 	var only multi
 	fs.StringVar(&o.Stage, "stage", "", "the stage's name")
@@ -247,7 +256,7 @@ func run(args []string) error {
 	if o.Bench, err = os.Executable(); err != nil {
 		return err
 	}
-	return bench.Run(*o)
+	return start(*o)
 }
 
 // baseline runs each selected instance's declared check once on the

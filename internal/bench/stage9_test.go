@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 // pinRig is the runner tests' fixture task run by a fake agent that does what
@@ -52,9 +53,15 @@ func newPinRig(t *testing.T, configs []string, repeats int) *pinRig {
 	mrw := []byte(fmt.Sprintf(pinMrw, dir))
 	r.sha = hashOf(mrw)
 	for p, b := range map[string][]byte{r.live: mrw, filepath.Join(dir, "evil"): []byte(evilMrw)} {
-		if err := os.WriteFile(p, b, 0o755); err != nil {
+		if err := os.WriteFile(p, b, 0o644); err != nil {
 			t.Fatal(err)
 		}
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "secret", "mrw"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "secret", "mrw", "x.jsonl"), []byte("secret\n"), 0o644); err != nil {
+		t.Fatal(err)
 	}
 	patch := filepath.Join(opts.Tasks[0].Dir, "reference.patch")
 	script := `#!/bin/sh
@@ -73,12 +80,19 @@ cp "$settings" "$D/settings.$n"
 m=$(command -v mrw || true)
 if [ -n "$m" ]; then
 	cp "$m" "$D/ranmrw.$n"
+	"$m" version > "$D/ranout.$n"
 	[ -f "$D/writestate" ] && mrw writestate
+	[ -f "$D/big" ] && dd if=/dev/zero bs=1048576 count=17 > "$XDG_STATE_HOME/mrw/x.jsonl" 2>/dev/null
+	[ -f "$D/linkstate" ] && { rm -rf "$XDG_STATE_HOME"; ln -s "$D/secret" "$XDG_STATE_HOME"; }
+	[ -f "$D/linkfile" ] && { rm -f "$XDG_STATE_HOME/mrw/x.jsonl"; ln -s "$D/secret/mrw/x.jsonl" "$XDG_STATE_HOME/mrw/x.jsonl"; }
 	[ -f "$D/replace" ] && [ "$n" = 1 ] && cp "$D/evil" "` + r.live + `"
+	[ -f "$D/tamper" ] && cp "$D/evil" "$m"
 fi
 git apply "` + patch + `" >/dev/null 2>&1
 [ -f "$D/commit" ] && git -c user.name=t -c user.email=t@t commit -qam change
 [ -f "$D/untracked" ] && echo hi > created.txt
+[ -f "$D/bigdiff" ] && dd if=/dev/zero bs=1048576 count=17 2>/dev/null | tr '\0' a > big.txt
+[ -f "$D/hang" ] && sleep 30
 printf '{"type":"system","subtype":"init","model":"stub-model","tools":["%s"],"mcp_servers":[]}\n' "$(printf '%s' "$tools" | sed 's/,/","/g')"
 printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"ls"}}]}}'
 cost=0.25; [ -f "$D/costs" ] && cost=$(sed -n "${n}p" "$D/costs")
@@ -99,8 +113,18 @@ printf '{"type":"result","subtype":"success","is_error":false,"num_turns":2,"dur
 // the pinned mrw, and with the instruction file whose hash is given.
 func (r *pinRig) writeCanary(t *testing.T, instrSHA string) {
 	t.Helper()
-	body := fmt.Sprintf(`{"pass":true,"cli_version":"9.9.9 (Claude Code)","mrw_sha256":%q,"mrw_instructions_sha256":%q}`, r.sha, instrSHA)
+	body := fmt.Sprintf(`{"pass":true,"cli_version":"9.9.9 (Claude Code)","model":"stub-model","mrw_sha256":%q,"mrw_instructions_sha256":%q}`, r.sha, instrSHA)
 	if err := os.WriteFile(r.opts.Canary, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// unpin turns the run into one that pins nothing: it then runs the file at
+// --mrw itself, so the file must be executable, which a pinned rig's is not.
+func (r *pinRig) unpin(t *testing.T) {
+	t.Helper()
+	r.opts.MrwSHA256 = ""
+	if err := os.Chmod(r.live, 0o755); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -204,11 +228,19 @@ func TestARunPinsItsMrwItsInstructionsAndItsSpend(t *testing.T) {
 				t.Errorf("%s: mrw_sha256 %q, want %s", id, r.MrwSHA256, rig.sha)
 			}
 		}
+		for n := 1; n <= 2; n++ {
+			if out, err := os.ReadFile(filepath.Join(rig.dir, fmt.Sprintf("ranout.%d", n))); err != nil || string(out) != "mrw pin one\n" {
+				t.Errorf("run %d: the PATH mrw printed %q (%v) for `version`, want the pinned bytes' output", n, out, err)
+			}
+			if pr, err := os.ReadFile(filepath.Join(rig.dir, fmt.Sprintf("prompt.%d", n))); err != nil || !bytes.Contains(pr, []byte("the binary instructions")) {
+				t.Errorf("run %d: the prompt is %q (%v), want what the pinned bytes' `instructions` print: the file at --mrw is not executable", n, pr, err)
+			}
+		}
 	})
 
 	t.Run("a run without the pin records no mrw hash", func(t *testing.T) {
 		rig := newPinRig(t, []string{"A", "B"}, 1)
-		rig.opts.MrwSHA256 = ""
+		rig.unpin(t)
 		if err := Run(rig.opts); err != nil {
 			t.Fatal(err)
 		}
@@ -497,9 +529,11 @@ func TestARunPinsItsMrwItsInstructionsAndItsSpend(t *testing.T) {
 		if err := os.WriteFile(instr, []byte("frozen\n"), 0o644); err != nil {
 			t.Fatal(err)
 		}
-		canary := func(mrw, in string) string {
-			p := filepath.Join(rig.dir, "canary-"+mrw[:4]+in[:4]+".json")
-			body := fmt.Sprintf(`{"pass":true,"cli_version":"9.9.9 (Claude Code)","mrw_sha256":%q,"mrw_instructions_sha256":%q}`, mrw, in)
+		n := 0
+		canary := func(mrw, in, model string) string {
+			n++
+			p := filepath.Join(rig.dir, fmt.Sprintf("canary-%d.json", n))
+			body := fmt.Sprintf(`{"pass":true,"cli_version":"9.9.9 (Claude Code)","model":%q,"mrw_sha256":%q,"mrw_instructions_sha256":%q}`, model, mrw, in)
 			if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
 				t.Fatal(err)
 			}
@@ -511,6 +545,9 @@ func TestARunPinsItsMrwItsInstructionsAndItsSpend(t *testing.T) {
 			o := rig.opts
 			o.Canary, o.Out = canaryFile, filepath.Join(rig.dir, "out-"+name)
 			if !pin {
+				if err := os.Chmod(rig.live, 0o755); err != nil {
+					t.Fatal(err)
+				}
 				o.MrwSHA256 = ""
 			}
 			if ins {
@@ -518,24 +555,33 @@ func TestARunPinsItsMrwItsInstructionsAndItsSpend(t *testing.T) {
 			}
 			return Run(o)
 		}
-		if err := run("same", canary(rig.sha, insSHA), true, true); err != nil {
+		refused := func(name, why string, err error) {
+			t.Helper()
+			if err == nil || !strings.Contains(err.Error(), "canary") {
+				t.Errorf("%s: %v, want the canary refused", why, err)
+			}
+		}
+		if err := run("same", canary(rig.sha, insSHA, "stub-model"), true, true); err != nil {
 			t.Errorf("a canary with this run's hashes: %v", err)
 		}
-		if err := run("mrw", canary(other, insSHA), true, true); err == nil || !strings.Contains(err.Error(), "canary") {
-			t.Errorf("a canary of another mrw: %v, want it refused", err)
-		}
-		if err := run("ins", canary(rig.sha, other), true, true); err == nil || !strings.Contains(err.Error(), "canary") {
-			t.Errorf("a canary of other instructions: %v, want it refused", err)
-		}
+		refused("mrw", "a canary of another mrw", run("mrw", canary(other, insSHA, "stub-model"), true, true))
+		refused("ins", "a canary of other instructions", run("ins", canary(rig.sha, other, "stub-model"), true, true))
+		// The instruction source counts both ways: a file, or the binary's own.
+		refused("fromfile", "a canary made with an instruction file, for a run whose instructions are the binary's", run("fromfile", canary(rig.sha, insSHA, "stub-model"), true, false))
+		refused("frombin", "a canary made with the binary's instructions, for a run given a file", run("frombin", canary(rig.sha, "", "stub-model"), true, true))
+		refused("model", "a canary of another model", run("model", canary(rig.sha, insSHA, "another-model"), true, true))
+		refused("nomodel", "a pinning run on a canary that names no model", run("nomodel", canary(rig.sha, insSHA, ""), true, true))
 		noHash := filepath.Join(rig.dir, "canary-nohash.json")
-		if err := os.WriteFile(noHash, []byte(`{"pass":true,"cli_version":"9.9.9 (Claude Code)"}`), 0o644); err != nil {
+		if err := os.WriteFile(noHash, []byte(`{"pass":true,"cli_version":"9.9.9 (Claude Code)","model":"stub-model"}`), 0o644); err != nil {
 			t.Fatal(err)
 		}
-		if err := run("old", noHash, true, false); err == nil || !strings.Contains(err.Error(), "canary") {
-			t.Errorf("a pinning run on a canary that recorded no hash: %v, want it refused", err)
-		}
-		if err := run("free", canary(other, insSHA), false, false); err != nil {
+		refused("old", "a pinning run on a canary that recorded no hash", run("old", noHash, true, false))
+		refused("freemodel", "a run that pins nothing, on a canary of another model", run("freemodel", canary(other, insSHA, "another-model"), false, false))
+		if err := run("free", canary(other, insSHA, "stub-model"), false, false); err != nil {
 			t.Errorf("a run that pins nothing, on a canary of either build: %v", err)
+		}
+		if err := run("freeold", noHash, false, false); err != nil {
+			t.Errorf("a run that pins nothing, on a canary that recorded no hash and no model: %v", err)
 		}
 		// RunCanary records what it ran.
 		co := rig.opts
@@ -551,6 +597,157 @@ func TestARunPinsItsMrwItsInstructionsAndItsSpend(t *testing.T) {
 		o.Canary, o.Out, o.MrwInstructions = filepath.Join(co.Out, "canary.json"), filepath.Join(rig.dir, "out-recorded"), instr
 		if err := Run(o); err != nil {
 			t.Errorf("a run on the canary RunCanary wrote for the same pins: %v", err)
+		}
+	})
+
+	t.Run("a state home that is a link keeps nothing", func(t *testing.T) {
+		for _, c := range []struct{ flag, want string }{{"linkstate", "state home"}, {"linkfile", "regular"}} {
+			rig := newPinRig(t, []string{"B"}, 1)
+			rig.flag(t, "writestate")
+			rig.flag(t, c.flag)
+			rig.opts.KeepStateFile = rig.kept
+			if err := Run(rig.opts); err != nil {
+				t.Fatal(err)
+			}
+			if got, err := os.ReadFile(filepath.Join(rig.opts.Out, b1+".kept")); err == nil {
+				t.Errorf("%s: %q was kept through the link", c.flag, got)
+			}
+			if r := readReceipt(t, rig.opts.Out, b1); r.KeptStateFileSHA256 != "" || !strings.Contains(r.KeptNote, c.want) {
+				t.Errorf("%s: the receipt names %q and the note %q, want nothing kept and a note naming %q", c.flag, r.KeptStateFileSHA256, r.KeptNote, c.want)
+			}
+			if err := Verify(rig.opts.Out, "test", 1, 1); err != nil {
+				t.Errorf("%s: a refused keep, noted, does not verify: %v", c.flag, err)
+			}
+		}
+	})
+
+	t.Run("an attempt that rewrote its mrw is recorded", func(t *testing.T) {
+		rig := newPinRig(t, []string{"B"}, 1)
+		rig.flag(t, "tamper")
+		if err := Run(rig.opts); err != nil {
+			t.Fatal(err)
+		}
+		if r := readReceipt(t, rig.opts.Out, b1); r.MrwSHA256After != hashOf([]byte(evilMrw)) {
+			t.Errorf("mrw_sha256_after %q, want the hash of what bin/mrw became", r.MrwSHA256After)
+		}
+		if err := Verify(rig.opts.Out, "test", 1, 1); err == nil || !strings.Contains(err.Error(), b1) || !strings.Contains(err.Error(), "after the attempt") {
+			t.Errorf("verify over an attempt that rewrote its mrw: %v, want it to name %s", err, b1)
+		}
+	})
+
+	t.Run("resume and verify want the kept files their receipts name", func(t *testing.T) {
+		rig := newPinRig(t, []string{"B"}, 1)
+		rig.flag(t, "commit")
+		rig.opts.KeepDiff = true
+		if err := Run(rig.opts); err != nil {
+			t.Fatal(err)
+		}
+		path := filepath.Join(rig.opts.Out, b1+".diff")
+		orig, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, append(orig, "tampered\n"...), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := Run(rig.opts); err == nil || !strings.Contains(err.Error(), b1) {
+			t.Errorf("a resume over an altered kept diff: %v, want it refused, naming %s", err, b1)
+		}
+		if err := os.WriteFile(path, orig, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := Run(rig.opts); err != nil {
+			t.Errorf("a resume over an intact kept diff: %v", err)
+		}
+		// A receipt that names no diff, and says why not, is not an attempt that kept one.
+		rp := filepath.Join(rig.opts.Out, b1+".receipt.json")
+		m := fileMap(t, rp)
+		delete(m, "kept_diff_sha256")
+		b, _ := json.MarshalIndent(m, "", "  ")
+		if err := os.WriteFile(rp, b, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Remove(path); err != nil {
+			t.Fatal(err)
+		}
+		if err := Verify(rig.opts.Out, "test", 1, 1); err == nil || !strings.Contains(err.Error(), b1) || !strings.Contains(err.Error(), "no kept diff") {
+			t.Errorf("verify over a graded attempt with no diff and no reason: %v, want it to name %s", err, b1)
+		}
+		if err := Run(rig.opts); err == nil || !strings.Contains(err.Error(), b1) {
+			t.Errorf("a resume over a graded attempt with no diff and no reason: %v, want it refused, naming %s", err, b1)
+		}
+	})
+
+	t.Run("the diff is taken before grading and survives a timeout", func(t *testing.T) {
+		plain := newPinRig(t, []string{"B"}, 1)
+		plain.flag(t, "commit")
+		plain.flag(t, "untracked")
+		if err := Run(plain.opts); err != nil {
+			t.Fatal(err)
+		}
+		kept := newPinRig(t, []string{"B"}, 1)
+		kept.flag(t, "commit")
+		kept.flag(t, "untracked")
+		kept.opts.KeepDiff = true
+		if err := Run(kept.opts); err != nil {
+			t.Fatal(err)
+		}
+		r0, r1 := readReceipt(t, plain.opts.Out, b1), readReceipt(t, kept.opts.Out, b1)
+		if !reflect.DeepEqual(r0.Oracle, r1.Oracle) || !reflect.DeepEqual(r0.Diff, r1.Diff) || len(r1.Oracle.Outside) == 0 {
+			t.Errorf("keeping the diff changed the grading: %+v %+v against %+v %+v (want the created file outside in both)", r1.Oracle, r1.Diff, r0.Oracle, r0.Diff)
+		}
+		hang := newPinRig(t, []string{"B"}, 1)
+		hang.flag(t, "commit")
+		hang.flag(t, "hang")
+		hang.opts.KeepDiff, hang.opts.Budget = true, 3*time.Second
+		if err := Run(hang.opts); err != nil {
+			t.Fatal(err)
+		}
+		r := readReceipt(t, hang.opts.Out, b1)
+		got, err := os.ReadFile(filepath.Join(hang.opts.Out, b1+".diff"))
+		if !r.TimedOut || err != nil || !strings.Contains(string(got), "+gamma") || r.KeptDiffSHA256 != hashOf(got) {
+			t.Errorf("a timed-out attempt: timed out %v, diff %q (%v), want its diff kept all the same", r.TimedOut, got, err)
+		}
+	})
+
+	t.Run("what is kept is bounded", func(t *testing.T) {
+		rig := newPinRig(t, []string{"B"}, 1)
+		rig.flag(t, "writestate")
+		rig.flag(t, "big")
+		rig.flag(t, "bigdiff")
+		rig.opts.KeepStateFile, rig.opts.KeepDiff = rig.kept, true
+		if err := Run(rig.opts); err != nil {
+			t.Fatal(err)
+		}
+		for _, ext := range []string{".kept", ".diff"} {
+			if fi, err := os.Stat(filepath.Join(rig.opts.Out, b1+ext)); err == nil {
+				t.Errorf("a %s file of %d bytes was kept over the bound", ext, fi.Size())
+			}
+		}
+		r := readReceipt(t, rig.opts.Out, b1)
+		if r.KeptStateFileSHA256 != "" || r.KeptDiffSHA256 != "" || strings.Count(r.KeptNote, "bound") < 2 {
+			t.Errorf("the receipt names %q and %q with note %q, want nothing kept and the bound named twice", r.KeptStateFileSHA256, r.KeptDiffSHA256, r.KeptNote)
+		}
+		if err := Verify(rig.opts.Out, "test", 1, 1); err != nil {
+			t.Errorf("an attempt that kept nothing and said why does not verify: %v", err)
+		}
+	})
+
+	t.Run("the stop counts the last attempt and compares in cents", func(t *testing.T) {
+		rig := newPinRig(t, []string{"B"}, 2)
+		rig.costs(t, "0.10", "0.70")
+		rig.opts.MaxSpend = 0.80
+		if err := Run(rig.opts); !errors.Is(err, ErrSpendStop) {
+			t.Errorf("0.10 and 0.70 against a figure of 0.80, the last attempt reaching it: %v, want ErrSpendStop", err)
+		}
+		if n := len(receipts(t, rig.opts.Out)); n != 2 {
+			t.Errorf("%d receipts, want both attempts", n)
+		}
+		under := newPinRig(t, []string{"B"}, 2)
+		under.costs(t, "0.10", "0.60")
+		under.opts.MaxSpend = 0.80
+		if err := Run(under.opts); err != nil {
+			t.Errorf("a run that ends under its figure: %v", err)
 		}
 	})
 
