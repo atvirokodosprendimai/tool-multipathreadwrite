@@ -77,6 +77,8 @@ go test -count=1 -v ./internal/bench -run '^TestArmNDiffersFromMInOneRefusal$' >
   the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
   ```
 - 2026-11-19 · e83e4009* · mutant killed · exit 1 · `bench/stage-9/no-refusal.patch` · a hunk of a file that did not land is reported as exposed · acceptance-sha256:94538eb3982f5b9d8d0351bcef625182684bb38901f8c97b6a02782aadb1cde3 · covers:a dry run and a refused plan log nothing
+- 2026-11-19 · c3604110 · mutant killed · exit 1 · `bench/stage-9/builds.md, bench/stage-9/no-refusal.patch` · N logs nothing (the platform pin moved aside so the behaviour assertions run) · acceptance-sha256:90b8e67864f72d49cf57e2a9b9973c7f4d01f37159b0418ba60c1ad1d74ba094 · covers:N logs one object per exposed landed hunk
+- 2026-11-19 · c3604110* · mutant killed · exit 1 · `bench/stage-9/builds.md` · builds.md records a hash the build does not produce · acceptance-sha256:90b8e67864f72d49cf57e2a9b9973c7f4d01f37159b0418ba60c1ad1d74ba094 · covers:N says what M says
 
 ## Verification Log
 - 2026-11-19 · e83e4009* · exit 1 · `set -o pipefail …` · acceptance-sha256:94538eb3982f5b9d8d0351bcef625182684bb38901f8c97b6a02782aadb1cde3 · ms:993 · test-lock-sha256:2d3c35b74823626e45b8c1983c21a73559091c190e2412494f5db530ee7e2ba5 · test-lock-file:docs/adr/locks/2d3c35b74823626e45b8c1983c21a73559091c190e2412494f5db530ee7e2ba5.lock
@@ -92,6 +94,8 @@ go test -count=1 -v ./internal/bench -run '^TestArmNDiffersFromMInOneRefusal$' >
 - 2026-11-19 · e83e4009* · exit 0 · `set -o pipefail …` · acceptance-sha256:94538eb3982f5b9d8d0351bcef625182684bb38901f8c97b6a02782aadb1cde3 · ms:3575
 - 2026-11-19 · 2ec60d27* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:90b8e67864f72d49cf57e2a9b9973c7f4d01f37159b0418ba60c1ad1d74ba094 · ms:0 · test-lock-sha256:60aa3a98558132f91610e3e1b325ed8e3797ea62dec7a7037b1c88f951602a32 · test-lock-file:docs/adr/locks/60aa3a98558132f91610e3e1b325ed8e3797ea62dec7a7037b1c88f951602a32.lock · test-lock-kind:replace
 - 2026-11-19 · 2ec60d27* · exit 0 · `set -o pipefail …` · acceptance-sha256:90b8e67864f72d49cf57e2a9b9973c7f4d01f37159b0418ba60c1ad1d74ba094 · ms:7284
+- 2026-11-19 · c3604110 · exit 0 · `set -o pipefail …` · acceptance-sha256:90b8e67864f72d49cf57e2a9b9973c7f4d01f37159b0418ba60c1ad1d74ba094 · ms:4594
+- 2026-11-19 · c3604110* · exit 0 · `set -o pipefail …` · acceptance-sha256:90b8e67864f72d49cf57e2a9b9973c7f4d01f37159b0418ba60c1ad1d74ba094 · ms:3881
 
 ## Invariants
 
