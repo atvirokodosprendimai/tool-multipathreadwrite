@@ -4,6 +4,19 @@
 **Owner's decisions so far (Zy, 2026-11-19):** the scope, on being asked whether an undo should work "only in parent repo" or on "whatever the agent touched": *"ok, re proposal on mrw - agreed"*, then *"good, go on with mrw undo"* (only what mrw itself wrote; one write call; per checkout; no dependence on git; refused unless every file still holds what that write left; before-images kept in mrw's state, outside the tree; checks, steps and other tools not undone), and that it goes to a record; Zy had been told of E6's STOP first. And the depth, after the design review below: *"option 1, keep only the last write"*. Everything else here (where the copy is kept and when it is refused, the size limit, links and metadata, the ledger after an undo, the exit codes, the receipt, the reading) is the drafter's and waits for Zy with this record.
 **Date:** 2026-11-19
 **Rewritten:** 2026-11-19, before any code, after a design review (Codex gpt-6.2-astra at xhigh, read-only on `1b889800`: REJECT of a first draft that kept sixteen writes). Its findings were checked against the code and are built into the Decision; History, below, says what the first draft got wrong.
+**Second challenge, 2026-11-19, of this rewrite, before any code** (Codex gpt-6.2-sol at xhigh, read-only on `6ef83207`): **REJECT.** The Decision below is not ready to build. What it found, each against the code:
+- *Confinement is still missing.* `rooted.Resolve` returns a string; a restore that checks a path and reopens it by name can act on another entry. The restore needs handle-relative validation, staging and commit under the invocation root, with the `.git`, own-state, hard-link and Windows-name guards at the point of use.
+- *An interrupted undo can run again.* The entry is consumed only after the restore; a process killed after the first move leaves it eligible. It has to leave the eligible slot before the first move and be rearmed only after a clean failure.
+- *The clear sits at a boundary `applyCounted` cannot see.* Apply returns on a refusal before staging and can still refuse after it; clearing before `Apply` loses a good copy on a refusal, clearing after leaves a stale one if the process dies mid-commit. It needs a hook inside apply, after the last refusal and before the first mutation.
+- *"The last write of the checkout" is more than the protocol proves.* An older mrw, or a writer with another `XDG_STATE_HOME`, does not clear the slot.
+- *The privacy test does not establish a private store*: an existing directory is not tightened by `MkdirAll`, and a path under a Windows profile is not an ACL check.
+- *The capture cannot come from today's validation read as it is*: it returns split text and drops the handle's metadata; path operations act on the literal leaf while the read follows links.
+- *The hard-link, directory and permission rules lack evidence*: nothing records a link count, who created a directory, or which permission bits count.
+- *`seen.Record` does not give Decision 9's verdicts*: a same-sha merge can keep shown lines or a whole read, and pending MCP acknowledgements can become usable again.
+- *Receipts, exit causes, the tasks' fences and the reading* are under-specified in the ways its findings 9 and 11 to 13 list.
+- The claim above that both first reviews are "built into the Decision" is stronger than the record supports.
+
+**Where this leaves the record.** Two designs, two rejections, each for real hazards. A safe undo of everything a plan can do (links, renames, hard-linked names, case-only renames, Windows attributes) is a large piece of engine work, against a measurement that found it rarely needed. The options are put to Zy in the pull request; nothing is built meanwhile.
 **Owner:** Zy
 **Spec:** None — no spec stage
 **Cross-references:** ADR-001, ADR-004, ADR-005, ADR-007, ADR-034, ADR-066, ADR-071, ADR-075, ADR-076, ADR-077, ADR-111, ADR-125, ADR-129, ADR-132, ADR-134, ADR-143, ADR-161, ADR-190, ADR-203
