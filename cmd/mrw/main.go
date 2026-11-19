@@ -967,6 +967,10 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				Name:  "grep",
 				Usage: "serve every range matching `PATTERN` in the files under the given paths (a directory is walked)",
 			},
+			&cli.BoolFlag{
+				Name:  "invert",
+				Usage: "with --grep, serve the lines that do not match, numbered as in the input and with no line after a run: `cmd | mrw read --grep PATTERN --invert -`. Standard input only; a read of files serves the lines that match, and only --max-lines, --max-cols, --max-chars, --fold and -N may stand beside it (ADR-202)",
+			},
 			&cli.StringFlag{
 				Name:  "sub",
 				Usage: "with --grep, print a PLAN instead of lines: each matching line rewritten by `REPLACEMENT` (Go regexp: $1 and ${name} expand, $$ is a literal dollar, and a reference to a group the pattern does not define is refused), one replace hunk per line that changes, and license exactly those lines. Pipe it to `mrw write -`, or use `mrw write --grep P --sub R`. Not with -C, --count, --stat, --max-cols, --max-lines, -N, --files-from or --ast-grep (ADR-161)",
@@ -1074,6 +1078,9 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				if msg := readFlagPatternRefusal(cmd.Flags, pattern); msg != "" {
 					return cli.Exit(msg, exitUsage)
 				}
+			}
+			if msg := invertRefusal(cmd, grepSet, cmd.Args().Slice()); msg != "" {
+				return cli.Exit(msg, exitUsage)
 			}
 
 			// An empty value is accepted or refused explicitly rather than
