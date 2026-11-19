@@ -1,0 +1,14 @@
+check@2	1bb497e3e13a1105cf24e3359fa3ef75de08b66ff8a2839cd7f9ea97824d9eb3
+body	internal/bench/stage9_test.go	TestARunPinsItsMrwItsInstructionsAndItsSpend	5331634268ede9b16d18b2a8e3390933a77dee55d295839217ce4a2b249ab4d9
+body	internal/bench/stage9_test.go	a canary with other hashes is refused	c1d8a5383dbc996661b2f6ed9e181dba70ff54806bfd15d44bbb6b9703e347c7
+body	internal/bench/stage9_test.go	a missing cost is not zero	62312efb314f5d6fc2d28ebda89836009ea51f9fe898fd0757e0ee1c091e064c
+body	internal/bench/stage9_test.go	a receipt with another hash fails resume and verify	0a053bd5f299a1af787d432625451f205ebf14ee7ec788dbe2aad2ad4664ae23
+body	internal/bench/stage9_test.go	a run without the flags is unchanged	760511ebdf13548861bb1e65051080ba7ecbada8089e43949d9f0171af895c02
+body	internal/bench/stage9_test.go	a run without the pin records no mrw hash	b703232111c0245903e467bf6f18d10d155d43f8f7e86ebe109333373c21c32a
+body	internal/bench/stage9_test.go	a wrong hash refuses the run	efb7f9aec6ebbf5eff88db3fd2b60b00e74d74064fe33cf99b4d01d7a3376789
+body	internal/bench/stage9_test.go	an altered kept file fails verify	6e0582567c5a6da2a64e7fb70477b322c2c3ddd9255e0d32b76e98901b619c72
+body	internal/bench/stage9_test.go	configuration H with the pin runs the pinned bytes in its hook	5ac65ec4a93dc27eff4585ffb925b45c5acbefb770187269ccaa9537b6973043
+body	internal/bench/stage9_test.go	the attempt runs the pinned bytes	c2e15b70afab6b6a2ad87f3601079d01684a340520dfc36d2b70acaf04a5de1a
+body	internal/bench/stage9_test.go	the diff is kept	bd09766c87aad0a7cb0d0ce197105d1f2ade296ad2f3304cb6ff5bf2b23248f4
+body	internal/bench/stage9_test.go	the kept file is beside the receipt	7a89f5ab12c0fd4f9ce7d29be5520c3877b327ee9f9f145ebfe981932b376964
+body	internal/bench/stage9_test.go	the run stops on known spend	1130e5d08338821e642e6fe3d2442174e51ec17aca7f5a79327e278ad6a51e6a

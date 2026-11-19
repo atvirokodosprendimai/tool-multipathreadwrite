@@ -70,8 +70,35 @@ go test -count=1 -v ./internal/bench -run '^TestARunPinsItsMrwItsInstructionsAnd
 | 4 — it is used | T5's smoke and T6 |
 
 ## Mutation Log
+- 2026-11-19 · 60cc65b3* · mutant killed · exit 1 · `internal/bench/pins.go` · the hash is not compared · acceptance-sha256:e8f90d075a9899320009b7b65c1f84d479bb79ca03aeca44d914c83b2cfea75b · covers:a wrong hash refuses the run
+- 2026-11-19 · 60cc65b3* · mutant killed · exit 1 · `internal/bench/pins.go` · the attempt links the live path · acceptance-sha256:e8f90d075a9899320009b7b65c1f84d479bb79ca03aeca44d914c83b2cfea75b · covers:the attempt runs the pinned bytes
+- 2026-11-19 · 60cc65b3* · mutant killed · exit 1 · `internal/bench/pins.go` · the binary runs its own instructions · acceptance-sha256:e8f90d075a9899320009b7b65c1f84d479bb79ca03aeca44d914c83b2cfea75b · covers:the instructions are the file's
+- 2026-11-19 · 60cc65b3* · mutant killed · exit 1 · `internal/bench/pins.go` · a null cost counts as zero · acceptance-sha256:e8f90d075a9899320009b7b65c1f84d479bb79ca03aeca44d914c83b2cfea75b · covers:a missing cost is not zero
+- 2026-11-19 · 60cc65b3* · mutant killed · exit 1 · `internal/bench/pins.go` · the stop never fires on spend · acceptance-sha256:e8f90d075a9899320009b7b65c1f84d479bb79ca03aeca44d914c83b2cfea75b · covers:the run stops on known spend
+- 2026-11-19 · 60cc65b3* · mutant killed · exit 1 · `internal/bench/pins.go` · verify ignores an altered kept file · acceptance-sha256:e8f90d075a9899320009b7b65c1f84d479bb79ca03aeca44d914c83b2cfea75b · covers:an altered kept file fails verify
 
 ## Verification Log
+- 2026-11-19 · 60cc65b3* · exit 1 · `set -o pipefail …` · acceptance-sha256:e8f90d075a9899320009b7b65c1f84d479bb79ca03aeca44d914c83b2cfea75b · ms:249 · test-lock-sha256:f2c54fdc343a133999d81bb9659e52ca3a60dcd972e96277c1d5472cca342d91 · test-lock-file:docs/adr/locks/f2c54fdc343a133999d81bb9659e52ca3a60dcd972e96277c1d5472cca342d91.lock
+  ```
+  --- last 10 line(s) of stderr (of 12 after folding 12 raw)
+  internal/bench/stage9_test.go:168:12: rig.opts.MrwSHA256 undefined (type RunOptions has no field or method MrwSHA256)
+  internal/bench/stage9_test.go:203:48: r.MrwSHA256 undefined (type Receipt has no field or method MrwSHA256)
+  internal/bench/stage9_test.go:204:50: r.MrwSHA256 undefined (type Receipt has no field or method MrwSHA256)
+  internal/bench/stage9_test.go:211:12: rig.opts.MrwSHA256 undefined (type RunOptions has no field or method MrwSHA256)
+  internal/bench/stage9_test.go:218:47: r.MrwSHA256 undefined (type Receipt has no field or method MrwSHA256)
+  internal/bench/stage9_test.go:219:55: r.MrwSHA256 undefined (type Receipt has no field or method MrwSHA256)
+  internal/bench/stage9_test.go:230:12: rig.opts.MrwInstructions undefined (type RunOptions has no field or method MrwInstructions)
+  internal/bench/stage9_test.go:262:12: rig.opts.KeepStateFile undefined (type RunOptions has no field or method KeepStateFile)
+  internal/bench/stage9_test.go:270:47: r.KeptStateFileSHA256 undefined (type Receipt has no field or method KeptStateFileSHA256)
+  internal/bench/stage9_test.go:270:47: too many errors
+  ```
+- 2026-11-19 · 60cc65b3* · exit 0 · `set -o pipefail …` · acceptance-sha256:e8f90d075a9899320009b7b65c1f84d479bb79ca03aeca44d914c83b2cfea75b · ms:11142
+- 2026-11-19 · 60cc65b3* · exit 0 · `set -o pipefail …` · acceptance-sha256:e8f90d075a9899320009b7b65c1f84d479bb79ca03aeca44d914c83b2cfea75b · ms:12589
+- 2026-11-19 · 60cc65b3* · exit 0 · `set -o pipefail …` · acceptance-sha256:e8f90d075a9899320009b7b65c1f84d479bb79ca03aeca44d914c83b2cfea75b · ms:12000
+- 2026-11-19 · 60cc65b3* · exit 0 · `set -o pipefail …` · acceptance-sha256:e8f90d075a9899320009b7b65c1f84d479bb79ca03aeca44d914c83b2cfea75b · ms:12568
+- 2026-11-19 · 60cc65b3* · exit 0 · `set -o pipefail …` · acceptance-sha256:e8f90d075a9899320009b7b65c1f84d479bb79ca03aeca44d914c83b2cfea75b · ms:11735
+- 2026-11-19 · 60cc65b3* · exit 0 · `set -o pipefail …` · acceptance-sha256:e8f90d075a9899320009b7b65c1f84d479bb79ca03aeca44d914c83b2cfea75b · ms:12241
+- 2026-11-19 · 60cc65b3* · exit 0 · `set -o pipefail …` · acceptance-sha256:e8f90d075a9899320009b7b65c1f84d479bb79ca03aeca44d914c83b2cfea75b · ms:11953
 
 ## Invariants
 
