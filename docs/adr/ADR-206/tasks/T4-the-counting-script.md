@@ -4,51 +4,51 @@
 **Covers:** none — no spec
 **Estimated scope:** M (multi-file)
 **Owner:** unassigned
-**Produces:** `scripts/bench_stage9.py` with `count`, `report` and `spend` verbs; `scripts/test_bench_stage9.py`
-**Consumes:** receipts and `run.json` (T1), the exposed log's format (T2), `classes.json` (T3), `scripts/bench_mechanism.py`
-**Data dependency:** none — hermetic (fixture receipts, logs and transcripts)
+**Produces:** `scripts/bench_stage9.py` with `count`, `report` and `spend` verbs; `scripts/test_bench_stage9.py`; the suite in CI
+**Consumes:** receipts and `run.json` (T1), the kept log (T2), `classes.json` (T3), `scripts/bench_mechanism.py`
+**Data dependency:** none — hermetic (fixture run directories, logs and transcripts)
 **Proof map:** v1
-**Rests-on:** `exact, wrong_location and other_inexact partition the attempts`, `a null cost is missing`, `a comparison under its coverage prints INSUFFICIENT`, `exposure in N is the log and in M the refusals`, `the runs' hashes must agree`, `the bootstrap is seeded`
+**Rests-on:** `correct, outside, other and missing partition the planned attempts`, `a null cost is missing`, `a comparison under its coverage prints INSUFFICIENT`, `exposure is per attempt in both arms`, `mismatched runs are refused`, `the bootstrap is seeded`, `spend prints one number and the count without a cost`
 
 ## Goal
 
-ADR-206 Decision 7. From fixture run directories: every measure of the backlog entry, each comparison printed as INSUFFICIENT with its reason when under 10 of 12 paired, when a paired cost is missing, when an arm has zero `exact`, or when over 5% of resamples are dropped; `spend` prints the stage's total across directories; and the script refuses run directories whose instruction hashes differ between M and N, whose Claude Code releases differ, or whose task lists are not the class list's.
+ADR-206 Decision 7, on fixture run directories built to hit each rule: every measure; each comparison printed as INSUFFICIENT with its reason (under 10 of 12 paired, a paired cost missing, zero `correct` in an arm, over 5% of resamples dropped); exposure in M read only from the output of a command that ran `mrw write`, with the count of write results it could read; the list of N attempts that were exposed and ended `outside`; refusals for run directories that differ where they must not, whose mrw hash is not the arm's, or whose M and N hashes are equal. `spend` prints exactly one line, `stage9 spend usd <number> missing <count>`.
 
 ## Affected Files
 
 | File | Change | Why |
 |------|--------|-----|
 | `scripts/bench_stage9.py`, `scripts/test_bench_stage9.py` | new | the script and its tests |
-| `.github/workflows/ci.yml` | edit | the new suite beside CI's Python suites |
+| `.github/workflows/ci.yml` | edit | the suite beside CI's Python suites |
 
 ## Ordered Steps
 
 1. [S1] The tests, RED: no script. [proof: acceptance]
-2. [S2] The script. Mutants, each killed: a null cost counted as zero; INSUFFICIENT replaced by a ratio; `wrong_location` and `other_inexact` merged; the hash comparison dropped; the seed taken from the clock. [proof: mutation]
+2. [S2] The script. Mutants, each killed: a null cost counted as zero; INSUFFICIENT replaced by a ratio; `outside` and `other` merged; an excluded attempt counted as not correct; the instructions' own text counted as a refusal; the hash checks dropped; the seed taken from the clock. [proof: mutation]
 
 ## Acceptance
 
 ```bash
 set -o pipefail
 python3 -B -m unittest discover -s scripts -p 'test_bench_stage9.py' 2> "${TMPDIR:-/tmp}/adr206-t4.out" \
-  && grep -q '^OK' "${TMPDIR:-/tmp}/adr206-t4.out" \
+  && grep -qE '^Ran [1-9][0-9]* tests?' "${TMPDIR:-/tmp}/adr206-t4.out" && grep -q '^OK' "${TMPDIR:-/tmp}/adr206-t4.out" \
   && grep -q 'test_bench_stage9.py' .github/workflows/ci.yml \
-  && git diff --quiet "$(git merge-base HEAD origin/main)" -- go.mod go.sum internal/plan internal/read internal/apply internal/seen internal/check internal/state cmd/mrw ':(exclude)*_test.go'
+  && git diff --quiet "$(git merge-base HEAD origin/main)" -- go.mod go.sum internal/plan internal/read internal/apply internal/seen internal/check internal/state internal/writer cmd/mrw ':(exclude)*_test.go'
 ```
 
 ## Tests
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `test_bench_stage9.py` | `scripts/test_bench_stage9.py` | each measure and each INSUFFICIENT rule on fixtures built to hit it; the refusals for mismatched runs | none | S1, S2 |
+| `test_bench_stage9.py` | `scripts/test_bench_stage9.py` | each measure and each INSUFFICIENT rule on fixtures built to hit it; each refusal; the refusal's words pinned against `internal/apply`'s text | none | S1, S2 |
 
 ## Reachability
 
 | Rung | How this task shows it |
 |------|------------------------|
 | 1 — exists | the tests |
-| 2 — something selects it | T6 runs it |
-| 3 — the caller can discover it | its docstring and `docs/bench/README.md` |
+| 2 — something selects it | T5 and T6 run it |
+| 3 — the caller can discover it | its docstring, `docs/bench/README.md` |
 | 4 — it is used | T6's fence re-runs it over the receipts |
 
 ## Mutation Log
@@ -61,7 +61,7 @@ python3 -B -m unittest discover -s scripts -p 'test_bench_stage9.py' 2> "${TMPDI
 
 ## Risks
 
-- Reading refusals out of transcripts depends on ADR-203's fixed words: a test pins them against `internal/apply`'s text.
+- A host can cut or redirect a tool result: the script reports how many write results it read, and does not call the rest zero.
 
 ## Stop Condition
 
