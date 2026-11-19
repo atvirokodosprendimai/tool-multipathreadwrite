@@ -11570,6 +11570,23 @@ want 0 "$?" "ADR-203 null read: a read --sub to the null device exits 0"
 { grep -q 'ADR-133' "$WORK/e349n3" && ! grep -q 'ADR-203' "$WORK/e349n3"; } \
   && ok "ADR-203 null read: and its notice is the one it always was" || bad "sub notice: $(head -c 400 "$WORK/e349n3")"
 
+# 350. A plan in UTF-16 is refused in one sentence. Windows PowerShell 5.1 writes UTF-16
+# when output is redirected with `>`, and `mrw write plan.txt` answered every line of it
+# with "text before the first @@ header" and the line in hex, never saying UTF-16 (found
+# by a Windows peer session, 2026-11-19). The pair: the same plan in UTF-8 lands.
+R350="$WORK/r350"; mkdir -p "$R350"; printf 'one\ntwo\n' > "$R350/f.txt"
+"$MRW" --root "$R350" read f.txt > "$WORK/served350" 2>&1
+printf '@@ f.txt 1 replace\nONE\n' > "$WORK/p350.txt"
+{ printf '\377\376'; python3 -c 'import sys; sys.stdout.buffer.write(open(sys.argv[1],"rb").read().decode().encode("utf-16-le"))' "$WORK/p350.txt"; } > "$WORK/p350-16.txt"
+"$MRW" --root "$R350" write "$WORK/p350-16.txt" > "$WORK/o350" 2> "$WORK/e350"
+want 2 "$?" "UTF-16 plan: refused as usage"
+[ "$(grep -c . "$WORK/e350")" -eq 1 ] && grep -q 'the plan is UTF-16 and mrw reads UTF-8' "$WORK/e350" && grep -q 'Out-File -Encoding utf8' "$WORK/e350" \
+  && ! grep -q 'text before the first @@ header' "$WORK/e350" && [ ! -s "$WORK/o350" ] && [ "$(cat "$R350/f.txt")" = "$(printf 'one\ntwo')" ] \
+  && ok "UTF-16 plan: one sentence naming UTF-16 and a way out, nothing written" || bad "refusal: $(head -c 400 "$WORK/e350")"
+"$MRW" --root "$R350" write "$WORK/p350.txt" > "$WORK/o350b" 2> "$WORK/e350b"
+want 0 "$?" "UTF-16 plan pair: the same plan in UTF-8 lands"
+[ "$(head -1 "$R350/f.txt")" = ONE ] && ok "UTF-16 plan pair: and changes the line" || bad "file: $(head -c 100 "$R350/f.txt")"
+
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
 # killed process is a zombie until its adopter reaps it, and pgrep lists
