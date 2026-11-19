@@ -79,7 +79,7 @@ One engine package, owned here for this change: `internal/read`, one option that
 | `read.Options` | an option that drops the replace note | T1 | `stdinRead` |
 | the `-v` sentence | says where an inverted match is | T1 | whoever types `-v` |
 | `mrw instructions`, `mrw read --help`, `AGENTS.md`, `README.md` | the form, and where it is refused | T1 | every caller |
-| `scripts/contract.sh` §346; §345 and §277 keep passing | the inverted read and its pair | T1 | the contract gate |
+| `scripts/contract.sh` §347; §345 and §277 keep passing | the inverted read and its pair | T1 | the contract gate |
 
 `mrw_read` over MCP reads no standard input, so there is nothing to add there, and no receipt key changes (ADR-111): a `--json` read of standard input stays refused (ADR-165).
 
