@@ -90,6 +90,14 @@ func stdinRead(cmd *cli.Command, pattern string, grepSet bool, posArgs []string,
 	if b == nil {
 		b = []byte{}
 	}
+	// A UTF-8 byte order mark at the very start is the pipe's, not line 1's:
+	// PowerShell adds one when $OutputEncoding has a preamble, and with it
+	// `--grep '^one'` found no line. Only leading marks go; one further in is
+	// content. Standard input records nothing, so no licence depends on it.
+	if rest, n := ingest.DropLeadingMarks(b); n > 0 {
+		fmt.Fprintf(os.Stderr, "mrw: standard input began with %d UTF-8 byte order mark(s), dropped: a mark there is not part of line 1\n", n)
+		b = rest
+	}
 	// ADR-161 Decision 13: PowerShell's trailing CRLF is not a line of the input.
 	if trimmed, cut := ingest.TrimPipedCRLF(b); cut {
 		fmt.Fprintln(os.Stderr, "mrw: standard input ended in CRLF after lines that end in LF; that CRLF is most likely the one PowerShell appends to what it pipes, so it was dropped")

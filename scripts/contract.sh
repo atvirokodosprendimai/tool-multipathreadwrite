@@ -11589,6 +11589,20 @@ want 2 "$?" "UTF-16 plan: refused as usage"
 want 0 "$?" "UTF-16 plan pair: the same plan in UTF-8 lands"
 [ "$(head -1 "$R350/f.txt")" = ONE ] && ok "UTF-16 plan pair: and changes the line" || bad "file: $(head -c 100 "$R350/f.txt")"
 
+# 351. A UTF-8 byte order mark at the very start of standard input is not part of line 1.
+# PowerShell pipes one when $OutputEncoding has a preamble, and `mrw read --grep '^one' -`
+# then found no line (found by a Windows peer session, 2026-11-19). The pair: a mark that
+# is not at the start is content, served and not named.
+printf '\357\273\277one\ntwo\n' | "$MRW" read --grep '^one' - > "$WORK/o351" 2> "$WORK/e351"
+want 0 "$?" "stdin mark: an anchored pattern finds line 1"
+grep -q '^ *1| one$' "$WORK/o351" && grep -q '^==> -  2L  8B' "$WORK/o351" && ! grep -q "$(printf '\357\273\277')" "$WORK/o351" \
+  && grep -q 'began with 1 UTF-8 byte order mark' "$WORK/e351" \
+  && ok "stdin mark: line 1 served without it, the header counts 8 bytes, stderr names it" || bad "served: $(head -c 200 "$WORK/o351") / $(head -c 200 "$WORK/e351")"
+printf 'one\n\357\273\277two\n' | "$MRW" read - > "$WORK/o351b" 2> "$WORK/e351b"
+want 0 "$?" "stdin mark pair: a mark on line 2 is read"
+grep -q "$(printf '\357\273\277')two" "$WORK/o351b" && grep -q '^==> -  2L  11B' "$WORK/o351b" && ! grep -q 'byte order mark' "$WORK/e351b" \
+  && ok "stdin mark pair: and is content, kept and not named" || bad "served: $(head -c 200 "$WORK/o351b") / $(head -c 200 "$WORK/e351b")"
+
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
 # killed process is a zombie until its adopter reaps it, and pgrep lists
