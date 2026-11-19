@@ -26,10 +26,10 @@ This README is a derived index — when it disagrees with a task file, the task 
 
 | Task | Goal | Status |
 |------|------|--------|
-| T1 | a run pins its mrw, its instructions and its spend | pending |
-| T2 | M and N are two builds of one tag that differ in one refusal | pending |
-| T3 | 48 tasks in four classes | pending |
-| T4 | the counting script | pending |
+| T1 | a run pins its mrw, its instructions and its spend | done (#693) |
+| T2 | M and N are two builds of one tag that differ in one refusal | done (#691) |
+| T3 | 48 tasks in four classes | done (#692) |
+| T4 | the counting script | done (#695) |
 | T5 | the canaries and the uncounted smoke | pending |
 | T6 | the counted pilot and its report | pending |
 
