@@ -12,7 +12,7 @@
 
 ## Goal
 
-ADR-205 Decisions 1 to 5. Every row is a `mrw_write` call over the server; each fixture file is read and acknowledged first. In a tree whose `.quality-harness.json` declares a check that appends a line to a marker file, and a step `after` that fails unless the marker exists:
+ADR-205 Decisions 1 to 5. Every row is a `mrw_write` call over the server; each fixture file is read and acknowledged first, and every row starts from a fresh tree, so a marker another row left cannot satisfy it. In a tree whose `.quality-harness.json` declares a check that appends a line to a marker file, and a step `after` that fails unless the marker exists:
 
 | Call | Outcome |
 |------|---------|
@@ -39,16 +39,18 @@ And a `writer.Request` that sets no mode runs no check.
 | `internal/mcp/mcp.go`, `internal/mcp/schema.go` | edit | the descriptions |
 | `internal/mcp/check205_test.go` | new | the Goal's table |
 | `internal/mcp/check113_test.go`, `depth187_test.go`, `thread121_test.go`, `says098_test.go`, `era_test.go` and its golden | edit | they assert the prose skip or quote the old description |
-| `internal/writer/flow113_test.go`, `writes127_test.go` | edit | they relied on the zero value being auto |
+| `internal/writer/flow113_test.go`, `writes127_test.go`, `partial164_test.go`, `stale200_test.go` | edit | they relied on the zero value being auto |
+| `cmd/mrw/then092t5_test.go` | edit | a comment names the removed mode |
+| `internal/mcp/instructions.go`, `cmd/opencode/mrw-plugin/src/index.ts` | edit | they state the old rule |
 | `internal/writer/mode205_test.go` | new | the zero value |
 | `scripts/contract.sh` | edit | §351 |
 | `AGENTS.md`, `README.md` | edit | the sentences on `mrw_write`'s check |
 
 ## Ordered Steps
 
-1. [S1] `TestMrwWriteCheckTrueRunsTheCheckOnAnyPlan`, RED on the first and last rows. [proof: acceptance]
-2. [S2] The mode and the removal. Mutants, each killed: `check: true` selects no check; a prose-only write skips it; a tree with no command returns no `check`; a failed check is `isError`; a check that could not run is not; a dry run runs it; the depth gate lets a due check through; steps run after a check that failed; the plan makers keep the old mode; the zero value is demand. [proof: mutation]
-3. [S3] Contract §351 drives `mrw mcp --enable` over stdio, each case on its own freshly read file: a prose-only write with `check: true` leaves the marker, paired with the same without it leaving none. The descriptions, the initialize instructions and the documents. [proof: acceptance]
+1. [S1] `TestMrwWriteCheckTrueRunsTheCheckOnAnyPlan`, RED on rows 1, 3, 6, 7 and 8 and on the commandless case; rows 2, 4, 5 and 9 hold today and stay. [proof: acceptance]
+2. [S2] The mode and the removal. Mutants, each killed: `check: true` selects no check; a prose-only write skips it; a tree with no command returns no `check`; a failed check is `isError`; a check that could not run is not; a dry run runs it; the depth gate lets a due check through; steps run after a check that failed; the plan-maker path selects `CheckOff`; `CheckDemand` is made the zero value. The `format` and `ast_grep` sources reach the same `Prepare` call as the two the Goal drives, and are not driven separately. [proof: mutation]
+3. [S3] Contract §351 drives `mrw mcp --enable` over stdio, each case in its own fresh tree: a prose-only write with `check: true` leaves the marker, paired with the same without it leaving none. The descriptions, the initialize instructions and the documents. [proof: acceptance]
 
 ## Acceptance
 
@@ -57,7 +59,8 @@ set -o pipefail
 go test -count=1 -v ./internal/mcp ./internal/writer -run '^(TestMrwWriteCheckTrueRunsTheCheckOnAnyPlan|TestARequestThatSetsNoModeRunsNoCheck)$' > "${TMPDIR:-/tmp}/adr205-fence.out" \
   && [ "$(grep -c '^--- PASS: ' "${TMPDIR:-/tmp}/adr205-fence.out")" -eq 2 ] \
   && grep -q '^# 351\. ' scripts/contract.sh \
-  && ! grep -rqw 'CheckAuto' internal cmd \
+  && ! grep -qw 'CheckAuto' internal/writer/flow.go internal/mcp/tools.go \
+  && ! grep -rq 'touches code' internal/mcp/mcp.go internal/mcp/schema.go internal/mcp/instructions.go cmd/opencode/mrw-plugin/src/index.ts \
   && git diff --quiet "$(git merge-base HEAD origin/main)" -- go.mod go.sum internal/plan internal/read internal/apply internal/seen internal/check internal/state ':(exclude)*_test.go'
 ```
 
@@ -96,4 +99,4 @@ The fence exits 0, `adr-debt` reports nothing broken or unreceipted, every gate 
 
 ## Out of Scope
 
-- The acknowledgement protocol and paging of `mrw_read` (deferred: docs/adr/BACKLOG.md)
+- Making a failed check `isError`, or a check that could not run not one (permanent: boundary: ADR-113 Decision 4 stands as it is)

@@ -1614,7 +1614,7 @@ findings and where each stands; nothing here is built, and each item needs the r
 
 1. *An explicit check means two things on the two surfaces* (its finding 6): ADR-205, drafted, Proposed.
 2. *No measurement can choose the default* (finding 8): the pilot pre-registered below, which sizes a
-   powered stage and decides nothing itself.
+   whether a powered stage is registered and decides nothing else.
 3. *A line number is a mutable coordinate used as intent; ADR-203 does not fix it* (finding 1), and *a
    content-first form with explicit target, old text and replacement, direct deletion and every failed
    match reported at once* (finding 2): a prototype, as the pilot's arm X, under a record of its own.
@@ -1661,12 +1661,15 @@ the wrong line happen at all when nothing refuses it?
 
 **Per attempt**, from the pinned-base tree comparison, the transcript and `run.json`:
 - `exact`: the resulting tracked tree equals the reference.
-- `wrong_location`: a line changed that the reference leaves alone, or outside the task's slack.
+- `wrong_location`: a line changed that the reference leaves alone, or a line added further from the
+  reference's insertion point than the task's `slack` in `task.json` allows.
 - `other_inexact`: not exact and not `wrong_location` (a missing edit, the right line with other text).
-- `claimed`: the status line the agent ended with says done.
-- `exposed`: the attempt sent at least one write whose hunk named, by number alone, a line of a file that
-  mrw wrote earlier in the attempt and no read showed since. Counted from the transcript by the rule ADR-203
-  judges, in M and G alike; in M it is the refusal count.
+- `claimed`: bench's own reading of the STATUS line the instruction asks for (`internal/bench/claim.go`); an
+  unreadable line is not a claim.
+- `exposed`: the number of write calls holding a hunk ADR-203 refuses or would refuse. In M it is the count
+  of those refusals. In G the bench build counts what it would have refused, by the same code with the
+  refusal turned off, and writes the hunks' paths and lines to its receipt; the transcript is read only as a
+  cross-check, and a disagreement is reported.
 - spend, model requests, tokens, wall time. An attempt that timed out or left no final result is not exact,
   and its spend is *missing*, never zero.
 
@@ -1674,18 +1677,26 @@ the wrong line happen at all when nothing refuses it?
 - The counts above for each arm, with the number of attempts started, graded and missing.
 - A comparison of two arms uses only the tasks graded in both. Under 10 of 12 paired, or any missing spend
   among them, or zero `exact` in either arm, it is printed as INSUFFICIENT with the reason and no ratio.
-- Otherwise: `exact` in each arm, and spend per `exact` with a bootstrap interval over the paired tasks
-  (4,000 resamples, the seed in the stage's record). A ratio is given beside its interval, never alone.
-- For G: `exposed` attempts, and how many of those ended `wrong_location`. For M: `exposed` attempts (each a
-  refusal), and on the control class how many refusals were of a number that was still right.
+- Otherwise: `exact` in each arm, and spend per `exact` (the spend of every paired attempt in the arm over its
+  `exact` count) with a 95% percentile bootstrap interval over the paired tasks (4,000 resamples, the seed in
+  the stage's record). A resample with zero `exact` in either arm is dropped and counted; over 5% dropped, the
+  comparison is INSUFFICIENT. A ratio is given beside its interval, never alone.
+- For G: `exposed` calls, and how many landed on a line the reference leaves alone (the wrong line being one
+  an exposed hunk addressed, not a stray edit elsewhere). For M: `exposed` calls (each a refusal), and on the
+  control class how many refused a number that named the line the reference changes.
 - Where the two models disagree, both are printed and neither is called the result.
 
-**What the pilot may lead to.** A powered stage is registered, with its size computed from these counts,
-only if one of these holds on both models: G has at least one `exposed` attempt ending `wrong_location`; or
-a spend-per-exact interval between two arms excludes 1. If `exposed` is under 3 of 12 on the follow-on class
+**Runs.** The Opus and Sonnet current at the stage's record, one repeat.
+
+**What the pilot may lead to.** The one thing it gates is whether a powered stage is pre-registered, and that
+stage's own entry sets its size. It is registered only if, on both models and for the same comparison and
+class, one of these holds: in G on the follow-on class at least one `exposed` call landed on a wrong line; or
+the spend-per-exact interval excludes 1 for M against G (follow-on or control) or for M against A
+(single-site or batch). No other pair is read for this. If `exposed` is under 3 calls on the follow-on class
 in G, the hazard was not provoked by ordinary follow-on work at this size, which is said as such and is not
-evidence that it never happens. Whatever the pilot shows, a change to ADR-203, to what mrw teaches, or to
-"use mrw always" is Zy's, on a record of its own.
+evidence that it never happens. The pilot closes when its RESULTS are committed. If no powered stage is
+registered, ADR-203 stands as it is under its own friction reading, and any change to it, to what mrw
+teaches, or to "use mrw always" is Zy's, on a record of its own.
 
 **What it cannot show.** Rates: 12 tasks and one repeat bound nothing tightly. Long sessions with
 compaction, hosts over MCP, a shared checkout. E5 priced candidate refusals in transcripts and stopped; it
@@ -1693,7 +1704,15 @@ did not measure wrong edits landing, and neither does a pilot of this size.
 
 **Before a counted attempt**, committed and pushed: the stage's record (builds and their hashes, the spend
 stop, the seed), the 48 tasks with their reference trees and SHA-256, the grader for `exact`,
-`wrong_location` and `other_inexact`, the transcript rule for `exposed`, and the counting script. And the
+`wrong_location` and `other_inexact`, the rule for `claimed`, G's count of `exposed` with its transcript
+cross-check, and the counting script. And the
 runner work the bench lacks today: one mrw binary per arm verified per attempt, M's instructions given to G,
 the new task classes admitted, a stop on spend for the stage, and a check that X's attempts used the
 prototype. No rule here is changed after the first counted attempt.
+
+## From ADR-205
+
+- **Field reports after the release:** a host that sends `check: true` on every `mrw_write`, prose included,
+  and so waits for a check it did not want, loses a `then` step, or is refused at step depth 8. Owner: Zy.
+  Trigger: the first such report, or the first release after ADR-205's. Disposition if it appears: the
+  tool's description, not a second spelling of the argument.
