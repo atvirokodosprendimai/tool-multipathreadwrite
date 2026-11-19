@@ -1500,3 +1500,28 @@ The scanner found nine near path reverts where the bar needs 49. Counting every 
 near would give 22. By the rule written before the run, no undo record is drafted. The tree reverts are
 counted apart and decide nothing: nothing ties a `git stash` to a file mrw wrote. What the count cannot
 see is in the entry above and in the README's limits; the aggregates do not say how large any of them is.
+
+## Pre-registered for ADR-202 (an inverted match on standard input, E7) — written before the scanner is changed
+
+ADR-202 is a draft. It leans on a tally taken on 2026-11-19 that was exploratory: a one-off scan, not kept,
+with no bar written first. It found 160 calls refused with "a read of standard input names nothing else"
+outside this repository's sessions, 148 of them `--grep -X PATTERN -` with `-v` 109 times. That tally has
+been seen, so E7 cannot be a blind test of it; what E7 adds is a committed scanner with synthetic tests, a
+stated rule, and a number anyone can reproduce.
+
+**E7, the count** (`docs/bench/effect-study/scan.py`). A shell call counts when the answer of a command that
+ran mrw holds the refusal `a read of standard input names nothing else` (the wording before and after
+v1.90.1 both hold it). It is classed by the first `--grep` in the command that is followed by a dash and one
+letter and then another word: the class is that letter. A call with no such shape is `other`.
+*Runs.* Entries before **2026-11-19T00:00:00Z**, with and without this repository's sessions. The verdict
+is read on the run without them.
+
+**Verdict.** **PROCEED** when the calls classed `v` are at least **50**. Otherwise **WITHDRAW**: ADR-202 is
+withdrawn with the numbers and no flag is built. 50 is under half of what the tally found, so a scanner
+that sees the same thing passes with room, and one that sees something else does not.
+
+**What it does not show.** What the caller did after the refusal, or that an inverted match would have
+been used. ADR-202 Decision 6 names the tally that answers the second, thirty days after a release.
+
+**Deferred from ADR-202:**
+- `-o`, match-only output on standard input: waits for E7's count of it and a record of its own.
