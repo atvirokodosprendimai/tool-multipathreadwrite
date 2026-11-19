@@ -17,7 +17,8 @@ ADR-206 Decision 4. `build.sh TAG OUTDIR` builds `mrw-m` and `mrw-n`. The test b
 | Case | M | N |
 |------|---|---|
 | write a file, then replace a line of it by number alone | exit 1, ADR-203's refusal | exit 0, the line replaced; one object in `mrw/stage9-exposed.jsonl` with `path`, `op`, `start`, `end`, `first_unshown`, `sha_before` |
-| the same as a numbered range, a `delete`, an `insert-after` | exit 1 | exit 0; one object each, `op` and the span as resolved |
+| the same as a numbered `delete` of two lines, and as an `insert-after` | exit 1 | exit 0; one object each, `op` and the span as resolved (a multi-line `replace` needs `anchor=`, which takes it out of this rule) |
+| a plan of two files that commits one and fails on the other, the landed one holding such a hunk | — | one object, for the hunk that landed |
 | the same under `--dry-run`, and in a plan whose other hunk fails | exit as M | nothing landed; no object |
 | the same second edit with `anchor=` | exit 0 | exit 0; no object; the log exists and is empty |
 | replace by number a line no read has served, in a file mrw did not write | exit 1 | exit 1, the same reason |
@@ -73,7 +74,7 @@ go test -count=1 -v ./internal/bench -run '^TestArmNDiffersFromMInOneRefusal$' >
 
 ## Invariants
 
-- No file under `internal/` or `cmd/mrw` changes in this repository.
+- No file under `internal/` or `cmd/mrw` changes in this repository but the new test.
 - Neither binary is installed or released.
 
 ## Risks

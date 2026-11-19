@@ -1701,17 +1701,19 @@ commit and its reference a patch. A *site* is one change region of the reference
 - *control*: two sites in one file, the first keeping the line count.
 
 **Runs.** `claude-opus-5-5` and `claude-sonnet-5-5`, one repeat: 240 planned attempts in six runs, in the
-order and under the six spend figures of ADR-206 Decision 8 ($50 of known spend in all).
+order and under the six spend stops of ADR-206 Decision 8, which sum to $50 of known spend; a run can pass
+its stop by one attempt.
 
 **Per attempt** (ADR-206 Decision 7):
 - `correct`: a graded attempt, not an error, within budget, whose oracle passed. `outside`: not correct, with
-  a change outside the regions the reference allows. `other`: not correct, with none. `missing`: no receipt,
-  or excluded; counted, and in no rate.
+  a change outside the regions the reference allows. `other`: not correct, with none. `missing`: an excluded
+  attempt; counted, and in no rate. A run with an attempt that left no receipt is not a completed run.
 - `claimed`: the agent's STATUS line says done.
 - `exposed`: the attempt has at least one number-only hunk on a line not shown since mrw wrote the file. In N
   such a hunk landed and is in the kept log. In M it was refused and its refusal is read from the output of a
   write command in the transcript; the report says how many write results it could read. One unit, the
-  attempt, in both arms; hunk counts are printed beside it.
+  attempt, in both arms; hunk counts are printed beside it. The two are not the same event: M's refusal
+  also fires on a dry run and beside a failed sibling hunk, and N logs only what landed.
 - spend, `num_turns`, `tool_calls`, tokens, wall time. A cost that is not in the receipt is missing, never
   zero.
 
@@ -1720,16 +1722,17 @@ order and under the six spend figures of ADR-206 Decision 8 ($50 of known spend 
 - A comparison of two arms uses the tasks graded in both. Under 10 of 12 paired, or a paired cost missing, or
   zero `correct` in either arm, it is printed as INSUFFICIENT with the reason and no ratio.
 - Otherwise: `correct` in each arm, and spend per `correct` (the spend of every paired attempt in the arm over
-  its `correct` count) with a 95% percentile bootstrap interval over the paired tasks (4,000 resamples, seed
-  206). A resample with zero `correct` in either arm is dropped and counted; over 5% dropped, INSUFFICIENT.
+  its `correct` count) in each arm, and their ratio, first arm over second, with a 95% percentile bootstrap
+  interval over the paired tasks (4,000 resamples, seed 206). A resample in which either arm's figure is
+  undefined or zero is dropped and counted; over 5% dropped, INSUFFICIENT.
 - `exposed` attempts in M and in N on the follow-on and control classes; and for N, each exposed attempt that
   ended `outside`, listed. The script does not say an exposed hunk hit a wrong line. A person reads those
-  diffs, and RESULTS quotes each with what it shows.
+  attempts' kept diffs, and RESULTS quotes each with what it shows.
 - Where the two models disagree, both are printed and neither is called the result.
 
 **What the pilot may lead to.** The one thing it gates is whether a powered stage is pre-registered, and that
 stage's own entry sets its size. It is registered only if, on both models and for the same comparison and
-class, one of these holds: the spend-per-correct interval excludes 1 for M against N (follow-on or control)
+class, one of these holds: the interval of the spend-per-correct ratio excludes 1 for M against N (follow-on or control)
 or for M against A (single-site or batch); or in N on the follow-on class at least one exposed attempt ended
 `outside` and its diff, read by a person, shows an edit to a line the task did not ask for. No other pair is
 read for this. If fewer than 3 of the 12 follow-on tasks have an exposed attempt in N, on either model, the

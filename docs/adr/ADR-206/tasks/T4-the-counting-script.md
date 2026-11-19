@@ -12,7 +12,7 @@
 
 ## Goal
 
-ADR-206 Decision 7, on fixture run directories built to hit each rule: every measure; each comparison printed as INSUFFICIENT with its reason (under 10 of 12 paired, a paired cost missing, zero `correct` in an arm, over 5% of resamples dropped); exposure in M read only from the output of a command that ran `mrw write`, with the count of write results it could read; the list of N attempts that were exposed and ended `outside`; refusals for run directories that differ where they must not, whose mrw hash is not the arm's, or whose M and N hashes are equal. `spend` prints exactly one line, `stage9 spend usd <number> missing <count>`.
+ADR-206 Decision 7, on fixture run directories built to hit each rule: every measure; each comparison printed as INSUFFICIENT with its reason (under 10 of 12 paired, a paired cost missing, zero `correct` in an arm, over 5% of resamples dropped); exposure in M read only from the output of a command that ran `mrw write`, with the count of write results it could read; the list of N attempts that were exposed and ended `outside`; refusals for run directories that differ where they must not, whose mrw hash is not the arm's, or whose M and N hashes are equal. The statistic of a comparison is the first arm's spend per `correct` over the second's; a resample in which either is undefined or zero is dropped and counted. `spend` prints exactly one line of six fields, `stage9 spend usd <number> missing <count>`.
 
 ## Affected Files
 
@@ -31,8 +31,8 @@ ADR-206 Decision 7, on fixture run directories built to hit each rule: every mea
 ```bash
 set -o pipefail
 python3 -B -m unittest discover -s scripts -p 'test_bench_stage9.py' 2> "${TMPDIR:-/tmp}/adr206-t4.out" \
-  && grep -qE '^Ran [1-9][0-9]* tests?' "${TMPDIR:-/tmp}/adr206-t4.out" && grep -q '^OK' "${TMPDIR:-/tmp}/adr206-t4.out" \
-  && grep -q 'test_bench_stage9.py' .github/workflows/ci.yml \
+  && grep -qE '^Ran [1-9][0-9]* tests?' "${TMPDIR:-/tmp}/adr206-t4.out" && grep -qx 'OK' "${TMPDIR:-/tmp}/adr206-t4.out" \
+  && grep -v '^ *#' .github/workflows/ci.yml | grep -q 'test_bench_stage9.py' \
   && git diff --quiet "$(git merge-base HEAD origin/main)" -- go.mod go.sum internal/plan internal/read internal/apply internal/seen internal/check internal/state internal/writer cmd/mrw ':(exclude)*_test.go'
 ```
 

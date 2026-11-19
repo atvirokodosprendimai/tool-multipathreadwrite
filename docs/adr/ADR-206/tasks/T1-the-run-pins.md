@@ -4,15 +4,15 @@
 **Covers:** none — no spec
 **Estimated scope:** L
 **Owner:** unassigned
-**Produces:** `bench run` and `bench canary` `--mrw-sha256`, `--mrw-instructions`; `bench run` `--keep-state-file`, `--max-spend`; the `run.json` and receipt keys; resume and verify checks; the spend stop's exit status
+**Produces:** `bench run` and `bench canary` `--mrw-sha256`, `--mrw-instructions`; `bench run` `--keep-state-file`, `--keep-diff`, `--max-spend`; the `run.json` and receipt keys; resume and verify checks; the spend stop's exit status
 **Consumes:** `verifyAsset`, `stageQH`, `keepHookFiles`, `readsBack`
 **Data dependency:** none — hermetic. The runner tests' fake agent is extended: it runs `mrw`, copies the prompt file it was given, and emits a chosen cost or none
 **Proof map:** v1
-**Rests-on:** `a wrong hash refuses the run`, `the attempt runs the pinned bytes`, `the instructions are the file's`, `the kept file is beside the receipt`, `the run stops on known spend`, `a missing cost is not zero`, `a receipt with another hash fails resume and verify`, `a canary with other hashes is refused`, `a run without the flags is unchanged`
+**Rests-on:** `a wrong hash refuses the run`, `the attempt runs the pinned bytes`, `the instructions are the file's`, `the kept file is beside the receipt`, `the run stops on known spend`, `a missing cost is not zero`, `a receipt with another hash fails resume and verify`, `an altered kept file fails verify`, `the diff is kept`, `a canary with other hashes is refused`, `a run without the flags is unchanged`
 
 ## Goal
 
-ADR-206 Decisions 2, 3, 5 and 6, driven through `bench`'s own flag parsing:
+ADR-206 Decisions 2, 3, 5 and 6. The rows drive `Run` with the runner tests' fixture task (which `--task` cannot select); one more test case parses the real flag set and checks each flag reaches its option.
 
 | Run | Outcome |
 |-----|---------|
@@ -23,6 +23,9 @@ ADR-206 Decisions 2, 3, 5 and 6, driven through `bench`'s own flag parsing:
 | `--max-spend 1.00`, two planned attempts costing 0.60 each | both run, a third planned attempt does not; the exit status is the spend stop's own; a second invocation with `--max-spend 2.00` is refused as another plan |
 | `--max-spend 9`, three receipts with no cost | the run stops, naming the missing costs |
 | a receipt edited to carry another `mrw_sha256` | a resume refuses it, and `bench verify` fails naming the attempt |
+| a kept file altered or removed after the run | `bench verify` fails naming the attempt |
+| `--keep-diff` | `<attempt id>.diff` beside the receipt holds the attempt's diff against its base, its hash in the receipt |
+| configuration H with `--mrw-sha256` | the Read hook's `bin/mrw` is the pinned bytes |
 | a canary recorded with another mrw or instruction hash | the run refuses it |
 | none of the flags | `run.json` and the receipts hold what the same run holds today, plus `bench_revision` and `init_model` (compared without start and wall times) |
 
@@ -38,7 +41,7 @@ ADR-206 Decisions 2, 3, 5 and 6, driven through `bench`'s own flag parsing:
 ## Ordered Steps
 
 1. [S1] `TestARunPinsItsMrwItsInstructionsAndItsSpend`, RED on every row but the last. [proof: acceptance]
-2. [S2] The flags and checks. Mutants, each killed: the hash is not compared; the attempt links the live path; the binary's instructions are run; the kept file is not copied; the stop sums nothing; a null cost counts as zero; resume skips validation; verify skips the hash; the canary's hashes are not compared. [proof: mutation]
+2. [S2] The flags and checks. Mutants, each killed: the hash is not compared; the attempt links the live path; the binary's instructions are run; the kept file is not copied; the diff is taken against the wrong commit; verify skips a kept file; the stop sums nothing; a null cost counts as zero; resume skips validation; verify skips the hash; the canary's hashes are not compared. [proof: mutation]
 3. [S3] `docs/bench/README.md`. [proof: acceptance]
 
 ## Acceptance
