@@ -66,8 +66,16 @@ go test -count=1 -v ./internal/bench -run '^(TestStage9ClassesHoldTheirRules|Tes
 | 4 — it is used | T5's smoke and T6 |
 
 ## Mutation Log
+- 2026-11-19 · acf141fe* · mutant killed · exit 1 · `bench/stage-9/classes.json` · a class of 11 · acceptance-sha256:e3e2b323ec7c28ef328fe0da01dc99284033366fbba4c6503db705275447a210 · covers:each class has 12 distinct tasks
+- 2026-11-19 · acf141fe* · mutant killed · exit 1 · `bench/tasks/s9-pylint-logging-too-many-args-confidence/task.json` · a follow-on task is not graded exact · acceptance-sha256:e3e2b323ec7c28ef328fe0da01dc99284033366fbba4c6503db705275447a210 · covers:every task is exact, creates no file and its require holds on the reference
 
 ## Verification Log
+- 2026-11-19 · acf141fe* · exit 1 · `set -o pipefail …` · acceptance-sha256:e3e2b323ec7c28ef328fe0da01dc99284033366fbba4c6503db705275447a210 · ms:127385 · test-lock-sha256:7bf38ea86f5e9bcc5cb37be63dcb7790487197fc616c842a41751ec03762a9ad · test-lock-file:docs/adr/locks/7bf38ea86f5e9bcc5cb37be63dcb7790487197fc616c842a41751ec03762a9ad.lock
+  ```
+  ```
+- 2026-11-19 · acf141fe* · exit 0 · `set -o pipefail …` · acceptance-sha256:e3e2b323ec7c28ef328fe0da01dc99284033366fbba4c6503db705275447a210 · ms:108629
+- 2026-11-19 · acf141fe* · exit 0 · `set -o pipefail …` · acceptance-sha256:e3e2b323ec7c28ef328fe0da01dc99284033366fbba4c6503db705275447a210 · ms:126693
+- 2026-11-19 · acf141fe* · exit 0 · `set -o pipefail …` · acceptance-sha256:e3e2b323ec7c28ef328fe0da01dc99284033366fbba4c6503db705275447a210 · ms:91602
 
 ## Invariants
 
