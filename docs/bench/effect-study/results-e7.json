@@ -1,0 +1,25 @@
+{
+ "E7": {
+  "by_flag": {
+   "C": 1,
+   "E": 1,
+   "N": 2,
+   "c": 4,
+   "i": 28,
+   "o": 6,
+   "other": 39,
+   "v": 114
+  },
+  "refused_stdin_reads": 195,
+  "v": 114,
+  "v_multi": 97,
+  "verdict": "UNCERTAIN"
+ },
+ "corpus": {
+  "compactions": 203,
+  "mrw_write_calls": 15915,
+  "requests": 100611,
+  "transcripts": 1018,
+  "unreadable": 0
+ }
+}

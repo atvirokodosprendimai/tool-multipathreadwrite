@@ -1541,6 +1541,13 @@ the bar of 50 and the window are not touched:
 - *What it is.* A replication of a tally already seen, on the same machine's transcripts, reproducible by
   whoever holds them; not a blind test.
 
+**Measured 2026-11-19 for ADR-202 (E7): UNCERTAIN.** One run of the scanner at `6629695c`, entries before
+2026-11-19T00:00:00Z. Without this repository: 159 refused reads of standard input, `v` 108, `v_multi` 93,
+so `v - v_multi` is 15, under the 50 that PROCEED needs, while `v` is over the 50 that WITHDRAW needs.
+With it: 195, 114, 97. The tally's shape holds; the rule cannot tie 93 of the 108 to one read. No flag is
+built. ADR-202 stays Proposed with T1 `blocked` on Zy's reading of these numbers
+(`docs/bench/effect-study/results-e7*.json`).
+
 ## Pre-registered for ADR-202's use (Decision 7) — written before the flag exists
 
 Read once, 30 days after the tag date of the first release that carries `--invert`, over entries from that

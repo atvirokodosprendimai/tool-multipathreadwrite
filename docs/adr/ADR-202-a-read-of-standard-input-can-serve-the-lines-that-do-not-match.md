@@ -18,6 +18,8 @@
 
 **The tally**, exploratory and not pre-registered: on 2026-11-19 a one-off scan of the Claude Code transcripts on one account's Mac, every entry up to the moment it ran, outside this repository's own sessions, printing aggregates only. 36,979 shell calls ran mrw. 160 were refused with "- reads standard input, and a read of it names nothing else". 148 of those had the shape `--grep -X PATTERN -`, where `--grep` took a grep flag as its pattern: `-v` 109, `-i` 29, `-o` 6, `-c` 3, `-E` 1. These are calls, not callers. The scan was not kept and had no bar written first. v1.90.1 made that refusal name the flag (PR 669); for `-v` it can only say there is no such thing. It is the commonest refusal of a read of standard input in that tally, not of mrw: the commonest overall is a multi-line replace with no `anchor=`, which is ADR-035 working.
 
+**The replication (E7), 2026-11-19: UNCERTAIN.** The committed scanner found 159 such refusals outside this repository and `-v` in 108 of them, so the tally's shape holds. But 93 of the 108 are commands that name `mrw read` more than once, where the rule written before the run says the refusal cannot be tied to one read by text; 15 remain, under the 50 that lets the flag be built. By that rule the numbers go to Zy and nothing is built (`docs/adr/BACKLOG.md`, `docs/bench/effect-study/README.md`).
+
 **What it costs today.** Each of the 109 calls was refused, exit 2. What the caller did next was not counted.
 
 **Why standard input only.** All 109 were reads of standard input. A read of files serves lines to license them (ADR-002, ADR-005); "every line that does not match" of a file is most of the file. Standard input licenses nothing (ADR-161), so an inverted match there changes no ledger and no licence.

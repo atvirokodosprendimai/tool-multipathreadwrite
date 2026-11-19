@@ -234,6 +234,31 @@ transcript with no entry in the window is not counted. It prints aggregates only
   it is not recognised as the last time mrw wrote one. The second E4 row is the figure that does not
   depend on the candidates.
 
+## E7, 2026-11-19: which grep flag a refused read of standard input was given
+
+ADR-202 (a draft) proposes an inverted match on standard input, on a one-off tally that found `--grep -v`
+in 109 refused calls. E7 replicates that tally with this scanner. The rule, its correction and the bar are in
+`docs/adr/BACKLOG.md` ("Pre-registered for ADR-202"), committed before the scanner was changed; the scanner
+was committed before it ran.
+
+| | all | without this repository | bar |
+|---|---|---|---|
+| refused reads of standard input | 195 | 159 | |
+| `--grep` took `-v` (`v`) | 114 | **108** | under 50: WITHDRAW |
+| of those, the command names `mrw read` more than once (`v_multi`) | 97 | **93** | |
+| `v - v_multi` | 17 | **15** | at least 50: PROCEED |
+| `-i` / `-o` / `-c` / `-E` / other | 28 / 6 / 4 / 1 / 39 | 28 / 6 / 4 / 1 / 12 | |
+
+**Verdict: UNCERTAIN.** The tally's shape is confirmed (108 against 109), and the rule's own doubt, that a
+refusal in a command with several reads cannot be tied to one of them by text, covers 93 of the 108. By the
+rule that goes to Zy with the numbers; no flag is built on it. One run.
+
+Limits. The command is read as text: a quoted string or a heredoc holding `--grep -v WORD` is classed by
+it. `v_multi` counts a command with two reads even when only one of them reads standard input, which is why
+it is large: an agent's command is often several reads in a row. It is not known how many of the 93 hold
+exactly one read of `-`; counting that now, after seeing the result, would be a new rule and needs its own
+entry first.
+
 ## Run it
 
 ```sh
@@ -253,3 +278,4 @@ Give `--until` a time in the past: a live session keeps appending to its transcr
   regenerated: its E2 tag count reads the tree, which has changed since.
 - `results-e6.json`, `results-e6-without-this-repository.json`: E6's third run, the corpus line and E6 only.
   `results-e6-first-run*.json`: the first. The second run's deciding column equals the third's.
+- `results-e7.json`, `results-e7-without-this-repository.json`: E7's one run, the corpus line and E7 only.
