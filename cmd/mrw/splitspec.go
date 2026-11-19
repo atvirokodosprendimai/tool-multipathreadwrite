@@ -17,12 +17,14 @@ const splitSpecPieces = 8
 // it complete: an unquoted `f.go:/func Foo/` reaches mrw as `f.go:/func` and
 // `Foo/`, and the refusal of the first names a pattern nobody typed.
 //
-// It is narrow on purpose. The spec must be PATH:/… as typed among typed (a
-// working-set entry or a --files-from line was not split by a shell); joined
-// to the arguments after it by single spaces it must parse to the same PATH
-// with pattern ranges only, so a join that merely parses as some other file
-// or address says nothing. It tries the spec and never matches on the error's
-// words.
+// It is narrow on purpose. Every argument must be a spec as typed: with a
+// working-set number among them (`@1`), which argument a failing spec came
+// from is not known here, so nothing is said, and a --files-from line was not
+// split by a shell (no argument is typed beside a list). Joined to the
+// arguments after it by single spaces the spec must parse to a path it
+// already began with, PATH:/…, with pattern ranges only, so a join that
+// merely parses as some other file or address says nothing. It tries the spec
+// and never matches on the error's words.
 //
 // The spec is printed, in single quotes, only when every byte of it is
 // printable ASCII other than a single quote and it does not start with a
@@ -30,22 +32,23 @@ const splitSpecPieces = 8
 // terminal acts on. A Windows build may be answering cmd.exe, where single
 // quotes do not quote, so it prints no spelling either.
 func splitSpec(typed []string, spec string, err error) error {
-	path, _, isPattern := strings.Cut(spec, ":/")
 	at := -1
 	for i, a := range typed {
-		if a == spec {
+		if strings.HasPrefix(a, "@") {
+			return err
+		}
+		if a == spec && at < 0 { // the first: an earlier one like it would have stopped the read
 			at = i
-			break
 		}
 	}
-	if !isPattern || at < 0 {
+	if at < 0 {
 		return err
 	}
 	joined := spec
 	for j := at + 1; j < len(typed) && j <= at+splitSpecPieces; j++ {
 		joined += " " + typed[j]
 		sp, perr := read.ParseSpec(joined)
-		if perr != nil || sp.Path != path || !patternsOnly(sp.Ranges) {
+		if perr != nil || !strings.HasPrefix(spec, sp.Path+":/") || !patternsOnly(sp.Ranges) {
 			continue
 		}
 		if runtime.GOOS == "windows" || !plainWord(joined) {
