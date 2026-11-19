@@ -237,7 +237,7 @@ transcript with no entry in the window is not counted. It prints aggregates only
 ## Run it
 
 ```sh
-python3 -I docs/bench/effect-study/test_scan.py                 # 146 checks on synthetic transcripts
+python3 -I docs/bench/effect-study/test_scan.py                 # 158 checks on synthetic transcripts
 python3 -I docs/bench/effect-study/scan.py --until 2026-11-18T10:00:00Z --repo . > results.json
 python3 -I docs/bench/effect-study/scan.py --until 2026-11-18T10:00:00Z --skip tool-multipathreadwrite
 ```

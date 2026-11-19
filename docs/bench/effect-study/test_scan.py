@@ -572,11 +572,47 @@ def test_reverts():
         ["INSUFFICIENT", "RECORD", "STOP", "STOP", "RECORD", "RECORD"])
 
 
+def e7(entries):
+    """Scan entries and return E7's counts that a case compares."""
+    r = scan_of(entries)["E7"]
+    return (r["refused_stdin_reads"], r["by_flag"], r["v_multi"])
+
+
+def test_invert():
+    """E7: a refused read of standard input is classed by the grep flag --grep took as its pattern."""
+    old = "mrw: - reads standard input, and a read of it names nothing else: got 2 things to read\n"
+    new = 'mrw: --grep took "-v" as its pattern, and a read of standard input names nothing else beside -; x\n'
+    check("the wording before v1.90.1, classed by the flag",
+          e7(bash("m1", "t1", "go test ./... | mrw read --grep -v ok -", old)), (1, {"v": 1}, 0))
+    check("the wording since v1.90.1", e7(bash("m1", "t1", "ls | mrw read --grep -v ok -", new)), (1, {"v": 1}, 0))
+    check("another flag, and --grep= with the flag attached",
+          (e7(bash("m1", "t1", "ls | mrw read --grep -i ok -", old)), e7(bash("m2", "t2", "ls | mrw read --grep=-o ok -", old))),
+          ((1, {"i": 1}, 0), (1, {"o": 1}, 0)))
+    check("no grep flag before the pattern is other",
+          e7(bash("m1", "t1", "ls | mrw read --grep ok - f.txt", old)), (1, {"other": 1}, 0))
+    check("a pattern that starts with a dash and more than one letter is other",
+          e7(bash("m1", "t1", "ls | mrw read --grep -vv ok -", old)), (1, {"other": 1}, 0))
+    check("a read that was not refused is nothing",
+          e7(bash("m1", "t1", "ls | mrw read --grep -v ok -", "==> -  1L\n")), (0, {}, 0))
+    check("the refusal's text in the answer of a command that ran no mrw is nothing",
+          e7(bash("m1", "t1", "cat notes.txt  # --grep -v ok -", old)), (0, {}, 0))
+    check("an answer delivered twice is one call",
+          e7(bash("m1", "t1", "ls | mrw read --grep -v ok -", old) + [res("t1", old)]), (1, {"v": 1}, 0))
+    check("two reads in one command are counted, and marked",
+          e7(bash("m1", "t1", "mrw read f.txt; ls | mrw read --grep -v ok -", old)), (1, {"v": 1}, 1))
+    check("mrw --root DIR read is a read",
+          e7(bash("m1", "t1", "mrw --root /r read f.txt; ls | mrw read --grep -v ok -", old)), (1, {"v": 1}, 1))
+    check("a second read marks only the v class",
+          e7(bash("m1", "t1", "mrw read f.txt; ls | mrw read --grep -i ok -", old)), (1, {"i": 1}, 0))
+    check("the verdict's rules", [scan.invert_verdict(*a) for a in ((49, 0), (50, 0), (60, 10), (60, 11), (109, 0))],
+          ["WITHDRAW", "PROCEED", "PROCEED", "UNCERTAIN", "PROCEED"])
+
+
 def main():
     """Run every case and print the mismatches."""
     for case in (test_cost, test_sites, test_shell, test_plan, test_plan_edges, test_tags, test_compaction,
                  test_changed, test_changed_edges, test_json_and_quiet, test_window, test_guard, test_guard_widths,
-                 test_guard_state, test_reverts):
+                 test_guard_state, test_reverts, test_invert):
         case()
     for b in BAD:
         print("FAIL " + b)
