@@ -1605,6 +1605,49 @@ made through `mrw_write` or another host.
   withdrawn after two challenges. Reopened only by the reading above going back to Zy, with a record of its own.
 - A receipt row naming the shift: no caller asked for it. Waits for a request and a record.
 
+## E6's verdict, set aside by the owner (2026-11-19)
+
+**Then left standing.** The owner agreed to an undo on 2026-11-19 and, the same day, stopped it after three
+designs were rejected at the record stage (ADR-204, Withdrawn). E6's STOP is the state of things again.
+
+"Pre-registered for an undo of mrw's own write (E6)" above measured STOP: 9 near path reverts in 9,686
+landed writes outside this repository, against a bar of 25 and 0.5%. On 2026-11-19 Zy agreed to an undo
+scoped to mrw's own writes (*"ok, re proposal on mrw - agreed"*, then *"good, go on with mrw undo"*). The
+bar was not met and is not claimed to be: the owner decided past it. ADR-204 builds it.
+
+## Pre-registered for ADR-204 (Decision 11) — written before the code
+
+**Not taken.** ADR-204 was withdrawn by Zy on 2026-11-19 before any code, so no release carries `mrw undo`
+and this reading has nothing to read. Kept as written for the record.
+
+Read once, 30 days after the tag date of the first release that carries `mrw undo`, on Zy's Mac, over
+Claude Code transcripts since that tag, this repository's sessions left out, with the effect-study scanner
+extended and committed before it runs. Shell calls only (a write over MCP is not counted), each once by
+its tool-use id; a call whose command holds more than one mrw command is reported apart, as `mixed`, and is
+in no count:
+- `kept`: a call running `mrw write` whose answer reports a landing (E5's rule) and holds no
+  `mrw: undo: not kept:` line.
+- `not_kept`, by reason: the same with that line, grouped by the words after it up to the first colon.
+- `restored`: a call running `mrw undo` with neither `--dry-run` nor `--forget` whose answer holds the
+  restore's summary line (plain) or `"outcome":"restored"` (`--json`).
+- `refused`: the same command with the refusal's line or outcome.
+**Reading.** Fewer than 1,000 `kept` in the window (E6's own floor): no reading; it is taken once more
+over the 60 days since the tag, and if still under it is recorded as inconclusive and goes to Zy.
+`restored` under one per 1,000 `kept`: it goes back to Zy with the choice of removing the command.
+Otherwise it stays. The share of `not_kept` among landings, by reason, and `refused` are reported with no
+bar. 1 per 1,000 is this entry's choice: E6 found 0.93 near reverts per 1,000 landed writes.
+
+## From ADR-204
+
+- Undo of a write that unlinks, renames, goes through a link or changes a hard-linked name: needs the
+  entry kinds, link text and link counts the second design review listed. Waits for the reading above
+  showing how many landings keep nothing for those reasons, and a record.
+- Undo on Windows: needs a store whose privacy can be shown there, and rules for attributes and held files.
+  Waits for a Windows user asking, and a record.
+- More than one kept write, and a redo: the owner chose one kept write on 2026-11-19. Waits for a request
+  and a record.
+- An undo over MCP: a host with no shell cannot run `mrw undo`. Waits for such a host asking, and a record.
+
 ## From the design review of 2026-11-19 (Codex gpt-6.2-astra at xhigh, read-only on `ca15bec8`, v1.92.0)
 
 Zy, 2026-11-19: *"fair review, i think we need to address astra findings"*, then *"yes, start with 1 and 2"*
