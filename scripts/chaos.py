@@ -271,6 +271,10 @@ def suite_read(n):
             bad = r1 > L or r3 > L
         else: spec = f; want = set(range(1, L + 1))
         want = {x for x in want if 1 <= x <= L}
+        if kind != "whole":
+            # ADR-161: a ranged read also serves the line after each range that ends before
+            # the file does, so a replace of exactly the lines read is licensed (ADR-052).
+            want |= {x + 1 for x in want if x + 1 <= L and x + 1 not in want}
         before = snapshot(root)
         cmd = ["--root", root, "read", "--", spec]
         res = run(cmd)
