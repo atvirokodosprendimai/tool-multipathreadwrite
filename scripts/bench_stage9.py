@@ -1,17 +1,18 @@
 """ADR-206's counting script (Decision 7), frozen before the first counted attempt.
 
-  bench_stage9.py count  --receipts DIR --transcripts DIR [--classes FILE] [--pilot pilot.md]
+  bench_stage9.py count  --receipts DIR --transcripts DIR --pilot pilot.md [--classes FILE]
   bench_stage9.py report --receipts DIR --counts FILE
   bench_stage9.py spend  --receipts DIR
 
 DIR holds <model>/<arm>/ run directories, arm a, m or n: each has the run's run.json, its <attempt>.receipt.json, and
-for arm n the <attempt>.kept log; the transcript <attempt>.transcript.jsonl is found by name anywhere below
---transcripts. count refuses (exit 2, the reason on standard error) run directories whose run.json differ in anything
-but the models, configs, tasks, mrw_version, mrw_sha256, mrw_instructions_sha256, keep_state_file and max_spend_usd,
-whose arm M and arm N mrw hashes are equal, and, with --pilot, whose hash is not the arm's `m sha256` or `n sha256`.
-It prints, as JSON, what became of each planned attempt. report prints the text report from that JSON. spend prints
+for arm n the <attempt>.kept log; the transcript <attempt>.transcript.jsonl is found by name under
+--transcripts/<model>/<arm>. count refuses (exit 2, the reason on standard error) run directories whose run.json differ in
+anything but the models, configs, tasks, mrw_version, mrw_sha256, mrw_instructions_sha256, keep_state_file and
+max_spend_usd, whose arm M and arm N mrw hashes are equal, and whose hash is not the arm's `m sha256` or `n sha256` in
+--pilot, which it requires and which must name each once. It prints, as JSON, what became of each planned attempt. report
+prints the text report from that JSON, and refuses when a run.json is not the one the counts were made from. spend prints
 one line, `stage9 spend usd <number> missing <count>`. The script reads; it writes only to standard output.
-Imports mrw_calls and result_text from bench_mechanism.py, which is not edited.
+Imports result_text and split_heredocs from bench_mechanism.py, which is not edited.
 """
 import argparse
 import hashlib
@@ -22,7 +23,7 @@ import re
 import sys
 from pathlib import Path
 
-from bench_mechanism import mrw_calls, result_text
+from bench_mechanism import result_text, split_heredocs
 
 ARMS = ("a", "m", "n")
 ARM_CONFIGS = {"a": ["A"], "m": ["B"], "n": ["B"]}
@@ -35,6 +36,14 @@ CLASS_ORDER = ("single-site", "batch", "follow-on", "control")
 PAIRED_MIN = 10
 RESAMPLES, SEED, MAX_DROPPED_FRACTION = 4000, 206, 0.05
 EXPOSED = re.compile(r"line \d+ of [^\n]+? has no recorded showing in this version")
+# A command word that is mrw: a bare name, a path (./bin/mrw), or $MRW, after `command`, `env` or anything else; the global
+# flags -C DIR and --root DIR sit between it and the subcommand.
+_START = r'''(?:^|[\s;&|()`"'=])'''
+_MRW = r'''(?:(?:[^\s;&|()`"']*/)?mrw|\$\{?MRW\}?)"?\s+(?:(?:-C|--root)\s+\S+\s+|--root=\S+\s+)*'''
+WRITE_CMD = re.compile(_START + _MRW + r"write\b")
+OTHER_CMD = re.compile(_START + _MRW + r"(?:--)?(?:instructions|skill)\b")
+# Standard output or error sent to a file or /dev/null (2>&1 is not).
+DISCARDED = re.compile(r"(?:^|[\s;&|()])(?:&|\d+)?>>?(?!&)")
 RETRY = re.compile(r"\.r(\d+)$")
 DEFAULT_CLASSES = Path(__file__).resolve().parent.parent / "bench" / "stage-9" / "classes.json"
 
@@ -81,13 +90,18 @@ def load_runs(root, pilot=None):
     if pilot is not None:
         text = Path(pilot).read_text(encoding="utf-8")
         for arm in ("m", "n"):
-            found = re.search(rf"^{arm} sha256: ([0-9a-f]{{64}})\s*$", text, re.M)
-            if not found:
-                raise Refusal(f"{pilot} names no `{arm} sha256:` line")
-            wrong = sorted(h for h in hashes[arm] if h != found.group(1))
+            named = re.findall(rf"^{arm} sha256: ([0-9a-f]{{64}})\s*$", text, re.M)
+            if len(named) != 1:
+                raise Refusal(f"{pilot} names `{arm} sha256:` {len(named)} times, not once")
+            wrong = sorted(h for h in hashes[arm] if h != named[0])
             if wrong:
-                raise Refusal(f"arm {arm}'s run.json hash {wrong[0]} is not the {arm} sha256 {found.group(1)} in {pilot}")
+                raise Refusal(f"arm {arm}'s run.json hash {wrong[0]} is not the {arm} sha256 {named[0]} in {pilot}")
     return runs
+
+
+def run_digest(directory):
+    """The sha256 of a run directory's run.json: what binds a counts file to the plan it was made from."""
+    return hashlib.sha256((directory / "run.json").read_bytes()).hexdigest()
 
 
 def run_summary(run):
@@ -103,22 +117,38 @@ def load_classes(path):
     return where
 
 
-def final_receipts(directory):
-    """({task: (path, receipt) that counts}, set of tasks started): a replacement supersedes the attempt it replaces."""
-    found, started = {}, set()
+def replaced(exclusion, tried):
+    """internal/bench's replaced(): a start error is re-queued up to twice, a setup failure once, nothing else."""
+    return tried < 2 if exclusion == "start-error" else tried < 1 if exclusion == "setup" else False
+
+
+def receipts_by_try(directory):
+    """({task: {try: (path, receipt)}}, the stems of the .started marks)."""
+    found = {}
     for path in sorted(directory.rglob("*.receipt.json")):
         rec = read_json(path)
-        stem = path.name[:-len(".receipt.json")]
-        task = rec.get("task")
-        retry = RETRY.search(stem)
+        retry = RETRY.search(path.name[:-len(".receipt.json")])
         rank = int(retry.group(1)) if retry else 0
-        if task in found and found[task][0] == rank:
-            raise Refusal(f"two receipts for {task} at the same try under {directory}")
-        if task not in found or found[task][0] < rank:
-            found[task] = (rank, path, rec)
-        started.add(task)
-    marks = [p.name[:-len(".started")] for p in directory.rglob("*.started")]
-    return {t: (p, r) for t, (_, p, r) in found.items()}, started, marks
+        tries = found.setdefault(rec.get("task"), {})
+        if rank in tries:
+            raise Refusal(f"two receipts for {rec.get('task')} at try {rank} under {directory}")
+        tries[rank] = (path, rec)
+    return found, [p.name[:-len(".started")] for p in directory.rglob("*.started")]
+
+
+def walk(tries):
+    """((path, receipt) that counts or None, the stems of the receipts the chain does not reach).
+
+    The producer's rule (internal/bench runner.go): the base receipt counts unless its exclusion warrants another try, then
+    .r1, then .r2 in the same way; a receipt past where that chain ends is stray and counts for nothing.
+    """
+    last, picked = -1, None
+    while last + 1 in tries:
+        last += 1
+        picked = tries[last]
+        if not replaced(picked[1].get("exclusion", ""), last):
+            break
+    return picked, sorted(p.name[:-len(".receipt.json")] for k, (p, _) in tries.items() if k > last)
 
 
 def transcripts_by_name(root):
@@ -140,21 +170,19 @@ def outcome_of(rec):
     return "outside" if oracle.get("outside") else "other"
 
 
-def is_write(args):
-    """True for an mrw call that, after the global flags -C DIR, --root DIR and --root=DIR, is `write`; a dry run is one."""
-    i = 0
-    while i < len(args):
-        if args[i] in ("-C", "--root"):
-            i += 2
-        elif args[i].startswith("--root="):
-            i += 1
-        else:
-            break
-    return i < len(args) and args[i] == "write"
+def classify_command(command):
+    """None for a command that ran no `mrw write`; else "mixed" (it also ran mrw instructions or skill, so its output is not
+    the write's), "redirected" (its output went to a file or /dev/null) or "read" (its output is the write's)."""
+    shell, _ = split_heredocs(command)
+    if not WRITE_CMD.search(shell):
+        return None
+    if OTHER_CMD.search(shell):
+        return "mixed"
+    return "redirected" if DISCARDED.search(shell) else "read"
 
 
 def transcript_exposure(raw):
-    """(write calls, write results read, refusal matches): ADR-203's refusal as read from the output of a write command."""
+    """What the output of the write commands of one transcript shows of ADR-203's refusal, with how many it could read."""
     uses, results = [], {}
     for line in raw.splitlines():
         try:
@@ -169,24 +197,22 @@ def transcript_exposure(raw):
                 uses.append(part)
             elif part.get("type") == "tool_result":
                 results[part.get("tool_use_id")] = result_text(part.get("content"))
-    calls_made = read = hunks = 0
+    seen = {"write_calls": 0, "write_results_read": 0, "write_not_read": 0, "write_mixed": 0, "hunks": 0}
     for use in uses:
         command = (use.get("input") or {}).get("command", "")
-        if not isinstance(command, str):
+        kind = classify_command(command) if isinstance(command, str) else None
+        if kind is None:
             continue
-        calls, _ = mrw_calls(command)
-        if calls is None:
-            ran_write = "mrw" in command and "write" in command
-        else:
-            ran_write = any(is_write(c) for c in calls)
-        if not ran_write:
-            continue
-        calls_made += 1
+        seen["write_calls"] += 1
         text = results.get(use.get("id"), "")
-        if text.strip():
-            read += 1
-            hunks += len(EXPOSED.findall(text))
-    return calls_made, read, hunks
+        if kind == "mixed":
+            seen["write_mixed"] += 1
+        elif kind == "read" and text.strip():
+            seen["write_results_read"] += 1
+            seen["hunks"] += len(EXPOSED.findall(text))
+        else:
+            seen["write_not_read"] += 1
+    return seen
 
 
 def kept_hunks(path):
@@ -207,12 +233,18 @@ def kept_hunks(path):
     return n
 
 
-def attempt_entry(task, cls, arm, picked, started, index, transcripts):
+def state_note(rec):
+    """True when the receipt says arm N's state file was not retained (a kept_note beginning `state:`)."""
+    return any(n.startswith("state:") for n in (rec.get("kept_note") or "").split("; "))
+
+
+def attempt_entry(cls, arm, picked, stray, started, index, transcripts):
     path, rec = picked if picked else (None, None)
     outcome = outcome_of(rec)
     entry = {"class": cls, "attempt": path.name[:-len(".receipt.json")] if path else None, "started": started, "outcome": outcome,
-             "claimed": bool(rec) and rec.get("status") == "done", "exposed": None, "hunks": None, "write_calls": None,
-             "write_results_read": None, "spend": None, "num_turns": None, "tool_calls": None, "tokens": None, "wall_ms": None,
+             "claimed": bool(rec) and rec.get("status") == "done", "exposed": None, "exposure_unknown": False, "hunks": None,
+             "write_calls": None, "write_results_read": None, "write_not_read": None, "write_mixed": None, "stray": stray,
+             "spend": None, "num_turns": None, "tool_calls": None, "tokens": None, "wall_ms": None,
              "transcript_sha256": None, "mrw_after_differs": bool(rec) and bool(rec.get("mrw_sha256_after"))}
     if rec is None:
         return entry
@@ -227,29 +259,37 @@ def attempt_entry(task, cls, arm, picked, started, index, transcripts):
         raise Refusal(f"{entry['attempt']}: {len(found)} transcripts named so under {transcripts}")
     entry["transcript_sha256"] = hashlib.sha256(found[0].read_bytes()).hexdigest()
     if arm == "n":
-        entry["hunks"] = kept_hunks(path.with_name(entry["attempt"] + ".kept"))
-        entry["exposed"] = entry["hunks"] > 0
+        if state_note(rec):
+            entry["exposure_unknown"] = True
+        else:
+            entry["hunks"] = kept_hunks(path.with_name(entry["attempt"] + ".kept"))
+            entry["exposed"] = entry["hunks"] > 0
     elif arm == "m":
-        entry["write_calls"], entry["write_results_read"], entry["hunks"] = transcript_exposure(found[0].read_text(encoding="utf-8", errors="replace"))
+        seen = transcript_exposure(found[0].read_text(encoding="utf-8", errors="replace"))
+        entry["hunks"] = seen.pop("hunks")
+        entry.update(seen)
         entry["exposed"] = entry["hunks"] > 0
     return entry
 
 
-def count(receipts, transcripts, classes, pilot=None):
+def count(receipts, transcripts, classes, pilot):
+    if pilot is None:
+        raise Refusal("count needs --pilot: the arms' mrw hashes are checked against pilot.md")
     runs = load_runs(receipts, pilot)
     where = load_classes(classes)
     models = {}
     for (model, arm), (directory, run) in sorted(runs.items()):
-        picked, started, marks = final_receipts(directory)
+        by_try, marks = receipts_by_try(directory)
         where_t = Path(transcripts) / model / arm
         index = transcripts_by_name(where_t)
         tasks = {}
         for task in run.get("tasks") or []:
             if task not in where:
                 raise Refusal(f"{directory}/run.json: task {task} is in no class of {classes}")
-            was_started = task in started or any(m.startswith(task + ".") for m in marks)
-            tasks[task] = attempt_entry(task, where[task], arm, picked.get(task), was_started, index, where_t)
-        models.setdefault(model, {})[arm] = {"run": run_summary(run), "tasks": tasks}
+            was_started = task in by_try or any(m.startswith(task + ".") for m in marks)
+            picked, stray = walk(by_try.get(task, {}))
+            tasks[task] = attempt_entry(where[task], arm, picked, stray, was_started, index, where_t)
+        models.setdefault(model, {})[arm] = {"run": run_summary(run), "run_sha256": run_digest(directory), "tasks": tasks}
     return {"stage": "stage9", "models": models}
 
 
@@ -265,7 +305,7 @@ def spend(receipts):
                 missing += 1
             else:
                 costs.append(cost)
-    return f"stage9 spend usd {math.fsum(costs):.4f} missing {missing}"
+    return f"stage9 spend usd {math.fsum(costs):.6f} missing {missing}"
 
 
 # ---- report ----------------------------------------------------------------------------------------------------
@@ -317,8 +357,10 @@ def compare(first, second, tasks_x, tasks_y, cls):
         return f"{head} INSUFFICIENT: {dropped} of {RESAMPLES} resamples dropped, over {MAX_DROPPED_FRACTION:.0%}"
     fx = sum(r[0] for r in rows) / correct[first]
     fy = sum(r[2] for r in rows) / correct[second]
-    return (f"{head} paired {len(paired)}; correct {first} {correct[first]} {second} {correct[second]}; spend per correct {first} {fx:.4f} {second} {fy:.4f}; "
-            f"ratio {first}/{second} {fx / fy:.4f} [95% {low:.4f}, {high:.4f}]; resamples dropped {dropped} of {RESAMPLES}")
+    excludes = "yes" if low > 1 or high < 1 else "no"  # judged on the unrounded ends
+    return (f"{head} paired {len(paired)}; correct {first} {correct[first]} {second} {correct[second]}; "
+            f"spend per correct {first} {fx:.6g} {second} {fy:.6g}; ratio {first}/{second} {fx / fy:.6g} "
+            f"[95% {low:.6g}, {high:.6g}]; excludes 1: {excludes}; resamples dropped {dropped} of {RESAMPLES}")
 
 
 def report(receipts, counts):
@@ -326,12 +368,16 @@ def report(receipts, counts):
     for model, arms in counts["models"].items():
         for arm, doc in arms.items():
             have = runs.get((model, arm))
-            if have is None or run_summary(have[1]) != doc["run"]:
-                raise Refusal(f"the counts file does not match the run.json of {model}/{arm} under {receipts}")
+            if have is None or run_digest(have[0]) != doc.get("run_sha256"):
+                raise Refusal(f"the counts file was not made from the run.json of {model}/{arm} under {receipts}")
     out = []
     for model in sorted(counts["models"]):
         arms = {arm: doc["tasks"] for arm, doc in counts["models"][model].items()}
         out.append(f"model {model}")
+        for arm in ARMS:
+            stray = sorted(s for e in arms.get(arm, {}).values() for s in e["stray"])
+            if stray:
+                out.append(f"  stray receipts ignored ({arm}): {', '.join(stray)}")
         for cls in CLASS_ORDER:
             out.append(f"  class {cls}")
             for arm in ARMS:
@@ -358,13 +404,24 @@ def exposure_lines(arms, cls):
             out.append(f"    exposed {arm}: no run")
             continue
         es = [e for e in arms[arm].values() if e["class"] == cls and e["outcome"] != "missing"]
-        line = f"    exposed {arm}: {sum(bool(e['exposed']) for e in es)} of {len(es)} graded attempts; hunks {sum(e['hunks'] or 0 for e in es)}"
+        known = [e for e in es if not e["exposure_unknown"]]
+        line = (f"    exposed {arm}: {sum(bool(e['exposed']) for e in known)} of {len(known)} graded attempts; "
+                f"hunks {sum(e['hunks'] or 0 for e in known)}")
         if arm == "m":
-            line += f"; write results read {sum(e['write_results_read'] or 0 for e in es)} of {sum(e['write_calls'] or 0 for e in es)} write calls"
+            line += (f"; write results read {sum(e['write_results_read'] or 0 for e in es)} of {sum(e['write_calls'] or 0 for e in es)} write calls "
+                     f"({sum(e['write_not_read'] or 0 for e in es)} redirected or empty, {sum(e['write_mixed'] or 0 for e in es)} beside "
+                     f"mrw instructions or skill)")
+        else:
+            line += f"; exposure unknown {len(es) - len(known)} (a state file not retained)"
         out.append(line)
+    out.append("    not attributable in m: a refusal in the output of a write sent to a file or /dev/null, of a command that also ran "
+               "mrw instructions or skill, or cut by the host; a refusal on a dry run counts as exposed")
     if "n" in arms:
-        listed = sorted(e["attempt"] for e in arms["n"].values() if e["class"] == cls and e["exposed"] and e["outcome"] == "outside")
+        mine = [e for e in arms["n"].values() if e["class"] == cls and e["outcome"] == "outside"]
+        listed = sorted(e["attempt"] for e in mine if e["exposed"])
+        unknown = sorted(e["attempt"] for e in mine if e["exposure_unknown"])
         out.append("    n exposed and outside: " + (", ".join(listed) if listed else "none"))
+        out.append("    n outside with exposure unknown: " + (", ".join(unknown) if unknown else "none"))
     return out
 
 

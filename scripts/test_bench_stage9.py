@@ -8,6 +8,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import bench_stage9 as stage9  # noqa: E402
@@ -73,6 +74,8 @@ class World:
                 rec["over_budget"] = True
             if s.get("exclusion"):
                 rec["exclusion"] = s["exclusion"]
+            if s.get("note"):
+                rec["kept_note"] = s["note"]
             (d / f"{stem}.receipt.json").write_text(json.dumps(rec), encoding="utf-8")
             if s.get("log"):
                 (d / f"{stem}.kept").write_text("".join(json.dumps({"path": "f.go", "op": "replace", "start": 4, "end": 4, "first_unshown": 4, "sha_before": "e" * 64}) + "\n" for _ in range(s["log"])), encoding="utf-8")
@@ -138,7 +141,25 @@ class Classification(unittest.TestCase):
         (d / "run.json").write_text(json.dumps(run_json("m", MODEL, ["follow-on-00"])), encoding="utf-8")
         got = w.attempts("m")["follow-on-00"]
         self.assertEqual((got["outcome"], got["spend"], got["attempt"]), ("correct", 0.2, f"follow-on-00.B.{MODEL}.1.r1"))
-        self.assertEqual(stage9.spend(w.root), "stage9 spend usd 0.2500 missing 0")
+        self.assertEqual(stage9.spend(w.root), "stage9 spend usd 0.250000 missing 0")
+
+    def test_the_chain_follows_the_producers_rule_and_names_the_strays(self):
+        w = World(self)
+        tasks = [f"follow-on-0{i}" for i in range(5)]
+        run = run_json("m", MODEL, tasks)
+        w.arm("m", {"follow-on-00": dict(exclusion="setup"), "follow-on-01": dict(exclusion="start-error"),
+                    "follow-on-02": dict(exclusion="infrastructure"), "follow-on-03": {}, "follow-on-04": dict(exclusion="setup")}, run=run)
+        w.arm("m", {"follow-on-00": dict(retry=1, cost=0.2), "follow-on-01": dict(retry=1, exclusion="start-error"), "follow-on-02": dict(retry=1),
+                    "follow-on-03": dict(retry=1), "follow-on-04": dict(retry=1, exclusion="setup")}, run=run)
+        w.arm("m", {"follow-on-00": dict(retry=2), "follow-on-01": dict(retry=2, cost=0.3), "follow-on-04": dict(retry=2)}, run=run)
+        got = w.attempts("m")
+        stem = f".B.{MODEL}.1"
+        want = {"follow-on-00": ("correct", ".r1", [".r2"]), "follow-on-01": ("correct", ".r2", []), "follow-on-02": ("missing", "", [".r1"]),
+                "follow-on-03": ("correct", "", [".r1"]), "follow-on-04": ("missing", ".r1", [".r2"])}
+        for task, (outcome, suffix, stray) in want.items():
+            self.assertEqual((got[task]["outcome"], got[task]["attempt"], got[task]["stray"]),
+                             (outcome, task + stem + suffix, [task + stem + s for s in stray]), task)
+        self.assertIn(f"stray receipts ignored (m): follow-on-00.B.{MODEL}.1.r2, follow-on-02.B.{MODEL}.1.r1", stage9.report(w.root, w.count()))
 
     def test_the_numbers_beside_the_outcome(self):
         w = World(self)
@@ -154,14 +175,14 @@ class Spend(unittest.TestCase):
         w = World(self)
         w.arm("m", {"follow-on-00": dict(cost=None), "follow-on-01": dict(cost=0.25)})
         self.assertIsNone(w.attempts("m")["follow-on-00"]["spend"])
-        self.assertEqual(stage9.spend(w.root), "stage9 spend usd 0.2500 missing 1")
+        self.assertEqual(stage9.spend(w.root), "stage9 spend usd 0.250000 missing 1")
 
     def test_spend_is_exactly_one_line_of_six_fields_over_every_receipt(self):
         w = World(self)
         w.arm("a", {"single-site-00": dict(cost=0.1), "single-site-01": dict(exclusion="infrastructure", cost=0.3)})
         w.arm("m", {"follow-on-00": dict(cost=0.2)}, model="claude-sonnet-5-5")
         code, out, _ = cli("spend", "--receipts", str(w.root))
-        self.assertEqual((code, out), (0, "stage9 spend usd 0.6000 missing 0\n"))
+        self.assertEqual((code, out), (0, "stage9 spend usd 0.600000 missing 0\n"))
         self.assertEqual(len(out.split()), 6)
 
 
@@ -209,8 +230,21 @@ class Insufficient(unittest.TestCase):
     def test_a_ratio_is_printed_when_nothing_is_insufficient(self):
         w = self.pair(lambda ts: {t: dict(cost=0.1) for t in ts}, lambda ts: {t: dict(cost=0.2) for t in ts})
         line = self.line(w)
-        self.assertIn("paired 12; correct m 12 n 12; spend per correct m 0.1000 n 0.2000; ratio m/n 0.5000 [95% 0.5000, 0.5000]; resamples dropped 0 of 4000", line)
+        self.assertIn("paired 12; correct m 12 n 12; spend per correct m 0.1 n 0.2; ratio m/n 0.5 [95% 0.5, 0.5]; excludes 1: yes; resamples dropped 0 of 4000", line)
 
+
+    def test_the_five_percent_boundary_is_200_of_4000(self):
+        w = self.pair(lambda ts: {t: {} for t in ts}, lambda ts: {t: {} for t in ts})
+        with mock.patch.object(stage9, "bootstrap", return_value=(0.9, 1.1, 200)):
+            self.assertIn("ratio m/n", self.line(w))
+        with mock.patch.object(stage9, "bootstrap", return_value=(0.9, 1.1, 201)):
+            self.assertRegex(self.line(w), r"INSUFFICIENT: 201 of 4000 resamples dropped")
+
+    def test_excludes_one_is_judged_on_the_unrounded_ends(self):
+        w = self.pair(lambda ts: {t: {} for t in ts}, lambda ts: {t: {} for t in ts})
+        for ends, want in (((1.0000001, 1.5), "yes"), ((0.5, 0.9999999), "yes"), ((0.9999999, 1.0000001), "no"), ((1.0, 1.5), "no"), ((0.5, 1.0), "no")):
+            with mock.patch.object(stage9, "bootstrap", return_value=(*ends, 0)):
+                self.assertIn(f"excludes 1: {want}", self.line(w), ends)
     def test_m_against_a_is_read_on_single_site_and_batch_only(self):
         w = World(self)
         w.arm("a", {**tasks_of("single-site"), **tasks_of("batch"), **tasks_of("follow-on")})
@@ -243,26 +277,18 @@ class Bootstrap(unittest.TestCase):
         self.assertEqual((stage9.RESAMPLES, stage9.SEED, stage9.MAX_DROPPED_FRACTION), (4000, 206, 0.05))
 
     def test_three_tasks_against_the_exact_distribution_of_all_27_resamples(self):
-        # Independent of the script's own draws: enumerate every resample of 3 paired tasks, each 1/27 likely.
+        # Independent of the script's draws: every resample of 3 paired tasks, each 1/27 likely. All are correct, so the
+        # statistic is the ratio of the resample's two spend sums.
         rows = [(0.1, 1, 0.3, 1), (0.2, 1, 0.2, 1), (0.4, 1, 0.1, 1)]
-
-        def exact(rs):
-            out = []
-            for i in itertools.product(range(3), repeat=3):
-                pick = [rs[j] for j in i]
-                out.append((sum(r[0] for r in pick) / 3) / (sum(r[2] for r in pick) / 3))
-            return sorted(out)
-
-        dist = exact(rows)
+        dist = sorted(sum(rows[j][0] for j in i) / sum(rows[j][2] for j in i) for i in itertools.product(range(3), repeat=3))
         low, high, dropped = stage9.bootstrap(rows)
         self.assertEqual(dropped, 0)
-        for value, quantile in ((low, 0.025), (high, 0.975)):
-            self.assertTrue(any(abs(value - d) < 1e-9 for d in dist), "an estimate the exact distribution cannot produce")
-            below = sum(d < value - 1e-9 for d in dist) / 27
-            upto = sum(d <= value + 1e-9 for d in dist) / 27
-            # 4000 draws put the sample quantile within a few hundredths of the exact CDF at that point.
-            self.assertLessEqual(below, quantile + 0.04)
-            self.assertGreaterEqual(upto, quantile - 0.04)
+        # The 2.5th and 97.5th percentiles of that distribution are its ends, each 1/27 (3.7%) likely: 4000 draws put the
+        # 100th and the 3900th sorted value in them, and a 6th or 94th percentile one value further in.
+        self.assertGreater(dist[1], dist[0] + 1e-9)
+        self.assertGreater(dist[26], dist[25] + 1e-9)
+        self.assertAlmostEqual(low, dist[0], places=9)
+        self.assertAlmostEqual(high, dist[26], places=9)
         point = (sum(r[0] for r in rows) / 3) / (sum(r[2] for r in rows) / 3)
         self.assertLessEqual(low, point)
         self.assertLessEqual(point, high)
@@ -321,6 +347,42 @@ class Exposure(unittest.TestCase):
         got = w.attempts("m")["follow-on-00"]
         self.assertEqual((got["write_calls"], got["write_results_read"], got["exposed"]), (2, 1, False))
 
+
+    def test_what_counts_as_the_output_of_a_write(self):
+        cases = [
+            ("mrw write p", "read"), ("command mrw write p", "read"), ("env X=1 mrw write p", "read"), ("./bin/mrw write p", "read"),
+            ("/usr/local/bin/mrw -C d write -", "read"), ('"$MRW" write p', "read"), ("$MRW --root d write p", "read"),
+            ("cd d && mrw write p 2>&1", "read"), ("mrw write - <<'PLAN'\n@@ f 1 replace\nmrw instructions > y\nPLAN", "read"),
+            ("mrw write p >/dev/null 2>&1; echo Finished", "redirected"), ("mrw write p > out.txt", "redirected"),
+            ("mrw write p &> out.txt", "redirected"), ("mrw write p 2>/dev/null", "redirected"), ("mrw write p >> log", "redirected"),
+            ("mrw instructions; mrw write p", "mixed"), ("mrw --instructions; mrw write p", "mixed"), ("mrw skill && mrw write p", "mixed"),
+            ("mrw instructions; mrw write p >/dev/null 2>&1", "mixed"), ("command mrw instructions | head -3; ./bin/mrw write p", "mixed"),
+            ("mrw read f.go", None), ("mrw instructions", None), ("echo mrw writer", None), ("mrw read f.go > out.txt", None),
+        ]
+        for command, want in cases:
+            self.assertEqual(stage9.classify_command(command), want, command)
+
+    def test_instructions_beside_a_write_and_a_redirected_write_are_not_read(self):
+        w = World(self)
+        w.arm("m", {
+            "follow-on-00": dict(steps=[("mrw instructions; mrw write p >/dev/null 2>&1", "A refusal reads: " + REFUSED)]),
+            "follow-on-01": dict(steps=[("mrw write p >/dev/null 2>&1; echo Finished", "Finished")]),
+            "follow-on-02": dict(steps=[("command mrw write p", REFUSED), ("./bin/mrw write p", REFUSED), ("$MRW write p", APPLIED)]),
+        })
+        got = w.attempts("m")
+        fields = ("exposed", "hunks", "write_calls", "write_results_read", "write_not_read", "write_mixed")
+        self.assertEqual([tuple(got[t][f] for f in fields) for t in sorted(got)],
+                         [(False, 0, 1, 0, 0, 1), (False, 0, 1, 0, 1, 0), (True, 2, 3, 3, 0, 0)])
+
+    def test_in_n_a_state_file_not_retained_is_unknown_not_zero(self):
+        w = World(self)
+        w.arm("n", {"follow-on-00": dict(note="state: not kept: the state home is a link or a file, not a directory"),
+                    "follow-on-01": dict(log=1), "follow-on-02": dict(note="diff: not kept: too big")})
+        got = w.attempts("n")
+        self.assertEqual([(got[t]["exposure_unknown"], got[t]["exposed"], got[t]["hunks"]) for t in sorted(got)],
+                         [(True, None, None), (False, True, 1), (False, False, 0)])
+        text = stage9.report(w.root, w.count())
+        self.assertIn("exposed n: 1 of 2 graded attempts; hunks 1; exposure unknown 1", text)
     def test_arm_a_has_no_exposure(self):
         w = World(self)
         w.arm("a", {"single-site-00": {}})
@@ -357,7 +419,7 @@ class Refusals(unittest.TestCase):
         w.arm("m", tasks_of("follow-on"))
         w.arm("n", tasks_of("follow-on"), run=run_json("n", MODEL, CLASSES["follow-on"], mrw_sha256=M_HASH))
         with self.assertRaisesRegex(stage9.Refusal, "same mrw hash"):
-            w.count(pilot=False)
+            w.count()
 
     def test_a_hash_that_is_not_the_arms_in_pilot_md_is_refused(self):
         w = World(self)
@@ -389,9 +451,21 @@ class Refusals(unittest.TestCase):
         w = World(self)
         w.arm("m", tasks_of("follow-on"))
         w.arm("n", tasks_of("follow-on"), run=run_json("n", MODEL, CLASSES["follow-on"], mrw_sha256=M_HASH))
-        code, out, err = cli("count", "--receipts", str(w.root), "--transcripts", str(w.root), "--classes", str(w.classes))
+        code, out, err = cli("count", "--receipts", str(w.root), "--transcripts", str(w.root), "--classes", str(w.classes), "--pilot", str(w.pilot))
         self.assertEqual((code, out), (2, ""))
         self.assertIn("same mrw hash", err)
+
+    def test_count_requires_a_pilot_file_that_names_each_hash_once(self):
+        w = World(self)
+        w.arm("m", tasks_of("follow-on"))
+        with self.assertRaisesRegex(stage9.Refusal, "needs --pilot"):
+            w.count(pilot=False)
+        w.pilot.write_text(f"m sha256: {M_HASH}\nm sha256: {M_HASH}\nn sha256: {N_HASH}\n", encoding="utf-8")
+        with self.assertRaisesRegex(stage9.Refusal, "`m sha256:` 2 times"):
+            w.count()
+        w.pilot.write_text(f"m sha256: {M_HASH}\n", encoding="utf-8")
+        with self.assertRaisesRegex(stage9.Refusal, "`n sha256:` 0 times"):
+            w.count()
 
 
 class Report(unittest.TestCase):
@@ -412,6 +486,7 @@ class Report(unittest.TestCase):
         self.assertIn("n: planned 12 started 12 graded 12 missing 0; correct 11 outside 1 other 0; claimed 12", text)
         self.assertIn("exposed m: 2 of 12 graded attempts; hunks 2; write results read 2 of 2 write calls", text)
         self.assertIn("exposed n: 2 of 12 graded attempts; hunks 3", text)
+        self.assertIn("not attributable in m:", text)
         self.assertIn(f"n exposed and outside: follow-on-00.B.{MODEL}.1", text)
 
     def test_no_exposed_outside_attempt_is_said_as_none(self):
@@ -445,8 +520,16 @@ class Report(unittest.TestCase):
     def test_a_counts_file_of_other_runs_is_refused(self):
         w = self.build()
         counts = w.count()
-        counts["models"][MODEL]["m"]["run"]["mrw_sha256"] = "0" * 64
-        with self.assertRaisesRegex(stage9.Refusal, "counts"):
+        counts["models"][MODEL]["m"]["run_sha256"] = "0" * 64
+        with self.assertRaisesRegex(stage9.Refusal, "counts file"):
+            stage9.report(w.root, counts)
+
+    def test_a_run_json_changed_after_counting_is_refused_even_where_it_may_differ(self):
+        w = self.build()
+        counts = w.count()
+        path = w.root / MODEL / "n" / "run.json"
+        path.write_text(json.dumps({**json.loads(path.read_text(encoding="utf-8")), "max_spend_usd": 99.0}), encoding="utf-8")
+        with self.assertRaisesRegex(stage9.Refusal, "counts file"):
             stage9.report(w.root, counts)
 
 
