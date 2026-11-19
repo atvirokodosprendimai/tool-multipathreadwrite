@@ -128,6 +128,18 @@ type Receipt struct {
 	// stage without it has none of these keys.
 	*ShimCounts
 
+	// ADR-206 Decisions 2 and 5: the hash of the mrw the attempt ran (a
+	// configuration that carries mrw, when the run pins it), what bin/mrw hashed
+	// to afterwards if that was not the pin, the hashes of what it kept beside
+	// the receipt, why something asked for was not kept, and the model the CLI's
+	// init line named.
+	MrwSHA256           string `json:"mrw_sha256,omitempty"`
+	MrwSHA256After      string `json:"mrw_sha256_after,omitempty"`
+	KeptStateFileSHA256 string `json:"kept_state_file_sha256,omitempty"`
+	KeptDiffSHA256      string `json:"kept_diff_sha256,omitempty"`
+	KeptNote            string `json:"kept_note,omitempty"`
+	InitModel           string `json:"init_model,omitempty"`
+
 	interrupted bool // stopped by a signal to bench: no receipt is written for it
 }
 
@@ -181,6 +193,18 @@ type RunOptions struct {
 	side         *SideRegistration   // read by resolveSide
 	qh           []byte              // G's asset, as verified
 	qhSHA        string              // its SHA-256
+
+	// ADR-206: the run's pins and its stops. The held bytes are what the checks
+	// and the attempts use, so the files they were read from may change.
+	MrwSHA256       string  // --mrw-sha256: the SHA-256 the file at Mrw must have; Run refuses another and runs its bytes
+	MrwInstructions string  // --mrw-instructions: a file appended in place of the binary's `instructions`
+	KeepStateFile   string  // --keep-state-file: a path under the attempt's state home copied beside the receipt
+	KeepDiff        bool    // --keep-diff: the attempt's diff against its base commit, saved beside the receipt
+	MaxSpend        float64 // --max-spend: the recorded USD at which the run stops; 0 for no stop
+	mrwBytes        []byte  // Mrw's bytes, as verified
+	mrwSHA          string  // their SHA-256
+	instr           []byte  // MrwInstructions' bytes
+	instrSHA        string  // their SHA-256
 }
 
 // plan is what run.json records; a second Run into the same directory must
@@ -211,6 +235,14 @@ type plan struct {
 	Side             map[string]SideMeta `json:"side,omitempty"`
 	HSentenceSHA256  string              `json:"h_sentence_sha256,omitempty"`
 	EditParagraphSHA string              `json:"edit_paragraph_sha256,omitempty"`
+
+	// ADR-206: what the run pinned, kept and capped, and the bench that ran it.
+	MrwSHA256             string  `json:"mrw_sha256,omitempty"`
+	MrwInstructionsSHA256 string  `json:"mrw_instructions_sha256,omitempty"`
+	KeepStateFile         string  `json:"keep_state_file,omitempty"`
+	KeepDiff              bool    `json:"keep_diff,omitempty"`
+	MaxSpend              float64 `json:"max_spend_usd,omitempty"`
+	BenchRevision         string  `json:"bench_revision"`
 }
 
 // attempt is one run of one task in one configuration on one model.
@@ -237,6 +269,12 @@ func Run(o RunOptions) (err error) {
 	o.ConfigDir = cd
 	if err := resolveProfile(&o); err != nil {
 		return err
+	}
+	if err := resolvePins(&o); err != nil {
+		return err
+	}
+	if o.KeepStateFile != "" && !runsMrw(o) {
+		return errors.New("--keep-state-file needs a configuration that carries mrw: only its attempts have a state home")
 	}
 	if o.Budget == 0 {
 		o.Budget = DefaultBudget
@@ -270,7 +308,7 @@ func Run(o RunOptions) (err error) {
 	// a block after B's comparison closed is the same release (the review of
 	// T3); any configuration that carries mrw names it, H without B included.
 	if runsMrw(o) || (o.Block > 0 && o.Mrw != "") {
-		if mrwVersion, err = firstLine(o.Mrw, "version"); err != nil {
+		if mrwVersion, err = o.mrwVersion(); err != nil {
 			return fmt.Errorf("%s version: %w", o.Mrw, err)
 		}
 	}
@@ -309,6 +347,7 @@ func Run(o RunOptions) (err error) {
 	}
 	core, _ := splitSide(o.Configs)
 	p := plan{Stage: o.Stage, Models: o.Models, Configs: core, Repeats: o.Repeats, Seed: o.Seed, CLIVersion: cli, MrwVersion: mrwVersion, Containment: o.Containment, Profile: o.Profile, Plugin: o.plugin}
+	p.MrwSHA256, p.MrwInstructionsSHA256, p.KeepStateFile, p.KeepDiff, p.MaxSpend, p.BenchRevision = o.mrwSHA, o.instrSHA, o.KeepStateFile, o.KeepDiff, o.MaxSpend, exporterRevision()
 	p.ConfigsFor = o.ConfigsFor
 	p.WorkLineSHA256 = o.workLineSHA
 	if o.Profile == ProfileStage7 {
@@ -399,9 +438,18 @@ func Run(o RunOptions) (err error) {
 				if err := json.Unmarshal(b, &r); err != nil {
 					return fmt.Errorf("%s.receipt.json cannot be read back: %w", at.ID, err)
 				}
+				if !readsBack(p, r, at.ID, at.Task.ID, at.Config.Name, at.Model, at.Repeat) {
+					return fmt.Errorf("%s.receipt.json does not read back as attempt %s%s", at.ID, at.ID, hashNote(p, r, at.Config.Name))
+				}
+				if why := keptProblem(p, outDir(o, at.Config), r); why != "" {
+					return fmt.Errorf("%s.receipt.json: %s", at.ID, why)
+				}
 			case exists(base + ".started"):
 				r.Exclusion = "" // started and never finished: neither it nor a replacement runs
 			default:
+				if err := spendStop(o); err != nil {
+					return err
+				}
 				if o.DiskFloorGiB > 0 {
 					free, err := freeGiB(o.DiskPath)
 					if err != nil {
@@ -437,6 +485,10 @@ func Run(o RunOptions) (err error) {
 				// replacements and run on.
 				if r.Exclusion == ExclusionStart && o.Block > 0 {
 					if streak++; streak >= 3 {
+						// Three start errors are three receipts with no cost: the stop on spend, which a person must read, comes first.
+						if err := spendStop(o); err != nil {
+							return err
+						}
 						return fmt.Errorf("%w (the last at %s); resume once the CLI starts again", ErrStartErrors, at.ID)
 					}
 				} else {
@@ -453,6 +505,11 @@ func Run(o RunOptions) (err error) {
 			return err
 		}
 		image = ""
+	}
+	// The last attempt's cost counts too: a run that spent its figure on the
+	// last attempt says so, and is not reported as a completed run under it.
+	if err := spendStop(o); err != nil {
+		return err
 	}
 	return nil
 }
@@ -659,7 +716,11 @@ func Verify(dir, stage string, tasks, repeats int) error {
 					}
 					var r Receipt
 					if err := json.Unmarshal(b, &r); err != nil || !readsBack(p, r, id, t, c, m, rep) {
-						missing = append(missing, id+" (its receipt does not read back as this attempt)")
+						missing = append(missing, id+" (its receipt does not read back as this attempt"+hashNote(p, r, c)+")")
+						continue
+					}
+					if why := receiptProblem(p, arm.dir, r); why != "" {
+						missing = append(missing, id+" ("+why+")")
 						continue
 					}
 					// An excluded attempt is complete only with the replacement
@@ -669,7 +730,11 @@ func Verify(dir, stage string, tasks, repeats int) error {
 						b, err := os.ReadFile(filepath.Join(arm.dir, next+".receipt.json"))
 						r = Receipt{}
 						if err != nil || json.Unmarshal(b, &r) != nil || !readsBack(p, r, next, t, c, m, rep) {
-							missing = append(missing, next+" (the replacement an excluded attempt is owed)")
+							missing = append(missing, next+" (the replacement an excluded attempt is owed"+hashNote(p, r, c)+")")
+							break
+						}
+						if why := receiptProblem(p, arm.dir, r); why != "" {
+							missing = append(missing, next+" ("+why+")")
 							break
 						}
 					}
@@ -686,7 +751,7 @@ func Verify(dir, stage string, tasks, repeats int) error {
 // readsBack says whether r is attempt id of task t, configuration c, model m
 // and repeat rep, and for a side arm records what run.json says it ran.
 func readsBack(p plan, r Receipt, id, t, c, m string, rep int) bool {
-	return r.Attempt == id && r.Task == t && r.Config == c && r.Model == m && r.Repeat == rep && (!isSide(c) || sameMeta(r.Side, p.Side[c]))
+	return r.Attempt == id && r.Task == t && r.Config == c && r.Model == m && r.Repeat == rep && (!isSide(c) || sameMeta(r.Side, p.Side[c])) && r.MrwSHA256 == wantMrwSHA(p, c)
 }
 
 // checkCanary refuses a stage whose canary did not pass for this CLI version.
@@ -705,12 +770,31 @@ func checkCanary(path, cli string, o RunOptions) error {
 		PluginData       string            `json:"plugin_data"`
 		SideRegistration *SideRegistration `json:"side_registration"`
 		SideAsset        string            `json:"side_asset_sha256"`
+
+		MrwSHA256             string `json:"mrw_sha256"`
+		MrwInstructionsSHA256 string `json:"mrw_instructions_sha256"`
+		Model                 string `json:"model"`
 	}
 	if err := json.Unmarshal(b, &c); err != nil {
 		return fmt.Errorf("canary %s: %w", path, err)
 	}
 	if !c.Pass || c.CLIVersion != cli {
 		return fmt.Errorf("canary %s: pass %v for CLI %q; this CLI is %q, and a stage needs a passing canary for it", path, c.Pass, c.CLIVersion, cli)
+	}
+	// A run that pins is judged on a canary made with the same bytes, the same
+	// instruction source (a file, or none: the binary's own) and the model it
+	// runs (ADR-206 Decision 2); one that pins nothing takes either build.
+	pins := o.mrwSHA != "" || o.instrSHA != ""
+	if o.mrwSHA != "" && c.MrwSHA256 != o.mrwSHA {
+		return fmt.Errorf("canary %s ran mrw %q; this run pins %s", path, c.MrwSHA256, o.mrwSHA)
+	}
+	if pins && c.MrwInstructionsSHA256 != o.instrSHA {
+		return fmt.Errorf("canary %s was given instructions %q; this run's are %q (none: the binary's own)", path, c.MrwInstructionsSHA256, o.instrSHA)
+	}
+	// Only a pinning run is judged on the canary's model, which must be one
+	// the run runs; a run that pins nothing keeps what it took before ADR-206.
+	if pins && !slices.Contains(o.Models, c.Model) {
+		return fmt.Errorf("canary %s is for model %q; this run is for %q", path, c.Model, o.Models)
 	}
 	// A profiled stage needs a canary that ran under the profile, tested each
 	// of its configurations and loaded its plugin (ADR-162 Decision 2; the
@@ -865,8 +949,10 @@ func runAttempt(o RunOptions, a attempt, order int, cli, mrwVersion string) (r R
 	r = Receipt{Attempt: a.ID, Stage: o.Stage, Task: a.Task.ID, Shape: a.Task.Shape, Source: source, Model: a.Model,
 		Config: a.Config.Name, Repeat: a.Repeat, Order: order, CLIVersion: cli, Started: time.Now().UTC().Format(time.RFC3339),
 		CheckRedAtBase: a.Task.CheckRedAtBase != ""}
+	// A run that keeps diffs says, on every receipt that has none, why it has none.
+	defer func() { o.noDiffNote(&r) }()
 	if a.Config.Mrw {
-		r.MrwVersion = mrwVersion
+		r.MrwVersion, r.MrwSHA256 = mrwVersion, o.mrwSHA
 	}
 	if a.Config.Plugin {
 		r.Plugin = o.plugin
@@ -965,6 +1051,13 @@ func runAttempt(o RunOptions, a attempt, order int, cli, mrwVersion string) (r R
 	} else if runErr != nil {
 		r.ExitCode = -1
 	}
+	// ADR-206 Decisions 2 and 5: what the attempt ran and left, taken now, before
+	// anything grades the tree or reads the transcript, so no later step can
+	// change it or lose it.
+	if a.Config.Mrw {
+		r.MrwSHA256After = o.mrwAfter(scratch)
+	}
+	o.keep(&r, scratch, tree, baseSHA, base)
 	b, err := os.ReadFile(base + ".transcript.jsonl")
 	if err != nil {
 		r.Exclusion, r.Note = ExclusionSetup, err.Error()
@@ -974,7 +1067,7 @@ func runAttempt(o RunOptions, a attempt, order int, cli, mrwVersion string) (r R
 	// A result that says success from a CLI that then exited non-zero is an
 	// error all the same (the re-review of #411).
 	r.IsError, r.NumTurns, r.ToolCalls, r.CostUSD, r.Usage = t.IsError || !t.Result || r.ExitCode != 0, t.NumTurns, t.ToolCalls, t.CostUSD, t.Usage
-	r.InitTools, r.InitMCP = t.Tools, t.MCPServers
+	r.InitTools, r.InitMCP, r.InitModel = t.Tools, t.MCPServers, t.Model
 	r.OverBudget = r.TimedOut || t.NumTurns > o.maxTurns()
 	if a.shim != nil {
 		var note string
@@ -986,7 +1079,7 @@ func runAttempt(o RunOptions, a attempt, order int, cli, mrwVersion string) (r R
 	if o.StatusLine {
 		r.Status = claimStatus(t.ResultText)
 	}
-	if errText, _ := os.ReadFile(base + ".stderr"); startFailed(t, r, string(errText)) {
+	if errText, _ := os.ReadFile(base + ".stderr"); startFailed(t, r, string(errText)) && r.Exclusion == "" {
 		r.Exclusion = ExclusionStart
 	}
 	// H's evidence is taken before grading, which can end the attempt early:
@@ -1193,13 +1286,13 @@ func invocation(o RunOptions, a attempt, scratch string) ([]string, []string, er
 		if err := os.Mkdir(bin, 0o755); err != nil {
 			return nil, nil, err
 		}
-		if err := os.Symlink(o.Mrw, filepath.Join(bin, "mrw")); err != nil {
+		if err := o.placeMrw(filepath.Join(bin, "mrw")); err != nil {
 			return nil, nil, err
 		}
 		path = bin + ":" + path
-		text, err := exec.Command(o.Mrw, "instructions").Output()
+		text, err := o.instructions(filepath.Join(bin, "mrw"))
 		if err != nil {
-			return nil, nil, fmt.Errorf("mrw instructions: %w", err)
+			return nil, nil, err
 		}
 		if a.Config.ReadHook {
 			text = append(append(text, '\n'), HSentence...)
