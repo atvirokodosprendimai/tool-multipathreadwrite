@@ -52,8 +52,26 @@ python3 -B -m unittest discover -s scripts -p 'test_bench_stage9.py' 2> "${TMPDI
 | 4 — it is used | T6's fence re-runs it over the receipts |
 
 ## Mutation Log
+- 2026-11-20 · d5150a2c* · mutant killed · exit 1 · `scripts/bench_stage9.py` · an excluded attempt is graded · acceptance-sha256:d4165a7078b709ce8ecf35441edbc3b8fd71bec6cea7fd605430a27c6f375351 · covers:correct, outside, other and missing partition the planned attempts
+- 2026-11-20 · d5150a2c* · mutant killed · exit 1 · `scripts/bench_stage9.py` · a missing paired cost does not stop the comparison · acceptance-sha256:d4165a7078b709ce8ecf35441edbc3b8fd71bec6cea7fd605430a27c6f375351 · covers:a comparison under its coverage prints INSUFFICIENT
+- 2026-11-20 · d5150a2c* · mutant killed · exit 1 · `scripts/bench_stage9.py` · the seed is taken from the clock · acceptance-sha256:d4165a7078b709ce8ecf35441edbc3b8fd71bec6cea7fd605430a27c6f375351 · covers:the bootstrap is seeded
+- 2026-11-20 · d5150a2c* · mutant killed · exit 1 · `scripts/bench_stage9.py` · runs of another Claude Code or seed are accepted · acceptance-sha256:d4165a7078b709ce8ecf35441edbc3b8fd71bec6cea7fd605430a27c6f375351 · covers:mismatched runs are refused
+- 2026-11-20 · 89ae41a5* · mutant killed · exit 1 · `scripts/bench_stage9.py` · an excluded attempt is graded · acceptance-sha256:d4165a7078b709ce8ecf35441edbc3b8fd71bec6cea7fd605430a27c6f375351 · covers:correct, outside, other and missing partition the planned attempts
 
 ## Verification Log
+- 2026-11-20 · d5150a2c* · exit 1 · `set -o pipefail …` · acceptance-sha256:d4165a7078b709ce8ecf35441edbc3b8fd71bec6cea7fd605430a27c6f375351 · ms:98 · test-lock-sha256:74225a09fe25d5784c67f5416524e061a3b8fac30bfea9afbd8d714c211d1643 · test-lock-file:docs/adr/locks/74225a09fe25d5784c67f5416524e061a3b8fac30bfea9afbd8d714c211d1643.lock
+  ```
+  ```
+- 2026-11-20 · d5150a2c* · exit 0 · `set -o pipefail …` · acceptance-sha256:d4165a7078b709ce8ecf35441edbc3b8fd71bec6cea7fd605430a27c6f375351 · ms:517
+- 2026-11-20 · d5150a2c* · exit 0 · `set -o pipefail …` · acceptance-sha256:d4165a7078b709ce8ecf35441edbc3b8fd71bec6cea7fd605430a27c6f375351 · ms:591
+- 2026-11-20 · d5150a2c* · exit 0 · `set -o pipefail …` · acceptance-sha256:d4165a7078b709ce8ecf35441edbc3b8fd71bec6cea7fd605430a27c6f375351 · ms:614
+- 2026-11-20 · d5150a2c* · exit 0 · `set -o pipefail …` · acceptance-sha256:d4165a7078b709ce8ecf35441edbc3b8fd71bec6cea7fd605430a27c6f375351 · ms:550
+- 2026-11-20 · d5150a2c* · exit 0 · `set -o pipefail …` · acceptance-sha256:d4165a7078b709ce8ecf35441edbc3b8fd71bec6cea7fd605430a27c6f375351 · ms:564
+- 2026-11-20 · b2b20d48* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:d4165a7078b709ce8ecf35441edbc3b8fd71bec6cea7fd605430a27c6f375351 · ms:3 · test-lock-sha256:aceedd6dfd27db87792696ea24d01a60ad2fa42a76e059dce8ba6dd636971879 · test-lock-file:docs/adr/locks/aceedd6dfd27db87792696ea24d01a60ad2fa42a76e059dce8ba6dd636971879.lock · test-lock-kind:replace
+- 2026-11-20 · b2b20d48* · exit 0 · `set -o pipefail …` · acceptance-sha256:d4165a7078b709ce8ecf35441edbc3b8fd71bec6cea7fd605430a27c6f375351 · ms:554
+- 2026-11-20 · 89ae41a5* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:d4165a7078b709ce8ecf35441edbc3b8fd71bec6cea7fd605430a27c6f375351 · ms:0 · test-lock-sha256:ae614c9174bf4665f30170d92aac1514b00796e865f4c8e348b2a40cedc9d2a6 · test-lock-file:docs/adr/locks/ae614c9174bf4665f30170d92aac1514b00796e865f4c8e348b2a40cedc9d2a6.lock · test-lock-kind:replace
+- 2026-11-20 · 89ae41a5* · exit 0 · `set -o pipefail …` · acceptance-sha256:d4165a7078b709ce8ecf35441edbc3b8fd71bec6cea7fd605430a27c6f375351 · ms:588
+- 2026-11-20 · 89ae41a5* · exit 0 · `set -o pipefail …` · acceptance-sha256:d4165a7078b709ce8ecf35441edbc3b8fd71bec6cea7fd605430a27c6f375351 · ms:736
 
 ## Invariants
 

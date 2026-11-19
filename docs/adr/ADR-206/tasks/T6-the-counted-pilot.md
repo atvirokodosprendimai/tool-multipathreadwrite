@@ -46,7 +46,7 @@ test "$(v 'script sha256')" = "$(shasum -a 256 scripts/bench_stage9.py | cut -d'
        go run ./cmd/bench verify --stage stage9 --tasks $n --repeats 1 $R/pilot/$m/$a > /dev/null || exit 1
      done; done \
   && T=$(sed -n 's/^transcripts: //p' $R/RESULTS.md) && test -d "$T" \
-  && python3 -B scripts/bench_stage9.py count --receipts $R/pilot --transcripts "$T" > "${TMPDIR:-/tmp}/adr206-counts.json" \
+  && python3 -B scripts/bench_stage9.py count --receipts $R/pilot --transcripts "$T" --pilot $R/pilot.md --classes bench/stage-9/classes.json > "${TMPDIR:-/tmp}/adr206-counts.json" \
   && diff "${TMPDIR:-/tmp}/adr206-counts.json" $R/counts.json \
   && python3 -B scripts/bench_stage9.py report --receipts $R/pilot --counts $R/counts.json > "${TMPDIR:-/tmp}/adr206-report.txt" \
   && diff "${TMPDIR:-/tmp}/adr206-report.txt" $R/report.txt \

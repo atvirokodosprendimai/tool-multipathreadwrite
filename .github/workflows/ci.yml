@@ -73,6 +73,9 @@ jobs:
           PATH="$RUNNER_TEMP:$PATH" python3 -m unittest discover -s scripts -p test_claude_evidence.py -v
           PATH="$RUNNER_TEMP:$PATH" python3 -m unittest discover -s scripts -p test_grouped_pilot.py -v
 
+      - name: Stage 9 counting script checks
+        run: python3 -B -m unittest discover -s scripts -p test_bench_stage9.py -v
+
       - name: Vet
         run: go vet ./...
 
