@@ -3,7 +3,7 @@
   "shape": "control",
   "repo": "django/django",
   "commit": "27687475265f88bc0a0bcbfe2ba26da306bbfc20",
-  "instruction": "In django/utils/http.py, int_to_base36 builds its result by prepending to a string. Collect the digits in a list instead: write \"b36_parts = []\" in place of the line 'b36 = \"\"', then in place of the two lines that end the loop body and the function (\"b36 = char_set[n] + b36\" and \"return b36\") write \"b36_parts.append(char_set[n])\" in the loop and \"return \\\"\\\".join(reversed(b36_parts))\" after it.",
+  "instruction": "In django/utils/http.py, int_to_base36 builds its result by prepending to a string. Collect the digits in a list instead: write \"b36_parts = []\" in place of the line 'b36 = \"\"', then in place of the two lines that end the loop body and the function (\"b36 = char_set[n] + b36\" and \"return b36\") write \"b36_parts.append(char_set[n])\" in the loop and 'return \"\".join(reversed(b36_parts))' after it.",
   "exact": true,
   "require": [
     {"file": "django/utils/http.py", "match": "(?m)^    b36_parts = \\[\\]$"},

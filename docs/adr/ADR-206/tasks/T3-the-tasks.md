@@ -42,8 +42,8 @@ ADR-206 Decision 8. A *site* is one change region of the reference patch as `Loa
 
 ```bash
 set -o pipefail
-go test -count=1 -v ./internal/bench -run '^(TestStage9ClassesHoldTheirRules|TestEveryOracleFailsOnBasePassesOnFixAndRefusesAStrayEdit|TestTheCorpusHasTheRegisteredShapeCounts)$' > "${TMPDIR:-/tmp}/adr206-t3.out" \
-  && [ "$(grep -c '^--- PASS: Test' "${TMPDIR:-/tmp}/adr206-t3.out")" -eq 3 ] \
+go test -count=1 -v ./internal/bench -run '^(TestStage9ClassesHoldTheirRules|TestTheStage9CheckRefusesEachBrokenList|TestEveryOracleFailsOnBasePassesOnFixAndRefusesAStrayEdit|TestTheCorpusHasTheRegisteredShapeCounts)$' > "${TMPDIR:-/tmp}/adr206-t3.out" \
+  && [ "$(grep -c '^--- PASS: Test' "${TMPDIR:-/tmp}/adr206-t3.out")" -eq 4 ] \
   && ! grep -q 'SKIP' "${TMPDIR:-/tmp}/adr206-t3.out" \
   && [ "$(jq '[.[] | .[]] | unique | length' bench/stage-9/classes.json)" -eq 48 ] \
   && [ "$(jq '[.[] | length] | unique' -c bench/stage-9/classes.json)" = '[12]' ] \

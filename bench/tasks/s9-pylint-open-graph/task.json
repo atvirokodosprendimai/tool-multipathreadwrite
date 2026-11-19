@@ -3,7 +3,7 @@
   "shape": "batch",
   "repo": "pylint-dev/pylint",
   "commit": "1a60ec1900af753ff8e6f6344a6bdedfa833ca58",
-  "instruction": "Rename _open_graph to _begin_graph in pylint/pyreverse/dot_printer.py, pylint/pyreverse/mermaidjs_printer.py, pylint/pyreverse/plantuml_printer.py and pylint/pyreverse/printer.py: its definition, every import and call, and every mention in a comment or docstring. Those are the only files that mention it. Change nothing else.",
+  "instruction": "Rename _open_graph to _begin_graph in pylint/pyreverse/dot_printer.py, pylint/pyreverse/mermaidjs_printer.py, pylint/pyreverse/plantuml_printer.py and pylint/pyreverse/printer.py: its definition, every import and call, and every other occurrence of the name in those files, including comments, docstrings, strings such as an __all__ entry, and test function names that contain it. Those are the only files that contain it. Change nothing else.",
   "exact": true,
   "require": [
     {"file": "pylint/pyreverse/dot_printer.py", "match": "\\b_begin_graph\\b"},

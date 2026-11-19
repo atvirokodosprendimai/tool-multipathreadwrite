@@ -3,7 +3,7 @@
   "shape": "batch",
   "repo": "pydata/xarray",
   "commit": "83352225282987fa1dc56e77f3bb4ccf51f8acab",
-  "instruction": "Rename _iter_nc_groups to _iter_netcdf_groups in xarray/backends/common.py, xarray/backends/h5netcdf_.py and xarray/backends/netCDF4_.py: its definition, every import and call, and every mention in a comment or docstring. Those are the only files that mention it. Change nothing else.",
+  "instruction": "Rename _iter_nc_groups to _iter_netcdf_groups in xarray/backends/common.py, xarray/backends/h5netcdf_.py and xarray/backends/netCDF4_.py: its definition, every import and call, and every other occurrence of the name in those files, including comments, docstrings, strings such as an __all__ entry, and test function names that contain it. Those are the only files that contain it. Change nothing else.",
   "exact": true,
   "require": [
     {"file": "xarray/backends/common.py", "match": "\\b_iter_netcdf_groups\\b"},

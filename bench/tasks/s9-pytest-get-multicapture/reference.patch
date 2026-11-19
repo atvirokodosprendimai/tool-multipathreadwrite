@@ -52,11 +52,13 @@ diff --git a/testing/test_capture.py b/testing/test_capture.py
  from _pytest.capture import CaptureFixture
  from _pytest.capture import CaptureManager
  from _pytest.capture import CaptureResult
-@@ -1709,9 +1709,9 @@ def test_encodedfile_writelines(tmpfile: BinaryIO) -> None:
+@@ -1708,10 +1708,10 @@ def test_encodedfile_writelines(tmpfile: BinaryIO) -> None:
+         ef.read()
  
  
- def test__get_multicapture() -> None:
+-def test__get_multicapture() -> None:
 -    assert isinstance(_get_multicapture("no"), MultiCapture)
++def test__make_multicapture() -> None:
 +    assert isinstance(_make_multicapture("no"), MultiCapture)
      with pytest.raises(ValueError, match=r"^unknown capturing method: 'unknown'$"):
 -        _get_multicapture("unknown")  # type: ignore[arg-type]

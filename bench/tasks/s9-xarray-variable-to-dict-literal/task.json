@@ -3,7 +3,7 @@
   "shape": "control",
   "repo": "pydata/xarray",
   "commit": "915d0a359136e0287cd85b3a025cdefe9762471b",
-  "instruction": "In xarray/core/variable.py, add Literal to the line \"from typing import TYPE_CHECKING, Any, NoReturn, cast\", between Any and NoReturn. Then change the type of the data parameter of Variable.to_dict from \"bool | str\" to \"bool | Literal[\\\"list\\\", \\\"array\\\"]\".",
+  "instruction": "In xarray/core/variable.py, add Literal to the line \"from typing import TYPE_CHECKING, Any, NoReturn, cast\", between Any and NoReturn. Then change the type of the data parameter of Variable.to_dict from \"bool | str\" to 'bool | Literal[\"list\", \"array\"]'.",
   "exact": true,
   "require": [
     {"file": "xarray/core/variable.py", "match": "(?m)^from typing import TYPE_CHECKING, Any, Literal, NoReturn, cast$"},
