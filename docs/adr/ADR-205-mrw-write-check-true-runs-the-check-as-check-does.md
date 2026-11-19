@@ -65,7 +65,7 @@
 | every sentence that states the old rule | the tool description (`mcp.go`), `check`'s description (`schema.go`), the initialize instructions (`instructions.go`, 4096-byte limit, held by `says098_test.go`), `cliRoute["mrw_write"]` (`tools.go`), the opencode plugin's tool and argument descriptions (`index.ts`, ADR-089) | T1 | hosts and callers |
 | the tool description and `check`'s schema description | say so | T1 | hosts that read them |
 | `AGENTS.md`, `README.md` | the two sentences that describe the old rule | T1 | every caller |
-| `scripts/contract.sh` §351 | a prose-only `mrw_write` with `check: true` runs the check; the same without it runs none | T1 | the contract gate |
+| `scripts/contract.sh` §352 | a prose-only `mrw_write` with `check: true` runs the check; the same without it runs none | T1 | the contract gate |
 
 No receipt key is added or renamed (ADR-111): `check` is present in more cases than before.
 

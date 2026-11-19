@@ -4,7 +4,7 @@
 **Covers:** none — no spec
 **Estimated scope:** S
 **Owner:** unassigned
-**Produces:** `mrw_write` selecting `CheckDemand`; `CheckAuto` removed; the tool and schema descriptions; contract §351; the sentences in `AGENTS.md` and `README.md`
+**Produces:** `mrw_write` selecting `CheckDemand`; `CheckAuto` removed; the tool and schema descriptions; contract §352; the sentences in `AGENTS.md` and `README.md`
 **Consumes:** `writer.CheckDemand`, the receipt's `check` object
 **Data dependency:** none — hermetic
 **Proof map:** v1
@@ -43,14 +43,14 @@ And a `writer.Request` that sets no mode runs no check.
 | `cmd/mrw/then092t5_test.go` | edit | a comment names the removed mode |
 | `internal/mcp/instructions.go`, `cmd/opencode/mrw-plugin/src/index.ts` | edit | they state the old rule |
 | `internal/writer/mode205_test.go` | new | the zero value |
-| `scripts/contract.sh` | edit | §351 |
+| `scripts/contract.sh` | edit | §352 |
 | `AGENTS.md`, `README.md` | edit | the sentences on `mrw_write`'s check |
 
 ## Ordered Steps
 
 1. [S1] `TestMrwWriteCheckTrueRunsTheCheckOnAnyPlan`, RED on rows 1, 3, 6, 7 and 8 and on the commandless case; rows 2, 4, 5 and 9 hold today and stay. [proof: acceptance]
 2. [S2] The mode and the removal. Mutants, each killed: `check: true` selects no check; a prose-only write skips it; a tree with no command returns no `check`; a failed check is `isError`; a check that could not run is not; a dry run runs it; the depth gate lets a due check through; steps run after a check that failed; the plan-maker path selects `CheckOff`; `CheckDemand` is made the zero value. The `format` and `ast_grep` sources reach the same `Prepare` call as the two the Goal drives, and are not driven separately. [proof: mutation]
-3. [S3] Contract §351 drives `mrw mcp --enable` over stdio, each case in its own fresh tree: a prose-only write with `check: true` leaves the marker, paired with the same without it leaving none. The descriptions, the initialize instructions and the documents. [proof: acceptance]
+3. [S3] Contract §352 drives `mrw mcp --enable` over stdio, each case in its own fresh tree: a prose-only write with `check: true` leaves the marker, paired with the same without it leaving none. The descriptions, the initialize instructions and the documents. [proof: acceptance]
 
 ## Acceptance
 
@@ -58,7 +58,7 @@ And a `writer.Request` that sets no mode runs no check.
 set -o pipefail
 go test -count=1 -v ./internal/mcp ./internal/writer -run '^(TestMrwWriteCheckTrueRunsTheCheckOnAnyPlan|TestARequestThatSetsNoModeRunsNoCheck)$' > "${TMPDIR:-/tmp}/adr205-fence.out" \
   && [ "$(grep -c '^--- PASS: ' "${TMPDIR:-/tmp}/adr205-fence.out")" -eq 2 ] \
-  && grep -q '^# 351\. ' scripts/contract.sh \
+  && grep -q '^# 352\. ' scripts/contract.sh \
   && ! grep -qw 'CheckAuto' internal/writer/flow.go internal/mcp/tools.go \
   && ! grep -rq 'touches code' internal/mcp/mcp.go internal/mcp/schema.go internal/mcp/instructions.go cmd/opencode/mrw-plugin/src/index.ts \
   && git diff --quiet "$(git merge-base HEAD origin/main)" -- go.mod go.sum internal/plan internal/read internal/apply internal/seen internal/check internal/state ':(exclude)*_test.go'
@@ -75,7 +75,7 @@ go test -count=1 -v ./internal/mcp ./internal/writer -run '^(TestMrwWriteCheckTr
 
 | Rung | How this task shows it |
 |------|------------------------|
-| 1 — exists | the test and §351 |
+| 1 — exists | the test and §352 |
 | 2 — something selects it | `mrw_write`'s `check` argument |
 | 3 — the caller can discover it | the tool's description and `check`'s schema description, which a host reads; `AGENTS.md`, `README.md` |
 | 4 — it is used | telemetry is refused by ADR-009; the follow-up in the record |
