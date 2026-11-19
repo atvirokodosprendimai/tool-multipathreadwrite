@@ -12,27 +12,66 @@ import (
 // tried as the rest of it: a pattern of more words than this is not looked for.
 const splitSpecPieces = 8
 
-// splitSpec returns err with a sentence added when args[i], which did not
-// parse, parses as an address once the arguments after it are joined to it by
-// single spaces: an unquoted `f.go:/func Foo/` reaches mrw as `f.go:/func` and
-// `Foo/`, and the refusal of the first names a pattern nobody typed. It tries
-// the spec and never matches on the error's words; a spec that stays broken
-// within splitSpecPieces arguments keeps the refusal it had. The spec is
-// printed in single quotes, which is quoting in a POSIX shell and in
-// PowerShell; a Windows build may be answering cmd.exe, where it is not, and a
-// spec that holds a single quote needs its shell's own escape, so neither is
-// printed.
-func splitSpec(args []string, i int, err error) error {
-	joined := args[i]
-	for j := i + 1; j < len(args) && j <= i+splitSpecPieces; j++ {
-		joined += " " + args[j]
-		if _, perr := read.ParseSpec(joined); perr != nil {
+// splitSpec returns err with a sentence added when spec, which did not parse,
+// is an argument of the command line whose pattern address the arguments after
+// it complete: an unquoted `f.go:/func Foo/` reaches mrw as `f.go:/func` and
+// `Foo/`, and the refusal of the first names a pattern nobody typed.
+//
+// It is narrow on purpose. The spec must be PATH:/… as typed among typed (a
+// working-set entry or a --files-from line was not split by a shell); joined
+// to the arguments after it by single spaces it must parse to the same PATH
+// with pattern ranges only, so a join that merely parses as some other file
+// or address says nothing. It tries the spec and never matches on the error's
+// words.
+//
+// The spec is printed, in single quotes, only when every byte of it is
+// printable ASCII other than a single quote and it does not start with a
+// dash: that is one word in a POSIX shell and in PowerShell, and nothing a
+// terminal acts on. A Windows build may be answering cmd.exe, where single
+// quotes do not quote, so it prints no spelling either.
+func splitSpec(typed []string, spec string, err error) error {
+	path, _, isPattern := strings.Cut(spec, ":/")
+	at := -1
+	for i, a := range typed {
+		if a == spec {
+			at = i
+			break
+		}
+	}
+	if !isPattern || at < 0 {
+		return err
+	}
+	joined := spec
+	for j := at + 1; j < len(typed) && j <= at+splitSpecPieces; j++ {
+		joined += " " + typed[j]
+		sp, perr := read.ParseSpec(joined)
+		if perr != nil || sp.Path != path || !patternsOnly(sp.Ranges) {
 			continue
 		}
-		if runtime.GOOS == "windows" || strings.Contains(joined, "'") {
+		if runtime.GOOS == "windows" || !plainWord(joined) {
 			return fmt.Errorf("%w; the shell split this spec at a space: quote the whole spec", err)
 		}
 		return fmt.Errorf("%w; the shell split this spec at a space: quote it, '%s'", err, joined)
 	}
 	return err
+}
+
+// patternsOnly reports whether there is a range and every range starts at a pattern.
+func patternsOnly(rs []read.Range) bool {
+	for _, r := range rs {
+		if r.Re == nil {
+			return false
+		}
+	}
+	return len(rs) > 0
+}
+
+// plainWord reports whether s can be printed between single quotes as it is.
+func plainWord(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] < 0x20 || s[i] > 0x7e || s[i] == '\'' {
+			return false
+		}
+	}
+	return !strings.HasPrefix(s, "-")
 }
