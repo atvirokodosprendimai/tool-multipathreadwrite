@@ -248,12 +248,11 @@ func TestArmNDiffersFromMInOneRefusal(t *testing.T) {
 		}
 		root, state := s9Sandbox(t, filepath.Join(work, "partial"))
 		s9Written(t, n, root, state)
+		// b.txt is made through the binary too, so its line 3 is exposed as a.txt's
+		// is; the log must still hold only the file that landed.
 		bp := filepath.Join(root, "b.txt")
-		if err := os.WriteFile(bp, []byte(s9Text), 0o644); err != nil {
-			t.Fatal(err)
-		}
-		if r := s9Exec(t, n, root, state, "", "--root", root, "read", "b.txt"); r.code != 0 {
-			t.Fatalf("read b.txt: %+v", r)
+		if r := s9Exec(t, n, root, state, s9Text, "--root", root, "write", "--create", "b.txt"); r.code != 0 {
+			t.Fatalf("create b.txt: %+v", r)
 		}
 		if err := exec.Command("chflags", "uchg", bp).Run(); err != nil {
 			t.Skip("chflags uchg is not available: " + err.Error())

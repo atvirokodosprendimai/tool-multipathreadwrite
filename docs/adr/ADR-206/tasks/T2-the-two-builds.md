@@ -69,8 +69,27 @@ go test -count=1 -v ./internal/bench -run '^TestArmNDiffersFromMInOneRefusal$' >
 | 4 — it is used | T5's smoke and T6 |
 
 ## Mutation Log
+- 2026-11-19 · e83e4009* · mutant killed · exit 1 · `bench/stage-9/no-refusal.patch` · N logs nothing · acceptance-sha256:94538eb3982f5b9d8d0351bcef625182684bb38901f8c97b6a02782aadb1cde3 · covers:N logs one object per exposed landed hunk
+- 2026-11-19 · e83e4009* · mutant killed · exit 1 · `bench/stage-9/no-refusal.patch` · N never makes an event · acceptance-sha256:94538eb3982f5b9d8d0351bcef625182684bb38901f8c97b6a02782aadb1cde3 · covers:N lands the hunk M refuses
+- 2026-11-19 · e83e4009* · mutant killed · exit 1 · `bench/stage-9/build.sh` · N reports another version · acceptance-sha256:94538eb3982f5b9d8d0351bcef625182684bb38901f8c97b6a02782aadb1cde3 · covers:N says what M says
+- 2026-11-19 · e83e4009* · mutant survived · exit 0 · `bench/stage-9/no-refusal.patch` · N logs hunks of files that did not land · acceptance-sha256:94538eb3982f5b9d8d0351bcef625182684bb38901f8c97b6a02782aadb1cde3 · covers:a dry run and a refused plan log nothing
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
+- 2026-11-19 · e83e4009* · mutant killed · exit 1 · `bench/stage-9/no-refusal.patch` · a hunk of a file that did not land is reported as exposed · acceptance-sha256:94538eb3982f5b9d8d0351bcef625182684bb38901f8c97b6a02782aadb1cde3 · covers:a dry run and a refused plan log nothing
 
 ## Verification Log
+- 2026-11-19 · e83e4009* · exit 1 · `set -o pipefail …` · acceptance-sha256:94538eb3982f5b9d8d0351bcef625182684bb38901f8c97b6a02782aadb1cde3 · ms:993 · test-lock-sha256:2d3c35b74823626e45b8c1983c21a73559091c190e2412494f5db530ee7e2ba5 · test-lock-file:docs/adr/locks/2d3c35b74823626e45b8c1983c21a73559091c190e2412494f5db530ee7e2ba5.lock
+  ```
+  ```
+- 2026-11-19 · e83e4009* · exit 0 · `set -o pipefail …` · acceptance-sha256:94538eb3982f5b9d8d0351bcef625182684bb38901f8c97b6a02782aadb1cde3 · ms:3111
+- 2026-11-19 · e83e4009* · exit 0 · `set -o pipefail …` · acceptance-sha256:94538eb3982f5b9d8d0351bcef625182684bb38901f8c97b6a02782aadb1cde3 · ms:5915
+- 2026-11-19 · e83e4009* · exit 0 · `set -o pipefail …` · acceptance-sha256:94538eb3982f5b9d8d0351bcef625182684bb38901f8c97b6a02782aadb1cde3 · ms:5135
+- 2026-11-19 · e83e4009* · exit 0 · `set -o pipefail …` · acceptance-sha256:94538eb3982f5b9d8d0351bcef625182684bb38901f8c97b6a02782aadb1cde3 · ms:5342
+- 2026-11-19 · e83e4009* · exit 0 · `set -o pipefail …` · acceptance-sha256:94538eb3982f5b9d8d0351bcef625182684bb38901f8c97b6a02782aadb1cde3 · ms:4333
+- 2026-11-19 · e83e4009* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:94538eb3982f5b9d8d0351bcef625182684bb38901f8c97b6a02782aadb1cde3 · ms:1 · test-lock-sha256:f2e00966f780447e6e0783b0669a9d885c014085f4b311d1c69edca203f2be7b · test-lock-file:docs/adr/locks/f2e00966f780447e6e0783b0669a9d885c014085f4b311d1c69edca203f2be7b.lock · test-lock-kind:replace
+- 2026-11-19 · e83e4009* · exit 0 · `set -o pipefail …` · acceptance-sha256:94538eb3982f5b9d8d0351bcef625182684bb38901f8c97b6a02782aadb1cde3 · ms:4421
+- 2026-11-19 · e83e4009* · exit 0 · `set -o pipefail …` · acceptance-sha256:94538eb3982f5b9d8d0351bcef625182684bb38901f8c97b6a02782aadb1cde3 · ms:3575
 
 ## Invariants
 

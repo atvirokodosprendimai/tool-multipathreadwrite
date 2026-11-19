@@ -1,0 +1,9 @@
+check@2	1bb497e3e13a1105cf24e3359fa3ef75de08b66ff8a2839cd7f9ea97824d9eb3
+body	internal/bench/stage9_build_test.go	TestArmNDiffersFromMInOneRefusal	6105744e69d5b63f05ebe8b317d173ae4cc0655e4134d858f2c1fa1e6cc33c42
+body	internal/bench/stage9_build_test.go	a dry run and a plan whose other hunk fails land and log nothing	d65a0d341217c09426a73238cbe187578b7acb486da89f23de4511f926fd62cf
+body	internal/bench/stage9_build_test.go	a line no read has served, in a file mrw did not write, is refused by both alike	11058479732a6a9a958cbd85f526db34f86edce79693299389892c914cf89768
+body	internal/bench/stage9_build_test.go	a log path that is a directory changes nothing an agent sees	5b30785a0c2ceea73a756b9a41bf17973bd080ef2f6fbe5c84d7f67841aa3f92
+body	internal/bench/stage9_build_test.go	a number alone on a line of a file mrw wrote: M refuses, N lands and logs	88ae242acab113f0ba464d718c982ba1a0c0ac3e4d00e20c76d19409ead3fbd1
+body	internal/bench/stage9_build_test.go	a plan that commits one file and fails on the other logs the hunk that landed	6091b809d2027e90255f8a22d69dfeabb350edc1fdca2b0453183726b4842261
+body	internal/bench/stage9_build_test.go	the same edit with anchor= lands in both and logs nothing	6d926d9962a5fb8b61f8b5ccac6a53f727f57900237201945326a82c3eee03d8
+body	internal/bench/stage9_build_test.go	version, instructions and skill print what M prints	7473cde10c206482bbfb56e85969b7896fcdc2d38622fedb9e68d9fba9675882

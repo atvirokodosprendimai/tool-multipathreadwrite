@@ -103,7 +103,7 @@ index 74a2c17..f77b858 100644
  		// consumes none, so its original net is zero by construction — which
  		// is exactly why a balanced insert in the wrong place is invisible to
 diff --git a/internal/writer/writer.go b/internal/writer/writer.go
-index 43e590b..886c559 100644
+index 43e590b..bbf3e60 100644
 --- a/internal/writer/writer.go
 +++ b/internal/writer/writer.go
 @@ -10,12 +10,14 @@
@@ -129,7 +129,7 @@ index 43e590b..886c559 100644
  	wrote := map[string]seen.Observation{}
  	var gone []string
  	for _, f := range res.Files {
-@@ -125,6 +128,41 @@ func applyCounted(root string, in []apply.Input, opt apply.Options) (apply.Resul
+@@ -125,6 +128,34 @@ func applyCounted(root string, in []apply.Input, opt apply.Options) (apply.Resul
  	return res, gen, err
  }
  
@@ -142,17 +142,10 @@ index 43e590b..886c559 100644
 +	if err != nil {
 +		return
 +	}
-+	written := map[string]bool{}
-+	for _, f := range res.Files {
-+		if f.Written {
-+			written[f.Path] = true
-+		}
-+	}
++	// apply reports only hunks that landed as ok (commitFailed), so res.Exposed
++	// needs no second filter by file.
 +	var buf []byte
 +	for _, e := range res.Exposed {
-+		if !written[e.Path] {
-+			continue
-+		}
 +		if b, err := json.Marshal(e); err == nil {
 +			buf = append(append(buf, b...), '\n')
 +		}
