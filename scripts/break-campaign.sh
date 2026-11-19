@@ -68,22 +68,24 @@ fresh; head -c 3000000 /dev/zero | tr '\0' 'x' > huge.txt; printf '\nend\n' >> h
 fresh; printf '1\n2\n3\n4\n' > f.txt; t "$MRW" read f.txt >"$W/served.out"
 plan '@@ f.txt 1-3 replace anchor="1"\nA\n@@ f.txt 2 replace\nB\n'; out=$(t "$MRW" write --quiet p.plan 2>&1); say "overlap-range-and-line" $? "$(tr '\n' '|' < f.txt) | $out"
 plan '@@ f.txt 2 replace\nB\n@@ f.txt 2 insert-after\nC\n'; out=$(t "$MRW" write --quiet p.plan 2>&1); say "replace+insert-after-same-line" $? "$(tr '\n' '|' < f.txt) | $out"
-plan '@@ f.txt 2 delete\n@@ f.txt 2 replace\nB\n'; out=$(t "$MRW" write --quiet p.plan 2>&1); say "delete+replace-same-line" $? "$(tr '\n' '|' < f.txt) | $out"
+t "$MRW" read f.txt >"$W/served.out"; plan '@@ f.txt 2 delete\n@@ f.txt 2 replace\nB\n'; out=$(t "$MRW" write --quiet p.plan 2>&1); say "delete+replace-same-line" $? "$(tr '\n' '|' < f.txt) | $out"
 
 # ---------- 7. header grammar edge ----------
+# Since ADR-203 a number alone is refused on a line no read has shown since mrw wrote the file,
+# so a probe that follows a landed write reads the file again first: it is here for its own subject.
 fresh; printf 'x\n' > 'my file.txt'; t "$MRW" read 'my file.txt' >"$W/served.out"
 plan '@@ "my file.txt" 1 replace\nY\n'; out=$(t "$MRW" write --quiet p.plan 2>&1); say "quoted-path-with-space" $? "$(cat 'my file.txt') | $out"
 fresh; printf 'x\n' > f.txt; t "$MRW" read f.txt >"$W/served.out"
 printf '\xef\xbb\xbf@@ f.txt 1 replace\nY\n' > p.plan; out=$(t "$MRW" write --quiet p.plan 2>&1); say "plan-with-BOM" $? "$(cat f.txt) | $out"
-printf '@@ f.txt 1 replace\r\nY\r\n' > p.plan; out=$(t "$MRW" write --quiet p.plan 2>&1); say "plan-with-CRLF" $? "$(od -c f.txt | head -1 | tr -s ' ') | $out"
+t "$MRW" read f.txt >"$W/served.out"; printf '@@ f.txt 1 replace\r\nY\r\n' > p.plan; out=$(t "$MRW" write --quiet p.plan 2>&1); say "plan-with-CRLF" $? "$(od -c f.txt | head -1 | tr -s ' ') | $out"
 printf '@@\tf.txt\t1\treplace\nZ\n' > p.plan; out=$(t "$MRW" write --quiet p.plan 2>&1); say "plan-tab-separated-header" $? "$(cat f.txt) | $out"
-printf '@@ f.txt 1 replace sha=%s\nQ\n' "$(shasum -a 256 f.txt | cut -c1-64 | tr a-f A-F)" > p.plan; out=$(t "$MRW" write --quiet p.plan 2>&1); say "sha-guard-uppercase-hex" $? "$(cat f.txt) | $out"
+t "$MRW" read f.txt >"$W/served.out"; printf '@@ f.txt 1 replace sha=%s\nQ\n' "$(shasum -a 256 f.txt | cut -c1-64 | tr a-f A-F)" > p.plan; out=$(t "$MRW" write --quiet p.plan 2>&1); say "sha-guard-uppercase-hex" $? "$(cat f.txt) | $out"
 printf '@@ f.txt 1 replace lines=0\nQ\n' > p.plan; out=$(t "$MRW" write --quiet p.plan 2>&1); say "lines=0-guard" $? "$(cat f.txt) | $out"
 printf '@@ f.txt 1 replace\n' > p.plan; out=$(t "$MRW" write --quiet p.plan 2>&1); say "replace-with-empty-body" $? "bytes=$(wc -c < f.txt | tr -d ' ') | $out"
 printf '@@ f.txt - create\nnew\n' > p.plan; out=$(t "$MRW" write --quiet p.plan 2>&1); say "create-over-existing-file" $? "$(cat f.txt) | $out"
 printf '@@ sub/dir/new.txt - create\nnew\n' > p.plan; out=$(t "$MRW" write --quiet p.plan 2>&1); say "create-in-missing-dir" $? "$(cat sub/dir/new.txt 2>&1 | head -1) | $out"
 printf '@@ ../escape.txt - create\nx\n' > p.plan; out=$(t "$MRW" write --quiet p.plan 2>&1); say "create-outside-root" $? "$([ -e ../escape.txt ] && echo ESCAPED || echo contained) | $out"
-printf '@@ f.txt 1 replace\nQ\n' | t "$MRW" write --quiet --dry-run - >/dev/null 2>&1; rc=$?; l=$(t "$MRW" seen 2>/dev/null | grep -c 'f.txt'); say "dry-run-records-nothing-new?" $rc "ledger lines for f.txt=$l (1 from the read is expected)"
+t "$MRW" read f.txt >"$W/served.out"; printf '@@ f.txt 1 replace\nQ\n' | t "$MRW" write --quiet --dry-run - >/dev/null 2>&1; rc=$?; l=$(t "$MRW" seen 2>/dev/null | grep -c 'f.txt'); say "dry-run-records-nothing-new?" $rc "ledger lines for f.txt=$l (1 from the read is expected)"
 
 # ---------- 8. MCP stdio: a request line over bufio's 64KB default ----------
 fresh; printf 'one\ntwo\n' > f.txt
