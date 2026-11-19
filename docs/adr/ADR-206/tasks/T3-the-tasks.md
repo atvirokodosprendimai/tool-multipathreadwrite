@@ -68,6 +68,8 @@ go test -count=1 -v ./internal/bench -run '^(TestStage9ClassesHoldTheirRules|Tes
 ## Mutation Log
 - 2026-11-19 · acf141fe* · mutant killed · exit 1 · `bench/stage-9/classes.json` · a class of 11 · acceptance-sha256:e3e2b323ec7c28ef328fe0da01dc99284033366fbba4c6503db705275447a210 · covers:each class has 12 distinct tasks
 - 2026-11-19 · acf141fe* · mutant killed · exit 1 · `bench/tasks/s9-pylint-logging-too-many-args-confidence/task.json` · a follow-on task is not graded exact · acceptance-sha256:e3e2b323ec7c28ef328fe0da01dc99284033366fbba4c6503db705275447a210 · covers:every task is exact, creates no file and its require holds on the reference
+- 2026-11-19 · 116949f6* · mutant killed · exit 1 · `bench/stage-9/classes.json` · a class of 11 · acceptance-sha256:1d61ca84c62f96b42a7c4fb5b7ee0279fae0ea81768fb4777bb7506a83cb927a · covers:each class has 12 distinct tasks
+- 2026-11-19 · 116949f6* · mutant killed · exit 1 · `bench/tasks/s9-pylint-stop-iteration-scope/task.json` · a follow-on task is not graded exact · acceptance-sha256:1d61ca84c62f96b42a7c4fb5b7ee0279fae0ea81768fb4777bb7506a83cb927a · covers:every task is exact, creates no file and its require holds on the reference
 
 ## Verification Log
 - 2026-11-19 · acf141fe* · exit 1 · `set -o pipefail …` · acceptance-sha256:e3e2b323ec7c28ef328fe0da01dc99284033366fbba4c6503db705275447a210 · ms:127385 · test-lock-sha256:7bf38ea86f5e9bcc5cb37be63dcb7790487197fc616c842a41751ec03762a9ad · test-lock-file:docs/adr/locks/7bf38ea86f5e9bcc5cb37be63dcb7790487197fc616c842a41751ec03762a9ad.lock
@@ -76,6 +78,10 @@ go test -count=1 -v ./internal/bench -run '^(TestStage9ClassesHoldTheirRules|Tes
 - 2026-11-19 · acf141fe* · exit 0 · `set -o pipefail …` · acceptance-sha256:e3e2b323ec7c28ef328fe0da01dc99284033366fbba4c6503db705275447a210 · ms:108629
 - 2026-11-19 · acf141fe* · exit 0 · `set -o pipefail …` · acceptance-sha256:e3e2b323ec7c28ef328fe0da01dc99284033366fbba4c6503db705275447a210 · ms:126693
 - 2026-11-19 · acf141fe* · exit 0 · `set -o pipefail …` · acceptance-sha256:e3e2b323ec7c28ef328fe0da01dc99284033366fbba4c6503db705275447a210 · ms:91602
+- 2026-11-19 · 116949f6* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:1d61ca84c62f96b42a7c4fb5b7ee0279fae0ea81768fb4777bb7506a83cb927a · ms:0 · test-lock-sha256:9ba9dc6d957f8234cff036a7e1adb609f87b331a434b397d469b7cf1f8807960 · test-lock-file:docs/adr/locks/9ba9dc6d957f8234cff036a7e1adb609f87b331a434b397d469b7cf1f8807960.lock · test-lock-kind:replace
+- 2026-11-19 · 116949f6* · exit 0 · `set -o pipefail …` · acceptance-sha256:1d61ca84c62f96b42a7c4fb5b7ee0279fae0ea81768fb4777bb7506a83cb927a · ms:77278
+- 2026-11-19 · 116949f6* · exit 0 · `set -o pipefail …` · acceptance-sha256:1d61ca84c62f96b42a7c4fb5b7ee0279fae0ea81768fb4777bb7506a83cb927a · ms:85051
+- 2026-11-19 · 116949f6* · exit 0 · `set -o pipefail …` · acceptance-sha256:1d61ca84c62f96b42a7c4fb5b7ee0279fae0ea81768fb4777bb7506a83cb927a · ms:77384
 
 ## Invariants
 
