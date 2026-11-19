@@ -24,14 +24,14 @@ var foreignFlags = map[string]string{
 	"c":       "--grep PATTERN --count counts the lines that match in each file",
 	"A":       "context is symmetric: -C N prints N lines either side of a match",
 	"B":       "context is symmetric: -C N prints N lines either side of a match",
-	"e":       "the pattern is the value of --grep; one that starts with a dash is written --grep=-PATTERN",
+	"e":       `the pattern is the value of --grep; one that starts with a dash is written --grep=-PATTERN, or --grep="(?:-C)" when it spells a flag of mrw read`,
 	"E":       "--grep patterns are already extended regular expressions (Go RE2)",
 	"P":       "--grep patterns are Go RE2: no look-around and no backreferences",
 	"F":       `--grep patterns are regular expressions; wrap a literal in \Q…\E, or escape its metacharacters one by one if it contains \E`,
 	"w":       `wrap the word in \b…\b; Go's \b is ASCII-only, so a word with non-ASCII letters is not bounded correctly`,
 	"H":       "every file is announced by a ==> header; there is no flag for it",
 	"include": "there is no --include: name the directories to walk or pipe a list to --files-from; --exclude GLOB drops files",
-	"m":       "--max-lines N caps the lines served per spec; what is withheld is reported",
+	"m":       "--grep PATTERN --max-matches N stops after N matching lines and counts the rest (a match inside a span already being served still prints); --max-lines N caps the lines served per spec, context included",
 	"v":       "there is no inverted match: --grep serves the lines that match",
 	"o":       "there is no match-only output: --max-cols N cuts each line to a window round its match",
 }
@@ -80,6 +80,25 @@ func patternFlagHint(pattern string) string {
 		return ""
 	}
 	return foreignFlags[pattern[1:]]
+}
+
+// stdinFlags is what four of the table's flags mean for a read of standard
+// input, where the table's own sentence would send the caller to something
+// such a read refuses: --count, --stat, or a directory to walk.
+var stdinFlags = map[string]string{
+	"c": "there is no count of a stream: --grep serves the lines that match, and --count counts them in files",
+	"l": "there is no file list for a stream: --grep serves the lines that match",
+	"r": "a stream is not walked: drop the flag",
+	"R": "a stream is not walked: drop the flag",
+}
+
+// stdinPatternFlagHint is patternFlagHint for a read of standard input.
+func stdinPatternFlagHint(pattern string) string {
+	hint := patternFlagHint(pattern)
+	if s, ok := stdinFlags[strings.TrimPrefix(pattern, "-")]; ok && hint != "" {
+		return s
+	}
+	return hint
 }
 
 // readFlagPatternRefusal is the refusal for a --grep value that is exactly the

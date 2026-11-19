@@ -272,7 +272,8 @@ plain read's and the receipt what `mrw_read` sends as `content[1]` for the same 
 Under `--max-chars` the budget bounds `content`, not the JSON around it; content that is not valid UTF-8 is refused, exit 2, nothing recorded.
 A flag grep has and `read` lacks (`-i`, `-n`, `-r`, `-l`, `-A`, `-e`, `--include`) is a usage error, exit 2, that ends with mrw's spelling (ADR-140); `-v` and `-o`, which `read` has no form of, say so (ADR-164).
 `--grep -i PATTERN` is not an unknown flag: `-i` is taken as the pattern, and a read that matches nothing ends `no file matched /-i/` (exit 1) with the same
-hint; write `--grep '(?i)PATTERN'`.
+hint; write `--grep '(?i)PATTERN'`. On standard input (`cmd | mrw read --grep -v PATTERN -`) the pattern that follows is a second thing to read, which is
+usage, exit 2, and the refusal names the flag `--grep` took and the same hint.
 A flag `write` lacks that names the plan (`--plan`, `--file`, `--input`, `--stdin`) ends the same way with the argument's spelling, `mrw write PLAN` or `-`;
 and an all-digit `-C` before the subcommand (`mrw -C 3 read f`) is `--root`, which stderr says while the call is unchanged (ADR-151).
 `--root` typed after `read` (whose own `-C` is context, so `read` cannot take the global flag) is refused with
