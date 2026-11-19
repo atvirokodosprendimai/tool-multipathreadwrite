@@ -536,7 +536,7 @@ lands, prose-only included, as `mrw write --check` does (ADR-205), and returns t
 (and `drift`); `check: false` is the default. A check that ran and failed leaves the
 write applied and the call not an error; one that could not run, such as a tree with no check declared or inferred (a root `go.mod` supplies an inferred one), is an error with the applied receipt and `check.ran` false. The write lands before the check runs, so
 a lost answer means read the files before re-sending the plan. `then` names steps declared in
-`.quality-harness.json`, run in order (ADR-115): with `check: true` after a passing check, not run when that check fails or cannot run; without `check` on their own after the write. Their verdicts are in the receipt's
+`.quality-harness.json`, run in order (ADR-115): with `check: true` after a passing check, not run when that check fails or cannot run; without `check` on their own after the write (not when the read ledger could not be updated after it landed). Their verdicts are in the receipt's
 `then`; ad-hoc shell (`--then-sh`) stays on the CLI. Its receipt's hunks carry
 the same `balance` field the CLI prints.
 An argument a tool does not declare is refused, naming it and the arguments the tool takes; nothing is done.

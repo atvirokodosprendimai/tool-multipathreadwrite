@@ -163,9 +163,17 @@ func TestMrwWriteCheckTrueRunsTheCheckOnAnyPlan(t *testing.T) {
 	t.Run("a tree with no check leaves a named step not run", func(t *testing.T) {
 		root := checkTree113(t, noCmdHarness205)
 		res := call(t, root, "mrw_write", map[string]any{"plan": notesPlan205, "check": true, "then": []any{"after"}})
-		st := steps205(t, structured(t, res))
+		sc := structured(t, res)
+		st := steps205(t, sc)
+		chk, _ := sc["check"].(map[string]any)
+		skipped, _ := chk["skipped"].(string)
 		if res["isError"] != true || len(st) != 1 || st[0]["status"] != "not_run" || stepRan205(root) || markers205(t, root) != 0 {
 			t.Fatalf("isError %v then %v step ran %v, want an error, the step not_run and no side effect", res["isError"], st, stepRan205(root))
+		}
+		// A refused hunk is an error with a step not run too: this row is about a
+		// write that LANDED and a check that had no command.
+		if sc["applied"] != true || disk205(t, root, "notes.md") != "# notes\nline 2\n" || chk["ran"] != false || skipped == "" {
+			t.Fatalf("applied %v, check %v, disk %q: want the edit landed and a check that did not run, with its reason", sc["applied"], chk, disk205(t, root, "notes.md"))
 		}
 	})
 }

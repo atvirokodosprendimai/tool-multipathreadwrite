@@ -2380,7 +2380,7 @@ PY
 missing=""
 grep -q -- '--files-from' <<<"$(m read --help 2>&1)"  || missing="$missing read:--files-from"
 grep -q -- '--check'      <<<"$(m write --help 2>&1)" || missing="$missing write:--check"
-grep -q -- '--then-sh'    <<<"$(m write --help 2>&1)" || missing="$missing write:--then-sh"
+grep -qE -- '^ +--then-sh ' <<<"$(m write --help 2>&1)" || missing="$missing write:--then-sh"
 grep -q -- '--root'       <<<"$(m --help 2>&1)"       || missing="$missing root:--root"
 [ -z "$missing" ] \
   && ok "and every flag the wire recommends exists on the SUBCOMMAND it names" \
@@ -11613,9 +11613,10 @@ grep -q "$(printf '\357\273\277')two" "$WORK/o351b" && grep -q '^==> -  2L  11B'
 # 352. ADR-205: mrw_write with check: true runs the project's check after ANY
 # write that lands, as `mrw write --check` does, so a prose-only write leaves the
 # check's marker; the pair, the same write without check, runs none. Each case is
-# its own tree, so one case's marker cannot satisfy the other. The check greps
-# notes.md for the edited text before it writes the marker, so a check that ran
-# before the edit landed leaves none: the marker also proves the order. The two
+# its own tree, so one case's marker cannot satisfy the other. The check counts
+# every time it is started (`runs`) and then greps notes.md for the edited text
+# before it writes the marker: one run and one marker say it ran once, after the
+# edit; a run before the edit would leave two runs, or a run and no marker. The two
 # servers run without the step-depth and result-size variables a caller may
 # have exported, which would refuse the write or elide the receipt.
 req352() {
@@ -11623,7 +11624,7 @@ req352() {
 }
 mk352() {
   mkdir -p "$1"; printf '# notes\nline two\n' > "$1/notes.md"
-  printf '%s\n' '{"check":"grep -qx \"line 2\" notes.md && echo ran >> marker"}' > "$1/.quality-harness.json"
+  printf '%s\n' '{"check":"echo run >> runs; grep -qx \"line 2\" notes.md && echo ran >> marker"}' > "$1/.quality-harness.json"
   "$MRW" --root "$1" read notes.md > "$WORK/served352" 2>&1
 }
 R352a="$WORK/r352a"; mk352 "$R352a"
@@ -11635,7 +11636,7 @@ sc = r["structuredContent"]
 c = sc.get("check") or {}
 sys.exit(0 if c.get("ran") is True and c.get("exit_code") == 0 and sc.get("applied") is True and not r.get("isError") else 1)
 PY
-[ "$(wc -l < "$R352a/marker" 2>/dev/null | tr -d ' ')" = 1 ] && [ "$(sed -n 2p "$R352a/notes.md")" = "line 2" ] && ok "and the check left its marker once, after the edit landed" || bad "marker: $(cat "$R352a/marker" 2>&1 | head -c 100)"
+[ "$(wc -l < "$R352a/marker" 2>/dev/null | tr -d ' ')" = 1 ] && [ "$(wc -l < "$R352a/runs" 2>/dev/null | tr -d ' ')" = 1 ] && [ "$(sed -n 2p "$R352a/notes.md")" = "line 2" ] && ok "and the check ran once and left its marker, after the edit landed" || bad "marker: $(cat "$R352a/marker" "$R352a/runs" 2>&1 | head -c 100)"
 R352b="$WORK/r352b"; mk352 "$R352b"
 out=$(req352 '{"plan":"@@ notes.md 2 replace anchor=\"line two\"\nline 2\n"}' | env -u MRW_STEP_DEPTH -u MRW_MAX_RESULT_CHARS "$MRW" -C "$R352b" mcp --enable 2>/dev/null)
 python3 - "$out" <<'PY' && ok "the pair: the same plan without check lands with no check key" || bad "prose write without check: $(head -c 400 <<<"$out")"
@@ -11643,7 +11644,7 @@ import json, sys
 sc = json.loads(sys.argv[1])["result"]["structuredContent"]
 sys.exit(0 if "check" not in sc and sc.get("applied") is True else 1)
 PY
-[ ! -e "$R352b/marker" ] && [ "$(sed -n 2p "$R352b/notes.md")" = "line 2" ] && ok "and no marker exists: the check did not run" || bad "marker left without check: $(ls "$R352b")"
+[ ! -e "$R352b/marker" ] && [ ! -e "$R352b/runs" ] && [ "$(sed -n 2p "$R352b/notes.md")" = "line 2" ] && ok "and the check was never started" || bad "check started without check: true: $(ls "$R352b")"
 
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
