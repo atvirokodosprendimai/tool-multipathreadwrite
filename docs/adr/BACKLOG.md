@@ -1500,3 +1500,73 @@ The scanner found nine near path reverts where the bar needs 49. Counting every 
 near would give 22. By the rule written before the run, no undo record is drafted. The tree reverts are
 counted apart and decide nothing: nothing ties a `git stash` to a file mrw wrote. What the count cannot
 see is in the entry above and in the README's limits; the aggregates do not say how large any of them is.
+
+## Pre-registered for ADR-202 (an inverted match on standard input, E7) — written before the scanner is changed
+
+ADR-202 is a draft. It leans on a tally taken on 2026-11-19 that was exploratory: a one-off scan, not kept,
+with no bar written first. It found 160 calls refused with "a read of standard input names nothing else"
+outside this repository's sessions, 148 of them `--grep -X PATTERN -` with `-v` 109 times. That tally has
+been seen, so E7 cannot be a blind test of it; what E7 adds is a committed scanner with synthetic tests, a
+stated rule, and a number anyone can reproduce.
+
+**E7, the count** (`docs/bench/effect-study/scan.py`). A shell call counts when the answer of a command that
+ran mrw holds the refusal `a read of standard input names nothing else` (the wording before and after
+v1.90.1 both hold it). It is classed by the first `--grep` in the command that is followed by a dash and one
+letter and then another word: the class is that letter. A call with no such shape is `other`.
+*Runs.* Entries before **2026-11-19T00:00:00Z**, with and without this repository's sessions. The verdict
+is read on the run without them.
+
+**Verdict.** **PROCEED** when the calls classed `v` are at least **50**. Otherwise **WITHDRAW**: ADR-202 is
+withdrawn with the numbers and no flag is built. 50 is under half of what the tally found, so a scanner
+that sees the same thing passes with room, and one that sees something else does not.
+
+**What it does not show.** What the caller did after the refusal, or that an inverted match would have
+been used. ADR-202 Decision 6 names the tally that answers the second, thirty days after a release.
+
+**Correction, 2026-11-19, before the scanner was changed** (an adr-challenger pass and a Codex challenge, each
+checked against `cmd/mrw/stdin.go` at `0149e4b4` and its parent). Three things above are wrong or loose, and
+the bar of 50 and the window are not touched:
+- *The counted text.* The sentence above says both wordings hold `a read of standard input names nothing
+  else`. They do not: before v1.90.1, which is all of the window, the refusal read `- reads standard input,
+  and a read of it names nothing else`. A call counts when the answer paired with it by tool-use id, counted
+  once, holds `a read of it names nothing else` or `a read of standard input names nothing else`.
+- *The class.* In the command's text, the first match of `--grep`, then spaces or `=`, then a dash and one
+  letter, then whitespace and a further word: the class is the letter. No match: `other`. This is a rule over
+  text, not a shell parse: a quoted string or a heredoc holding that shape is classed by it. So the scanner
+  also counts, among the calls classed `v`, those whose command names `mrw read` more than once (`v_multi`),
+  where the refusal cannot be tied to one read.
+- *The verdict.* PROCEED when `v - v_multi` is at least 50. WITHDRAW when `v` is under 50. Otherwise
+  UNCERTAIN, and it goes to Zy with the numbers. PROCEED is not acceptance: it lets the code be written on
+  the branch, and ADR-202 merges only when Zy accepts it.
+- *What it is.* A replication of a tally already seen, on the same machine's transcripts, reproducible by
+  whoever holds them; not a blind test.
+
+**Measured 2026-11-19 for ADR-202 (E7): UNCERTAIN.** One run of the scanner at `6629695c`, entries before
+2026-11-19T00:00:00Z. Without this repository: 159 refused reads of standard input, `v` 108, `v_multi` 93,
+so `v - v_multi` is 15, under the 50 that PROCEED needs, while `v` is over the 50 that WITHDRAW needs.
+With it: 195, 114, 97. The tally's shape holds; the rule cannot tie 93 of the 108 to one read. No flag is
+built. ADR-202 stays Proposed with T1 `blocked` on Zy's reading of these numbers
+(`docs/bench/effect-study/results-e7*.json`).
+
+**Accepted on the 108 by Zy, 2026-11-19** (the option "Accept on the 108" to the question put with these
+numbers). The rule's verdict stays UNCERTAIN and is not rewritten; the owner decided past it, which is what
+the rule sent the numbers to the owner for. ADR-202 is Accepted and T1's S2 to S5 are built.
+
+## Pre-registered for ADR-202's use (Decision 7) — written before the flag exists
+
+Read once, 30 days after the tag date of the first release that carries `--invert`, over entries from that
+tag date on, without this repository's sessions, with the E7 scanner extended and committed before it runs.
+- `uses`: shell calls whose command holds `mrw read` and `--invert` and whose answer is not a refusal.
+- `pointed`: calls whose answer holds `an inverted match of a stream is`.
+- `unprompted`: `uses` in a transcript with no earlier `pointed` call.
+**Reading.** `uses` = 0: the flag is not reaching callers, and it goes back to Zy with the choice of removing
+it. `uses` > 0 and `unprompted` = 0: callers reach it only through a refusal, so the instructions are not
+teaching it; reported to Zy. Otherwise it stays. Fewer than 20 calls of either kind in the window: no
+reading, taken again 30 days later, once.
+
+## From ADR-202
+
+- An inverted match on files or directories: no call asked for it and it would serve most of a file. Waits
+  for a count of `--invert` refused on a file under "Pre-registered for ADR-202's use", and a record.
+- `-o`, match-only output on standard input: E7 counts the calls classed `o` and sets no bar for them. Waits
+  for a record of its own.

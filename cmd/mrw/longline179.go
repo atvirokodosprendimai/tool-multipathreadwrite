@@ -52,3 +52,14 @@ func longLineHint(l read.LongLines) string {
 	return fmt.Sprintf("mrw: %d line(s) over %d columns served whole, the longest %d; --max-cols 200 cuts each to a window round the match, and a cut line licenses nothing until it is read whole",
 		l.Count, read.LongLineCols, l.Longest)
 }
+
+// invertedLongLineHint is longLineHint for an inverted read of standard input
+// (ADR-202): it has no match to centre a window on, so --max-cols cuts from
+// the first column.
+func invertedLongLineHint(l read.LongLines) string {
+	if l.Count == 0 {
+		return ""
+	}
+	return fmt.Sprintf("mrw: %d line(s) over %d columns served whole, the longest %d; --max-cols 200 cuts each from its first column",
+		l.Count, read.LongLineCols, l.Longest)
+}

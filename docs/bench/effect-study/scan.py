@@ -416,6 +416,11 @@ class Guard:
 GIT_REVERT = re.compile(
     r"(?:^|[;&|(\n]|\$\()\s*git(?:\s+-C\s+\S+)*\s+(checkout|restore|reset|stash)(?=[\s;&|()<>]|$)([^;&|\n]*)")
 NEAR = 5
+# E7: the two wordings of the refusal of a read of standard input that named something beside `-`
+# (before v1.90.1, and the hinted form since), and a grep flag taken as --grep's pattern.
+STDIN_REFUSED = ("a read of it names nothing else", "a read of standard input names nothing else")
+GREP_FLAG = re.compile(r"--grep(?:\s+|=)-([A-Za-z])\s+\S")
+MRW_READ = re.compile(r"mrw(?:\s+(?:--root|-C)(?:=|\s+)\S+)*\s+read\b")
 
 
 class Reverts:
@@ -496,6 +501,7 @@ class Totals:
 def scan_session(path, since, until, t):
     """Fold one transcript into t; report whether any entry of it was in the window."""
     usage, uses, seen_use, misses = {}, {}, set(), set()
+    refused = set()     # E7: the tool calls already counted as a refused read of standard input
     order = []          # ("native"|"mrw"|"compact",) in order: file-changing calls and compactions
     trail = []          # every tool call and mrw answer in order, for E4's look-back
     request_sites = collections.defaultdict(lambda: [0, 0, False])   # msg id -> [mrw sites, host sites, mrw ran]
@@ -555,6 +561,12 @@ def scan_session(path, since, until, t):
                 continue
             text = unfolded(text)
             reverts.answered(tid)
+            if tid not in refused and any(s in text for s in STDIN_REFUSED):
+                refused.add(tid)
+                m = GREP_FLAG.search(cmd)
+                t.c["e7_refused"] += 1
+                t.c["e7_flag_" + (m.group(1) if m else "other")] += 1
+                t.c["e7_v_multi"] += bool(m) and m.group(1) == "v" and len(MRW_READ.findall(cmd)) > 1
             guard.answer(cmd, text)
             for miss in ANCHOR_MISS.findall(text):
                 t.c["anchor_miss_lines"] += 1
@@ -801,6 +813,20 @@ def revert_report(c):
             "tree_reverts": c["e6_tree_reverts"], "near_window_calls": NEAR,
             "verdict": revert_verdict(landed, c["e6_near_path_reverts"])}
 
+def invert_verdict(v, multi):
+    """The verdict pre-registered in docs/adr/BACKLOG.md (Pre-registered for ADR-202, E7, as corrected)."""
+    if v < 50:
+        return "WITHDRAW"
+    return "PROCEED" if v - multi >= 50 else "UNCERTAIN"
+
+
+def invert_report(c):
+    """E7's part of the JSON document."""
+    flags = {k[len("e7_flag_"):]: n for k, n in c.items() if k.startswith("e7_flag_") and n}
+    return {"refused_stdin_reads": c["e7_refused"], "by_flag": flags, "v": c["e7_flag_v"],
+            "v_multi": c["e7_v_multi"], "verdict": invert_verdict(c["e7_flag_v"], c["e7_v_multi"])}
+
+
 
 def report(t, files, unreadable, repo):
     """Build the JSON document."""
@@ -841,6 +867,7 @@ def report(t, files, unreadable, repo):
                                                      c["mrw_write_calls"])},
         "E5": guard_report(c),
         "E6": revert_report(c),
+        "E7": invert_report(c),
     }
 
 

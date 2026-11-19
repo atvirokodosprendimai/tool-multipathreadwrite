@@ -29,7 +29,7 @@ func TestAGrepFlagBeforeThePatternOnStandardInputIsNamed(t *testing.T) {
 		"-w": `wrap the word in \b…\b; Go's \b is ASCII-only, so a word with non-ASCII letters is not bounded correctly`,
 		"-H": "every file is announced by a ==> header; there is no flag for it",
 		"-m": "--grep PATTERN --max-matches N stops after N matching lines and counts the rest (a match inside a span already being served still prints); --max-lines N caps the lines served per spec, context included",
-		"-v": "there is no inverted match: --grep serves the lines that match",
+		"-v": "there is no inverted match: --grep serves the lines that match; an inverted match of a stream is --grep PATTERN --invert -",
 		"-o": "there is no match-only output: --max-cols N cuts each line to a window round its match",
 	}
 	want := map[string]string{

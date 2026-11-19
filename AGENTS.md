@@ -274,6 +274,7 @@ A flag grep has and `read` lacks (`-i`, `-n`, `-r`, `-l`, `-A`, `-e`, `--include
 `--grep -i PATTERN` is not an unknown flag: `-i` is taken as the pattern, and a read that matches nothing ends `no file matched /-i/` (exit 1) with the same
 hint; write `--grep '(?i)PATTERN'`. On standard input (`cmd | mrw read --grep -v PATTERN -`) the pattern that follows is a second thing to read, which is
 usage, exit 2, and the refusal names the flag `--grep` took and the same hint.
+An inverted match of a stream is `--grep PATTERN --invert -` (ADR-202), standard input only: it serves the lines that do not match, numbered as in the input, with no line after a run and no replace note, and records nothing. Beside it only `--max-lines`, `--max-cols`, `--max-chars`, `--fold` and `-N`; on a file, a directory, an address or a second argument, or beside any other flag, it is refused, exit 2, before standard input is read. When no line is left it prints the header and one `!!` line and exits 1 `mrw: no match:`. The sentence for `-v` ends in this form.
 A flag `write` lacks that names the plan (`--plan`, `--file`, `--input`, `--stdin`) ends the same way with the argument's spelling, `mrw write PLAN` or `-`;
 and an all-digit `-C` before the subcommand (`mrw -C 3 read f`) is `--root`, which stderr says while the call is unchanged (ADR-151).
 `--root` typed after `read` (whose own `-C` is context, so `read` cannot take the global flag) is refused with

@@ -254,6 +254,12 @@ type Options struct {
 	// served whole and appended to WholeNames.
 	NoComments bool
 	WholeNames *[]string
+	// NoReplaceNote leaves out the `-- note: a multi-line replace of A-B needs a
+	// served line after B` that a read with NextLine off prints once (ADR-202).
+	// The note is about licensing a write; the inverted read of standard input
+	// serves a stream, which is never written, so it would say something false.
+	// The zero value prints the note as before.
+	NoReplaceNote bool
 }
 
 // Unchanged is one spec a guard (Options.IfChanged) answered without its text:
@@ -1082,7 +1088,7 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 				withholdFrom(si, sn.start)
 				break
 			}
-			if servedEnd := sn.start + n - 1; n >= 2 && servedEnd < len(lines) && !neighbourNoted && !opt.Quiet && !opt.NextLine {
+			if servedEnd := sn.start + n - 1; n >= 2 && servedEnd < len(lines) && !neighbourNoted && !opt.Quiet && !opt.NextLine && !opt.NoReplaceNote {
 				neighbourNoted = true
 				fmt.Fprintf(w, "-- note: a multi-line replace of %d-%d needs a served line after %d\n",
 					sn.start, servedEnd, servedEnd)
