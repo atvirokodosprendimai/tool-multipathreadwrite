@@ -3,6 +3,23 @@
 **Status:** Proposed
 **Owner's decision so far:** on 2026-11-19 Zy asked whether an undo should work "only in parent repo" or on "whatever the agent touched", was given the scope in Decision 1 to 3 below, and answered *"ok, re proposal on mrw - agreed"*, then *"good, go on with mrw undo"*. That agrees the scope and that it is built. The storage, limits, exit codes and receipt in Decisions 4 to 9 are the drafter's and wait for Zy with this record.
 **Date:** 2026-11-19
+**Design review, 2026-11-19, before any code** (Codex gpt-6.2-astra at xhigh, read-only on `1b889800`): **REJECT.** The Decision below does not stand as written. What it established against the code:
+- *The restore is not atomic the way Decision 3 says.* A mismatch found before the first move leaves the tree untouched; after the first rename a later failure can leave earlier restores on disk, as a write's commit can (ADR-066 reverses path operations, not content). Preflight refusal, complete restore and commit failure have to be three stated outcomes, with a fresh check of each file at its own move.
+- *A failed keep can expose the wrong "last write".* If write A is kept and write B lands elsewhere but its entry cannot be stored, A still passes every hash check and undoing it would skip over B. The older entry has to be invalidated before B touches the tree, or a generation has to prove an entry is still the newest.
+- *The entry is a new source of write authority.* It is read back and drives writes into the tree, so every path, kind, mode and length in it must be validated as untrusted input, with the ordinary root, `.git`, own-state and Windows-name checks, through a confined root handle.
+- *Per-operation checks reject valid plans* (an unlink of `c` beside a rename onto `c`; a case-only rename on a folding filesystem). The check has to be one expected state per directory entry.
+- *Bytes and mode do not say what a link operation changed.* An edit through a symlink changes its target; an unlink or rename acts on the link. Hard-linked names cannot be put back as they were by rewriting one name.
+- *The capture point and the lock were wrong.* The write lock is taken and released inside `applyCounted`, not held by `Land`; the exact original bytes already exist in apply's validation read. Keeping an entry after the lock is released can reverse two writers.
+- *Sharing the checkout's history must not widen `--root`.* An undo run under `sub/` could reach a write to a sibling.
+- *Privacy claims were stronger than the placement supports* (a state home inside the checkout; an existing shared directory; Windows, where 0600 means little), and `mrw seen --prune` does not remove a live checkout's copies.
+- *A byte match can hide a permission change the restore would undo*, and a directory a create made may hold someone else's file by then.
+- *Decision 7 can widen a licence*: marking a file that returns from an unlink, or one a narrow quoted write changed, as wholly written lets a later plan edit lines nobody read.
+- *The exit codes, the JSON and several named mutants were under-specified*, and the header credited the owner with more than was agreed (the 16 levels, the limits, Decision 10).
+
+**The choice this leaves for Zy:**
+1. *One kept write, not sixteen.* Keep only the last landed write; a new write removes the previous entry before it touches the tree and publishes its own only when complete. `mrw undo` then undoes that one write or says there is nothing to undo. It gives the guarantee that was measured for, with the least retained content and no walk back. It still needs the confinement, link, metadata and commit-failure rules above. Recommended by the review and by the drafter.
+2. *Several levels, as drafted*, with a durable ordering protocol and barriers added. More retained content and more ways to be wrong.
+3. *Do not build it*, which is what E6's verdict said.
 **Owner:** Zy
 **Spec:** None — no spec stage
 **Cross-references:** ADR-001, ADR-004, ADR-005, ADR-066, ADR-075, ADR-077, ADR-111, ADR-143, ADR-161, ADR-203
