@@ -270,7 +270,7 @@ licensed (ADR-165).
 An adapter that parses mrw's report reads `mrw read --json` instead: `{"content", "receipt"}`, the content byte for byte the
 plain read's and the receipt what `mrw_read` sends as `content[1]` for the same read (ADR-165).
 Under `--max-chars` the budget bounds `content`, not the JSON around it; content that is not valid UTF-8 is refused, exit 2, nothing recorded.
-A flag grep has and `read` lacks (`-i`, `-n`, `-r`, `-l`, `-A`, `-e`, `--include`) is a usage error, exit 2, that ends with mrw's spelling (ADR-140); `-v` and `-o`, which `read` has no form of, say so (ADR-164).
+A flag grep has and `read` lacks (`-i`, `-n`, `-r`, `-l`, `-A`, `-e`, `--include`) is a usage error, exit 2, that ends with mrw's spelling (ADR-140); `-v` and `-o`, which `read` has no form of, say so (ADR-164). grep's count attached to `-A`, `-B` or `-m` (`-A3`) is answered as that flag. `--grep P` beside a spec with a range is refused, and for a read of files without `--sub` the refusal ends with the two forms that work: the path alone, or for one file the pattern as the address (`PATH:/P/`, a `/` inside the pattern escaped).
 `--grep -i PATTERN` is not an unknown flag: `-i` is taken as the pattern, and a read that matches nothing ends `no file matched /-i/` (exit 1) with the same
 hint; write `--grep '(?i)PATTERN'`. On standard input (`cmd | mrw read --grep -v PATTERN -`) the pattern that follows is a second thing to read, which is
 usage, exit 2, and the refusal names the flag `--grep` took and the same hint.
@@ -294,6 +294,12 @@ mrw read 'internal/apply/apply.go:/^func Apply/,/^}/' \
          'internal/read/read.go:/func Run/,+12' \
          'cmd/mrw/main.go:$'
 ```
+
+Quote a spec whose pattern holds a space: unquoted, `f.go:/func Foo/` reaches mrw as two arguments, and the refusal of the
+first, `pattern "/func" is never closed`, says the shell split it when up to eight arguments typed after it complete it into
+a spec of patterns only (not beside a working-set number such as `@1`, nor when a line number follows the pattern). It prints
+the spec whole in single quotes when that is one word in a POSIX shell and in PowerShell: printable ASCII, no single quote,
+no leading dash, and not on a Windows build, which may be answering cmd.exe.
 
 Quote a JSON path for the shell, since `$`, `"` and `[` mean something to most of them. Measured on Windows 11 for
 ADR-157 (2026-10-14): pwsh 7 takes `'t.json:$["k"]'`; Windows PowerShell 5.1 needs `'t.json:$[\"k\"]'`, since it strips
