@@ -103,10 +103,10 @@ index 74a2c17..f77b858 100644
  		// consumes none, so its original net is zero by construction — which
  		// is exactly why a balanced insert in the wrong place is invisible to
 diff --git a/internal/writer/writer.go b/internal/writer/writer.go
-index 43e590b..bbf3e60 100644
+index 43e590b..167f670 100644
 --- a/internal/writer/writer.go
 +++ b/internal/writer/writer.go
-@@ -10,12 +10,14 @@
+@@ -10,12 +10,15 @@
  package writer
  
  import (
@@ -114,6 +114,7 @@ index 43e590b..bbf3e60 100644
  	"fmt"
  	"os"
  	"path/filepath"
++	"syscall"
  
  	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/apply"
  	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
@@ -121,7 +122,7 @@ index 43e590b..bbf3e60 100644
  )
  
  // Mutation is how much of a plan reached the tree (ADR-102): the one answer
-@@ -93,6 +95,7 @@ func applyCounted(root string, in []apply.Input, opt apply.Options) (apply.Resul
+@@ -93,6 +96,7 @@ func applyCounted(root string, in []apply.Input, opt apply.Options) (apply.Resul
  		return res, 0, err
  	}
  	gen := bumpWrites(root)
@@ -129,7 +130,7 @@ index 43e590b..bbf3e60 100644
  	wrote := map[string]seen.Observation{}
  	var gone []string
  	for _, f := range res.Files {
-@@ -125,6 +128,34 @@ func applyCounted(root string, in []apply.Input, opt apply.Options) (apply.Resul
+@@ -125,6 +129,40 @@ func applyCounted(root string, in []apply.Input, opt apply.Options) (apply.Resul
  	return res, gen, err
  }
  
@@ -153,7 +154,13 @@ index 43e590b..bbf3e60 100644
 +	if os.MkdirAll(base, 0o700) != nil {
 +		return
 +	}
-+	f, err := os.OpenFile(filepath.Join(base, "stage9-exposed.jsonl"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
++	// Only a regular file or an absent path is opened, and without blocking: a
++	// FIFO with no reader must not hang a landed write that holds the lock.
++	path := filepath.Join(base, "stage9-exposed.jsonl")
++	if fi, err := os.Lstat(path); err == nil && !fi.Mode().IsRegular() {
++		return
++	}
++	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY|syscall.O_NONBLOCK, 0o600)
 +	if err != nil {
 +		return
 +	}

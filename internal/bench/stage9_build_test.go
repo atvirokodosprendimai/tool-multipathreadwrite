@@ -2,9 +2,11 @@ package bench
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,6 +14,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
 
 // ADR-206 T2: M and N are two builds of one tag that differ in one refusal.
@@ -27,7 +30,10 @@ type s9Run struct {
 // thing the caller varies.
 func s9Exec(t *testing.T, bin, root, state, stdin string, args ...string) s9Run {
 	t.Helper()
-	cmd := exec.Command(bin, args...)
+	// A hung binary (a write blocked on a FIFO) is a failure, not a stuck test.
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, bin, args...)
 	cmd.Dir = root
 	cmd.Env = []string{"PATH=" + os.Getenv("PATH"), "HOME=" + filepath.Dir(root), "XDG_STATE_HOME=" + state}
 	cmd.Stdin = strings.NewReader(stdin)
@@ -102,6 +108,9 @@ func s9Log(t *testing.T, state string) (bool, []s9Event) {
 		if err := dec.Decode(&e); err != nil {
 			t.Fatalf("log line %q: %v", ln, err)
 		}
+		if _, err := dec.Token(); err != io.EOF {
+			t.Fatalf("log line %q is not exactly one JSON object", ln)
+		}
 		evs = append(evs, e)
 	}
 	return true, evs
@@ -119,29 +128,42 @@ func s9File(t *testing.T, root, name string) string {
 }
 
 // s9Tag is the newest v* tag reachable from HEAD, or "" with the reason.
-func s9Tag(t *testing.T) (repo, tag, skip string) {
+func s9Tag(t *testing.T) (repo, tag string, doc []byte, skip string) {
 	t.Helper()
 	if _, err := exec.LookPath("git"); err != nil {
-		return "", "", "git is not on PATH"
+		return "", "", nil, "git is not on PATH"
 	}
 	top, err := exec.Command("git", "rev-parse", "--show-toplevel").Output()
 	if err != nil {
-		return "", "", "not a git checkout"
+		return "", "", nil, "not a git checkout"
 	}
 	repo = strings.TrimSpace(string(top))
-	out, err := exec.Command("git", "-C", repo, "tag", "--merged", "HEAD", "--list", "v*", "--sort=-v:refname").Output()
-	if err != nil || strings.TrimSpace(string(out)) == "" {
-		return repo, "", "no v* tag is reachable in this clone (a shallow checkout has none)"
+	// The pinned tag is the one builds.md names, never the newest.
+	doc, err = os.ReadFile(filepath.Join(repo, "bench", "stage-9", "builds.md"))
+	if err != nil {
+		t.Fatal(err)
 	}
-	tag = strings.Fields(string(out))[0]
-	// The build needs the module cache; offline, a missing module is a skip.
-	chk := exec.Command("go", "list", "-mod=mod", "-m", "all")
-	chk.Dir = repo
-	chk.Env = append(os.Environ(), "GOPROXY=off", "GOFLAGS=-mod=mod")
-	if err := chk.Run(); err != nil {
-		return repo, "", "the module cache lacks a dependency of " + tag + " (go list with GOPROXY=off failed)"
+	m := s9TagLine.FindSubmatch(doc)
+	if m == nil {
+		t.Fatal("bench/stage-9/builds.md has no `- Tag: `vX` line")
 	}
-	return repo, tag, ""
+	tag = string(m[1])
+	if exec.Command("git", "-C", repo, "rev-parse", "--verify", "--quiet", tag+"^{commit}").Run() != nil {
+		return repo, tag, doc, "the pinned tag " + tag + " is not in this clone (a shallow checkout has none)"
+	}
+	return repo, tag, doc, ""
+}
+
+var (
+	s9TagLine  = regexp.MustCompile("(?m)^- Tag: `([^`]+)`")
+	s9Platform = regexp.MustCompile("(?m)^- Platform: `([^`]+)`")
+)
+
+func s9Env(key, def string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return def
 }
 
 var s9Sha = regexp.MustCompile(`(?m)^([mn]) sha256: ([0-9a-f]{64})$`)
@@ -156,7 +178,7 @@ func s9Same(r s9Run) s9Run {
 }
 
 func TestArmNDiffersFromMInOneRefusal(t *testing.T) {
-	repo, tag, skip := s9Tag(t)
+	repo, tag, doc, skip := s9Tag(t)
 	if skip != "" {
 		t.Skip(skip)
 	}
@@ -165,25 +187,43 @@ func TestArmNDiffersFromMInOneRefusal(t *testing.T) {
 	script := filepath.Join(repo, "bench", "stage-9", "build.sh")
 	cmd := exec.Command("sh", script, tag, out)
 	cmd.Dir = repo
-	if b, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("build.sh %s %s: %v\n%s", tag, out, err, b)
+	built, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("build.sh %s %s: %v\n%s", tag, out, err, built)
+	}
+	sums := map[string]string{}
+	for _, f := range s9Sha.FindAllStringSubmatch(string(built), -1) {
+		sums[f[1]] = f[2]
+	}
+	for arm, name := range map[string]string{"m": "mrw-m", "n": "mrw-n"} {
+		bin, err := os.ReadFile(filepath.Join(out, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if sums[arm] != s9Sum(string(bin)) {
+			t.Fatalf("build.sh printed %q for %s, the file hashes to %s", sums[arm], name, s9Sum(string(bin)))
+		}
+	}
+	if sums["m"] == sums["n"] {
+		t.Fatal("M and N are the same binary")
+	}
+	// The hashes are per platform: compare them where builds.md recorded them.
+	pinned := map[string]string{}
+	for _, f := range s9Sha.FindAllStringSubmatch(string(doc), -1) {
+		pinned[f[1]] = f[2]
+	}
+	plat := s9Platform.FindSubmatch(doc)
+	if len(pinned) != 2 || plat == nil {
+		t.Fatalf("bench/stage-9/builds.md records hashes %v and platform %q", pinned, plat)
+	}
+	if here := s9Env("GOOS", runtime.GOOS) + "/" + s9Env("GOARCH", runtime.GOARCH); here == string(plat[1]) {
+		for arm := range pinned {
+			if sums[arm] != pinned[arm] {
+				t.Fatalf("%s built to %s, builds.md records %s", arm, sums[arm], pinned[arm])
+			}
+		}
 	} else {
-		sums := map[string]string{}
-		for _, m := range s9Sha.FindAllStringSubmatch(string(b), -1) {
-			sums[m[1]] = m[2]
-		}
-		for arm, name := range map[string]string{"m": "mrw-m", "n": "mrw-n"} {
-			bin, err := os.ReadFile(filepath.Join(out, name))
-			if err != nil {
-				t.Fatal(err)
-			}
-			if sums[arm] != s9Sum(string(bin)) {
-				t.Fatalf("build.sh printed %q for %s, the file hashes to %s", sums[arm], name, s9Sum(string(bin)))
-			}
-		}
-		if sums["m"] == sums["n"] {
-			t.Fatal("M and N are the same binary")
-		}
+		t.Logf("built on %s, builds.md records %s: the hashes are not compared", here, plat[1])
 	}
 	m, n := filepath.Join(out, "mrw-m"), filepath.Join(out, "mrw-n")
 	work := t.TempDir()
@@ -360,6 +400,33 @@ func TestArmNDiffersFromMInOneRefusal(t *testing.T) {
 		}
 		if runs[0].code != 0 || runs[0] != runs[1] {
 			t.Fatalf("writable %+v, directory %+v", runs[0], runs[1])
+		}
+	})
+
+	t.Run("a log path that is a FIFO with no reader does not hang a landed write", func(t *testing.T) {
+		if _, err := exec.LookPath("mkfifo"); err != nil {
+			t.Skip("mkfifo is not on PATH")
+		}
+		var runs [2]s9Run
+		for i := range runs {
+			root, state := s9Sandbox(t, filepath.Join(work, "fifolog"))
+			s9Written(t, n, root, state)
+			if i == 1 {
+				p := filepath.Join(state, "mrw", "stage9-exposed.jsonl")
+				if err := os.Remove(p); err != nil {
+					t.Fatal(err)
+				}
+				if err := exec.Command("mkfifo", p).Run(); err != nil {
+					t.Fatal(err)
+				}
+			}
+			runs[i] = s9Exec(t, n, root, state, "@@ a.txt 3 replace\nX\n", "--root", root, "write", "-")
+			if got := s9File(t, root, "a.txt"); got != "line1\nline2\nX\nline4\nline5\n" {
+				t.Fatalf("a.txt %q", got)
+			}
+		}
+		if runs[0].code != 0 || runs[0] != runs[1] {
+			t.Fatalf("writable %+v, FIFO %+v", runs[0], runs[1])
 		}
 	})
 }

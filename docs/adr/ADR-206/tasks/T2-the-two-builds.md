@@ -46,7 +46,7 @@ And no tracked `.go` file contains the patch's added lines.
 set -o pipefail
 go test -count=1 -v ./internal/bench -run '^TestArmNDiffersFromMInOneRefusal$' > "${TMPDIR:-/tmp}/adr206-t2.out" \
   && [ "$(grep -c '^--- PASS: TestArmNDiffersFromMInOneRefusal ' "${TMPDIR:-/tmp}/adr206-t2.out")" -eq 1 ] \
-  && ! grep -q '^--- SKIP' "${TMPDIR:-/tmp}/adr206-t2.out" \
+  && ! grep -q -- '--- SKIP' "${TMPDIR:-/tmp}/adr206-t2.out" \
   && test -s bench/stage-9/no-refusal.patch \
   && m=$(sed -n 's/^m sha256: //p' bench/stage-9/builds.md) && n=$(sed -n 's/^n sha256: //p' bench/stage-9/builds.md) \
   && [ ${#m} -eq 64 ] && [ ${#n} -eq 64 ] && [ "$m" != "$n" ] \
@@ -90,6 +90,8 @@ go test -count=1 -v ./internal/bench -run '^TestArmNDiffersFromMInOneRefusal$' >
 - 2026-11-19 · e83e4009* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:94538eb3982f5b9d8d0351bcef625182684bb38901f8c97b6a02782aadb1cde3 · ms:1 · test-lock-sha256:f2e00966f780447e6e0783b0669a9d885c014085f4b311d1c69edca203f2be7b · test-lock-file:docs/adr/locks/f2e00966f780447e6e0783b0669a9d885c014085f4b311d1c69edca203f2be7b.lock · test-lock-kind:replace
 - 2026-11-19 · e83e4009* · exit 0 · `set -o pipefail …` · acceptance-sha256:94538eb3982f5b9d8d0351bcef625182684bb38901f8c97b6a02782aadb1cde3 · ms:4421
 - 2026-11-19 · e83e4009* · exit 0 · `set -o pipefail …` · acceptance-sha256:94538eb3982f5b9d8d0351bcef625182684bb38901f8c97b6a02782aadb1cde3 · ms:3575
+- 2026-11-19 · 2ec60d27* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:90b8e67864f72d49cf57e2a9b9973c7f4d01f37159b0418ba60c1ad1d74ba094 · ms:0 · test-lock-sha256:60aa3a98558132f91610e3e1b325ed8e3797ea62dec7a7037b1c88f951602a32 · test-lock-file:docs/adr/locks/60aa3a98558132f91610e3e1b325ed8e3797ea62dec7a7037b1c88f951602a32.lock · test-lock-kind:replace
+- 2026-11-19 · 2ec60d27* · exit 0 · `set -o pipefail …` · acceptance-sha256:90b8e67864f72d49cf57e2a9b9973c7f4d01f37159b0418ba60c1ad1d74ba094 · ms:7284
 
 ## Invariants
 
