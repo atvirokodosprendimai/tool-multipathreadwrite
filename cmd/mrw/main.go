@@ -2144,6 +2144,17 @@ held or went unchecked.`,
 				// Issue #537: the parser drops every leading mark; the caller is
 				// told when that was more than one.
 				br := bufio.NewReader(src)
+				// A plan in UTF-16 is refused in one sentence, where the parser would
+				// answer every line of it with its bytes in hex.
+				if head, _ := br.Peek(4); utf16Plan(head) {
+					// Read on, so the copy kept of a refused piped plan (ADR-176) is
+					// the whole of it, but no further than that copy can hold: a
+					// stream that never ends is still refused. Counted as any plan
+					// that did not parse.
+					_, _ = io.CopyN(io.Discard, br, keptPlanCap+1)
+					_ = authoring.Record(cmd.Root().String("root"), authoring.RefusedParse)
+					return refuse(utf16Refusal(name))
+				}
 				if n, more := ingest.LeadingMarks(br); n > 1 || more {
 					fmt.Fprintln(os.Stderr, "mrw: "+ingest.MarksNote("the plan", n, more))
 				}
@@ -2152,6 +2163,10 @@ held or went unchecked.`,
 				raw, rerr := io.ReadAll(src)
 				if rerr != nil {
 					return refuse(fmt.Sprintf("%s: %v", name, rerr))
+				}
+				if utf16Mark(raw) {
+					_ = authoring.Record(cmd.Root().String("root"), authoring.RefusedParse)
+					return refuse(utf16Refusal(name))
 				}
 				raw, marks := ingest.DropLeadingMarks(raw)
 				if marks > 1 {
@@ -2169,6 +2184,10 @@ held or went unchecked.`,
 				raw, rerr := io.ReadAll(src)
 				if rerr != nil {
 					return refuse(fmt.Sprintf("%s: %v", name, rerr))
+				}
+				if utf16Mark(raw) {
+					_ = authoring.Record(cmd.Root().String("root"), authoring.RefusedParse)
+					return refuse(utf16Refusal(name))
 				}
 				raw, marks := ingest.DropLeadingMarks(raw)
 				if marks > 1 {
