@@ -1039,14 +1039,9 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			// mrw's own parser refuses — with no content at exit 0, against a
 			// README that promises the header is exactly what a write plan
 			// takes. A negative --max-lines was ignored outright.
-			// A --grep value that spells a flag (ADR-140) and a misused --invert
-			// (ADR-202) are said first, before any other flag is judged, so the
-			// refusal does not depend on which other mistake the call also holds.
-			if cmd.IsSet("grep") {
-				if msg := readFlagPatternRefusal(cmd.Flags, cmd.String("grep")); msg != "" {
-					return cli.Exit(msg, exitUsage)
-				}
-			}
+			// A misused --invert (ADR-202) is said before any other flag is
+			// judged, so the refusal does not depend on which other mistake the
+			// call also holds.
 			if msg := invertRefusal(cmd, cmd.IsSet("grep"), cmd.Args().Slice()); msg != "" {
 				return cli.Exit(msg, exitUsage)
 			}
@@ -1085,6 +1080,11 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			excludes := cmd.StringSlice("exclude")
 			filesFrom := cmd.String("files-from")
 			posArgs := cmd.Args().Slice()
+			if grepSet {
+				if msg := readFlagPatternRefusal(cmd.Flags, pattern); msg != "" {
+					return cli.Exit(msg, exitUsage)
+				}
+			}
 
 			// An empty value is accepted or refused explicitly rather than
 			// silently meaning "not given". An empty PATTERN matches every

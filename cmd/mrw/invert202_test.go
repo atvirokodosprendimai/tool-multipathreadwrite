@@ -162,13 +162,18 @@ func TestAnInvertedMatchServesTheLinesOfStandardInputThatDoNotMatch(t *testing.T
 		}
 	}
 
+	// A budget that holds the header and not the `!!` line holds neither: all or nothing.
+	if out, errOut, code := run("a\n", "read", "--grep", "a", "--invert", "--max-chars", "28", "-"); code != 1 || out != "" || !strings.HasPrefix(errOut, "-: WITHHELD: --max-chars reached\n") || inv202LastLine(errOut) != "mrw: no match: every line of standard input matched /a/; --max-chars 28 reached" {
+		t.Errorf("a budget between the header and both lines: exit %d, stdout %q:\n%s", code, out, errOut)
+	}
+
 	// A line over the long-line threshold: the hint for an inverted read says where --max-cols cuts and
 	// nothing of licensing; the plain read keeps its own words.
 	long := strings.Repeat("x", 450) + "\nskip\n"
-	if _, errOut, code := run(long, "read", "--grep", "skip", "--invert", "-"); code != 0 || !strings.Contains(errOut, "1 line(s) over 400 columns served whole, the longest 450; --max-cols 200 cuts each from its first column") || strings.Contains(errOut, "licens") {
+	if _, errOut, code := inv.do(t, strings.NewReader(long), nil, "read", "--grep", "skip", "--invert", "-"); code != 0 || !strings.Contains(errOut, "1 line(s) over 400 columns served whole, the longest 450; --max-cols 200 cuts each from its first column") || strings.Contains(errOut, "licens") {
 		t.Errorf("the long-line hint of an inverted read: exit %d:\n%s", code, errOut)
 	}
-	if _, errOut, code := run("skip\n"+strings.Repeat("x", 450)+"\n", "read", "--grep", "x", "-"); code != 0 || !strings.Contains(errOut, "--max-cols 200 cuts each to a window round the match, and a cut line licenses nothing until it is read whole") {
+	if _, errOut, code := inv.do(t, strings.NewReader("skip\n"+strings.Repeat("x", 450)+"\n"), nil, "read", "--grep", "x", "-"); code != 0 || !strings.Contains(errOut, "--max-cols 200 cuts each to a window round the match, and a cut line licenses nothing until it is read whole") {
 		t.Errorf("the long-line hint of a plain read changed: exit %d:\n%s", code, errOut)
 	}
 
@@ -181,11 +186,6 @@ func TestAnInvertedMatchServesTheLinesOfStandardInputThatDoNotMatch(t *testing.T
 	}
 	if out, errOut, code := inv.do(t, strings.NewReader(strings.Repeat("abcdefghij", 4)+"\nskip\n"), []string{"MRW_MAX_COLS=10"}, "read", "--grep", "skip", "--invert", "-"); code != 0 || !strings.Contains(out, "1| abcdefghij") || !strings.Contains(out, "[cols 1-10 of 40]") || strings.Contains(out, "abcdefghijabcdefghij") {
 		t.Errorf("MRW_MAX_COLS=10: exit %d:\n%s%s", code, out, errOut)
-	}
-
-	// A pattern that spells a table flag and matches nothing says where the form is.
-	if out, errOut, code := run("x\n", "read", "--grep", "-v", "-"); code != 1 || !strings.Contains(errOut, "mrw: no match: no line of standard input matched /-v/ — there is no inverted match: --grep serves the lines that match; an inverted match of a stream is --grep PATTERN --invert -") {
-		t.Errorf("--grep -v - over a line that does not hold it: exit %d:\n%s%s", code, out, errOut)
 	}
 
 	// The engine and this read split the same bytes the same way.
@@ -228,6 +228,7 @@ func TestAnInvertedMatchServesTheLinesOfStandardInputThatDoNotMatch(t *testing.T
 		{[]string{"read", "--grep", "beta", "--invert", "--sub", "X", "-"}, "and --sub is not one of them"},
 		{[]string{"read", "--invert", "-C", "-1", "-"}, "--invert needs --grep"},
 		{[]string{"read", "--grep", "x", "--invert", "--stat", "--max-chars", "1", "-"}, "and --stat is not one of them"},
+		{[]string{"read", "--grep=-C", "--invert", "f.txt"}, "a read of files serves the lines that match"},
 	} {
 		out, errOut, code := inv.do(t, nil, nil, c.args...) // standard input never ends: a refusal that read it would hang
 		name := strings.Join(c.args, " ")
@@ -249,6 +250,10 @@ func TestAnInvertedMatchServesTheLinesOfStandardInputThatDoNotMatch(t *testing.T
 	// The plain read of a stream is as it was: the lines that match, and the line after each.
 	if out, _, code := run(a, "read", "--grep", "beta", "-"); code != 0 || !inv202Same(inv202Served(out), []int{2, 3, 4, 5}) {
 		t.Errorf("a plain read of A: exit %d:\n%s", code, out)
+	}
+	// Without --invert the order of ADR-140's refusal and the flag-domain checks is as it was.
+	if out, errOut, code := run(a, "read", "--grep=-C", "-C", "-1", "f.txt"); code != 2 || out != "" || !strings.Contains(errOut, "-C -1: context cannot be negative") {
+		t.Errorf("--grep=-C -C -1 f.txt: exit %d:\n%s%s", code, out, errOut)
 	}
 
 	// --invert taken as the pattern, on a stream and on a file.
@@ -327,7 +332,14 @@ func (e inv202) do(t *testing.T, stdin io.Reader, env []string, args ...string) 
 	defer cancel()
 	cmd := exec.CommandContext(ctx, e.bin, args...)
 	cmd.Dir = e.tree
-	cmd.Env = append(append(os.Environ(), "XDG_STATE_HOME="+e.state), env...)
+	// MRW_MAX_COLS is the developer's, and would change what a long line prints: only the caller's env sets it.
+	cmd.Env = []string{"XDG_STATE_HOME=" + e.state}
+	for _, kv := range os.Environ() {
+		if !strings.HasPrefix(kv, "MRW_MAX_COLS=") {
+			cmd.Env = append(cmd.Env, kv)
+		}
+	}
+	cmd.Env = append(cmd.Env, env...)
 	cmd.Stdin = stdin
 	var o, er strings.Builder
 	cmd.Stdout, cmd.Stderr = &o, &er

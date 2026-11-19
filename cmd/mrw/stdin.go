@@ -180,11 +180,7 @@ func stdinRead(cmd *cli.Command, pattern string, grepSet bool, posArgs []string,
 		reached = fmt.Sprintf("; --max-chars %d reached", cmd.Int("max-chars"))
 	}
 	if re != nil && !invert && !anyLineMatches(re, string(b)) {
-		msg := fmt.Sprintf("no match: no line of standard input matched /%s/", read.OneLine(pattern))
-		if hint := stdinPatternFlagHint(pattern); hint != "" { // as a read of files adds it (ADR-140)
-			msg += " — " + hint + " (mrw took the value after --grep as the pattern)"
-		}
-		return cli.Exit(msg+reached, 1)
+		return cli.Exit(fmt.Sprintf("no match: no line of standard input matched /%s/%s", read.OneLine(pattern), reached), 1)
 	}
 	return cli.Exit(incompleteLine(problems, matchesLeft, maxMatches(cmd), reached), 1)
 }
@@ -199,8 +195,8 @@ func invertedNothingLeft(w io.Writer, out *bufio.Writer, budget *read.Budget, ma
 		p := read.OneLine(pattern)
 		why, bang = "every line of standard input matched /"+p+"/", "every line matches /"+p+"/"
 	}
-	fmt.Fprintf(w, "==> -  %dL  %dB  sha %s\n", n, len(b), hex.EncodeToString(sum[:])[:8])
-	fmt.Fprintf(w, "!! %s\n", bang)
+	// One write, so a budget that cannot hold both lines holds neither.
+	fmt.Fprintf(w, "==> -  %dL  %dB  sha %s\n!! %s\n", n, len(b), hex.EncodeToString(sum[:])[:8], bang)
 	if err := out.Flush(); err != nil {
 		return cli.Exit(fmt.Sprintf("the answer could not be written: %v", err), exitUsage)
 	}
