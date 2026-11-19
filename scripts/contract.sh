@@ -11453,6 +11453,30 @@ want 2 "$?" "split spec pair: a pattern that is not closed is still refused"
 grep -q 'is never closed' "$WORK/e346c" && ! grep -q 'the shell split' "$WORK/e346c" && [ ! -s "$WORK/o346c" ] \
   && ok "split spec pair: and says nothing of a split" || bad "refusal: $(head -c 300 "$WORK/e346c")"
 
+# 347. Two refusals that say what to type (one-off tally of transcripts outside this
+# repository, 2026-11-19: 43 calls refused for grep's -A3 form, 52 for --grep beside a
+# range). grep's count attached to its flag, `-A3`, was spelled `--A3` and given no
+# pointer; it is spelled as typed and ends in its letter's sentence. `--grep P f:1-2`
+# ends with the two forms that are one question each. The pairs: those forms are served.
+R347="$WORK/r347"; mkdir -p "$R347"; printf 'one\ntwo\nthree\n' > "$R347/f.txt"
+"$MRW" --root "$R347" read -A3 --grep two f.txt > "$WORK/o347" 2> "$WORK/e347"
+want 2 "$?" "attached count: -A3 is refused as usage"
+grep -q 'not defined: -A3 (see: mrw read --help); context is symmetric: -C N' "$WORK/e347" && [ ! -s "$WORK/o347" ] \
+  && ok "attached count: spelled as typed, with the sentence for -A" || bad "refusal: $(head -c 300 "$WORK/e347")"
+"$MRW" --root "$R347" read -C 1 --grep two f.txt > "$WORK/o347b" 2> "$WORK/e347b"
+want 0 "$?" "attached count pair: the form the sentence names is served"
+grep -q 'one' "$WORK/o347b" && grep -q 'three' "$WORK/o347b" && ok "attached count pair: with a line either side" || bad "served: $(head -c 300 "$WORK/o347b")"
+"$MRW" --root "$R347" read --grep two f.txt:1-2 > "$WORK/o347c" 2> "$WORK/e347c"
+want 2 "$?" "range beside --grep: refused as usage"
+grep -q 'two answers to one question; drop the range to search the whole file (--grep PATTERN PATH), or for one file drop --grep and the flags that go with it and write the pattern as the address (PATH:/PATTERN/, a / inside the pattern written \\/)' "$WORK/e347c" && [ ! -s "$WORK/o347c" ] \
+  && ok "range beside --grep: the refusal names the two forms" || bad "refusal: $(head -c 400 "$WORK/e347c")"
+"$MRW" --root "$R347" read 'f.txt:/two/' > "$WORK/o347d" 2> "$WORK/e347d"
+want 0 "$?" "range beside --grep pair: the pattern address is served"
+grep -q '| two' "$WORK/o347d" && ok "range beside --grep pair: with the line" || bad "served: $(head -c 300 "$WORK/o347d")"
+"$MRW" --root "$R347" read --grep two f.txt > "$WORK/o347e" 2> "$WORK/e347e"
+want 0 "$?" "range beside --grep pair: the path alone is served"
+grep -q '| two' "$WORK/o347e" && ok "range beside --grep pair: with the line" || bad "served: $(head -c 300 "$WORK/o347e")"
+
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
 # killed process is a zombie until its adopter reaps it, and pgrep lists
