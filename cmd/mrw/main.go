@@ -1418,7 +1418,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				for _, a := range args {
 					sp, err := read.ParseSpec(a)
 					if err != nil {
-						return exitWith(err)
+						return exitWith(splitSpec(cmd.Args().Slice(), a, err)) // as typed: posArgs has had its @N resolved
 					}
 					if len(projections) > 0 && len(sp.Ranges) > 0 {
 						return cli.Exit(fmt.Sprintf("%s: --json-path prints values, and an address names lines: give the file alone", a), exitUsage)

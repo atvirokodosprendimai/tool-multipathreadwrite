@@ -11435,6 +11435,24 @@ printf 'alpha\nbeta\n' | "$MRW" read --grep '(?i)BETA' - > "$WORK/o345c" 2> "$WO
 want 0 "$?" "ADR-140 stdin pair: the form the refusal points to is served"
 grep -q 'beta' "$WORK/o345c" && ok "ADR-140 stdin pair: with the matching line" || bad "served: $(head -c 300 "$WORK/o345c")"
 
+# 346. A spec the shell split at a space: `mrw read f.go:/func Foo/`, unquoted, reaches
+# mrw as `f.go:/func` and `Foo/`. The refusal used to name only a pattern nobody typed
+# as never closed (in a one-off tally of transcripts outside this repository, 2026-11-19,
+# the arguments after it completed the spec in 85 of 100 such refusals). It now prints the spec whole, quoted.
+# The pair: that spec is served, and a pattern that stays open says nothing of a split.
+R346="$WORK/r346"; mkdir -p "$R346"; printf 'package a\n\nfunc Foo() {\n}\n' > "$R346/f.go"
+"$MRW" --root "$R346" read f.go:/func Foo/ > "$WORK/o346" 2> "$WORK/e346"
+want 2 "$?" "split spec: an unquoted pattern with a space is refused as usage"
+grep -q "the shell split this spec at a space: quote it, 'f.go:/func Foo/'" "$WORK/e346" && [ ! -s "$WORK/o346" ] \
+  && ok "split spec: the refusal prints the spec whole, quoted" || bad "refusal: $(head -c 300 "$WORK/e346")"
+"$MRW" --root "$R346" read 'f.go:/func Foo/' > "$WORK/o346b" 2> "$WORK/e346b"
+want 0 "$?" "split spec pair: the spec the refusal prints is served"
+grep -q 'func Foo() {' "$WORK/o346b" && ! grep -q 'package a' "$WORK/o346b" && ok "split spec pair: with the line, and only it" || bad "served: $(head -c 300 "$WORK/o346b")"
+"$MRW" --root "$R346" read 'f.go:/func Foo' > "$WORK/o346c" 2> "$WORK/e346c"
+want 2 "$?" "split spec pair: a pattern that is not closed is still refused"
+grep -q 'is never closed' "$WORK/e346c" && ! grep -q 'the shell split' "$WORK/e346c" && [ ! -s "$WORK/o346c" ] \
+  && ok "split spec pair: and says nothing of a split" || bad "refusal: $(head -c 300 "$WORK/e346c")"
+
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
 # killed process is a zombie until its adopter reaps it, and pgrep lists
