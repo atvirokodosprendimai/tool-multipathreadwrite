@@ -296,13 +296,17 @@ func usageError(_ context.Context, cmd *cli.Command, err error, _ bool) error {
 	// second dash back (the v1.71.0 field test: three peers read -root as a
 	// different flag). A one-letter flag, -z, is spelled with one.
 	text := err.Error()
-	if name := refusedFlag(err); len([]rune(name)) > 1 {
+	name := refusedFlag(err)
+	if letter := countedFlag(name); letter != "" && foreignFlagHint(cmd.FullName(), letter) != "" {
+		// grep's -A3: one dash, as it is typed, and the sentence its letter has.
+		text, name = "flag provided but not defined: -"+name, letter
+	} else if len([]rune(name)) > 1 {
 		text = "flag provided but not defined: --" + name
 	}
 	msg := fmt.Sprintf("%s (see: %s --help)", text, cmd.FullName())
-	if h := rootFlagHint(cmd, refusedFlag(err)); h != "" {
+	if h := rootFlagHint(cmd, name); h != "" {
 		msg += "; " + h
-	} else if h := foreignFlagHint(cmd.FullName(), refusedFlag(err)); h != "" {
+	} else if h := foreignFlagHint(cmd.FullName(), name); h != "" {
 		msg += "; " + h
 	}
 	// Decision 7 of ADR-177: mrw run --json answers a refusal, this one included,
@@ -1358,7 +1362,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 						return exitWith(err)
 					}
 					if len(sp.Ranges) > 0 {
-						return cli.Exit(fmt.Sprintf("%s: a range and --grep are two answers to one question", a), exitUsage)
+						return cli.Exit(fmt.Sprintf("%s: a range and --grep are two answers to one question; drop the range to search the whole file (--grep PATTERN %s), or drop --grep and address the lines by the pattern (%s:/PATTERN/)", a, sp.Path, sp.Path), exitUsage)
 					}
 				}
 				re, compileErr := regexp.Compile(pattern)

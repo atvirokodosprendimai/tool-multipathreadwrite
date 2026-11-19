@@ -62,6 +62,16 @@ func foreignFlagHint(full, flag string) string {
 	return flagTables[full][flag]
 }
 
+// countedFlag returns the letter of a grep flag typed with its count attached,
+// `A3` for -A3, or "": grep takes a count on -A, -B and -m, and urfave reads
+// the whole of it as one flag's name.
+func countedFlag(name string) string {
+	if len(name) < 2 || !strings.ContainsRune("ABm", rune(name[0])) || strings.Trim(name[1:], "0123456789") != "" {
+		return ""
+	}
+	return name[:1]
+}
+
 // refusedFlag is the flag name urfave/cli refused, as typed without its dash, or
 // "" when err is not that refusal (the same handle subcommandForFlag uses).
 func refusedFlag(err error) string {
