@@ -102,6 +102,7 @@ go test -count=1 -v ./internal/mcp ./internal/writer -run '^(TestMrwWriteCheckTr
 - 2026-11-19 · 69de5b37* · exit 0 · `set -o pipefail …` · acceptance-sha256:75274f5e7767bed1adbcdf39c9e601d8263461ed9c5379c089386eb642cde7ff · ms:2780
 - 2026-11-19 · 69de5b37* · exit 0 · `set -o pipefail …` · acceptance-sha256:75274f5e7767bed1adbcdf39c9e601d8263461ed9c5379c089386eb642cde7ff · ms:1903
 - 2026-11-19 · afabe090* · exit 0 · `set -o pipefail …` · acceptance-sha256:75274f5e7767bed1adbcdf39c9e601d8263461ed9c5379c089386eb642cde7ff · ms:1303
+- 2026-11-19 · 652e9dd2 · exit 0 · `set -o pipefail …` · acceptance-sha256:75274f5e7767bed1adbcdf39c9e601d8263461ed9c5379c089386eb642cde7ff · ms:1290
 
 ## Invariants
 
