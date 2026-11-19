@@ -108,6 +108,7 @@ go test -count=1 -v ./cmd/mrw ./internal/guide ./internal/read -run '^(TestAnInv
 - 2026-11-19 · 579bc79e* · mutant killed · exit 1 · `cmd/mrw/stdin.go` · --max-matches is accepted · acceptance-sha256:963881aa6c61734f937f06b31ebc1f492dd54d88ff58c2850d511ca1c7a2e523 · covers:the flag is refused everywhere else, before anything is read
 - 2026-11-19 · 579bc79e* · mutant killed · exit 1 · `cmd/mrw/foreignflag.go` · the -v sentence ends where ADR-164 left it · acceptance-sha256:963881aa6c61734f937f06b31ebc1f492dd54d88ff58c2850d511ca1c7a2e523 · covers:every -v refusal points at the form
 - 2026-11-19 · 579bc79e* · mutant killed · exit 1 · `cmd/mrw/stdin.go` · nothing left exits 0 · acceptance-sha256:963881aa6c61734f937f06b31ebc1f492dd54d88ff58c2850d511ca1c7a2e523 · covers:nothing left serves no line and exits 1
+- 2026-11-19 · 6d26ba88* · mutant killed · exit 1 · `cmd/mrw/stdin.go` · nothing left exits 0, after the all-or-nothing budget change · acceptance-sha256:963881aa6c61734f937f06b31ebc1f492dd54d88ff58c2850d511ca1c7a2e523 · covers:nothing left serves no line and exits 1
 
 ## Verification Log
 - 2026-11-19 · 579bc79e* · exit 1 · `set -o pipefail …` · acceptance-sha256:963881aa6c61734f937f06b31ebc1f492dd54d88ff58c2850d511ca1c7a2e523 · ms:2450 · test-lock-sha256:584df20978704e7ed5071c1a825f32564e8afac970177667741e071df37fd03a · test-lock-file:docs/adr/locks/584df20978704e7ed5071c1a825f32564e8afac970177667741e071df37fd03a.lock
@@ -128,6 +129,8 @@ go test -count=1 -v ./cmd/mrw ./internal/guide ./internal/read -run '^(TestAnInv
 - 2026-11-19 · 579bc79e* · exit 0 · `set -o pipefail …` · acceptance-sha256:963881aa6c61734f937f06b31ebc1f492dd54d88ff58c2850d511ca1c7a2e523 · ms:4636
 - 2026-11-19 · 579bc79e* · exit 0 · `set -o pipefail …` · acceptance-sha256:963881aa6c61734f937f06b31ebc1f492dd54d88ff58c2850d511ca1c7a2e523 · ms:4624
 - 2026-11-19 · 579bc79e* · exit 0 · `set -o pipefail …` · acceptance-sha256:963881aa6c61734f937f06b31ebc1f492dd54d88ff58c2850d511ca1c7a2e523 · ms:4613
+- 2026-11-19 · 6d26ba88* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:963881aa6c61734f937f06b31ebc1f492dd54d88ff58c2850d511ca1c7a2e523 · ms:0 · test-lock-sha256:f74e3dff61843424c8829174b4c293936273bf2f6396f51a74893b8e0c730ca2 · test-lock-file:docs/adr/locks/f74e3dff61843424c8829174b4c293936273bf2f6396f51a74893b8e0c730ca2.lock · test-lock-kind:replace
+- 2026-11-19 · 6d26ba88* · exit 0 · `set -o pipefail …` · acceptance-sha256:963881aa6c61734f937f06b31ebc1f492dd54d88ff58c2850d511ca1c7a2e523 · ms:4718
 
 ## Invariants
 
