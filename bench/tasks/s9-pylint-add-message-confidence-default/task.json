@@ -1,0 +1,12 @@
+{
+  "id": "s9-pylint-add-message-confidence-default",
+  "shape": "control",
+  "repo": "pylint-dev/pylint",
+  "commit": "52efad31a35fc766e9af4bd80a651d2af0eba92c",
+  "instruction": "In pylint/checkers/base_checker.py, change the import line to \"from pylint.interfaces import UNDEFINED, Confidence\", then change the confidence parameter of add_message from \"confidence: Confidence | None = None,\" to \"confidence: Confidence = UNDEFINED,\". Change nothing else.",
+  "exact": true,
+  "require": [
+    {"file": "pylint/checkers/base_checker.py", "match": "(?m)^from pylint\\.interfaces import UNDEFINED, Confidence$"},
+    {"file": "pylint/checkers/base_checker.py", "match": "confidence: Confidence = UNDEFINED,"}
+  ]
+}

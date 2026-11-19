@@ -1,0 +1,12 @@
+diff --git a/sphinx/writers/texinfo.py b/sphinx/writers/texinfo.py
+--- a/sphinx/writers/texinfo.py
++++ b/sphinx/writers/texinfo.py
+@@ -691,7 +691,7 @@ def visit_reference(self, node: Element) -> None:
+         # cases for the sake of appearance
+         if isinstance(node.parent, (nodes.title, addnodes.desc_type)):
+             return
+-        if isinstance(node[0], nodes.image):
++        if len(node) != 0 and isinstance(node[0], nodes.image):
+             return
+         name = node.get('name', node.astext()).strip()
+         uri = node.get('refuri', '')

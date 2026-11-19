@@ -1,0 +1,13 @@
+{
+  "id": "s9-pytest-compare-eq-any",
+  "shape": "batch",
+  "repo": "pytest-dev/pytest",
+  "commit": "c9c19f8e62c12834ad83193a1869cc82fe9c700e",
+  "instruction": "Rename _compare_eq_any to _compare_equal_any in src/_pytest/assertion/_compare_any.py, src/_pytest/assertion/_compare_set.py and src/_pytest/assertion/util.py: its definition, every import and call, and every mention in a comment or docstring. Those are the only files that mention it. Change nothing else.",
+  "exact": true,
+  "require": [
+    {"file": "src/_pytest/assertion/_compare_any.py", "match": "\\b_compare_equal_any\\b"},
+    {"file": "src/_pytest/assertion/_compare_set.py", "match": "\\b_compare_equal_any\\b"},
+    {"file": "src/_pytest/assertion/util.py", "match": "\\b_compare_equal_any\\b"}
+  ]
+}

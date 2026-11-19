@@ -1,0 +1,11 @@
+{
+  "id": "s9-xarray-magic-number-directory",
+  "shape": "single-site",
+  "repo": "pydata/xarray",
+  "commit": "b14080e7b40869bb31a2d89099548e08788ad3b5",
+  "instruction": "In xarray/core/utils.py, try_read_magic_number_from_path ignores (FileNotFoundError, TypeError). Make it ignore (FileNotFoundError, IsADirectoryError, TypeError). Change nothing else.",
+  "exact": true,
+  "require": [
+    {"file": "xarray/core/utils.py", "match": "except \\(FileNotFoundError, IsADirectoryError, TypeError\\):"}
+  ]
+}

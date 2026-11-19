@@ -37,6 +37,14 @@ const (
 	// a string literal changed where a test asserts it (ADR-160 Decision 1).
 	ShapeWideRename   = "wide-rename"
 	ShapeCheckCoupled = "check-coupled"
+	// The four classes of Stage 9's task list (ADR-206 Decision 8), each named
+	// for what its reference patch changes: one site; five or more in three or
+	// more files; two in one file whose first changes the file's line count;
+	// and two in one file whose first keeps it.
+	ShapeSingleSite = "single-site"
+	ShapeBatch      = "batch"
+	ShapeFollowOn   = "follow-on"
+	ShapeControl    = "control"
 )
 
 // Match is one regular expression the oracle checks against one file of the

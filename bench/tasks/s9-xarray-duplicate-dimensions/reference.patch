@@ -1,0 +1,63 @@
+diff --git a/xarray/core/common.py b/xarray/core/common.py
+--- a/xarray/core/common.py
++++ b/xarray/core/common.py
+@@ -32,7 +32,7 @@ from xarray.core.utils import (
+     is_scalar,
+ )
+ from xarray.namedarray._typing import DimType_co
+-from xarray.namedarray.core import _raise_if_any_duplicate_dimensions
++from xarray.namedarray.core import _check_no_duplicate_dimensions
+ from xarray.namedarray.parallelcompat import get_chunked_array_type, guess_chunkmanager
+ from xarray.namedarray.pycompat import is_chunked_array
+ 
+@@ -248,7 +248,7 @@ class AbstractArray(Generic[DimType_co]):  # noqa: UP046
+             return self._get_axis_num(dim)
+ 
+     def _get_axis_num(self: Any, dim: Hashable) -> int:
+-        _raise_if_any_duplicate_dimensions(self.dims)
++        _check_no_duplicate_dimensions(self.dims)
+         try:
+             return self.dims.index(dim)
+         except ValueError as err:
+diff --git a/xarray/core/variable.py b/xarray/core/variable.py
+--- a/xarray/core/variable.py
++++ b/xarray/core/variable.py
+@@ -59,7 +59,7 @@ from xarray.core.utils import (
+     maybe_coerce_to_str,
+ )
+ from xarray.namedarray._typing import DimType_co, DType_co, ShapeType_co
+-from xarray.namedarray.core import NamedArray, _raise_if_any_duplicate_dimensions
++from xarray.namedarray.core import NamedArray, _check_no_duplicate_dimensions
+ from xarray.namedarray.parallelcompat import get_chunked_array_type
+ from xarray.namedarray.pycompat import (
+     array_type,
+@@ -3370,7 +3370,7 @@ def _unified_dims(variables):
+     all_dims = {}
+     for var in variables:
+         var_dims = var.dims
+-        _raise_if_any_duplicate_dimensions(var_dims, err_context="Broadcasting")
++        _check_no_duplicate_dimensions(var_dims, err_context="Broadcasting")
+ 
+         for d, s in zip(var_dims, var.shape, strict=True):
+             if d not in all_dims:
+diff --git a/xarray/namedarray/core.py b/xarray/namedarray/core.py
+--- a/xarray/namedarray/core.py
++++ b/xarray/namedarray/core.py
+@@ -831,7 +831,7 @@ class NamedArray(
+             return self._get_axis_num(dim)
+ 
+     def _get_axis_num(self, dim: Hashable) -> int:
+-        _raise_if_any_duplicate_dimensions(self.dims)
++        _check_no_duplicate_dimensions(self.dims)
+         try:
+             return self.dims.index(dim)
+         except ValueError as err:
+@@ -1319,7 +1319,7 @@ type _NamedArray[ScalarType: np.generic, DimType: Hashable] = NamedArray[
+ ]
+ 
+ 
+-def _raise_if_any_duplicate_dimensions[DimType_co: Hashable](
++def _check_no_duplicate_dimensions[DimType_co: Hashable](
+     dims: tuple[DimType_co, ...], err_context: str = "This function"
+ ) -> None:
+     if len(set(dims)) < len(dims):

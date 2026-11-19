@@ -1,0 +1,11 @@
+{
+  "id": "s9-seaborn-lmplot-size-typo",
+  "shape": "single-site",
+  "repo": "mwaskom/seaborn",
+  "commit": "68f1d82743c89e2ee264e1346d6a324dab8eace3",
+  "instruction": "In seaborn/regression.py, the warning in lmplot for the size argument begins \"The `size` paramter has been renamed to `height`; \". Fix the spelling of \"paramter\" to \"parameter\" there. Change nothing else.",
+  "exact": true,
+  "require": [
+    {"file": "seaborn/regression.py", "match": "The `size` parameter has been renamed to `height`; "}
+  ]
+}

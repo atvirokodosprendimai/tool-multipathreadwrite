@@ -1,0 +1,71 @@
+diff --git a/pylint/pyreverse/dot_printer.py b/pylint/pyreverse/dot_printer.py
+--- a/pylint/pyreverse/dot_printer.py
++++ b/pylint/pyreverse/dot_printer.py
+@@ -71,7 +71,7 @@ class DotPrinter(Printer):
+         self.charset = "utf-8"
+         super().__init__(title, layout, use_automatic_namespace, show_signatures)
+ 
+-    def _open_graph(self) -> None:
++    def _begin_graph(self) -> None:
+         """Emit the header lines."""
+         self.emit(f'digraph "{self.title}" {{')
+         if self.layout:
+diff --git a/pylint/pyreverse/mermaidjs_printer.py b/pylint/pyreverse/mermaidjs_printer.py
+--- a/pylint/pyreverse/mermaidjs_printer.py
++++ b/pylint/pyreverse/mermaidjs_printer.py
+@@ -28,7 +28,7 @@ class MermaidJSPrinter(Printer):
+         EdgeType.TYPE_DEPENDENCY: "..>",
+     }
+ 
+-    def _open_graph(self) -> None:
++    def _begin_graph(self) -> None:
+         """Emit the header lines."""
+         self.emit("classDiagram")
+         self._inc_indent()
+@@ -130,11 +130,11 @@ class HTMLMermaidJSPrinter(MermaidJSPrinter):
+ """
+     GRAPH_INDENT_LEVEL = 4
+ 
+-    def _open_graph(self) -> None:
++    def _begin_graph(self) -> None:
+         self.emit(self.HTML_OPEN_BOILERPLATE)
+         for _ in range(self.GRAPH_INDENT_LEVEL):
+             self._inc_indent()
+-        super()._open_graph()
++        super()._begin_graph()
+ 
+     def _close_graph(self) -> None:
+         for _ in range(self.GRAPH_INDENT_LEVEL):
+diff --git a/pylint/pyreverse/plantuml_printer.py b/pylint/pyreverse/plantuml_printer.py
+--- a/pylint/pyreverse/plantuml_printer.py
++++ b/pylint/pyreverse/plantuml_printer.py
+@@ -28,7 +28,7 @@ class PlantUmlPrinter(Printer):
+         EdgeType.TYPE_DEPENDENCY: "..>",
+     }
+ 
+-    def _open_graph(self) -> None:
++    def _begin_graph(self) -> None:
+         """Emit the header lines."""
+         self.emit("@startuml " + self.title)
+         if not self.use_automatic_namespace:
+diff --git a/pylint/pyreverse/printer.py b/pylint/pyreverse/printer.py
+--- a/pylint/pyreverse/printer.py
++++ b/pylint/pyreverse/printer.py
+@@ -60,7 +60,7 @@ class Printer(ABC):
+         self.show_signatures = show_signatures
+         self.lines: list[str] = []
+         self._indent = ""
+-        self._open_graph()
++        self._begin_graph()
+ 
+     def _inc_indent(self) -> None:
+         """Increment indentation."""
+@@ -71,7 +71,7 @@ class Printer(ABC):
+         self._indent = self._indent[:-2]
+ 
+     @abstractmethod
+-    def _open_graph(self) -> None:
++    def _begin_graph(self) -> None:
+         """Emit the header lines, i.e. all boilerplate code that defines things like
+         layout etc.
+         """

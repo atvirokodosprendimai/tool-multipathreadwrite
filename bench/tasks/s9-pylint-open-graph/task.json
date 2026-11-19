@@ -1,0 +1,14 @@
+{
+  "id": "s9-pylint-open-graph",
+  "shape": "batch",
+  "repo": "pylint-dev/pylint",
+  "commit": "1a60ec1900af753ff8e6f6344a6bdedfa833ca58",
+  "instruction": "Rename _open_graph to _begin_graph in pylint/pyreverse/dot_printer.py, pylint/pyreverse/mermaidjs_printer.py, pylint/pyreverse/plantuml_printer.py and pylint/pyreverse/printer.py: its definition, every import and call, and every mention in a comment or docstring. Those are the only files that mention it. Change nothing else.",
+  "exact": true,
+  "require": [
+    {"file": "pylint/pyreverse/dot_printer.py", "match": "\\b_begin_graph\\b"},
+    {"file": "pylint/pyreverse/mermaidjs_printer.py", "match": "\\b_begin_graph\\b"},
+    {"file": "pylint/pyreverse/plantuml_printer.py", "match": "\\b_begin_graph\\b"},
+    {"file": "pylint/pyreverse/printer.py", "match": "\\b_begin_graph\\b"}
+  ]
+}

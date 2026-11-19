@@ -1,0 +1,12 @@
+{
+  "id": "s9-pylint-access-nodes-alias",
+  "shape": "control",
+  "repo": "pylint-dev/pylint",
+  "commit": "0b2278b8472cdf7b3313a241cf3b3527af25919a",
+  "instruction": "In pylint/checkers/classes/class_checker.py, replace Union by TypeAlias in the \"from typing import ...\" line, and rewrite \"_AccessNodes = Union[nodes.Attribute, nodes.AssignAttr]\" as \"_AccessNodes: TypeAlias = nodes.Attribute | nodes.AssignAttr\". Change nothing else.",
+  "exact": true,
+  "require": [
+    {"file": "pylint/checkers/classes/class_checker.py", "match": "(?m)^from typing import TYPE_CHECKING, Any, NamedTuple, TypeAlias$"},
+    {"file": "pylint/checkers/classes/class_checker.py", "match": "(?m)^_AccessNodes: TypeAlias = nodes\\.Attribute \\| nodes\\.AssignAttr$"}
+  ]
+}

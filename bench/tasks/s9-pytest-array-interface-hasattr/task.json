@@ -1,0 +1,11 @@
+{
+  "id": "s9-pytest-array-interface-hasattr",
+  "shape": "single-site",
+  "repo": "pytest-dev/pytest",
+  "commit": "db091ecc2514a924589db5165bb6fcac0e9e7d44",
+  "instruction": "In src/_pytest/python_api.py, _as_numpy_array calls hasattr(\"obj\", \"__array_interface__\") with the string \"obj\" where it means the variable obj. Pass the variable. Change nothing else.",
+  "exact": true,
+  "require": [
+    {"file": "src/_pytest/python_api.py", "match": "hasattr\\(obj, \"__array_interface__\"\\)"}
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "id": "s9-xarray-sorted-missing-dims",
+  "shape": "single-site",
+  "repo": "pydata/xarray",
+  "commit": "cd6ba930a64a5129439606e7aae5f9c819f6c88c",
+  "instruction": "In xarray/core/dataset.py, the ValueError about variables missing sample_dims formats its last part as {sorted(missing_sample_dims)}. Sort the dimension names as strings instead: {sorted(map(str, missing_sample_dims))}. Change nothing else.",
+  "exact": true,
+  "require": [
+    {"file": "xarray/core/dataset.py", "match": "misses \\{sorted\\(map\\(str, missing_sample_dims\\)\\)\\}"}
+  ]
+}

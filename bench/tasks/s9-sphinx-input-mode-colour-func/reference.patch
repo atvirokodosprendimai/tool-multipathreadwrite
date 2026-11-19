@@ -1,0 +1,58 @@
+diff --git a/sphinx/_cli/util/colour.py b/sphinx/_cli/util/colour.py
+--- a/sphinx/_cli/util/colour.py
++++ b/sphinx/_cli/util/colour.py
+@@ -89,10 +89,10 @@ def _create_colour_func(escape_code: str, /) -> Callable[[str], str]:
+ # Note: This does not work well in Windows
+ # (see https://github.com/sphinx-doc/sphinx/pull/5059)
+ if sys.platform == 'win32':
+-    _create_input_mode_colour_func = _create_colour_func
++    _make_input_mode_colour_func = _create_colour_func
+ else:
+ 
+-    def _create_input_mode_colour_func(escape_code: str, /) -> Callable[[str], str]:
++    def _make_input_mode_colour_func(escape_code: str, /) -> Callable[[str], str]:
+         def inner(text: str) -> str:
+             if _COLOURING_DISABLED:
+                 return text
+diff --git a/sphinx/cmd/quickstart.py b/sphinx/cmd/quickstart.py
+--- a/sphinx/cmd/quickstart.py
++++ b/sphinx/cmd/quickstart.py
+@@ -15,7 +15,7 @@ from docutils.utils import column_width
+ import sphinx.locale
+ from sphinx import __display_version__, package_dir
+ from sphinx._cli.util.colour import (
+-    _create_input_mode_colour_func,
++    _make_input_mode_colour_func,
+     bold,
+     disable_colour,
+     red,
+@@ -84,7 +84,7 @@ else:
+     if READLINE_AVAILABLE:
+         # Use an input-mode colour function if readline is available
+         if escape_code := getattr(_question_colour, '__escape_code', ''):
+-            _question_colour = _create_input_mode_colour_func(escape_code)
++            _question_colour = _make_input_mode_colour_func(escape_code)
+             del escape_code
+ 
+ 
+diff --git a/sphinx/util/console.py b/sphinx/util/console.py
+--- a/sphinx/util/console.py
++++ b/sphinx/util/console.py
+@@ -6,7 +6,7 @@ import shutil
+ 
+ import sphinx._cli.util.colour
+ from sphinx._cli.util.colour import (  # NoQA: F401
+-    _create_input_mode_colour_func,
++    _make_input_mode_colour_func,
+     black,
+     blink,
+     blue,
+@@ -70,7 +70,7 @@ def colorize(name: str, text: str, input_mode: bool = False) -> str:
+         escape_code = getattr(colour_func, '__escape_code', '')
+         if not escape_code:
+             return colour_func(text)
+-        inner = _create_input_mode_colour_func(escape_code)
++        inner = _make_input_mode_colour_func(escape_code)
+         return inner(text)
+ 
+     return colourise(name, text)

@@ -1,0 +1,13 @@
+{
+  "id": "s9-pylint-handle-config-commands",
+  "shape": "batch",
+  "repo": "pylint-dev/pylint",
+  "commit": "1a60ec1900af753ff8e6f6344a6bdedfa833ca58",
+  "instruction": "Rename _handle_pylint_config_commands to _run_pylint_config_commands in pylint/config/_pylint_config/__init__.py, pylint/config/_pylint_config/main.py and pylint/lint/run.py: its definition, every import and call, and every mention in a comment or docstring. Those are the only files that mention it. Change nothing else.",
+  "exact": true,
+  "require": [
+    {"file": "pylint/config/_pylint_config/__init__.py", "match": "\\b_run_pylint_config_commands\\b"},
+    {"file": "pylint/config/_pylint_config/main.py", "match": "\\b_run_pylint_config_commands\\b"},
+    {"file": "pylint/lint/run.py", "match": "\\b_run_pylint_config_commands\\b"}
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "id": "s9-pylint-loop-exits-early",
+  "shape": "batch",
+  "repo": "pylint-dev/pylint",
+  "commit": "1a60ec1900af753ff8e6f6344a6bdedfa833ca58",
+  "instruction": "Rename _loop_exits_early to _loop_may_exit_early in pylint/checkers/base/basic_error_checker.py, pylint/checkers/looping_iterator_checker.py and pylint/checkers/refactoring/refactoring_checker.py: its definition, every import and call, and every mention in a comment or docstring. Those are the only files that mention it. Change nothing else.",
+  "exact": true,
+  "require": [
+    {"file": "pylint/checkers/base/basic_error_checker.py", "match": "\\b_loop_may_exit_early\\b"},
+    {"file": "pylint/checkers/looping_iterator_checker.py", "match": "\\b_loop_may_exit_early\\b"},
+    {"file": "pylint/checkers/refactoring/refactoring_checker.py", "match": "\\b_loop_may_exit_early\\b"}
+  ]
+}

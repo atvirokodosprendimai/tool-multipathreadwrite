@@ -1,0 +1,54 @@
+diff --git a/src/_pytest/assertion/_compare_any.py b/src/_pytest/assertion/_compare_any.py
+--- a/src/_pytest/assertion/_compare_any.py
++++ b/src/_pytest/assertion/_compare_any.py
+@@ -24,7 +24,7 @@ from _pytest.assertion._typing import TruncationBudget
+ from _pytest.assertion.compare_text import _compare_eq_text
+ 
+ 
+-def _compare_eq_any(
++def _compare_equal_any(
+     left: object,
+     right: object,
+     highlighter: _HighlightFunc,
+@@ -129,7 +129,7 @@ def _compare_eq_cls(
+             yield ""
+             yield f"Drill down into differing attribute {field}:"
+             yield f"{indent}{field}: {highlighter(repr(field_left))} != {highlighter(repr(field_right))}"
+-            for line in _compare_eq_any(
++            for line in _compare_equal_any(
+                 field_left,
+                 field_right,
+                 highlighter,
+diff --git a/src/_pytest/assertion/_compare_set.py b/src/_pytest/assertion/_compare_set.py
+--- a/src/_pytest/assertion/_compare_set.py
++++ b/src/_pytest/assertion/_compare_set.py
+@@ -91,7 +91,7 @@ def _both_sets_are_equal(
+ 
+ SET_COMPARISON_FUNCTIONS: dict[str, SetComparisonFunction] = {
+     # == can't be done here without a prior refactor because there's an additional
+-    # explanation for iterable in _compare_eq_any
++    # explanation for iterable in _compare_equal_any
+     # "==": _compare_eq_set,
+     "!=": _both_sets_are_equal,
+     ">=": _compare_gte_set,
+diff --git a/src/_pytest/assertion/util.py b/src/_pytest/assertion/util.py
+--- a/src/_pytest/assertion/util.py
++++ b/src/_pytest/assertion/util.py
+@@ -13,7 +13,7 @@ from _pytest import outcomes
+ import _pytest._code
+ from _pytest._io.saferepr import saferepr
+ from _pytest._io.saferepr import saferepr_unlimited
+-from _pytest.assertion._compare_any import _compare_eq_any
++from _pytest.assertion._compare_any import _compare_equal_any
+ from _pytest.assertion._compare_set import SET_COMPARISON_FUNCTIONS
+ from _pytest.assertion._typing import _AssertionTextDiffStyle
+ from _pytest.assertion._typing import _HighlightFunc
+@@ -152,7 +152,7 @@ def assertrepr_compare(
+     try:
+         match (left, op, right):
+             case (_, "==", _):
+-                source = _compare_eq_any(
++                source = _compare_equal_any(
+                     left,
+                     right,
+                     highlighter,

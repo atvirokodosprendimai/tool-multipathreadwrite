@@ -1,0 +1,12 @@
+{
+  "id": "s9-requests-chardet-type-checking",
+  "shape": "follow-on",
+  "repo": "psf/requests",
+  "commit": "3be097d450ee4ca8a2f9c1a3a58eb61ed19936b0",
+  "instruction": "In src/requests/compat.py, add the line \"from typing import TYPE_CHECKING\" right after \"from types import ModuleType\". Then replace the line \"chardet = _resolve_char_detection()\" by \"if TYPE_CHECKING:\", an indented \"import chardet\", \"else:\", and an indented \"chardet = _resolve_char_detection()\".",
+  "exact": true,
+  "require": [
+    {"file": "src/requests/compat.py", "match": "(?m)^from typing import TYPE_CHECKING$"},
+    {"file": "src/requests/compat.py", "match": "(?m)^if TYPE_CHECKING:\\n    import chardet\\nelse:\\n    chardet = _resolve_char_detection\\(\\)$"}
+  ]
+}

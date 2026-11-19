@@ -1,0 +1,62 @@
+diff --git a/pylint/config/arguments_manager.py b/pylint/config/arguments_manager.py
+--- a/pylint/config/arguments_manager.py
++++ b/pylint/config/arguments_manager.py
+@@ -31,7 +31,7 @@ from pylint.config.exceptions import (
+     _UnrecognizedOptionError,
+ )
+ from pylint.config.help_formatter import _HelpFormatter
+-from pylint.config.utils import _convert_option_to_argument, _parse_rich_type_value
++from pylint.config.utils import _convert_option_to_argument, _parse_typed_option_value
+ from pylint.constants import MAIN_CHECKER_NAME
+ from pylint.typing import DirectoryNamespaceDict, OptionDict
+ 
+@@ -403,6 +403,6 @@ class _ArgumentsManager:
+         """Set an option on the namespace object."""
+         self._reset_callback_actions()
+         self.config = self._arg_parser.parse_known_args(
+-            [f"--{optname.replace('_', '-')}", _parse_rich_type_value(value)],
++            [f"--{optname.replace('_', '-')}", _parse_typed_option_value(value)],
+             self.config,
+         )[0]
+diff --git a/pylint/config/config_file_parser.py b/pylint/config/config_file_parser.py
+--- a/pylint/config/config_file_parser.py
++++ b/pylint/config/config_file_parser.py
+@@ -13,7 +13,7 @@ import tomllib
+ from pathlib import Path
+ from typing import TYPE_CHECKING
+ 
+-from pylint.config.utils import _parse_rich_type_value
++from pylint.config.utils import _parse_typed_option_value
+ 
+ if TYPE_CHECKING:
+     from pylint.lint import PyLinter
+@@ -73,11 +73,11 @@ class _RawConfParser:
+         for opt, values in sections_values.items():
+             if isinstance(values, dict):
+                 for config, value in values.items():
+-                    value = _parse_rich_type_value(value)
++                    value = _parse_typed_option_value(value)
+                     config_content[config] = value
+                     options += [f"--{config}", value]
+             else:
+-                values = _parse_rich_type_value(values)
++                values = _parse_typed_option_value(values)
+                 config_content[opt] = values
+                 options += [f"--{opt}", values]
+         return config_content, options
+diff --git a/pylint/config/utils.py b/pylint/config/utils.py
+--- a/pylint/config/utils.py
++++ b/pylint/config/utils.py
+@@ -131,10 +131,10 @@ def _convert_option_to_argument(
+     )
+ 
+ 
+-def _parse_rich_type_value(value: Any) -> str:
++def _parse_typed_option_value(value: Any) -> str:
+     """Parse rich (toml) types into strings."""
+     if isinstance(value, (list, tuple)):
+-        return ",".join(_parse_rich_type_value(i) for i in value)
++        return ",".join(_parse_typed_option_value(i) for i in value)
+     if isinstance(value, re.Pattern):
+         return str(value.pattern)
+     if isinstance(value, dict):

@@ -1,0 +1,12 @@
+{
+  "id": "s9-xarray-coords-repr-dim-order",
+  "shape": "follow-on",
+  "repo": "pydata/xarray",
+  "commit": "ac43d3bdad6db3cb2ded0f9e145eb450763eaea2",
+  "instruction": "In xarray/core/formatting.py, make coords_repr list the coordinates in dimension order. Right before its \"return _mapping_repr(\" line add: \"dims = tuple(coords._data.dims)\" and then \"dim_ordered_coords = sorted(\", the line \"coords.items(), key=lambda x: dims.index(x[0]) if x[0] in dims else len(dims)\" indented one level deeper, and \")\". Then pass \"dict(dim_ordered_coords),\" instead of \"coords,\" as the first argument of _mapping_repr.",
+  "exact": true,
+  "require": [
+    {"file": "xarray/core/formatting.py", "match": "(?m)^    dims = tuple\\(coords\\._data\\.dims\\)$"},
+    {"file": "xarray/core/formatting.py", "match": "(?m)^        dict\\(dim_ordered_coords\\),$"}
+  ]
+}

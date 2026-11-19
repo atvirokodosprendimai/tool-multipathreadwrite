@@ -1,0 +1,13 @@
+{
+  "id": "s9-xarray-duplicate-dimensions",
+  "shape": "batch",
+  "repo": "pydata/xarray",
+  "commit": "83352225282987fa1dc56e77f3bb4ccf51f8acab",
+  "instruction": "Rename _raise_if_any_duplicate_dimensions to _check_no_duplicate_dimensions in xarray/core/common.py, xarray/core/variable.py and xarray/namedarray/core.py: its definition, every import and call, and every mention in a comment or docstring. Those are the only files that mention it. Change nothing else.",
+  "exact": true,
+  "require": [
+    {"file": "xarray/core/common.py", "match": "\\b_check_no_duplicate_dimensions\\b"},
+    {"file": "xarray/core/variable.py", "match": "\\b_check_no_duplicate_dimensions\\b"},
+    {"file": "xarray/namedarray/core.py", "match": "\\b_check_no_duplicate_dimensions\\b"}
+  ]
+}

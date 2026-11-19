@@ -1,0 +1,12 @@
+{
+  "id": "s9-pylint-stop-iteration-scope",
+  "shape": "follow-on",
+  "repo": "pylint-dev/pylint",
+  "commit": "58c87cffca9de2b3e89aa07b89686cbc90cfea2d",
+  "instruction": "In pylint/checkers/refactoring/refactoring_checker.py, import WarningScope with a new line \"from pylint.constants import WarningScope\" right after the line \"from pylint.checkers.utils import node_frame_class\". Then give the stop-iteration-return message definition (R1708) the scope: add the line {\"scope\": WarningScope.NODE}, as the last element of its tuple, after the string that ends \"replaced by a simple return statement\", indented like that string.",
+  "exact": true,
+  "require": [
+    {"file": "pylint/checkers/refactoring/refactoring_checker.py", "match": "(?m)^from pylint\\.constants import WarningScope$"},
+    {"file": "pylint/checkers/refactoring/refactoring_checker.py", "match": "replaced by a simple return statement\",\\n\\s+\\{\"scope\": WarningScope\\.NODE\\},"}
+  ]
+}

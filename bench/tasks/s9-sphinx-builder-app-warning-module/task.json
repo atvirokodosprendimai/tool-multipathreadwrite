@@ -1,0 +1,12 @@
+{
+  "id": "s9-sphinx-builder-app-warning-module",
+  "shape": "follow-on",
+  "repo": "sphinx-doc/sphinx",
+  "commit": "acdf4a86980efdb37146169fc09d435e54a4a47d",
+  "instruction": "In sphinx/builders/__init__.py, in the app property, add the line \"cls_module = self.__class__.__module__\" just before the line that sets cls_name. Then pass cls_module instead of __name__ as the first argument of the _deprecation_warning call below it.",
+  "exact": true,
+  "require": [
+    {"file": "sphinx/builders/__init__.py", "match": "(?m)^        cls_module = self\\.__class__\\.__module__$"},
+    {"file": "sphinx/builders/__init__.py", "match": "_deprecation_warning\\(cls_module, f\\'\\{cls_name\\}\\.app\\'"}
+  ]
+}
