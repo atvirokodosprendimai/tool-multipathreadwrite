@@ -103,6 +103,8 @@ go test -count=1 -v ./internal/bench -run '^TestARunPinsItsMrwItsInstructionsAnd
 - 2026-11-19 · 280fb131* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:e8f90d075a9899320009b7b65c1f84d479bb79ca03aeca44d914c83b2cfea75b · ms:0 · test-lock-sha256:5123ed73353142faebe26aee662c55a878f5bfdcd879bcc34cbf8c947c553986 · test-lock-file:docs/adr/locks/5123ed73353142faebe26aee662c55a878f5bfdcd879bcc34cbf8c947c553986.lock · test-lock-kind:replace
 - 2026-11-19 · 280fb131* · exit 0 · `set -o pipefail …` · acceptance-sha256:e8f90d075a9899320009b7b65c1f84d479bb79ca03aeca44d914c83b2cfea75b · ms:19651
 - 2026-11-19 · 280fb131* · exit 0 · `set -o pipefail …` · acceptance-sha256:e8f90d075a9899320009b7b65c1f84d479bb79ca03aeca44d914c83b2cfea75b · ms:20339
+- 2026-11-19 · 94f782c3* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:e8f90d075a9899320009b7b65c1f84d479bb79ca03aeca44d914c83b2cfea75b · ms:0 · test-lock-sha256:4f7cb71fbd22380abd6e1499c032763bf307629c44f2241f222b328c5ec2ffa3 · test-lock-file:docs/adr/locks/4f7cb71fbd22380abd6e1499c032763bf307629c44f2241f222b328c5ec2ffa3.lock · test-lock-kind:replace
+- 2026-11-19 · 94f782c3* · exit 0 · `set -o pipefail …` · acceptance-sha256:e8f90d075a9899320009b7b65c1f84d479bb79ca03aeca44d914c83b2cfea75b · ms:24883
 
 ## Invariants
 
