@@ -99,3 +99,4 @@ Stop if the bound must be a flag or must change `--grep`.
 - 2026-09-15 · bfbd2cc* · exit 0 · `set -o pipefail …` · acceptance-sha256:43b02241b66bd8b8bb6bb1160bab54124784f9780722df7047554a4664483a1c · ms:2716
 - 2026-09-15 · bfbd2cc* · exit 0 · `set -o pipefail …` · acceptance-sha256:43b02241b66bd8b8bb6bb1160bab54124784f9780722df7047554a4664483a1c · ms:2605
 - 2026-09-15 · bfbd2cc* · exit 0 · `set -o pipefail …` · acceptance-sha256:43b02241b66bd8b8bb6bb1160bab54124784f9780722df7047554a4664483a1c · ms:2599
+- 2026-11-19 · c0d7c0de* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:43b02241b66bd8b8bb6bb1160bab54124784f9780722df7047554a4664483a1c · ms:0 · test-lock-sha256:25903b4eaa304a141ea4c827301cc5080a0a8024ffe6b66035d5b4545a68fab3 · test-lock-file:docs/adr/locks/25903b4eaa304a141ea4c827301cc5080a0a8024ffe6b66035d5b4545a68fab3.lock · test-lock-kind:replace
