@@ -1,0 +1,25 @@
+check@2	1bb497e3e13a1105cf24e3359fa3ef75de08b66ff8a2839cd7f9ea97824d9eb3
+body	internal/bench/stage9_test.go	TestARunPinsItsMrwItsInstructionsAndItsSpend	8d23f9a04b4780683e4ed00339237a0a1c9ed21e86f6bb0b21e94d39581605ca
+body	internal/bench/stage9_test.go	a canary whose mrw was rewritten does not pass	4331bf8437e791e0d4e32ad1c67910cc5467dc223c4c6a308fe30eee1518b16a
+body	internal/bench/stage9_test.go	a canary with other hashes is refused	a4876b652ccfb16539836a77c05d2a5da5d8adf9e99a49a3e7935e8b60bfe8c8
+body	internal/bench/stage9_test.go	a capture that fails is a setup exclusion with its own note	c65e1afad420e72cde2c9ddd51bf79d60574af113e42c576563db67bb7c772de
+body	internal/bench/stage9_test.go	a grader that writes into the tree is not in the kept diff	b3f48b77785da34c8c8dda11405464fb509efc9f89c0f385f0668f256e84a7be
+body	internal/bench/stage9_test.go	a missing cost is not zero	62312efb314f5d6fc2d28ebda89836009ea51f9fe898fd0757e0ee1c091e064c
+body	internal/bench/stage9_test.go	a path the agent added by force survives the private index	79f8d7c54d66686e888c51ec4227de04d19c063042da59ca9f2aaba7bff014dc
+body	internal/bench/stage9_test.go	a receipt needs a note about the diff, not about the state file	f2c92bd8d22ed6ebe211de1efe9092b7208eafd7141d1ac2de17637e68582a84
+body	internal/bench/stage9_test.go	a receipt with another hash fails resume and verify	0a053bd5f299a1af787d432625451f205ebf14ee7ec788dbe2aad2ad4664ae23
+body	internal/bench/stage9_test.go	a run without the flags is unchanged	760511ebdf13548861bb1e65051080ba7ecbada8089e43949d9f0171af895c02
+body	internal/bench/stage9_test.go	a run without the pin records no mrw hash	adf5a6c3fdfdc8145a75b7c4ee8b4f989f432243e80fb4afef6fe15cd868f628
+body	internal/bench/stage9_test.go	a state home that is a link keeps nothing	7229bcdddced55743943d4f5a24dca7be1333092001bcb68b490d2d5d476ee72
+body	internal/bench/stage9_test.go	a wrong hash refuses the run	efb7f9aec6ebbf5eff88db3fd2b60b00e74d74064fe33cf99b4d01d7a3376789
+body	internal/bench/stage9_test.go	an altered kept file fails verify	6e0582567c5a6da2a64e7fb70477b322c2c3ddd9255e0d32b76e98901b619c72
+body	internal/bench/stage9_test.go	an attempt that rewrote its mrw is recorded	6b4e4580cce89e4eec180bf4b765f7330f508ccce4ffe55e7d042e055cc1f677
+body	internal/bench/stage9_test.go	configuration H with the pin runs the pinned bytes in its hook	fe7dfcbc543c6c8d41dde82a434fddc32e76158c23c7074d804aac9a6e2e6610
+body	internal/bench/stage9_test.go	resume and verify want the kept files their receipts name	43b4547ac8569dc328577ca2c8a7a50ce530dc0ca352dee4bc38485222efc3d5
+body	internal/bench/stage9_test.go	the attempt runs the pinned bytes	640e360bc06056d664b0f17da3c87d1111ff8e09f190abdd1e79f74cc6d43632
+body	internal/bench/stage9_test.go	the diff is kept	bd09766c87aad0a7cb0d0ce197105d1f2ade296ad2f3304cb6ff5bf2b23248f4
+body	internal/bench/stage9_test.go	the diff is taken before grading and survives a timeout	fc5cf87beb274d65050e3da77dac493b657abc7e440deaa11fc359af66b6a369
+body	internal/bench/stage9_test.go	the kept file is beside the receipt	7a89f5ab12c0fd4f9ce7d29be5520c3877b327ee9f9f145ebfe981932b376964
+body	internal/bench/stage9_test.go	the run stops on known spend	1130e5d08338821e642e6fe3d2442174e51ec17aca7f5a79327e278ad6a51e6a
+body	internal/bench/stage9_test.go	the stop counts the last attempt and compares in cents	4953709d27516f6a4e49f7a3a04f2bc77bcd4ed5a4492396ae44d24a4d52eb68
+body	internal/bench/stage9_test.go	what is kept is bounded	b450a3b1a3de360294ce0c7bb96add4ea2f3caf219d11ae3639a6994101e537e
