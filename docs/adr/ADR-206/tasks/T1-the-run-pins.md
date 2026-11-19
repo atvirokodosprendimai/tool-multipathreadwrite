@@ -76,6 +76,7 @@ go test -count=1 -v ./internal/bench -run '^TestARunPinsItsMrwItsInstructionsAnd
 - 2026-11-19 · 60cc65b3* · mutant killed · exit 1 · `internal/bench/pins.go` · a null cost counts as zero · acceptance-sha256:e8f90d075a9899320009b7b65c1f84d479bb79ca03aeca44d914c83b2cfea75b · covers:a missing cost is not zero
 - 2026-11-19 · 60cc65b3* · mutant killed · exit 1 · `internal/bench/pins.go` · the stop never fires on spend · acceptance-sha256:e8f90d075a9899320009b7b65c1f84d479bb79ca03aeca44d914c83b2cfea75b · covers:the run stops on known spend
 - 2026-11-19 · 60cc65b3* · mutant killed · exit 1 · `internal/bench/pins.go` · verify ignores an altered kept file · acceptance-sha256:e8f90d075a9899320009b7b65c1f84d479bb79ca03aeca44d914c83b2cfea75b · covers:an altered kept file fails verify
+- 2026-11-19 · 280fb131* · mutant killed · exit 1 · `internal/bench/pins.go` · the hash is not compared · acceptance-sha256:e8f90d075a9899320009b7b65c1f84d479bb79ca03aeca44d914c83b2cfea75b · covers:a wrong hash refuses the run
 
 ## Verification Log
 - 2026-11-19 · 60cc65b3* · exit 1 · `set -o pipefail …` · acceptance-sha256:e8f90d075a9899320009b7b65c1f84d479bb79ca03aeca44d914c83b2cfea75b · ms:249 · test-lock-sha256:f2c54fdc343a133999d81bb9659e52ca3a60dcd972e96277c1d5472cca342d91 · test-lock-file:docs/adr/locks/f2c54fdc343a133999d81bb9659e52ca3a60dcd972e96277c1d5472cca342d91.lock
@@ -99,6 +100,9 @@ go test -count=1 -v ./internal/bench -run '^TestARunPinsItsMrwItsInstructionsAnd
 - 2026-11-19 · 60cc65b3* · exit 0 · `set -o pipefail …` · acceptance-sha256:e8f90d075a9899320009b7b65c1f84d479bb79ca03aeca44d914c83b2cfea75b · ms:11735
 - 2026-11-19 · 60cc65b3* · exit 0 · `set -o pipefail …` · acceptance-sha256:e8f90d075a9899320009b7b65c1f84d479bb79ca03aeca44d914c83b2cfea75b · ms:12241
 - 2026-11-19 · 60cc65b3* · exit 0 · `set -o pipefail …` · acceptance-sha256:e8f90d075a9899320009b7b65c1f84d479bb79ca03aeca44d914c83b2cfea75b · ms:11953
+- 2026-11-19 · 280fb131* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:e8f90d075a9899320009b7b65c1f84d479bb79ca03aeca44d914c83b2cfea75b · ms:0 · test-lock-sha256:5123ed73353142faebe26aee662c55a878f5bfdcd879bcc34cbf8c947c553986 · test-lock-file:docs/adr/locks/5123ed73353142faebe26aee662c55a878f5bfdcd879bcc34cbf8c947c553986.lock · test-lock-kind:replace
+- 2026-11-19 · 280fb131* · exit 0 · `set -o pipefail …` · acceptance-sha256:e8f90d075a9899320009b7b65c1f84d479bb79ca03aeca44d914c83b2cfea75b · ms:19651
+- 2026-11-19 · 280fb131* · exit 0 · `set -o pipefail …` · acceptance-sha256:e8f90d075a9899320009b7b65c1f84d479bb79ca03aeca44d914c83b2cfea75b · ms:20339
 
 ## Invariants
 
