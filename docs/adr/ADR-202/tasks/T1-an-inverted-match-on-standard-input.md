@@ -4,7 +4,7 @@
 **Covers:** none — no spec
 **Estimated scope:** M
 **Owner:** unassigned
-**Produces:** E7 in `docs/bench/effect-study/` and its reading in BACKLOG.md; `mrw read --invert`; `read.Options.NoReplaceNote`; the `-v` sentence; contract §347; the sentences in `mrw instructions`, `mrw read --help`, `AGENTS.md` and `README.md`
+**Produces:** E7 in `docs/bench/effect-study/` and its reading in BACKLOG.md; `mrw read --invert`; `read.Options.NoReplaceNote`; the `-v` sentence; contract §348; the sentences in `mrw instructions`, `mrw read --help`, `AGENTS.md` and `README.md`
 **Consumes:** `stdinRead` (`cmd/mrw/stdin.go`), `read.Run`'s numbered ranges, `foreignFlags` and `readFlagPatternRefusal` (`cmd/mrw/foreignflag.go`), `lines.Split`, the effect-study scanner
 **Data dependency:** local transcripts — S1 reads `~/.claude/projects` on the machine it runs on and prints aggregates only; S2 to S5 are hermetic
 **Proof map:** v1
@@ -53,7 +53,7 @@ ADR-202 Decisions 1 to 6, after the count Decision 7 asks for.
 | `cmd/mrw/foreignflag.go` | edit | the `-v` sentence |
 | `cmd/mrw/stdingrep140_test.go` | edit | `-v` now ends in the pointer |
 | `internal/guide/guide.go`, `.claude/skills/mrw/SKILL.md` | edit | one sentence in the full instructions; the skill only if its text moves |
-| `scripts/contract.sh` | edit | §347 |
+| `scripts/contract.sh` | edit | §348 |
 | `AGENTS.md`, `README.md` | edit | the form, where it is refused, outside the recipe block |
 
 ## Ordered Steps
@@ -62,7 +62,7 @@ ADR-202 Decisions 1 to 6, after the count Decision 7 asks for.
 2. [S2] Write the three new tests with every row of the Goal's table, change the `-v` expectation in `TestAGrepFlagBeforeThePatternOnStandardInputIsNamed`, and see all four RED. [proof: acceptance]
 3. [S3] `NoReplaceNote`, the flag and the inverted read. Mutants, each killed: the lines that match are served; the line after a run is served; the note is printed; every line matched serves the whole input; empty input exits 0; a file is accepted; a file is accepted beside `--sub`; `-C` is accepted; `--max-matches` is accepted; `--invert` works with no `--grep`. [proof: mutation]
 4. [S4] The `-v` sentence. Mutant, killed: the sentence ends where ADR-164 left it. [proof: mutation]
-5. [S5] Contract §347 drives the built binary: fixture B's inverted read, its exact numbered lines and no note, paired with `--invert` on a file refused, exit 2, nothing served. The sentences in `mrw instructions` (full only), `mrw read --help`, `AGENTS.md`, `README.md`. [proof: acceptance]
+5. [S5] Contract §348 drives the built binary: fixture B's inverted read, its exact numbered lines and no note, paired with `--invert` on a file refused, exit 2, nothing served. The sentences in `mrw instructions` (full only), `mrw read --help`, `AGENTS.md`, `README.md`. [proof: acceptance]
 
 ## Acceptance
 
@@ -71,7 +71,7 @@ set -o pipefail
 go test -count=1 -v ./cmd/mrw ./internal/guide ./internal/read -run '^(TestAnInvertedMatchServesTheLinesOfStandardInputThatDoNotMatch|TestAGrepFlagBeforeThePatternOnStandardInputIsNamed|TestTheInstructionsNameTheInvertedMatch|TestARunCanLeaveOutTheReplaceNote)$' > "${TMPDIR:-/tmp}/adr202-fence.out" \
   && [ "$(grep -c '^--- PASS: ' "${TMPDIR:-/tmp}/adr202-fence.out")" -eq 4 ] \
   && python3 -I docs/bench/effect-study/test_scan.py > /dev/null \
-  && grep -q '^# 347\\. ' scripts/contract.sh \
+  && grep -q '^# 348\\\\. ' scripts/contract.sh \
   && grep -q '^\*\*Measured .* for ADR-202 (E7): PROCEED' docs/adr/BACKLOG.md \
   && grep -q -- '--grep PATTERN --invert -' AGENTS.md \
   && git diff --quiet "$(git merge-base HEAD origin/main)" -- go.mod go.sum internal/plan internal/apply internal/seen internal/check internal/state \
@@ -91,7 +91,7 @@ go test -count=1 -v ./cmd/mrw ./internal/guide ./internal/read -run '^(TestAnInv
 
 | Rung | How this task shows it |
 |------|------------------------|
-| 1 — exists | the four tests and §347 |
+| 1 — exists | the four tests and §348 |
 | 2 — something selects it | `mrw read` parses `--invert`; `stdinRead` serves it |
 | 3 — the caller can discover it | every refusal a caller gets for typing `-v` names it; `mrw read --help`, `mrw instructions`, `AGENTS.md`, `README.md` |
 | 4 — it is used | telemetry is refused by ADR-009; the evidence is E7's count, and the tally of BACKLOG.md "Pre-registered for ADR-202's use" |
@@ -108,7 +108,7 @@ go test -count=1 -v ./cmd/mrw ./internal/guide ./internal/read -run '^(TestAnInv
 
 ## Risks
 
-- The fence's `# 347.` and `PROCEED` clauses are markers: §347 is proved by running `scripts/contract.sh`, a gate, and the count by the committed result file the BACKLOG line cites.
+- The fence's `# 348.` and `PROCEED` clauses are markers: §348 is proved by running `scripts/contract.sh`, a gate, and the count by the committed result file the BACKLOG line cites.
 - `--max-chars` and `--fold` have one row each and no mutant.
 
 ## Stop Condition
