@@ -11,8 +11,11 @@ anything but the models, configs, tasks, mrw_version, mrw_sha256, mrw_instructio
 max_spend_usd, whose arm M and arm N mrw hashes are equal, and whose hash is not the arm's `m sha256` or `n sha256` in
 --pilot, which it requires and which must name each once. It prints, as JSON, what became of each planned attempt. report
 prints the text report from that JSON, and refuses when a run.json is not the one the counts were made from. spend prints
-one line, `stage9 spend usd <number> missing <count>`. The script reads; it writes only to standard output.
-Imports result_text and split_heredocs from bench_mechanism.py, which is not edited.
+one line, `stage9 spend usd <number> missing <count>`, the exact decimal sum of the receipts' costs. The script reads; it writes
+only to standard output. A refusal in M's transcript counts only from a Bash call that is one simple `mrw write` command
+(optionally after `cd DIR &&`, optionally with its plan as a trailing heredoc, `2>&1` the only redirection); any other call
+that mentions `mrw write` is counted as unattributable and its output is never read. Imports result_text from
+bench_mechanism.py, which is not edited.
 """
 import argparse
 import hashlib
@@ -22,8 +25,9 @@ import random
 import re
 import sys
 from pathlib import Path
+from decimal import Decimal, localcontext
 
-from bench_mechanism import result_text, split_heredocs
+from bench_mechanism import result_text
 
 ARMS = ("a", "m", "n")
 ARM_CONFIGS = {"a": ["A"], "m": ["B"], "n": ["B"]}
@@ -36,15 +40,16 @@ CLASS_ORDER = ("single-site", "batch", "follow-on", "control")
 PAIRED_MIN = 10
 RESAMPLES, SEED, MAX_DROPPED_FRACTION = 4000, 206, 0.05
 EXPOSED = re.compile(r"line \d+ of [^\n]+? has no recorded showing in this version")
-# A command word that is mrw: a bare name, a path (./bin/mrw), or $MRW, after `command`, `env` or anything else; the global
-# flags -C DIR and --root DIR sit between it and the subcommand.
-_START = r'''(?:^|[\s;&|()`"'=])'''
-_MRW = r'''(?:(?:[^\s;&|()`"']*/)?mrw|\$\{?MRW\}?)"?\s+(?:(?:-C|--root)\s+\S+\s+|--root=\S+\s+)*'''
-WRITE_CMD = re.compile(_START + _MRW + r"write\b")
-OTHER_CMD = re.compile(_START + _MRW + r"(?:--)?(?:instructions|skill)\b")
-# Standard output or error sent to a file or /dev/null (2>&1 is not).
-DISCARDED = re.compile(r"(?:^|[\s;&|()])(?:&|\d+)?>>?(?!&)")
-RETRY = re.compile(r"\.r(\d+)$")
+# A command that mentions `mrw write` anywhere: bare, quoted, via $MRW, after global flags, or inside a string.
+MENTION = re.compile(r'''(?:\bmrw\b|\$\{?MRW\}?)[\s"'\\]*(?:(?:-C|--root)[\s"'\\]+[^\s"']+[\s"'\\]*|--root=[^\s"']+[\s"'\\]*)*write\b''')
+# One trailing heredoc that feeds the plan: `<<DELIM`, `<<'DELIM'` or `<<-DELIM` ending the first line (2>&1 may follow it).
+HEREDOC = re.compile(r"(?<!<)<<-?[ \t]*(?P<q>['\"]?)(?P<delim>[^\s<'\"]\S*?)(?P=q)(?P<tail>[ \t]*2>&1)?[ \t]*\n(?P<body>(?:.*\n)?)[ \t]*(?P=delim)[ \t]*\n?\Z", re.S)
+CD = re.compile(r'''\s*cd\s+[^\s;&|<>$`()'"]+\s*&&\s*''')
+# What is left is one invocation: bare, `command`, `env VAR=x`, a path ending in /mrw, or "$MRW", then the global flags, then write.
+SIMPLE = re.compile(r'''(?:command\s+|env\s+(?:\w+=\S*\s+)*)?(?:"?\$\{?MRW\}?"?|(?:[\w./~+@-]*/)?mrw)\s+(?:(?:-C|--root)\s+\S+\s+|--root=\S+\s+)*write\b.*''', re.S)
+CHAINING = re.compile(r"[;&|<>`]|\$\(")
+# A producer stage in front of `| mrw write -`: printf, echo or cat FILE, and nothing else.
+PRODUCER = re.compile(r"(?:printf|echo)(?:\s.*)?|cat\s+\S.*", re.S)
 DEFAULT_CLASSES = Path(__file__).resolve().parent.parent / "bench" / "stage-9" / "classes.json"
 
 
@@ -90,12 +95,15 @@ def load_runs(root, pilot=None):
     if pilot is not None:
         text = Path(pilot).read_text(encoding="utf-8")
         for arm in ("m", "n"):
-            named = re.findall(rf"^{arm} sha256: ([0-9a-f]{{64}})\s*$", text, re.M)
+            named = re.findall(rf"^{arm} sha256:.*$", text, re.M)
             if len(named) != 1:
                 raise Refusal(f"{pilot} names `{arm} sha256:` {len(named)} times, not once")
-            wrong = sorted(h for h in hashes[arm] if h != named[0])
+            found = re.fullmatch(rf"{arm} sha256: ([0-9a-f]{{64}})\s*", named[0])
+            if not found:
+                raise Refusal(f"{pilot}: `{named[0]}` is not `{arm} sha256: ` and 64 hex digits")
+            wrong = sorted(h for h in hashes[arm] if h != found.group(1))
             if wrong:
-                raise Refusal(f"arm {arm}'s run.json hash {wrong[0]} is not the {arm} sha256 {named[0]} in {pilot}")
+                raise Refusal(f"arm {arm}'s run.json hash {wrong[0]} is not the {arm} sha256 {found.group(1)} in {pilot}")
     return runs
 
 
@@ -122,33 +130,38 @@ def replaced(exclusion, tried):
     return tried < 2 if exclusion == "start-error" else tried < 1 if exclusion == "setup" else False
 
 
-def receipts_by_try(directory):
-    """({task: {try: (path, receipt)}}, the stems of the .started marks)."""
+def safe(name):
+    """internal/bench's safe(): how a model name appears in an attempt id."""
+    return "".join("_" if c in "/ :" else c for c in name)
+
+
+def receipts_in(directory):
+    """({stem: (path, receipt)}, the stems of the .started marks)."""
     found = {}
     for path in sorted(directory.rglob("*.receipt.json")):
-        rec = read_json(path)
-        retry = RETRY.search(path.name[:-len(".receipt.json")])
-        rank = int(retry.group(1)) if retry else 0
-        tries = found.setdefault(rec.get("task"), {})
-        if rank in tries:
-            raise Refusal(f"two receipts for {rec.get('task')} at try {rank} under {directory}")
-        tries[rank] = (path, rec)
+        stem = path.name[:-len(".receipt.json")]
+        if stem in found:
+            raise Refusal(f"two receipts named {stem} under {directory}")
+        found[stem] = (path, read_json(path))
     return found, [p.name[:-len(".started")] for p in directory.rglob("*.started")]
 
 
-def walk(tries):
-    """((path, receipt) that counts or None, the stems of the receipts the chain does not reach).
+def walk(base, task, receipts):
+    """((path, receipt) that counts or None, the stems of the task's receipts the chain does not reach).
 
-    The producer's rule (internal/bench runner.go): the base receipt counts unless its exclusion warrants another try, then
-    .r1, then .r2 in the same way; a receipt past where that chain ends is stray and counts for nothing.
+    The producer's rule (internal/bench runner.go): the base id's receipt counts unless its exclusion warrants another try,
+    then <id>.r1, then <id>.r2, each the exact id the runner names; every other receipt of the task is stray and counts for
+    nothing.
     """
-    last, picked = -1, None
-    while last + 1 in tries:
-        last += 1
-        picked = tries[last]
-        if not replaced(picked[1].get("exclusion", ""), last):
+    stem, tried, picked, chain = base, 0, None, set()
+    while stem in receipts:
+        picked = receipts[stem]
+        chain.add(stem)
+        if not replaced(picked[1].get("exclusion", ""), tried):
             break
-    return picked, sorted(p.name[:-len(".receipt.json")] for k, (p, _) in tries.items() if k > last)
+        tried += 1
+        stem = f"{base}.r{tried}"
+    return picked, sorted(s for s, (_, rec) in receipts.items() if s not in chain and (rec.get("task") == task or s.startswith(task + ".")))
 
 
 def transcripts_by_name(root):
@@ -171,14 +184,27 @@ def outcome_of(rec):
 
 
 def classify_command(command):
-    """None for a command that ran no `mrw write`; else "mixed" (it also ran mrw instructions or skill, so its output is not
-    the write's), "redirected" (its output went to a file or /dev/null) or "read" (its output is the write's)."""
-    shell, _ = split_heredocs(command)
-    if not WRITE_CMD.search(shell):
+    """None when the command does not mention `mrw write`; "single" when it is one simple write command, whose output is the
+    write's; "unattributable" for any other command that mentions it (a chain, a pipe, a substitution, a redirect, text in an
+    argument), whose output is never read."""
+    if not MENTION.search(command):
         return None
-    if OTHER_CMD.search(shell):
-        return "mixed"
-    return "redirected" if DISCARDED.search(shell) else "read"
+    head = command
+    heredoc = HEREDOC.search(command)
+    if heredoc:
+        if any(line.strip() == heredoc["delim"] for line in heredoc["body"].splitlines()):
+            return "unattributable"  # the shell ends the heredoc at that line and runs what follows
+        head = command[:heredoc.start()] + (heredoc["tail"] or "")
+    head = head.strip()
+    cd = CD.match(head)
+    rest = head[cd.end():] if cd else head
+    # A pipeline's output is its last stage's. A single-quoted argument holds no operator, so it is blanked before the stages are read.
+    flat = re.sub(r"'[^']*'", "''", rest)
+    *producers, last = flat.split("|")
+    simple = SIMPLE.fullmatch(last.strip()) and not CHAINING.search(re.sub(r"(?<!\S)2>&1(?!\S)", "", last))
+    if "\n" in flat or not simple or not all(PRODUCER.fullmatch(p.strip()) and not CHAINING.search(p) for p in producers):
+        return "unattributable"
+    return "single"
 
 
 def transcript_exposure(raw):
@@ -197,7 +223,7 @@ def transcript_exposure(raw):
                 uses.append(part)
             elif part.get("type") == "tool_result":
                 results[part.get("tool_use_id")] = result_text(part.get("content"))
-    seen = {"write_calls": 0, "write_results_read": 0, "write_not_read": 0, "write_mixed": 0, "hunks": 0}
+    seen = {"write_calls": 0, "write_results_read": 0, "write_unattributable": 0, "hunks": 0}
     for use in uses:
         command = (use.get("input") or {}).get("command", "")
         kind = classify_command(command) if isinstance(command, str) else None
@@ -205,13 +231,11 @@ def transcript_exposure(raw):
             continue
         seen["write_calls"] += 1
         text = results.get(use.get("id"), "")
-        if kind == "mixed":
-            seen["write_mixed"] += 1
-        elif kind == "read" and text.strip():
+        if kind == "single" and text.strip():
             seen["write_results_read"] += 1
             seen["hunks"] += len(EXPOSED.findall(text))
         else:
-            seen["write_not_read"] += 1
+            seen["write_unattributable"] += 1
     return seen
 
 
@@ -243,7 +267,7 @@ def attempt_entry(cls, arm, picked, stray, started, index, transcripts):
     outcome = outcome_of(rec)
     entry = {"class": cls, "attempt": path.name[:-len(".receipt.json")] if path else None, "started": started, "outcome": outcome,
              "claimed": bool(rec) and rec.get("status") == "done", "exposed": None, "exposure_unknown": False, "hunks": None,
-             "write_calls": None, "write_results_read": None, "write_not_read": None, "write_mixed": None, "stray": stray,
+             "write_calls": None, "write_results_read": None, "write_unattributable": None, "stray": stray,
              "spend": None, "num_turns": None, "tool_calls": None, "tokens": None, "wall_ms": None,
              "transcript_sha256": None, "mrw_after_differs": bool(rec) and bool(rec.get("mrw_sha256_after"))}
     if rec is None:
@@ -279,15 +303,17 @@ def count(receipts, transcripts, classes, pilot):
     where = load_classes(classes)
     models = {}
     for (model, arm), (directory, run) in sorted(runs.items()):
-        by_try, marks = receipts_by_try(directory)
+        if run.get("repeats") != 1:
+            raise Refusal(f"{directory}/run.json: repeats is {run.get('repeats')!r}; the stage runs one")
+        found, marks = receipts_in(directory)
         where_t = Path(transcripts) / model / arm
         index = transcripts_by_name(where_t)
         tasks = {}
         for task in run.get("tasks") or []:
             if task not in where:
                 raise Refusal(f"{directory}/run.json: task {task} is in no class of {classes}")
-            was_started = task in by_try or any(m.startswith(task + ".") for m in marks)
-            picked, stray = walk(by_try.get(task, {}))
+            was_started = any(s.startswith(task + ".") for s in [*found, *marks])
+            picked, stray = walk(f"{task}.{ARM_CONFIGS[arm][0]}.{safe(model)}.1", task, found)
             tasks[task] = attempt_entry(where[task], arm, picked, stray, was_started, index, where_t)
         models.setdefault(model, {})[arm] = {"run": run_summary(run), "run_sha256": run_digest(directory), "tasks": tasks}
     return {"stage": "stage9", "models": models}
@@ -296,16 +322,26 @@ def count(receipts, transcripts, classes, pilot):
 # ---- spend -----------------------------------------------------------------------------------------------------
 
 def spend(receipts):
+    """The exact decimal sum of the receipts' costs, read as the JSON's own number text, and how many carry none."""
     runs = load_runs(receipts)
-    costs, missing = [], 0
-    for _, (directory, _) in sorted(runs.items()):
-        for path in sorted(directory.rglob("*.receipt.json")):
-            cost = read_json(path).get("total_cost_usd")
-            if cost is None:
-                missing += 1
-            else:
-                costs.append(cost)
-    return f"stage9 spend usd {math.fsum(costs):.6f} missing {missing}"
+    missing = 0
+    with localcontext() as ctx:
+        ctx.prec = 200
+        total = Decimal(0)
+        for _, (directory, _) in sorted(runs.items()):
+            for path in sorted(directory.rglob("*.receipt.json")):
+                try:
+                    rec = json.loads(path.read_text(encoding="utf-8"), parse_float=Decimal)
+                except (OSError, ValueError) as err:
+                    raise Refusal(f"{path}: {err}")
+                cost = rec.get("total_cost_usd") if isinstance(rec, dict) else None
+                if cost is None:
+                    missing += 1
+                elif isinstance(cost, bool) or not isinstance(cost, (int, Decimal)):
+                    raise Refusal(f"{path}: total_cost_usd is {cost!r}, not a number")
+                else:
+                    total += cost
+        return f"stage9 spend usd {format(total.normalize(), 'f')} missing {missing}"
 
 
 # ---- report ----------------------------------------------------------------------------------------------------
@@ -365,10 +401,13 @@ def compare(first, second, tasks_x, tasks_y, cls):
 
 def report(receipts, counts):
     runs = load_runs(receipts)
+    named = {(model, arm) for model, arms in counts["models"].items() for arm in arms}
+    if named != set(runs):
+        raise Refusal("the counts file and the receipts hold different runs: "
+                      + ", ".join(f"{m}/{a} only in the {'receipts' if (m, a) in runs else 'counts'}" for m, a in sorted(named ^ set(runs))))
     for model, arms in counts["models"].items():
         for arm, doc in arms.items():
-            have = runs.get((model, arm))
-            if have is None or run_digest(have[0]) != doc.get("run_sha256"):
+            if run_digest(runs[(model, arm)][0]) != doc.get("run_sha256"):
                 raise Refusal(f"the counts file was not made from the run.json of {model}/{arm} under {receipts}")
     out = []
     for model in sorted(counts["models"]):
@@ -409,13 +448,12 @@ def exposure_lines(arms, cls):
                 f"hunks {sum(e['hunks'] or 0 for e in known)}")
         if arm == "m":
             line += (f"; write results read {sum(e['write_results_read'] or 0 for e in es)} of {sum(e['write_calls'] or 0 for e in es)} write calls "
-                     f"({sum(e['write_not_read'] or 0 for e in es)} redirected or empty, {sum(e['write_mixed'] or 0 for e in es)} beside "
-                     f"mrw instructions or skill)")
+                     f"({sum(e['write_unattributable'] or 0 for e in es)} unattributable)")
         else:
             line += f"; exposure unknown {len(es) - len(known)} (a state file not retained)"
         out.append(line)
-    out.append("    not attributable in m: a refusal in the output of a write sent to a file or /dev/null, of a command that also ran "
-               "mrw instructions or skill, or cut by the host; a refusal on a dry run counts as exposed")
+    out.append("    not attributable in m: a refusal in the output of a call that was not one simple `mrw write` (a chain, a pipe, a "
+               "redirect, a substitution, text in an argument), or whose output was empty or cut; a refusal on a dry run counts as exposed")
     if "n" in arms:
         mine = [e for e in arms["n"].values() if e["class"] == cls and e["outcome"] == "outside"]
         listed = sorted(e["attempt"] for e in mine if e["exposed"])

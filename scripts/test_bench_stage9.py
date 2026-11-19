@@ -63,7 +63,8 @@ class World:
         (d / "run.json").write_text(json.dumps(run if run is not None else run_json(arm, model, list(specs))), encoding="utf-8")
         for task, s in specs.items():
             config = "A" if arm == "a" else "B"
-            stem = f"{task}.{config}.{model}.1" + (f".r{s['retry']}" if s.get("retry") else "")
+            suffix = s["suffix"] if "suffix" in s else f".r{s['retry']}" if s.get("retry") else ""
+            stem = f"{task}.{config}.{model}.1{suffix}"
             rec = {"attempt": stem, "task": task, "config": config, "model": model, "repeat": 1, "num_turns": 5, "tool_calls": 7, "wall_ms": 900,
                    "is_error": s.get("is_error", False), "total_cost_usd": s.get("cost", 0.1), "status": s.get("status", "done"),
                    "usage": {"input_tokens": 1, "output_tokens": 2, "cache_read_input_tokens": 3, "cache_creation_input_tokens": 4},
@@ -141,7 +142,7 @@ class Classification(unittest.TestCase):
         (d / "run.json").write_text(json.dumps(run_json("m", MODEL, ["follow-on-00"])), encoding="utf-8")
         got = w.attempts("m")["follow-on-00"]
         self.assertEqual((got["outcome"], got["spend"], got["attempt"]), ("correct", 0.2, f"follow-on-00.B.{MODEL}.1.r1"))
-        self.assertEqual(stage9.spend(w.root), "stage9 spend usd 0.250000 missing 0")
+        self.assertEqual(stage9.spend(w.root), "stage9 spend usd 0.25 missing 0")
 
     def test_the_chain_follows_the_producers_rule_and_names_the_strays(self):
         w = World(self)
@@ -161,6 +162,24 @@ class Classification(unittest.TestCase):
                              (outcome, task + stem + suffix, [task + stem + s for s in stray]), task)
         self.assertIn(f"stray receipts ignored (m): follow-on-00.B.{MODEL}.1.r2, follow-on-02.B.{MODEL}.1.r1", stage9.report(w.root, w.count()))
 
+    def test_only_the_runners_exact_ids_make_the_chain(self):
+        w = World(self)
+        tasks = ["follow-on-00", "follow-on-01", "follow-on-02"]
+        run = run_json("m", MODEL, tasks)
+        # 00 is fine, so any other receipt of it is stray, whatever its suffix looks like; 01 was excluded as a start error but
+        # its .r1 is missing, so the .r2 and a .r01 do not stand in for it; 02's .r1 is there and counts.
+        w.arm("m", {"follow-on-00": {}, "follow-on-01": dict(exclusion="start-error"), "follow-on-02": dict(exclusion="start-error")}, run=run)
+        w.arm("m", {"follow-on-00": dict(suffix=".r01"), "follow-on-01": dict(suffix=".r2"), "follow-on-02": dict(retry=1)}, run=run)
+        w.arm("m", {"follow-on-00": dict(suffix=".r10"), "follow-on-01": dict(suffix=".r01"), "follow-on-02": dict(suffix=".rx")}, run=run)
+        got = w.attempts("m")
+        stem = f".B.{MODEL}.1"
+        self.assertEqual((got["follow-on-00"]["attempt"], got["follow-on-00"]["stray"]), ("follow-on-00" + stem, ["follow-on-00" + stem + s for s in (".r01", ".r10")]))
+        self.assertEqual((got["follow-on-01"]["outcome"], got["follow-on-01"]["stray"]), ("missing", ["follow-on-01" + stem + s for s in (".r01", ".r2")]))
+        self.assertEqual((got["follow-on-02"]["attempt"], got["follow-on-02"]["stray"]), ("follow-on-02" + stem + ".r1", ["follow-on-02" + stem + ".rx"]))
+
+    def test_safe_is_the_runners_spelling_of_a_model_in_an_id(self):
+        self.assertEqual(stage9.safe("a/b c:d-1.5"), "a_b_c_d-1.5")
+
     def test_the_numbers_beside_the_outcome(self):
         w = World(self)
         w.arm("m", {"follow-on-00": {}})
@@ -175,15 +194,36 @@ class Spend(unittest.TestCase):
         w = World(self)
         w.arm("m", {"follow-on-00": dict(cost=None), "follow-on-01": dict(cost=0.25)})
         self.assertIsNone(w.attempts("m")["follow-on-00"]["spend"])
-        self.assertEqual(stage9.spend(w.root), "stage9 spend usd 0.250000 missing 1")
+        self.assertEqual(stage9.spend(w.root), "stage9 spend usd 0.25 missing 1")
 
     def test_spend_is_exactly_one_line_of_six_fields_over_every_receipt(self):
         w = World(self)
         w.arm("a", {"single-site-00": dict(cost=0.1), "single-site-01": dict(exclusion="infrastructure", cost=0.3)})
         w.arm("m", {"follow-on-00": dict(cost=0.2)}, model="claude-sonnet-5-5")
         code, out, _ = cli("spend", "--receipts", str(w.root))
-        self.assertEqual((code, out), (0, "stage9 spend usd 0.600000 missing 0\n"))
+        self.assertEqual((code, out), (0, "stage9 spend usd 0.6 missing 0\n"))
         self.assertEqual(len(out.split()), 6)
+
+    def spend_of(self, *costs):
+        """The spend line for receipts whose cost is each given JSON number text, written as is."""
+        w = World(self)
+        tasks = {f"follow-on-{i:02d}": {} for i in range(len(costs))}
+        d = w.arm("m", tasks)
+        for i, text in enumerate(costs):
+            path = d / f"follow-on-{i:02d}.B.{MODEL}.1.receipt.json"
+            path.write_text(re.sub(r'"total_cost_usd": [^,}]+', f'"total_cost_usd": {text}', path.read_text(encoding="utf-8")), encoding="utf-8")
+        return stage9.spend(w.root)
+
+    def test_the_sum_is_exact_decimal_of_the_receipts_own_numbers(self):
+        self.assertEqual(self.spend_of("0.1", "0.2"), "stage9 spend usd 0.3 missing 0")
+        self.assertEqual(self.spend_of("0.1234567890123456789", "0.2"), "stage9 spend usd 0.3234567890123456789 missing 0")
+        self.assertEqual(self.spend_of("1e-07", "10"), "stage9 spend usd 10.0000001 missing 0")
+        self.assertEqual(self.spend_of("40", "60"), "stage9 spend usd 100 missing 0")
+        self.assertEqual(self.spend_of("0.0", "null"), "stage9 spend usd 0 missing 1")
+
+    def test_a_cost_that_is_not_a_number_is_refused(self):
+        with self.assertRaisesRegex(stage9.Refusal, "not a number"):
+            self.spend_of('"0.1"')
 
 
 class Insufficient(unittest.TestCase):
@@ -348,31 +388,47 @@ class Exposure(unittest.TestCase):
         self.assertEqual((got["write_calls"], got["write_results_read"], got["exposed"]), (2, 1, False))
 
 
-    def test_what_counts_as_the_output_of_a_write(self):
-        cases = [
-            ("mrw write p", "read"), ("command mrw write p", "read"), ("env X=1 mrw write p", "read"), ("./bin/mrw write p", "read"),
-            ("/usr/local/bin/mrw -C d write -", "read"), ('"$MRW" write p', "read"), ("$MRW --root d write p", "read"),
-            ("cd d && mrw write p 2>&1", "read"), ("mrw write - <<'PLAN'\n@@ f 1 replace\nmrw instructions > y\nPLAN", "read"),
-            ("mrw write p >/dev/null 2>&1; echo Finished", "redirected"), ("mrw write p > out.txt", "redirected"),
-            ("mrw write p &> out.txt", "redirected"), ("mrw write p 2>/dev/null", "redirected"), ("mrw write p >> log", "redirected"),
-            ("mrw instructions; mrw write p", "mixed"), ("mrw --instructions; mrw write p", "mixed"), ("mrw skill && mrw write p", "mixed"),
-            ("mrw instructions; mrw write p >/dev/null 2>&1", "mixed"), ("command mrw instructions | head -3; ./bin/mrw write p", "mixed"),
-            ("mrw read f.go", None), ("mrw instructions", None), ("echo mrw writer", None), ("mrw read f.go > out.txt", None),
+    def test_only_one_simple_write_command_is_attributed(self):
+        single = [
+            "mrw write p", "command mrw write p", "env X=1 mrw write p", "./bin/mrw write p", "/usr/local/bin/mrw -C d write -",
+            '"$MRW" write p', "$MRW --root d write p", "cd d && mrw write p 2>&1", "mrw write --terse - <<'PLAN'\n@@ f 1 replace\nmrw instructions > y\nPLAN",
+            "mrw write - <<PLAN\nx\nPLAN\n", "cd d && mrw write - <<'EOF-1'\nbody\nEOF-1", "mrw write - <<-'E_N-D'\nx\nE_N-D",
+            "mrw write - <<'PLAN' 2>&1\nx\nPLAN", "mrw write - <<'PLAN'\nPLAN", "cat plan | mrw write -", "cat a b | mrw write - 2>&1",
+            "printf '%s\\n' '@@ f 3 replace' 'x' | mrw write -", "echo '@@ f 3 insert-after' | mrw write --terse -",
+            "printf '%s\\n' 'if a && b > c; {' | mrw write -", "cd d && printf x | mrw write -",
+            "mrw write p 'a;b|c>d'", "printf 'a|b' | printf y | mrw write -",
         ]
-        for command, want in cases:
-            self.assertEqual(stage9.classify_command(command), want, command)
+        unattributable = [
+            "mrw write p >/dev/null 2>&1; echo Finished", "mrw write p > out.txt", "mrw write p >out.txt", "mrw write p &> out.txt",
+            "mrw write p 2>/dev/null", "mrw write p >> log", "mrw write p 2>&1 | wc -l", "mrw write p | tee x", "mrw write p 3>&1",
+            "mrw write p2>&1", "mrw write p < plan.txt", "mrw instructions; mrw write p", "mrw skill && mrw write p", "mrw --instructions; mrw write p",
+            "false && mrw write p", "mrw write p && echo ok", "mrw write p &", "mrw write p & echo x", "mrw write p; echo done", "mrw write p || true",
+            "cd d; mrw write p", "cd d && mrw read f && mrw write p",
+            "mrw read x; mrw write p", "printf 'mrw write p'", 'echo "mrw write"', "'mrw' write p", "out=$(mrw write p); echo $out",
+            "`mrw write p`", "(mrw write p)", "time mrw write p", "mrw write p\necho hi", "mrw write - <<'PLAN'\nx\nPLAN\nmrw read f",
+            "mrw write - <<'PLAN'\nx\nPLAN\nmrw write p2\nPLAN", "mrw write - <<'PLAN' > out\nx\nPLAN", "printf x | mrw write - | wc -l",
+            "printf x | tee f | mrw write -", 'printf "$(cat f)" | mrw write -', "printf x | mrw write - > out", "printf x > f | mrw write -",
+            "printf x | mrw write - 2>&1 | head", "cat | mrw write -", "mrw write p | tee x", "printf x || mrw write -", "printf `cat f` | mrw write -",
+        ]
+        for command in single:
+            self.assertEqual(stage9.classify_command(command), "single", command)
+        for command in unattributable:
+            self.assertEqual(stage9.classify_command(command), "unattributable", command)
+        for command in ("mrw read f.go", "mrw instructions", "echo mrw writer", "mrw read f.go > out.txt", "mrw read --grep 'func write' ."):
+            self.assertIsNone(stage9.classify_command(command), command)
 
-    def test_instructions_beside_a_write_and_a_redirected_write_are_not_read(self):
+    def test_instructions_beside_a_write_and_an_unattributable_write_are_not_read(self):
         w = World(self)
         w.arm("m", {
             "follow-on-00": dict(steps=[("mrw instructions; mrw write p >/dev/null 2>&1", "A refusal reads: " + REFUSED)]),
             "follow-on-01": dict(steps=[("mrw write p >/dev/null 2>&1; echo Finished", "Finished")]),
-            "follow-on-02": dict(steps=[("command mrw write p", REFUSED), ("./bin/mrw write p", REFUSED), ("$MRW write p", APPLIED)]),
+            "follow-on-02": dict(steps=[("command mrw write p", REFUSED), ("./bin/mrw write p", REFUSED), ("$MRW write p", APPLIED),
+                                        ("mrw write p 2>&1 | head", REFUSED), ("mrw write p", ""), ("false && mrw write p", REFUSED)]),
         })
         got = w.attempts("m")
-        fields = ("exposed", "hunks", "write_calls", "write_results_read", "write_not_read", "write_mixed")
+        fields = ("exposed", "hunks", "write_calls", "write_results_read", "write_unattributable")
         self.assertEqual([tuple(got[t][f] for f in fields) for t in sorted(got)],
-                         [(False, 0, 1, 0, 0, 1), (False, 0, 1, 0, 1, 0), (True, 2, 3, 3, 0, 0)])
+                         [(False, 0, 1, 0, 1), (False, 0, 1, 0, 1), (True, 2, 6, 3, 3)])
 
     def test_in_n_a_state_file_not_retained_is_unknown_not_zero(self):
         w = World(self)
@@ -383,6 +439,7 @@ class Exposure(unittest.TestCase):
                          [(True, None, None), (False, True, 1), (False, False, 0)])
         text = stage9.report(w.root, w.count())
         self.assertIn("exposed n: 1 of 2 graded attempts; hunks 1; exposure unknown 1", text)
+
     def test_arm_a_has_no_exposure(self):
         w = World(self)
         w.arm("a", {"single-site-00": {}})
@@ -467,6 +524,16 @@ class Refusals(unittest.TestCase):
         with self.assertRaisesRegex(stage9.Refusal, "`n sha256:` 0 times"):
             w.count()
 
+    def test_a_repeated_key_line_is_refused_valid_or_not(self):
+        w = World(self)
+        w.arm("m", tasks_of("follow-on"))
+        for text, reason in ((f"m sha256: zzz\nm sha256: {M_HASH}\nn sha256: {N_HASH}\n", "`m sha256:` 2 times"),
+                             (f"m sha256: {M_HASH}\nn sha256: {N_HASH}\nn sha256: nope\n", "`n sha256:` 2 times"),
+                             (f"m sha256: nope\nn sha256: {N_HASH}\n", "not `m sha256: `")):
+            w.pilot.write_text(text, encoding="utf-8")
+            with self.assertRaisesRegex(stage9.Refusal, reason):
+                w.count()
+
 
 class Report(unittest.TestCase):
     def build(self, exposed_outside=True):
@@ -530,6 +597,21 @@ class Report(unittest.TestCase):
         path = w.root / MODEL / "n" / "run.json"
         path.write_text(json.dumps({**json.loads(path.read_text(encoding="utf-8")), "max_spend_usd": 99.0}), encoding="utf-8")
         with self.assertRaisesRegex(stage9.Refusal, "counts file"):
+            stage9.report(w.root, counts)
+
+    def test_an_arm_or_model_on_one_side_only_is_refused(self):
+        w = self.build()
+        counts = w.count()
+        del counts["models"][MODEL]["n"]
+        with self.assertRaisesRegex(stage9.Refusal, "n only in the receipts"):
+            stage9.report(w.root, counts)
+        counts = w.count()
+        counts["models"]["claude-sonnet-5-5"] = counts["models"][MODEL]
+        with self.assertRaisesRegex(stage9.Refusal, "claude-sonnet-5-5/m only in the counts"):
+            stage9.report(w.root, counts)
+        counts = w.count()
+        w.arm("a", tasks_of("single-site"))
+        with self.assertRaisesRegex(stage9.Refusal, "a only in the receipts"):
             stage9.report(w.root, counts)
 
 
