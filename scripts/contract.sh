@@ -6973,7 +6973,7 @@ fixture
 seq -f 'line %g' 1 16 > "$R/f150.txt"
 m read f150.txt >"$WORK/served.out"
 for j in 0 1 2 3 4 5 6 7; do
-	printf '@@ f150.txt %d replace\nwriter %d\n' $((j + 1)) "$j" | m write --no-check - > "$R/out150.$j" 2>&1 &
+	printf '@@ f150.txt %d replace anchor="line %d"\nwriter %d\n' $((j + 1)) $((j + 1)) "$j" | m write --no-check - > "$R/out150.$j" 2>&1 &
 	pids150[$j]=$!
 done
 for j in 0 1 2 3 4 5 6 7; do
@@ -6984,7 +6984,7 @@ for j in 0 1 2 3 4 5 6 7; do
 	line=$(sed -n "$((j + 1))p" "$R/f150.txt")
 	case "${rcs150[$j]}" in
 		0) [ "$line" = "writer $j" ] || lost=$((lost + 1)) ;;
-		1) grep -Eq 'changed since|has no recorded showing' "$R/out150.$j" || odd=$((odd + 1)) ;;
+		1) grep -q 'changed since' "$R/out150.$j" || odd=$((odd + 1)) ;;
 		*) odd=$((odd + 1)) ;;
 	esac
 done
@@ -10606,6 +10606,9 @@ printf 'one\n%s\nthree\n' "$long305" > "$R/b.txt"
 printf '@@ b.txt 2 replace\nnew\n' | (cd "$R" && "$MRW" write --no-check - >/dev/null 2>&1); q305=$?
 { [ "$q305" = 0 ] && [ "$(sed -n 2p "$R/b.txt")" = new ]; } \
   && ok "MRW_MAX_COLS leaves a --quiet read whole" || bad "quiet under the variable: write exit $q305"
+q305o=$(cd "$R" && MRW_MAX_COLS=100 "$MRW" read --quiet b.txt 2>&1)
+grep -qF 'licensed 3 line(s) in 1 file(s)' <<<"$q305o" \
+  && ok "MRW_MAX_COLS leaves a whole-file --quiet read whole: all three lines licensed" || bad "whole quiet under the variable: $q305o"
 
 # 310. ADR-179 (f): `mrw write --terse` prints one line per file and the summary,
 # and still prints what a caller must read. The pairs: the default receipt has a
@@ -11387,6 +11390,10 @@ printf '@@ f.txt 5 replace\nB2\n' | e343 write --dry-run - > "$R343/w5.out"
 want 0 "$?" "ADR-200 pair: a dry run of a numbered replace on a shown line"
 has343 '"numbering":{"landed_writes":3,"numbered_candidates":1,"numbered_would_refuse":0}' \
   && ok "ADR-200 pair: a dry run counts nothing" || bad "numbering is $s343"
+printf '@@ f.txt 3 replace\nB3\n' | e343 write --dry-run - > "$R343/w6.out"
+want 1 "$?" "ADR-203 pair: a dry run of a numbered replace on an unshown line is refused too"
+has343 '"numbering":{"landed_writes":3,"numbered_candidates":1,"numbered_would_refuse":0}' \
+  && ok "ADR-203 pair: and counts nothing" || bad "numbering is $s343"
 e343 stats > "$R343/stats.out"
 want 0 "$?" "ADR-200: mrw stats exits 0"
 { grep -q '^stale-number pricing: .* 3 landed writes; 1 with a numbered hunk' "$R343/stats.out" \
@@ -11522,17 +11529,17 @@ seed349; want 0 "$?" "ADR-203: the seed write, a file read whole and then writte
 cp "$R349/f.txt" "$R349/before.txt"
 printf '@@ f.txt 8 replace\nX\n' | e349 write --no-check - > "$R349/w1.out"
 want 1 "$?" "ADR-203: a number alone on a line no read has shown is refused"
-{ cmp -s "$R349/f.txt" "$R349/before.txt" && grep -q 'line 8 of f.txt has no recorded showing in this version, and a line number alone cannot say which line you mean: an earlier write may have moved it' "$R349/w1.out"; } \
+{ cmp -s "$R349/f.txt" "$R349/before.txt" && grep -q "line 8 of f.txt has no recorded showing in this version, and a line number alone cannot say which line you mean. Read it whole (mrw read 'f.txt:8'; a --quiet read, or a line --max-cols cut, shows nothing), address it by pattern, or give anchor=" "$R349/w1.out"; } \
   && ok "ADR-203: the file is byte-identical and the reason names line 8" || bad "refusal: $(head -c 300 "$R349/w1.out")"
-seed349
+seed349; want 0 "$?" "ADR-203: the reseed lands"
 printf '@@ f.txt 8 replace anchor="L7"\nX\n' | e349 write --no-check - > "$R349/w2.out"
 want 0 "$?" "ADR-203 pair: the same hunk with anchor= lands"
 [ "$(sed -n 8p "$R349/f.txt")" = X ] && [ "$(sed -n 7p "$R349/f.txt")" = L6 ] && ok "ADR-203 pair: on the line that holds L7" || bad "f.txt is $(tr '\n' '|' < "$R349/f.txt")"
-seed349
+seed349; want 0 "$?" "ADR-203: the reseed lands"
 e349 read f.txt:8 > "$R349/served8.out"
 printf '@@ f.txt 8 replace\nX\n' | e349 write --no-check - > "$R349/w3.out"
 want 0 "$?" "ADR-203 pair: after mrw read f.txt:8 the number lands"
-[ "$(sed -n 8p "$R349/f.txt")" = X ] && ok "ADR-203 pair: on line 8" || bad "f.txt is $(tr '\n' '|' < "$R349/f.txt")"
+{ [ "$(sed -n 8p "$R349/f.txt")" = X ] && [ "$(sed -n 9p "$R349/f.txt")" = L8 ]; } && ok "ADR-203 pair: on line 8, with L8 still below it" || bad "f.txt is $(tr '\n' '|' < "$R349/f.txt")"
 printf '@@ c.txt 0 create\nc1\nc2\nc3\nc4\nc5\n' | e349 write --no-check - > "$R349/c0.out"
 want 0 "$?" "ADR-203: a create lands"
 cp "$R349/c.txt" "$R349/cbefore.txt"

@@ -173,9 +173,10 @@ unverified until a check covering them passes. Fix a failed check and run it aga
 edit; an earlier passing check does not verify a later write.
 
 A queued write that names a line by number alone, in a file an earlier write of the queue wrote, is
-refused until a read has shown that line (ADR-203): put a `mrw read PATH:N` between overlapping queued
-plans, or make the later plan content-addressed (a pattern address or `anchor=`). A refused write runs
-neither its check nor its steps, and `&&` then stops before the final check.
+refused on any line no read has shown since (ADR-203), not only a line the earlier plan changed: put a
+`mrw read PATH:N` of each such line between the queued plans, or make the later plan content-addressed
+(a pattern address or `anchor=`). A refused write runs neither its check nor its steps, and `&&` then
+stops before the final check.
 
 The example runs the whole-project check once. For a scoped check over existing edited paths,
 name every queued path in `mrw check PATH...` and verify the command and any paths it reports

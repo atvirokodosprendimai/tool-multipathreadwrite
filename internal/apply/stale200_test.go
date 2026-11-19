@@ -103,8 +103,8 @@ func TestANumberedHunkAfterMrwsOwnWriteIsCountedNotRefused(t *testing.T) {
 			if got != want || base.Hunks[0].Status != res.Hunks[0].Status || base.Hunks[0].Reason != res.Hunks[0].Reason {
 				t.Errorf("a mark changed the outcome: bytes %q, want %q", got, want)
 			}
-			if res.StaleNumbered != c.numbered || res.StaleUnshown != c.unshn {
-				t.Errorf("numbered %d unshown %d, want %d and %d", res.StaleNumbered, res.StaleUnshown, c.numbered, c.unshn)
+			if res.StaleNumbered != c.numbered {
+				t.Errorf("numbered %d, want %d", res.StaleNumbered, c.numbered)
 			}
 		})
 	}
@@ -118,8 +118,8 @@ func TestANumberedHunkAfterMrwsOwnWriteIsCountedNotRefused(t *testing.T) {
 			t.Skipf("no hard links here: %v", err)
 		}
 		res, err := Apply(root, []Input{rep(4, "")}, Options{Seen: map[string]Seen{"g.txt": *wrote([2]int{4, 4})}})
-		if err != nil || res.Failed != 0 || res.StaleNumbered != 1 || res.StaleUnshown != 0 {
-			t.Errorf("err %v failed %d numbered %d unshown %d, want a landing counted 1 and 0", err, res.Failed, res.StaleNumbered, res.StaleUnshown)
+		if err != nil || res.Failed != 0 || res.StaleNumbered != 1 {
+			t.Errorf("err %v failed %d numbered %d, want a landing counted 1", err, res.Failed, res.StaleNumbered)
 		}
 	})
 
@@ -149,8 +149,8 @@ func TestANumberedHunkAfterMrwsOwnWriteIsCountedNotRefused(t *testing.T) {
 		if err == nil || !landed["a.txt"] || landed["f.txt"] {
 			t.Fatalf("err %v, written %v: the fixture must land a.txt and not the candidate's f.txt", err, landed)
 		}
-		if res.StaleNumbered != 1 || res.StaleUnshown != 0 {
-			t.Errorf("numbered %d unshown %d, want 1 and 0: a guard at validation would have stopped this plan", res.StaleNumbered, res.StaleUnshown)
+		if res.StaleNumbered != 1 {
+			t.Errorf("numbered %d, want 1: the marked hunk passed validation although it never reached disk", res.StaleNumbered)
 		}
 	})
 }

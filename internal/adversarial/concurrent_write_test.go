@@ -51,7 +51,7 @@ func TestConcurrentWritersOffOneReadLoseNothing(t *testing.T) {
 			wg.Add(1)
 			go func(j int) {
 				defer wg.Done()
-				codes[j], outs[j], errs[j] = run(fmt.Sprintf("@@ f.txt %d replace\nwriter %d\n", j+1, j), "write", "--no-check", "-")
+				codes[j], outs[j], errs[j] = run(fmt.Sprintf("@@ f.txt %d replace anchor=\"line %d\"\nwriter %d\n", j+1, j+1, j), "write", "--no-check", "-")
 			}(j)
 		}
 		wg.Wait()
@@ -74,9 +74,7 @@ func TestConcurrentWritersOffOneReadLoseNothing(t *testing.T) {
 					lost = append(lost, j)
 				}
 			case 1:
-				// Another writer's landing replaced the ledger's record with the new content, so this one is
-				// judged either as a file that changed since the read, or (ADR-203) as a number alone on a line no read has shown.
-				if !strings.Contains(outs[j], "changed since") && !strings.Contains(outs[j], "has no recorded showing") {
+				if !strings.Contains(outs[j], "changed since") {
 					t.Errorf("round %d: writer %d exited 1 without naming the change:\n%s", round, j, outs[j])
 				}
 			default:

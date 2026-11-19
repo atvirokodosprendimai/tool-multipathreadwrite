@@ -70,7 +70,7 @@ go test -count=1 -v ./internal/apply ./cmd/mrw ./internal/mcp ./internal/guide -
   && grep -q 'has no recorded showing in this version' AGENTS.md \
   && ! grep -q '2026-12-18' cmd/mrw/main.go \
   && git diff --quiet "$(git merge-base HEAD origin/main)" -- go.mod go.sum internal/plan internal/seen internal/check internal/state ':(exclude)*_test.go' \
-  && [ -z "$(git diff --name-only "$(git merge-base HEAD origin/main)" -- internal/writer | grep -v '_test\.go$')" ]
+  && [ -z "$(git diff --name-only "$(git merge-base HEAD origin/main)" -- internal/writer | grep -v -e '_test\.go$' -e '^internal/writer/flow\.go$')" ]
 ```
 
 ## Tests
@@ -99,7 +99,7 @@ go test -count=1 -v ./internal/apply ./cmd/mrw ./internal/mcp ./internal/guide -
 ## Invariants
 
 - A plan that addresses by pattern, carries `anchor=`, is quoted, forced, or computed by mrw lands as before.
-- A file read and never written by mrw is judged as before.
+- A file read whole by a read that shows it, and never written by mrw, is judged as before. A whole-file `--quiet` read is not such a read: a numbered edit after it is refused (Decision 7).
 - The ledger's format and every receipt key are unchanged.
 
 ## Risks

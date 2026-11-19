@@ -67,9 +67,9 @@ redirect, counts as the read when it printed the file's text.
    prompt. Addressing by string is why an inserted line does not move its target; a
    line number does move. By default mrw refuses a hunk to a file whose content is
    not what it recorded (`--force` and a quoted SEARCH/REPLACE hunk aside), and a
-   multi-line `replace` must carry `anchor=` (ADR-035); but after a write of its own
-   that records the file as wholly licensed, an otherwise valid single-line
-   `replace` with no anchor is applied to whatever line now has the number.
+   multi-line `replace` must carry `anchor=` (ADR-035). After a write of its own that
+   records the file as wholly licensed, a hunk that names a line by number alone is
+   refused on a line no read has shown since (ADR-203); `anchor=`, a pattern address or a read that shows the line lands it.
 4. **Shell edits** — not in the 2026-09-12 scan, and what an agent with only a
    shell tool uses. `sed -i` over many files is one call. Nothing is licensed,
    nothing is refused for being unread, and a `sed -i` substitution that matches

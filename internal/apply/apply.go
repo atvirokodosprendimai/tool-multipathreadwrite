@@ -62,11 +62,11 @@ type HunkResult struct {
 	// --strict-balance would have refused it. Unexported: not receipt fields.
 	singleLineCode bool
 	wrapTail       bool
-	// staleNumbered and staleUnshown are ADR-200's marks: the hunk is a numbered
-	// candidate, and a line it addresses is not shown in the ledger's record.
-	// Counted, never acted on. Unexported: not receipt fields.
+	// staleNumbered is ADR-200's mark: the hunk is a numbered candidate that
+	// landed (a candidate with a line no read showed is refused, ADR-203, and
+	// never reaches a result as ok). Counted, never acted on. Unexported: not a
+	// receipt field.
 	staleNumbered bool
-	staleUnshown  bool
 	// newSpan is where a replace or insert put its body in the written file,
 	// and quotedFile says every hunk on the file was licensed by a quote with
 	// no fresh ledger entry behind it (ADR-190): the writer then records spans,
@@ -272,13 +272,12 @@ type Result struct {
 	// because a refused hunk is not ok.
 	StrictSingleLine  int `json:"-"`
 	StrictWouldRefuse int `json:"-"`
-	// StaleNumbered and StaleUnshown are ADR-200's counts, and like the two
-	// above are NOT receipt fields: the validated hunks that are numbered candidates
-	// (a numbered address, no anchor=, a file mrw wrote and holds whole), and
-	// those among them addressing a line the ledger does not show. Nothing is
-	// refused by them; mrw only counts what a stale-number guard would.
+	// StaleNumbered is ADR-200's count, and like the two above NOT a receipt
+	// field: the validated hunks that are numbered candidates (a numbered
+	// address, no anchor=, a file mrw wrote and holds whole). Since ADR-203 a
+	// candidate whose line no read showed is refused, so every one counted here
+	// addressed a shown line.
 	StaleNumbered int `json:"-"`
-	StaleUnshown  int `json:"-"`
 }
 
 // pending is one file the run is about to commit: a content write, an unlink,
@@ -340,8 +339,11 @@ type hunk struct {
 	SrcAddr string
 	SrcLine int
 	Index   int
-	// staleNumbered and staleUnshown carry ADR-200's marks to the result.
-	staleNumbered, staleUnshown bool
+	// staleNumbered carries ADR-200's mark to the result, and staleLine is the
+	// first addressed line no read has shown (ADR-203), which the overlap check
+	// lets through to a refusal.
+	staleNumbered bool
+	staleLine     int
 }
 
 // resolveTo returns a copy of h with its address and op rewritten to the form
@@ -454,9 +456,6 @@ func Apply(root string, in []Input, opt Options) (Result, error) {
 		// lands nothing and is not counted by the writer.
 		if h.staleNumbered {
 			res.StaleNumbered++
-		}
-		if h.staleUnshown {
-			res.StaleUnshown++
 		}
 		if h.Status != StatusOK {
 			continue
@@ -1300,8 +1299,8 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 	// failStale is ADR-203's refusal: a number alone on a line no read has shown
 	// in this version of a file mrw wrote.
 	failStale := func(h hunk, line int) {
-		failK(h, refusal.StaleNumber, "line %d of %s has no recorded showing in this version, and a line number alone cannot say which line you mean: an earlier write may have moved it. "+
-			"Read it (mrw read %s:%d, a read that shows it), address it by pattern, or give anchor=", line, asPlan(path), asPlan(path), line)
+		failK(h, refusal.StaleNumber, "line %d of %s has no recorded showing in this version, and a line number alone cannot say which line you mean. "+
+			"Read it whole (%s; a --quiet read, or a line --max-cols cut, shows nothing), address it by pattern, or give anchor=", line, asPlan(path), staleRemedy(asPlan(path), line))
 	}
 
 	// ADR-118, mirrored from the parser (ADR-030) and checked FIRST, as the
@@ -1829,12 +1828,7 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 				continue
 			}
 			rh := h.resolveTo(start+1, start, "insert")
-			var shownLine int
-			rh.staleNumbered, shownLine = staleMarks(h, obs, haveObs, opt, quoted, total, start, start)
-			if rh.staleUnshown = shownLine != 0; rh.staleUnshown {
-				failStale(h, shownLine)
-				continue
-			}
+			rh.staleNumbered, rh.staleLine = staleMarks(h, obs, haveObs, opt, quoted, total, start, start)
 			resolved = append(resolved, rh)
 		case "insert-before":
 			if start < 1 || start > total+1 {
@@ -1845,12 +1839,7 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 				continue
 			}
 			rh := h.resolveTo(start, start-1, "insert")
-			var shownLine int
-			rh.staleNumbered, shownLine = staleMarks(h, obs, haveObs, opt, quoted, total, start, start)
-			if rh.staleUnshown = shownLine != 0; rh.staleUnshown {
-				failStale(h, shownLine)
-				continue
-			}
+			rh.staleNumbered, rh.staleLine = staleMarks(h, obs, haveObs, opt, quoted, total, start, start)
 			resolved = append(resolved, rh)
 		case "replace", "delete":
 			// A reversed range is caught at PARSE time when both ends are
@@ -2012,12 +2001,7 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 				}
 			}
 			rh := h.resolveTo(start, end, h.Op)
-			var shownLine int
-			rh.staleNumbered, shownLine = staleMarks(h, obs, haveObs, opt, quoted, total, start, end)
-			if rh.staleUnshown = shownLine != 0; rh.staleUnshown {
-				failStale(h, shownLine)
-				continue
-			}
+			rh.staleNumbered, rh.staleLine = staleMarks(h, obs, haveObs, opt, quoted, total, start, end)
 			resolved = append(resolved, rh)
 		default:
 			fail(h, "unsupported op %q", h.Op)
@@ -2065,11 +2049,17 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 				addrString(h.Start, h.End), cursor)
 			continue
 		}
+		// ADR-203: judged after the overlap check, so an overlap is reported as it
+		// was before this refusal existed.
+		if h.staleLine != 0 {
+			failStale(h, h.staleLine)
+			continue
+		}
 		res = append(res, orig[cursor-1:h.Start-1]...)
 		cursor = h.Start
 
 		r := HunkResult{Path: path, Addr: h.SrcAddr, Op: h.SrcOp, SrcLine: h.SrcLine, Status: StatusOK}
-		r.staleNumbered, r.staleUnshown = h.staleNumbered, h.staleUnshown
+		r.staleNumbered = h.staleNumbered
 		// The lines this hunk CONSUMES, for the balance delta: an insert
 		// consumes none, so its original net is zero by construction — which
 		// is exactly why a balanced insert in the wrong place is invisible to
@@ -2743,6 +2733,22 @@ func staleMarks(h hunk, obs Seen, haveObs bool, opt Options, quoted map[int]int,
 		return false, 0
 	}
 	return true, unshown(obs, start, end)
+}
+
+// staleRemedy is the read the stale-number refusal names: a command the caller
+// can paste when the path is printable ASCII with no single quote and no leading
+// dash, and a description when quoting it would not be safe (ADR-203).
+func staleRemedy(p string, line int) string {
+	ok := p != "" && p[0] != '-'
+	for i := 0; i < len(p); i++ {
+		if p[i] < 0x20 || p[i] > 0x7e || p[i] == '\'' {
+			ok = false
+		}
+	}
+	if ok {
+		return fmt.Sprintf("mrw read '%s:%d'", p, line)
+	}
+	return fmt.Sprintf("a read that shows line %d", line)
 }
 
 func trim(s string) string {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -101,7 +102,11 @@ func TestMRWMaxColsAppliesWhenTheFlagIsAbsent(t *testing.T) {
 func TestMRWMaxColsDoesNotApplyToAQuietRead(t *testing.T) {
 	root := longline179Tree(t)
 	t.Setenv("MRW_MAX_COLS", "100")
-	// Line 2 only: a whole quiet read of a file shows nothing, and a number alone is refused on it (ADR-203).
+	// The whole-file form: nothing is cut and every line is licensed, a cut line being left out of the licence (ADR-137).
+	if out, code := runIn(t, root, "read", "--quiet", "b.txt"); code != 0 || !strings.Contains(out, fmt.Sprintf("-- licensed %d line(s) in 1 file(s)", strings.Count(cat(t, root, "b.txt"), "\n"))) {
+		t.Fatalf("a whole --quiet read under the variable: exit %d, want every line licensed:\n%s", code, out)
+	}
+	// A whole quiet read shows nothing, so the write below names its line by a ranged one (ADR-203).
 	if _, errOut, code := project178Run(t, root, "", "read", "--quiet", "a.txt:2"); code != 0 || strings.Contains(errOut, "MRW_MAX_COLS") {
 		t.Fatalf("a --quiet read under the variable exited %d:\n%s", code, errOut)
 	}

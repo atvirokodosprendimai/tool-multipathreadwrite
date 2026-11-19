@@ -191,7 +191,7 @@ mrw read --grep P .
 mrw write --terse plan.txt
 # 20. by reference what you were already served: only in a session alone in its checkout whose host runs mrw seen --forget on start, resume, clear and compaction, with reads made under --max-chars below the host's limit
 mrw read --if-served f.go=8dc37337 f.go:40-60
-# 21. a second edit to a file you just wrote: a number alone is refused, so name the line by a pattern and say what it holds (anchor=), or read the line first (mrw read f.go:40)
+# 21. a second edit to a file you just wrote: a number alone is refused, unless a read has shown that line since the write, so name the line by a pattern and say what it holds (anchor=), or read the line first (mrw read f.go:40)
 printf '%s\n' '@@ f.go /^func B\(/ replace anchor="func B("' 'func B(x int) {' | mrw write -
 ```
 
@@ -517,7 +517,7 @@ whole list arrives as one argument and the regex swallows the rest of the line.
 - **Read before write is ENFORCED, and it is per LINE.** Being served lines
   10-12 does not license an edit at line 50. The one exception is a file mrw
   itself just wrote: it produced every line, so the whole file is licensed
-  until something else changes it (ADR-002, ADR-005 §4). A number alone is refused on a line of a written file that no read has shown since the write (ADR-203): the reason names the first such line and says `has no recorded showing in this version`; read it (`mrw read PATH:N`; a whole-file `--quiet` read shows nothing), address it by pattern, give `anchor=`, or pass `--force`. A pattern address, `anchor=`, a quoted hunk, `$` as the start, the position-only inserts (`insert-after 0`, `insert-before` line 1 or one past the last line) and a plan mrw computed in the call (`--sub`, `--rewrite`, a foreign format) are not judged. After a write, a number from an earlier read names another line, or none, wherever the write changed how many lines come before the line it named, or removed that line (ADR-200): read the file again, address by pattern, or give `anchor=`. The record is kept per spelling: read the file under the name the retry uses, and a rename's destination starts with nothing shown. A read whose answer
+  until something else changes it (ADR-002, ADR-005 §4). A number alone is refused on a line of a written file that no read has shown since the write (ADR-203): the reason names the first such line and says `has no recorded showing in this version`; read it (`mrw read PATH:N`; a whole-file `--quiet` read shows nothing), address it by pattern, give `anchor=`, or pass `--force`. A pattern address, `anchor=`, a quoted hunk, `$` as the start, the position-only inserts (`insert-after 0`, `insert-before` line 1 or one past the last line) and a plan mrw computed in the call (`--sub`, `--rewrite`, a foreign format) are not judged. After a write, a number from an earlier read names another line, or none, wherever the write changed how many lines come before the line it named, or removed that line (ADR-200): read the file again, address by pattern, or give `anchor=`. The record is kept per spelling: read the file under the name the retry uses, and a rename's destination has whatever its own record holds (one read earlier at the same bytes keeps that showing). A read whose answer
   goes to the null device (`>/dev/null`, cmd.exe's `>NUL`) licenses nothing and says so on
   stderr, and names each file whose served lines an earlier read or write still licenses, where a
   write is judged on that licence (ADR-133, ADR-148); PowerShell's `> $null` and `| Out-Null` are

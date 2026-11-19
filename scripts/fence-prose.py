@@ -51,6 +51,8 @@ EXEMPT = {
     # pinned ("needs no re-read, though its line numbers can move") is replaced by one that says so.
     ("docs/adr/ADR-200/", "'needs no re-read, though its line numbers can move' AGENTS.md"): "ADR-203",
     ("docs/adr/ADR-200/", "'needs no re-read, though its line numbers can move' README.md"): "ADR-203",
+    # ADR-203 refuses the hunks ADR-200 T1 only marked, so Result.StaleUnshown can never be non-zero and is gone.
+    ("docs/adr/ADR-200/", "'StaleUnshown' internal/apply/apply.go"): "ADR-203",
 }
 
 

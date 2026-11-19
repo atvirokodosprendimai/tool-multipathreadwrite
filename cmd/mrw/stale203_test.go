@@ -12,7 +12,7 @@ import (
 // then names a line by number alone, with no read between unless the row says so.
 func TestAStaleNumberIsRefusedByTheBinary(t *testing.T) {
 	const seeded = "L1\nL2\nL3\nNEW\nL4\nL5\nL6\nL7\nL8\nL9\nL10\n"
-	const noShowing = "has no recorded showing in this version, and a line number alone cannot say which line you mean: an earlier write may have moved it. Read it (mrw read "
+	const noShowing = "has no recorded showing in this version, and a line number alone cannot say which line you mean. Read it whole ("
 	seed := func(t *testing.T) string {
 		t.Helper()
 		t.Setenv("XDG_STATE_HOME", t.TempDir())
@@ -45,7 +45,7 @@ func TestAStaleNumberIsRefusedByTheBinary(t *testing.T) {
 	refused := func(t *testing.T, root, doc, line string) {
 		t.Helper()
 		out, code := write(t, root, doc)
-		if code != 1 || !strings.Contains(out, "line "+line+" of f.txt "+noShowing+"f.txt:"+line+", a read that shows it), address it by pattern, or give anchor=") {
+		if code != 1 || !strings.Contains(out, "line "+line+" of f.txt "+noShowing+"mrw read 'f.txt:"+line+"'; a --quiet read, or a line --max-cols cut, shows nothing), address it by pattern, or give anchor=") {
 			t.Fatalf("want exit 1 naming line %s, got %d:\n%s", line, code, out)
 		}
 		if got := cat(t, root, "f.txt"); got != seeded {
@@ -106,12 +106,22 @@ func TestAStaleNumberIsRefusedByTheBinary(t *testing.T) {
 		read(t, root, "--quiet", "f.txt:8")
 		refused(t, root, "@@ f.txt 8 replace\nX\n", "8")
 	})
+	t.Run("a whole quiet read of a file mrw never wrote shows nothing: a number alone is refused", func(t *testing.T) {
+		t.Setenv("XDG_STATE_HOME", t.TempDir())
+		root := t.TempDir()
+		writeFiles(t, root, map[string]string{"f.txt": "a\nb\nc\n"})
+		read(t, root, "--quiet", "f.txt")
+		out, code := write(t, root, "@@ f.txt 2 replace\nB\n")
+		if code != 1 || !strings.Contains(out, "line 2 of f.txt "+noShowing) || cat(t, root, "f.txt") != "a\nb\nc\n" {
+			t.Fatalf("exit %d:\n%s", code, out)
+		}
+	})
 	t.Run("a ranged quiet read of a file mrw never wrote is the per-line licence, as before", func(t *testing.T) {
 		t.Setenv("XDG_STATE_HOME", t.TempDir())
 		root := t.TempDir()
 		writeFiles(t, root, map[string]string{"f.txt": "a\nb\nc\n"})
 		read(t, root, "--quiet", "f.txt:2")
-		if out, code := write(t, root, "@@ f.txt 2 replace\nB\n"); code != 0 {
+		if out, code := write(t, root, "@@ f.txt 2 replace\nB\n"); code != 0 || cat(t, root, "f.txt") != "a\nB\nc\n" {
 			t.Fatalf("exit %d:\n%s", code, out)
 		}
 	})
@@ -129,11 +139,19 @@ func TestAStaleNumberIsRefusedByTheBinary(t *testing.T) {
 			t.Fatalf("write --grep --sub: exit %d:\n%s", code, out)
 		}
 	})
-	for _, p := range []string{"@@ f.txt $ replace\nX\n", "@@ f.txt 0 insert-after\nX\n", "@@ f.txt 1 insert-before\nX\n", "@@ f.txt 12 insert-before\nX\n"} {
-		t.Run("a position lands: "+strings.SplitN(p, "\n", 2)[0], func(t *testing.T) {
-			lands(t, seed(t), p, "")
+	for _, c := range []struct{ plan, want string }{
+		{"@@ f.txt $ replace\nX\n", "L1\nL2\nL3\nNEW\nL4\nL5\nL6\nL7\nL8\nL9\nX\n"},
+		{"@@ f.txt 0 insert-after\nX\n", "X\n" + seeded},
+		{"@@ f.txt 1 insert-before\nX\n", "X\n" + seeded},
+		{"@@ f.txt 12 insert-before\nX\n", seeded + "X\n"},
+	} {
+		t.Run("a position lands: "+strings.SplitN(c.plan, "\n", 2)[0], func(t *testing.T) {
+			lands(t, seed(t), c.plan, c.want)
 		})
 	}
+	t.Run("insert-after line 1 names that line and is refused", func(t *testing.T) {
+		refused(t, seed(t), "@@ f.txt 1 insert-after\nX\n", "1")
+	})
 	t.Run("a refused hunk skips its valid sibling on another file", func(t *testing.T) {
 		root := seed(t)
 		out, code := write(t, root, "@@ f.txt 8 replace\nX\n@@ g.txt 1 replace anchor=\"G1\"\nGG\n")
@@ -150,18 +168,17 @@ func TestAStaleNumberIsRefusedByTheBinary(t *testing.T) {
 			t.Fatalf("exit %d:\n%s", code, out)
 		}
 	})
-	t.Run("a create then a numbered edit is refused, and lands with anchor=", func(t *testing.T) {
-		t.Setenv("XDG_STATE_HOME", t.TempDir())
-		root := t.TempDir()
-		if out, code := write(t, root, "@@ c.txt 0 create\nc1\nc2\nc3\nc4\nc5\n"); code != 0 {
-			t.Fatalf("create: exit %d:\n%s", code, out)
+	t.Run("mrw write --create, then a numbered edit is refused, and lands with anchor=", func(t *testing.T) {
+		root, run := subRun(t)
+		if out, e, c := run("c1\nc2\nc3\nc4\nc5\n", "write", "--no-check", "--create", "c.txt"); c != 0 {
+			t.Fatalf("create: exit %d:\n%s%s", c, out, e)
 		}
-		out, code := write(t, root, "@@ c.txt 4 replace\nX\n")
-		if code != 1 || !strings.Contains(out, "line 4 of c.txt "+noShowing) || cat(t, root, "c.txt") != "c1\nc2\nc3\nc4\nc5\n" {
-			t.Fatalf("exit %d:\n%s", code, out)
+		out, e, c := run("@@ c.txt 4 replace\nX\n", "write", "--no-check", "-")
+		if c != 1 || !strings.Contains(out+e, "line 4 of c.txt "+noShowing) || cat(t, root, "c.txt") != "c1\nc2\nc3\nc4\nc5\n" {
+			t.Fatalf("exit %d:\n%s%s", c, out, e)
 		}
-		if out, code := write(t, root, "@@ c.txt 4 replace anchor=\"c4\"\nX\n"); code != 0 || cat(t, root, "c.txt") != "c1\nc2\nc3\nX\nc5\n" {
-			t.Fatalf("anchored: exit %d:\n%s", code, out)
+		if out, e, c := run("@@ c.txt 4 replace anchor=\"c4\"\nX\n", "write", "--no-check", "-"); c != 0 || cat(t, root, "c.txt") != "c1\nc2\nc3\nX\nc5\n" {
+			t.Fatalf("anchored: exit %d:\n%s%s", c, out, e)
 		}
 	})
 	t.Run("a rename's destination is refused until it is read under its name", func(t *testing.T) {
@@ -197,4 +214,35 @@ func cat(t *testing.T, root, name string) string {
 		t.Fatal(err)
 	}
 	return string(b)
+}
+
+// ADR-203 Decision 1: a line --max-cols served cut was not shown, so a number
+// alone on it is refused in a file mrw wrote, and lands after a read that
+// serves it whole.
+func TestAStaleNumberOnALineMaxColsCutIsRefusedUntilItIsReadWhole(t *testing.T) {
+	t.Setenv("XDG_STATE_HOME", t.TempDir())
+	root := t.TempDir()
+	long := strings.Repeat("y", 600)
+	writeFiles(t, root, map[string]string{"f.txt": "a\n" + long + "\nc\n"})
+	if out, code := runIn(t, root, "read", "f.txt"); code != 0 {
+		t.Fatalf("read: exit %d\n%s", code, out)
+	}
+	if out, code := writeIn(t, root, "--no-check", planFile(t, "@@ f.txt 1 insert-after\nNEW\n")); code != 0 {
+		t.Fatalf("seed: exit %d\n%s", code, out)
+	}
+	t.Setenv("MRW_MAX_COLS", "200")
+	if out, code := runIn(t, root, "read", "f.txt"); code != 0 || !strings.Contains(out, "[cols ") {
+		t.Fatalf("read under MRW_MAX_COLS=200: exit %d, want the long line cut:\n%.300s", code, out)
+	}
+	const plan = "@@ f.txt 3 replace\nX\n"
+	out, code := writeIn(t, root, "--no-check", planFile(t, plan))
+	if code != 1 || !strings.Contains(out, "line 3 of f.txt has no recorded showing in this version") || !strings.Contains(out, "a line --max-cols cut, shows nothing") {
+		t.Fatalf("the cut line: exit %d, want 1 and the reason:\n%.400s", code, out)
+	}
+	if out, code := runIn(t, root, "read", "--max-cols", "0", "f.txt"); code != 0 || strings.Contains(out, "[cols ") {
+		t.Fatalf("read --max-cols 0: exit %d\n%.200s", code, out)
+	}
+	if out, code := writeIn(t, root, "--no-check", planFile(t, plan)); code != 0 || !strings.Contains(cat(t, root, "f.txt"), "\nX\nc\n") {
+		t.Fatalf("after the whole read: exit %d\n%.300s", code, out)
+	}
 }

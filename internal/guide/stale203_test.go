@@ -14,7 +14,7 @@ func TestTheInstructionsSayASecondEditNamesItsLine(t *testing.T) {
 	if n := len(strings.Fields(core)); n >= 300 {
 		t.Errorf("the core is %d words, want under 300", n)
 	}
-	const rule = "except in a file mrw just wrote, where a number alone is refused: use a pattern, anchor= or a read"
+	const rule = "except in a file mrw just wrote, where a number alone is refused on a line no read showed since: use a pattern, anchor= or a read"
 	if !strings.Contains(core, rule) {
 		t.Errorf("core rule 2 does not say a number alone is refused in a written file:\n%s", core)
 	}

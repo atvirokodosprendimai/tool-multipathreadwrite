@@ -2536,9 +2536,23 @@ func nameTheAck(root string, res *apply.Result) {
 		// target's (ADR-167): its path and span, never the hunk's own.
 		path := h.Path
 		var start, end int
-		var known bool
+		var known, sameSpelling bool
 		switch h.Kind {
-		case refusal.NotRead, refusal.StaleNumber:
+		case refusal.StaleNumber:
+			// Only a page for the very spelling the retry will use, and covering the
+			// line the refusal names, can lift it (ADR-203): the ledger keys a
+			// record per spelling, and the hunk's own address may name more lines.
+			if rest, ok := strings.CutPrefix(h.Reason, "line "); ok {
+				if f := strings.Fields(rest); len(f) > 0 {
+					n, _ := strconv.Atoi(f[0])
+					start, end, known = n, n, n > 0
+				}
+			}
+			if !known {
+				continue
+			}
+			sameSpelling = true
+		case refusal.NotRead:
 			start, end, known = addrRange(h.Addr)
 		case refusal.SourceNotRead:
 			var ok bool
@@ -2561,7 +2575,7 @@ func nameTheAck(root string, res *apply.Result) {
 		live, _ := currentSHA(root, path)
 		covers := false
 		for _, p := range store {
-			if p.Path != path && !anySameFile(root, path, []string{p.Path}) {
+			if p.Path != path && (sameSpelling || !anySameFile(root, path, []string{p.Path})) {
 				continue
 			}
 			if live != "" && p.SHA != live {

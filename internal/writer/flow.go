@@ -207,7 +207,7 @@ func (p *Prepared) Land() (*Landed, error) {
 	// before a check runs and by no other phase: a clean commit, a commit whose
 	// ledger update failed, and a partial commit alike.
 	if MutationOf(res) != None {
-		_ = authoring.RecordNumbering(root, res.StaleNumbered, res.StaleUnshown)
+		_ = authoring.RecordNumbering(root, res.StaleNumbered, 0) // ADR-203: no landing has an unshown candidate
 	}
 	return l, nil
 }
