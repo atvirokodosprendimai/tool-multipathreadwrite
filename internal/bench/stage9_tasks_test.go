@@ -39,7 +39,7 @@ func stage9Sites(t Task) (sites [][]hunk, files int) {
 func stage9Problems(benchDir string, reference bool) (problems []string, unreached int, err error) {
 	b, err := os.ReadFile(filepath.Join(benchDir, "stage-9", "classes.json"))
 	if err != nil {
-		return []string{"no class list: " + err.Error()}, 0, nil
+		return nil, 0, fmt.Errorf("no class list: %w", err)
 	}
 	var list map[string][]string
 	if err := json.Unmarshal(b, &list); err != nil {
@@ -132,9 +132,9 @@ func stage9Problems(benchDir string, reference bool) (problems []string, unreach
 }
 
 // stage9ReferenceHolds builds the task's base tree and its reference result.
-// It returns what is wrong when every require already matches the base, or the
-// reference result misses one; "" when at least one require misses the base and
-// every one holds on the reference result.
+// It returns what is wrong when a require already matches the base, or the
+// reference result misses one; "" when every require misses the base and
+// holds on the reference result.
 func stage9ReferenceHolds(t Task) (string, error) {
 	tree, err := os.MkdirTemp("", "stage9-")
 	if err != nil {
@@ -144,18 +144,14 @@ func stage9ReferenceHolds(t Task) (string, error) {
 	if _, err := Materialize(t, tree, t.GradedFiles()); err != nil {
 		return "", err
 	}
-	atBase := 0
 	for _, m := range t.Require {
 		ok, err := matches(tree, m, false)
 		if err != nil {
 			return "", err
 		}
 		if ok {
-			atBase++
+			return fmt.Sprintf("require %s: %s already matches the base, so it does not tell the fix from no fix", m.File, m.Match), nil
 		}
-	}
-	if atBase == len(t.Require) {
-		return "every require already matches the base, so none of them tells the fix from no fix", nil
 	}
 	if err := ApplyPatch(tree, filepath.Join(t.Dir, "reference.patch")); err != nil {
 		return "", err
@@ -343,7 +339,6 @@ find:
 		{"a follow-on whose first site keeps the line count", func(t *testing.T, _ string, l map[string][]string) { swap(l, "follow-on", "control") }, "the first site keeps the line count"},
 		{"a control whose first site changes the line count", func(t *testing.T, _ string, l map[string][]string) { swap(l, "follow-on", "control") }, "the first site changes the line count"},
 		{"a batch of four sites", func(t *testing.T, root string, l map[string][]string) {
-			l["batch"][0] = fiveSites
 			rewrite(t, filepath.Join(root, "tasks", fiveSites, "reference.patch"), func(s string) string {
 				i := strings.LastIndex(s, "\n@@ ")
 				if i < 0 {
@@ -354,7 +349,6 @@ find:
 		}, "want 5 or more sites in 3 or more files"},
 		{"a single-site task with two sites", func(t *testing.T, _ string, l map[string][]string) { swap(l, "single-site", "control") }, "has 2 sites, want 1"},
 		{"five sites in two files", func(t *testing.T, root string, l map[string][]string) {
-			l["batch"][0] = twoFiles
 			rewrite(t, filepath.Join(root, "tasks", twoFiles, "reference.patch"), func(s string) string {
 				var kept []string
 				for _, block := range strings.Split(s, "diff --git ") {
@@ -366,12 +360,17 @@ find:
 			})
 		}, "in 2 files, want 5 or more sites in 3 or more files"},
 	}
+	// These two defects are each the only thing wrong with the list.
+	only := map[string]bool{"a batch of four sites": true, "five sites in two files": true}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			root := copyBench(t, func(root string, l map[string][]string) { tc.mutate(t, root, l) })
 			problems, _, err := stage9Problems(root, false)
 			if err != nil {
 				t.Fatal(err)
+			}
+			if only[tc.name] && len(problems) != 1 {
+				t.Fatalf("want exactly the one problem %q, got %v", tc.want, problems)
 			}
 			for _, p := range problems {
 				if strings.Contains(p, tc.want) {
@@ -381,37 +380,15 @@ find:
 			t.Fatalf("no problem says %q: %v", tc.want, problems)
 		})
 	}
-	// The two defects below read the pinned repository, so each runs where the
-	// clone of its own task is and skips where it is not. target is that task.
+	// The defects below read the pinned repository, so each runs where the clone
+	// of its own task is and skips where it is not. They go through
+	// stage9Problems, as the acceptance test does, and read what it reports for
+	// the one task they break.
 	target := list["follow-on"][0]
-	heldOf := func(t *testing.T, mutate func(path string)) string {
+	reported := func(t *testing.T, edit func(i int, match string) string) []string {
 		t.Helper()
-		root := copyBench(t, func(root string, l map[string][]string) { mutate(filepath.Join(root, "tasks", target, "task.json")) })
-		task, err := LoadTask(filepath.Join(root, "tasks", target))
-		if err != nil {
-			t.Fatal(err)
-		}
-		held, err := stage9ReferenceHolds(task)
-		if errors.Is(err, errUnreachable) {
-			t.Skipf("task %s: %v", target, err)
-		}
-		if err != nil {
-			t.Fatal(err)
-		}
-		return held
-	}
-	t.Run("a require the reference result misses", func(t *testing.T) {
-		held := heldOf(t, func(path string) {
-			rewrite(t, path, func(s string) string {
-				return strings.Replace(s, "\"match\": \"", "\"match\": \"zz-never-there-", 1)
-			})
-		})
-		if !strings.Contains(held, "does not satisfy require") {
-			t.Fatalf("task %s: no problem names the require the reference misses: %q", target, held)
-		}
-	})
-	t.Run("a task whose every require already matches the base", func(t *testing.T) {
-		held := heldOf(t, func(path string) {
+		root := copyBench(t, func(root string, l map[string][]string) {
+			path := filepath.Join(root, "tasks", target, "task.json")
 			var doc map[string]any
 			b, err := os.ReadFile(path)
 			if err != nil {
@@ -420,8 +397,9 @@ find:
 			if err := json.Unmarshal(b, &doc); err != nil {
 				t.Fatal(err)
 			}
-			for _, r := range doc["require"].([]any) {
-				r.(map[string]any)["match"] = "(?s)."
+			for i, r := range doc["require"].([]any) {
+				m := r.(map[string]any)
+				m["match"] = edit(i, m["match"].(string))
 			}
 			if b, err = json.Marshal(doc); err != nil {
 				t.Fatal(err)
@@ -430,8 +408,48 @@ find:
 				t.Fatal(err)
 			}
 		})
-		if !strings.Contains(held, "already matches the base") {
-			t.Fatalf("task %s: no problem says every require matches the base: %q", target, held)
+		task, err := LoadTask(filepath.Join(root, "tasks", target))
+		if err != nil {
+			t.Fatal(err)
 		}
-	})
+		if _, err := repoPath(task); errors.Is(err, errUnreachable) {
+			t.Skipf("task %s: %v", target, err)
+		}
+		problems, _, err := stage9Problems(root, true)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var own []string
+		for _, p := range problems {
+			if strings.HasPrefix(p, "task "+target+": ") {
+				own = append(own, p)
+			}
+		}
+		return own
+	}
+	for _, tc := range []struct {
+		name, want string
+		edit       func(i int, match string) string
+	}{
+		{"a require the reference result misses", "does not satisfy require", func(i int, m string) string {
+			if i == 0 {
+				return "zz-never-there-" + m
+			}
+			return m
+		}},
+		{"a task whose every require already matches the base", "already matches the base", func(int, string) string { return "(?s)." }},
+		{"one require that already matches the base beside one that misses it", "(?s). already matches the base", func(i int, m string) string {
+			if i == 0 {
+				return "(?s)."
+			}
+			return m
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			own := reported(t, tc.edit)
+			if len(own) != 1 || !strings.Contains(own[0], tc.want) {
+				t.Fatalf("want exactly one problem for %s saying %q, got %v", target, tc.want, own)
+			}
+		})
+	}
 }
