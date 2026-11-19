@@ -1,0 +1,173 @@
+diff --git a/internal/apply/apply.go b/internal/apply/apply.go
+index 74a2c17..f77b858 100644
+--- a/internal/apply/apply.go
++++ b/internal/apply/apply.go
+@@ -67,6 +67,9 @@ type HunkResult struct {
+ 	// never reaches a result as ok). Counted, never acted on. Unexported: not a
+ 	// receipt field.
+ 	staleNumbered bool
++	// exposed is the Stage 9 bench build's event: a hunk that landed although
++	// ADR-203 would have refused it.
++	exposed *Exposed
+ 	// newSpan is where a replace or insert put its body in the written file,
+ 	// and quotedFile says every hunk on the file was licensed by a quote with
+ 	// no fresh ledger entry behind it (ADR-190): the writer then records spans,
+@@ -278,6 +281,20 @@ type Result struct {
+ 	// candidate whose line no read showed is refused, so every one counted here
+ 	// addressed a shown line.
+ 	StaleNumbered int `json:"-"`
++	// Exposed lists the events of the hunks the bench build applied that ADR-203
++	// would have refused. Not a receipt field.
++	Exposed []Exposed `json:"-"`
++}
++
++// Exposed is one number-only hunk on a line no read has shown, applied by the
++// Stage 9 bench build (N). It is the line the bench's kept log holds.
++type Exposed struct {
++	Path         string `json:"path"`
++	Op           string `json:"op"`
++	Start        int    `json:"start"`
++	End          int    `json:"end"`
++	FirstUnshown int    `json:"first_unshown"`
++	SHABefore    string `json:"sha_before"`
+ }
+ 
+ // pending is one file the run is about to commit: a content write, an unlink,
+@@ -460,6 +477,9 @@ func Apply(root string, in []Input, opt Options) (Result, error) {
+ 		if h.Status != StatusOK {
+ 			continue
+ 		}
++		if h.exposed != nil {
++			res.Exposed = append(res.Exposed, *h.exposed)
++		}
+ 		if h.Balance != "" {
+ 			res.Advisories++
+ 		}
+@@ -1296,12 +1316,6 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
+ 		r.Kind = k
+ 		out[h.Index] = r
+ 	}
+-	// failStale is ADR-203's refusal: a number alone on a line no read has shown
+-	// in this version of a file mrw wrote.
+-	failStale := func(h hunk, line int) {
+-		failK(h, refusal.StaleNumber, "line %d of %s has no recorded showing in this version, and a line number alone cannot say which line you mean. "+
+-			"Read it whole (%s; a --quiet read, or a line --max-cols cut, shows nothing), address it by pattern, or give anchor=", line, asPlan(path), staleRemedy(asPlan(path), line))
+-	}
+ 
+ 	// ADR-118, mirrored from the parser (ADR-030) and checked FIRST, as the
+ 	// parser checks it, so a hunk carrying it is refused for this and not for
+@@ -2008,14 +2022,6 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
+ 		}
+ 	}
+ 	if !ok {
+-		// Another hunk of this file failed validation: report the stale numbers
+-		// too, so one round of reads covers them (ADR-203). The overlap check
+-		// below does not run, so an overlap among them is not judged here.
+-		for _, h := range resolved {
+-			if h.staleLine != 0 {
+-				failStale(h, h.staleLine)
+-			}
+-		}
+ 		return nil, false, ""
+ 	}
+ 
+@@ -2057,23 +2063,18 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
+ 				addrString(h.Start, h.End), cursor)
+ 			continue
+ 		}
+-		// ADR-203: judged after the overlap check, so an overlap is reported as it
+-		// was before this refusal existed; the refused hunk still consumes its
+-		// lines, so a hunk it overlaps is reported as overlapping, not as stale.
+-		if h.staleLine != 0 {
+-			failStale(h, h.staleLine)
+-			if h.Op == "insert" {
+-				cursor = h.Start
+-			} else {
+-				cursor = h.End + 1
+-			}
+-			continue
+-		}
+ 		res = append(res, orig[cursor-1:h.Start-1]...)
+ 		cursor = h.Start
+ 
+ 		r := HunkResult{Path: path, Addr: h.SrcAddr, Op: h.SrcOp, SrcLine: h.SrcLine, Status: StatusOK}
+ 		r.staleNumbered = h.staleNumbered
++		if h.staleLine != 0 {
++			s, e := h.Start, h.End
++			if h.Op == "insert" {
++				s, e = h.staleLine, h.staleLine
++			}
++			r.exposed = &Exposed{Path: path, Op: h.SrcOp, Start: s, End: e, FirstUnshown: h.staleLine, SHABefore: shaBefore}
++		}
+ 		// The lines this hunk CONSUMES, for the balance delta: an insert
+ 		// consumes none, so its original net is zero by construction — which
+ 		// is exactly why a balanced insert in the wrong place is invisible to
+diff --git a/internal/writer/writer.go b/internal/writer/writer.go
+index 43e590b..886c559 100644
+--- a/internal/writer/writer.go
++++ b/internal/writer/writer.go
+@@ -10,12 +10,14 @@
+ package writer
+ 
+ import (
++	"encoding/json"
+ 	"fmt"
+ 	"os"
+ 	"path/filepath"
+ 
+ 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/apply"
+ 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
++	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/state"
+ )
+ 
+ // Mutation is how much of a plan reached the tree (ADR-102): the one answer
+@@ -93,6 +95,7 @@ func applyCounted(root string, in []apply.Input, opt apply.Options) (apply.Resul
+ 		return res, 0, err
+ 	}
+ 	gen := bumpWrites(root)
++	stage9Log(res)
+ 	wrote := map[string]seen.Observation{}
+ 	var gone []string
+ 	for _, f := range res.Files {
+@@ -125,6 +128,41 @@ func applyCounted(root string, in []apply.Input, opt apply.Options) (apply.Resul
+ 	return res, gen, err
+ }
+ 
++// stage9Log is the Stage 9 bench build's kept log: one JSON object per line for
++// each exposed hunk of a file that landed, appended to stage9-exposed.jsonl
++// under the state home, which the first landed write of any kind creates. A
++// failure here is silent: it changes nothing a caller sees.
++func stage9Log(res apply.Result) {
++	base, err := state.Base()
++	if err != nil {
++		return
++	}
++	written := map[string]bool{}
++	for _, f := range res.Files {
++		if f.Written {
++			written[f.Path] = true
++		}
++	}
++	var buf []byte
++	for _, e := range res.Exposed {
++		if !written[e.Path] {
++			continue
++		}
++		if b, err := json.Marshal(e); err == nil {
++			buf = append(append(buf, b...), '\n')
++		}
++	}
++	if os.MkdirAll(base, 0o700) != nil {
++		return
++	}
++	f, err := os.OpenFile(filepath.Join(base, "stage9-exposed.jsonl"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
++	if err != nil {
++		return
++	}
++	_, _ = f.Write(buf)
++	_ = f.Close()
++}
++
+ // otherSpellings returns the ledger keys that name a file this write changed
+ // under a spelling the plan did not use: a case variant on a case-insensitive
+ // filesystem, or an in-root symlink (issue #597). Identity is os.SameFile, the
