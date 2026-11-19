@@ -2509,6 +2509,14 @@ func nameTheAck(root string, res *apply.Result) {
 	if res == nil || res.Failed == 0 {
 		return
 	}
+	// ADR-203: this surface has no --force and no `mrw read PATH:N`, so its
+	// remedy for a number alone is the read and the ack. It is said whether or
+	// not a page is pending; a pending one that covers the line is named below.
+	for i := range res.Hunks {
+		if h := &res.Hunks[i]; h.Kind == refusal.StaleNumber {
+			h.Reason += ". Over this surface: mrw_read the line and send its checkpoint ids in ack with the write, or address it by pattern, or give anchor="
+		}
+	}
 	// ADR-157: under a newer ledger an ack licenses nothing either.
 	if _, newer, err := seen.Newer(root); err == nil && newer {
 		return
@@ -2530,7 +2538,7 @@ func nameTheAck(root string, res *apply.Result) {
 		var start, end int
 		var known bool
 		switch h.Kind {
-		case refusal.NotRead:
+		case refusal.NotRead, refusal.StaleNumber:
 			start, end, known = addrRange(h.Addr)
 		case refusal.SourceNotRead:
 			var ok bool

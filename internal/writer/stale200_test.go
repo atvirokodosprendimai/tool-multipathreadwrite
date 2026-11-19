@@ -16,7 +16,7 @@ import (
 // again by Settle, and not at all for a dry run or a refusal.
 func TestALandingIsCountedOnceInLand(t *testing.T) {
 	const body = "package a\nfunc A() {}\nfunc B() {}\n"
-	// a.go is known the way a write leaves it: wholly licensed, nothing shown.
+	// a.go is known the way a write leaves it, wholly licensed, with line 2 shown by a read since: a numbered hunk on it lands (ADR-203 refuses one on an unshown line).
 	tree := func(t *testing.T, harness string) string {
 		t.Helper()
 		root := checkout(t)
@@ -25,7 +25,7 @@ func TestALandingIsCountedOnceInLand(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		if err := seen.Record(root, map[string]seen.Observation{"a.go": {SHA: seen.SHA([]byte(body)), Written: true}}); err != nil {
+		if err := seen.Record(root, map[string]seen.Observation{"a.go": {SHA: seen.SHA([]byte(body)), Written: true, Shown: [][2]int{{2, 2}}}}); err != nil {
 			t.Fatal(err)
 		}
 		return root
@@ -47,7 +47,7 @@ func TestALandingIsCountedOnceInLand(t *testing.T) {
 		if err != nil || !l.CheckDue() {
 			t.Fatalf("err %v checkDue %v, want a landing whose check is due", err, l.CheckDue())
 		}
-		want := authoring.Numbering{Landed: 1, Candidates: 1, WouldRefuse: 1}
+		want := authoring.Numbering{Landed: 1, Candidates: 1}
 		if got := counts(root); got != want {
 			t.Fatalf("after Land: %+v, want %+v", got, want)
 		}

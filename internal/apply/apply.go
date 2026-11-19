@@ -1297,6 +1297,12 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 		r.Kind = k
 		out[h.Index] = r
 	}
+	// failStale is ADR-203's refusal: a number alone on a line no read has shown
+	// in this version of a file mrw wrote.
+	failStale := func(h hunk, line int) {
+		failK(h, refusal.StaleNumber, "line %d of %s has no recorded showing in this version, and a line number alone cannot say which line you mean: an earlier write may have moved it. "+
+			"Read it (mrw read %s:%d, a read that shows it), address it by pattern, or give anchor=", line, asPlan(path), asPlan(path), line)
+	}
 
 	// ADR-118, mirrored from the parser (ADR-030) and checked FIRST, as the
 	// parser checks it, so a hunk carrying it is refused for this and not for
@@ -1823,7 +1829,12 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 				continue
 			}
 			rh := h.resolveTo(start+1, start, "insert")
-			rh.staleNumbered, rh.staleUnshown = staleMarks(h, obs, haveObs, opt, quoted, total, start, start)
+			var shownLine int
+			rh.staleNumbered, shownLine = staleMarks(h, obs, haveObs, opt, quoted, total, start, start)
+			if rh.staleUnshown = shownLine != 0; rh.staleUnshown {
+				failStale(h, shownLine)
+				continue
+			}
 			resolved = append(resolved, rh)
 		case "insert-before":
 			if start < 1 || start > total+1 {
@@ -1834,7 +1845,12 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 				continue
 			}
 			rh := h.resolveTo(start, start-1, "insert")
-			rh.staleNumbered, rh.staleUnshown = staleMarks(h, obs, haveObs, opt, quoted, total, start, start)
+			var shownLine int
+			rh.staleNumbered, shownLine = staleMarks(h, obs, haveObs, opt, quoted, total, start, start)
+			if rh.staleUnshown = shownLine != 0; rh.staleUnshown {
+				failStale(h, shownLine)
+				continue
+			}
 			resolved = append(resolved, rh)
 		case "replace", "delete":
 			// A reversed range is caught at PARSE time when both ends are
@@ -1996,7 +2012,12 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 				}
 			}
 			rh := h.resolveTo(start, end, h.Op)
-			rh.staleNumbered, rh.staleUnshown = staleMarks(h, obs, haveObs, opt, quoted, total, start, end)
+			var shownLine int
+			rh.staleNumbered, shownLine = staleMarks(h, obs, haveObs, opt, quoted, total, start, end)
+			if rh.staleUnshown = shownLine != 0; rh.staleUnshown {
+				failStale(h, shownLine)
+				continue
+			}
 			resolved = append(resolved, rh)
 		default:
 			fail(h, "unsupported op %q", h.Op)
@@ -2690,37 +2711,38 @@ func srcAddrOf(i Input) string {
 }
 
 // staleMarks is ADR-200's predicate, taken where apply holds the selected
-// observation, the op as the caller wrote it and the resolved bounds. It marks
-// and never refuses. numbered: the hunk addresses lines by number alone, names
-// at least one, carries no anchor= and no quote, in a write judged against a
-// ledger, not forced and not computed by mrw, whose record of the file is
-// whole and written-shaped, so a number from an earlier read can name another
-// line in it. unshown: one of the lines it addresses (every line of a range;
-// the line an insert names) is not shown in that record.
-func staleMarks(h hunk, obs Seen, haveObs bool, opt Options, quoted map[int]int, total, start, end int) (bool, bool) {
+// observation, the op as the caller wrote it and the resolved bounds, and
+// ADR-203's refusal acts on it. numbered: the hunk addresses lines by number
+// alone, names at least one, carries no anchor= and no quote, in a write
+// judged against a ledger, not forced and not computed by mrw, whose record of
+// the file is whole and written-shaped, so a number from an earlier read can
+// name another line in it. The second result is the first line it addresses
+// that is not shown in that record (every line of a range; the line an insert
+// names), or 0: the line the refusal names.
+func staleMarks(h hunk, obs Seen, haveObs bool, opt Options, quoted map[int]int, total, start, end int) (bool, int) {
 	if !haveObs || opt.Force || opt.Computed || !obs.Written || !obs.Whole() {
-		return false, false
+		return false, 0
 	}
 	// A start of `$` names the last line wherever it is: `$` alone and `$-N`.
 	if _, q := quoted[h.Index]; q || h.Anchor != "" || h.StartPat != nil || h.Start == EOF {
-		return false, false
+		return false, 0
 	}
 	switch h.Op {
 	case "insert-after":
 		// insert-after 0 is the top of the file: no line is named.
 		if start < 1 {
-			return false, false
+			return false, 0
 		}
 	case "insert-before":
 		// Line 1 and one past the last line are positions, not lines.
 		if start < 2 || start > total {
-			return false, false
+			return false, 0
 		}
 	case "replace", "delete":
 	default:
-		return false, false
+		return false, 0
 	}
-	return true, unshown(obs, start, end) != 0
+	return true, unshown(obs, start, end)
 }
 
 func trim(s string) string {

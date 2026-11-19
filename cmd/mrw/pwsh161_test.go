@@ -28,7 +28,7 @@ func TestAPipedCRLFIsDroppedFromStandardInput(t *testing.T) {
 	}
 
 	// The pair: an all-CRLF plan is unchanged by this rule, and gets no note.
-	out, errOut, code = run("@@ f.txt 2 replace\r\nB\r\n", "write", "--no-check", "-")
+	out, errOut, code = run("@@ f.txt 2 replace anchor=\"b\"\r\nB\r\n", "write", "--no-check", "-")
 	if code != 0 || subFile(t, root, "f.txt") != "A\nB\n" || strings.Contains(errOut, note) {
 		t.Errorf("an all-CRLF plan: exit %d, f.txt %q; want 0, \"A\\nB\\n\" and no note:\n%s%s", code, subFile(t, root, "f.txt"), out, errOut)
 	}

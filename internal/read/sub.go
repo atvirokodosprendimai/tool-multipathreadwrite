@@ -54,6 +54,12 @@ func (s *Sub) file(path, sha string, lns []string, spans []span) [][2]int {
 			// A counted raw body whatever the text: one that starts with @@, body=
 			// or a byte order mark must not be read as a header or an option.
 			hdr := fmt.Sprintf("@@ %s %d replace sha=%s body=1 raw=true", name, ln, sha)
+			// anchor= is the line as it was, so a plan written by a later call is not
+			// refused as a number alone (ADR-203). An empty line, or one holding a CR,
+			// cannot be named by one and keeps its number.
+			if text != "" && !strings.ContainsAny(text, "\r\n") {
+				hdr += ` anchor="` + strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(text) + `"`
+			}
 			s.Plan.WriteString(hdr + "\n" + next + "\n")
 			s.Sites++
 			planned = append(planned, [2]int{ln, ln})

@@ -52,7 +52,7 @@ checker and [verify the final tree](docs/agents.md#queue-code-edits-then-check-t
 
 ## What mrw checks
 
-- **The lines are known.** Existing text needs a current read licence; a file mrw just wrote is wholly known.
+- **The lines are known.** Existing text needs a current read licence; a file mrw just wrote is wholly known, though a number alone is refused on a line no read has shown since the write.
 - **The plan can apply.** A validation failure leaves every file unchanged. Filesystem failures during the actual write are reported separately under [Safety](#safety).
 - **The result is visible.** The receipt names the edits and files, with failures and any check results.
 
@@ -360,7 +360,7 @@ These are gates, not a tour of the records behind them.
   when the undo put everything back.
 - **Per-line licence.** Being served lines 1–5 does not license line 40.
   `--stat` and a match that printed nothing observe nothing.
-  A file mrw just wrote is wholly known: a chain of edits needs no re-read, though its line numbers can move. A file whose every hunk in the write was a SEARCH/REPLACE block gains the lines written, not the whole file.
+  A file mrw just wrote is wholly known, but a number alone is refused on a line no read has shown since the write (the reason says `has no recorded showing in this version`): read the line (a whole-file `--quiet` read shows nothing), address it by pattern, or give `anchor=`. A file whose every hunk in the write was a SEARCH/REPLACE block gains the lines written, not the whole file.
 - **One writer at a time.** Writers on one checkout take turns (ADR-075). A writer waits up to 120 s for the
   one before it, then is refused, exit 2, nothing applied, naming the holder's pid; `MRW_WRITE_LOCK_TIMEOUT`
   sets the wait in seconds, `0` for one try (ADR-110).

@@ -47,6 +47,10 @@ EXEMPT = {
     # cmd/mrw/main.go and internal/mcp/tools.go reach it through writer.Prepare and Land. ADR-075 T1 pinned both sites.
     ("docs/adr/ADR-075-", "'writer\\.Apply(' cmd/mrw/main.go"): "ADR-113",
     ("docs/adr/ADR-075-", "'writer\\.Apply(' internal/mcp/tools.go"): "ADR-113",
+    # ADR-203 refuses a number alone on an unshown line of a written file, so the sentence ADR-200 T2
+    # pinned ("needs no re-read, though its line numbers can move") is replaced by one that says so.
+    ("docs/adr/ADR-200/", "'needs no re-read, though its line numbers can move' AGENTS.md"): "ADR-203",
+    ("docs/adr/ADR-200/", "'needs no re-read, though its line numbers can move' README.md"): "ADR-203",
 }
 
 

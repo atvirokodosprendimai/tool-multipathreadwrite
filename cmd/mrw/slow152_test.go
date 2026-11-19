@@ -41,7 +41,7 @@ func TestTheCLIPrintsTheSlowCheckHint(t *testing.T) {
 		t.Errorf("want one hint line naming scoped_check, got %d:\n%s", n, out)
 	}
 
-	if err := os.WriteFile(filepath.Join(root, "p.plan"), []byte("@@ a.txt 1 replace\none\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "p.plan"), []byte("@@ a.txt 1 replace anchor=\"uno\"\none\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	out, code = runIn(t, root, "write", "--check", "--json", filepath.Join(root, "p.plan"))

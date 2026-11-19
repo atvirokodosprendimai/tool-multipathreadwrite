@@ -3,6 +3,7 @@ package writer
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/apply"
@@ -32,7 +33,10 @@ func caseFolds(t *testing.T, dir string) bool {
 }
 
 // land597 replaces one line the way Land does: the ledger is loaded before the
-// landing and handed to it.
+// landing and handed to it. The line is named by its number and by anchor= (each
+// line of lines597 is its own number), since a number alone is refused on a line
+// of a file mrw wrote that no read has shown (ADR-203); what the tests below
+// prove is which spelling's entry the write is judged on.
 func land597(t *testing.T, root, path string, line int, text string) apply.Result {
 	t.Helper()
 	l, err := seen.Snapshot(root)
@@ -40,7 +44,7 @@ func land597(t *testing.T, root, path string, line int, text string) apply.Resul
 		t.Fatal(err)
 	}
 	res, err := Apply(root, []apply.Input{
-		{Path: path, Start: line, End: line, Op: "replace", Body: []string{text}, Lines: -1, SrcLine: 1, Index: 0},
+		{Path: path, Start: line, End: line, Op: "replace", Anchor: strconv.Itoa(line), Body: []string{text}, Lines: -1, SrcLine: 1, Index: 0},
 	}, apply.Options{Seen: l})
 	if err != nil {
 		t.Fatalf("write %s:%d: %v", path, line, err)

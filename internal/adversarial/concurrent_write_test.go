@@ -74,7 +74,9 @@ func TestConcurrentWritersOffOneReadLoseNothing(t *testing.T) {
 					lost = append(lost, j)
 				}
 			case 1:
-				if !strings.Contains(outs[j], "changed since") {
+				// Another writer's landing replaced the ledger's record with the new content, so this one is
+				// judged either as a file that changed since the read, or (ADR-203) as a number alone on a line no read has shown.
+				if !strings.Contains(outs[j], "changed since") && !strings.Contains(outs[j], "has no recorded showing") {
 					t.Errorf("round %d: writer %d exited 1 without naming the change:\n%s", round, j, outs[j])
 				}
 			default:

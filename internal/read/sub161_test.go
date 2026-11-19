@@ -41,10 +41,11 @@ func TestASubReadPrintsAPlanAndLicensesItsLines(t *testing.T) {
 	}
 	var lastObs map[string]seen.Observation
 	// hdr is a hunk header as the read prints it: pinned to the content it
-	// planned from, and a counted raw body whatever the text.
-	hdr := func(name string, ln int, content string) string {
+	// planned from, a counted raw body whatever the text, and anchored on the line
+	// as it was (ADR-203), so the plan lands when a later call writes it.
+	hdr := func(name string, ln int, content, line string) string {
 		sum := sha256.Sum256([]byte(content))
-		return "@@ " + name + " " + strconv.Itoa(ln) + " replace sha=" + hex.EncodeToString(sum[:]) + " body=1 raw=true\n"
+		return "@@ " + name + " " + strconv.Itoa(ln) + " replace sha=" + hex.EncodeToString(sum[:]) + " body=1 raw=true anchor=\"" + line + "\"\n"
 	}
 	plan := func(paths ...string) (*Sub, map[string][][2]int, string, int) {
 		t.Helper()
@@ -68,11 +69,11 @@ func TestASubReadPrintsAPlanAndLicensesItsLines(t *testing.T) {
 		t.Fatalf("problems=%d:\n%s", problems, diag)
 	}
 	const aGo = "Old\nOldX\nxOld\nkeep Old and Old\n"
-	want := hdr("a.go", 1, aGo) + "New\n" +
-		hdr("a.go", 4, aGo) + "keep New and New\n" +
-		hdr("raw.txt", 1, "@@ Old\n") + "@@ New\n" +
-		hdr("crlf.txt", 1, "Old\r\nOldX\r\n") + "New\n" +
-		hdr(`"has space.txt"`, 1, "Old\n") + "New\n"
+	want := hdr("a.go", 1, aGo, "Old") + "New\n" +
+		hdr("a.go", 4, aGo, "keep Old and Old") + "keep New and New\n" +
+		hdr("raw.txt", 1, "@@ Old\n", "@@ Old") + "@@ New\n" +
+		hdr("crlf.txt", 1, "Old\r\nOldX\r\n", "Old") + "New\n" +
+		hdr(`"has space.txt"`, 1, "Old\n", "Old") + "New\n"
 	if got := sub.Plan.String(); got != want {
 		t.Errorf("plan:\n%s\nwant:\n%s", got, want)
 	}
@@ -112,8 +113,8 @@ func TestASubReadPrintsAPlanAndLicensesItsLines(t *testing.T) {
 	write("q\"uote.txt", "Old\n")
 	write("b'o\"th.txt", "Old\n")
 	for name, want := range map[string]string{
-		"q\"uote.txt": hdr(`"q\"uote.txt"`, 1, "Old\n") + "New\n",
-		"b'o\"th.txt": hdr(`"b'o\"th.txt"`, 1, "Old\n") + "New\n",
+		"q\"uote.txt": hdr(`"q\"uote.txt"`, 1, "Old\n", "Old") + "New\n",
+		"b'o\"th.txt": hdr(`"b'o\"th.txt"`, 1, "Old\n", "Old") + "New\n",
 	} {
 		sub, _, _, _ = plan(name)
 		if got := sub.Plan.String(); got != want {

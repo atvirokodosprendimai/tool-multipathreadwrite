@@ -53,7 +53,7 @@ func Recipes() string {
   mrw read 'a.go:/func A/,+12' b.go:40-60 && mrw write "$TMPDIR/plan.txt"
 6. a step after the write, in the same call (NAME is a step in .quality-harness.json; a write runs no check unless --check asks for it; ` + ThenShCaveat() + `):
   mrw write - --then NAME
-7. license lines you already know, without them in your context (a read into /dev/null licenses nothing; a file mrw just wrote keeps a whole-file licence, unless every hunk on it was a search_replace block (the write then adds the lines it wrote to the licence it had), but its line numbers can move (recipe 21)):
+7. license lines you already know, without them in your context (a read into /dev/null licenses nothing; a file mrw just wrote keeps a whole-file licence, unless every hunk on it was a search_replace block (the write then adds the lines it wrote to the licence it had), but until a read has shown a line a number alone is refused; a whole-file --quiet read shows nothing (recipe 21)):
   mrw read --quiet f.go:40-60
 8. a file of long lines (logs, JSONL), each line cut to a window round the match:
   mrw read --grep P --max-cols 200 f.jsonl
@@ -81,7 +81,7 @@ func Recipes() string {
   mrw write --terse plan.txt
 20. answer by reference what you were already served, with --if-served PATH=SHA — only in a session alone in its checkout, whose host runs mrw seen --forget on start, resume, clear and compaction, and whose reads were made under --max-chars below the host's output limit, since a line recorded as shown may never have reached you (anywhere else, recipe 11):
   mrw read --if-served f.go=8dc37337 f.go:40-60
-21. a second edit to a file you just wrote, with no read between: its line numbers can have moved, so name the line by a pattern and say what it holds (read again before you reuse a number you are not sure of):
+21. a second edit to a file you just wrote: a number alone is refused, so name the line by a pattern and say what it holds (anchor=), or read the line first (mrw read f.go:40):
   printf '%s\n' '@@ f.go /^func B\(/ replace anchor="func B("' 'func B(x int) {' | mrw write -`
 }
 
@@ -121,8 +121,8 @@ A path reaches mrw as typed, spaces included: mrw read 'x ' reads the file named
 Ops: replace, insert-after, insert-before, delete, create, unlink, rename.
 @@ path 0 create makes a new file; empty is body=0. A new file is not a reason to skip mrw.
 A multi-line replace requires anchor= taken from the served first line. sha= and lines= do not stand in for it.
-A file mrw just wrote is wholly known: it produced every line, so a chain of edits to it needs no re-read, until something else changes it. The exception is a file whose every hunk in the write was a search_replace block: the write adds the lines it wrote to what was licensed before, and no more (ADR-190).
-After a write, a number from an earlier read names another line, or none, wherever the write changed how many lines come before the line it named, or removed that line: read the file again, address by pattern, or give anchor=.
+A file mrw just wrote is wholly known: it produced every line, so a line you name by pattern or anchor= needs no re-read, until something else changes it. A number alone is refused on a line of it that no read has shown since the write (the reason says the line has no recorded showing in this version): read the line, or name it by a pattern or anchor=. The exception is a file whose every hunk in the write was a search_replace block: the write adds the lines it wrote to what was licensed before, and no more (ADR-190).
+After a write, a number from an earlier read names another line, or none, wherever the write changed how many lines come before the line it named, or removed that line, which is why a number alone is refused: read the file again, address by pattern, or give anchor=.
 A --format=search_replace block whose SEARCH side quotes every line it replaces, exactly and matching once in the file, needs no read: mrw checks the quote against the file when it writes (ADR-190). Use it after a compaction, or for a file you saw with your host's own tools. For a multi-line block, end SEARCH and REPLACE with the same line (the closer you keep), or read the line after the range. A line the block does not quote, and any native hunk, still needs its read.
 Read these rules once a session. After a compaction, re-read the lines you will edit (the ledger survives it and still licenses lines you no longer hold, but does not require the re-read); read the rules again only if they are gone from your context.
 Read every site in one call: mrw read a.go:40-60 'b.go:/func Start/,+12' c.go:$
@@ -151,13 +151,13 @@ mrw skill prints the core and the recipes as an Agent Skills SKILL.md, and mrw s
 func Core() string {
 	return `The eight rules that matter most; read them once a session, and after a compaction only if lost:
 1. Use mrw for every file read, edit and create: one read of every site, one plan, one write (mrw write PLANFILE); one change at many sites: mrw write --grep P --sub R.
-2. Read before you write, per line: writing a line mrw never served you is refused, except in a file mrw just wrote, whose numbers can move. After a multi-line body, read on past your range until the enclosing structure closes.
+2. Read before you write, per line: a line mrw never served is refused, except in a file mrw just wrote, where a number alone is refused: use a pattern, anchor= or a read. After a multi-line body, read on past your range until the enclosing structure closes.
 3. A plan that fails validation writes nothing: read the refusal, which names file, plan line and reason; never --force. A commit that fails reports what reached disk.
 4. A hunk is @@ PATH N-M replace anchor="TEXT", @@ PATH N insert-after or @@ PATH N-M delete, then its lines; anchor=, required on a multi-line replace, is copied from line N as read; omit body= unless mrw instructions names your case.
-5. For a write: exit 0 fine, 1 a hunk failed and nothing was written, 2 usage or filesystem, 3 applied but the check did not pass. A read exits 1 when a range cannot be served; a range your own --max-lines or --max-matches withheld is not one: exits 0 (capped). Never read an exit code through a pipe: head's status replaces it.
+5. For a write: exit 0 fine, 1 a hunk failed and nothing was written, 2 usage or filesystem, 3 applied but the check did not pass. A read exits 1 when a range cannot be served; a range your own --max-lines or --max-matches withheld is not one: exits 0. Never read an exit code through a pipe.
 6. Find with mrw read --grep PATTERN; start it with (?i) to ignore case; --stat lists the matching files; --max-cols N cuts long lines, leaving them unread; --no-numbers drops numbers.
 7. A new file is mrw write --create PATH < content, or @@ path 0 create in a plan.
-8. -C DIR or --root DIR comes BEFORE the subcommand; after read, -C N is context lines. A path reaches mrw as typed, spaces included.
+8. -C DIR or --root DIR comes BEFORE the subcommand; after read, -C N is context lines. A path reaches mrw as typed.
 `
 }
 

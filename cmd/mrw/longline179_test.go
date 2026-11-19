@@ -101,7 +101,8 @@ func TestMRWMaxColsAppliesWhenTheFlagIsAbsent(t *testing.T) {
 func TestMRWMaxColsDoesNotApplyToAQuietRead(t *testing.T) {
 	root := longline179Tree(t)
 	t.Setenv("MRW_MAX_COLS", "100")
-	if _, errOut, code := project178Run(t, root, "", "read", "--quiet", "a.txt"); code != 0 || strings.Contains(errOut, "MRW_MAX_COLS") {
+	// Line 2 only: a whole quiet read of a file shows nothing, and a number alone is refused on it (ADR-203).
+	if _, errOut, code := project178Run(t, root, "", "read", "--quiet", "a.txt:2"); code != 0 || strings.Contains(errOut, "MRW_MAX_COLS") {
 		t.Fatalf("a --quiet read under the variable exited %d:\n%s", code, errOut)
 	}
 	plan := planFile(t, "@@ a.txt 2 replace\nnew\n")

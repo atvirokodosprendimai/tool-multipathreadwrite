@@ -31,9 +31,13 @@ func TestAnMcpWriteIsCountedAndAComputedPlanIsNot(t *testing.T) {
 		}
 	}
 	t.Run("a typed plan is counted", func(t *testing.T) {
-		root := fresh(t)
+		// Line 4 is shown since the write: an unshown one is refused (ADR-203), not counted.
+		root, _ := checkout(t, "f.txt", body)
+		if err := seen.Record(root, map[string]seen.Observation{"f.txt": {SHA: seen.SHA([]byte(body)), Written: true, Shown: [][2]int{{4, 4}}}}); err != nil {
+			t.Fatal(err)
+		}
 		write(t, root, map[string]any{"plan": "@@ f.txt 4 replace\nX\n"})
-		if got, want := authoring.LoadNumbering(root), (authoring.Numbering{Landed: 1, Candidates: 1, WouldRefuse: 1}); got != want {
+		if got, want := authoring.LoadNumbering(root), (authoring.Numbering{Landed: 1, Candidates: 1}); got != want {
 			t.Errorf("%+v, want %+v", got, want)
 		}
 	})

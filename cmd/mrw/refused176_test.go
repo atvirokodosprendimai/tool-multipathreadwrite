@@ -514,7 +514,7 @@ func TestAWriteThatLandedKeepsNoPlan(t *testing.T) {
 	}
 	none("a plan that landed (exit 0)")
 
-	if _, _, c := k.run("@@ f.txt 2 replace\nB\n", nil, "write", "--no-check", "--then-sh", "exit 1", "-"); c != 3 {
+	if _, _, c := k.run("@@ f.txt 2 replace anchor=\"b\"\nB\n", nil, "write", "--no-check", "--then-sh", "exit 1", "-"); c != 3 {
 		t.Errorf("a failing step: exit %d, want 3", c)
 	}
 	none("a plan that landed and whose step failed (exit 3)")

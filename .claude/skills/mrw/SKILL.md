@@ -11,22 +11,22 @@ description: >-
   heredocs. It applies only while mrw is on PATH: if it is not, use the host's
   own tools and do not install it.
 metadata:
-  mrw-version: "v1.90.3 (b759e46)"
+  mrw-version: "dev (b46ff15, dirty)"
   generated-by: "mrw skill"
-  content-sha256: "bc73b5432518556062a7f2e89f40daf4a149f6f9537057bb8668c8229602f6e6"
+  content-sha256: "27a7a09caf6c7cabc48512a02129df7bf0824d102107a5b0c496a0b8b9ccc49f"
 ---
 
 # mrw
 
 The eight rules that matter most; read them once a session, and after a compaction only if lost:
 1. Use mrw for every file read, edit and create: one read of every site, one plan, one write (mrw write PLANFILE); one change at many sites: mrw write --grep P --sub R.
-2. Read before you write, per line: writing a line mrw never served you is refused, except in a file mrw just wrote, whose numbers can move. After a multi-line body, read on past your range until the enclosing structure closes.
+2. Read before you write, per line: a line mrw never served is refused, except in a file mrw just wrote, where a number alone is refused: use a pattern, anchor= or a read. After a multi-line body, read on past your range until the enclosing structure closes.
 3. A plan that fails validation writes nothing: read the refusal, which names file, plan line and reason; never --force. A commit that fails reports what reached disk.
 4. A hunk is @@ PATH N-M replace anchor="TEXT", @@ PATH N insert-after or @@ PATH N-M delete, then its lines; anchor=, required on a multi-line replace, is copied from line N as read; omit body= unless mrw instructions names your case.
-5. For a write: exit 0 fine, 1 a hunk failed and nothing was written, 2 usage or filesystem, 3 applied but the check did not pass. A read exits 1 when a range cannot be served; a range your own --max-lines or --max-matches withheld is not one: exits 0 (capped). Never read an exit code through a pipe: head's status replaces it.
+5. For a write: exit 0 fine, 1 a hunk failed and nothing was written, 2 usage or filesystem, 3 applied but the check did not pass. A read exits 1 when a range cannot be served; a range your own --max-lines or --max-matches withheld is not one: exits 0. Never read an exit code through a pipe.
 6. Find with mrw read --grep PATTERN; start it with (?i) to ignore case; --stat lists the matching files; --max-cols N cuts long lines, leaving them unread; --no-numbers drops numbers.
 7. A new file is mrw write --create PATH < content, or @@ path 0 create in a plan.
-8. -C DIR or --root DIR comes BEFORE the subcommand; after read, -C N is context lines. A path reaches mrw as typed, spaces included.
+8. -C DIR or --root DIR comes BEFORE the subcommand; after read, -C N is context lines. A path reaches mrw as typed.
 
 Recipes:
 1. the same change at many sites, nothing in your context:
@@ -41,7 +41,7 @@ Recipes:
   mrw read 'a.go:/func A/,+12' b.go:40-60 && mrw write "$TMPDIR/plan.txt"
 6. a step after the write, in the same call (NAME is a step in .quality-harness.json; a write runs no check unless --check asks for it; --then-sh and mrw run run any shell command they are given, so both are off unless MRW_SHELL=on is in mrw's environment (a step the project declares in .quality-harness.json runs with --then NAME); with them off, allowing mrw still runs the project's declared check and steps and no ad-hoc shell, but that is not containment: mrw writes any file its user can, .quality-harness.json included.):
   mrw write - --then NAME
-7. license lines you already know, without them in your context (a read into /dev/null licenses nothing; a file mrw just wrote keeps a whole-file licence, unless every hunk on it was a search_replace block (the write then adds the lines it wrote to the licence it had), but its line numbers can move (recipe 21)):
+7. license lines you already know, without them in your context (a read into /dev/null licenses nothing; a file mrw just wrote keeps a whole-file licence, unless every hunk on it was a search_replace block (the write then adds the lines it wrote to the licence it had), but until a read has shown a line a number alone is refused; a whole-file --quiet read shows nothing (recipe 21)):
   mrw read --quiet f.go:40-60
 8. a file of long lines (logs, JSONL), each line cut to a window round the match:
   mrw read --grep P --max-cols 200 f.jsonl
@@ -69,9 +69,9 @@ Recipes:
   mrw write --terse plan.txt
 20. answer by reference what you were already served, with --if-served PATH=SHA — only in a session alone in its checkout, whose host runs mrw seen --forget on start, resume, clear and compaction, and whose reads were made under --max-chars below the host's output limit, since a line recorded as shown may never have reached you (anywhere else, recipe 11):
   mrw read --if-served f.go=8dc37337 f.go:40-60
-21. a second edit to a file you just wrote, with no read between: its line numbers can have moved, so name the line by a pattern and say what it holds (read again before you reuse a number you are not sure of):
+21. a second edit to a file you just wrote: a number alone is refused, so name the line by a pattern and say what it holds (anchor=), or read the line first (mrw read f.go:40):
   printf '%s\n' '@@ f.go /^func B\(/ replace anchor="func B("' 'func B(x int) {' | mrw write -
 
-`mrw instructions` prints the whole contract. This file was printed by `mrw skill` from mrw v1.90.3 (b759e46); when `mrw version` prints another version, `mrw skill --dir <the directory holding this mrw folder>` replaces it.
+`mrw instructions` prints the whole contract. This file was printed by `mrw skill` from mrw dev (b46ff15, dirty); when `mrw version` prints another version, `mrw skill --dir <the directory holding this mrw folder>` replaces it.
 
 A host's per-path rules for its Edit and Write tools do not reach mrw, which writes wherever its user can: their absence is not permission, and mrw is not a way to reach a path the host refused you.
