@@ -11529,7 +11529,7 @@ seed349; want 0 "$?" "ADR-203: the seed write, a file read whole and then writte
 cp "$R349/f.txt" "$R349/before.txt"
 printf '@@ f.txt 8 replace\nX\n' | e349 write --no-check - > "$R349/w1.out"
 want 1 "$?" "ADR-203: a number alone on a line no read has shown is refused"
-{ cmp -s "$R349/f.txt" "$R349/before.txt" && grep -q "line 8 of f.txt has no recorded showing in this version, and a line number alone cannot say which line you mean. Read it whole (mrw read 'f.txt:8'; a --quiet read, or a line --max-cols cut, shows nothing), address it by pattern, or give anchor=" "$R349/w1.out"; } \
+{ cmp -s "$R349/f.txt" "$R349/before.txt" && grep -q "line 8 of f.txt has no recorded showing in this version, and a line number alone cannot say which line you mean. Read it whole (mrw read f.txt:8; a --quiet read, or a line --max-cols cut, shows nothing), address it by pattern, or give anchor=" "$R349/w1.out"; } \
   && ok "ADR-203: the file is byte-identical and the reason names line 8" || bad "refusal: $(head -c 300 "$R349/w1.out")"
 seed349; want 0 "$?" "ADR-203: the reseed lands"
 printf '@@ f.txt 8 replace anchor="L7"\nX\n' | e349 write --no-check - > "$R349/w2.out"
@@ -11551,6 +11551,19 @@ printf '@@ c.txt 4 replace anchor="c4"\nX\n' | e349 write --no-check - > "$R349/
 want 0 "$?" "ADR-203 pair: the same edit with anchor= lands"
 [ "$(sed -n 4p "$R349/c.txt")" = X ] && ok "ADR-203 pair: on line 4" || bad "c.txt is $(tr '\n' '|' < "$R349/c.txt")"
 rm -rf "$R349"
+
+# §349, continued: the two messages a read to the null device prints must not offer what the
+# refusal then takes away (found by two Windows peers, 2026-11-19). The pair: the same read,
+# shown, is what the refusal asks for, and it says neither.
+R349N="$WORK/r349n"; mkdir -p "$R349N"; printf 'a\nb\nc\n' > "$R349N/in.txt"
+"$MRW" --root "$R349N" write --create n.txt < "$R349N/in.txt" > /dev/null 2>&1
+want 0 "$?" "ADR-203 null read: the seed is created"
+"$MRW" --root "$R349N" read n.txt:2 > /dev/null 2> "$WORK/e349n"
+grep -q 'not by number alone (ADR-203)' "$WORK/e349n" && grep -q 'a number alone still needs the line shown (ADR-203)' "$WORK/e349n" \
+  && ok "ADR-203 null read: both messages say a number alone needs the line shown" || bad "messages: $(head -c 600 "$WORK/e349n")"
+"$MRW" --root "$R349N" read n.txt:2 > "$WORK/o349n" 2> "$WORK/e349n2"
+want 0 "$?" "ADR-203 null read pair: the shown read is served"
+! grep -q 'ADR-203' "$WORK/e349n2" && ok "ADR-203 null read pair: and says neither" || bad "messages: $(head -c 300 "$WORK/e349n2")"
 
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A

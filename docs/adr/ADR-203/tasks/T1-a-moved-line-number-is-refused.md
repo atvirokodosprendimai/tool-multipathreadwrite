@@ -93,8 +93,31 @@ go test -count=1 -v ./internal/apply ./cmd/mrw ./internal/mcp ./internal/guide -
 | 4 — it is used | telemetry is refused by ADR-009; the reading of BACKLOG.md "Pre-registered for ADR-203" |
 
 ## Mutation Log
+- 2026-11-19 · 6cf84b40* · mutant killed · exit 1 · `internal/apply/apply.go` · the refusal is not made at the replace and delete site · acceptance-sha256:8641905cbfac27e479d8c97eca8bf7cb7122f059627159fac284df5aa4c22f82 · covers:a number alone on an unshown line of a written file is refused
+- 2026-11-19 · 6cf84b40* · mutant killed · exit 1 · `internal/apply/apply.go` · it is made on a shown line · acceptance-sha256:8641905cbfac27e479d8c97eca8bf7cb7122f059627159fac284df5aa4c22f82 · covers:every way to say which line still lands
+- 2026-11-19 · 6cf84b40* · mutant killed · exit 1 · `internal/apply/apply.go` · it is made with anchor= · acceptance-sha256:8641905cbfac27e479d8c97eca8bf7cb7122f059627159fac284df5aa4c22f82 · covers:every way to say which line still lands
+- 2026-11-19 · 6cf84b40* · mutant killed · exit 1 · `internal/apply/apply.go` · it is made under --force · acceptance-sha256:8641905cbfac27e479d8c97eca8bf7cb7122f059627159fac284df5aa4c22f82 · covers:every way to say which line still lands
+- 2026-11-19 · 6cf84b40* · mutant killed · exit 1 · `internal/apply/apply.go` · it is made on a computed plan · acceptance-sha256:8641905cbfac27e479d8c97eca8bf7cb7122f059627159fac284df5aa4c22f82 · covers:every way to say which line still lands
+- 2026-11-19 · 6cf84b40* · mutant killed · exit 1 · `internal/apply/apply.go` · it is made on a file read whole and never written · acceptance-sha256:8641905cbfac27e479d8c97eca8bf7cb7122f059627159fac284df5aa4c22f82 · covers:every way to say which line still lands
+- 2026-11-19 · 6cf84b40* · mutant killed · exit 1 · `internal/apply/apply.go` · a range is judged on its first line only · acceptance-sha256:8641905cbfac27e479d8c97eca8bf7cb7122f059627159fac284df5aa4c22f82 · covers:a number alone on an unshown line of a written file is refused
+- 2026-11-19 · 6cf84b40* · mutant killed · exit 1 · `cmd/mrw/main.go` · the stats sentence still names 2026-12-18 · acceptance-sha256:8641905cbfac27e479d8c97eca8bf7cb7122f059627159fac284df5aa4c22f82 · covers:the stats block says what its counters are now
 
 ## Verification Log
+- 2026-11-19 · 6cf84b40* · exit 1 · `set -o pipefail …` · acceptance-sha256:8641905cbfac27e479d8c97eca8bf7cb7122f059627159fac284df5aa4c22f82 · ms:285 · test-lock-sha256:24c171f0c4decb5838dc7227f731d23aaf4b6030c352866399acb589138a980f · test-lock-file:docs/adr/locks/24c171f0c4decb5838dc7227f731d23aaf4b6030c352866399acb589138a980f.lock
+  ```
+  --- last 2 line(s) of stderr
+  # github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read
+  internal/read/plansource.go:117:175: sub.Unanchored undefined (type *Sub has no field or method Unanchored)
+  ```
+- 2026-11-19 · 6cf84b40* · exit 0 · `set -o pipefail …` · acceptance-sha256:8641905cbfac27e479d8c97eca8bf7cb7122f059627159fac284df5aa4c22f82 · ms:2191
+- 2026-11-19 · 6cf84b40* · exit 0 · `set -o pipefail …` · acceptance-sha256:8641905cbfac27e479d8c97eca8bf7cb7122f059627159fac284df5aa4c22f82 · ms:3537
+- 2026-11-19 · 6cf84b40* · exit 0 · `set -o pipefail …` · acceptance-sha256:8641905cbfac27e479d8c97eca8bf7cb7122f059627159fac284df5aa4c22f82 · ms:3999
+- 2026-11-19 · 6cf84b40* · exit 0 · `set -o pipefail …` · acceptance-sha256:8641905cbfac27e479d8c97eca8bf7cb7122f059627159fac284df5aa4c22f82 · ms:4572
+- 2026-11-19 · 6cf84b40* · exit 0 · `set -o pipefail …` · acceptance-sha256:8641905cbfac27e479d8c97eca8bf7cb7122f059627159fac284df5aa4c22f82 · ms:5075
+- 2026-11-19 · 6cf84b40* · exit 0 · `set -o pipefail …` · acceptance-sha256:8641905cbfac27e479d8c97eca8bf7cb7122f059627159fac284df5aa4c22f82 · ms:11781
+- 2026-11-19 · 6cf84b40* · exit 0 · `set -o pipefail …` · acceptance-sha256:8641905cbfac27e479d8c97eca8bf7cb7122f059627159fac284df5aa4c22f82 · ms:14902
+- 2026-11-19 · 6cf84b40* · exit 0 · `set -o pipefail …` · acceptance-sha256:8641905cbfac27e479d8c97eca8bf7cb7122f059627159fac284df5aa4c22f82 · ms:20416
+- 2026-11-19 · 6cf84b40* · exit 0 · `set -o pipefail …` · acceptance-sha256:8641905cbfac27e479d8c97eca8bf7cb7122f059627159fac284df5aa4c22f82 · ms:7105
 
 ## Invariants
 

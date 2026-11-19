@@ -28,7 +28,7 @@ func TestANumberAloneIsRefusedOnALineNotShownSinceTheWrite(t *testing.T) {
 		return Input{Path: "f.txt", Start: n, End: n, Op: op, Body: []string{"X"}, Lines: -1}
 	}
 	with := func(in Input, f func(*Input)) Input { f(&in); return in }
-	const ways = "has no recorded showing in this version, and a line number alone cannot say which line you mean. Read it whole (mrw read 'f.txt:"
+	const ways = "has no recorded showing in this version, and a line number alone cannot say which line you mean. Read it whole (mrw read f.txt:"
 
 	fresh := func(t *testing.T) string {
 		t.Helper()
@@ -76,7 +76,7 @@ func TestANumberAloneIsRefusedOnALineNotShownSinceTheWrite(t *testing.T) {
 			if res.Applied || res.Failed != 1 || h.Status != StatusFailed || h.Kind != refusal.StaleNumber {
 				t.Fatalf("not refused as a stale number: applied %v failed %d, %+v", res.Applied, res.Failed, h)
 			}
-			if want := "line " + strconv.Itoa(c.line) + " of f.txt " + ways + strconv.Itoa(c.line) + "'; a --quiet read, or a line --max-cols cut, shows nothing), address it by pattern, or give anchor="; !strings.Contains(h.Reason, want) {
+			if want := "line " + strconv.Itoa(c.line) + " of f.txt " + ways + strconv.Itoa(c.line) + "; a --quiet read, or a line --max-cols cut, shows nothing), address it by pattern, or give anchor="; !strings.Contains(h.Reason, want) {
 				t.Errorf("the reason is %q, want it to hold %q", h.Reason, want)
 			}
 			if got := read(t, root); got != body {

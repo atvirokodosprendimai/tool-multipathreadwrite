@@ -45,7 +45,7 @@ func TestAStaleNumberIsRefusedByTheBinary(t *testing.T) {
 	refused := func(t *testing.T, root, doc, line string) {
 		t.Helper()
 		out, code := write(t, root, doc)
-		if code != 1 || !strings.Contains(out, "line "+line+" of f.txt "+noShowing+"mrw read 'f.txt:"+line+"'; a --quiet read, or a line --max-cols cut, shows nothing), address it by pattern, or give anchor=") {
+		if code != 1 || !strings.Contains(out, "line "+line+" of f.txt "+noShowing+"mrw read f.txt:"+line+"; a --quiet read, or a line --max-cols cut, shows nothing), address it by pattern, or give anchor=") {
 			t.Fatalf("want exit 1 naming line %s, got %d:\n%s", line, code, out)
 		}
 		if got := cat(t, root, "f.txt"); got != seeded {

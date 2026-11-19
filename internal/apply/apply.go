@@ -2736,17 +2736,19 @@ func staleMarks(h hunk, obs Seen, haveObs bool, opt Options, quoted map[int]int,
 }
 
 // staleRemedy is the read the stale-number refusal names: a command the caller
-// can paste when the path is printable ASCII with no single quote and no leading
-// dash, and a description when quoting it would not be safe (ADR-203).
+// can paste when the path is letters, digits, `.`, `_`, `-` and `/` only, with
+// no leading dash, which is one word in every shell mrw meets (single quotes
+// do not quote in cmd.exe), and a description otherwise (ADR-203).
 func staleRemedy(p string, line int) string {
 	ok := p != "" && p[0] != '-'
 	for i := 0; i < len(p); i++ {
-		if p[i] < 0x20 || p[i] > 0x7e || p[i] == '\'' {
+		c := p[i]
+		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '.' || c == '_' || c == '-' || c == '/') {
 			ok = false
 		}
 	}
 	if ok {
-		return fmt.Sprintf("mrw read '%s:%d'", p, line)
+		return fmt.Sprintf("mrw read %s:%d", p, line)
 	}
 	return fmt.Sprintf("a read that shows line %d", line)
 }
