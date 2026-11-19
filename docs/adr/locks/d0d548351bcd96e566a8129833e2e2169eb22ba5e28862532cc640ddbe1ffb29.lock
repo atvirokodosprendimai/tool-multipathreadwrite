@@ -1,0 +1,13 @@
+check@2	1bb497e3e13a1105cf24e3359fa3ef75de08b66ff8a2839cd7f9ea97824d9eb3
+body	internal/mcp/check205_test.go	TestMrwWriteCheckTrueRunsTheCheckOnAnyPlan	2e50c036af98312ddc8e436b563f5ed388c644ada8cee608576353764e9b1553
+body	internal/mcp/check205_test.go	a dry run runs no check	78178aaf41f7694fdcfea171304bed5421f419a09a520da8c4e804c0a2dc5fb6
+body	internal/mcp/check205_test.go	a due check is refused at the depth limit before the write	62d557045ca6cfd6fc7d5f3494a61a56b0a8859c93fa2e17d8658558d1b08bde
+body	internal/mcp/check205_test.go	a failing check on a code plan is data, not isError	54a4800c38312ab8116c12c51255ba1ad404007e9d61bffa69f73eeb000e09a8
+body	internal/mcp/check205_test.go	a prose plan with check true runs the check	86613ddb953517bda4d6bc07d0215abacd33cad1a2e008a2add07fb7995c1dcd
+body	internal/mcp/check205_test.go	a step is not run after a check that failed	6ec235afdd55d0a06cf71e2dbfabc19fa4cfb27c148474df29c8775941d0f830
+body	internal/mcp/check205_test.go	a step waits for the check	00c3a8c15ead70018b2d9624177dc82be21654a04713f2e4c258e4a24feb4af0
+body	internal/mcp/check205_test.go	a tree with no check answers as a check that could not run	8fe1b20432f97f5c4e1f3ba6052ebc8739b4083547eefdd56f1ad8cce0216c97
+body	internal/mcp/check205_test.go	grep with sub over prose runs the check	b383f9f5340cde23b8fd905828b7814ecc65f966097d00a02f58dc51921d56c5
+body	internal/mcp/check205_test.go	the same at the depth limit without check lands	0175d8e89b27eab891804531543d56586c20ba0bf06c39e4b71dddc916216547
+body	internal/mcp/check205_test.go	the same plan without check runs none	967c62ad4cae116b6764e380b0d4f6fb00bda5327737e1785da9c96dbd0d265c
+body	internal/writer/mode205_test.go	TestARequestThatSetsNoModeRunsNoCheck	dce9a6877827fdfcb6d0b7f7fda0a31894d0292bb7eb86313e24ca132a6eacc6

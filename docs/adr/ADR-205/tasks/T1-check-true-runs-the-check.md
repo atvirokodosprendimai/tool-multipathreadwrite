@@ -81,8 +81,26 @@ go test -count=1 -v ./internal/mcp ./internal/writer -run '^(TestMrwWriteCheckTr
 | 4 — it is used | telemetry is refused by ADR-009; the follow-up in the record |
 
 ## Mutation Log
+- 2026-11-19 · 69de5b37* · mutant killed · exit 1 · `internal/mcp/tools.go` · check: true asks for no check · acceptance-sha256:75274f5e7767bed1adbcdf39c9e601d8263461ed9c5379c089386eb642cde7ff · covers:check: true runs the check after a prose-only write
+- 2026-11-19 · 69de5b37* · mutant killed · exit 1 · `internal/mcp/tools.go` · a call without check runs one · acceptance-sha256:75274f5e7767bed1adbcdf39c9e601d8263461ed9c5379c089386eb642cde7ff · covers:without check: true no check runs
+- 2026-11-19 · 69de5b37* · mutant killed · exit 1 · `internal/mcp/tools.go` · a check that could not run is not an error · acceptance-sha256:75274f5e7767bed1adbcdf39c9e601d8263461ed9c5379c089386eb642cde7ff · covers:a check that could not run is an error with the applied receipt
+- 2026-11-19 · 69de5b37* · mutant killed · exit 1 · `internal/mcp/tools.go` · a failed check is an error · acceptance-sha256:75274f5e7767bed1adbcdf39c9e601d8263461ed9c5379c089386eb642cde7ff · covers:a failed check is still not an error
+- 2026-11-19 · 69de5b37* · mutant killed · exit 1 · `internal/writer/flow.go` · the depth gate lets a due check through · acceptance-sha256:75274f5e7767bed1adbcdf39c9e601d8263461ed9c5379c089386eb642cde7ff · covers:a due check is refused at depth 8 before the write
+- 2026-11-19 · 69de5b37* · mutant killed · exit 1 · `internal/writer/flow.go` · off is not the zero mode · acceptance-sha256:75274f5e7767bed1adbcdf39c9e601d8263461ed9c5379c089386eb642cde7ff · covers:the zero mode is off
+- 2026-11-19 · 69de5b37* · mutant killed · exit 1 · `internal/writer/flow.go` · steps run after a check that did not pass · acceptance-sha256:75274f5e7767bed1adbcdf39c9e601d8263461ed9c5379c089386eb642cde7ff · covers:steps wait for the check
 
 ## Verification Log
+- 2026-11-19 · 69de5b37* · exit 1 · `set -o pipefail …` · acceptance-sha256:75274f5e7767bed1adbcdf39c9e601d8263461ed9c5379c089386eb642cde7ff · ms:1209 · test-lock-sha256:d0d548351bcd96e566a8129833e2e2169eb22ba5e28862532cc640ddbe1ffb29 · test-lock-file:docs/adr/locks/d0d548351bcd96e566a8129833e2e2169eb22ba5e28862532cc640ddbe1ffb29.lock
+  ```
+  ```
+- 2026-11-19 · 69de5b37* · exit 0 · `set -o pipefail …` · acceptance-sha256:75274f5e7767bed1adbcdf39c9e601d8263461ed9c5379c089386eb642cde7ff · ms:675
+- 2026-11-19 · 69de5b37* · exit 0 · `set -o pipefail …` · acceptance-sha256:75274f5e7767bed1adbcdf39c9e601d8263461ed9c5379c089386eb642cde7ff · ms:1570
+- 2026-11-19 · 69de5b37* · exit 0 · `set -o pipefail …` · acceptance-sha256:75274f5e7767bed1adbcdf39c9e601d8263461ed9c5379c089386eb642cde7ff · ms:1412
+- 2026-11-19 · 69de5b37* · exit 0 · `set -o pipefail …` · acceptance-sha256:75274f5e7767bed1adbcdf39c9e601d8263461ed9c5379c089386eb642cde7ff · ms:1409
+- 2026-11-19 · 69de5b37* · exit 0 · `set -o pipefail …` · acceptance-sha256:75274f5e7767bed1adbcdf39c9e601d8263461ed9c5379c089386eb642cde7ff · ms:1604
+- 2026-11-19 · 69de5b37* · exit 0 · `set -o pipefail …` · acceptance-sha256:75274f5e7767bed1adbcdf39c9e601d8263461ed9c5379c089386eb642cde7ff · ms:1637
+- 2026-11-19 · 69de5b37* · exit 0 · `set -o pipefail …` · acceptance-sha256:75274f5e7767bed1adbcdf39c9e601d8263461ed9c5379c089386eb642cde7ff · ms:2780
+- 2026-11-19 · 69de5b37* · exit 0 · `set -o pipefail …` · acceptance-sha256:75274f5e7767bed1adbcdf39c9e601d8263461ed9c5379c089386eb642cde7ff · ms:1903
 
 ## Invariants
 
