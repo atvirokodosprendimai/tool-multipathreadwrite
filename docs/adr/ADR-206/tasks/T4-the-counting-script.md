@@ -66,6 +66,8 @@ python3 -B -m unittest discover -s scripts -p 'test_bench_stage9.py' 2> "${TMPDI
 - 2026-11-20 · d5150a2c* · exit 0 · `set -o pipefail …` · acceptance-sha256:d4165a7078b709ce8ecf35441edbc3b8fd71bec6cea7fd605430a27c6f375351 · ms:614
 - 2026-11-20 · d5150a2c* · exit 0 · `set -o pipefail …` · acceptance-sha256:d4165a7078b709ce8ecf35441edbc3b8fd71bec6cea7fd605430a27c6f375351 · ms:550
 - 2026-11-20 · d5150a2c* · exit 0 · `set -o pipefail …` · acceptance-sha256:d4165a7078b709ce8ecf35441edbc3b8fd71bec6cea7fd605430a27c6f375351 · ms:564
+- 2026-11-20 · b2b20d48* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:d4165a7078b709ce8ecf35441edbc3b8fd71bec6cea7fd605430a27c6f375351 · ms:3 · test-lock-sha256:aceedd6dfd27db87792696ea24d01a60ad2fa42a76e059dce8ba6dd636971879 · test-lock-file:docs/adr/locks/aceedd6dfd27db87792696ea24d01a60ad2fa42a76e059dce8ba6dd636971879.lock · test-lock-kind:replace
+- 2026-11-20 · b2b20d48* · exit 0 · `set -o pipefail …` · acceptance-sha256:d4165a7078b709ce8ecf35441edbc3b8fd71bec6cea7fd605430a27c6f375351 · ms:554
 
 ## Invariants
 
