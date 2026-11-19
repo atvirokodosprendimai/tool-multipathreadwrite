@@ -15,7 +15,7 @@ import (
 func TestAGrepFlagWithItsCountAttachedIsNamed(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	const context = "context is symmetric: -C N prints N lines either side of a match"
-	for arg, hint := range map[string]string{"-A3": context, "-B12": context, "--A3": context, "-m5": "--max-matches N"} {
+	for arg, hint := range map[string]string{"-A3": context, "-B12": context, "-m5": "--max-matches N"} {
 		_, err := runSplit(t, "read", arg, "--grep", "x", "f.txt")
 		spelled := "flag provided but not defined: -" + strings.TrimLeft(arg, "-") + " (see: mrw read --help); "
 		if err == nil || exitCode(err) != exitUsage || !strings.Contains(err.Error(), spelled) || !strings.Contains(err.Error(), hint) {
@@ -28,6 +28,14 @@ func TestAGrepFlagWithItsCountAttachedIsNamed(t *testing.T) {
 		_, err := runSplit(t, "read", arg, "f.txt")
 		if err == nil || exitCode(err) != exitUsage || err.Error() != want {
 			t.Errorf("read %s: %v, want exactly %q", arg, err, want)
+		}
+	}
+	// Two dashes typed are two dashes reported: urfave says -A3 for both, so
+	// the arguments are what tells them apart, and only a built binary has them.
+	run, _ := ifChangedRun(t, map[string]string{"f.txt": "one\n"})
+	for arg, want := range map[string]string{"--A3": "not defined: --A3 (see: mrw read --help); " + context, "-A3": "not defined: -A3 (see: mrw read --help); " + context} {
+		if out, errOut, code := run("", "read", arg, "--grep", "x", "f.txt"); code != exitUsage || out != "" || !strings.Contains(errOut, want) {
+			t.Errorf("read %s: exit %d, stdout %q, want exit %d holding %q:\n%s", arg, code, out, exitUsage, want, errOut)
 		}
 	}
 	// A usage error that names no refused flag is worded as before.

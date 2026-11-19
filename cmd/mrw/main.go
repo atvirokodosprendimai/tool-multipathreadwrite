@@ -298,8 +298,13 @@ func usageError(_ context.Context, cmd *cli.Command, err error, _ bool) error {
 	text := err.Error()
 	name := refusedFlag(err)
 	if letter := countedFlag(name); letter != "" && foreignFlagHint(cmd.FullName(), letter) != "" {
-		// grep's -A3: one dash, as it is typed, and the sentence its letter has.
-		text, name = "flag provided but not defined: -"+name, letter
+		// grep's -A3, spelled as it was typed (urfave reports one dash for
+		// both), with the sentence its letter has.
+		dashes := "-"
+		if slices.Contains(os.Args, "--"+name) {
+			dashes = "--"
+		}
+		text, name = "flag provided but not defined: "+dashes+name, letter
 	} else if len([]rune(name)) > 1 {
 		text = "flag provided but not defined: --" + name
 	}
@@ -1362,7 +1367,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 						return exitWith(err)
 					}
 					if len(sp.Ranges) > 0 {
-						return cli.Exit(fmt.Sprintf("%s: a range and --grep are two answers to one question; drop the range to search the whole file (--grep PATTERN %s), or drop --grep and address the lines by the pattern (%s:/PATTERN/)", a, sp.Path, sp.Path), exitUsage)
+						return cli.Exit(fmt.Sprintf("%s: a range and --grep are two answers to one question; drop the range to search the whole file (--grep PATTERN PATH), or for one file drop --grep and write the pattern as the address (PATH:/PATTERN/)", a), exitUsage)
 					}
 				}
 				re, compileErr := regexp.Compile(pattern)
