@@ -154,7 +154,8 @@ class TrialVerification(unittest.TestCase):
         if not binary:
             self.fail("mrw must be installed for the evidence integration controls")
         if not create:
-            subprocess.run([binary, "--root", str(self.root), "read", "--quiet", *files],
+            # A read that shows the lines: a quiet one licenses no edit by number alone (ADR-203).
+            subprocess.run([binary, "--root", str(self.root), "read", *files],
                            check=True, capture_output=True, timeout=5)
         plan = "".join(f"@@ {name} {'0 create' if create else '1-$ replace'} body={len(text.splitlines())}\n{text}"
                        for name, text in files.items())
@@ -244,7 +245,7 @@ class TrialVerification(unittest.TestCase):
 
     def test_instruction_drift_is_detected_even_when_the_check_passes(self):
         # Use an explicit read in the gate: verification gets its own fresh ledger.
-        self.write({"checker.sh": "mrw read --quiet instructions.md\nprintf '@@ instructions.md 1 replace\\nchanged\\n' | mrw write --no-check -\n"})
+        self.write({"checker.sh": "mrw read --quiet instructions.md\nprintf '@@ instructions.md /^/ replace\\nchanged\\n' | mrw write --no-check -\n"})
         self.git("add", "checker.sh")
         self.git("commit", "-qm", "instruction drift control")
         self.baseline = self.git("rev-parse", "HEAD").decode().strip()
