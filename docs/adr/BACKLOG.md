@@ -1523,5 +1523,39 @@ that sees the same thing passes with room, and one that sees something else does
 **What it does not show.** What the caller did after the refusal, or that an inverted match would have
 been used. ADR-202 Decision 6 names the tally that answers the second, thirty days after a release.
 
-**Deferred from ADR-202:**
-- `-o`, match-only output on standard input: waits for E7's count of it and a record of its own.
+**Correction, 2026-11-19, before the scanner was changed** (an adr-challenger pass and a Codex challenge, each
+checked against `cmd/mrw/stdin.go` at `0149e4b4` and its parent). Three things above are wrong or loose, and
+the bar of 50 and the window are not touched:
+- *The counted text.* The sentence above says both wordings hold `a read of standard input names nothing
+  else`. They do not: before v1.90.1, which is all of the window, the refusal read `- reads standard input,
+  and a read of it names nothing else`. A call counts when the answer paired with it by tool-use id, counted
+  once, holds `a read of it names nothing else` or `a read of standard input names nothing else`.
+- *The class.* In the command's text, the first match of `--grep`, then spaces or `=`, then a dash and one
+  letter, then whitespace and a further word: the class is the letter. No match: `other`. This is a rule over
+  text, not a shell parse: a quoted string or a heredoc holding that shape is classed by it. So the scanner
+  also counts, among the calls classed `v`, those whose command names `mrw read` more than once (`v_multi`),
+  where the refusal cannot be tied to one read.
+- *The verdict.* PROCEED when `v - v_multi` is at least 50. WITHDRAW when `v` is under 50. Otherwise
+  UNCERTAIN, and it goes to Zy with the numbers. PROCEED is not acceptance: it lets the code be written on
+  the branch, and ADR-202 merges only when Zy accepts it.
+- *What it is.* A replication of a tally already seen, on the same machine's transcripts, reproducible by
+  whoever holds them; not a blind test.
+
+## Pre-registered for ADR-202's use (Decision 7) — written before the flag exists
+
+Read once, 30 days after the tag date of the first release that carries `--invert`, over entries from that
+tag date on, without this repository's sessions, with the E7 scanner extended and committed before it runs.
+- `uses`: shell calls whose command holds `mrw read` and `--invert` and whose answer is not a refusal.
+- `pointed`: calls whose answer holds `an inverted match of a stream is`.
+- `unprompted`: `uses` in a transcript with no earlier `pointed` call.
+**Reading.** `uses` = 0: the flag is not reaching callers, and it goes back to Zy with the choice of removing
+it. `uses` > 0 and `unprompted` = 0: callers reach it only through a refusal, so the instructions are not
+teaching it; reported to Zy. Otherwise it stays. Fewer than 20 calls of either kind in the window: no
+reading, taken again 30 days later, once.
+
+## From ADR-202
+
+- An inverted match on files or directories: no call asked for it and it would serve most of a file. Waits
+  for a count of `--invert` refused on a file under "Pre-registered for ADR-202's use", and a record.
+- `-o`, match-only output on standard input: E7 counts the calls classed `o` and sets no bar for them. Waits
+  for a record of its own.
