@@ -45,6 +45,8 @@ const usageText = `usage:
   bench canary  --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass [--profile stage5|stage6|stage7|stage8 [--plugin-dir DIR] [--node PATH] [--work-line FILE] [--side-arms FILE [--qh-binary FILE --qh-sums FILE]]]
   bench verify  --stage S --tasks N --repeats R DIR
   bench run     … [--block K [--configs-for MODEL=A,B,P ...]] [--disk-path PATH --disk-floor GiB]
+  bench run     … [--mrw-sha256 HEX] [--mrw-instructions FILE] [--keep-state-file PATH] [--keep-diff] [--max-spend USD]   (ADR-206: pin the mrw and its instructions, keep what an attempt left, stop on recorded spend; exit 3)
+  bench canary  … [--mrw-sha256 HEX] [--mrw-instructions FILE]
   bench baseline --stage S --out DIR --selection FILE --dataset FILE --checks FILE [--surviving FILE] [--docker PATH] [--budget 20m]   (the declared check once per instance on the unmodified tree; no model)
   bench look    DIR
   bench export-paired --pair X,Y --model M --scorer-sha SHA --selection FILE --canary FILE DIR...
@@ -98,11 +100,9 @@ func main() {
 	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "bench:", err)
-		// A run stopped at a boundary is resumable, not failed (ADR-162).
-		if errors.Is(err, bench.ErrStartErrors) || errors.Is(err, bench.ErrDiskFloor) {
-			os.Exit(2)
-		}
-		os.Exit(1)
+		// A run stopped at a boundary is resumable, not failed (ADR-162); one
+		// stopped on its recorded spend exits with a status of its own (ADR-206).
+		os.Exit(bench.ExitCode(err))
 	}
 }
 
@@ -157,7 +157,17 @@ func stageFlags(name string) (*flag.FlagSet, *bench.RunOptions, *multi, *string)
 	fs.StringVar(&o.SideArms, "side-arms", "", "stage6: the file that registers side arms G (Go hooks) and C (turnEnd notify) at the plugin's tag: C's setting, G's asset sha256, stage path, runtime setting and hook-output marker; the arms run beside P and are read against it by bench side (ADR-163 Decision 9)")
 	fs.StringVar(&o.QhBinary, "qh-binary", "", "stage6, G: the release asset (qh-darwin-arm64) bench verifies against --qh-sums and the registration, then stages into each G attempt's own plugin data directory")
 	fs.StringVar(&o.QhSums, "qh-sums", "", "stage6, G: the release's SHA256SUMS that names the asset")
+	fs.StringVar(&o.MrwSHA256, "mrw-sha256", "", "ADR-206: refuse to start unless the file at --mrw has this SHA-256; its bytes are what every attempt runs, and the hash is recorded")
+	fs.StringVar(&o.MrwInstructions, "mrw-instructions", "", "ADR-206: append this file's bytes to configuration B's prompt in place of the binary's `instructions`; its SHA-256 is recorded")
 	return fs, o, models, tasks
+}
+
+// runPinFlags are the flags of bench run alone that ADR-206 adds: what an
+// attempt leaves is kept beside its receipt, and the run stops on its spend.
+func runPinFlags(fs *flag.FlagSet, o *bench.RunOptions) {
+	fs.StringVar(&o.KeepStateFile, "keep-state-file", "", "ADR-206: copy this path, relative to the attempt's state home, to <attempt id>.kept beside the receipt")
+	fs.BoolVar(&o.KeepDiff, "keep-diff", false, "ADR-206: save each attempt's diff against its base commit as <attempt id>.diff beside the receipt")
+	fs.Float64Var(&o.MaxSpend, "max-spend", 0, "ADR-206: stop, with exit status 3, once the receipts record this many USD, or three of them record no cost; part of the plan, so it cannot be raised for the directory; 0 for no stop")
 }
 
 func run(args []string) error {
@@ -170,6 +180,7 @@ func run(args []string) error {
 	fs.IntVar(&o.Repeats, "repeats", 2, "attempts per task, configuration and model")
 	fs.Int64Var(&o.Seed, "seed", 156, "the order's seed")
 	fs.BoolVar(&o.StatusLine, "status-line", false, "append the registered STATUS sentence to every instruction and record the claim (ADR-162)")
+	runPinFlags(fs, o)
 	fs.IntVar(&o.Block, "block", 0, "ADR-162: run block K of the selection (instances 40(K−1)+1 to 40K, the fifth the rest) into --out, named block-K")
 	var configsFor multi
 	fs.Var(&configsFor, "configs-for", "MODEL=A,B,P: a model's own configurations, as bench look printed (repeatable)")

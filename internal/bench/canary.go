@@ -84,6 +84,12 @@ type CanaryReceipt struct {
 	SideRegistration *SideRegistration   `json:"side_registration,omitempty"` // the side arms' registration it ran
 	SideAsset        string              `json:"side_asset_sha256,omitempty"`
 	Costs            map[string]*float64 `json:"total_cost_usd"`
+
+	// The mrw and the instruction file the canary ran with, when it was given the
+	// flags that pin them (ADR-206 Decision 2): a run that pins is judged on a
+	// canary with the same hashes.
+	MrwSHA256             string `json:"mrw_sha256,omitempty"`
+	MrwInstructionsSHA256 string `json:"mrw_instructions_sha256,omitempty"`
 }
 
 // canaryReadFirst is what the canary adds to H's instruction: a Read before
@@ -115,6 +121,9 @@ func RunCanary(o RunOptions, task Task, claudeMD string) (CanaryReceipt, error) 
 	if err := resolveProfile(&o); err != nil {
 		return c, err
 	}
+	if err := resolvePins(&o); err != nil {
+		return c, err
+	}
 	if o.Budget == 0 {
 		o.Budget = DefaultBudget
 	}
@@ -122,7 +131,7 @@ func RunCanary(o RunOptions, task Task, claudeMD string) (CanaryReceipt, error) 
 	if err != nil {
 		return c, err
 	}
-	mrwVersion, err := firstLine(o.Mrw, "version")
+	mrwVersion, err := o.mrwVersion()
 	if err != nil {
 		return c, err
 	}
@@ -139,6 +148,7 @@ func RunCanary(o RunOptions, task Task, claudeMD string) (CanaryReceipt, error) 
 	}
 	c = CanaryReceipt{Pass: true, CLIVersion: cli, Model: o.Models[0], Started: time.Now().UTC().Format(time.RFC3339),
 		Problems: map[string][]string{}, Costs: map[string]*float64{}, Profile: o.Profile, Plugin: o.plugin}
+	c.MrwSHA256, c.MrwInstructionsSHA256 = o.mrwSHA, o.instrSHA
 	if o.Profile != "" {
 		c.Configs, c.SideConfigs = splitSide(o.Configs)
 	}

@@ -218,11 +218,13 @@ were in `--terse` receipts, which print no hunk address, and 60 fell on files th
 
 ```
 bench canary  --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass \
+              [--mrw-sha256 HEX] [--mrw-instructions FILE] \
               [--profile stage5|stage6 [--plugin-dir DIR] [--node PATH] [--work-line FILE] [--side-arms FILE [--qh-binary FILE --qh-sums FILE]]] [--docker PATH --canary-image IMAGE]
 bench run     --stage S --out DIR --model M --claude PATH --mrw PATH --config-dir DIR \
               --containment bypass --canary DIR/canary.json [--task ID ...] [--repeats 2] [--max-turns N] \
               [--configs A,B[,P,W[,G,C]]] [--profile stage5|stage6 [--plugin-dir DIR] [--node PATH] [--work-line FILE] [--checks FILE] [--side-arms FILE [--qh-binary FILE --qh-sums FILE]]] \
               [--status-line] [--block K [--configs-for MODEL=A,B,P ...]] [--disk-path PATH --disk-floor GiB] \
+              [--mrw-sha256 HEX] [--mrw-instructions FILE] [--keep-state-file PATH] [--keep-diff] [--max-spend USD] \
               [--source swe-bench --dataset FILE --swebench-python PATH [--selection FILE] [--docker PATH]]
 bench look    DIR
 bench verify  --stage S --tasks N --repeats R DIR
@@ -235,6 +237,31 @@ bench swebench-select --dataset FILE --min-hunks N [--exclude FILE ...] [--salt 
               [--subset-min-hunks N] [--no-unnamed] [--name D --revision R --split S]
 bench mine    --kind wide-rename|check-coupled --repo DIR --commit SHA [--n N] [--min-occurrences 15 --min-files 8] [--min-test-files 1]
 ```
+
+**Pinning what a run ran, keeping what it left, stopping on what it spent (ADR-206).** Five flags, each off unless given:
+
+- `--mrw-sha256 HEX` (`run` and `canary`): the file at `--mrw` must have this SHA-256, or the run does not start and the
+  message names both hashes. The verified bytes are held and written to each attempt's `bin/mrw`, the path PATH and
+  configuration H's read hook use, in place of a link to `--mrw`; `mrw version` is read from those bytes. The hash is
+  recorded as `mrw_sha256` in `run.json` and in the receipt of each configuration that carries mrw. A run that pins refuses a
+  canary that was not made with the same hash; a run that pins nothing takes a canary made with either build.
+- `--mrw-instructions FILE` (`run` and `canary`): the file's bytes are appended to the prompt in place of what the binary's
+  `instructions` prints (H's and S's added text still follows). Its SHA-256 is recorded as `mrw_instructions_sha256` in
+  `run.json` and `canary.json`, and a run that gives a file refuses a canary that was given another.
+- `--keep-state-file PATH` (`run`): `PATH`, relative to the attempt's state home (`XDG_STATE_HOME`), is copied to
+  `<attempt id>.kept` beside the receipt before the scratch directory is removed, and its SHA-256 is the receipt's
+  `kept_state_file_sha256`. An attempt that left no such file keeps nothing and has no key. A link is not followed out of the state home.
+- `--keep-diff` (`run`): the attempt tree's `git diff` against its base commit, files the attempt created included, is
+  saved as `<attempt id>.diff` and hashed as `kept_diff_sha256`.
+- `--max-spend USD` (`run`): before each attempt the run sums `total_cost_usd` over every receipt in its directory,
+  replacements and excluded attempts included, and stops with exit status 3 when the sum has reached the figure, or when
+  three receipts record no cost (a missing cost is not zero). The figure is part of the plan: a second invocation with another
+  one is refused as another plan. It stops on what was recorded and is not a ceiling: the run can pass the figure by one
+  attempt's cost, and an attempt interrupted before its receipt spent something no receipt shows.
+
+`run.json` also records `bench_revision`, the bench build's own revision, and every receipt records `init_model`, the model
+the CLI's init line named. A resume checks each receipt it reads back as `bench verify` does, and `bench verify` checks each
+receipt's `mrw_sha256` against `run.json`'s and each kept file against its receipt's hash.
 
 `bench analyze` prints one row per stage, model and task source, sorted by stage,
 so two stages are never pooled, with the verdict of
