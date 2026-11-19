@@ -1548,6 +1548,10 @@ With it: 195, 114, 97. The tally's shape holds; the rule cannot tie 93 of the 10
 built. ADR-202 stays Proposed with T1 `blocked` on Zy's reading of these numbers
 (`docs/bench/effect-study/results-e7*.json`).
 
+**Accepted on the 108 by Zy, 2026-11-19** (the option "Accept on the 108" to the question put with these
+numbers). The rule's verdict stays UNCERTAIN and is not rewritten; the owner decided past it, which is what
+the rule sent the numbers to the owner for. ADR-202 is Accepted and T1's S2 to S5 are built.
+
 ## Pre-registered for ADR-202's use (Decision 7) — written before the flag exists
 
 Read once, 30 days after the tag date of the first release that carries `--invert`, over entries from that

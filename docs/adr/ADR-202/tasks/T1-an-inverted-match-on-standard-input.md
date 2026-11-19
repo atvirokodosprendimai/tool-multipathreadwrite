@@ -14,7 +14,7 @@
 
 ADR-202 Decisions 1 to 6, after the count Decision 7 asks for.
 
-**S1, the count (E7).** A replication of a tally already seen, by a committed scanner with a stated rule (BACKLOG.md, "Pre-registered for ADR-202", with its correction of 2026-11-19). **PROCEED** lets S2 to S5 be written on the branch; this task stays `partial` and nothing merges until Zy accepts the record. **WITHDRAW** or **UNCERTAIN** stops here.
+**S1, the count (E7).** A replication of a tally already seen, by a committed scanner with a stated rule (BACKLOG.md, "Pre-registered for ADR-202", with its correction of 2026-11-19). Measured UNCERTAIN: `v` 108, `v_multi` 93. By the rule that went to Zy, who accepted the record on the 108 (2026-11-19). S2 to S5 follow.
 
 **S2 to S5, the flag.** Fixture A is `alpha`, `beta`, `gamma`, `beta2`, `delta`, one a line. Fixture B is `one`, `two`, `skip`, `four`.
 
@@ -72,7 +72,7 @@ go test -count=1 -v ./cmd/mrw ./internal/guide ./internal/read -run '^(TestAnInv
   && [ "$(grep -c '^--- PASS: ' "${TMPDIR:-/tmp}/adr202-fence.out")" -eq 4 ] \
   && python3 -I docs/bench/effect-study/test_scan.py > /dev/null \
   && grep -q '^# 348\\\\. ' scripts/contract.sh \
-  && grep -q '^\*\*Measured .* for ADR-202 (E7): PROCEED' docs/adr/BACKLOG.md \
+  && grep -q '^\*\*Accepted on the 108 by Zy, 2026-11-19' docs/adr/BACKLOG.md \
   && grep -q -- '--grep PATTERN --invert -' AGENTS.md \
   && git diff --quiet "$(git merge-base HEAD origin/main)" -- go.mod go.sum internal/plan internal/apply internal/seen internal/check internal/state \
   && [ -z "$(git status --porcelain --untracked-files=all -- internal/plan internal/apply internal/seen internal/check internal/state)" ]

@@ -1,7 +1,7 @@
 # ADR-202: A read of standard input can serve the lines that do not match
 
-**Status:** Proposed
-**Drafted for:** Zy, 2026-11-19. The tally below was reported to Zy with the question "Should I draft it?". Zy has not answered that question; the session is under Zy's standing instruction to continue without pausing and to look for improvements once the gaps with Claude Code's edit tools were closed. This draft, its count and code on its branch are done on that instruction. The record is not accepted, and nothing here merges before Zy reads it.
+**Status:** Accepted
+**Accepted by:** Zy, 2026-11-19, answering the question "What should happen to it?" with the option *"Accept on the 108"*, after E7 measured UNCERTAIN. The pre-registered rule did not say PROCEED; the owner read the numbers and accepted: the 108 calls are the evidence, and the doubt about the 93 is the scanner's. Drafted the same day on Zy's standing instruction to continue and look for improvements.
 **Date:** 2026-11-19
 **Amended:** 2026-11-19, before any scanner or code, from an adr-challenger pass and a Codex xhigh challenge (gpt-6.2-sol), each finding checked against the code: the engine does change, by one option, since it prints a note about a replace that means nothing for a stream; the refusals are a complete list that speaks before any dispatch; what stdout holds when nothing is left is stated; the test compares against the lines that match and not against the plain read, which also serves the line after each match; every way to type `-v` is pointed at the form; the count is called what it is, a replication of a tally already seen, and its rule names both wordings of the refusal.
 **Owner:** Zy
