@@ -51,8 +51,7 @@ through a new ADR that supersedes the old one and updates its contract rows in t
    committing reports what reached disk — `PARTIALLY APPLIED` when files remain
    written, `NOTHING WRITTEN` when the undo put everything back. — ADR-001, ADR-066
 2. **mrw will not edit a file it has not read**, and the guard is per *line*,
-   not per file; a file mrw just wrote is wholly known, so a chain of edits
-   needs no re-read, though its line numbers can move. A file whose every hunk in the write was a SEARCH/REPLACE block gains the lines written, not the whole file. — ADR-002, ADR-005, ADR-190, ADR-200
+   not per file; a file mrw just wrote is wholly known, but a number alone is refused on a line no read has shown since the write (the reason says the line `has no recorded showing in this version`): name the line by a pattern or `anchor=`, or read it first. A file whose every hunk in the write was a SEARCH/REPLACE block gains the lines written, not the whole file. — ADR-002, ADR-005, ADR-190, ADR-200, ADR-203
 3. **A check's verdict comes from the process, never its output.** A check that
    prints `PASS` and exits 1 is a failure. — ADR-003
 4. **Nothing is left in the working tree** by a failed run — except, when an
@@ -164,7 +163,7 @@ mrw read --grep P --count . && mrw read 'f.go:/P/' -C 3 --max-lines 40
 mrw read 'a.go:/func A/,+12' b.go:40-60 && mrw write "$TMPDIR/plan.txt"
 # 6. a step after the write, in the same call (--then-sh's caveat is below, under the write rules)
 mrw write - --then NAME
-# 7. license lines you already know, without them in your context (/dev/null licenses nothing; a file mrw just wrote keeps a whole-file licence, unless every hunk on it was a search_replace block (the write then adds the lines it wrote to the licence it had), but its line numbers can move: recipe 21)
+# 7. license lines you already know, without them in your context (/dev/null licenses nothing; a file mrw just wrote keeps a whole-file licence, unless every hunk on it was a search_replace block (the write then adds the lines it wrote to the licence it had), but until a read has shown a line a number alone is refused; a whole-file --quiet read shows nothing: recipe 21)
 mrw read --quiet f.go:40-60
 # 8. a file of long lines (logs, JSONL), each line cut to a window round the match
 mrw read --grep P --max-cols 200 f.jsonl
@@ -192,7 +191,7 @@ mrw read --grep P .
 mrw write --terse plan.txt
 # 20. by reference what you were already served: only in a session alone in its checkout whose host runs mrw seen --forget on start, resume, clear and compaction, with reads made under --max-chars below the host's limit
 mrw read --if-served f.go=8dc37337 f.go:40-60
-# 21. a second edit to a file you just wrote, with no read between: its line numbers can have moved, so name the line by a pattern and say what it holds
+# 21. a second edit to a file you just wrote: a number alone is refused, unless a read has shown that line since the write, so name the line by a pattern and say what it holds (anchor=), or read the line first (mrw read f.go:40)
 printf '%s\n' '@@ f.go /^func B\(/ replace anchor="func B("' 'func B(x int) {' | mrw write -
 ```
 
@@ -518,7 +517,7 @@ whole list arrives as one argument and the regex swallows the rest of the line.
 - **Read before write is ENFORCED, and it is per LINE.** Being served lines
   10-12 does not license an edit at line 50. The one exception is a file mrw
   itself just wrote: it produced every line, so the whole file is licensed
-  until something else changes it (ADR-002, ADR-005 §4). After a write, a number from an earlier read names another line, or none, wherever the write changed how many lines come before the line it named, or removed that line (ADR-200): read the file again, address by pattern, or give `anchor=`. A read whose answer
+  until something else changes it (ADR-002, ADR-005 §4). A number alone is refused on a line of a written file that no read has shown since the write (ADR-203): the reason names the first such line and says `has no recorded showing in this version`; read it (`mrw read PATH:N`; a whole-file `--quiet` read shows nothing), address it by pattern, give `anchor=`, or pass `--force`. A pattern address, `anchor=`, a quoted hunk, `$` as the start, the position-only inserts (`insert-after 0`, `insert-before` line 1 or one past the last line) and a plan mrw computed in the call (`--sub`, `--rewrite`, a foreign format) are not judged. After a write, a number from an earlier read names another line, or none, wherever the write changed how many lines come before the line it named, or removed that line (ADR-200): read the file again, address by pattern, or give `anchor=`. The record is kept per spelling: read the file under the name the retry uses, and a rename's destination has whatever its own record holds (one read earlier at the same bytes keeps that showing). A read whose answer
   goes to the null device (`>/dev/null`, cmd.exe's `>NUL`) licenses nothing and says so on
   stderr, and names each file whose served lines an earlier read or write still licenses, where a
   write is judged on that licence (ADR-133, ADR-148); PowerShell's `> $null` and `| Out-Null` are
@@ -764,7 +763,7 @@ and #73, one release apart.
   code replace, how many the flag would have refused, and whether those broke,
   held (the false positive) or went unchecked, beside the pre-registered bar. A
   `stale-number pricing:` block (ADR-200) counts the landings whose plan, written by the caller and not computed by mrw in the call (`--sub`, `--rewrite`, a foreign format), held a `replace`, `delete`, `insert-after` or `insert-before` that passed validation with a numbered start naming a line (not `$`, and not a position only: `insert-after 0`, `insert-before 1`, `insert-before` one past the last line), no `anchor=` and no quote, not forced, on a
-  file whose ledger record is whole and written-shaped; and, of those, the landings where at least one such hunk addressed a line not shown in that record. It does not ask whether an earlier write moved any line. Nothing is refused.
+  file whose ledger record is whole and written-shaped; and, of those, the landings where at least one such hunk addressed a line not shown in that record. It does not ask whether an earlier write moved any line. Since ADR-203 such a hunk is refused, so `numbered_would_refuse` counts landings made before that refusal or by an older mrw; the keys and their meaning are unchanged.
   `--json` carries `pricing` and `numbering`; `--reset` empties neither, and the plain blocks are printed once the tally holds a plan again. Refused-apply is deliberately one
   bucket and not three: a failed guard, an unread line and a path outside the
   root all land in it, because splitting them would mean matching on free-form

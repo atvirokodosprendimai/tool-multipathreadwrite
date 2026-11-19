@@ -329,6 +329,19 @@ func TestAModernWriteReceiptIsBudgetedWithItsDecoration(t *testing.T) {
 	}
 	plan := strings.Replace(planText, "line 00001 of the fixture", "MUTATED", 1)
 	args, _ := json.Marshal(map[string]any{"plan": plan, "ack": checkpointsIn(served0(t, readRes))})
+	// A write leaves the file whole and nothing shown, and a number alone is then
+	// refused (ADR-203): each call that applies the plan again follows a fresh,
+	// acknowledged read of the file as it is.
+	reack := func() []byte {
+		withCeiling(t, DefaultMaxResultChars)
+		page := rawResultOf(t, root, callReq("mrw_read", fmt.Sprintf(`{"specs":[%q]}`, name), ""))
+		var pageRes map[string]any
+		if err := json.Unmarshal(page, &pageRes); err != nil {
+			t.Fatal(err)
+		}
+		b, _ := json.Marshal(map[string]any{"plan": plan, "ack": checkpointsIn(served0(t, pageRes))})
+		return b
+	}
 	// The floor message prints the ceiling, so the floor depends on the
 	// ceiling's digit count: iterate to the ceiling that sits exactly one byte
 	// under its own decorated floor.
@@ -380,7 +393,8 @@ func TestAModernWriteReceiptIsBudgetedWithItsDecoration(t *testing.T) {
 	// answer is still the receipt — elided, applied — never a refusal. This is
 	// the case that proves receipt sizing reads the reserve.
 	withCeiling(t, DefaultMaxResultChars)
-	legacy := rawResultOf(t, root, callReq("mrw_write", string(args), ""))
+	legacy := rawResultOf(t, root, callReq("mrw_write", string(reack()), ""))
+	args = reack()
 	withCeiling(t, len(legacy)+d-1)
 	modern := rawResultOf(t, root, callReq("mrw_write", string(args), modernMeta))
 	if len(modern) > MaxResultChars {

@@ -196,7 +196,7 @@ func TestASubReadRefusalsAndExits(t *testing.T) {
 	subTree(t, root, map[string]string{"a.go": "Old\nOldX\nxOld\nOld Old\n", "b.go": "Old\n", "bin.dat": "Old\x00 binary\n"})
 
 	out, errOut, code := run("", "read", "--grep", `\bOld\b`, "--sub", "New", ".")
-	if code != 0 || strings.Count(out, " replace sha=") != 3 || !strings.Contains(out, " body=1 raw=true\nNew New\n") || !strings.HasPrefix(out, "@@ a.go 1 replace sha=") {
+	if code != 0 || strings.Count(out, " replace sha=") != 3 || !strings.Contains(out, " body=1 raw=true anchor=\"Old Old\"\nNew New\n") || !strings.HasPrefix(out, "@@ a.go 1 replace sha=") {
 		t.Errorf("read --sub: exit %d, stdout %q, want 0 and three sha-pinned raw hunks", code, out)
 	}
 	if !strings.Contains(errOut, "1 binary file(s) that matched") {

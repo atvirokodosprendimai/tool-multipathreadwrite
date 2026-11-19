@@ -191,6 +191,8 @@ func TestTheReadReceiptMatchesItsSchema(t *testing.T) {
 		t.Fatal(err)
 	}
 	answers["skipped"] = call(t, skipRoot, "mrw_read", map[string]any{"grep": "NEEDLE"})
+	// ADR-203: a sub plan with a hunk on a line no anchor= can name carries `note`.
+	answers["sub plan, unanchored"] = call(t, tree161(t, map[string]string{"a.txt": "Old\n\nOld\n"}), "mrw_read", map[string]any{"specs": []any{"a.txt"}, "grep": "^$", "sub": "BLANK"})
 	// ADR-153: a count carries `counts`, the matching lines of each file.
 	answers["counted"] = call(t, grepRoot, "mrw_read", map[string]any{"grep": "NEEDLE", "count": true})
 	old := MaxResultChars
@@ -303,6 +305,7 @@ func readSchema() map[string]any {
 			},
 			"problems": map[string]any{"type": "integer"},
 			"capped":   map[string]any{"type": "integer"},
+			"note":     map[string]any{"type": "string"},
 			// Present only on a paged answer, so it is NOT in `required` — a
 			// caller's exit condition is precisely its absence.
 			"next_read": map[string]any{"type": "string"},
@@ -373,6 +376,7 @@ var readDescriptions = map[string]string{
 	"observed.Spans":       "The line spans this call rendered, as [start, end] pairs; null means the whole file. Authorisation is per LINE: a write to a line no read has served is refused, though a line served by an EARLIER read of the same sha is still licensed.",
 	"problems":             "How many requested ranges could not be served. Non-zero means part of what you asked for is missing from `observed` — the call itself still answered.",
 	"capped":               "How many of `problems` were the caller's own caps: a span `max_lines` (`mrw read --max-lines`) withheld whole or cut, or the one problem `--max-matches` adds. `problems - capped` is what the caller did not choose.",
+	"note":                 "Present only on a `sub` plan in which a hunk carries no `anchor=` (an empty line cannot hold one): how many, and that in a file mrw wrote a write of the plan by a later call is refused on those lines until they are read (ADR-203).",
 	"next_read":            "The spec to send next when this answer is only a PAGE of what you asked for. Absent when nothing remains, which is how you know you have the whole thing. A paged answer is NOT an error and carries no `isError`; it says so in its served text, with a `-- PARTIAL:` line naming the range and what remains. Stopping there leaves you holding part of a file, not the file.",
 	"matches":              "How many files matched a `grep`, counting the whole match set and not just this page. Present on an INDEX answer and on a grep that matched nothing (0); a grep whose matches fit is served instead, and its `observed` names the files.",
 	"index":                "The matching FILE PATHS, served instead of content when the matches are too large to return. No content came with them and nothing was recorded, so this licenses no write. Send one back as a spec WITH the same grep to read its matches.",

@@ -755,9 +755,9 @@ size is the form that gets quoted out of the population it was measured on.`,
 			fmt.Printf("\nstale-number pricing: this root's count since the counter began: %d landed writes; %d with a numbered hunk ADR-200 counts (a replace, delete or insert that passed validation, in a plan the caller wrote, its numbered start naming a line and not only a position, no anchor= or quote, not forced, on a file mrw holds whole as written); %d where a line it addresses was not shown in that record (at least one such hunk)\n",
 				nb.Landed, nb.Candidates, nb.WouldRefuse)
 			if nb.Landed > 0 {
-				fmt.Printf("  would-refuse share of landed writes %.1f%% — pre-registered threshold: at most 5%% of landed writes, read 2026-12-18 (BACKLOG)\n", 100*float64(nb.WouldRefuse)/float64(nb.Landed))
+				fmt.Printf("  would-refuse share of landed writes %.1f%% — numbered_would_refuse counts landings made before a number alone was refused (ADR-203) or by an older mrw; this one adds none\n", 100*float64(nb.WouldRefuse)/float64(nb.Landed))
 			} else {
-				fmt.Printf("  no landed writes counted yet — pre-registered threshold: at most 5%% of landed writes, read 2026-12-18 (BACKLOG)\n")
+				fmt.Printf("  no landed writes counted yet — numbered_would_refuse counts landings made before a number alone was refused (ADR-203) or by an older mrw; this one adds none\n")
 			}
 			fmt.Printf("\n%d plan(s) recorded in this checkout. The rate is valid for THIS population;\n"+
 				"a number from one repository and one family of callers is not a general one.\n", total)
@@ -1673,7 +1673,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 					served = served || o.Spans == nil || len(o.Spans) > 0
 				}
 				if served {
-					fmt.Fprintln(os.Stderr, "mrw: the answer went to the null device, so nothing was recorded: a write to these lines needs a read whose answer you see; on unix a stdout closed when mrw starts is the null device too (ADR-133); read again without redirecting, or license lines you already know with `mrw read --quiet SPEC`")
+					fmt.Fprintln(os.Stderr, "mrw: the answer went to the null device, so nothing was recorded: a write to these lines needs a read whose answer you see; on unix a stdout closed when mrw starts is the null device too (ADR-133); read again without redirecting, or license lines you already know with `mrw read --quiet SPEC`; in a file mrw wrote, or read whole with --quiet, a plan then names them by pattern or anchor=, since a number alone needs the line shown (ADR-203)")
 					if line := stillLicensed(root, observed); line != "" {
 						fmt.Fprintln(os.Stderr, line)
 					}

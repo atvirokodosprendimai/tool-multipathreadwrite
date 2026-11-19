@@ -51,7 +51,7 @@ func TestConcurrentWritersOffOneReadLoseNothing(t *testing.T) {
 			wg.Add(1)
 			go func(j int) {
 				defer wg.Done()
-				codes[j], outs[j], errs[j] = run(fmt.Sprintf("@@ f.txt %d replace\nwriter %d\n", j+1, j), "write", "--no-check", "-")
+				codes[j], outs[j], errs[j] = run(fmt.Sprintf("@@ f.txt %d replace anchor=\"line %d\"\nwriter %d\n", j+1, j+1, j), "write", "--no-check", "-")
 			}(j)
 		}
 		wg.Wait()

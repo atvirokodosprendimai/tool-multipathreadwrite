@@ -97,7 +97,7 @@ var outcomeRows = []outcomeRow{
 	{name: "strict_balance_refused", harness: `{"check":"exit 0"}`, files: map[string]string{"b.go": wrapTail}, args: []string{"--strict-balance"}, plan: "@@ b.go 2 replace anchor=\"func B\"\nfunc B() {}\n"},
 	{name: "pricing_would_refuse_held", harness: `{"check":"exit 0"}`, files: map[string]string{"b.go": wrapTail}, args: []string{"--check"}, plan: "@@ b.go 2 replace anchor=\"func B\"\nfunc B() {}\n"},
 	{name: "pricing_would_refuse_broke", harness: `{"check":"exit 3"}`, files: map[string]string{"b.go": wrapTail}, args: []string{"--check"}, plan: "@@ b.go 2 replace anchor=\"func B\"\nfunc B() {}\n"},
-	{name: "pattern_fires", harness: `{"check":"exit 0"}`, pre: []string{"@@ a.go 2 replace\nfunc A() {\n", "@@ a.go 2 replace\nfunc A() {}\n"}, args: []string{"--check"}, plan: "@@ a.go 2 replace\nfunc A() {\n"},
+	{name: "pattern_fires", harness: `{"check":"exit 0"}`, pre: []string{"@@ a.go 2 replace anchor=\"func A\"\nfunc A() {\n", "@@ a.go 2 replace anchor=\"func A\"\nfunc A() {}\n"}, args: []string{"--check"}, plan: "@@ a.go 2 replace anchor=\"func A\"\nfunc A() {\n"},
 }
 
 // ADR-113 T1. The CLI write's gates, tallies, check, drift, steps and pricing

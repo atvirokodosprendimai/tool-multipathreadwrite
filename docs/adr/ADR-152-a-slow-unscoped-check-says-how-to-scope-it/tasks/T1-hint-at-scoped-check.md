@@ -204,6 +204,7 @@ out=$(mktemp) \
 - 2026-10-14 · 83c8042* · exit 0 · `set -o pipefail …` · acceptance-sha256:f154ced6e0a36f784743f66f31e2d7dd6aa0860795f8279ae46e32cf3202b88e · ms:2030
 - 2026-10-14 · 83c8042* · exit 0 · `set -o pipefail …` · acceptance-sha256:f154ced6e0a36f784743f66f31e2d7dd6aa0860795f8279ae46e32cf3202b88e · ms:2204
 - 2026-10-14 · human-observed · observed by the executor 2026-10-14: S6 ./scripts/contract.sh exit 0 ('contract holds'); the §256 rows PASS — a fast whole-project check for a write exits 0 with no hint line, its --json check carries no hint key, and mrw check --full prints no hint; the slow half is proved in-process by TestTheCLIPrintsTheSlowCheckHint
+- 2026-11-19 · 6cf84b40* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:f154ced6e0a36f784743f66f31e2d7dd6aa0860795f8279ae46e32cf3202b88e · ms:3 · test-lock-sha256:fcd3dad0a6db0343bbb95b6205649cbb669a6f76edc4a42475511132a7d08cce · test-lock-file:docs/adr/locks/fcd3dad0a6db0343bbb95b6205649cbb669a6f76edc4a42475511132a7d08cce.lock · test-lock-kind:replace
 
 ## Invariants
 

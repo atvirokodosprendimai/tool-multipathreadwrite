@@ -602,9 +602,9 @@ func TestStatsLandedLineUsesAppliedPlusFailedCheckPlusCheckNotRun(t *testing.T) 
 	if _, err := readIn(t, root, "a.go", "notes.md"); err != nil {
 		t.Fatal(err)
 	}
-	writeIn(t, root, "--no-check", planFile(t, "@@ a.go 2 replace\nfunc A() { _ = 1 }\n")) // applied
-	writeIn(t, root, planFile(t, "@@ notes.md 2 replace\nline 2\n"))                       // applied (prose skip)
-	writeIn(t, root, "--check", planFile(t, "@@ a.go 3 replace\nfunc B() { _ = 1 }\n"))    // failed_check
+	writeIn(t, root, "--no-check", planFile(t, "@@ a.go 2 replace\nfunc A() { _ = 1 }\n"))                // applied
+	writeIn(t, root, planFile(t, "@@ notes.md 2 replace\nline 2\n"))                                      // applied (prose skip)
+	writeIn(t, root, "--check", planFile(t, "@@ a.go 3 replace anchor=\"func B\"\nfunc B() { _ = 1 }\n")) // failed_check
 	// A written tree whose check could not run (exit 2). Recorded directly:
 	// the fixture declares a check, so no write here can reach that exit,
 	// and without this row a denominator that drops check_not_run passes.

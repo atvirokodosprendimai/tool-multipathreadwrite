@@ -31,6 +31,10 @@ const (
 	// OccurrenceAddress is occurrence= on an address that is not a pattern
 	// (ADR-118): it picks among a pattern's matches, so off one it means nothing.
 	OccurrenceAddress Kind = "occurrence-address"
+	// StaleNumber is a hunk that names a line by number alone, in a file mrw
+	// wrote, on a line no read has shown in that version (ADR-203): an earlier
+	// write may have moved the line the number meant.
+	StaleNumber Kind = "stale-number"
 )
 
 // Error is a refusal with its kind. Its text is the message exactly, so a

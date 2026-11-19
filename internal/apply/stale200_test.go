@@ -8,13 +8,16 @@ import (
 	"testing"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/quote"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/refusal"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
 )
 
-// ADR-200 T1. After a write that moved lines, a hunk addressed by a number
-// from an earlier read names another line, and the ledger cannot tell. Apply
-// COUNTS the numbered hunks a guard would refuse and refuses nothing: every
-// case below lands with the status and bytes it had before the marks existed.
+// ADR-200 T1, as ADR-203 changed it. After a write that moved lines, a hunk
+// addressed by a number from an earlier read names another line, and the
+// ledger cannot tell. Apply marks the numbered hunks and counts the ones that
+// land; a candidate with an unshown line is now refused (stale203_test.go), so
+// the cases that expect one unshown line below expect that refusal, and every
+// other case lands with the status and bytes it had before the marks existed.
 func TestANumberedHunkAfterMrwsOwnWriteIsCountedNotRefused(t *testing.T) {
 	const body = "a\nb\nc\nd\ne\n"
 	sha := seen.SHA([]byte(body))
@@ -86,6 +89,12 @@ func TestANumberedHunkAfterMrwsOwnWriteIsCountedNotRefused(t *testing.T) {
 				return res, string(got)
 			}
 			res, got := run(c.obs, c.opt)
+			if c.unshn == 1 {
+				if res.Failed != 1 || res.Applied || res.Hunks[0].Kind != refusal.StaleNumber || got != body {
+					t.Fatalf("an unshown candidate was not refused: applied %v, %+v, bytes %q", res.Applied, res.Hunks, got)
+				}
+				return
+			}
 			if res.Failed != 0 || !res.Applied || res.Hunks[0].Status != StatusOK {
 				t.Fatalf("the hunk was not applied: %+v", res.Hunks)
 			}
@@ -94,8 +103,8 @@ func TestANumberedHunkAfterMrwsOwnWriteIsCountedNotRefused(t *testing.T) {
 			if got != want || base.Hunks[0].Status != res.Hunks[0].Status || base.Hunks[0].Reason != res.Hunks[0].Reason {
 				t.Errorf("a mark changed the outcome: bytes %q, want %q", got, want)
 			}
-			if res.StaleNumbered != c.numbered || res.StaleUnshown != c.unshn {
-				t.Errorf("numbered %d unshown %d, want %d and %d", res.StaleNumbered, res.StaleUnshown, c.numbered, c.unshn)
+			if res.StaleNumbered != c.numbered {
+				t.Errorf("numbered %d, want %d", res.StaleNumbered, c.numbered)
 			}
 		})
 	}
@@ -108,9 +117,9 @@ func TestANumberedHunkAfterMrwsOwnWriteIsCountedNotRefused(t *testing.T) {
 		if err := os.Link(filepath.Join(root, "f.txt"), filepath.Join(root, "g.txt")); err != nil {
 			t.Skipf("no hard links here: %v", err)
 		}
-		res, err := Apply(root, []Input{rep(4, "")}, Options{Seen: map[string]Seen{"g.txt": *wrote()}})
-		if err != nil || res.Failed != 0 || res.StaleNumbered != 1 || res.StaleUnshown != 1 {
-			t.Errorf("err %v failed %d numbered %d unshown %d, want a landing counted 1 and 1", err, res.Failed, res.StaleNumbered, res.StaleUnshown)
+		res, err := Apply(root, []Input{rep(4, "")}, Options{Seen: map[string]Seen{"g.txt": *wrote([2]int{4, 4})}})
+		if err != nil || res.Failed != 0 || res.StaleNumbered != 1 {
+			t.Errorf("err %v failed %d numbered %d, want a landing counted 1", err, res.Failed, res.StaleNumbered)
 		}
 	})
 
@@ -131,7 +140,7 @@ func TestANumberedHunkAfterMrwsOwnWriteIsCountedNotRefused(t *testing.T) {
 			return real(tr, from, to)
 		}
 		clean := Input{Path: "a.txt", Start: 1, End: 1, Op: "replace", Body: []string{"A"}, Lines: -1}
-		res, err := Apply(root, []Input{clean, rep(4, "")}, Options{Seen: map[string]Seen{"a.txt": {SHA: sha}, "f.txt": *wrote()}})
+		res, err := Apply(root, []Input{clean, rep(4, "")}, Options{Seen: map[string]Seen{"a.txt": {SHA: sha}, "f.txt": *wrote([2]int{4, 4})}})
 		commitRenameFn = real
 		landed := map[string]bool{}
 		for _, f := range res.Files {
@@ -140,8 +149,8 @@ func TestANumberedHunkAfterMrwsOwnWriteIsCountedNotRefused(t *testing.T) {
 		if err == nil || !landed["a.txt"] || landed["f.txt"] {
 			t.Fatalf("err %v, written %v: the fixture must land a.txt and not the candidate's f.txt", err, landed)
 		}
-		if res.StaleNumbered != 1 || res.StaleUnshown != 1 {
-			t.Errorf("numbered %d unshown %d, want 1 and 1: a guard at validation would have stopped this plan", res.StaleNumbered, res.StaleUnshown)
+		if res.StaleNumbered != 1 {
+			t.Errorf("numbered %d, want 1: the marked hunk passed validation although it never reached disk", res.StaleNumbered)
 		}
 	})
 }

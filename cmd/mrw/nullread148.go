@@ -49,7 +49,7 @@ func stillLicensed(root string, observed map[string]seen.Observation) string {
 		more = fmt.Sprintf(" and %d more", len(named)-5)
 		named = named[:5]
 	}
-	return fmt.Sprintf("mrw: still licensed in this version by an earlier read or write, every line served here in full: %s%s (%d of %d files served); a write to those lines is judged on that licence, with the usual checks (ADR-148)",
+	return fmt.Sprintf("mrw: still licensed in this version by an earlier read or write, every line served here in full: %s%s (%d of %d files served); a write to those lines is judged on that licence, with the usual checks (ADR-148); in a file mrw wrote, a number alone still needs the line shown (ADR-203)",
 		strings.Join(named, ", "), more, count, served)
 }
 

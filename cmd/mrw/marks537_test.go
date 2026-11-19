@@ -26,7 +26,7 @@ func TestAPlanWithTwoLeadingByteOrderMarksApplies(t *testing.T) {
 	} {
 		k.reset()
 		k.file("f.txt", "a\nb\n")
-		k.run("", nil, "read", "--quiet", "f.txt")
+		k.run("", nil, "read", "--quiet", "f.txt:1")
 		_, errOut, code := k.run(strings.Repeat(bom, c.marks)+"@@ f.txt 1 replace body=1\nALPHA\n", nil, "write", "--no-check", "-")
 		if code != 0 || k.read("f.txt") != "ALPHA\nb\n" {
 			t.Errorf("%s: exit %d, f.txt %q, want 0 and ALPHA\n%s", c.name, code, k.read("f.txt"), errOut)
@@ -53,7 +53,7 @@ func TestAKeptPlanWithTwoByteOrderMarksRerunsByItsPath(t *testing.T) {
 	if got != plan {
 		t.Fatalf("kept bytes %q, want the plan %q", got, plan)
 	}
-	k.run("", nil, "read", "--quiet", "f.txt")
+	k.run("", nil, "read", "--quiet", "f.txt:1")
 	if _, e, code := k.run("", nil, "write", "--no-check", path); code != 0 || k.read("f.txt") != "ALPHA\nb\n" {
 		t.Errorf("the kept plan did not rerun: exit %d, f.txt %q\n%s", code, k.read("f.txt"), e)
 	}

@@ -66,8 +66,9 @@ func TestAnMCPSubDryRunShowsEachChange(t *testing.T) {
 
 	t.Run("a plain plan's dry run shows none", func(t *testing.T) {
 		root := tree161(t, map[string]string{"a.css": ".a { color: red; }\n"})
-		call(t, root, "mrw_read", map[string]any{"specs": []string{"a.css"}, "quiet": true})
-		res := call(t, root, "mrw_write", map[string]any{"plan": "@@ a.css 1 replace\n.a { color: blue; }\n", "dry_run": true, "check": false})
+		// A quiet read shows nothing, and a number alone is refused on a line nothing showed (ADR-203): read it, and ack.
+		acks := checkpointsIn(served0(t, call(t, root, "mrw_read", map[string]any{"specs": []string{"a.css"}})))
+		res := call(t, root, "mrw_write", map[string]any{"plan": "@@ a.css 1 replace\n.a { color: blue; }\n", "ack": acks, "dry_run": true, "check": false})
 		if res["isError"] == true || previewRows(firstText(t, res)) != 0 {
 			t.Errorf("a plain dry run: %v", res)
 		}
@@ -108,10 +109,10 @@ func TestAnMCPSubDryRunShowsEachChange(t *testing.T) {
 			fmt.Fprintf(&plan, "@@ big.txt %d replace\nline %03d New keep keep keep keep keep keep\n", i+1, i)
 		}
 		root := tree161(t, map[string]string{"big.txt": body.String()})
-		call(t, root, "mrw_read", map[string]any{"specs": []string{"big.txt"}, "quiet": true})
+		acks := checkpointsIn(served0(t, call(t, root, "mrw_read", map[string]any{"specs": []string{"big.txt"}})))
 
 		// the size of the same receipt with no preview: a plain plan's dry run
-		plain := call(t, root, "mrw_write", map[string]any{"plan": plan.String(), "dry_run": true, "check": false})
+		plain := call(t, root, "mrw_write", map[string]any{"plan": plan.String(), "ack": acks, "dry_run": true, "check": false})
 		b, err := json.Marshal(plain)
 		if err != nil {
 			t.Fatal(err)

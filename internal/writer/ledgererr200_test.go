@@ -21,7 +21,7 @@ func TestALandingWhoseLedgerUpdateFailsIsCountedOnce(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "f.txt"), []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := seen.Record(root, map[string]seen.Observation{"f.txt": {SHA: seen.SHA([]byte(body)), Written: true}}); err != nil {
+	if err := seen.Record(root, map[string]seen.Observation{"f.txt": {SHA: seen.SHA([]byte(body)), Written: true, Shown: [][2]int{{2, 2}}}}); err != nil {
 		t.Fatal(err)
 	}
 	led, err := seen.ReadPath(root)
@@ -48,7 +48,7 @@ func TestALandingWhoseLedgerUpdateFailsIsCountedOnce(t *testing.T) {
 	if got, _ := os.ReadFile(filepath.Join(root, "f.txt")); string(got) != "a\nB\nc\n" {
 		t.Fatalf("the write did not land: %q", got)
 	}
-	want := authoring.Numbering{Landed: 1, Candidates: 1, WouldRefuse: 1}
+	want := authoring.Numbering{Landed: 1, Candidates: 1}
 	if got := authoring.LoadNumbering(root); got != want {
 		t.Errorf("after a landing whose ledger update failed: %+v, want %+v", got, want)
 	}

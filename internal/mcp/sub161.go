@@ -207,10 +207,14 @@ func readPlan(root string, a readArgs) (callToolResult, *rpcError) {
 	if !utf8.Valid(b.Plan) {
 		return errorResult(invalidPlanText(b.Plan)), nil
 	}
-	res, rpcErr := readResult(withSkipped(map[string]any{
+	receipt := map[string]any{
 		"observed": slashKeys(b.Observed, filepath.Separator),
 		"problems": 0,
-	}, b.Skipped), string(b.Plan), false)
+	}
+	if note := b.UnanchoredNote(); note != "" {
+		receipt["note"] = note
+	}
+	res, rpcErr := readResult(withSkipped(receipt, b.Skipped), string(b.Plan), false)
 	if rpcErr != nil {
 		return callToolResult{}, rpcErr
 	}

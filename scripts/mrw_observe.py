@@ -204,13 +204,15 @@ def collect_costs(binary, sizes, runs, warmups, budget, timeout, max_load):
                     for run in range(-warmups, runs):
                         scoped = mode not in ("write_full", "check_full")
                         current_config = config if scoped else {"check": config["check"], "timeout_seconds": 2}
-                        reset = "".join(f"@@ {name} 1 replace\nold\n" for name in names)
+                        # /^/ names the one line each fixture file holds: a number alone is refused on a
+                        # line no read has shown since mrw wrote the file (ADR-203).
+                        reset = "".join(f"@@ {name} /^/ replace\nold\n" for name in names)
                         config_body = json.dumps(current_config)
-                        reset += f"@@ .quality-harness.json 1 replace\n{config_body}\n"
+                        reset += f"@@ .quality-harness.json /^/ replace\n{config_body}\n"
                         calls.require(["write", "--no-check", "-"], reset)
                         edited = names[:size]
                         calls.require(["read", "--quiet", *edited])
-                        plan = "".join(f"@@ {name} 1 replace\nnew\n" for name in edited)
+                        plan = "".join(f"@@ {name} /^/ replace\nnew\n" for name in edited)
                         if mode.startswith("check_"):
                             calls.require(["write", "--no-check", "-"], plan)
                         commands = []
@@ -233,7 +235,7 @@ def collect_costs(binary, sizes, runs, warmups, budget, timeout, max_load):
                                 timed(["read", *edited])
                             elif mode == "queue_full":
                                 for name in edited:
-                                    timed(["write", "--json", "--no-check", "-"], f"@@ {name} 1 replace\nnew\n")
+                                    timed(["write", "--json", "--no-check", "-"], f"@@ {name} /^/ replace\nnew\n")
                                 timed(["check", "--json", "--full"], coverage=100)
                             elif mode.startswith("check_"):
                                 timed(["check", "--json", *(edited if scoped else ["--full"])], coverage=size if scoped else 100)

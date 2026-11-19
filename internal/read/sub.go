@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 )
 
 // Sub turns a --grep walk into a plan instead of lines (ADR-161): each served
@@ -18,6 +19,10 @@ type Sub struct {
 	Plan strings.Builder
 	// Sites and Files count the hunks and the files holding them.
 	Sites, Files int
+	// Unanchored counts the hunks written with no anchor=, because their line has
+	// no piece an anchor can name (ADR-203): empty, or nothing but CR and invalid
+	// UTF-8. A plan written by a later call is refused on those until read.
+	Unanchored int
 	// Refused names each file whose path the plan grammar cannot carry. When
 	// any is named, Run plans and licenses nothing at all.
 	Refused []string
@@ -54,6 +59,13 @@ func (s *Sub) file(path, sha string, lns []string, spans []span) [][2]int {
 			// A counted raw body whatever the text: one that starts with @@, body=
 			// or a byte order mark must not be read as a header or an option.
 			hdr := fmt.Sprintf("@@ %s %d replace sha=%s body=1 raw=true", name, ln, sha)
+			// anchor= is a piece of the line as it was, so a plan written by a later
+			// call is not refused as a number alone (ADR-203).
+			if a, ok := anchorOf(text); ok {
+				hdr += ` anchor="` + strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(a) + `"`
+			} else {
+				s.Unanchored++
+			}
 			s.Plan.WriteString(hdr + "\n" + next + "\n")
 			s.Sites++
 			planned = append(planned, [2]int{ln, ln})
@@ -63,6 +75,44 @@ func (s *Sub) file(path, sha string, lns []string, spans []span) [][2]int {
 		s.Files++
 	}
 	return planned
+}
+
+// anchorMax bounds an anchor: the check is a substring match, so a piece of a
+// line says as much as the line, and a 17 MiB line must not push a header past
+// the plan parser's limit.
+const anchorMax = 200
+
+// anchorOf is the piece of text a hunk's anchor= names: the first non-empty
+// stretch of valid UTF-8 between CR bytes and invalid bytes, cut to anchorMax
+// bytes at a rune boundary. It reports false when no stretch qualifies (an
+// empty line, or nothing but CR and invalid bytes).
+func anchorOf(text string) (string, bool) {
+	from := 0
+	for i := 0; i <= len(text); {
+		end, size := i == len(text), 0
+		if !end {
+			r, n := utf8.DecodeRuneInString(text[i:])
+			size = n
+			end = r == '\r' || (r == utf8.RuneError && n == 1)
+		}
+		if !end {
+			i += size
+			continue
+		}
+		if seg := text[from:i]; seg != "" {
+			if len(seg) > anchorMax {
+				n := anchorMax
+				for n > 0 && !utf8.RuneStart(seg[n]) {
+					n--
+				}
+				seg = seg[:n]
+			}
+			return seg, true
+		}
+		i += max(size, 1)
+		from = i
+	}
+	return "", false
 }
 
 // planPath spells path as the first field of a plan header. The header splitter

@@ -118,6 +118,7 @@ out=$(mktemp) \
 - 2026-10-20 · d9224ca1* · exit 0 · `set -o pipefail …` · acceptance-sha256:0304d71e34802e08a51cb59eaa258123f7dd110369b874fbc19e5f75f7220f16 · ms:6305
 - 2026-10-29 · 41a53637* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:0304d71e34802e08a51cb59eaa258123f7dd110369b874fbc19e5f75f7220f16 · ms:0 · test-lock-sha256:cc77f4a2f7be0a5ce6ae77b3b7c67887c3d0ea36375356980022da65dee5f7cc · test-lock-file:docs/adr/locks/cc77f4a2f7be0a5ce6ae77b3b7c67887c3d0ea36375356980022da65dee5f7cc.lock · test-lock-kind:replace
 - 2026-10-29 · 33aa28b7* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:0304d71e34802e08a51cb59eaa258123f7dd110369b874fbc19e5f75f7220f16 · ms:0 · test-lock-sha256:3850bc396064ad83374872869bf584574e5915ebd964e084ee39b3d9bf046f66 · test-lock-file:docs/adr/locks/3850bc396064ad83374872869bf584574e5915ebd964e084ee39b3d9bf046f66.lock · test-lock-kind:replace
+- 2026-11-19 · 6cf84b40* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:0304d71e34802e08a51cb59eaa258123f7dd110369b874fbc19e5f75f7220f16 · ms:0 · test-lock-sha256:ea3b330cbd7aa65a591cde3818873331b8429262d50788f44422d4f75c7826bd · test-lock-file:docs/adr/locks/ea3b330cbd7aa65a591cde3818873331b8429262d50788f44422d4f75c7826bd.lock · test-lock-kind:replace
 
 ## Invariants
 

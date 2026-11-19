@@ -12,7 +12,7 @@ import (
 func TestTheInstructionsDoNotInviteAStaleNumber(t *testing.T) {
 	core, recipes, cli, skill := Core(), Recipes(), CLI(), Skill("x")
 
-	if !strings.Contains(core, "except in a file mrw just wrote, whose numbers can move") {
+	if !strings.Contains(core, "except in a file mrw just wrote, where a number alone is refused") {
 		t.Errorf("rule 2 grants the licence without saying the numbers can move:\n%s", core)
 	}
 	if n := len(strings.Fields(core)); n >= 300 {
@@ -32,13 +32,13 @@ func TestTheInstructionsDoNotInviteAStaleNumber(t *testing.T) {
 			}
 		}
 	}
-	if strings.Contains(seven, "needs no re-read") || !strings.Contains(seven, "its line numbers can move (recipe 21)") {
+	if strings.Contains(seven, "needs no re-read") || !strings.Contains(seven, "until a read has shown a line a number alone is refused") {
 		t.Errorf("recipe 7 still says a written file needs no re-read, or does not point at recipe 21:\n%s", seven)
 	}
 	if !strings.Contains(seven, "keeps a whole-file licence, unless every hunk on it was a search_replace block (the write then adds the lines it wrote to the licence it had)") {
 		t.Errorf("recipe 7 does not say what licence a written file keeps:\n%s", seven)
 	}
-	if !strings.Contains(twentyOne, "a file you just wrote") || !strings.Contains(twentyOne, "line numbers can have moved") || !strings.Contains(twentyOne, "read again before you reuse a number you are not sure of") || strings.Contains(twentyOne, "only after") {
+	if !strings.Contains(twentyOne, "a file you just wrote") || !strings.Contains(twentyOne, "a number alone is refused, unless a read has shown that line since the write, so name the line by a pattern") || !strings.Contains(twentyOne, "or read the line first") || strings.Contains(twentyOne, "only after") {
 		t.Errorf("there is no recipe 21 for a second edit to a file just written:\n%s", twentyOne)
 	}
 	// The command names its line by content twice: a pattern address, and an

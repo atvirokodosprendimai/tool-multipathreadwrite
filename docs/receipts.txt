@@ -262,3 +262,4 @@ stats numbering
 stats numbering.landed_writes
 stats numbering.numbered_candidates
 stats numbering.numbered_would_refuse
+mcp_read note

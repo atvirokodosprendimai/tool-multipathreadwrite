@@ -1570,3 +1570,37 @@ reading, taken again 30 days later, once.
   for a count of `--invert` refused on a file under "Pre-registered for ADR-202's use", and a record.
 - `-o`, match-only output on standard input: E7 counts the calls classed `o` and sets no bar for them. Waits
   for a record of its own.
+
+## ADR-200's dated reading, set aside by the owner (2026-11-19)
+
+"Pre-registered for ADR-200's count" above says the count is read once on 2026-12-18 and that the refusal
+is not built before. On 2026-11-19 Zy was asked "Keep that date?" and chose *"Build it now"*. The bar was
+not met and is not claimed to be: the owner set the reading aside. ADR-203 builds the refusal at the width
+the count measures. Once it ships, the landings it stops no longer reach `numbered_would_refuse`, so that
+counter grows only by writes an older mrw makes on the same root, and the reading of 2026-12-18 is not
+taken. The counters and their meaning stay in `mrw stats`.
+
+## Pre-registered for ADR-203 (Decision 6) — written before the code
+
+A friction reading, not a proof of benefit. Read once, 30 days after the tag date of the first release that
+carries the refusal, on Zy's Mac, over Claude Code transcripts since that tag, this repository's sessions
+left out. The effect-study scanner is extended and committed before it runs. A shell call is counted once,
+by its tool-use id:
+- `refused`: the answer of a command that ran `mrw write` holds `has no recorded showing in this version`.
+- `landed`: the answer reports a write that landed (E5's rule).
+- `retried`: a `refused` call followed, within five tool calls of the same transcript, by a landed write whose
+  answer names the same target path; each landing answers at most one refusal. A call whose answer holds
+  both a refusal and a landing is reported apart, as `mixed`, and is in neither count. When both readings
+  below fire, the first one decides.
+**Reading.** Fewer than 1,000 `landed`: no reading, taken again 30 days later, once. `refused` over 5% of
+`landed + refused`: it goes back to Zy with the numbers and the choice of narrowing or removing the refusal.
+`retried` under half of `refused`: callers are not finding the way out, and the reason's wording goes back
+to Zy. Otherwise it stays. 5% is the figure ADR-200's own threshold used; nothing derives it.
+**What it does not show.** Whether a refused number was in fact stale, which no transcript can say; writes
+made through `mrw_write` or another host.
+
+## From ADR-203
+
+- A selective refusal with ledger state (only below a line an earlier write moved): the first draft,
+  withdrawn after two challenges. Reopened only by the reading above going back to Zy, with a record of its own.
+- A receipt row naming the shift: no caller asked for it. Waits for a request and a record.

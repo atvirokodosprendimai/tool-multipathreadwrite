@@ -51,6 +51,17 @@ type Built struct {
 	Files    int
 	Problems int // paths refused and ranges not served: a partial plan
 	Skipped  WalkSkipped
+	// Unanchored is how many hunks carry no anchor= (ADR-203).
+	Unanchored int
+}
+
+// UnanchoredNote is the sentence for a plan with hunks that carry no anchor=,
+// or "" when every hunk does.
+func (b *Built) UnanchoredNote() string {
+	if b.Unanchored == 0 {
+		return ""
+	}
+	return fmt.Sprintf("-- note: %d hunk(s) carry no anchor= (their line is empty, or holds nothing an anchor can name): in a file mrw wrote, a later write of this plan is refused on them until those lines are read; or use write --grep --sub, which plans and writes in one call", b.Unanchored)
 }
 
 // BuildSub walks posArgs for pattern and plans repl over the lines it finds.
@@ -103,7 +114,7 @@ func BuildSub(root string, posArgs []string, pattern, repl string, excludes []st
 	if sub.Sites == 0 {
 		return nil, notApplied("incomplete: %d file(s) matched /%s/ and the substitution changed no line", len(specs), OneLine(pattern))
 	}
-	return &Built{Plan: []byte(sub.Plan.String()), Observed: observed, Sites: sub.Sites, Files: sub.Files, Problems: problems + len(refusals), Skipped: skipped}, nil
+	return &Built{Plan: []byte(sub.Plan.String()), Observed: observed, Sites: sub.Sites, Files: sub.Files, Problems: problems + len(refusals), Skipped: skipped, Unanchored: sub.Unanchored}, nil
 }
 
 // missingGroup finds the first reference in repl that re defines no group for,

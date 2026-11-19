@@ -297,14 +297,15 @@ func TestStatsLandedLineIsTheArithmeticItClaims(t *testing.T) {
 		var doc, outcome string
 		var flags []string
 		switch r.Intn(5) {
+		// The line is named by a pattern: a number alone is refused on a file mrw wrote (ADR-203).
 		case 0: // --no-check on code → applied
-			doc, flags, outcome = "@@ a.go 2 insert-after\nx\n", []string{"--no-check"}, "applied"
+			doc, flags, outcome = "@@ a.go /^l1$/ insert-after\nx\n", []string{"--no-check"}, "applied"
 		case 1: // prose skip → applied
-			doc, outcome = "@@ n.md 2 insert-after\nx\n", "applied"
+			doc, outcome = "@@ n.md /^l1$/ insert-after\nx\n", "applied"
 		case 2: // --check on code, failing check → failed_check
-			doc, flags, outcome = "@@ a.go 2 insert-after\nx\n", []string{"--check"}, "failed_check"
+			doc, flags, outcome = "@@ a.go /^l1$/ insert-after\nx\n", []string{"--check"}, "failed_check"
 		case 3: // demand on prose, failing check → failed_check
-			doc, flags, outcome = "@@ n.md 2 insert-after\nx\n", []string{"--check"}, "failed_check"
+			doc, flags, outcome = "@@ n.md /^l1$/ insert-after\nx\n", []string{"--check"}, "failed_check"
 		default: // a plan that does not parse → refused_parse (not landed)
 			doc, outcome = "@@ a.go 2 frobnicate\nx\n", "refused_parse"
 		}
