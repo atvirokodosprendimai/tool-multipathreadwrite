@@ -1,0 +1,12 @@
+diff --git a/sphinx/ext/autosummary/__init__.py b/sphinx/ext/autosummary/__init__.py
+--- a/sphinx/ext/autosummary/__init__.py
++++ b/sphinx/ext/autosummary/__init__.py
+@@ -107,7 +107,7 @@
+ periods_re = re.compile(r'\.(?:\s+)')
+ literal_re = re.compile(r'::\s*$')
+ 
+-WELL_KNOWN_ABBREVIATIONS = ('et al.', 'e.g.', 'i.e.')
++WELL_KNOWN_ABBREVIATIONS = ('et al.', 'e.g.', 'i.e.', 'vs.')
+ 
+ 
+ # -- autosummary_toc node ------------------------------------------------------

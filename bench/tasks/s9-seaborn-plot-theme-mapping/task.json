@@ -1,0 +1,12 @@
+{
+  "id": "s9-seaborn-plot-theme-mapping",
+  "shape": "control",
+  "repo": "mwaskom/seaborn",
+  "commit": "58f170fe799ef496adae19925d7d4f0f14f8da95",
+  "instruction": "In seaborn/_core/plot.py, add Mapping at the end of the line \"from collections.abc import Callable, Generator\". Then annotate the config parameter of Plot.theme as \"Mapping[str, Any]\" in place of \"dict[str, Any]\".",
+  "exact": true,
+  "require": [
+    {"file": "seaborn/_core/plot.py", "match": "(?m)^from collections\\.abc import Callable, Generator, Mapping$"},
+    {"file": "seaborn/_core/plot.py", "match": "def theme\\(self, config: Mapping\\[str, Any\\], /\\) -> Plot:"}
+  ]
+}

@@ -1,0 +1,68 @@
+diff --git a/src/_pytest/capture.py b/src/_pytest/capture.py
+--- a/src/_pytest/capture.py
++++ b/src/_pytest/capture.py
+@@ -715,7 +715,7 @@ class MultiCapture(Generic[AnyStr]):
+         return CaptureResult(out, err)  # type: ignore[arg-type]
+ 
+ 
+-def _get_multicapture(method: _CaptureMethod) -> MultiCapture[str]:
++def _make_multicapture(method: _CaptureMethod) -> MultiCapture[str]:
+     if method == "fd":
+         return MultiCapture(in_=FDCapture(0), out=FDCapture(1), err=FDCapture(2))
+     elif method == "sys":
+@@ -776,7 +776,7 @@ class CaptureManager:
+ 
+     def start_global_capturing(self) -> None:
+         assert self._global_capturing is None
+-        self._global_capturing = _get_multicapture(self._method)
++        self._global_capturing = _make_multicapture(self._method)
+         self._global_capturing.start_capturing()
+ 
+     def stop_global_capturing(self) -> None:
+diff --git a/src/_pytest/pytester.py b/src/_pytest/pytester.py
+--- a/src/_pytest/pytester.py
++++ b/src/_pytest/pytester.py
+@@ -41,7 +41,7 @@ from iniconfig import SectionWrapper
+ 
+ from _pytest import timing
+ from _pytest._code import Source
+-from _pytest.capture import _get_multicapture
++from _pytest.capture import _make_multicapture
+ from _pytest.compat import NOTSET
+ from _pytest.compat import NotSetType
+ from _pytest.config import _PluggyPlugin
+@@ -1186,7 +1186,7 @@ class Pytester:
+         if syspathinsert:
+             self.syspathinsert()
+         instant = timing.Instant()
+-        capture = _get_multicapture("sys")
++        capture = _make_multicapture("sys")
+         capture.start_capturing()
+         try:
+             try:
+diff --git a/testing/test_capture.py b/testing/test_capture.py
+--- a/testing/test_capture.py
++++ b/testing/test_capture.py
+@@ -15,7 +15,7 @@ from typing import cast
+ from typing import TextIO
+ 
+ from _pytest import capture
+-from _pytest.capture import _get_multicapture
++from _pytest.capture import _make_multicapture
+ from _pytest.capture import CaptureFixture
+ from _pytest.capture import CaptureManager
+ from _pytest.capture import CaptureResult
+@@ -1708,10 +1708,10 @@ def test_encodedfile_writelines(tmpfile: BinaryIO) -> None:
+         ef.read()
+ 
+ 
+-def test__get_multicapture() -> None:
+-    assert isinstance(_get_multicapture("no"), MultiCapture)
++def test__make_multicapture() -> None:
++    assert isinstance(_make_multicapture("no"), MultiCapture)
+     with pytest.raises(ValueError, match=r"^unknown capturing method: 'unknown'$"):
+-        _get_multicapture("unknown")  # type: ignore[arg-type]
++        _make_multicapture("unknown")  # type: ignore[arg-type]
+ 
+ 
+ def test_logging_while_collecting(pytester: Pytester) -> None:

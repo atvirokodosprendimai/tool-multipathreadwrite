@@ -1,0 +1,13 @@
+{
+  "id": "s9-pylint-parse-rich-type-value",
+  "shape": "batch",
+  "repo": "pylint-dev/pylint",
+  "commit": "1a60ec1900af753ff8e6f6344a6bdedfa833ca58",
+  "instruction": "Rename _parse_rich_type_value to _parse_typed_option_value in pylint/config/arguments_manager.py, pylint/config/config_file_parser.py and pylint/config/utils.py: its definition, every import and call, and every other occurrence of the name in those files, including comments, docstrings, strings such as an __all__ entry, and test function names that contain it. Those are the only files that contain it. Change nothing else.",
+  "exact": true,
+  "require": [
+    {"file": "pylint/config/arguments_manager.py", "match": "\\b_parse_typed_option_value\\b"},
+    {"file": "pylint/config/config_file_parser.py", "match": "\\b_parse_typed_option_value\\b"},
+    {"file": "pylint/config/utils.py", "match": "\\b_parse_typed_option_value\\b"}
+  ]
+}

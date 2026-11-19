@@ -1,0 +1,11 @@
+{
+  "id": "s9-requests-https-scheme-hint",
+  "shape": "single-site",
+  "repo": "psf/requests",
+  "commit": "4d394574f5555a8ddcc38f707e0c9f57f55d9a3b",
+  "instruction": "In requests/models.py, the MissingSchema message for a URL with no scheme ends with f\"Perhaps you meant http://{url}?\". Suggest https instead: f\"Perhaps you meant https://{url}?\". Change nothing else.",
+  "exact": true,
+  "require": [
+    {"file": "requests/models.py", "match": "f\"Perhaps you meant https://\\{url\\}\\?\""}
+  ]
+}

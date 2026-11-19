@@ -1,0 +1,12 @@
+diff --git a/sphinx/builders/html/__init__.py b/sphinx/builders/html/__init__.py
+--- a/sphinx/builders/html/__init__.py
++++ b/sphinx/builders/html/__init__.py
+@@ -939,7 +939,7 @@ def index_page(self, pagename: str, doctree: nodes.document, title: str) -> None
+         if self.indexer is not None and title:
+             filename = self.env.doc2path(pagename, base=False)
+             metadata = self.env.metadata.get(pagename, {})
+-            if 'nosearch' in metadata:
++            if 'no-search' in metadata or 'nosearch' in metadata:
+                 self.indexer.feed(pagename, filename, '', new_document(''))
+             else:
+                 self.indexer.feed(pagename, filename, title, doctree)

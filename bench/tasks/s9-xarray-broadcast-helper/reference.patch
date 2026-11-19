@@ -1,0 +1,62 @@
+diff --git a/xarray/core/dataarray.py b/xarray/core/dataarray.py
+--- a/xarray/core/dataarray.py
++++ b/xarray/core/dataarray.py
+@@ -71,7 +71,7 @@ from xarray.plot.accessor import DataArrayPlotAccessor
+ from xarray.plot.utils import _get_units_from_attrs
+ from xarray.structure import alignment
+ from xarray.structure.alignment import (
+-    _broadcast_helper,
++    _broadcast_to_common,
+     _get_broadcast_dims_map_common_coords,
+     align,
+ )
+@@ -2079,7 +2079,7 @@ class DataArray(
+ 
+         dims_map, common_coords = _get_broadcast_dims_map_common_coords(args, exclude)
+ 
+-        return _broadcast_helper(args[1], exclude, dims_map, common_coords)
++        return _broadcast_to_common(args[1], exclude, dims_map, common_coords)
+ 
+     def _reindex_callback(
+         self,
+diff --git a/xarray/core/dataset.py b/xarray/core/dataset.py
+--- a/xarray/core/dataset.py
++++ b/xarray/core/dataset.py
+@@ -117,7 +117,7 @@ from xarray.namedarray.pycompat import array_type, is_chunked_array, to_numpy
+ from xarray.plot.accessor import DatasetPlotAccessor
+ from xarray.structure import alignment
+ from xarray.structure.alignment import (
+-    _broadcast_helper,
++    _broadcast_to_common,
+     _get_broadcast_dims_map_common_coords,
+     align,
+ )
+@@ -3423,7 +3423,7 @@ class Dataset(
+ 
+         dims_map, common_coords = _get_broadcast_dims_map_common_coords(args, exclude)
+ 
+-        return _broadcast_helper(args[1], exclude, dims_map, common_coords)
++        return _broadcast_to_common(args[1], exclude, dims_map, common_coords)
+ 
+     def _reindex_callback(
+         self,
+diff --git a/xarray/structure/alignment.py b/xarray/structure/alignment.py
+--- a/xarray/structure/alignment.py
++++ b/xarray/structure/alignment.py
+@@ -1150,7 +1150,7 @@ def _get_broadcast_dims_map_common_coords(args, exclude):
+     return dims_map, common_coords
+ 
+ 
+-def _broadcast_helper(
++def _broadcast_to_common(
+     arg: T_Alignable, exclude, dims_map, common_coords
+ ) -> T_Alignable:
+     from xarray.core.dataarray import DataArray
+@@ -1325,6 +1325,6 @@ def broadcast(
+     args = align(*args, join="outer", copy=False, exclude=exclude)
+ 
+     dims_map, common_coords = _get_broadcast_dims_map_common_coords(args, exclude)
+-    result = [_broadcast_helper(arg, exclude, dims_map, common_coords) for arg in args]
++    result = [_broadcast_to_common(arg, exclude, dims_map, common_coords) for arg in args]
+ 
+     return tuple(result)

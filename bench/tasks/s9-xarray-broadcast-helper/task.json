@@ -1,0 +1,13 @@
+{
+  "id": "s9-xarray-broadcast-helper",
+  "shape": "batch",
+  "repo": "pydata/xarray",
+  "commit": "83352225282987fa1dc56e77f3bb4ccf51f8acab",
+  "instruction": "Rename _broadcast_helper to _broadcast_to_common in xarray/core/dataarray.py, xarray/core/dataset.py and xarray/structure/alignment.py: its definition, every import and call, and every other occurrence of the name in those files, including comments, docstrings, strings such as an __all__ entry, and test function names that contain it. Those are the only files that contain it. Change nothing else.",
+  "exact": true,
+  "require": [
+    {"file": "xarray/core/dataarray.py", "match": "\\b_broadcast_to_common\\b"},
+    {"file": "xarray/core/dataset.py", "match": "\\b_broadcast_to_common\\b"},
+    {"file": "xarray/structure/alignment.py", "match": "\\b_broadcast_to_common\\b"}
+  ]
+}

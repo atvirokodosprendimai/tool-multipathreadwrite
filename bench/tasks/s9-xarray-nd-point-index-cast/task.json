@@ -1,0 +1,12 @@
+{
+  "id": "s9-xarray-nd-point-index-cast",
+  "shape": "control",
+  "repo": "pydata/xarray",
+  "commit": "a2dc5dcd5df630014ea095a64412e036fee6f2d9",
+  "instruction": "In xarray/indexes/nd_point_index.py, add cast at the end of the line \"from typing import TYPE_CHECKING, Any, Generic, TypeVar\", then change \"tree_adapter_cls = ScipyKDTreeAdapter\" to \"tree_adapter_cls = cast(type[T_TreeAdapter], ScipyKDTreeAdapter)\".",
+  "exact": true,
+  "require": [
+    {"file": "xarray/indexes/nd_point_index.py", "match": "(?m)^from typing import TYPE_CHECKING, Any, Generic, TypeVar, cast$"},
+    {"file": "xarray/indexes/nd_point_index.py", "match": "tree_adapter_cls = cast\\(type\\[T_TreeAdapter\\], ScipyKDTreeAdapter\\)"}
+  ]
+}

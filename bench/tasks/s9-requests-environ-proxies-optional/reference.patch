@@ -1,0 +1,12 @@
+diff --git a/requests/utils.py b/requests/utils.py
+--- a/requests/utils.py
++++ b/requests/utils.py
+@@ -684,7 +684,7 @@ def should_bypass_proxies(url, no_proxy):
+     return False
+ 
+ 
+-def get_environ_proxies(url, no_proxy):
++def get_environ_proxies(url, no_proxy=None):
+     """
+     Return a dict of environment proxies.
+ 

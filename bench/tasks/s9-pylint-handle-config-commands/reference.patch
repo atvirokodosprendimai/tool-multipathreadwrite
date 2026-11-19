@@ -1,0 +1,46 @@
+diff --git a/pylint/config/_pylint_config/__init__.py b/pylint/config/_pylint_config/__init__.py
+--- a/pylint/config/_pylint_config/__init__.py
++++ b/pylint/config/_pylint_config/__init__.py
+@@ -7,7 +7,7 @@
+ Everything in this module is private.
+ """
+ 
+-from pylint.config._pylint_config.main import _handle_pylint_config_commands
++from pylint.config._pylint_config.main import _run_pylint_config_commands
+ from pylint.config._pylint_config.setup import _register_generate_config_options
+ 
+-__all__ = ("_handle_pylint_config_commands", "_register_generate_config_options")
++__all__ = ("_run_pylint_config_commands", "_register_generate_config_options")
+diff --git a/pylint/config/_pylint_config/main.py b/pylint/config/_pylint_config/main.py
+--- a/pylint/config/_pylint_config/main.py
++++ b/pylint/config/_pylint_config/main.py
+@@ -15,7 +15,7 @@ if TYPE_CHECKING:
+     from pylint.lint.pylinter import PyLinter
+ 
+ 
+-def _handle_pylint_config_commands(linter: PyLinter) -> int:
++def _run_pylint_config_commands(linter: PyLinter) -> int:
+     """Handle whichever command is passed to 'pylint-config'."""
+     if linter.config.config_subcommand == "generate":
+         return handle_generate_command(linter)
+diff --git a/pylint/lint/run.py b/pylint/lint/run.py
+--- a/pylint/lint/run.py
++++ b/pylint/lint/run.py
+@@ -14,7 +14,7 @@ from typing import ClassVar
+ from pylint import config
+ from pylint.checkers.clear_lru_cache import clear_lru_caches
+ from pylint.config._pylint_config import (
+-    _handle_pylint_config_commands,
++    _run_pylint_config_commands,
+     _register_generate_config_options,
+ )
+ from pylint.config.config_initialization import _config_initialization
+@@ -205,7 +205,7 @@ group are mutually exclusive.",
+                 UserWarning,
+                 stacklevel=2,
+             )
+-            code = _handle_pylint_config_commands(linter)
++            code = _run_pylint_config_commands(linter)
+             if exit:
+                 sys.exit(code)
+             return

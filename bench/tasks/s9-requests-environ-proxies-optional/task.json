@@ -1,0 +1,11 @@
+{
+  "id": "s9-requests-environ-proxies-optional",
+  "shape": "single-site",
+  "repo": "psf/requests",
+  "commit": "0ba21a79c49117495e2c4f70264f366dea6e480e",
+  "instruction": "In requests/utils.py, make the no_proxy argument of get_environ_proxies optional: the signature becomes \"def get_environ_proxies(url, no_proxy=None):\". Change nothing else.",
+  "exact": true,
+  "require": [
+    {"file": "requests/utils.py", "match": "(?m)^def get_environ_proxies\\(url, no_proxy=None\\):$"}
+  ]
+}

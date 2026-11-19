@@ -1,0 +1,61 @@
+diff --git a/pylint/lint/__init__.py b/pylint/lint/__init__.py
+--- a/pylint/lint/__init__.py
++++ b/pylint/lint/__init__.py
+@@ -28,13 +28,13 @@ from pylint.lint.report_functions import (
+     report_total_messages_stats,
+ )
+ from pylint.lint.run import Run
+-from pylint.lint.utils import _augment_sys_path, augmented_sys_path
++from pylint.lint.utils import _extend_sys_path, augmented_sys_path
+ 
+ __all__ = [
+     "ArgumentPreprocessingError",
+     "PyLinter",
+     "Run",
+-    "_augment_sys_path",
++    "_extend_sys_path",
+     "augmented_sys_path",
+     "check_parallel",
+     "discover_package_path",
+diff --git a/pylint/lint/parallel.py b/pylint/lint/parallel.py
+--- a/pylint/lint/parallel.py
++++ b/pylint/lint/parallel.py
+@@ -10,7 +10,7 @@ from collections.abc import Iterable, Sequence
+ from typing import TYPE_CHECKING, Any
+ 
+ from pylint import reporters
+-from pylint.lint.utils import _augment_sys_path
++from pylint.lint.utils import _extend_sys_path
+ from pylint.message import Message
+ from pylint.typing import FileItem
+ from pylint.utils import LinterStats, merge_stats
+@@ -33,7 +33,7 @@ def _worker_initialize(
+     :param extra_packages_paths: Extra entries to be added to `sys.path`
+     """
+     if extra_packages_paths:
+-        _augment_sys_path(extra_packages_paths)
++        _extend_sys_path(extra_packages_paths)
+ 
+     global _worker_linter  # pylint: disable=global-statement
+     import dill  # pylint: disable=import-outside-toplevel
+diff --git a/pylint/lint/utils.py b/pylint/lint/utils.py
+--- a/pylint/lint/utils.py
++++ b/pylint/lint/utils.py
+@@ -113,7 +113,7 @@ def get_fatal_error_message(filepath: str, issue_template_path: Path) -> str:
+     )
+ 
+ 
+-def _augment_sys_path(additional_paths: Sequence[str]) -> list[str]:
++def _extend_sys_path(additional_paths: Sequence[str]) -> list[str]:
+     original = list(sys.path)
+     changes = []
+     seen = set()
+@@ -129,7 +129,7 @@ def _augment_sys_path(additional_paths: Sequence[str]) -> list[str]:
+ @contextlib.contextmanager
+ def augmented_sys_path(additional_paths: Sequence[str]) -> Iterator[None]:
+     """Augment 'sys.path' by adding non-existent entries from additional_paths."""
+-    original = _augment_sys_path(additional_paths)
++    original = _extend_sys_path(additional_paths)
+     try:
+         yield
+     finally:

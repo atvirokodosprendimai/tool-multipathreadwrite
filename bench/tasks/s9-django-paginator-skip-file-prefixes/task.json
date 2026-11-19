@@ -1,0 +1,12 @@
+{
+  "id": "s9-django-paginator-skip-file-prefixes",
+  "shape": "follow-on",
+  "repo": "django/django",
+  "commit": "6669d66a795029add189bebe6f7a7fdcf2c9f9d4",
+  "instruction": "In django/core/paginator.py, add the line \"from django.utils.warnings import django_file_prefixes\" right after the line \"from django.utils.translation import gettext_lazy as _\". Then, in the warnings.warn call that issues UnorderedObjectListWarning, replace the argument \"stacklevel=3,\" by \"skip_file_prefixes=django_file_prefixes(),\".",
+  "exact": true,
+  "require": [
+    {"file": "django/core/paginator.py", "match": "(?m)^from django\\.utils\\.warnings import django_file_prefixes$"},
+    {"file": "django/core/paginator.py", "match": "skip_file_prefixes=django_file_prefixes\\(\\),"}
+  ]
+}

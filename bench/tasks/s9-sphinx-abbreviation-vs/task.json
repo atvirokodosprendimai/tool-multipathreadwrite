@@ -1,0 +1,11 @@
+{
+  "id": "s9-sphinx-abbreviation-vs",
+  "shape": "single-site",
+  "repo": "sphinx-doc/sphinx",
+  "commit": "3601161f0e95f0bb7e22682cdd5fe93f4ed11ed8",
+  "instruction": "In sphinx/ext/autosummary/__init__.py, add 'vs.' as a fourth entry of WELL_KNOWN_ABBREVIATIONS, after 'i.e.', keeping it on one line. Change nothing else.",
+  "exact": true,
+  "require": [
+    {"file": "sphinx/ext/autosummary/__init__.py", "match": "(?m)^WELL_KNOWN_ABBREVIATIONS = \\('et al\\.', 'e\\.g\\.', 'i\\.e\\.', 'vs\\.'\\)$"}
+  ]
+}

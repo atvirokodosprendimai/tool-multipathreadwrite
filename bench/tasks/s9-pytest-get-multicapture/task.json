@@ -1,0 +1,13 @@
+{
+  "id": "s9-pytest-get-multicapture",
+  "shape": "batch",
+  "repo": "pytest-dev/pytest",
+  "commit": "c9c19f8e62c12834ad83193a1869cc82fe9c700e",
+  "instruction": "Rename _get_multicapture to _make_multicapture in src/_pytest/capture.py, src/_pytest/pytester.py and testing/test_capture.py: its definition, every import and call, and every other occurrence of the name in those files, including comments, docstrings, strings such as an __all__ entry, and test function names that contain it. Those are the only files that contain it. Change nothing else.",
+  "exact": true,
+  "require": [
+    {"file": "src/_pytest/capture.py", "match": "\\b_make_multicapture\\b"},
+    {"file": "src/_pytest/pytester.py", "match": "\\b_make_multicapture\\b"},
+    {"file": "testing/test_capture.py", "match": "\\b_make_multicapture\\b"}
+  ]
+}

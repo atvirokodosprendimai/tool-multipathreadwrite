@@ -1,0 +1,12 @@
+{
+  "id": "s9-pylint-primer-comparator-message-type",
+  "shape": "control",
+  "repo": "pylint-dev/pylint",
+  "commit": "792fc68e315746d89b138f8020986ee904da4859",
+  "instruction": "In pylint/testutils/_primer/comparator.py, import JSONMessage from pylint.reporters.json_reporter in place of OldJsonExport, and annotate package_missing_messages as list[JSONMessage] to match. Change nothing else.",
+  "exact": true,
+  "require": [
+    {"file": "pylint/testutils/_primer/comparator.py", "match": "(?m)^from pylint\\.reporters\\.json_reporter import JSONMessage$"},
+    {"file": "pylint/testutils/_primer/comparator.py", "match": "package_missing_messages: list\\[JSONMessage\\] = \\[\\]"}
+  ]
+}

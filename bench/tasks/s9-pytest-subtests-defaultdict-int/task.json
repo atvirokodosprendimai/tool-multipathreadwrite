@@ -1,0 +1,11 @@
+{
+  "id": "s9-pytest-subtests-defaultdict-int",
+  "shape": "single-site",
+  "repo": "pytest-dev/pytest",
+  "commit": "ee652d689feb1e889737f56fdb3585572e1f140f",
+  "instruction": "In src/_pytest/subtests.py, pytest_configure creates its counter with defaultdict(lambda: 0). Create it with defaultdict(int) instead. Change nothing else.",
+  "exact": true,
+  "require": [
+    {"file": "src/_pytest/subtests.py", "match": "(?m)= defaultdict\\(int\\)$"}
+  ]
+}

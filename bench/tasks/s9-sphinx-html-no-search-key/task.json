@@ -1,0 +1,11 @@
+{
+  "id": "s9-sphinx-html-no-search-key",
+  "shape": "single-site",
+  "repo": "sphinx-doc/sphinx",
+  "commit": "9a6885d0d53227caf35a54b884bf4e89c520109e",
+  "instruction": "In sphinx/builders/html/__init__.py, index_page tests \"if 'nosearch' in metadata:\". Make the condition also accept the key 'no-search': \"if 'no-search' in metadata or 'nosearch' in metadata:\". Change nothing else.",
+  "exact": true,
+  "require": [
+    {"file": "sphinx/builders/html/__init__.py", "match": "if 'no-search' in metadata or 'nosearch' in metadata:"}
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "id": "s9-sphinx-input-mode-colour-func",
+  "shape": "batch",
+  "repo": "sphinx-doc/sphinx",
+  "commit": "b04a2101295ac3fb725b16111eda0284b6da4cca",
+  "instruction": "Rename _create_input_mode_colour_func to _make_input_mode_colour_func in sphinx/_cli/util/colour.py, sphinx/cmd/quickstart.py and sphinx/util/console.py: its definition, every import and call, and every other occurrence of the name in those files, including comments, docstrings, strings such as an __all__ entry, and test function names that contain it. Those are the only files that contain it. Change nothing else.",
+  "exact": true,
+  "require": [
+    {"file": "sphinx/_cli/util/colour.py", "match": "\\b_make_input_mode_colour_func\\b"},
+    {"file": "sphinx/cmd/quickstart.py", "match": "\\b_make_input_mode_colour_func\\b"},
+    {"file": "sphinx/util/console.py", "match": "\\b_make_input_mode_colour_func\\b"}
+  ]
+}

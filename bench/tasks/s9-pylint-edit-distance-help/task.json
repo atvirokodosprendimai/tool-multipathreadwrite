@@ -1,0 +1,11 @@
+{
+  "id": "s9-pylint-edit-distance-help",
+  "shape": "single-site",
+  "repo": "pylint-dev/pylint",
+  "commit": "46460d8b5f9257abd9b8342b187ac1dc96c1d419",
+  "instruction": "In pylint/checkers/typecheck.py, the help text of the member-hint edit distance option starts with \"The minimum edit distance a name should have in order \". Change the word \"minimum\" to \"maximum\" there. Change nothing else.",
+  "exact": true,
+  "require": [
+    {"file": "pylint/checkers/typecheck.py", "match": "(?m)^\\s+\"help\": \"The maximum edit distance a name should have in order \"$"}
+  ]
+}

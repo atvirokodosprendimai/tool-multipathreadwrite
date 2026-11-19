@@ -1,0 +1,13 @@
+{
+  "id": "s9-sphinx-normalize-options",
+  "shape": "batch",
+  "repo": "sphinx-doc/sphinx",
+  "commit": "b04a2101295ac3fb725b16111eda0284b6da4cca",
+  "instruction": "Rename _normalize_options to _normalize_directive_options in sphinx/directives/patches.py, sphinx/roles.py and sphinx/util/docutils.py: its definition, every import and call, and every other occurrence of the name in those files, including comments, docstrings, strings such as an __all__ entry, and test function names that contain it. Those are the only files that contain it. Change nothing else.",
+  "exact": true,
+  "require": [
+    {"file": "sphinx/directives/patches.py", "match": "\\b_normalize_directive_options\\b"},
+    {"file": "sphinx/roles.py", "match": "\\b_normalize_directive_options\\b"},
+    {"file": "sphinx/util/docutils.py", "match": "\\b_normalize_directive_options\\b"}
+  ]
+}

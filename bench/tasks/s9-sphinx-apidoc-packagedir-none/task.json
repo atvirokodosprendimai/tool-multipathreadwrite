@@ -1,0 +1,11 @@
+{
+  "id": "s9-sphinx-apidoc-packagedir-none",
+  "shape": "single-site",
+  "repo": "sphinx-doc/sphinx",
+  "commit": "e4e78b3e1c5a737e5542f709dda3f1ef82515b80",
+  "instruction": "In sphinx/ext/apidoc.py, is_packagedir starts with \"if files is dirname is None:\", a chained comparison that does not test what it appears to. Write the condition as \"files is None and dirname is None\". Change nothing else.",
+  "exact": true,
+  "require": [
+    {"file": "sphinx/ext/apidoc.py", "match": "(?m)^    if files is None and dirname is None:$"}
+  ]
+}

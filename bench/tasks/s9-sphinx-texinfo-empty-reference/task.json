@@ -1,0 +1,11 @@
+{
+  "id": "s9-sphinx-texinfo-empty-reference",
+  "shape": "single-site",
+  "repo": "sphinx-doc/sphinx",
+  "commit": "548f0f928aab7c8f373604a0f65cce962e9807a5",
+  "instruction": "In sphinx/writers/texinfo.py, visit_reference tests isinstance(node[0], nodes.image) even when the node has no children. Guard it: the condition becomes \"len(node) != 0 and isinstance(node[0], nodes.image)\". Change nothing else.",
+  "exact": true,
+  "require": [
+    {"file": "sphinx/writers/texinfo.py", "match": "if len\\(node\\) != 0 and isinstance\\(node\\[0\\], nodes\\.image\\):"}
+  ]
+}
