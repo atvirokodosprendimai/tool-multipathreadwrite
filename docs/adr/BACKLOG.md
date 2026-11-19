@@ -1604,3 +1604,29 @@ made through `mrw_write` or another host.
 - A selective refusal with ledger state (only below a line an earlier write moved): the first draft,
   withdrawn after two challenges. Reopened only by the reading above going back to Zy, with a record of its own.
 - A receipt row naming the shift: no caller asked for it. Waits for a request and a record.
+
+## E6's verdict, set aside by the owner (2026-11-19)
+
+"Pre-registered for an undo of mrw's own write (E6)" above measured STOP: 9 near path reverts in 9,686
+landed writes outside this repository, against a bar of 25 and 0.5%. On 2026-11-19 Zy agreed to an undo
+scoped to mrw's own writes (*"ok, re proposal on mrw - agreed"*, then *"good, go on with mrw undo"*). The
+bar was not met and is not claimed to be: the owner decided past it. ADR-204 builds it.
+
+## Pre-registered for ADR-204 (Decision 10) — written before the code
+
+Read once, 30 days after the tag date of the first release that carries `mrw undo`, on Zy's Mac, over
+Claude Code transcripts since that tag, this repository's sessions left out, with the effect-study scanner
+extended and committed before it runs. A shell call is counted once, by its tool-use id:
+- `undos`: the command runs `mrw undo` with none of `--list`, `--dry-run`, `--forget`, and exits 0.
+- `refused`: the same, exiting 1.
+- `landed`: the answer reports a write that landed (E5's rule).
+And, for each root named by a `root` marker in mrw's state, the size in bytes of its `undo/` directory.
+**Reading.** `undos` = 0 with at least 1,000 `landed`: it goes back to Zy with the choice of removing the
+command. Fewer than 1,000 `landed`: no reading, taken again 30 days later, once. Otherwise it stays, and
+the numbers are recorded. The sizes are reported, with no bar.
+
+## From ADR-204
+
+- A redo: no caller asked for it. Waits for a request and a record.
+- An undo over MCP: a host with no shell cannot run `mrw undo`. Waits for such a host asking, and a record.
+- The command, from T1: T1 keeps the entries and T2 is the command; T1 alone is not shipped in a release.
