@@ -1,7 +1,7 @@
 # ADR-206: Stage 9 is run as three separate bench runs per model, with two builds of one tag that differ in one refusal
 
-**Status:** Proposed
-**Drafted for:** Zy, 2026-11-19. The pilot was pre-registered in `docs/adr/BACKLOG.md` the same day, from a design review of v1.92.0. Asked "shall I start on the Stage 9 stage record and runner changes?", Zy answered *"staert"*. That starts this draft; nothing is built, run or spent until Zy accepts the record, with the spend stop in Decision 8.
+**Status:** Accepted
+**Accepted by:** Zy, 2026-11-19: *"accepted"*, to the question "Do you accept ADR-206 as it stands on #690?", put with what acceptance means: T1 to T4 built, no paid runs; the canaries and smoke (about $5) and the counted pilot (six stops summing to $50 of known spend) left for Zy to start. Drafted the same day after Zy's *"staert"* to starting the Stage 9 stage record, from the pilot pre-registered in `docs/adr/BACKLOG.md`.
 **Date:** 2026-11-19
 **Owner:** Zy
 **Spec:** None — no spec stage
