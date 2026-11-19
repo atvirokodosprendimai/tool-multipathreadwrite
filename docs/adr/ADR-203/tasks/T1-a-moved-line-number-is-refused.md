@@ -141,6 +141,8 @@ go test -count=1 -v ./internal/apply ./cmd/mrw ./internal/mcp ./internal/guide -
 - 2026-11-19 · 72f22a66* · exit 0 · `set -o pipefail …` · acceptance-sha256:8641905cbfac27e479d8c97eca8bf7cb7122f059627159fac284df5aa4c22f82 · ms:4263
 - 2026-11-19 · 72f22a66* · exit 0 · `set -o pipefail …` · acceptance-sha256:8641905cbfac27e479d8c97eca8bf7cb7122f059627159fac284df5aa4c22f82 · ms:4039
 - 2026-11-19 · 72f22a66* · exit 0 · `set -o pipefail …` · acceptance-sha256:8641905cbfac27e479d8c97eca8bf7cb7122f059627159fac284df5aa4c22f82 · ms:3925
+- 2026-11-19 · 4e893a30* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:8641905cbfac27e479d8c97eca8bf7cb7122f059627159fac284df5aa4c22f82 · ms:0 · test-lock-sha256:407db267a54522da1e37143b276a80cf6d25483a0f81a702ac0a635bc40cf2c0 · test-lock-file:docs/adr/locks/407db267a54522da1e37143b276a80cf6d25483a0f81a702ac0a635bc40cf2c0.lock · test-lock-kind:replace
+- 2026-11-19 · 4e893a30* · exit 0 · `set -o pipefail …` · acceptance-sha256:8641905cbfac27e479d8c97eca8bf7cb7122f059627159fac284df5aa4c22f82 · ms:2650
 
 ## Invariants
 
