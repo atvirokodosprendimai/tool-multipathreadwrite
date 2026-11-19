@@ -96,6 +96,8 @@ go test -count=1 -v ./internal/bench -run '^TestArmNDiffersFromMInOneRefusal$' >
 - 2026-11-19 · 2ec60d27* · exit 0 · `set -o pipefail …` · acceptance-sha256:90b8e67864f72d49cf57e2a9b9973c7f4d01f37159b0418ba60c1ad1d74ba094 · ms:7284
 - 2026-11-19 · c3604110 · exit 0 · `set -o pipefail …` · acceptance-sha256:90b8e67864f72d49cf57e2a9b9973c7f4d01f37159b0418ba60c1ad1d74ba094 · ms:4594
 - 2026-11-19 · c3604110* · exit 0 · `set -o pipefail …` · acceptance-sha256:90b8e67864f72d49cf57e2a9b9973c7f4d01f37159b0418ba60c1ad1d74ba094 · ms:3881
+- 2026-11-19 · 0da8265e · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:90b8e67864f72d49cf57e2a9b9973c7f4d01f37159b0418ba60c1ad1d74ba094 · ms:0 · test-lock-sha256:60aa3a98558132f91610e3e1b325ed8e3797ea62dec7a7037b1c88f951602a32 · test-lock-file:docs/adr/locks/60aa3a98558132f91610e3e1b325ed8e3797ea62dec7a7037b1c88f951602a32.lock · test-lock-kind:replace
+- 2026-11-19 · 0da8265e* · exit 0 · `set -o pipefail …` · acceptance-sha256:90b8e67864f72d49cf57e2a9b9973c7f4d01f37159b0418ba60c1ad1d74ba094 · ms:3796
 
 ## Invariants
 
