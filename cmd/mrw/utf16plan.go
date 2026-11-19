@@ -2,21 +2,27 @@ package main
 
 import "fmt"
 
-// utf16Plan reports whether a plan's first bytes are UTF-16: a byte order mark
-// of either order, or, with no mark, the two characters every plan document
-// opens with (`@@`, apply_patch's `**`, a SEARCH block's `<<`) each beside a
-// NUL. A NUL is valid UTF-8 and the parsers allow one in a comment or a
-// preamble, so any other pair beside NULs is left to them.
+// utf16Mark reports whether bytes open with a UTF-16 byte order mark of either
+// order. It is all that is asked of an apply_patch or SEARCH/REPLACE document:
+// with no mark their first bytes can be a path or a blank line, and a NUL is
+// valid UTF-8 there.
+func utf16Mark(head []byte) bool {
+	return len(head) >= 2 && (head[0] == 0xff && head[1] == 0xfe || head[0] == 0xfe && head[1] == 0xff)
+}
+
+// utf16Plan reports whether a native plan's first bytes are UTF-16: a byte
+// order mark, or, with none, the `@@` a plan opens with, each `@` beside a NUL.
+// A UTF-8 plan that opens `@`, NUL, `@`, NUL is no header and would be refused
+// by the parser anyway; a comment or a blank line first is left to the parser.
 func utf16Plan(head []byte) bool {
-	if len(head) >= 2 && (head[0] == 0xff && head[1] == 0xfe || head[0] == 0xfe && head[1] == 0xff) {
+	if utf16Mark(head) {
 		return true
 	}
 	if len(head) < 4 {
 		return false
 	}
-	opens := func(c byte) bool { return c == '@' || c == '*' || c == '<' }
-	return opens(head[0]) && head[1] == 0 && head[2] == head[0] && head[3] == 0 ||
-		head[0] == 0 && opens(head[1]) && head[2] == 0 && head[3] == head[1]
+	return head[0] == '@' && head[1] == 0 && head[2] == '@' && head[3] == 0 ||
+		head[0] == 0 && head[1] == '@' && head[2] == 0 && head[3] == '@'
 }
 
 // utf16Refusal is the one sentence for a plan in UTF-16. Windows PowerShell

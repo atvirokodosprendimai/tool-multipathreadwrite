@@ -296,7 +296,8 @@ mrw read 'internal/apply/apply.go:/^func Apply/,/^}/' \
 ```
 
 A plan in UTF-16 (with a byte order mark, or opening `@@` with none) is refused in one sentence, exit 2, nothing written: Windows
-PowerShell 5.1 writes UTF-16 when output is redirected with `>`, so write a plan with `| Out-File -Encoding utf8 FILE`, or redirect in cmd.exe.
+PowerShell 5.1 writes UTF-16 when output is redirected with `>`, so write a plan with `| Out-File -Encoding utf8 FILE` (after setting
+`[Console]::OutputEncoding` to UTF-8 if the plan holds non-ASCII text), or redirect in cmd.exe. Detected by a byte order mark, or by `@@` beside NULs in a native plan.
 
 Quote a spec whose pattern holds a space: unquoted, `f.go:/func Foo/` reaches mrw as two arguments, and the refusal of the
 first, `pattern "/func" is never closed`, says the shell split it when up to eight arguments typed after it complete it into

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -68,18 +69,25 @@ func TestAPlanFileInUTF16IsRefusedInOneSentence(t *testing.T) {
 	for len(long) < 200000 {
 		long = append(long, le[2:]...)
 	}
-	_, errOut, code := run(string(long), "write", "--json", "-")
-	kept := ""
-	for _, f := range strings.Fields(errOut) {
-		if strings.HasSuffix(f, ".plan") {
-			kept = f
-		}
+	out, errOut, code := run(string(long), "write", "--json", "-")
+	var receipt struct {
+		Refused string `json:"refused_plan"`
 	}
-	if b, err := os.ReadFile(kept); code != exitUsage || err != nil || len(b) != len(long) {
+	if err := json.Unmarshal([]byte(out), &receipt); err != nil {
+		t.Fatalf("the refusal's --json document: %v\n%s", err, out)
+	}
+	kept := receipt.Refused
+	if b, err := os.ReadFile(kept); code != exitUsage || err != nil || string(b) != string(long) {
 		t.Errorf("a refused piped plan of %d bytes: exit %d, kept %q holds %d (%v):\n%s", len(long), code, kept, len(b), err, errOut)
 	}
-	if out, _, _ := run("", "stats", "--json"); !strings.Contains(out, `"refused_parse"`) || strings.Contains(out, `"refused_parse": 0`) || strings.Contains(out, `"refused_parse":0`) {
-		t.Errorf("the refusals are not counted as plans that did not parse:\n%s", out)
+	// Nine refusals so far: three encodings by two routes, two foreign formats, the long one.
+	var stats struct {
+		Outcomes struct {
+			Refused int `json:"refused_parse"`
+		} `json:"counts"`
+	}
+	if out, _, _ := run("", "stats", "--json"); json.Unmarshal([]byte(out), &stats) != nil || stats.Outcomes.Refused != 9 {
+		t.Errorf("refused_parse is %d, want 9, one for each refusal:\n%s", stats.Outcomes.Refused, out)
 	}
 	// A NUL is valid UTF-8, and the parsers allow one in a comment: such a plan is
 	// read, not called UTF-16.
