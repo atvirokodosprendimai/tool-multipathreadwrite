@@ -199,11 +199,11 @@ const toolWrite = tool({
     check: z
       .boolean()
       .optional()
-      .describe("Run the project's check after any write that lands, prose-only included (default false: no check runs unless true; with no check declared the answer is an error with the applied receipt)."),
+      .describe("Run the project's check after any write that lands, prose-only included (default false: no check runs unless true; with no check declared or inferred the answer is an error with the applied receipt)."),
     then: z
       .array(z.string())
       .optional()
-      .describe("Steps declared in .quality-harness.json to run after a passing check, by name. No ad-hoc command."),
+      .describe("Steps declared in .quality-harness.json, by name, run in order: after a passing check when check is true (not run if it fails or cannot run), on their own when check is not asked for. No ad-hoc command."),
     format: z
       .enum(["plan", "apply_patch", "search_replace"])
       .optional()

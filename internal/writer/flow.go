@@ -280,7 +280,7 @@ func (l *Landed) Verify(ctx context.Context) Verified {
 	root, res, cfg, steps := l.p.req.Root, l.Res, l.p.cfg, l.p.req.Steps
 	var v Verified
 	if l.CheckDue() {
-		written, _ := CheckPaths(res.Files)
+		written := CheckPaths(res.Files)
 		// ADR-112: the baseline is what the write left on disk, taken now.
 		before := Before(root, res)
 		var opts []check.Option
@@ -355,9 +355,9 @@ func (l *Landed) Settle(v Verified) {
 // CheckPaths is the check's working set after a write. Unlinked and rename
 // sources are gone, so confine cannot Stat them; their parent directory still
 // exists and is what the check can honour. A rename dest is a Written file of
-// its own. The source's extension still sets code: a .go renamed to .txt
-// removed code.
-func CheckPaths(files []apply.FileResult) (paths []string, code bool) {
+// its own. Whether the write touched code no longer decides whether a check is
+// due (ADR-205), so the paths are all it answers.
+func CheckPaths(files []apply.FileResult) (paths []string) {
 	seen := map[string]bool{}
 	add := func(p string) {
 		if p == "" || seen[p] {
@@ -373,15 +373,13 @@ func CheckPaths(files []apply.FileResult) (paths []string, code bool) {
 				dir = "."
 			}
 			add(dir)
-			code = code || !apply.IsProse(f.Path)
 			continue
 		}
 		if f.Written {
 			add(f.Path)
-			code = code || !apply.IsProse(f.Path)
 		}
 	}
-	return paths, code
+	return paths
 }
 
 // removedCode says whether the write took a Go or module file away, by unlink

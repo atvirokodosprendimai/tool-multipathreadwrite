@@ -603,7 +603,7 @@ whole list arrives as one argument and the regex swallows the rest of the line.
   prose included, as `--check` does (ADR-205), and returns the verdict as `check`;
   a check that ran and failed is not `isError` — the write applied, and one that could not run (no command in the tree) is, with the applied receipt and `check.ran` false —
   re-sending the plan would apply it again. `then` names steps declared in `.quality-harness.json`
-  to run after a passing check, as `--then` does (ADR-115); `--then-sh` stays CLI-only. A
+  to run in order, as `--then` does (ADR-115): after a passing check when `check: true`, not run when that check fails or cannot run, on their own when no check is asked for; `--then-sh` stays CLI-only. A
   `scoped_check` whose template contains `{files}` or `{dirs}` and not `{packages}` still
   runs on a `.rs` write when `packages()` cannot map (ADR-061). A `{packages}`-only template that places
   some of the written files runs over those packages and names the rest on an `outside the scoped check:` line

@@ -41,8 +41,17 @@ func TestAnMCPWriteWhoseCheckIsDueIsRefusedAtTheDepthLimit(t *testing.T) {
 			t.Errorf("%s: refused %v, want %v:\n%s", c.name, refused, c.due, firstText(t, res))
 		}
 		if c.due {
-			if b, _ := os.ReadFile(filepath.Join(root, "a.go")); string(b) != "package a\nfunc A() {}\n" {
-				t.Errorf("%s: a.go changed under a refusal: %q", c.name, b)
+			// Every file the plan names is as the fixture made it: a.go and
+			// notes.md still in place and unedited, and no renamed copy.
+			for name, want := range map[string]string{"a.go": "package a\nfunc A() {}\n", "notes.md": "# notes\nline two\n"} {
+				if b, err := os.ReadFile(filepath.Join(root, name)); err != nil || string(b) != want {
+					t.Errorf("%s: %s changed or moved under a refusal: %q, %v", c.name, name, b, err)
+				}
+			}
+			for _, moved := range []string{"b.md", "notes.go", "notes.txt"} {
+				if _, err := os.Stat(filepath.Join(root, moved)); err == nil {
+					t.Errorf("%s: %s exists after a refusal", c.name, moved)
+				}
 			}
 		}
 	}

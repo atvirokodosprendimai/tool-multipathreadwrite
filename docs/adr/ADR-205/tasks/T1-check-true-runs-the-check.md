@@ -12,7 +12,7 @@
 
 ## Goal
 
-ADR-205 Decisions 1 to 5. Every row is a `mrw_write` call over the server; each fixture file is read and acknowledged first, and every row starts from a fresh tree, so a marker another row left cannot satisfy it. In a tree whose `.quality-harness.json` declares a check that appends a line to a marker file, and a step `after` that fails unless the marker exists:
+ADR-205 Decisions 1 to 5. Every row is a `mrw_write` call over the server; each fixture file is recorded in the read ledger as wholly read (the test's `licensed` helper seeds the ledger directly, with no `mrw_read` or ack call), and every row starts from a fresh tree, so a marker another row left cannot satisfy it. In a tree whose `.quality-harness.json` declares a check that appends a line to a marker file, and a step `after` that fails unless the marker exists:
 
 | Call | Outcome |
 |------|---------|

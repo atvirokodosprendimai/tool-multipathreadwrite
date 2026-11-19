@@ -144,17 +144,13 @@ func TestLandCountsEachOutcomeOnce(t *testing.T) {
 	})
 }
 
-// A rename's source is gone, so its directory is what the check is scoped to,
-// and its extension still says code was touched: a .go renamed to .txt
-// removed code (moved from cmd/mrw by ADR-113).
+// A rename's source is gone, so its directory is what the check is scoped to
+// (moved from cmd/mrw by ADR-113).
 func TestCheckPathsKeepsRenameSourcePackage(t *testing.T) {
-	paths, code := CheckPaths([]apply.FileResult{
+	paths := CheckPaths([]apply.FileResult{
 		{Path: "pkg/a.go", Written: true, Removed: true, RenamedTo: "other/out.txt"},
 		{Path: "other/out.txt", Written: true, Created: true},
 	})
-	if !code {
-		t.Fatal("renaming a .go to .txt did not count as code")
-	}
 	want := map[string]bool{"pkg": false, "other/out.txt": false}
 	for _, p := range paths {
 		if _, ok := want[p]; !ok {

@@ -719,8 +719,9 @@ func tools() []tool {
 					"then": map[string]any{
 						"type":  "array",
 						"items": map[string]any{"type": "string"},
-						"description": "Names of steps declared in .quality-harness.json \"steps\", run in order after a " +
-							"write that landed and whose check, when one ran, passed — the CLI's --then. A name the project " +
+						"description": "Names of steps declared in .quality-harness.json \"steps\", run in order — the CLI's --then. With check: true " +
+							"they run after a write that landed and whose check passed, and are not run when that check fails or cannot run; " +
+							"without check they run on their own after the write that landed. A name the project " +
 							"did not declare refuses the write. A step that ran and failed is data; one that could not start " +
 							"is an error. Verdicts are the receipt's `then`. No ad-hoc command: --then-sh is CLI-only.",
 						"examples": []any{[]any{"vet"}},

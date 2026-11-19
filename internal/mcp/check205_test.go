@@ -15,7 +15,12 @@ const (
 	// `after` fails unless the marker exists, which only a check before it can
 	// have made.
 	markHarness205 = `{"check":"echo ran >> marker","steps":{"after":"test -f marker"}}`
-	failHarness205 = `{"check":"echo ran >> marker; exit 1","steps":{"after":"test -f marker"}}`
+	// failHarness205's step has a side effect of its own, so a step that ran
+	// leaves stepran and one that did not leaves none; the two below do the
+	// same for a passing check with a dry run and for a tree with no check.
+	failHarness205  = `{"check":"echo ran >> marker; exit 1","steps":{"after":"echo ran >> stepran"}}`
+	sideHarness205  = `{"check":"echo ran >> marker","steps":{"after":"echo ran >> stepran"}}`
+	noCmdHarness205 = `{"steps":{"after":"echo ran >> stepran"}}`
 )
 
 // markers205 is how many times the check ran in root.
@@ -29,6 +34,12 @@ func markers205(t *testing.T, root string) int {
 		t.Fatal(err)
 	}
 	return strings.Count(string(b), "\n")
+}
+
+// stepRan205 reports whether a step that appends to stepran ran in root.
+func stepRan205(root string) bool {
+	_, err := os.Stat(filepath.Join(root, "stepran"))
+	return err == nil
 }
 
 func disk205(t *testing.T, root, name string) string {
@@ -86,11 +97,17 @@ func TestMrwWriteCheckTrueRunsTheCheckOnAnyPlan(t *testing.T) {
 			t.Errorf("the edit did not land")
 		}
 	})
-	t.Run("a dry run runs no check", func(t *testing.T) {
-		root := checkTree113(t, markHarness205)
-		sc := structured(t, call(t, root, "mrw_write", map[string]any{"plan": notesPlan205, "check": true, "dry_run": true}))
-		if _, has := sc["check"]; has || markers205(t, root) != 0 || disk205(t, root, "notes.md") != notesBytes205 {
-			t.Fatalf("a dry run checked or wrote: %v", sc)
+	t.Run("a dry run runs no check and no step", func(t *testing.T) {
+		root := checkTree113(t, sideHarness205)
+		res := call(t, root, "mrw_write", map[string]any{"plan": notesPlan205, "check": true, "dry_run": true, "then": []any{"after"}})
+		sc := structured(t, res)
+		if _, has := sc["check"]; has || res["isError"] == true || markers205(t, root) != 0 || stepRan205(root) || disk205(t, root, "notes.md") != notesBytes205 {
+			t.Fatalf("a dry run checked, ran a step, wrote, or was refused: %v", sc)
+		}
+		// Still validates: a step the project did not declare refuses the dry run.
+		bad := call(t, root, "mrw_write", map[string]any{"plan": notesPlan205, "check": true, "dry_run": true, "then": []any{"nosuch"}})
+		if bad["isError"] != true || disk205(t, root, "notes.md") != notesBytes205 {
+			t.Fatalf("a dry run with an undeclared step was not refused: %v", bad)
 		}
 	})
 	t.Run("a step waits for the check", func(t *testing.T) {
@@ -107,6 +124,9 @@ func TestMrwWriteCheckTrueRunsTheCheckOnAnyPlan(t *testing.T) {
 		st := steps205(t, structured(t, res))
 		if disk205(t, root, "notes.md") != "# notes\nline 2\n" || len(st) != 1 || st[0]["status"] != "not_run" {
 			t.Fatalf("then %v, want the edit landed and the step not_run", st)
+		}
+		if markers205(t, root) != 1 || stepRan205(root) {
+			t.Fatalf("markers %d, step ran %v, want the check run once and the step's side effect absent", markers205(t, root), stepRan205(root))
 		}
 	})
 	t.Run("a due check is refused at the depth limit before the write", func(t *testing.T) {
@@ -138,6 +158,14 @@ func TestMrwWriteCheckTrueRunsTheCheckOnAnyPlan(t *testing.T) {
 		}
 		if disk205(t, root, "notes.md") != "# notes\nline 2\n" {
 			t.Errorf("the edit did not land")
+		}
+	})
+	t.Run("a tree with no check leaves a named step not run", func(t *testing.T) {
+		root := checkTree113(t, noCmdHarness205)
+		res := call(t, root, "mrw_write", map[string]any{"plan": notesPlan205, "check": true, "then": []any{"after"}})
+		st := steps205(t, structured(t, res))
+		if res["isError"] != true || len(st) != 1 || st[0]["status"] != "not_run" || stepRan205(root) || markers205(t, root) != 0 {
+			t.Fatalf("isError %v then %v step ran %v, want an error, the step not_run and no side effect", res["isError"], st, stepRan205(root))
 		}
 	})
 }
