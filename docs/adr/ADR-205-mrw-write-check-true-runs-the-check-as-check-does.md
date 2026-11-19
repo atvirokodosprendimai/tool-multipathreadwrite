@@ -1,7 +1,7 @@
 # ADR-205: mrw_write's check: true runs the check, as --check does
 
-**Status:** Proposed
-**Drafted for:** Zy, 2026-11-19. A design review of v1.92.0 (Codex gpt-6.2-astra at xhigh, read-only on `ca15bec8`) found that an explicit check means two things on the two surfaces. Zy said of the review *"fair review, i think we need to address astra findings"* and, to the proposal to start with this record and the measurement, *"yes, start with 1 and 2"*. That is an instruction to draft this; the record is not accepted until Zy reads it.
+**Status:** Accepted
+**Accepted by:** Zy, 2026-11-19: *"accept"*, to the question "accept ADR-205 as amended?" put with the four things an MCP caller that sends `check: true` will see (a wait on prose writes, a refusal before the write at step depth 8, `then` steps that wait for the check, reply order and counts). Drafted the same day from a design review of v1.92.0 (Codex gpt-6.2-astra at xhigh, read-only on `ca15bec8`), of which Zy said *"fair review, i think we need to address astra findings"* and then *"yes, start with 1 and 2"*.
 **Date:** 2026-11-19
 **Owner:** Zy
 **Spec:** None — no spec stage
