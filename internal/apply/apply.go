@@ -2008,6 +2008,14 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 		}
 	}
 	if !ok {
+		// Another hunk of this file failed validation: report the stale numbers
+		// too, so one round of reads covers them (ADR-203). The overlap check
+		// below does not run, so an overlap among them is not judged here.
+		for _, h := range resolved {
+			if h.staleLine != 0 {
+				failStale(h, h.staleLine)
+			}
+		}
 		return nil, false, ""
 	}
 
@@ -2050,9 +2058,15 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 			continue
 		}
 		// ADR-203: judged after the overlap check, so an overlap is reported as it
-		// was before this refusal existed.
+		// was before this refusal existed; the refused hunk still consumes its
+		// lines, so a hunk it overlaps is reported as overlapping, not as stale.
 		if h.staleLine != 0 {
 			failStale(h, h.staleLine)
+			if h.Op == "insert" {
+				cursor = h.Start
+			} else {
+				cursor = h.End + 1
+			}
 			continue
 		}
 		res = append(res, orig[cursor-1:h.Start-1]...)
@@ -2738,9 +2752,12 @@ func staleMarks(h hunk, obs Seen, haveObs bool, opt Options, quoted map[int]int,
 // staleRemedy is the read the stale-number refusal names: a command the caller
 // can paste when the path is letters, digits, `.`, `_`, `-` and `/` only, with
 // no leading dash, which is one word in every shell mrw meets (single quotes
-// do not quote in cmd.exe), and a description otherwise (ADR-203).
+// do not quote in cmd.exe), and a description otherwise (ADR-203). The command
+// carries --max-cols 0, so the read shows the line whole even under
+// MRW_MAX_COLS. A single-letter path would read as a drive on Windows
+// (`a:8`), so it is described, not commanded.
 func staleRemedy(p string, line int) string {
-	ok := p != "" && p[0] != '-'
+	ok := p != "" && p[0] != '-' && len(p) > 1
 	for i := 0; i < len(p); i++ {
 		c := p[i]
 		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '.' || c == '_' || c == '-' || c == '/') {
@@ -2748,7 +2765,7 @@ func staleRemedy(p string, line int) string {
 		}
 	}
 	if ok {
-		return fmt.Sprintf("mrw read %s:%d", p, line)
+		return fmt.Sprintf("mrw read --max-cols 0 %s:%d", p, line)
 	}
 	return fmt.Sprintf("a read that shows line %d", line)
 }

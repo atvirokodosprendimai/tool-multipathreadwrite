@@ -10606,7 +10606,8 @@ printf 'one\n%s\nthree\n' "$long305" > "$R/b.txt"
 printf '@@ b.txt 2 replace\nnew\n' | (cd "$R" && "$MRW" write --no-check - >/dev/null 2>&1); q305=$?
 { [ "$q305" = 0 ] && [ "$(sed -n 2p "$R/b.txt")" = new ]; } \
   && ok "MRW_MAX_COLS leaves a --quiet read whole" || bad "quiet under the variable: write exit $q305"
-q305o=$(cd "$R" && MRW_MAX_COLS=100 "$MRW" read --quiet b.txt 2>&1)
+printf 'one\n%s\nthree\n' "$long305" > "$R/d.txt" # a file that still holds the overlong line: the one written above had it replaced
+q305o=$(cd "$R" && MRW_MAX_COLS=100 "$MRW" read --quiet d.txt 2>&1)
 grep -qF 'licensed 3 line(s) in 1 file(s)' <<<"$q305o" \
   && ok "MRW_MAX_COLS leaves a whole-file --quiet read whole: all three lines licensed" || bad "whole quiet under the variable: $q305o"
 
@@ -11529,7 +11530,7 @@ seed349; want 0 "$?" "ADR-203: the seed write, a file read whole and then writte
 cp "$R349/f.txt" "$R349/before.txt"
 printf '@@ f.txt 8 replace\nX\n' | e349 write --no-check - > "$R349/w1.out"
 want 1 "$?" "ADR-203: a number alone on a line no read has shown is refused"
-{ cmp -s "$R349/f.txt" "$R349/before.txt" && grep -q "line 8 of f.txt has no recorded showing in this version, and a line number alone cannot say which line you mean. Read it whole (mrw read f.txt:8; a --quiet read, or a line --max-cols cut, shows nothing), address it by pattern, or give anchor=" "$R349/w1.out"; } \
+{ cmp -s "$R349/f.txt" "$R349/before.txt" && grep -q "line 8 of f.txt has no recorded showing in this version, and a line number alone cannot say which line you mean. Read it whole (mrw read --max-cols 0 f.txt:8; a --quiet read, or a line --max-cols cut, shows nothing), address it by pattern, or give anchor=" "$R349/w1.out"; } \
   && ok "ADR-203: the file is byte-identical and the reason names line 8" || bad "refusal: $(head -c 300 "$R349/w1.out")"
 seed349; want 0 "$?" "ADR-203: the reseed lands"
 printf '@@ f.txt 8 replace anchor="L7"\nX\n' | e349 write --no-check - > "$R349/w2.out"
@@ -11559,11 +11560,15 @@ R349N="$WORK/r349n"; mkdir -p "$R349N"; printf 'a\nb\nc\n' > "$R349N/in.txt"
 "$MRW" --root "$R349N" write --create n.txt < "$R349N/in.txt" > /dev/null 2>&1
 want 0 "$?" "ADR-203 null read: the seed is created"
 "$MRW" --root "$R349N" read n.txt:2 > /dev/null 2> "$WORK/e349n"
-grep -q 'not by number alone (ADR-203)' "$WORK/e349n" && grep -q 'a number alone still needs the line shown (ADR-203)' "$WORK/e349n" \
+grep -q 'a plan then names them by pattern or anchor=, since a number alone needs the line shown (ADR-203)' "$WORK/e349n" && grep -q 'a number alone still needs the line shown (ADR-203)' "$WORK/e349n" \
   && ok "ADR-203 null read: both messages say a number alone needs the line shown" || bad "messages: $(head -c 600 "$WORK/e349n")"
 "$MRW" --root "$R349N" read n.txt:2 > "$WORK/o349n" 2> "$WORK/e349n2"
 want 0 "$?" "ADR-203 null read pair: the shown read is served"
 ! grep -q 'ADR-203' "$WORK/e349n2" && ok "ADR-203 null read pair: and says neither" || bad "messages: $(head -c 300 "$WORK/e349n2")"
+"$MRW" --root "$R349N" read --grep b --sub B n.txt > /dev/null 2> "$WORK/e349n3"
+want 0 "$?" "ADR-203 null read: a read --sub to the null device exits 0"
+{ grep -q 'ADR-133' "$WORK/e349n3" && ! grep -q 'ADR-203' "$WORK/e349n3"; } \
+  && ok "ADR-203 null read: and its notice is the one it always was" || bad "sub notice: $(head -c 400 "$WORK/e349n3")"
 
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A

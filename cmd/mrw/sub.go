@@ -54,7 +54,7 @@ func servePlan(root string, b *read.Built) error {
 		fmt.Fprintln(os.Stderr, note)
 	}
 	if toNullDevice(os.Stdout) {
-		fmt.Fprintln(os.Stderr, "mrw: the answer went to the null device, so nothing was recorded: a write to these lines needs a read whose answer you see (ADR-133); read again without redirecting, or license lines you already know with `mrw read --quiet SPEC`, which lets a plan name them by pattern or anchor=, not by number alone (ADR-203)")
+		fmt.Fprintln(os.Stderr, "mrw: the answer went to the null device, so nothing was recorded: a write to these lines needs a read whose answer you see (ADR-133); read again without redirecting, or license lines you already know with `mrw read --quiet SPEC`")
 	} else if err := seen.Record(root, b.Observed); err != nil {
 		return exitWith(err)
 	}

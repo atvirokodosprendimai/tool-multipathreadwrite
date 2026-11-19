@@ -28,7 +28,7 @@ func TestANumberAloneIsRefusedOnALineNotShownSinceTheWrite(t *testing.T) {
 		return Input{Path: "f.txt", Start: n, End: n, Op: op, Body: []string{"X"}, Lines: -1}
 	}
 	with := func(in Input, f func(*Input)) Input { f(&in); return in }
-	const ways = "has no recorded showing in this version, and a line number alone cannot say which line you mean. Read it whole (mrw read f.txt:"
+	const ways = "has no recorded showing in this version, and a line number alone cannot say which line you mean. Read it whole (mrw read --max-cols 0 f.txt:"
 
 	fresh := func(t *testing.T) string {
 		t.Helper()
@@ -156,6 +156,25 @@ func TestANumberAloneIsRefusedOnALineNotShownSinceTheWrite(t *testing.T) {
 		res, err := Apply(root, []Input{anchored, second}, Options{Seen: map[string]Seen{"f.txt": *wrote()}})
 		if err != nil || res.Applied || res.Hunks[1].Status != StatusFailed || res.Hunks[1].Kind == refusal.StaleNumber || !strings.Contains(res.Hunks[1].Reason, "overlaps an earlier hunk") {
 			t.Fatalf("err %v: want the second hunk refused as an overlap: %+v", err, res.Hunks)
+		}
+	})
+
+	t.Run("a stale hunk still consumes its lines, so the hunk it overlaps is an overlap", func(t *testing.T) {
+		root := fresh(t)
+		second := rep(5)
+		second.Index = 1
+		res, err := Apply(root, []Input{del(4, 6), second}, Options{Seen: map[string]Seen{"f.txt": *wrote()}})
+		if err != nil || res.Applied || res.Hunks[0].Kind != refusal.StaleNumber || res.Hunks[1].Kind == refusal.StaleNumber || !strings.Contains(res.Hunks[1].Reason, "overlaps an earlier hunk") {
+			t.Fatalf("err %v: want the first stale and the second an overlap: %+v", err, res.Hunks)
+		}
+	})
+	t.Run("a stale hunk is reported beside a hunk of the same file that fails for another reason", func(t *testing.T) {
+		root := fresh(t)
+		bad := rep(99)
+		bad.Index = 1
+		res, err := Apply(root, []Input{rep(8), bad}, Options{Seen: map[string]Seen{"f.txt": *wrote()}})
+		if err != nil || res.Applied || res.Hunks[0].Kind != refusal.StaleNumber || res.Hunks[1].Status != StatusFailed || !strings.Contains(res.Hunks[1].Reason, "out of range") {
+			t.Fatalf("err %v: want the stale hunk and the out-of-range one both reported: %+v", err, res.Hunks)
 		}
 	})
 

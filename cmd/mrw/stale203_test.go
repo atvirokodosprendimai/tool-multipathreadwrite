@@ -45,7 +45,7 @@ func TestAStaleNumberIsRefusedByTheBinary(t *testing.T) {
 	refused := func(t *testing.T, root, doc, line string) {
 		t.Helper()
 		out, code := write(t, root, doc)
-		if code != 1 || !strings.Contains(out, "line "+line+" of f.txt "+noShowing+"mrw read f.txt:"+line+"; a --quiet read, or a line --max-cols cut, shows nothing), address it by pattern, or give anchor=") {
+		if code != 1 || !strings.Contains(out, "line "+line+" of f.txt "+noShowing+"mrw read --max-cols 0 f.txt:"+line+"; a --quiet read, or a line --max-cols cut, shows nothing), address it by pattern, or give anchor=") {
 			t.Fatalf("want exit 1 naming line %s, got %d:\n%s", line, code, out)
 		}
 		if got := cat(t, root, "f.txt"); got != seeded {
@@ -239,8 +239,14 @@ func TestAStaleNumberOnALineMaxColsCutIsRefusedUntilItIsReadWhole(t *testing.T) 
 	if code != 1 || !strings.Contains(out, "line 3 of f.txt has no recorded showing in this version") || !strings.Contains(out, "a line --max-cols cut, shows nothing") {
 		t.Fatalf("the cut line: exit %d, want 1 and the reason:\n%.400s", code, out)
 	}
-	if out, code := runIn(t, root, "read", "--max-cols", "0", "f.txt"); code != 0 || strings.Contains(out, "[cols ") {
-		t.Fatalf("read --max-cols 0: exit %d\n%.200s", code, out)
+	// The remedy as the reason prints it, not a hand-written flag.
+	i := strings.Index(out, "(mrw ")
+	j := strings.Index(out[i:], ";")
+	if i < 0 || j < 0 {
+		t.Fatalf("the reason prints no read to run:\n%.400s", out)
+	}
+	if o, code := runIn(t, root, strings.Fields(out[i+len("(mrw "):i+j])...); code != 0 || strings.Contains(o, "[cols ") || !strings.Contains(o, strings.Repeat("y", 600)) {
+		t.Fatalf("the printed remedy: exit %d, want the line whole\n%.200s", code, o)
 	}
 	if out, code := writeIn(t, root, "--no-check", planFile(t, plan)); code != 0 || !strings.Contains(cat(t, root, "f.txt"), "\nX\nc\n") {
 		t.Fatalf("after the whole read: exit %d\n%.300s", code, out)

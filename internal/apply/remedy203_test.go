@@ -8,8 +8,10 @@ import "testing"
 // description instead (ADR-203).
 func TestTheStaleNumberRemedyIsACommandOnlyForAPlainPath(t *testing.T) {
 	for p, want := range map[string]string{
-		"f.txt":            "mrw read f.txt:8",
-		"sub/dir/a_b-c.go": "mrw read sub/dir/a_b-c.go:8",
+		"f.txt":            "mrw read --max-cols 0 f.txt:8",
+		"sub/dir/a_b-c.go": "mrw read --max-cols 0 sub/dir/a_b-c.go:8",
+		"a":                "a read that shows line 8",
+		"ab":               "mrw read --max-cols 0 ab:8",
 		"my file.txt":      "a read that shows line 8",
 		"it's.txt":         "a read that shows line 8",
 		"-f.txt":           "a read that shows line 8",

@@ -61,7 +61,7 @@ func (b *Built) UnanchoredNote() string {
 	if b.Unanchored == 0 {
 		return ""
 	}
-	return fmt.Sprintf("-- note: %d hunk(s) carry no anchor= (their line is empty, or holds nothing an anchor can name): a plan written by a later call is refused on them until those lines are read; or use write --grep --sub, which plans and writes in one call", b.Unanchored)
+	return fmt.Sprintf("-- note: %d hunk(s) carry no anchor= (their line is empty, or holds nothing an anchor can name): in a file mrw wrote, a later write of this plan is refused on them until those lines are read; or use write --grep --sub, which plans and writes in one call", b.Unanchored)
 }
 
 // BuildSub walks posArgs for pattern and plans repl over the lines it finds.

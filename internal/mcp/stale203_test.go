@@ -70,6 +70,24 @@ func TestMrwWriteNamesAPendingPageOnlyWhenItCoversTheRefusedLine(t *testing.T) {
 			t.Errorf("want the refusal naming line 4 and no ack advice: %v", res)
 		}
 	})
+	t.Run("a page that covers only the head of the range is not named", func(t *testing.T) {
+		root := seeded(t)
+		call(t, root, "mrw_read", map[string]any{"specs": []any{"f.txt:4-5"}}) // pending: lines 4 to 6
+		for _, addr := range []string{"4-8", "4,+4", "4-$"} {
+			res := call(t, root, "mrw_write", map[string]any{"plan": "@@ f.txt " + addr + " delete\n", "check": false})
+			if text := firstText(t, res); res["isError"] != true || !strings.Contains(text, "line 4 of f.txt has no recorded showing") || strings.Contains(text, AckRule) {
+				t.Errorf("%s: a page that cannot let the write through was offered: %v", addr, res)
+			}
+		}
+	})
+	t.Run("a page over the whole of a relative range is named", func(t *testing.T) {
+		root := seeded(t)
+		call(t, root, "mrw_read", map[string]any{"specs": []any{"f.txt:4-8"}})
+		res := call(t, root, "mrw_write", map[string]any{"plan": "@@ f.txt 4,+4 delete\n", "check": false})
+		if text := firstText(t, res); res["isError"] != true || !strings.Contains(text, AckRule) {
+			t.Errorf("the covering page is not named for 4,+4: %v", res)
+		}
+	})
 	t.Run("a page for another spelling is not named", func(t *testing.T) {
 		root := seeded(t)
 		if err := os.Symlink("f.txt", filepath.Join(root, "link.txt")); err != nil {
@@ -105,7 +123,7 @@ func TestAnMCPSubReadAnchorsItsHunksAndNamesTheOnesItCannot(t *testing.T) {
 		t.Errorf("want two anchored hunks and no note:\n%s", plan)
 	}
 	res = call(t, root, "mrw_read", map[string]any{"specs": []any{"a.txt"}, "grep": "^$", "sub": "BLANK"})
-	if plan := served0(t, res); strings.Contains(plan, "anchor=") || !strings.Contains(fmt.Sprint(res["content"]), "hunk(s) carry no anchor=") {
+	if plan := served0(t, res); strings.Contains(plan, "anchor=") || !strings.Contains(fmt.Sprint(res["content"]), "hunk(s) carry no anchor=") || !strings.Contains(fmt.Sprint(res["content"]), "in a file mrw wrote, a later write of this plan is refused on them") {
 		t.Errorf("want an unanchored hunk and the note in the receipt: %v", res)
 	}
 }

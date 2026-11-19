@@ -60,7 +60,27 @@ func TestAReadSubPlanNamesTheHunksThatCarryNoAnchor(t *testing.T) {
 	root, run := subRun(t)
 	subTree(t, root, map[string]string{"f.txt": "a\n\nb\n"})
 	plan, errOut, code := run("", "read", "--grep", "^$", "--sub", "BLANK", "f.txt")
-	if code != 0 || strings.Contains(plan, "anchor=") || !strings.Contains(errOut, "-- note: 1 hunk(s) carry no anchor=") || !strings.Contains(errOut, "read; or use write --grep --sub") {
+	if code != 0 || strings.Contains(plan, "anchor=") || !strings.Contains(errOut, "-- note: 1 hunk(s) carry no anchor=") || !strings.Contains(errOut, "in a file mrw wrote, a later write of this plan is refused on them until those lines are read; or use write --grep --sub") {
 		t.Errorf("exit %d, plan %q, stderr:\n%s", code, plan, errOut)
+	}
+}
+
+// A line with valid text beside an invalid byte is anchored on the valid piece,
+// and the plan written by a later call lands on a file mrw wrote.
+func TestAReadSubPlanAnchorsOnTheValidPieceBesideAnInvalidByte(t *testing.T) {
+	root, run := subRun(t)
+	subTree(t, root, map[string]string{"f.txt": "Old\xffbad\nplain\n"})
+	if _, e, c := run("", "read", "f.txt"); c != 0 {
+		t.Fatalf("read: exit %d\n%s", c, e)
+	}
+	if out, e, c := run("@@ f.txt $ insert-after\nlast\n", "write", "--no-check", "-"); c != 0 {
+		t.Fatalf("seed write: exit %d\n%s%s", c, out, e)
+	}
+	plan, errOut, code := run("", "read", "--grep", "Old", "--sub", "New", "f.txt")
+	if code != 0 || !strings.Contains(plan, ` anchor="Old"`) || strings.Contains(errOut, "carry no anchor=") {
+		t.Fatalf("read --sub: exit %d, want the hunk anchored on Old:\n%q\n%s", code, plan, errOut)
+	}
+	if out, e, c := run(plan, "write", "--no-check", "-"); c != 0 || !strings.HasPrefix(subFile(t, root, "f.txt"), "New\xffbad\n") {
+		t.Fatalf("the plan written by a later call: exit %d\n%s%s\n%q", c, out, e, subFile(t, root, "f.txt"))
 	}
 }

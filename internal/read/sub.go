@@ -83,24 +83,34 @@ func (s *Sub) file(path, sha string, lns []string, spans []span) [][2]int {
 const anchorMax = 200
 
 // anchorOf is the piece of text a hunk's anchor= names: the first non-empty
-// stretch between CR bytes that is valid UTF-8, cut to anchorMax bytes at a
-// rune boundary. It reports false when no stretch qualifies (an empty line, or
-// nothing but CR and invalid bytes).
+// stretch of valid UTF-8 between CR bytes and invalid bytes, cut to anchorMax
+// bytes at a rune boundary. It reports false when no stretch qualifies (an
+// empty line, or nothing but CR and invalid bytes).
 func anchorOf(text string) (string, bool) {
-	for _, seg := range strings.Split(text, "\r") {
-		if seg == "" || !utf8.ValidString(seg) {
+	from := 0
+	for i := 0; i <= len(text); {
+		end, size := i == len(text), 0
+		if !end {
+			r, n := utf8.DecodeRuneInString(text[i:])
+			size = n
+			end = r == '\r' || (r == utf8.RuneError && n == 1)
+		}
+		if !end {
+			i += size
 			continue
 		}
-		if len(seg) > anchorMax {
-			n := anchorMax
-			for n > 0 && !utf8.RuneStart(seg[n]) {
-				n--
+		if seg := text[from:i]; seg != "" {
+			if len(seg) > anchorMax {
+				n := anchorMax
+				for n > 0 && !utf8.RuneStart(seg[n]) {
+					n--
+				}
+				seg = seg[:n]
 			}
-			seg = seg[:n]
-		}
-		if seg != "" {
 			return seg, true
 		}
+		i += max(size, 1)
+		from = i
 	}
 	return "", false
 }

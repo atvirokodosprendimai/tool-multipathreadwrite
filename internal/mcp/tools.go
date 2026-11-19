@@ -2539,16 +2539,17 @@ func nameTheAck(root string, res *apply.Result) {
 		var known, sameSpelling bool
 		switch h.Kind {
 		case refusal.StaleNumber:
-			// Only a page for the very spelling the retry will use, and covering the
-			// line the refusal names, can lift it (ADR-203): the ledger keys a
-			// record per spelling, and the hunk's own address may name more lines.
+			// Only pages for the very spelling the retry will use (the ledger keys a
+			// record per spelling) that together cover every line of the hunk from
+			// the first unshown one to its end can lift the refusal (ADR-203); the
+			// ack is named only then, since it must let the write through.
 			if rest, ok := strings.CutPrefix(h.Reason, "line "); ok {
 				if f := strings.Fields(rest); len(f) > 0 {
 					n, _ := strconv.Atoi(f[0])
-					start, end, known = n, n, n > 0
+					start, end, known = n, staleEnd(root, path, h.Addr, n), n > 0
 				}
 			}
-			if !known {
+			if !known || end < start {
 				continue
 			}
 			sameSpelling = true
@@ -2574,20 +2575,24 @@ func nameTheAck(root string, res *apply.Result) {
 		// PR #132).
 		live, _ := currentSHA(root, path)
 		covers := false
-		for _, p := range store {
-			if p.Path != path && (sameSpelling || !anySameFile(root, path, []string{p.Path})) {
-				continue
-			}
-			if live != "" && p.SHA != live {
-				continue
-			}
-			// An address mrw could not resolve to numbers — a pattern, or $ —
-			// is treated as possibly covered. Being wrong here costs a caller
-			// one unnecessary sentence; being silent costs the caller who WAS
-			// working from that page the only remedy they had.
-			if !known || (p.End >= start && p.Start <= end) {
-				covers = true
-				break
+		if h.Kind == refusal.StaleNumber {
+			covers = pagesCover(store, path, live, start, end)
+		} else {
+			for _, p := range store {
+				if p.Path != path && (sameSpelling || !anySameFile(root, path, []string{p.Path})) {
+					continue
+				}
+				if live != "" && p.SHA != live {
+					continue
+				}
+				// An address mrw could not resolve to numbers — a pattern, or $ —
+				// is treated as possibly covered. Being wrong here costs a caller
+				// one unnecessary sentence; being silent costs the caller who WAS
+				// working from that page the only remedy they had.
+				if !known || (p.End >= start && p.Start <= end) {
+					covers = true
+					break
+				}
 			}
 		}
 		if !covers {
@@ -2596,6 +2601,60 @@ func nameTheAck(root string, res *apply.Result) {
 		h.Reason += ". This file was served but never acknowledged, and an " +
 			"unacknowledged serve licenses nothing. " + AckRule
 	}
+}
+
+// pagesCover reports whether the pending pages kept for path (that very
+// spelling, at the live version) together hold every line of start-end.
+func pagesCover(store map[string]pending, path, live string, start, end int) bool {
+	for l := start; l <= end; l++ {
+		held := false
+		for _, p := range store {
+			if p.Path == path && (live == "" || p.SHA == live) && p.Start <= l && l <= p.End {
+				held = true
+				break
+			}
+		}
+		if !held {
+			return false
+		}
+	}
+	return true
+}
+
+// staleEnd is the last line the hunk of a stale-number refusal addresses, from
+// the address as the caller wrote it: N, N-M, N,+L or N-$ (the file's last
+// line). 0 when it cannot be told, in which case no ack is named.
+func staleEnd(root, path, addr string, first int) int {
+	if a, l, ok := strings.Cut(addr, ",+"); ok {
+		n, err := strconv.Atoi(strings.TrimSpace(l))
+		if _, err2 := strconv.Atoi(strings.TrimSpace(a)); err != nil || err2 != nil {
+			return 0
+		}
+		return first + n
+	}
+	lo, hi, ok := strings.Cut(addr, "-")
+	if _, err := strconv.Atoi(strings.TrimSpace(lo)); err != nil {
+		return 0
+	}
+	if !ok {
+		return first
+	}
+	if strings.TrimSpace(hi) == "$" {
+		b, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(path)))
+		if err != nil {
+			return 0
+		}
+		n := strings.Count(string(b), "\n")
+		if len(b) > 0 && b[len(b)-1] != '\n' {
+			n++
+		}
+		return n
+	}
+	end, err := strconv.Atoi(strings.TrimSpace(hi))
+	if err != nil {
+		return 0
+	}
+	return end
 }
 
 // anySameFile reports whether path names the same file on disk as any of the
