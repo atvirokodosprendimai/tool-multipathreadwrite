@@ -11468,7 +11468,7 @@ want 0 "$?" "attached count pair: the form the sentence names is served"
 grep -q 'one' "$WORK/o347b" && grep -q 'three' "$WORK/o347b" && ok "attached count pair: with a line either side" || bad "served: $(head -c 300 "$WORK/o347b")"
 "$MRW" --root "$R347" read --grep two f.txt:1-2 > "$WORK/o347c" 2> "$WORK/e347c"
 want 2 "$?" "range beside --grep: refused as usage"
-grep -q 'two answers to one question; drop the range to search the whole file (--grep PATTERN PATH), or for one file drop --grep and write the pattern as the address (PATH:/PATTERN/)' "$WORK/e347c" && [ ! -s "$WORK/o347c" ] \
+grep -q 'two answers to one question; drop the range to search the whole file (--grep PATTERN PATH), or for one file drop --grep and the flags that go with it and write the pattern as the address (PATH:/PATTERN/, a / inside the pattern written \\/)' "$WORK/e347c" && [ ! -s "$WORK/o347c" ] \
   && ok "range beside --grep: the refusal names the two forms" || bad "refusal: $(head -c 400 "$WORK/e347c")"
 "$MRW" --root "$R347" read 'f.txt:/two/' > "$WORK/o347d" 2> "$WORK/e347d"
 want 0 "$?" "range beside --grep pair: the pattern address is served"

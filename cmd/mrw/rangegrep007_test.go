@@ -13,7 +13,7 @@ import (
 func TestARangeBesideGrepSaysTheTwoFormsThatWork(t *testing.T) {
 	run, _ := ifChangedRun(t, map[string]string{"f.txt": "one\ntwo\nthree\n"})
 	const kept = "f.txt:1-2: a range and --grep are two answers to one question"
-	const added = "; drop the range to search the whole file (--grep PATTERN PATH), or for one file drop --grep and write the pattern as the address (PATH:/PATTERN/)"
+	const added = "; drop the range to search the whole file (--grep PATTERN PATH), or for one file drop --grep and the flags that go with it and write the pattern as the address (PATH:/PATTERN/, a / inside the pattern written \\/)"
 	out, errOut, code := run("", "read", "--grep", "two", "f.txt:1-2")
 	if code != exitUsage || out != "" || !strings.HasSuffix(strings.TrimSpace(errOut), kept+added) {
 		t.Errorf("read --grep two f.txt:1-2: exit %d, stdout %q, want exit %d ending in %q:\n%s", code, out, exitUsage, kept+added, errOut)
