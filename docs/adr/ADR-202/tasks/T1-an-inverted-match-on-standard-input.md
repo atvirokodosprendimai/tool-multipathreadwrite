@@ -71,7 +71,7 @@ set -o pipefail
 go test -count=1 -v ./cmd/mrw ./internal/guide ./internal/read -run '^(TestAnInvertedMatchServesTheLinesOfStandardInputThatDoNotMatch|TestAGrepFlagBeforeThePatternOnStandardInputIsNamed|TestTheInstructionsNameTheInvertedMatch|TestARunCanLeaveOutTheReplaceNote)$' > "${TMPDIR:-/tmp}/adr202-fence.out" \
   && [ "$(grep -c '^--- PASS: ' "${TMPDIR:-/tmp}/adr202-fence.out")" -eq 4 ] \
   && python3 -I docs/bench/effect-study/test_scan.py > /dev/null \
-  && grep -q '^# 348\\\\. ' scripts/contract.sh \
+  && grep -q '^# 348\. ' scripts/contract.sh \
   && grep -q '^\*\*Accepted on the 108 by Zy, 2026-11-19' docs/adr/BACKLOG.md \
   && grep -q -- '--grep PATTERN --invert -' AGENTS.md \
   && git diff --quiet "$(git merge-base HEAD origin/main)" -- go.mod go.sum internal/plan internal/apply internal/seen internal/check internal/state \
