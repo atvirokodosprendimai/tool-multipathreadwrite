@@ -4,7 +4,7 @@ Source of truth: the task files. This index is derived from them.
 
 | Task | Goal | Depends-on | Status |
 |------|------|------------|--------|
-| T1 | not started: the record is Proposed and its Decision does not stand as written (see the record's header); the task below describes the selective design that was challenged | none | blocked |
+| T1 | a hunk that names a line by number alone, on a line not shown since mrw wrote the file, is refused; every way to say which line still lands | none | pending |
 
 Execution order: T1. One pull request.
 

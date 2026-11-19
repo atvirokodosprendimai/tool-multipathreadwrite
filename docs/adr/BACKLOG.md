@@ -1575,23 +1575,29 @@ reading, taken again 30 days later, once.
 
 "Pre-registered for ADR-200's count" above says the count is read once on 2026-12-18 and that the refusal
 is not built before. On 2026-11-19 Zy was asked "Keep that date?" and chose *"Build it now"*. The bar was
-not met and is not claimed to be: the owner set the reading aside. ADR-203 builds a refusal narrower than
-the width the count prices (only at or below a line an earlier write moved), and once it ships the landings
-it stops no longer reach `numbered_would_refuse`, so that counter cannot price width A any more. The
-counters and their meaning stay in `mrw stats`.
+not met and is not claimed to be: the owner set the reading aside. ADR-203 builds the refusal at the width
+the count measures. Once it ships, the landings it stops no longer reach `numbered_would_refuse`, so that
+counter grows only by writes an older mrw makes on the same root, and the reading of 2026-12-18 is not
+taken. The counters and their meaning stay in `mrw stats`.
 
-## Pre-registered for ADR-203 (Decision 7) — written before the code
+## Pre-registered for ADR-203 (Decision 6) — written before the code
 
-Read once, 30 days after the tag date of the first release that carries the refusal, on Zy's Mac, per root
-with at least 200 `landed_writes` in `mrw --root R stats --json`, this repository's checkouts left out. The
-effect-study scanner is extended and committed before it runs, to count over the transcripts since that tag:
-- `refused`: shell calls whose mrw answer holds `an earlier write moved the lines from`.
-- `landed`: shell calls whose mrw write landed.
-**Reading.** `refused` over 2% of `landed`: it goes back to Zy with the choice of turning the refusal off.
-Fewer than 1,000 `landed` in the window: no reading, taken again 30 days later, once.
-**What it does not show.** Whether a refused number was in fact stale. A transcript cannot say.
+A friction reading, not a proof of benefit. Read once, 30 days after the tag date of the first release that
+carries the refusal, on Zy's Mac, over Claude Code transcripts since that tag, this repository's sessions
+left out. The effect-study scanner is extended and committed before it runs. A shell call is counted once,
+by its tool-use id:
+- `refused`: the answer of a command that ran `mrw write` holds `has not been shown since mrw wrote the file`.
+- `landed`: the answer reports a write that landed (E5's rule).
+- `retried`: a `refused` call followed, within five tool calls of the same transcript, by a landed write.
+**Reading.** Fewer than 1,000 `landed`: no reading, taken again 30 days later, once. `refused` over 5% of
+`landed + refused`: it goes back to Zy with the numbers and the choice of narrowing or removing the refusal.
+`retried` under half of `refused`: callers are not finding the way out, and the reason's wording goes back
+to Zy. Otherwise it stays. 5% is the figure ADR-200's own threshold used; nothing derives it.
+**What it does not show.** Whether a refused number was in fact stale, which no transcript can say; writes
+made through `mrw_write` or another host.
 
 ## From ADR-203
 
-- Width A (every unshown numbered hunk on a written file) and a receipt row naming the shift: wait for the
-  reading above and a record of their own.
+- A selective refusal with ledger state (only below a line an earlier write moved): the first draft,
+  withdrawn after two challenges. Reopened only by the reading above going back to Zy, with a record of its own.
+- A receipt row naming the shift: no caller asked for it. Waits for a request and a record.
