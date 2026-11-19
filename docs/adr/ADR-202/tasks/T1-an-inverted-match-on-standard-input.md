@@ -36,7 +36,7 @@ ADR-202 Decisions 1 to 6, after the count Decision 7 asks for.
 | `--grep beta --invert -` with `-C 1`, `--max-matches 1`, `--no-comments`, `--quiet` | exit 2, the sentence naming the flag |
 | `--grep --invert beta -`, `--grep --invert beta f.txt` | exit 2: `--grep took "--invert" as its pattern` |
 | `--grep='(?:--invert)' -` on a line holding `--invert` | that line served |
-| `--grep -v beta -`, `--grep beta -v -`, `-v --grep beta -`, `-v f.txt`, `--grep -v beta f.txt` | exit 2 as today, each ending `; an inverted match of a stream is --grep PATTERN --invert -` after ADR-164's sentence |
+| `--grep -v beta -`, `--grep beta -v -`, `-v --grep beta -`, `-v f.txt`, `--grep -v beta f.txt` | `--grep -v beta f.txt` exits 1 as today, the other four exit 2; each carries `; an inverted match of a stream is --grep PATTERN --invert -` after ADR-164's sentence |
 | `mrw read --help` | names `--invert` and that it reads standard input |
 
 ## Affected Files
@@ -110,6 +110,7 @@ go test -count=1 -v ./cmd/mrw ./internal/guide ./internal/read -run '^(TestAnInv
 
 - The fence's `# 348.` and `PROCEED` clauses are markers: §348 is proved by running `scripts/contract.sh`, a gate, and the count by the committed result file the BACKLOG line cites.
 - `--max-chars` and `--fold` have one row each and no mutant.
+- A stream with very many runs under a small `--max-lines` prints one `WITHHELD` line per run that did not fit, as the engine does for any spans it withholds.
 
 ## Stop Condition
 

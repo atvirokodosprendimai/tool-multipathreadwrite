@@ -1,10 +1,18 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
+	"errors"
+	"io"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/lines"
 )
@@ -62,6 +70,7 @@ func inv202Same(a, b []int) bool {
 // nothing. Everywhere else the flag is refused, before anything is read.
 func TestAnInvertedMatchServesTheLinesOfStandardInputThatDoNotMatch(t *testing.T) {
 	run, _ := ifChangedRun(t, map[string]string{"f.txt": "one\n"})
+	inv := newInv202(t, map[string]string{"f.txt": "one\n"})
 	const a = "alpha\nbeta\ngamma\nbeta2\ndelta\n"
 	const form = "--grep PATTERN --invert -"
 
@@ -97,8 +106,12 @@ func TestAnInvertedMatchServesTheLinesOfStandardInputThatDoNotMatch(t *testing.T
 		t.Errorf("--max-lines 2: exit %d:\n%s%s", code, out, errOut)
 	}
 	out, errOut, code = run(a, "read", "--grep", "beta", "--invert", "--max-chars", "1", "-")
-	if code != 1 || len(inv202Served(out)) != 0 || !strings.Contains(errOut, "mrw: incomplete:") || !strings.Contains(inv202LastLine(errOut), "--max-chars 1 reached") {
+	if code != 1 || len(inv202Served(out)) != 0 || !strings.HasPrefix(inv202LastLine(errOut), "mrw: incomplete:") || !strings.Contains(inv202LastLine(errOut), "--max-chars 1 reached") {
 		t.Errorf("--max-chars 1: exit %d:\n%s%s", code, out, errOut)
+	}
+	// Lines that all do match nothing is not what withheld them: the kind stays incomplete.
+	if out, errOut, code = run("alpha\ngamma\n", "read", "--grep", "beta", "--invert", "--max-chars", "1", "-"); code != 1 || !strings.HasPrefix(inv202LastLine(errOut), "mrw: incomplete:") {
+		t.Errorf("--max-chars 1 over lines that do not match: exit %d:\n%s%s", code, out, errOut)
 	}
 	out, _, code = run(a, "read", "--grep", "beta", "--invert", "-N", "-")
 	if code != 0 || len(inv202Served(out)) != 0 || !strings.Contains(out, "@@ 1-1\nalpha\n@@ 3-3\ngamma\n@@ 5-5\ndelta\n") {
@@ -117,18 +130,62 @@ func TestAnInvertedMatchServesTheLinesOfStandardInputThatDoNotMatch(t *testing.T
 		t.Errorf("--max-cols 10: exit %d, the line is not cut from column 1:\n%s", code, out)
 	}
 
-	// Nothing left: no numbered line, the kind on the last line of stderr.
+	// Nothing left: no numbered line, the kind on the last line of stderr, and the
+	// header the plain read prints for the same input.
+	plainHeader := func(in string) string {
+		o, _, _ := run(in, "read", "--grep", "zzz", "-")
+		return strings.SplitN(o, "\n", 2)[0]
+	}
 	out, errOut, code = run(a, "read", "--grep", "a", "--invert", "-")
-	if code != 1 || len(inv202Served(out)) != 0 || !strings.HasPrefix(out, "==> -  5L") || !strings.HasSuffix(out, "\n!! every line matches /a/\n") || inv202LastLine(errOut) != "mrw: no match: every line of standard input matched /a/" {
+	if code != 1 || len(inv202Served(out)) != 0 || out != plainHeader(a)+"\n!! every line matches /a/\n" || inv202LastLine(errOut) != "mrw: no match: every line of standard input matched /a/" {
 		t.Errorf("every line matches: exit %d:\n%s%s", code, out, errOut)
 	}
 	out, errOut, code = run("", "read", "--grep", "a", "--invert", "-")
-	if code != 1 || !strings.HasPrefix(out, "==> -  0L") || !strings.HasSuffix(out, "\n!! standard input is empty\n") || strings.Count(out, "\n") != 2 || inv202LastLine(errOut) != "mrw: no match: standard input is empty" {
+	if code != 1 || out != plainHeader("")+"\n!! standard input is empty\n" || !strings.HasPrefix(out, "==> -  0L  0B") || inv202LastLine(errOut) != "mrw: no match: standard input is empty" {
 		t.Errorf("empty input: exit %d:\n%s%s", code, out, errOut)
 	}
 	// Capped is not nothing left.
 	if _, errOut, code = run(a, "read", "--grep", "a", "--invert", "--max-lines", "0", "-"); code != 1 {
 		t.Errorf("every line matches beside --max-lines 0: exit %d:\n%s", code, errOut)
+	}
+
+	// --max-chars bounds the two lines of nothing left as it bounds a plain read's.
+	for _, c := range []struct{ in, budget, last string }{
+		{"a\nab\n", "5", "mrw: no match: every line of standard input matched /a/; --max-chars 5 reached"},
+		{"", "3", "mrw: no match: standard input is empty; --max-chars 3 reached"},
+	} {
+		out, errOut, code := run(c.in, "read", "--grep", "a", "--invert", "--max-chars", c.budget, "-")
+		plainOut, plainErr, plainCode := run(c.in, "read", "--grep", "zzz", "--max-chars", c.budget, "-")
+		const withheld = "-: WITHHELD: --max-chars reached\n"
+		if code != 1 || plainCode != 1 || out != "" || plainOut != "" || !strings.HasPrefix(errOut, withheld) || !strings.HasPrefix(plainErr, withheld) || inv202LastLine(errOut) != c.last {
+			t.Errorf("nothing left beside --max-chars %s over %q: exit %d (plain %d), stdout %q:\n%s", c.budget, c.in, code, plainCode, out, errOut)
+		}
+	}
+
+	// A line over the long-line threshold: the hint for an inverted read says where --max-cols cuts and
+	// nothing of licensing; the plain read keeps its own words.
+	long := strings.Repeat("x", 450) + "\nskip\n"
+	if _, errOut, code := run(long, "read", "--grep", "skip", "--invert", "-"); code != 0 || !strings.Contains(errOut, "1 line(s) over 400 columns served whole, the longest 450; --max-cols 200 cuts each from its first column") || strings.Contains(errOut, "licens") {
+		t.Errorf("the long-line hint of an inverted read: exit %d:\n%s", code, errOut)
+	}
+	if _, errOut, code := run("skip\n"+strings.Repeat("x", 450)+"\n", "read", "--grep", "x", "-"); code != 0 || !strings.Contains(errOut, "--max-cols 200 cuts each to a window round the match, and a cut line licenses nothing until it is read whole") {
+		t.Errorf("the long-line hint of a plain read changed: exit %d:\n%s", code, errOut)
+	}
+
+	// The PowerShell shape, a stream with a byte that is not UTF-8, and MRW_MAX_COLS.
+	if out, errOut, code := run("a\nskip\nb\r\n", "read", "--grep", "skip", "--invert", "-"); code != 0 || !inv202Same(inv202Served(out), []int{1, 3}) || !strings.HasPrefix(out, "==> -  3L") || !strings.Contains(errOut, "so it was dropped") {
+		t.Errorf("PowerShell's CRLF: exit %d:\n%s%s", code, out, errOut)
+	}
+	if out, errOut, code := run("a\nskip\n\xff\n", "read", "--grep", "skip", "--invert", "-"); code != 0 || !inv202Same(inv202Served(out), []int{1, 3}) || !strings.Contains(out, "\xff") {
+		t.Errorf("a line that is not UTF-8: exit %d:\n%q%s", code, out, errOut)
+	}
+	if out, errOut, code := inv.do(t, strings.NewReader(strings.Repeat("abcdefghij", 4)+"\nskip\n"), []string{"MRW_MAX_COLS=10"}, "read", "--grep", "skip", "--invert", "-"); code != 0 || !strings.Contains(out, "1| abcdefghij") || !strings.Contains(out, "[cols 1-10 of 40]") || strings.Contains(out, "abcdefghijabcdefghij") {
+		t.Errorf("MRW_MAX_COLS=10: exit %d:\n%s%s", code, out, errOut)
+	}
+
+	// A pattern that spells a table flag and matches nothing says where the form is.
+	if out, errOut, code := run("x\n", "read", "--grep", "-v", "-"); code != 1 || !strings.Contains(errOut, "mrw: no match: no line of standard input matched /-v/ — there is no inverted match: --grep serves the lines that match; an inverted match of a stream is --grep PATTERN --invert -") {
+		t.Errorf("--grep -v - over a line that does not hold it: exit %d:\n%s%s", code, out, errOut)
 	}
 
 	// The engine and this read split the same bytes the same way.
@@ -145,8 +202,8 @@ func TestAnInvertedMatchServesTheLinesOfStandardInputThatDoNotMatch(t *testing.T
 			t.Errorf("%s: exit %d, served %v, want %v:\n%s%s", c.name, code, inv202Served(out), want, out, errOut)
 		}
 	}
-	if out, _, _ := run("\n", "read", "--grep", "x", "--invert", "-"); !strings.Contains(out, "@@ 1-1\n   1| \n") && !strings.Contains(out, "1| \n") {
-		t.Errorf("an empty line is not served as line 1:\n%s", out)
+	if out, _, _ := run("\n", "read", "--grep", "x", "--invert", "-"); !strings.HasSuffix(out, "@@ 1-1\n 1| \n") {
+		t.Errorf("an empty line is not served as line 1:\n%q", out)
 	}
 
 	// The refusals: exit 2, nothing served, the sentence and the form named.
@@ -169,8 +226,10 @@ func TestAnInvertedMatchServesTheLinesOfStandardInputThatDoNotMatch(t *testing.T
 		{[]string{"read", "--grep", "beta", "--invert", "--quiet", "-"}, "and --quiet is not one of them"},
 		{[]string{"read", "--grep", "beta", "--invert", "--count", "-"}, "and --count is not one of them"},
 		{[]string{"read", "--grep", "beta", "--invert", "--sub", "X", "-"}, "and --sub is not one of them"},
+		{[]string{"read", "--invert", "-C", "-1", "-"}, "--invert needs --grep"},
+		{[]string{"read", "--grep", "x", "--invert", "--stat", "--max-chars", "1", "-"}, "and --stat is not one of them"},
 	} {
-		out, errOut, code := run(a, c.args...)
+		out, errOut, code := inv.do(t, nil, nil, c.args...) // standard input never ends: a refusal that read it would hang
 		name := strings.Join(c.args, " ")
 		if code != 2 || out != "" || !strings.Contains(errOut, c.want) || !strings.Contains(errOut, form) {
 			t.Errorf("mrw %s: exit %d, stdout %q, want 2, nothing and %q beside %q:\n%s", name, code, out, c.want, form, errOut)
@@ -180,9 +239,12 @@ func TestAnInvertedMatchServesTheLinesOfStandardInputThatDoNotMatch(t *testing.T
 	if out, _, code := run(a, "read", "--grep", "beta", "--invert=false", "-"); code != 0 || !inv202Same(inv202Served(out), []int{2, 3, 4, 5}) {
 		t.Errorf("--invert=false: exit %d, want the plain read:\n%s", code, out)
 	}
-	// --json answers a refusal as a document on standard output, so it is judged on the sentence alone.
-	if out, errOut, code := run(a, "read", "--grep", "beta", "--invert", "--json", "-"); code != 2 || len(inv202Served(out)) != 0 || !strings.Contains(errOut, "and --json is not one of them") {
-		t.Errorf("--invert --json: exit %d:\n%s%s", code, out, errOut)
+	// --json answers a refusal as one document on standard output, with the sentence under "error".
+	jout, jerr, jcode := inv.do(t, nil, nil, "read", "--grep", "beta", "--invert", "--json", "-")
+	var doc map[string]string
+	dec := json.NewDecoder(strings.NewReader(jout))
+	if err := dec.Decode(&doc); err != nil || dec.More() || len(doc) != 1 || jcode != 2 || !strings.Contains(doc["error"], "and --json is not one of them") || !strings.Contains(doc["error"], form) {
+		t.Errorf("--invert --json: exit %d, document %v (%v):\n%s%s", jcode, doc, err, jout, jerr)
 	}
 	// The plain read of a stream is as it was: the lines that match, and the line after each.
 	if out, _, code := run(a, "read", "--grep", "beta", "-"); code != 0 || !inv202Same(inv202Served(out), []int{2, 3, 4, 5}) {
@@ -219,8 +281,66 @@ func TestAnInvertedMatchServesTheLinesOfStandardInputThatDoNotMatch(t *testing.T
 		}
 	}
 
-	// The flag is discoverable.
-	if out, _, code := run("", "read", "--help"); code != 0 || !strings.Contains(out, "--invert") || !strings.Contains(out, "standard input") {
-		t.Errorf("read --help does not name --invert and standard input (exit %d)", code)
+	// The flag is discoverable: its own line in the help names it as a boolean (no
+	// value placeholder, which a backticked word in the usage would make) and says
+	// where it works.
+	out, _, code = run("", "read", "--help")
+	helpLine := regexp.MustCompile(`(?m)^\s+--invert\s{2,}with --grep, serve the lines that do not match.*$`).FindString(out)
+	if code != 0 || helpLine == "" || !strings.Contains(helpLine, "Standard input only") {
+		t.Errorf("read --help has no --invert line that says standard input only (exit %d):\n%s", code, out)
 	}
+}
+
+// inv202 is a built mrw with a tree and a state directory of its own, run with
+// a standard input the caller chooses: ifChangedRun's runner takes a string,
+// which cannot say "never ends".
+type inv202 struct{ bin, tree, state string }
+
+func newInv202(t *testing.T, files map[string]string) inv202 {
+	t.Helper()
+	e := inv202{bin: filepath.Join(t.TempDir(), "mrw.exe"), tree: t.TempDir(), state: t.TempDir()}
+	if out, err := exec.Command("go", "build", "-o", e.bin, ".").CombinedOutput(); err != nil {
+		t.Fatalf("go build: %v\n%s", err, out)
+	}
+	for name, body := range files {
+		if err := os.WriteFile(filepath.Join(e.tree, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return e
+}
+
+// do runs mrw with stdin, or with a pipe that never delivers and never closes
+// when stdin is nil: a call that reads it does not finish, and fails the test
+// at the deadline instead of hanging it.
+func (e inv202) do(t *testing.T, stdin io.Reader, env []string, args ...string) (string, string, int) {
+	t.Helper()
+	if stdin == nil {
+		r, w, err := os.Pipe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = w.Close(); _ = r.Close() })
+		stdin = r
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, e.bin, args...)
+	cmd.Dir = e.tree
+	cmd.Env = append(append(os.Environ(), "XDG_STATE_HOME="+e.state), env...)
+	cmd.Stdin = stdin
+	var o, er strings.Builder
+	cmd.Stdout, cmd.Stderr = &o, &er
+	cmd.WaitDelay = time.Second
+	code := 0
+	var exit *exec.ExitError
+	if err := cmd.Run(); errors.As(err, &exit) {
+		code = exit.ExitCode()
+	} else if err != nil {
+		t.Fatal(err)
+	}
+	if ctx.Err() != nil {
+		t.Errorf("mrw %s did not finish: it waited for standard input", strings.Join(args, " "))
+	}
+	return o.String(), er.String(), code
 }

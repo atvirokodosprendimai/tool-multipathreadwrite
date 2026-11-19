@@ -11483,10 +11483,9 @@ grep -q '| two' "$WORK/o347e" && ok "range beside --grep pair: with the line" ||
 # refused before anything is served, and -v points at the form.
 printf 'one\ntwo\nskip\nfour\n' | "$MRW" read --grep skip --invert - > "$WORK/o348" 2> "$WORK/e348"
 want 0 "$?" "ADR-202: --grep PATTERN --invert - is served"
-[ "$(grep -c '^@@' "$WORK/o348")" = 2 ] && grep -qx '@@ 1-2' "$WORK/o348" && grep -qx '@@ 4-4' "$WORK/o348" \
-  && grep -q '1| one' "$WORK/o348" && grep -q '2| two' "$WORK/o348" && grep -q '4| four' "$WORK/o348" \
-  && ! grep -q 'skip' "$WORK/o348" && ! grep -q -- '-- note:' "$WORK/o348" \
-  && ok "ADR-202: exactly the runs 1-2 and 4-4, and no note" || bad "inverted: $(head -c 300 "$WORK/o348")"
+printf '==> -  4L  18B  sha c5436356\n@@ 1-2\n 1| one\n 2| two\n@@ 4-4\n 4| four\n' > "$WORK/x348"
+cmp -s "$WORK/o348" "$WORK/x348" \
+  && ok "ADR-202: exactly the runs 1-2 and 4-4, in order, once each, and no note" || bad "inverted: $(head -c 300 "$WORK/o348")"
 R348="$WORK/r348"; mkdir -p "$R348"; printf 'one\ntwo\nskip\nfour\n' > "$R348/f.txt"
 "$MRW" --root "$R348" read --grep skip --invert f.txt > "$WORK/o348b" 2> "$WORK/e348b"
 want 2 "$?" "ADR-202 pair: --invert on a file is refused as usage"

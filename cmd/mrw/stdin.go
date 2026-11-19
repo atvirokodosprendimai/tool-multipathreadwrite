@@ -95,6 +95,17 @@ func stdinRead(cmd *cli.Command, pattern string, grepSet bool, posArgs []string,
 		fmt.Fprintln(os.Stderr, "mrw: standard input ended in CRLF after lines that end in LF; that CRLF is most likely the one PowerShell appends to what it pipes, so it was dropped")
 		b = trimmed
 	}
+	out := bufio.NewWriter(os.Stdout)
+	// ADR-165: --max-chars bounds standard input's answer as it bounds a file's
+	// (go-reviewer of a043d346: this path once ignored it), the list of what it
+	// kept back written after the answer. Built before the inverted read decides
+	// there is nothing left, whose two lines are bounded too (ADR-202).
+	var stdout io.Writer = out
+	var budget *read.Budget
+	if cmd.IsSet("max-chars") {
+		budget = read.NewBudget(out, cmd.Int("max-chars"))
+		stdout = budget
+	}
 	if invert {
 		ls, _, _ := lines.Split(string(b))
 		var runs []read.Range
@@ -110,7 +121,7 @@ func stdinRead(cmd *cli.Command, pattern string, grepSet bool, posArgs []string,
 		}
 		if len(runs) == 0 {
 			// Decided here: a spec with no range means the whole input.
-			return invertedNothingLeft(b, len(ls), pattern)
+			return invertedNothingLeft(stdout, out, budget, cmd.Int("max-chars"), b, len(ls), pattern)
 		}
 		for i := range runs {
 			runs[i].Text = fmt.Sprintf("%d-%d", runs[i].Start, runs[i].End)
@@ -118,16 +129,6 @@ func stdinRead(cmd *cli.Command, pattern string, grepSet bool, posArgs []string,
 		sp.Ranges = runs
 	}
 	sp.Path, sp.Data = "-", b
-	out := bufio.NewWriter(os.Stdout)
-	// ADR-165: --max-chars bounds standard input's answer as it bounds a file's
-	// (go-reviewer of a043d346: this path once ignored it), the list of what it
-	// kept back written after the answer.
-	var stdout io.Writer = out
-	var budget *read.Budget
-	if cmd.IsSet("max-chars") {
-		budget = read.NewBudget(out, cmd.Int("max-chars"))
-		stdout = budget
-	}
 	var withheld bytes.Buffer
 	cols, colsFixed := effectiveMaxCols(cmd)
 	var wholeNames []string
@@ -161,7 +162,11 @@ func stdinRead(cmd *cli.Command, pattern string, grepSet bool, posArgs []string,
 	if len(wholeNames) > 0 {
 		fmt.Fprintf(os.Stderr, "mrw: --no-comments reads .go files; served whole: %s\n", namedFiles(wholeNames))
 	}
-	if hint := longLineHint(long); hint != "" && !toNullDevice(os.Stdout) {
+	hint := longLineHint(long)
+	if invert {
+		hint = invertedLongLineHint(long)
+	}
+	if hint != "" && !toNullDevice(os.Stdout) {
 		fmt.Fprintln(os.Stderr, hint)
 	}
 	if problems == 0 && !budget.Over() {
@@ -175,7 +180,11 @@ func stdinRead(cmd *cli.Command, pattern string, grepSet bool, posArgs []string,
 		reached = fmt.Sprintf("; --max-chars %d reached", cmd.Int("max-chars"))
 	}
 	if re != nil && !invert && !anyLineMatches(re, string(b)) {
-		return cli.Exit(fmt.Sprintf("no match: no line of standard input matched /%s/%s", read.OneLine(pattern), reached), 1)
+		msg := fmt.Sprintf("no match: no line of standard input matched /%s/", read.OneLine(pattern))
+		if hint := stdinPatternFlagHint(pattern); hint != "" { // as a read of files adds it (ADR-140)
+			msg += " — " + hint + " (mrw took the value after --grep as the pattern)"
+		}
+		return cli.Exit(msg+reached, 1)
 	}
 	return cli.Exit(incompleteLine(problems, matchesLeft, maxMatches(cmd), reached), 1)
 }
@@ -183,16 +192,24 @@ func stdinRead(cmd *cli.Command, pattern string, grepSet bool, posArgs []string,
 // invertedNothingLeft answers an inverted read of standard input in which no
 // line is left to serve (ADR-202): the stream's header and one `!!` line, as
 // read.Run prints a header, and exit 1 as a search that found nothing does.
-func invertedNothingLeft(b []byte, n int, pattern string) error {
+func invertedNothingLeft(w io.Writer, out *bufio.Writer, budget *read.Budget, maxChars int, b []byte, n int, pattern string) error {
 	sum := sha256.Sum256(b)
-	fmt.Fprintf(os.Stdout, "==> -  %dL  %dB  sha %s\n", n, len(b), hex.EncodeToString(sum[:])[:8])
-	if n == 0 {
-		fmt.Fprintln(os.Stdout, "!! standard input is empty")
-		return cli.Exit("no match: standard input is empty", 1)
+	why, bang := "standard input is empty", "standard input is empty"
+	if n > 0 {
+		p := read.OneLine(pattern)
+		why, bang = "every line of standard input matched /"+p+"/", "every line matches /"+p+"/"
 	}
-	p := read.OneLine(pattern)
-	fmt.Fprintf(os.Stdout, "!! every line matches /%s/\n", p)
-	return cli.Exit(fmt.Sprintf("no match: every line of standard input matched /%s/", p), 1)
+	fmt.Fprintf(w, "==> -  %dL  %dB  sha %s\n", n, len(b), hex.EncodeToString(sum[:])[:8])
+	fmt.Fprintf(w, "!! %s\n", bang)
+	if err := out.Flush(); err != nil {
+		return cli.Exit(fmt.Sprintf("the answer could not be written: %v", err), exitUsage)
+	}
+	reached := ""
+	if budget.Over() {
+		fmt.Fprintln(os.Stderr, "-: WITHHELD: --max-chars reached")
+		reached = fmt.Sprintf("; --max-chars %d reached", maxChars)
+	}
+	return cli.Exit("no match: "+why+reached, 1)
 }
 
 // invertAllowed are the flags that may stand beside --invert: --grep, which it
