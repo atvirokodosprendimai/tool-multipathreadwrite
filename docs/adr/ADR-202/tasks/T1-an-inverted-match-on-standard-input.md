@@ -97,8 +97,37 @@ go test -count=1 -v ./cmd/mrw ./internal/guide ./internal/read -run '^(TestAnInv
 | 4 — it is used | telemetry is refused by ADR-009; the evidence is E7's count, and the tally of BACKLOG.md "Pre-registered for ADR-202's use" |
 
 ## Mutation Log
+- 2026-11-19 · 579bc79e* · mutant killed · exit 1 · `cmd/mrw/stdin.go` · the lines that match are served · acceptance-sha256:963881aa6c61734f937f06b31ebc1f492dd54d88ff58c2850d511ca1c7a2e523 · covers:the lines that do not match are served, numbered as in the input
+- 2026-11-19 · 579bc79e* · mutant killed · exit 1 · `cmd/mrw/stdin.go` · the line after a run is served · acceptance-sha256:963881aa6c61734f937f06b31ebc1f492dd54d88ff58c2850d511ca1c7a2e523 · covers:the lines that do not match are served, numbered as in the input
+- 2026-11-19 · 579bc79e* · mutant killed · exit 1 · `cmd/mrw/stdin.go` · the note is printed · acceptance-sha256:963881aa6c61734f937f06b31ebc1f492dd54d88ff58c2850d511ca1c7a2e523 · covers:the engine leaves the replace note out when told to
+- 2026-11-19 · 579bc79e* · mutant killed · exit 1 · `internal/read/read.go` · the engine ignores the option · acceptance-sha256:963881aa6c61734f937f06b31ebc1f492dd54d88ff58c2850d511ca1c7a2e523 · covers:the engine leaves the replace note out when told to
+- 2026-11-19 · 579bc79e* · mutant killed · exit 1 · `cmd/mrw/stdin.go` · every line matched serves the whole input · acceptance-sha256:963881aa6c61734f937f06b31ebc1f492dd54d88ff58c2850d511ca1c7a2e523 · covers:nothing left serves no line and exits 1
+- 2026-11-19 · 579bc79e* · mutant killed · exit 1 · `cmd/mrw/stdin.go` · --invert works with no --grep · acceptance-sha256:963881aa6c61734f937f06b31ebc1f492dd54d88ff58c2850d511ca1c7a2e523 · covers:the flag is refused everywhere else, before anything is read
+- 2026-11-19 · 579bc79e* · mutant killed · exit 1 · `cmd/mrw/stdin.go` · a file is accepted, alone and beside --sub · acceptance-sha256:963881aa6c61734f937f06b31ebc1f492dd54d88ff58c2850d511ca1c7a2e523 · covers:the flag is refused everywhere else, before anything is read
+- 2026-11-19 · 579bc79e* · mutant killed · exit 1 · `cmd/mrw/stdin.go` · -C is accepted · acceptance-sha256:963881aa6c61734f937f06b31ebc1f492dd54d88ff58c2850d511ca1c7a2e523 · covers:the flag is refused everywhere else, before anything is read
+- 2026-11-19 · 579bc79e* · mutant killed · exit 1 · `cmd/mrw/stdin.go` · --max-matches is accepted · acceptance-sha256:963881aa6c61734f937f06b31ebc1f492dd54d88ff58c2850d511ca1c7a2e523 · covers:the flag is refused everywhere else, before anything is read
+- 2026-11-19 · 579bc79e* · mutant killed · exit 1 · `cmd/mrw/foreignflag.go` · the -v sentence ends where ADR-164 left it · acceptance-sha256:963881aa6c61734f937f06b31ebc1f492dd54d88ff58c2850d511ca1c7a2e523 · covers:every -v refusal points at the form
+- 2026-11-19 · 579bc79e* · mutant killed · exit 1 · `cmd/mrw/stdin.go` · nothing left exits 0 · acceptance-sha256:963881aa6c61734f937f06b31ebc1f492dd54d88ff58c2850d511ca1c7a2e523 · covers:nothing left serves no line and exits 1
 
 ## Verification Log
+- 2026-11-19 · 579bc79e* · exit 1 · `set -o pipefail …` · acceptance-sha256:963881aa6c61734f937f06b31ebc1f492dd54d88ff58c2850d511ca1c7a2e523 · ms:2450 · test-lock-sha256:584df20978704e7ed5071c1a825f32564e8afac970177667741e071df37fd03a · test-lock-file:docs/adr/locks/584df20978704e7ed5071c1a825f32564e8afac970177667741e071df37fd03a.lock
+  ```
+  --- last 2 line(s) of stderr
+  # github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read [github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read.test]
+  internal/read/note202_test.go:38:42: unknown field NoReplaceNote in struct literal of type Options
+  ```
+- 2026-11-19 · 579bc79e* · exit 0 · `set -o pipefail …` · acceptance-sha256:963881aa6c61734f937f06b31ebc1f492dd54d88ff58c2850d511ca1c7a2e523 · ms:2894
+- 2026-11-19 · 579bc79e* · exit 0 · `set -o pipefail …` · acceptance-sha256:963881aa6c61734f937f06b31ebc1f492dd54d88ff58c2850d511ca1c7a2e523 · ms:4654
+- 2026-11-19 · 579bc79e* · exit 0 · `set -o pipefail …` · acceptance-sha256:963881aa6c61734f937f06b31ebc1f492dd54d88ff58c2850d511ca1c7a2e523 · ms:5772
+- 2026-11-19 · 579bc79e* · exit 0 · `set -o pipefail …` · acceptance-sha256:963881aa6c61734f937f06b31ebc1f492dd54d88ff58c2850d511ca1c7a2e523 · ms:4512
+- 2026-11-19 · 579bc79e* · exit 0 · `set -o pipefail …` · acceptance-sha256:963881aa6c61734f937f06b31ebc1f492dd54d88ff58c2850d511ca1c7a2e523 · ms:4538
+- 2026-11-19 · 579bc79e* · exit 0 · `set -o pipefail …` · acceptance-sha256:963881aa6c61734f937f06b31ebc1f492dd54d88ff58c2850d511ca1c7a2e523 · ms:5885
+- 2026-11-19 · 579bc79e* · exit 0 · `set -o pipefail …` · acceptance-sha256:963881aa6c61734f937f06b31ebc1f492dd54d88ff58c2850d511ca1c7a2e523 · ms:4390
+- 2026-11-19 · 579bc79e* · exit 0 · `set -o pipefail …` · acceptance-sha256:963881aa6c61734f937f06b31ebc1f492dd54d88ff58c2850d511ca1c7a2e523 · ms:4603
+- 2026-11-19 · 579bc79e* · exit 0 · `set -o pipefail …` · acceptance-sha256:963881aa6c61734f937f06b31ebc1f492dd54d88ff58c2850d511ca1c7a2e523 · ms:4852
+- 2026-11-19 · 579bc79e* · exit 0 · `set -o pipefail …` · acceptance-sha256:963881aa6c61734f937f06b31ebc1f492dd54d88ff58c2850d511ca1c7a2e523 · ms:4636
+- 2026-11-19 · 579bc79e* · exit 0 · `set -o pipefail …` · acceptance-sha256:963881aa6c61734f937f06b31ebc1f492dd54d88ff58c2850d511ca1c7a2e523 · ms:4624
+- 2026-11-19 · 579bc79e* · exit 0 · `set -o pipefail …` · acceptance-sha256:963881aa6c61734f937f06b31ebc1f492dd54d88ff58c2850d511ca1c7a2e523 · ms:4613
 
 ## Invariants
 
