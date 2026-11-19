@@ -86,7 +86,7 @@ func instructionsText() string {
 9. re-read: mrw_read with if_changed
 sub or rewrite on mrw_read returns a licensed plan: send it as plan.
 
-WHICH SURFACE. CLI has --context, --check on prose and more;
+WHICH SURFACE. CLI has --context, --then-sh and more;
 `+"`mrw --root DIR read`"+` reaches ANY checkout. This surface serves ONE fixed checkout,
 chosen at launch with `+"`--root DIR mcp`"+`. With a shell prefer the CLI; prefer this one
 with none; one writer per checkout.

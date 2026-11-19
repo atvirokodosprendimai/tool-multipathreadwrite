@@ -39,7 +39,7 @@ func TestALandingIsCountedOnceInLand(t *testing.T) {
 			t.Skip("the check is a POSIX shell line")
 		}
 		root := tree(t, `{"check":"exit 0"}`)
-		p, err := Prepare(Request{Root: root, In: numbered})
+		p, err := Prepare(Request{Root: root, In: numbered, Check: CheckDemand})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -69,7 +69,7 @@ func TestALandingIsCountedOnceInLand(t *testing.T) {
 		}
 		root := tree(t, `{"check":"exit 0"}`)
 		t.Setenv("TMPDIR", filepath.Join(t.TempDir(), "missing"))
-		p, err := Prepare(Request{Root: root, In: numbered})
+		p, err := Prepare(Request{Root: root, In: numbered, Check: CheckDemand})
 		if err != nil {
 			t.Fatal(err)
 		}

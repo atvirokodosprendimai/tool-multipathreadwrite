@@ -8,12 +8,11 @@ import (
 	"testing"
 )
 
-// ADR-187, finding on ADR-095. The CLI's --check is a demand, which makes a
-// check due whatever the paths, so the CLI rows in cmd/mrw cannot show that a
-// rename's source or destination makes one due. check: true selects ADR-054's
-// rule (writer.CheckAuto), which does: at MRW_STEP_DEPTH 8 a write whose check
-// is due is refused before anything is written, judged over the plan's own
-// paths; a plan with none non-prose, and a write that asks for no check, lands.
+// ADR-187, finding on ADR-095, ADR-205. check: true makes a check due after any
+// write that lands, as the CLI's --check does, so at MRW_STEP_DEPTH 8 every
+// write that asks for it is refused before anything is written, a prose-only
+// one and a rename between prose names included; a write that asks for no
+// check lands.
 func TestAnMCPWriteWhoseCheckIsDueIsRefusedAtTheDepthLimit(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("the checks are POSIX shell lines")
@@ -28,8 +27,8 @@ func TestAnMCPWriteWhoseCheckIsDueIsRefusedAtTheDepthLimit(t *testing.T) {
 		{"a .go unlink", "@@ a.go - unlink\n", true},
 		{"a .go renamed to .md", "@@ a.go - rename\nb.md\n", true},
 		{"a .md renamed to .go", "@@ notes.md - rename\nnotes.go\n", true},
-		{"a .md replace", "@@ notes.md 2 replace anchor=\"line two\"\nline 2\n", false},
-		{"a .md renamed to .txt", "@@ notes.md - rename\nnotes.txt\n", false},
+		{"a .md replace", "@@ notes.md 2 replace anchor=\"line two\"\nline 2\n", true},
+		{"a .md renamed to .txt", "@@ notes.md - rename\nnotes.txt\n", true},
 	} {
 		root := checkTree113(t, `{"check":"touch checked"}`)
 		res := call(t, root, "mrw_write", map[string]any{"plan": c.plan, "check": true})

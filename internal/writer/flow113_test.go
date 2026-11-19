@@ -70,7 +70,7 @@ func TestLandCountsEachOutcomeOnce(t *testing.T) {
 
 	t.Run("a malformed harness is refused before anything is written", func(t *testing.T) {
 		root := flowTree(t, "{")
-		_, err := run(t, Request{Root: root, In: goEdit, Opts: apply.Options{}})
+		_, err := run(t, Request{Root: root, In: goEdit, Check: CheckDemand, Opts: apply.Options{}})
 		var r *Refusal
 		if !errors.As(err, &r) || r.Stage != StageHarness {
 			t.Fatalf("err %v, want a StageHarness refusal", err)
@@ -97,7 +97,7 @@ func TestLandCountsEachOutcomeOnce(t *testing.T) {
 	})
 	t.Run("a failed check moves the landing to failed_check", func(t *testing.T) {
 		root := flowTree(t, `{"check":"exit 3"}`)
-		v, err := run(t, Request{Root: root, In: goEdit})
+		v, err := run(t, Request{Root: root, In: goEdit, Check: CheckDemand})
 		if err != nil || v.Check == nil || !v.Check.Ran || v.Check.ExitCode != 3 {
 			t.Fatalf("err %v check %+v, want a check that ran and exited 3", err, v.Check)
 		}
@@ -108,7 +108,7 @@ func TestLandCountsEachOutcomeOnce(t *testing.T) {
 	t.Run("a check that cannot run moves the landing to check_not_run", func(t *testing.T) {
 		root := flowTree(t, `{"check":"exit 0"}`)
 		t.Setenv("TMPDIR", filepath.Join(t.TempDir(), "missing"))
-		v, err := run(t, Request{Root: root, In: goEdit})
+		v, err := run(t, Request{Root: root, In: goEdit, Check: CheckDemand})
 		if err != nil || v.CheckErr == nil {
 			t.Fatalf("err %v checkErr %v, want a landing whose check could not run", err, v.CheckErr)
 		}
@@ -135,7 +135,7 @@ func TestLandCountsEachOutcomeOnce(t *testing.T) {
 	})
 	t.Run("a dry run counts nothing", func(t *testing.T) {
 		root := flowTree(t, `{"check":"exit 3"}`)
-		if _, err := run(t, Request{Root: root, In: goEdit, Opts: apply.Options{DryRun: true}}); err != nil {
+		if _, err := run(t, Request{Root: root, In: goEdit, Check: CheckDemand, Opts: apply.Options{DryRun: true}}); err != nil {
 			t.Fatal(err)
 		}
 		if got := count(t, root); got.Plans() != 0 {

@@ -510,7 +510,7 @@ func TestTheSurfaceSaysTheCLIIsRicher(t *testing.T) {
 	// the wire told callers to leave a surface that now has it.
 	named := map[string][]string{
 		"read":  {"--context"},
-		"write": {"--check"},
+		"write": {"--then-sh"},
 	}
 	var allFlags []string
 	for _, fs := range named {

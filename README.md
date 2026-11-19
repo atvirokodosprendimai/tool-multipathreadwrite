@@ -531,10 +531,10 @@ when only one should.
 `format`, `echo_pad`, and `ack` sit on the existing write/read — not a third
 tool. `format` is `plan` (default), `apply_patch`, or `search_replace`.
 `echo_pad` is the same opt-in pad as `--echo-pad`. `ack` is how a served read
-becomes a licence. `mrw_write` runs no check unless `check: true`, which runs the project's check after a write that touches
-code, by the rule `mrw write` used before ADR-187 (ADR-113), and returns the verdict as `check`
+becomes a licence. `mrw_write` runs no check unless `check: true`, which runs the project's check after any write that
+lands, prose-only included, as `mrw write --check` does (ADR-205), and returns the verdict as `check`
 (and `drift`); `check: false` is the default. A check that ran and failed leaves the
-write applied and the call not an error. The write lands before the check runs, so
+write applied and the call not an error; one that could not run, such as a tree with no check declared, is an error with the applied receipt and `check.ran` false. The write lands before the check runs, so
 a lost answer means read the files before re-sending the plan. `then` names steps declared in
 `.quality-harness.json` to run after a passing check (ADR-115), their verdicts in the receipt's
 `then`; ad-hoc shell (`--then-sh`) stays on the CLI. Its receipt's hunks carry

@@ -67,7 +67,7 @@ func TestAWriteThatLandsDuringTheCheckIsCounted(t *testing.T) {
 		t.Helper()
 		_ = os.Remove(started)
 		_ = os.Remove(release)
-		p, err := Prepare(Request{Root: root, In: goEdit})
+		p, err := Prepare(Request{Root: root, In: goEdit, Check: CheckDemand})
 		if err != nil {
 			t.Fatal(err)
 		}

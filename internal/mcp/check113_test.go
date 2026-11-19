@@ -35,9 +35,9 @@ func tally113(t *testing.T, root string) authoring.Tally {
 	return tally
 }
 
-// ADR-113 T2, ADR-187. mrw_write ran no check, so a caller with no shell learned what
-// was written and nothing about whether it still built. With check: true it runs the check by
-// ADR-054's rule, returns the verdict in the receipt, and counts it as the CLI
+// ADR-113 T2, ADR-187, ADR-205. mrw_write ran no check, so a caller with no shell learned what
+// was written and nothing about whether it still built. With check: true it runs the check
+// after any write that lands, as the CLI's --check does, returns the verdict in the receipt, and counts it as the CLI
 // does; without it none runs (ADR-187). A check that ran and failed is not
 // isError — the write landed and the verdict is data — while one that could
 // not run is.
@@ -73,11 +73,12 @@ func TestAnMCPWriteRunsTheCheck(t *testing.T) { // ADR-187: with check: true; th
 			t.Errorf("tally %v, want applied 1", got)
 		}
 	})
-	t.Run("a prose write runs none", func(t *testing.T) {
+	t.Run("a prose write runs the check too", func(t *testing.T) {
 		root := checkTree113(t, `{"check":"exit 3"}`)
-		sc := structured(t, call(t, root, "mrw_write", map[string]any{"plan": "@@ notes.md 2 replace anchor=\"line two\"\nline 2\n", "check": true}))
-		if _, has := sc["check"]; has {
-			t.Fatalf("a markdown write ran the check: %v", sc)
+		res := call(t, root, "mrw_write", map[string]any{"plan": "@@ notes.md 2 replace anchor=\"line two\"\nline 2\n", "check": true})
+		chk, _ := structured(t, res)["check"].(map[string]any)
+		if chk == nil || chk["ran"] != true || chk["exit_code"] != float64(3) || res["isError"] == true {
+			t.Fatalf("check %v isError %v, want a markdown write's check that ran and failed as data", chk, res["isError"])
 		}
 	})
 	t.Run("a passing check is reported and priced as held", func(t *testing.T) {

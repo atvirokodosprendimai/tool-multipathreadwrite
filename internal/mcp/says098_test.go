@@ -53,10 +53,10 @@ func TestTheServedTextSaysWhatTheCodeDoes(t *testing.T) {
 		{"M9 exclude", servedDescription(t, "mrw_read", "exclude"), []string{"Refused without `grep` or `ast_grep`"}, []string{"Only meaningful"}},
 		// With ast_grep, specs are paths to search and carry no range.
 		{"M10 specs", servedDescription(t, "mrw_read", "specs"), []string{"`grep` or `ast_grep`", "carry no range"}, nil},
-		// The write checks after a code write only when asked: check: true
-		// selects the rule (ADR-187); without it no check runs.
-		{"M11 write", servedDescription(t, "mrw_write", ""), []string{"With check: true, after a write that touches code", "Without check: true no check runs"}, []string{"this tool runs none", "check: false turns it off"}},
-		{"M11 instructions", ins, []string{"--check on prose"}, []string{"a check after code writes (--check)"}},
+		// The write checks after any write that lands only when asked: check: true
+		// makes one due (ADR-187, ADR-205); without it no check runs.
+		{"M11 write", servedDescription(t, "mrw_write", ""), []string{"With check: true, after any write that lands", "Without check: true no check runs"}, []string{"after a write that touches code", "this tool runs none", "check: false turns it off"}},
+		{"M11 instructions", ins, []string{"--context, --then-sh"}, []string{"--check on prose", "a check after code writes (--check)"}},
 		// rename: address `-` and one body line, the destination (plan.go).
 		{"M12 rename", plan, []string{"rename takes address `-` and one body line"}, nil},
 		// ADR-052: a multi-line replace needs the line after its range served,
