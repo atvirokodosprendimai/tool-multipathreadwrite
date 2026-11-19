@@ -86,10 +86,12 @@ if [ -n "$m" ]; then
 	[ -f "$D/linkstate" ] && { rm -rf "$XDG_STATE_HOME"; ln -s "$D/secret" "$XDG_STATE_HOME"; }
 	[ -f "$D/linkfile" ] && { rm -f "$XDG_STATE_HOME/mrw/x.jsonl"; ln -s "$D/secret/mrw/x.jsonl" "$XDG_STATE_HOME/mrw/x.jsonl"; }
 	[ -f "$D/replace" ] && [ "$n" = 1 ] && cp "$D/evil" "` + r.live + `"
-	[ -f "$D/tamper" ] && cp "$D/evil" "$m"
+	[ -f "$D/tamper" ] && cp -f "$D/evil" "$m"
 fi
-git apply "` + patch + `" >/dev/null 2>&1
+git apply "$(cat "$D/patch" 2>/dev/null || echo "` + patch + `")" >/dev/null 2>&1
+[ -f "$D/forceadd" ] && { printf '*.log\n' >> .git/info/exclude; echo x > forced.log; git add -f forced.log; }
 [ -f "$D/commit" ] && git -c user.name=t -c user.email=t@t commit -qam change
+[ -f "$D/badindex" ] && echo garbage > .git/index
 [ -f "$D/untracked" ] && echo hi > created.txt
 [ -f "$D/bigdiff" ] && dd if=/dev/zero bs=1048576 count=17 2>/dev/null | tr '\0' a > big.txt
 [ -f "$D/hang" ] && sleep 30
@@ -518,6 +520,9 @@ func TestARunPinsItsMrwItsInstructionsAndItsSpend(t *testing.T) {
 		if fi, err := os.Lstat(string(hook[1])); err != nil || !fi.Mode().IsRegular() {
 			t.Fatalf("the hook's mrw %s is not a copy of the bytes: %v %v", hook[1], fi, err)
 		}
+		if fi, err := os.Lstat(string(hook[1])); err != nil || fi.Mode().Perm() != 0o555 {
+			t.Errorf("the staged mrw is %v (%v), want mode 0555", fi, err)
+		}
 		if got, _ := os.ReadFile(string(hook[1])); hashOf(got) != opts.MrwSHA256 {
 			t.Errorf("the read hook runs bytes hashing to %s, want the pinned %s", hashOf(got), opts.MrwSHA256)
 		}
@@ -576,13 +581,25 @@ func TestARunPinsItsMrwItsInstructionsAndItsSpend(t *testing.T) {
 			t.Fatal(err)
 		}
 		refused("old", "a pinning run on a canary that recorded no hash", run("old", noHash, true, false))
-		refused("freemodel", "a run that pins nothing, on a canary of another model", run("freemodel", canary(other, insSHA, "another-model"), false, false))
+		if err := run("freemodel", canary(other, insSHA, "another-model"), false, false); err != nil {
+			t.Errorf("a run that pins nothing checks no model: %v", err)
+		}
 		if err := run("free", canary(other, insSHA, "stub-model"), false, false); err != nil {
 			t.Errorf("a run that pins nothing, on a canary of either build: %v", err)
 		}
 		if err := run("freeold", noHash, false, false); err != nil {
 			t.Errorf("a run that pins nothing, on a canary that recorded no hash and no model: %v", err)
 		}
+		two := func(name, model string) error {
+			o := rig.opts
+			o.Models = []string{"stub-model", "second-model"}
+			o.Canary, o.Out, o.MrwInstructions = canary(rig.sha, insSHA, model), filepath.Join(rig.dir, "out-"+name), instr
+			return Run(o)
+		}
+		if err := two("two", "second-model"); err != nil {
+			t.Errorf("a pinned run of two models, on a canary of one of them: %v", err)
+		}
+		refused("twoother", "a pinned run of two models, on a canary of neither", two("twoother", "third-model"))
 		// RunCanary records what it ran.
 		co := rig.opts
 		co.Out, co.MrwInstructions = filepath.Join(rig.dir, "canary-out"), instr
@@ -748,6 +765,129 @@ func TestARunPinsItsMrwItsInstructionsAndItsSpend(t *testing.T) {
 		under.opts.MaxSpend = 0.80
 		if err := Run(under.opts); err != nil {
 			t.Errorf("a run that ends under its figure: %v", err)
+		}
+	})
+
+	t.Run("a path the agent added by force survives the private index", func(t *testing.T) {
+		for _, commit := range []bool{false, true} {
+			rig := newPinRig(t, []string{"B"}, 1)
+			rig.flag(t, "forceadd")
+			if commit {
+				rig.flag(t, "commit")
+			}
+			rig.opts.KeepDiff = true
+			if err := Run(rig.opts); err != nil {
+				t.Fatal(err)
+			}
+			got, err := os.ReadFile(filepath.Join(rig.opts.Out, b1+".diff"))
+			if err != nil || !strings.Contains(string(got), "forced.log") {
+				t.Errorf("committed %v: the kept diff (%v) lacks forced.log, an ignored file the agent added by force:\n%s", commit, err, got)
+			}
+		}
+	})
+
+	t.Run("a receipt needs a note about the diff, not about the state file", func(t *testing.T) {
+		rig := newPinRig(t, []string{"B"}, 1)
+		rig.flag(t, "commit")
+		rig.opts.KeepDiff = true
+		if err := Run(rig.opts); err != nil {
+			t.Fatal(err)
+		}
+		rp := filepath.Join(rig.opts.Out, b1+".receipt.json")
+		m := fileMap(t, rp)
+		delete(m, "kept_diff_sha256")
+		m["kept_note"] = "state: something else was not kept"
+		b, _ := json.MarshalIndent(m, "", "  ")
+		if err := os.WriteFile(rp, b, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Remove(filepath.Join(rig.opts.Out, b1+".diff")); err != nil {
+			t.Fatal(err)
+		}
+		if err := Verify(rig.opts.Out, "test", 1, 1); err == nil || !strings.Contains(err.Error(), b1) {
+			t.Errorf("verify over a missing diff with a note about the state file: %v, want it to name %s", err, b1)
+		}
+		m["kept_note"] = "state: x; diff: not kept: for a reason"
+		b, _ = json.MarshalIndent(m, "", "  ")
+		if err := os.WriteFile(rp, b, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := Verify(rig.opts.Out, "test", 1, 1); err != nil {
+			t.Errorf("verify over a missing diff with a note about the diff: %v", err)
+		}
+	})
+
+	t.Run("a capture that fails is a setup exclusion with its own note", func(t *testing.T) {
+		rig := newPinRig(t, []string{"B"}, 1)
+		rig.flag(t, "badindex")
+		rig.opts.KeepDiff = true
+		if err := Run(rig.opts); err != nil {
+			t.Fatal(err)
+		}
+		r := readReceipt(t, rig.opts.Out, b1)
+		if r.Exclusion != ExclusionSetup || !hasNote(r.KeptNote, "diff:") || r.KeptDiffSHA256 != "" {
+			t.Errorf("exclusion %q, note %q, want a setup exclusion and a diff note", r.Exclusion, r.KeptNote)
+		}
+		if err := Verify(rig.opts.Out, "test", 1, 1); err != nil {
+			t.Errorf("a run whose capture failed, noted, does not verify: %v", err)
+		}
+	})
+
+	t.Run("a canary whose mrw was rewritten does not pass", func(t *testing.T) {
+		rig := newPinRig(t, []string{"A", "B"}, 1)
+		rig.flag(t, "tamper")
+		co := rig.opts
+		co.Out = filepath.Join(rig.dir, "canary-out")
+		got, err := RunCanary(co, co.Tasks[0], "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Pass || !strings.Contains(strings.Join(got.Problems["B"], " "), "bin/mrw") {
+			t.Errorf("a canary whose attempt rewrote bin/mrw: pass %v, problems %v", got.Pass, got.Problems)
+		}
+	})
+
+	t.Run("a grader that writes into the tree is not in the kept diff", func(t *testing.T) {
+		rig := newPinRig(t, []string{"B"}, 1)
+		dir := filepath.Join(filepath.Dir(rig.opts.Out), "coupled", "fix-coupled")
+		for name, body := range map[string]string{
+			"task.json":        `{"id":"fix-coupled","shape":"fixture","repo":"fixture","instruction":"Change active to Active in p/p.go, and keep the tests passing.","require":[{"file":"p/p.go","match":"\"Active\""}],"forbid":[{"file":"p/p.go","match":"\"active\""}]}`,
+			"base/go.mod":      "module fix\n\ngo 1.21\n",
+			"base/p/p.go":      "package p\n\nfunc Status() string { return \"active\" }\n",
+			"base/p/p_test.go": "package p\n\nimport (\n\t\"os\"\n\t\"testing\"\n)\n\nfunc TestStatus(t *testing.T) {\n\t_ = os.WriteFile(\"../grader-wrote.txt\", []byte(\"x\"), 0o644)\n\t_ = os.WriteFile(os.Getenv(\"PINTEST_MARK\"), nil, 0o644)\n\tif Status() == \"\" {\n\t\tt.Fatal(\"empty\")\n\t}\n}\n",
+			"reference.patch":  "diff --git a/p/p.go b/p/p.go\n--- a/p/p.go\n+++ b/p/p.go\n@@ -1,3 +1,3 @@\n package p\n \n-func Status() string { return \"active\" }\n+func Status() string { return \"Active\" }\n",
+		} {
+			if err := os.MkdirAll(filepath.Dir(filepath.Join(dir, name)), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+		task, err := LoadTask(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// A fixture task cannot name a package; the oracle reads these two fields of the struct.
+		task.TestPackage, task.AssertingTests = "p", []string{"TestStatus"}
+		mark := filepath.Join(rig.dir, "grader-ran")
+		t.Setenv("PINTEST_MARK", mark)
+		if err := os.WriteFile(filepath.Join(rig.dir, "patch"), []byte(filepath.Join(dir, "reference.patch")), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		rig.opts.Tasks, rig.opts.KeepDiff = []Task{task}, true
+		if err := Run(rig.opts); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := os.Stat(mark); err != nil {
+			t.Fatalf("the grader did not run its test, so the row proves nothing: %v", err)
+		}
+		got, err := os.ReadFile(filepath.Join(rig.opts.Out, "fix-coupled.B.stub-model.1.diff"))
+		if err != nil || !strings.Contains(string(got), `+func Status() string { return "Active" }`) {
+			t.Fatalf("the kept diff (%v) lacks the agent's change:\n%s", err, got)
+		}
+		if strings.Contains(string(got), "grader-wrote") {
+			t.Errorf("the kept diff holds what the grader wrote into the tree:\n%s", got)
 		}
 	})
 

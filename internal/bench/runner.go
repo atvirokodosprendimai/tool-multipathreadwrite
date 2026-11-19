@@ -485,6 +485,10 @@ func Run(o RunOptions) (err error) {
 				// replacements and run on.
 				if r.Exclusion == ExclusionStart && o.Block > 0 {
 					if streak++; streak >= 3 {
+						// Three start errors are three receipts with no cost: the stop on spend, which a person must read, comes first.
+						if err := spendStop(o); err != nil {
+							return err
+						}
 						return fmt.Errorf("%w (the last at %s); resume once the CLI starts again", ErrStartErrors, at.ID)
 					}
 				} else {
@@ -787,10 +791,10 @@ func checkCanary(path, cli string, o RunOptions) error {
 	if pins && c.MrwInstructionsSHA256 != o.instrSHA {
 		return fmt.Errorf("canary %s was given instructions %q; this run's are %q (none: the binary's own)", path, c.MrwInstructionsSHA256, o.instrSHA)
 	}
-	for _, m := range o.Models {
-		if (pins || c.Model != "") && c.Model != m {
-			return fmt.Errorf("canary %s is for model %q; this run is for %q", path, c.Model, m)
-		}
+	// Only a pinning run is judged on the canary's model, which must be one
+	// the run runs; a run that pins nothing keeps what it took before ADR-206.
+	if pins && !slices.Contains(o.Models, c.Model) {
+		return fmt.Errorf("canary %s is for model %q; this run is for %q", path, c.Model, o.Models)
 	}
 	// A profiled stage needs a canary that ran under the profile, tested each
 	// of its configurations and loaded its plugin (ADR-162 Decision 2; the
@@ -945,6 +949,8 @@ func runAttempt(o RunOptions, a attempt, order int, cli, mrwVersion string) (r R
 	r = Receipt{Attempt: a.ID, Stage: o.Stage, Task: a.Task.ID, Shape: a.Task.Shape, Source: source, Model: a.Model,
 		Config: a.Config.Name, Repeat: a.Repeat, Order: order, CLIVersion: cli, Started: time.Now().UTC().Format(time.RFC3339),
 		CheckRedAtBase: a.Task.CheckRedAtBase != ""}
+	// A run that keeps diffs says, on every receipt that has none, why it has none.
+	defer func() { o.noDiffNote(&r) }()
 	if a.Config.Mrw {
 		r.MrwVersion, r.MrwSHA256 = mrwVersion, o.mrwSHA
 	}
@@ -1073,7 +1079,7 @@ func runAttempt(o RunOptions, a attempt, order int, cli, mrwVersion string) (r R
 	if o.StatusLine {
 		r.Status = claimStatus(t.ResultText)
 	}
-	if errText, _ := os.ReadFile(base + ".stderr"); startFailed(t, r, string(errText)) {
+	if errText, _ := os.ReadFile(base + ".stderr"); startFailed(t, r, string(errText)) && r.Exclusion == "" {
 		r.Exclusion = ExclusionStart
 	}
 	// H's evidence is taken before grading, which can end the attempt early:

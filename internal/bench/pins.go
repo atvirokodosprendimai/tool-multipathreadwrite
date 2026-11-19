@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -107,7 +108,7 @@ func (o RunOptions) mrwVersion() (string, error) {
 // link to --mrw when the run pins nothing.
 func (o RunOptions) placeMrw(dst string) error {
 	if o.mrwBytes != nil {
-		return os.WriteFile(dst, o.mrwBytes, 0o755)
+		return os.WriteFile(dst, o.mrwBytes, 0o555)
 	}
 	return os.Symlink(o.Mrw, dst)
 }
@@ -126,18 +127,40 @@ func (o RunOptions) instructions(mrw string) ([]byte, error) {
 	return text, nil
 }
 
-// mrwAfter is what the attempt's own mrw hashes to when it is not the pin: ""
-// when it is, or when the run pins nothing. An agent that rewrote bin/mrw ran
-// bytes the receipt's mrw_sha256 does not describe.
+// mrwLimit bounds what is hashed to check an attempt's bin/mrw afterwards: the
+// binary's own size, with room.
+const mrwLimit = 256 << 20
+
+// mrwAfter is what the attempt's own mrw is when it is not the pin: "" when it
+// is, or when the run pins nothing, else the hash it has now or what it is
+// instead (a link, a directory, a file over the bound). An agent that rewrote
+// bin/mrw ran bytes the receipt's mrw_sha256 does not describe.
 func (o RunOptions) mrwAfter(scratch string) string {
 	if o.mrwSHA == "" {
 		return ""
 	}
-	b, err := os.ReadFile(filepath.Join(scratch, "bin", "mrw"))
+	p := filepath.Join(scratch, "bin", "mrw")
+	fi, err := os.Lstat(p)
 	if err != nil {
 		return "unreadable: " + err.Error()
 	}
-	if got := hashHex(b); got != o.mrwSHA {
+	if !fi.Mode().IsRegular() {
+		return "not a regular file: " + fi.Mode().String()
+	}
+	f, err := os.Open(p)
+	if err != nil {
+		return "unreadable: " + err.Error()
+	}
+	defer func() { _ = f.Close() }()
+	h := sha256.New()
+	n, err := io.Copy(h, io.LimitReader(f, mrwLimit+1))
+	if err != nil {
+		return "unreadable: " + err.Error()
+	}
+	if n > mrwLimit {
+		return fmt.Sprintf("over the %d bound", mrwLimit)
+	}
+	if got := hex.EncodeToString(h.Sum(nil)); got != o.mrwSHA {
 		return got
 	}
 	return ""
@@ -183,7 +206,7 @@ func spendStop(o RunOptions) error {
 		}
 	}
 	switch {
-	case sum >= o.MaxSpend-1e-9: // the figure is cents: 0.10 and 0.70 reach 0.80
+	case micros(sum) >= micros(o.MaxSpend):
 		return fmt.Errorf("%w: $%.4f is recorded and the figure is $%.2f; a stopped run is not resumed", ErrSpendStop, sum, o.MaxSpend)
 	case missing >= 3:
 		return fmt.Errorf("%w: %d receipts carry no cost, so the spend is not known ($%.4f recorded, the figure is $%.2f)", ErrSpendStop, missing, sum, o.MaxSpend)
@@ -191,16 +214,49 @@ func spendStop(o RunOptions) error {
 	return nil
 }
 
+// micros is a USD amount in millionths, so a cost and a figure are compared as
+// integers: 0.10 and 0.70 reach 0.80 although their float sum does not.
+func micros(x float64) int64 { return int64(math.Round(x * 1e6)) }
+
 // keptLimit bounds each file kept beside a receipt: one over it is not kept,
 // and the receipt's kept_note says so.
 const keptLimit = 16 << 20
 
+// outputCap bounds what is kept of a git command's output, which only an error
+// message uses.
+const outputCap = 64 << 10
+
+// capped is a writer that keeps the first outputCap bytes and drops the rest
+// without failing, so a noisy command can neither fill memory nor block.
+type capped struct{ b bytes.Buffer }
+
+func (c *capped) Write(p []byte) (int, error) {
+	if room := outputCap - c.b.Len(); room > 0 {
+		c.b.Write(p[:min(room, len(p))])
+	}
+	return len(p), nil
+}
+
+func (c *capped) String() string { return c.b.String() }
+
+// hasNote says whether one of the semicolon-separated notes of a receipt's
+// kept_note starts with prefix: "state:" or "diff:", the artifact it is about.
+func hasNote(note, prefix string) bool {
+	for _, n := range strings.Split(note, "; ") {
+		if strings.HasPrefix(n, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
 // keepStateFile copies rel, a path under the attempt's state home, to
 // <id>.kept beside the receipt and returns its SHA-256; "" with no note says the
 // attempt left no such file. The agent has run by now, so nothing in the state
-// home is trusted: the home itself must be a directory and not a link, the copy
-// goes through a root on it, the file must be regular, and the file opened must
-// be the one that was looked at. What is refused is a note, not an error.
+// home is trusted: the home itself must be a directory and not a link, the root
+// opened on it must be that directory, the copy goes through the root, the file
+// must be regular, and the file opened must be the one that was looked at. What
+// is refused is a note, not an error.
 func keepStateFile(stateHome, rel, base string) (sha, note string, err error) {
 	fi, err := os.Lstat(stateHome)
 	if errors.Is(err, os.ErrNotExist) {
@@ -210,41 +266,44 @@ func keepStateFile(stateHome, rel, base string) (sha, note string, err error) {
 		return "", "", err
 	}
 	if !fi.IsDir() {
-		return "", "state file not kept: the state home is a link or a file, not a directory", nil
+		return "", "state: not kept: the state home is a link or a file, not a directory", nil
 	}
 	root, err := os.OpenRoot(stateHome)
 	if err != nil {
 		return "", "", err
 	}
 	defer func() { _ = root.Close() }()
+	if rst, err := root.Stat("."); err != nil || !os.SameFile(fi, rst) {
+		return "", "state: not kept: the state home changed while it was opened", nil
+	}
 	name := filepath.FromSlash(rel)
 	st, err := root.Lstat(name)
 	if errors.Is(err, os.ErrNotExist) {
 		return "", "", nil
 	}
 	if err != nil {
-		return "", fmt.Sprintf("state file %s not kept: %v", rel, err), nil
+		return "", fmt.Sprintf("state: %s not kept: %v", rel, err), nil
 	}
 	if !st.Mode().IsRegular() {
-		return "", fmt.Sprintf("state file %s not kept: it is not a regular file", rel), nil
+		return "", fmt.Sprintf("state: %s not kept: it is not a regular file", rel), nil
 	}
 	if st.Size() > keptLimit {
-		return "", fmt.Sprintf("state file %s not kept: it is %d bytes, over the %d bound", rel, st.Size(), keptLimit), nil
+		return "", fmt.Sprintf("state: %s not kept: it is %d bytes, over the %d bound", rel, st.Size(), keptLimit), nil
 	}
 	f, err := root.Open(name)
 	if err != nil {
-		return "", fmt.Sprintf("state file %s not kept: %v", rel, err), nil
+		return "", fmt.Sprintf("state: %s not kept: %v", rel, err), nil
 	}
 	defer func() { _ = f.Close() }()
 	if fst, err := f.Stat(); err != nil || !os.SameFile(st, fst) {
-		return "", fmt.Sprintf("state file %s not kept: it changed while it was opened", rel), nil
+		return "", fmt.Sprintf("state: %s not kept: it changed while it was opened", rel), nil
 	}
 	b, err := io.ReadAll(io.LimitReader(f, keptLimit+1))
 	if err != nil {
 		return "", "", err
 	}
 	if len(b) > keptLimit {
-		return "", fmt.Sprintf("state file %s not kept: it grew over the %d bound", rel, keptLimit), nil
+		return "", fmt.Sprintf("state: %s not kept: it grew over the %d bound", rel, keptLimit), nil
 	}
 	if err := writeOnce(base+".kept", b); err != nil {
 		return "", "", err
@@ -252,11 +311,34 @@ func keepStateFile(stateHome, rel, base string) (sha, note string, err error) {
 	return hashHex(b), "", nil
 }
 
+// copyIndex copies the tree's own index to dst, bounded.
+func copyIndex(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = in.Close() }()
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	if err != nil {
+		return err
+	}
+	n, err := io.Copy(out, io.LimitReader(in, mrwLimit+1))
+	if cerr := out.Close(); err == nil {
+		err = cerr
+	}
+	if err == nil && n > mrwLimit {
+		err = fmt.Errorf("the index is over the %d bound", mrwLimit)
+	}
+	return err
+}
+
 // keepDiff saves what the attempt's tree holds against its base commit, files
 // it created included, as <id>.diff beside the receipt, and returns its
-// SHA-256. It is taken before grading and builds its snapshot in an index of
-// its own under scratch, so the tree's index, which the oracle reads, is left as
-// the agent left it. The diff includes edits the agent committed.
+// SHA-256. It is taken before grading and works in an index of its own under
+// scratch, a copy of the tree's, so the tree's index, which the oracle reads, is
+// left as the agent left it, and a path the agent added by force or committed
+// stays though it is ignored; `add -A` then takes in what the copy lacks. The
+// diff includes edits the agent committed.
 func keepDiff(scratch, tree, baseSHA, base string) (sha, note string, err error) {
 	idx := filepath.Join(scratch, "kept-diff.index")
 	defer func() { _ = os.Remove(idx) }()
@@ -266,13 +348,22 @@ func keepDiff(scratch, tree, baseSHA, base string) (sha, note string, err error)
 		c.Env = env
 		return c
 	}
-	for _, args := range [][]string{{"read-tree", baseSHA}, {"add", "-A"}} {
-		if out, err := git(args...).CombinedOutput(); err != nil {
-			return "", "", fmt.Errorf("git %s: %w: %s", args[0], err, out)
+	steps := [][]string{{"add", "-A"}}
+	if err := copyIndex(filepath.Join(tree, ".git", "index"), idx); errors.Is(err, os.ErrNotExist) {
+		steps = [][]string{{"read-tree", baseSHA}, {"add", "-A"}}
+	} else if err != nil {
+		return "", "", err
+	}
+	for _, args := range steps {
+		c := git(args...)
+		var out capped
+		c.Stdout, c.Stderr = &out, &out
+		if err := c.Run(); err != nil {
+			return "", "", fmt.Errorf("git %s: %w: %s", args[0], err, out.String())
 		}
 	}
 	cmd := git("diff", "--cached", "--binary", "--no-color", "--no-ext-diff", "--no-renames", baseSHA)
-	var stderr bytes.Buffer
+	var stderr capped
 	cmd.Stderr = &stderr
 	pipe, err := cmd.StdoutPipe()
 	if err != nil {
@@ -285,10 +376,10 @@ func keepDiff(scratch, tree, baseSHA, base string) (sha, note string, err error)
 	if len(out) > keptLimit {
 		_ = cmd.Process.Kill()
 		_ = cmd.Wait()
-		return "", fmt.Sprintf("diff not kept: it is over the %d bound", keptLimit), nil
+		return "", fmt.Sprintf("diff: not kept: it is over the %d bound", keptLimit), nil
 	}
 	if err := cmd.Wait(); err != nil || rerr != nil {
-		return "", "", fmt.Errorf("git diff: %v %v: %s", err, rerr, stderr.String())
+		return "", "", fmt.Errorf("git diff: %w: %s", errors.Join(err, rerr), stderr.String())
 	}
 	if err := writeOnce(base+".diff", out); err != nil {
 		return "", "", err
@@ -297,8 +388,9 @@ func keepDiff(scratch, tree, baseSHA, base string) (sha, note string, err error)
 }
 
 // keep takes what the run was asked to keep, before grading and wherever the
-// tree and the state home still exist; what it could not keep is the receipt's
-// kept_note, and an error of bench's own is a setup exclusion.
+// tree and the state home still exist. What it could not keep is the receipt's
+// kept_note, one note per artifact, "state:" or "diff:"; an error of bench's own
+// is a setup exclusion and a note as well.
 func (o RunOptions) keep(r *Receipt, scratch, tree, baseSHA, base string) {
 	var notes []string
 	if o.KeepStateFile != "" {
@@ -308,6 +400,7 @@ func (o RunOptions) keep(r *Receipt, scratch, tree, baseSHA, base string) {
 			notes = append(notes, note)
 		}
 		if err != nil {
+			notes = append(notes, "state: failed: "+err.Error())
 			r.Exclusion, r.Note = ExclusionSetup, "kept state file: "+err.Error()
 		}
 	}
@@ -318,10 +411,24 @@ func (o RunOptions) keep(r *Receipt, scratch, tree, baseSHA, base string) {
 			notes = append(notes, note)
 		}
 		if err != nil {
+			notes = append(notes, "diff: failed: "+err.Error())
 			r.Exclusion, r.Note = ExclusionSetup, "kept diff: "+err.Error()
 		}
 	}
 	r.KeptNote = strings.Join(notes, "; ")
+}
+
+// noDiffNote is for the way out of runAttempt: a receipt of a run that keeps
+// diffs and holds neither a diff nor a note about one says the attempt ended
+// before its tree was captured, so every receipt verifies on its own account.
+func (o RunOptions) noDiffNote(r *Receipt) {
+	if !o.KeepDiff || r.KeptDiffSHA256 != "" || hasNote(r.KeptNote, "diff:") {
+		return
+	}
+	if r.KeptNote != "" {
+		r.KeptNote += "; "
+	}
+	r.KeptNote += "diff: not taken: the attempt ended before its tree was captured"
 }
 
 // wantMrwSHA is the hash a configuration's receipts carry: run.json's for a
@@ -345,8 +452,8 @@ func hashNote(p plan, r Receipt, config string) string {
 // keptProblem says what is wrong with the files an attempt kept beside its
 // receipt, or "": each kept file's SHA-256 must be the receipt's and within the
 // bound, a file the receipt does not name must not be there, and with
-// keep_diff on every attempt that got as far as having a tree has a diff or
-// says why not. A kept state file may be absent: the attempt may not have made it.
+// keep_diff on every receipt has a diff or a note about the diff. A kept state
+// file may be absent: the attempt may not have made it.
 func keptProblem(p plan, dir string, r Receipt) string {
 	for _, k := range []struct {
 		ext, want, setting string
@@ -362,8 +469,8 @@ func keptProblem(p plan, dir string, r Receipt) string {
 			return fmt.Sprintf("its receipt names a %s file and run.json has no %s", k.ext, k.setting)
 		case k.want == "" && statErr == nil:
 			return fmt.Sprintf("it has a %s file its receipt does not name", k.ext)
-		case k.want == "" && k.ext == ".diff" && k.on && r.KeptNote == "" && r.Exclusion != ExclusionSetup:
-			return "its receipt names no kept diff and no reason for none"
+		case k.want == "" && k.ext == ".diff" && k.on && !hasNote(r.KeptNote, "diff:"):
+			return "its receipt names no kept diff and no note about one"
 		case k.want == "":
 			continue
 		}
@@ -380,14 +487,19 @@ func keptProblem(p plan, dir string, r Receipt) string {
 
 // readBounded reads a kept file, refusing one over the bound it was kept under.
 func readBounded(path string) ([]byte, error) {
-	fi, err := os.Stat(path)
+	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
-	if fi.Size() > keptLimit {
-		return nil, fmt.Errorf("it is %d bytes, over the %d bound", fi.Size(), keptLimit)
+	defer func() { _ = f.Close() }()
+	b, err := io.ReadAll(io.LimitReader(f, keptLimit+1))
+	if err != nil {
+		return nil, err
 	}
-	return os.ReadFile(path)
+	if len(b) > keptLimit {
+		return nil, fmt.Errorf("it is over the %d bound", keptLimit)
+	}
+	return b, nil
 }
 
 // receiptProblem is what bench verify adds to keptProblem: the mrw the

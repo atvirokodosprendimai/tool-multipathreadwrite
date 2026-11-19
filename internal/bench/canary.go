@@ -188,6 +188,9 @@ func RunCanary(o RunOptions, task Task, claudeMD string) (CanaryReceipt, error) 
 			problems = append(problems, CheckPluginData(o, Configs[name])...)
 		}
 		problems = append(problems, readHookProblems(Configs[name], r)...)
+		if r.MrwSHA256After != "" {
+			problems = append(problems, fmt.Sprintf("the attempt's bin/mrw was %s afterwards, not the pin %s", r.MrwSHA256After, o.mrwSHA))
+		}
 		if len(problems) > 0 {
 			c.Pass = false
 			c.Problems[name] = problems
