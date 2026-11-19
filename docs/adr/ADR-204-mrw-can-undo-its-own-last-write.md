@@ -1,82 +1,76 @@
 # ADR-204: mrw can undo its own last write
 
 **Status:** Proposed
-**Owner's decision so far:** on 2026-11-19 Zy asked whether an undo should work "only in parent repo" or on "whatever the agent touched", was given the scope in Decision 1 to 3 below, and answered *"ok, re proposal on mrw - agreed"*, then *"good, go on with mrw undo"*. That agrees the scope and that it is built. The storage, limits, exit codes and receipt in Decisions 4 to 9 are the drafter's and wait for Zy with this record.
+**Owner's decisions so far (Zy, 2026-11-19):** the scope, on being asked whether an undo should work "only in parent repo" or on "whatever the agent touched": *"ok, re proposal on mrw - agreed"*, then *"good, go on with mrw undo"* (only what mrw itself wrote; one write call; per checkout; no dependence on git; refused unless every file still holds what that write left; before-images kept in mrw's state, outside the tree; checks, steps and other tools not undone), and that it goes to a record; Zy had been told of E6's STOP first. And the depth, after the design review below: *"option 1, keep only the last write"*. Everything else here (where the copy is kept and when it is refused, the size limit, links and metadata, the ledger after an undo, the exit codes, the receipt, the reading) is the drafter's and waits for Zy with this record.
 **Date:** 2026-11-19
-**Design review, 2026-11-19, before any code** (Codex gpt-6.2-astra at xhigh, read-only on `1b889800`): **REJECT.** The Decision below does not stand as written. What it established against the code:
-- *The restore is not atomic the way Decision 3 says.* A mismatch found before the first move leaves the tree untouched; after the first rename a later failure can leave earlier restores on disk, as a write's commit can (ADR-066 reverses path operations, not content). Preflight refusal, complete restore and commit failure have to be three stated outcomes, with a fresh check of each file at its own move.
-- *A failed keep can expose the wrong "last write".* If write A is kept and write B lands elsewhere but its entry cannot be stored, A still passes every hash check and undoing it would skip over B. The older entry has to be invalidated before B touches the tree, or a generation has to prove an entry is still the newest.
-- *The entry is a new source of write authority.* It is read back and drives writes into the tree, so every path, kind, mode and length in it must be validated as untrusted input, with the ordinary root, `.git`, own-state and Windows-name checks, through a confined root handle.
-- *Per-operation checks reject valid plans* (an unlink of `c` beside a rename onto `c`; a case-only rename on a folding filesystem). The check has to be one expected state per directory entry.
-- *Bytes and mode do not say what a link operation changed.* An edit through a symlink changes its target; an unlink or rename acts on the link. Hard-linked names cannot be put back as they were by rewriting one name.
-- *The capture point and the lock were wrong.* The write lock is taken and released inside `applyCounted`, not held by `Land`; the exact original bytes already exist in apply's validation read. Keeping an entry after the lock is released can reverse two writers.
-- *Sharing the checkout's history must not widen `--root`.* An undo run under `sub/` could reach a write to a sibling.
-- *Privacy claims were stronger than the placement supports* (a state home inside the checkout; an existing shared directory; Windows, where 0600 means little), and `mrw seen --prune` does not remove a live checkout's copies.
-- *A byte match can hide a permission change the restore would undo*, and a directory a create made may hold someone else's file by then.
-- *Decision 7 can widen a licence*: marking a file that returns from an unlink, or one a narrow quoted write changed, as wholly written lets a later plan edit lines nobody read.
-- *The exit codes, the JSON and several named mutants were under-specified*, and the header credited the owner with more than was agreed (the 16 levels, the limits, Decision 10).
-
-**The choice this leaves for Zy:**
-1. *One kept write, not sixteen.* Keep only the last landed write; a new write removes the previous entry before it touches the tree and publishes its own only when complete. `mrw undo` then undoes that one write or says there is nothing to undo. It gives the guarantee that was measured for, with the least retained content and no walk back. It still needs the confinement, link, metadata and commit-failure rules above. Recommended by the review and by the drafter.
-2. *Several levels, as drafted*, with a durable ordering protocol and barriers added. More retained content and more ways to be wrong.
-3. *Do not build it*, which is what E6's verdict said.
+**Rewritten:** 2026-11-19, before any code, after a design review (Codex gpt-6.2-astra at xhigh, read-only on `1b889800`: REJECT of a first draft that kept sixteen writes). Its findings were checked against the code and are built into the Decision; History, below, says what the first draft got wrong.
 **Owner:** Zy
 **Spec:** None — no spec stage
-**Cross-references:** ADR-001, ADR-004, ADR-005, ADR-066, ADR-075, ADR-077, ADR-111, ADR-143, ADR-161, ADR-203
+**Cross-references:** ADR-001, ADR-004, ADR-005, ADR-007, ADR-034, ADR-066, ADR-071, ADR-075, ADR-076, ADR-077, ADR-111, ADR-125, ADR-129, ADR-132, ADR-134, ADR-143, ADR-161, ADR-190, ADR-203
 **Supersedes:** none. It sets aside E6's STOP verdict (BACKLOG.md, "Pre-registered for an undo of mrw's own write") on the owner's word.
-**Governs:** `internal/undo/**`, `internal/writer/flow.go`, `internal/apply/apply.go`, `cmd/mrw/main.go`, `cmd/mrw/undo204.go`, `internal/guide/guide.go`, `docs/receipts.txt`, `scripts/contract.sh`, `AGENTS.md`, `README.md`, `docs/agents.md`, `docs/adr/BACKLOG.md`
-**Enforced-by:** `cmd/mrw/undo204_test.go::TestUndoRestoresTheLastWriteWholeOrNotAtAll`
-**Served-path change:** a new subcommand, `mrw undo`, puts back what the last landed mrw write of this checkout changed, when every file it changed still holds the bytes that write left. Every landed write keeps what it replaced, in mrw's state directory, for the newest writes.
+**Governs:** `internal/undo/**`, `internal/writer/writer.go`, `internal/mcp/tools.go`, `internal/apply/apply.go`, `internal/apply/pathop.go`, `cmd/mrw/main.go`, `cmd/mrw/undo204.go`, `internal/guide/guide.go`, `docs/receipts.txt`, `scripts/contract.sh`, `AGENTS.md`, `README.md`, `docs/agents.md`, `docs/adr/BACKLOG.md`
+**Enforced-by:** `cmd/mrw/undo204_test.go::TestUndoPutsBackTheLastWriteOrRefusesBeforeAnythingMoves`
+**Served-path change:** a new subcommand, `mrw undo`, puts back what the last landed mrw write of this checkout changed, when every directory entry it changed is still as that write left it. A landed write keeps what it replaced, for that one write only, in mrw's state directory.
 
 ## Context
 
-**The gap.** Claude Code's `/rewind` restores files its own edit tools changed. It does not track a file only a shell command changed, and every mrw write is a shell command (`docs/agents.md` §7). A session that wants an mrw write back does it by hand: `git checkout`, `git stash`, or a second plan typed from memory.
+**The gap.** Claude Code's `/rewind` restores files its own edit tools changed. It does not track a file only a shell command changed, and every mrw write is one (`docs/agents.md` §7). A session that wants an mrw write back uses `git checkout`, `git stash`, or a second plan typed from memory.
 
-**The measurement, and that it said no.** E6 (2026-11-19, `docs/bench/effect-study/`) counted how often a session reverts with git a file mrw just wrote: 9 near reverts, 22 path reverts and 95 tree reverts in 9,686 landed writes outside this repository, against a bar of 25 and 0.5%. Verdict STOP. It could not see a revert made by writing the old lines back. The owner decided to build it anyway; this record does not claim the count supports it.
+**The measurement, and that it said no.** E6 (2026-11-19, `docs/bench/effect-study/`): 9 near reverts, 22 path reverts and 95 tree reverts by git in 9,686 landed writes outside this repository, against a bar of 25 and 0.5%, which is 49 at that count (the reading at scanner commit `a5baadfd`). Verdict STOP. It could not see a revert made by writing the old lines back. The owner decided to build it anyway; this record does not claim the count supports it.
 
-**What mrw knows, and only that.** mrw knows each file a write of its own changed, the bytes it validated against and the bytes it left. It knows nothing of what an editor, a formatter, `sed` or `git` did. An undo that reached for those would restore a file to a state the caller no longer has, which is the silent wrong edit this tool exists to prevent.
+**What mrw knows, and only that.** For a write of its own: each directory entry it changed, what was there before and what it left. Nothing of what an editor, a formatter, `sed` or `git` did. An undo that reached for those would put a file into a state the caller no longer has.
 
-**Audit of the class**: *the ways an mrw call changes the tree.* `git grep -n 'writer.Land\|writer.Prepare' -- cmd internal` at `c7b9c917`: every write reaches the tree through `writer.Land` (`internal/writer/flow.go`): `mrw write` with a native plan, `--create`, `--grep --sub`, `--ast-grep --rewrite`, the two foreign formats, and `mrw_write` over MCP. `mrw skill --dir` writes through the same engine. `mrw check`, `--then` steps and `mrw run` run commands the project chose and can change anything; mrw does not know what. `mrw hook read`, `mrw read` and `mrw seen` change no file of the tree.
+**Audit of the class**: *the ways an mrw call changes the tree.* At `1b889800`, `git grep -nE 'writer\.Prepare\(|apply\.Apply\(' -- cmd internal ':!*_test.go'` gives five lines: `cmd/mrw/main.go` (`mrw write`: a native plan, `--create`, `--grep --sub`, `--ast-grep --rewrite`, the two foreign formats), `cmd/mrw/skill168.go` (`mrw skill --dir`, whose root is the directory it installs into), `internal/mcp/tools.go` (`mrw_write`), `internal/writer/writer.go` (`applyCounted`, which all three reach and which takes the checkout's write lock, applies, and releases it, ADR-075), and `cmd/curve`, a benchmark that works on a scratch copy and is not mrw. Each of the first three keeps a copy and can be undone, `mrw skill --dir` included: `mrw --root DIR undo` takes an installed skill back. `mrw undo` is itself a new path that changes the tree; Decision 9 says which of a landing's duties it carries. `mrw check`, `--then` and `--then-sh` steps and `mrw run` run commands the project chose; mrw does not know what they change. `mrw read`, `mrw hook read`, `mrw seen`, `mrw iter`, the MCP acknowledgement store, `mrw-refused` and the one-time copy of a legacy `./.mrw` write only mrw's own state, which is inside the tree only when the caller put it there (ADR-077).
 
 ## Existing Primitives Audit
 
-- `writer.Land` is the one place a landing is known, under the write lock (ADR-075), with apply's per-file result: path, `sha_before`, `sha_after`, created, removed, `renamed_to`, `target`.
-- Apply stages each new file beside its target and commits by rename, with an undo of its own when a commit step fails (ADR-066). It reads every original it validates.
-- mrw's state for a checkout lives outside the tree (ADR-004), keyed by the checkout's top (ADR-161 Decision 14); `mrw seen --prune` removes the state of a checkout that is gone. `mrw-refused` and `mrw-runs` are kept beside it with their own retention.
-- A write to a path with a `.git` component is refused (ADR-143), so no before-image of one exists.
+- `applyCounted` is the critical section of a write. `Land` calls it and does not hold the lock itself.
+- Apply's validation read (`readLines`, `internal/apply/apply.go`) has each regular file's exact bytes and, from the same open file, its metadata. No second read is needed to keep a copy, and none would be guaranteed to see the same bytes.
+- Apply commits by staged rename, file by file. When a step fails after others succeeded it reports what reached disk (`PARTIALLY APPLIED`, or `NOTHING WRITTEN` when its own undo put path operations back, ADR-066). Content already replaced is not rolled back. It refuses a target held without delete sharing before any rename (ADR-125, ADR-132).
+- A path is judged by `rooted.Resolve` (ADR-007, ADR-071): inside the root, no `.git` component (ADR-143), not mrw's own state (ADR-077, ADR-134), no name Windows will not keep.
+- The ledger and the lock are the checkout's (ADR-161 Decision 14); a path is still judged against the root the call was given.
+- `mrw-refused` and `mrw-runs` live beside the state directory because the caller reads or edits them. Nothing the caller should open lives inside it.
 
 ## Decision
 
-1. **`mrw undo` undoes what mrw wrote, and nothing else.** The unit is one landed write call: the files in its receipt. `mrw undo` puts back the newest one not yet undone; run again, it walks back to the one before.
-2. **The scope is the ledger's.** The checkout's top when there is one, otherwise the root mrw was run with. It does not use git and works in a directory that is not a repository.
-3. **Whole or not at all, and only over the bytes mrw left.** Before anything is restored, every file of that write must be as the write left it: an edited or created file holds exactly `sha_after`; an unlinked path is still absent; a rename's destination holds `sha_after` and its source is still absent. If any differs, nothing is changed, exit 1, and each differing file is named with what was expected. The restore is committed as a write is (staged, renamed, ADR-066's reporting when a step fails).
-4. **What a write keeps.** For each landed write, under the write lock: the bytes and mode of every file it changed or removed, as they were before, and the record of what it did. They are kept in the checkout's state directory, in `undo/`, mode 0700 with 0600 files, never in the tree, and are removed with the checkout's state by `mrw seen --prune`.
-5. **Limits.** The newest 16 landed writes are kept. A write whose before-images total more than 64 MiB keeps none: its receipt says `undo: not kept (N bytes of before-images, over the 64 MiB limit)`, and it ends the walk back: an undo stops there and says why. A write that landed only in part (ADR-066's PARTIALLY APPLIED) keeps none and ends the walk the same way. A dry run keeps nothing.
-6. **What it restores.** An edit: the earlier bytes and mode. A create: the file is removed, and directories that write made are removed when empty. An unlink: the file comes back. A rename: the destination goes and the source comes back, with the edits of the same plan undone. A write through an in-root link: the file the link led to.
-7. **After an undo.** The restored files are recorded in the ledger as files mrw wrote, at the restored bytes, so ADR-203 judges the next edit as after any write. The undone write's entry is removed; there is no redo. No check and no step is run: `mrw check` is the next command if one is wanted.
-8. **The command.** `mrw undo` (the newest), `mrw undo --dry-run` (what it would restore, nothing changed), `mrw undo --list` (the kept writes, newest first: when, how many files, the first paths), `mrw undo --forget` (empties the kept writes of this checkout). `--json` prints one document, receipt type `undo`, listed in `docs/receipts.txt`. Exit `0` restored (or listed, or forgotten); `1` refused because a file differs or there is nothing to undo, nothing changed; `2` usage or a filesystem failure, with ADR-066's words when files were touched.
-9. **Not over MCP, and not configurable.** `mrw_write` writes are kept and can be undone from the CLI; no MCP tool is added. There is no switch to turn the keeping off.
-10. **What would make this decision wrong.** Nobody using it: BACKLOG.md ("Pre-registered for ADR-204") counts `mrw undo` calls thirty days after the release; none, and it goes back to Zy with the choice of removing it. And the copies costing more than they give: the same reading reports the size of `undo/` per checkout.
+1. **`mrw undo` undoes the last landed mrw write of the checkout, and nothing else.** One write call, the directory entries in its receipt. There is one kept write, so there is no walk back and no redo.
+2. **A write discards the previous copy before it touches the tree.** Inside the write lock: the kept entry, if any, is removed first; then the plan is applied; then, only when every file landed, the new entry is published complete, by rename. If the old entry cannot be removed, the write is refused, exit 2, nothing written, saying that the undo copy could not be cleared and how to clear it (`mrw undo --forget`); this is the one way the store can stop a write, and it is what makes "the kept write is the last write" true. If the new entry cannot be stored (a full disk, an unwritable or unverified store, the size limit), the write still lands, nothing is kept, and the caller is told why: a line on standard error, `mrw: undo: not kept: REASON`, printed under `--quiet` and `--terse` too, and the key `undo_not_kept` in the `--json` and `mrw_write` receipts, present only then. A partial landing keeps nothing. A refused plan and a dry run remove nothing and keep nothing.
+3. **What is kept.** For each directory entry the write changed, as it was before: its kind (regular file, symbolic link, absent), a regular file's bytes and permission bits, a link's literal text; and what the write left there: kind and sha, or absent. For a write through an in-root link, the entry is the file the link led to. The directories the write created. The checkout and the invocation root the paths are relative to. Bytes are taken from apply's own validation read. Before-images over 64 MiB in total keep nothing, without a second read or a copy of that size; 64 MiB is this record's choice, the limit ADR-104 puts on a request line.
+4. **Where.** One flat file in the checkout's state directory (the directory the ledger is in, so a write from a subdirectory keeps it at the checkout's top), holding the record and the bytes together. Flat, because `mrw seen --prune` counts a state directory's files and not its subdirectories (ADR-034); inside the state directory and not beside it as `mrw-refused` and `mrw-runs` are (ADR-176, ADR-177), because those are for the caller to open and this is not. It is written only when that directory is one mrw created or verified as the user's alone (not group or world accessible on unix; on Windows inside the user's profile, where the inherited ACL is the user's) and not inside the checkout. Otherwise nothing is kept and the receipt says so. It stays until the next write of the checkout, `mrw undo --forget`, or `mrw seen --prune` of a checkout that is gone; nothing retires it by age.
+5. **`mrw undo` has three outcomes, and says which.**
+   - *Refused before anything moves*, exit 1: some directory entry is not as the write left it. Every such entry is named with what was expected and what was found. The entry is kept, so the caller can repair and retry. Also exit 1: there is nothing to undo.
+   - *Restored*, exit 0: every entry is as it was before the write.
+   - *Failed during the restore*, exit 2: reported as a write's commit failure is, `PARTIALLY APPLIED` naming what was restored and what was not, or `NOTHING WRITTEN`. The entry is kept when nothing was restored and removed when anything was, since it no longer describes the tree.
+   Each entry is checked once before the first move and again at its own move.
+6. **What "as the write left it" means.** One expected state per directory entry, not per operation: a regular file with the recorded sha and the permission bits the write left; a link with the recorded text; or absent. A plan that unlinked `c` and renamed `b` onto `c` expects `c` present and `b` absent. On a case-folding filesystem the spelling in the parent's listing is compared, as ADR-129 does.
+7. **What is restored, and what is not undone.** A regular file's bytes and permission bits; a link's text; an entry's absence; a directory the write created, when it is empty and still that directory. Not restored and said so: ownership, extended attributes, ACLs and Windows attributes other than read-only. A write that changed one name of a hard-linked file is refused an undo with a sentence saying why: rewriting one name cannot put the link back. A read-only target is refused as a write refuses it (ADR-076).
+8. **The entry is untrusted when it is read back.** Before anything is staged: its format version, that it names this checkout, every path through `rooted.Resolve` under the root this undo was given, kinds and modes from the allowed set, lengths and digests of every blob. A path outside the invocation root refuses the whole undo, exit 1, naming the root to run it from; it never undoes part. A damaged or unknown entry is refused, exit 2, and left in place.
+9. **The ledger and the counters after an undo.** An undo that changed the tree is counted as a write for the drift a running check reports (ADR-127); it is not a landed write in `mrw stats` and keeps no entry of its own. A restored regular file is recorded as a file mrw wrote, with nothing shown, so ADR-203 judges the next edit as after any write. A file that returns from an unlink, and a file the undone write had only a partial licence on (ADR-190), are recorded as not read: the next edit needs a read. A path that is gone again is dropped.
+10. **The command.** `mrw undo`; `mrw undo --dry-run` (what it would restore and whether it would be refused, nothing changed); `mrw undo --forget` (removes the kept entry and any abandoned temporaries, says what it removed, exit 0 when there was nothing). `--json` prints one document, receipt type `undo`, its keys listed in `docs/receipts.txt`, for every outcome including a refusal. `--check` and `--then` are not flags of `undo`; it starts no command, so it runs at any `MRW_STEP_DEPTH`. Not over MCP: a write made by `mrw_write` is kept and undone from the CLI.
+11. **What would make this decision wrong.** Nobody using it: BACKLOG.md ("Pre-registered for ADR-204") counts successful restores thirty days after the release; fewer than one per 1,000 landed writes, and it goes back to Zy with the choice of removing it.
 
 ## Alternatives Considered
 
-- **Undo whatever changed since a point in time.** Rejected: mrw does not know what other tools wrote, and restoring over their work is a silent wrong edit.
-- **Lean on git (`git stash`, `git checkout`).** Rejected: it needs a repository, loses uncommitted work the write did not touch, and a file never committed has nothing to return to.
-- **Keep a reverse plan instead of bytes.** Rejected: a plan is line-oriented and a file's mode, its final newline and its line endings are not all in it; bytes are exact.
+- **Several kept writes.** The first draft. Rejected by the owner after the review: it needs an ordering protocol and barriers so that a write whose copy failed is never skipped, and keeps more overwritten content.
+- **Undo whatever changed since a point in time.** Rejected: mrw does not know what other tools wrote.
+- **Lean on git.** Rejected: it needs a repository, touches uncommitted work the write did not, and a file never committed has nothing to return to.
+- **A reverse plan instead of bytes.** Rejected: a plan is line-oriented; a mode, a final newline, mixed line endings and a link are not all in it.
+- **Never let the store stop a write.** Rejected for the one case in Decision 2: if a stale entry cannot be removed and the write lands anyway, the next `mrw undo` would revert an older write over a newer one.
 - **Do not build it.** What E6's verdict says. The owner chose otherwise.
 
 ## Component / Boundary Impact
 
-A new package, `internal/undo` (the store, the verification, the restore). `internal/writer/flow.go` calls it from `Land`. `internal/apply` hands over the bytes it validated against; it is an engine package owned here for that change. The trust boundary moves in one way: copies of file contents the caller wrote over now exist outside the tree, in a directory only the user can read, for at most 16 writes.
+A new package, `internal/undo` (the entry, its validation, the restore). `internal/writer/writer.go` calls it inside `applyCounted`'s critical section. `internal/apply` hands over what its validation read holds and the kinds of the entries it changes; it is an engine package owned here for that. The trust boundary moves twice: copies of content the caller wrote over exist outside the tree for one write, and an entry read from mrw's state can cause writes into the tree, which is why Decision 8 treats it as input.
 
 ## Wiring & Contract Changes
 
 | Surface | Change | Producer | Consumer(s) |
 |---------|--------|----------|-------------|
-| `mrw undo` and its flags | new subcommand, exit codes as Decision 8 | T2 | every caller with a shell |
-| a write receipt | a line when no undo was kept | T1 | the caller |
-| the `undo` receipt | new receipt type in `docs/receipts.txt` | T2 | `--json` callers |
-| `<state>/undo/` | new persistent state per checkout | T1 | `mrw undo`, `mrw seen --prune` |
+| `mrw undo`, `--dry-run`, `--forget`, `--json` | new subcommand, exit codes as Decision 5 | T2 | every caller with a shell |
+| a write receipt | a line, and a `--json`/MCP key, when no undo copy was kept, with the reason | T1 | the caller |
+| a write | refused, exit 2, when a stale undo copy cannot be removed | T1 | the caller |
+| the `undo` receipt | new receipt type | T2 | `--json` callers |
+| the kept entry in the checkout's state | new persistent state | T1 | `mrw undo`, `mrw seen --prune` |
 | `mrw instructions`, `AGENTS.md`, `README.md`, `docs/agents.md` §7 | what undo covers and does not | T2 | every caller |
 | `scripts/contract.sh` §350, §351 | the keeping; the undo and its refusals | T1, T2 | the contract gate |
 
@@ -84,38 +78,45 @@ A new package, `internal/undo` (the store, the verification, the restore). `inte
 
 | Producer | Consumer | Contract | Verification |
 |----------|----------|----------|--------------|
-| T1 | T2 | the entry a landed write leaves in `undo/`: its files, their before bytes and modes, `sha_before`, `sha_after`, what each did | T2's tests restore from entries T1's code wrote, not from fixtures |
+| T1 | T2 | the entry a landed write publishes: per directory entry its state before and after, the created directories, the checkout and root | T2's tests restore from entries T1's code wrote, never from hand-made fixtures, except the tampered ones Decision 8 needs |
 
 ## Implementation
 
-`tasks/README.md`: T1 (a write keeps what it replaced), T2 (`mrw undo`).
+`tasks/README.md`: T1 (a landed write keeps what it replaced), T2 (`mrw undo`), in one pull request: T1 alone would copy content with no command to forget it, and `deadcode` would flag what only T2 calls.
 
 ## Consequences
 
-- **Positive:** a wrong mrw write is one command to take back, exactly, without git.
-- **Negative:** every landed write copies what it replaced; contents the caller overwrote persist outside the tree until 16 newer writes or `--forget`; a new subcommand, a new store and four flags to keep.
-- **Neutral:** no existing exit code or receipt key changes.
+- **Positive:** the last mrw write is one command to take back, exactly as far as Decision 7 goes, without git.
+- **Negative:** every landed write copies what it replaced; up to 64 MiB of content the caller overwrote persists outside the tree until the next write of that checkout or `--forget`, with no limit of age; one new way a write can be refused (a stale copy that cannot be removed); a new subcommand and a new store to keep.
+- **Neutral:** no existing exit code or receipt key changes meaning; one key is added to the write receipts.
 
 ## Out of Scope
 
-- A redo (deferred: docs/adr/BACKLOG.md)
+- More than one kept write, and a redo (deferred: docs/adr/BACKLOG.md)
 - An undo over MCP (deferred: docs/adr/BACKLOG.md)
 - Undoing what a check, a step or another tool wrote (permanent: boundary: mrw does not know what they changed)
-- Undoing one file of a write and not the rest (permanent: boundary: a plan applies whole or not at all, ADR-001, and so does its undo)
+- Undoing part of a write (permanent: boundary: a plan applies whole or not at all, ADR-001, and its undo is asked for whole)
+- Restoring ownership, ACLs and extended attributes (permanent: boundary: a staged replacement is a new file, and mrw's writes do not carry them either)
 
 ## Risks
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
-| The measurement said this is rarely needed | High | Low | the owner decided; Decision 10's reading can remove it |
-| Before-images hold secrets the caller deleted on purpose | Med | Med | 0700/0600, bounded to 16 writes, `mrw undo --forget`, named in the instructions |
-| A restore over a file another tool changed | Low | High | Decision 3: every file is verified by sha before anything moves; mutants on each arm |
-| Large writes double their I/O | Med | Low | the 64 MiB limit; the receipt says when nothing was kept |
-| The restore fails half way | Low | High | it commits as a write does and reports as ADR-066 does |
+| The measurement said this is rarely needed | High | Low | the owner decided; Decision 11's reading can remove it |
+| The copy holds a secret the caller deleted on purpose | Med | Med | one write only; a verified private location or nothing kept; `mrw undo --forget`; said in the instructions |
+| A restore over a file another tool changed | Low | High | Decisions 5 and 6: checked before the first move and at each move; mutants on every arm |
+| A tampered entry writes where it should not | Low | High | Decision 8; tests with hand-damaged entries for each field |
+| In a checkout several sessions write to (ADR-075), the last write is another session's | Med | Med | the undo receipt and `--dry-run` name the files and when the write was made; the instructions say to look first in a shared checkout; the restore holds the write lock from the choice of entry to its removal |
+| A write is refused because a stale copy cannot be removed | Low | Med | the refusal names `mrw undo --forget` and the path; a test makes it happen |
+| An external process changes a file between the last check and its rename | Low | Med | not preventable without a different premise; said in the instructions as the limit of the guarantee |
 
 ## Rollback
 
-Before a release, revert T2 then T1. After one, `mrw undo` is a public command: it would be refused with a sentence, and the store left to `--prune`.
+Before a release, revert T2 then T1. After one, `mrw undo` is a public command: it would be refused with a sentence, writes would stop keeping a copy, and `mrw undo --forget` would keep working, since `--prune` never touches a live checkout.
+
+## History
+
+The first draft (`1b889800`) kept the newest sixteen writes and walked back through them. The design review rejected it: its restore claimed an atomicity the commit does not have; a write whose copy failed could be skipped over by an undo of an older one; the entry was trusted when read back; its per-operation checks refused valid plans; bytes and mode did not capture links; it named the wrong lock boundary and capture point; an undo under a sub-root could reach a sibling; its privacy claims outran its placement; a byte match could hide a permission change; and restoring an unlinked file could widen a licence. Its header credited the owner with choices the owner had not made. None of it is built.
 
 ## Follow-ups
 

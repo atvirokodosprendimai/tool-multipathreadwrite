@@ -1612,21 +1612,22 @@ landed writes outside this repository, against a bar of 25 and 0.5%. On 2026-11-
 scoped to mrw's own writes (*"ok, re proposal on mrw - agreed"*, then *"good, go on with mrw undo"*). The
 bar was not met and is not claimed to be: the owner decided past it. ADR-204 builds it.
 
-## Pre-registered for ADR-204 (Decision 10) — written before the code
+## Pre-registered for ADR-204 (Decision 11) — written before the code
 
 Read once, 30 days after the tag date of the first release that carries `mrw undo`, on Zy's Mac, over
 Claude Code transcripts since that tag, this repository's sessions left out, with the effect-study scanner
-extended and committed before it runs. A shell call is counted once, by its tool-use id:
-- `undos`: the command runs `mrw undo` with none of `--list`, `--dry-run`, `--forget`, and exits 0.
-- `refused`: the same, exiting 1.
-- `landed`: the answer reports a write that landed (E5's rule).
-And, for each root named by a `root` marker in mrw's state, the size in bytes of its `undo/` directory.
-**Reading.** `undos` = 0 with at least 1,000 `landed`: it goes back to Zy with the choice of removing the
-command. Fewer than 1,000 `landed`: no reading, taken again 30 days later, once. Otherwise it stays, and
-the numbers are recorded. The sizes are reported, with no bar.
+extended and committed before it runs. A shell call is counted once, by its tool-use id; a call whose
+command holds more than one mrw command is reported apart, as `mixed`, and is in no count:
+- `restored`: the command is `mrw undo` with neither `--dry-run` nor `--forget`, and its answer holds the
+  undo receipt's summary line for a restore.
+- `refused`: the same command, its answer holding the refusal's line.
+- `landed`: the answer reports a write that landed (E5's rule; an undo receipt is not a landing).
+**Reading.** Fewer than 1,000 `landed` (E6's own floor): no reading, taken again 30 days later, once; if
+still under, it is recorded as inconclusive and goes to Zy. `restored` under one per 1,000 `landed`: it goes
+back to Zy with the choice of removing the command. Otherwise it stays. `refused` is reported with no bar.
+1 per 1,000 is this entry's choice: E6 found 0.93 near reverts per 1,000.
 
 ## From ADR-204
 
-- A redo: no caller asked for it. Waits for a request and a record.
+- More than one kept write, and a redo: the owner chose one kept write on 2026-11-19. Waits for a request and a record.
 - An undo over MCP: a host with no shell cannot run `mrw undo`. Waits for such a host asking, and a record.
-- The command, from T1: T1 keeps the entries and T2 is the command; T1 alone is not shipped in a release.
