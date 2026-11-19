@@ -1,7 +1,19 @@
 # ADR-203: A line number a write moved is refused until the line is shown
 
-**Status:** Accepted
-**Accepted by:** Zy, 2026-11-19, answering "ADR-200's pre-registration says it is read once on 2026-12-18 and not built before. Keep that date?" with the option *"Build it now"*. The owner set the dated reading aside; this record does not claim the count supports the refusal. The width built here is narrower than the one the count prices, and that choice is this record's, put to Zy in the pull request.
+**Status:** Proposed
+**Owner's decision so far:** on 2026-11-19 Zy was asked whether to keep ADR-200's reading of 2026-12-18 and chose *"Build it now"*. That is a decision about timing and about the refusal ADR-200 deferred. It is not acceptance of this record: the narrower width, the ledger format change and its cost below are the drafter's, and the record waits for Zy.
+**Challenged, 2026-11-19, before any code** (Codex xhigh on gpt-6.2-sol: REJECT; adr-challenger: ACCEPT AFTER CHANGES; findings checked against the code and by probe on v1.91.0). **The Decision below does not stand as written.** What the challenges established:
+- *The cutoff is wrong.* After `3 insert-after`, a stale `4 replace` overwrites the inserted line and a stale `4-6 delete` removes the wrong three lines; both pass Decision 1 and Decision 3 as drafted. The first affected slot of a count-changing hunk is the earliest sound cutoff, a range has to be judged on every unshown line at or after it, and a single cutoff over-refuses when later hunks cancel the shift.
+- *Partial records are never reached.* `staleMarks` needs a whole written record; ADR-190's quoted-only write records read-shaped spans, so the Goal row and the Risk row about them are wrong.
+- *The move does not survive a rename or a write through another spelling*, and `merge` cannot be where it accumulates: a write that changes the sha replaces the record.
+- *The ledger claim was wrong.* An mrw from v1.66.0 up to the release before this one, meeting a v7 ledger, can only create or `--force` in that checkout, `--sub` and `--rewrite` included; v1.65.0 and earlier overwrite it (ADR-150). `Moved` would also leak into `mrw_read`'s receipt unless tagged out (ADR-111).
+- *It reverses parts of ADR-200* (its Served-path sentence, its rejected alternative "build the refusal now", its contract §343, a test in its done fence, and the sentence `mrw stats` prints about 2026-12-18), which "Supersedes: none" hid.
+- *The numbers were over-read.* 5.06% is E5's third run over 6,700 landed calls with a typed plan, with 13.90% uncertain beside it and a STOP verdict; 276 is hunks on files a session created, and says nothing about whether their lines had moved.
+
+**The choice this leaves for Zy:**
+1. *The width ADR-200 counts, with no ledger change.* Refuse every numbered, unanchored, unforced, not-computed hunk on a file mrw wrote whose addressed line was not shown since. It uses the `Shown` spans the ledger already keeps (a write that changes the file already clears them), closes the hazard completely, needs no format bump, and is what "Build it now" literally named. It also refuses a numbered edit right after a create or a same-size replace, where the number is not stale; the ways out are a read that shows the line, a pattern, or `anchor=`.
+2. *A selective refusal, as drafted here, redone.* Fewer refusals, at the price of new ledger state (v7), the lockout of older mrw sharing a checkout, history carried through renames and aliases, and a cutoff that still over-refuses after cancelling hunks.
+3. *Keep the date.* Leave ADR-200 as it is until 2026-12-18.
 **Date:** 2026-11-19
 **Owner:** Zy
 **Spec:** None — no spec stage
