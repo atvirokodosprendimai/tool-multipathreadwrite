@@ -52,8 +52,20 @@ python3 -B -m unittest discover -s scripts -p 'test_bench_stage9.py' 2> "${TMPDI
 | 4 — it is used | T6's fence re-runs it over the receipts |
 
 ## Mutation Log
+- 2026-11-20 · d5150a2c* · mutant killed · exit 1 · `scripts/bench_stage9.py` · an excluded attempt is graded · acceptance-sha256:d4165a7078b709ce8ecf35441edbc3b8fd71bec6cea7fd605430a27c6f375351 · covers:correct, outside, other and missing partition the planned attempts
+- 2026-11-20 · d5150a2c* · mutant killed · exit 1 · `scripts/bench_stage9.py` · a missing paired cost does not stop the comparison · acceptance-sha256:d4165a7078b709ce8ecf35441edbc3b8fd71bec6cea7fd605430a27c6f375351 · covers:a comparison under its coverage prints INSUFFICIENT
+- 2026-11-20 · d5150a2c* · mutant killed · exit 1 · `scripts/bench_stage9.py` · the seed is taken from the clock · acceptance-sha256:d4165a7078b709ce8ecf35441edbc3b8fd71bec6cea7fd605430a27c6f375351 · covers:the bootstrap is seeded
+- 2026-11-20 · d5150a2c* · mutant killed · exit 1 · `scripts/bench_stage9.py` · runs of another Claude Code or seed are accepted · acceptance-sha256:d4165a7078b709ce8ecf35441edbc3b8fd71bec6cea7fd605430a27c6f375351 · covers:mismatched runs are refused
 
 ## Verification Log
+- 2026-11-20 · d5150a2c* · exit 1 · `set -o pipefail …` · acceptance-sha256:d4165a7078b709ce8ecf35441edbc3b8fd71bec6cea7fd605430a27c6f375351 · ms:98 · test-lock-sha256:74225a09fe25d5784c67f5416524e061a3b8fac30bfea9afbd8d714c211d1643 · test-lock-file:docs/adr/locks/74225a09fe25d5784c67f5416524e061a3b8fac30bfea9afbd8d714c211d1643.lock
+  ```
+  ```
+- 2026-11-20 · d5150a2c* · exit 0 · `set -o pipefail …` · acceptance-sha256:d4165a7078b709ce8ecf35441edbc3b8fd71bec6cea7fd605430a27c6f375351 · ms:517
+- 2026-11-20 · d5150a2c* · exit 0 · `set -o pipefail …` · acceptance-sha256:d4165a7078b709ce8ecf35441edbc3b8fd71bec6cea7fd605430a27c6f375351 · ms:591
+- 2026-11-20 · d5150a2c* · exit 0 · `set -o pipefail …` · acceptance-sha256:d4165a7078b709ce8ecf35441edbc3b8fd71bec6cea7fd605430a27c6f375351 · ms:614
+- 2026-11-20 · d5150a2c* · exit 0 · `set -o pipefail …` · acceptance-sha256:d4165a7078b709ce8ecf35441edbc3b8fd71bec6cea7fd605430a27c6f375351 · ms:550
+- 2026-11-20 · d5150a2c* · exit 0 · `set -o pipefail …` · acceptance-sha256:d4165a7078b709ce8ecf35441edbc3b8fd71bec6cea7fd605430a27c6f375351 · ms:564
 
 ## Invariants
 
