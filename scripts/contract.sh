@@ -11596,8 +11596,12 @@ want 0 "$?" "UTF-16 plan pair: the same plan in UTF-8 lands"
 printf '\357\273\277one\ntwo\n' | "$MRW" read --grep '^one' - > "$WORK/o351" 2> "$WORK/e351"
 want 0 "$?" "stdin mark: an anchored pattern finds line 1"
 grep -q '^ *1| one$' "$WORK/o351" && grep -q '^==> -  2L  8B' "$WORK/o351" && ! grep -q "$(printf '\357\273\277')" "$WORK/o351" \
-  && grep -q 'began with 1 UTF-8 byte order mark' "$WORK/e351" \
-  && ok "stdin mark: line 1 served without it, the header counts 8 bytes, stderr names it" || bad "served: $(head -c 200 "$WORK/o351") / $(head -c 200 "$WORK/e351")"
+  && [ ! -s "$WORK/e351" ] \
+  && ok "stdin mark: line 1 served without it, the header counts 8 bytes, one mark is silent" || bad "served: $(head -c 200 "$WORK/o351") / $(head -c 200 "$WORK/e351")"
+printf '\357\273\277\357\273\277one\n' | "$MRW" read - > "$WORK/o351c" 2> "$WORK/e351c"
+want 0 "$?" "stdin marks: two leading marks are read"
+[ "$(grep -c . "$WORK/e351c")" -eq 1 ] && grep -q 'standard input begins with 2 UTF-8 byte order marks, all dropped' "$WORK/e351c" && grep -q '^==> -  1L  4B' "$WORK/o351c" \
+  && ok "stdin marks: both dropped, and one line says how many" || bad "served: $(head -c 200 "$WORK/o351c") / $(head -c 300 "$WORK/e351c")"
 printf 'one\n\357\273\277two\n' | "$MRW" read - > "$WORK/o351b" 2> "$WORK/e351b"
 want 0 "$?" "stdin mark pair: a mark on line 2 is read"
 grep -q "$(printf '\357\273\277')two" "$WORK/o351b" && grep -q '^==> -  2L  11B' "$WORK/o351b" && ! grep -q 'byte order mark' "$WORK/e351b" \
