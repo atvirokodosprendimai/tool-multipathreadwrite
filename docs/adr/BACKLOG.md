@@ -1586,9 +1586,12 @@ A friction reading, not a proof of benefit. Read once, 30 days after the tag dat
 carries the refusal, on Zy's Mac, over Claude Code transcripts since that tag, this repository's sessions
 left out. The effect-study scanner is extended and committed before it runs. A shell call is counted once,
 by its tool-use id:
-- `refused`: the answer of a command that ran `mrw write` holds `has not been shown since mrw wrote the file`.
+- `refused`: the answer of a command that ran `mrw write` holds `has no recorded showing in this version`.
 - `landed`: the answer reports a write that landed (E5's rule).
-- `retried`: a `refused` call followed, within five tool calls of the same transcript, by a landed write.
+- `retried`: a `refused` call followed, within five tool calls of the same transcript, by a landed write whose
+  answer names the same target path; each landing answers at most one refusal. A call whose answer holds
+  both a refusal and a landing is reported apart, as `mixed`, and is in neither count. When both readings
+  below fire, the first one decides.
 **Reading.** Fewer than 1,000 `landed`: no reading, taken again 30 days later, once. `refused` over 5% of
 `landed + refused`: it goes back to Zy with the numbers and the choice of narrowing or removing the refusal.
 `retried` under half of `refused`: callers are not finding the way out, and the reason's wording goes back

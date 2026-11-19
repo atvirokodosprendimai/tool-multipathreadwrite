@@ -67,10 +67,10 @@ go test -count=1 -v ./internal/apply ./cmd/mrw ./internal/mcp ./internal/guide -
   && [ "$(grep -c '^--- PASS: ' "${TMPDIR:-/tmp}/adr203-fence.out")" -eq 5 ] \
   && grep -q '^# 349\. ' scripts/contract.sh \
   && grep -q 'StaleNumber' internal/refusal/refusal.go \
-  && grep -q 'has not been shown since mrw wrote the file' AGENTS.md \
+  && grep -q 'has no recorded showing in this version' AGENTS.md \
   && ! grep -q '2026-12-18' cmd/mrw/main.go \
-  && git diff --quiet "$(git merge-base HEAD origin/main)" -- go.mod go.sum internal/plan internal/read internal/seen internal/check internal/state internal/writer \
-  && [ -z "$(git status --porcelain --untracked-files=all -- internal/plan internal/read internal/seen internal/check internal/state internal/writer)" ]
+  && git diff --quiet "$(git merge-base HEAD origin/main)" -- go.mod go.sum internal/plan internal/seen internal/check internal/state ':(exclude)*_test.go' \
+  && [ -z "$(git diff --name-only "$(git merge-base HEAD origin/main)" -- internal/writer | grep -v '_test\.go$')" ]
 ```
 
 ## Tests
@@ -104,7 +104,8 @@ go test -count=1 -v ./internal/apply ./cmd/mrw ./internal/mcp ./internal/guide -
 
 ## Risks
 
-- Every existing test, contract row and document example that edits by number alone a file mrw wrote, with no read between, goes red: each is changed to say which line it means, and the list is in the pull request.
+- Every existing test, contract row and document example that edits by number alone a file mrw wrote or read whole with `--quiet`, with no showing read between, goes red. The second challenge's source audit found at least 13 Go test functions (among them `cmd/mrw/pwsh161_test.go`, `refused176_test.go`, `planpath_test.go`, `marks537_test.go`, `longline179_test.go`, `internal/writer/spelling597_test.go`, `stale200_test.go`, `ledgererr200_test.go`, `internal/apply/stale200_test.go`) and 15 contract sections (§§38, 172, 173, 196, 213, 215, 256, 270, 301, 303, 305, 320, 323, 332, 343); that is a lower bound. Each is changed by an anchor where the test proves the write's licence, by a showing read where it is about a check, step or receipt, and rewritten where it required an unshown candidate to land; every record whose locked test moves is relocked after review, and the full list is in the pull request.
+- The Goal's rows each start from a fresh seed and give every `replace` and insert a body. Added by the second challenge and binding on the tests: a range with only a middle line missing (`read :3` and `:6`, then `4-6 delete`, names line 5); two stale hunks in one plan both reported; a whole CLI read after the seed write lands by number; a whole-file `--quiet` read then a numbered edit is refused and a ranged one lands; a rename's destination is refused until read under its name; `read --sub` then `write` of its output lands; MCP serve, refuse, retry with `ack` lands; the three `numbering` counters after a refusal, an anchored landing, a shown landing and a dry run.
 
 ## Stop Condition
 

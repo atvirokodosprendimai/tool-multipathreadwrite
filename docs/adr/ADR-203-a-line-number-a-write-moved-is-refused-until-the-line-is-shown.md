@@ -6,8 +6,8 @@
 **Owner:** Zy
 **Spec:** None — no spec stage
 **Cross-references:** ADR-002, ADR-005, ADR-035, ADR-111, ADR-118, ADR-161, ADR-190, ADR-197, ADR-200
-**Supersedes:** in part. ADR-200's Served-path sentence "No write is refused that was not refused before", its rejected alternative "Build the refusal now", its contract §343's "is not refused" rows and the gate of its Decision 5 (the reading of 2026-12-18, set aside by the owner). ADR-005 §4's "a chain of edits needs no re-read" now holds for an edit that says which line it means: by pattern, by `anchor=`, or on a line shown since the write.
-**Governs:** `internal/apply/apply.go`, `internal/refusal/refusal.go`, `cmd/mrw/main.go`, `internal/guide/guide.go`, `scripts/contract.sh`, `AGENTS.md`, `README.md`, `BESTPRACTICES.md`, `docs/adr/BACKLOG.md`
+**Supersedes:** in part, and only the numbered-address clause of each; the whole-file licence of a written file stands. ADR-002's "edit again straight after" row and its "a chain of edits needs no re-read"; ADR-075 Decision 6 and ADR-102's served-path item 4, where they promise a follow-on edit by number; ADR-161 Decisions 1 and 12 for a `read --sub` plan passed to a later write, and Decision 9 for a whole-file `--quiet` read followed by a numbered edit; ADR-200's Served-path sentence "No write is refused that was not refused before", its Decision 1 ("apply … refuses nothing"), Decisions 3 and 4 where they pin the stats sentence and the guidance, its rejected alternative "Build the refusal now", its contract §343's "is not refused" rows and the gate of Decision 5 (the reading of 2026-12-18, set aside by the owner). ADR-052's licence of the line after a range and ADR-161's extra served line are untouched.
+**Governs:** `internal/apply/apply.go`, `internal/refusal/refusal.go`, `internal/read/sub.go`, `internal/mcp/tools.go`, `cmd/mrw/main.go`, `internal/guide/guide.go`, `scripts/contract.sh`, `AGENTS.md`, `README.md`, `BESTPRACTICES.md`, `docs/agents.md`, `docs/adr/BACKLOG.md`
 **Enforced-by:** `internal/apply/stale203_test.go::TestANumberAloneIsRefusedOnALineNotShownSinceTheWrite`
 **Served-path change:** a plan hunk that names a line by number alone, in a file mrw wrote, on a line no read has shown since, is refused: exit 1, nothing written. It lands with `anchor=`, with a pattern address, after a read that shows the line, or under `--force`. The ledger and every receipt key are unchanged.
 
@@ -32,12 +32,15 @@
 
 ## Decision
 
-1. **The refusal.** A hunk for which `staleMarks` reports a candidate with an unshown line fails validation: exit 1, nothing written, siblings `skip`. Its kind is new, `refusal.StaleNumber`. The reason names the first addressed line that is unshown and the ways out: `line N of PATH has not been shown since mrw wrote the file, and a line number alone cannot say which line you mean: an earlier write may have moved it. Read it (mrw read PATH:N, a read that shows it), address it by pattern, or give anchor=`.
+1. **The refusal.** A hunk for which `staleMarks` reports a candidate with an unshown line fails validation: exit 1, nothing written, siblings `skip`; every such hunk of a plan is reported, so one round of reads can cover them all. It is judged after the guards that already fail a hunk. Its kind is new, `refusal.StaleNumber`. The rule is about the ledger's record of the file's current version, which is all mrw has: the reason names the first addressed line with no recorded showing and the ways out: `line N of PATH has no recorded showing in this version, and a line number alone cannot say which line you mean: an earlier write may have moved it. Read it (mrw read PATH:N, a read that shows it), address it by pattern, or give anchor=`.
 2. **What still lands**, exactly as `staleMarks` already sorts it: a hunk with `anchor=`; a pattern address; a quoted hunk; a line shown since the write (every line of a range); `$` as the start and the position-only inserts; a plan mrw computed in the call (`--sub`, `--rewrite`, a foreign format, the MCP forms); a forced write; a file whose record is not a whole written one (a file read whole and not written since, a partial licence).
 3. **A create is not an exception.** A numbered edit right after `--create` is refused like any other: the ledger holds no difference between a number the caller computed and one it remembered. The instructions say to name the line by pattern or `anchor=` in a second edit, which costs one token and is what recipe 21 already teaches.
 4. **No ledger change, no receipt change.** The format stays v6. `mrw_write` refuses by the same rule, with `isError` and the reason in the hunk as for any failed hunk; it has no `--force`.
 5. **ADR-200's counters stay and say what they are.** `landed_writes` and `numbered_candidates` keep counting. `numbered_would_refuse` counted landings this refusal now stops, so from this release it grows only by writes made with an older mrw on the same root; `mrw stats` says that in place of the sentence about 2026-12-18. The keys keep their names, types and meaning (ADR-111).
 6. **What would make this decision wrong.** The refusal costing more than it saves: BACKLOG.md ("Pre-registered for ADR-203") names a friction reading thirty days after the release. It measures how often the refusal fires, not how often a refused number was in fact stale, which no transcript can show.
+7. **What the rule does not cover, said plainly** (second challenge, 2026-11-19). It is exactly ADR-200's predicate, so: a position-only insert (`insert-before` line 1 or one past the last line, `insert-after 0`) and a `$` start are not judged, and a stale one lands where the number now points; a file whose record is a partial licence (ADR-190's quoted-only write, a ranged `--quiet`) is judged by the per-line licence alone; `sha=`, `lines=`, a delete's body and `from=` do not say which line and exempt nothing. A whole-file `--quiet` read leaves the same record a write does, so a numbered edit after it is refused too: a quiet read shows nothing. The record is kept per spelling: the read that shows a line has to name the file as the retry does, and a rename's destination starts with nothing shown.
+8. **`mrw read --sub` plans say which line.** Its emitted hunks carry `anchor=`, as `read --rewrite`'s already do, so a plan made by one call and written by a later one is not refused in a loop. `write --grep --sub` is computed in the call and unchanged.
+9. **MCP.** `mrw_write` refuses by the same rule. Its refusal adds the remedy that surface has: `mrw_read` the lines and send the checkpoint's `ack`; an ack already pending that covers the line is named as `NotRead`'s is. A line the MCP surface cannot checkpoint (bytes that are not valid UTF-8) is edited with the CLI (ADR-108).
 
 ## Alternatives Considered
 
@@ -48,7 +51,7 @@
 
 ## Component / Boundary Impact
 
-One engine package, owned here: `internal/apply` (the refusal at `staleMarks`' three call sites). `internal/refusal` gains a kind. `cmd/mrw` changes the `mrw stats` sentence. `internal/seen`, `internal/plan`, `internal/read`, `internal/check`, `internal/state` and `internal/writer` are not changed.
+Engine packages owned here: `internal/apply` (the refusal at `staleMarks`' three call sites) and `internal/read` (`sub.go`: the emitted hunks carry `anchor=`). `internal/refusal` gains a kind; `internal/mcp` words the remedy; `cmd/mrw` changes the `mrw stats` sentence, which now says `numbered_would_refuse` counts landings made before this refusal or by an older mrw. `internal/seen`, `internal/plan`, `internal/check`, `internal/state` and the production files of `internal/writer` are not changed.
 
 ## Wiring & Contract Changes
 
@@ -69,7 +72,7 @@ None — one task.
 
 ## Consequences
 
-- **Positive:** the one way a licensed write could edit the wrong line with no guard firing is closed, with no new state.
+- **Positive:** a number alone no longer edits a line of a written file that no read has shown in its current version, with no new state. Decision 7 lists what stays outside that.
 - **Negative:** a new refusal on plans that landed before, including ones whose number was right; at the one measured width, about one typed-plan landing in twenty, with a large uncertain share.
 - **Neutral:** exit codes, receipt keys and the ledger are unchanged.
 
