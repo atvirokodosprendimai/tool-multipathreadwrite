@@ -11578,6 +11578,8 @@ R350="$WORK/r350"; mkdir -p "$R350"; printf 'one\ntwo\n' > "$R350/f.txt"
 "$MRW" --root "$R350" read f.txt > "$WORK/served350" 2>&1
 printf '@@ f.txt 1 replace\nONE\n' > "$WORK/p350.txt"
 { printf '\377\376'; python3 -c 'import sys; sys.stdout.buffer.write(open(sys.argv[1],"rb").read().decode().encode("utf-16-le"))' "$WORK/p350.txt"; } > "$WORK/p350-16.txt"
+want 0 "$?" "UTF-16 plan: the fixture was encoded"
+[ "$(wc -c < "$WORK/p350-16.txt" | tr -d ' ')" -eq 48 ] && ok "UTF-16 plan: the fixture is the plan's 23 characters in UTF-16 with its mark" || bad "fixture bytes: $(wc -c < "$WORK/p350-16.txt")"
 "$MRW" --root "$R350" write "$WORK/p350-16.txt" > "$WORK/o350" 2> "$WORK/e350"
 want 2 "$?" "UTF-16 plan: refused as usage"
 [ "$(grep -c . "$WORK/e350")" -eq 1 ] && grep -q 'the plan is UTF-16 and mrw reads UTF-8' "$WORK/e350" && grep -q 'Out-File -Encoding utf8' "$WORK/e350" \

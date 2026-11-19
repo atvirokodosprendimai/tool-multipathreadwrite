@@ -62,10 +62,34 @@ func TestAPlanFileInUTF16IsRefusedInOneSentence(t *testing.T) {
 	if got, _ := os.ReadFile(filepath.Join(root, "f.txt")); string(got) != "one\ntwo\n" {
 		t.Errorf("a refused plan changed the file: %q", got)
 	}
+	// A piped plan that is refused is kept whole (ADR-176), not cut where the
+	// check stopped reading; and the refusal is counted as a plan that did not parse.
+	long := append([]byte{}, le...)
+	for len(long) < 200000 {
+		long = append(long, le[2:]...)
+	}
+	_, errOut, code := run(string(long), "write", "--json", "-")
+	kept := ""
+	for _, f := range strings.Fields(errOut) {
+		if strings.HasSuffix(f, ".plan") {
+			kept = f
+		}
+	}
+	if b, err := os.ReadFile(kept); code != exitUsage || err != nil || len(b) != len(long) {
+		t.Errorf("a refused piped plan of %d bytes: exit %d, kept %q holds %d (%v):\n%s", len(long), code, kept, len(b), err, errOut)
+	}
+	if out, _, _ := run("", "stats", "--json"); !strings.Contains(out, `"refused_parse"`) || strings.Contains(out, `"refused_parse": 0`) || strings.Contains(out, `"refused_parse":0`) {
+		t.Errorf("the refusals are not counted as plans that did not parse:\n%s", out)
+	}
+	// A NUL is valid UTF-8, and the parsers allow one in a comment: such a plan is
+	// read, not called UTF-16.
+	if out, errOut, code := run("#\x00x\x00\n@@ f.txt /^two$/ replace\nTWO\n", "write", "-"); code != 0 || strings.Contains(errOut, "UTF-16") {
+		t.Errorf("a comment holding NULs before a hunk: exit %d\n%s%s", code, out, errOut)
+	}
 	// What is not UTF-16 is read as before: the same plan in UTF-8, with a byte
 	// order mark too, and a line that merely holds a NUL is not called UTF-16.
 	p := filepath.Join(t.TempDir(), "plan8.txt")
-	if err := os.WriteFile(p, []byte("\xef\xbb\xbf@@ f.txt 1 replace\nONE\n"), 0o644); err != nil {
+	if err := os.WriteFile(p, []byte("\xef\xbb\xbf@@ f.txt /^one$/ replace\nONE\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if out, errOut, code := run("", "write", p); code != 0 {
