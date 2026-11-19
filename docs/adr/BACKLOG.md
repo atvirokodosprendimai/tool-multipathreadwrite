@@ -1604,3 +1604,84 @@ made through `mrw_write` or another host.
 - A selective refusal with ledger state (only below a line an earlier write moved): the first draft,
   withdrawn after two challenges. Reopened only by the reading above going back to Zy, with a record of its own.
 - A receipt row naming the shift: no caller asked for it. Waits for a request and a record.
+
+## From the design review of 2026-11-19 (Codex gpt-6.2-astra at xhigh, read-only on `ca15bec8`, v1.92.0)
+
+Zy, 2026-11-19: *"fair review, i think we need to address astra findings"*, then *"yes, start with 1 and 2"*
+to the proposal below. The review's judgement: the design makes every edit pay to reconstruct what the
+agent saw, when the question is whether the proposed change still matches the intended text. Its eight
+findings and where each stands; nothing here is built, and each item needs the record it names:
+
+1. *An explicit check means two things on the two surfaces* (its finding 6): ADR-205, drafted, Proposed.
+2. *No measurement can choose the default* (finding 8): the trial pre-registered below.
+3. *A line number is a mutable coordinate used as intent; ADR-203 does not fix it* (finding 1), and *a
+   content-first form with explicit target, old text and replacement, direct deletion and every failed
+   match reported at once* (finding 2): a prototype, as the trial's arm C, under a record of its own.
+   Whether ADR-203's refusal is kept, narrowed or removed is read from the trial.
+4. *The ledger answers a question about the checkout, not about this edit* (finding 3): judged by arm C,
+   which validates the expected old text and reads no ledger. No ledger work meanwhile.
+5. *"Use mrw always" gives up host features when batching buys nothing* (finding 4): read from the trial's
+   single-site class. The standing instruction is the owner's; wording goes to Zy before any change.
+6. *Surface area* (finding 5): no new flag, subcommand or stream-filter feature while the trial is open.
+   Moving shell recipes from the standing instructions to on-demand help waits for a record.
+7. *The process* (finding 7): a proposal to retire historical test locks and prose mutants where a current
+   behavioural assertion covers the promise goes to Zy as its own record; the drill is unchanged until then.
+
+## Pre-registered: cost per correctly completed edit task (Stage 9) — written before any arm, task or runner exists
+
+**The question.** Which way of editing costs least per task done *right*: the host's own tools, mrw as it
+is, or a content-first form? And does ADR-203's refusal prevent wrong edits or only cost retries? "Right"
+is the point: Stage 5 and Stage 8 graded by tests, and a test can pass over an edit to the wrong line.
+
+**Arms**, each a `bench` configuration, one Claude Code release and one build of each mrw for the whole
+stage, named in the stage's record before the first counted attempt:
+- **A**: configuration A (Bash, Read, Edit, Write, Glob, Grep; mrw not on PATH).
+- **M**: configuration B with mrw v1.92.0 and its own instructions.
+- **M0**: configuration B with mrw v1.91.0 and its own instructions, the release before ADR-203's refusal.
+  Run on the follow-on class only.
+- **C**: the content-first prototype, when a record has specified it and it is built. The stage may be run
+  without C; C's clauses are then not read, and C is run later against the same tasks and builds.
+
+**Tasks.** Three classes of 12, each graded `exact`: every touched file must equal the reference result,
+and no other tracked file may differ.
+- *single-site*: one hunk in one file (the corpus's `single-line` shape and new ones like it).
+- *batch*: five or more sites in three or more files (`multi-site`, `varied-multi-site`).
+- *follow-on*: a new shape. The instruction asks for two changes to one file in order, the first adding or
+  removing lines above the second's target, worded so that the second cannot be made in the same plan as
+  the first (it depends on the first's result). This is the shape ADR-203 exists for.
+The 36 tasks, their reference results and the grader are committed with their SHA-256 before any counted
+attempt; a task found wrongly graded is superseded as the corpus rules say and its replacement run in
+every arm.
+
+**Runs.** Two models (the Opus and Sonnet current at the stage's record), one repeat: 36 x 2 for A and M,
+12 x 2 for M0, 36 x 2 for C. A stop on spend is named in the stage's record. An attempt excluded at setup
+is replaced by Stage 5's walk; an attempt that times out is graded not correct.
+
+**Measures**, per arm and model, from `run.json` and the transcripts, by a script committed before the run:
+- `correct`: attempts graded exact.
+- `wrong_target`: attempts where the task's own test passes (where it has one) or the agent reported
+  success, and the tree is not exact. The silent wrong edit.
+- `spend_per_correct`: the arm's whole spend, failed attempts included, over `correct`.
+- model requests, input, cache and output tokens, refused writes, wall time: reported, deciding nothing
+  alone.
+
+**What is read, per model, and a clause must hold on both models to count:**
+- *(V) Valid.* Every arm run has at least 30 graded attempts (10 for M0). Otherwise INSUFFICIENT, and
+  nothing below is read.
+- *(R) ADR-203's refusal.* On the follow-on class: **EARNED** if `wrong_target` is at least 1 in M0 and 0
+  in M; **COST ONLY** if `wrong_target` is 0 in both and M's `spend_per_correct` is over 1.05 x M0's;
+  otherwise **UNDECIDED**. COST ONLY sends the refusal back to Zy with the numbers; EARNED keeps it.
+- *(D) The default form.* C is **BETTER** than M if `correct` in C is at least M's minus 1, `wrong_target`
+  in C is no more than M's, and C's `spend_per_correct` is at most 0.95 x M's, over all 36 tasks. BETTER
+  sends a record to Zy proposing C as the taught form; anything else leaves the teaching as it is.
+- *(H) "Use mrw always".* On the single-site class: if A's `spend_per_correct` is at most M's and A's
+  `wrong_target` is no more than M's, the standing instruction goes to Zy with a by-task wording. On the
+  batch class the same comparison is reported.
+The thresholds 1.05, 0.95 and "minus 1" are this entry's choices, the last two the ones Stage 8 used.
+
+**What it cannot show.** Anything beyond these 36 tasks and two models; long sessions with compaction;
+hosts over MCP; a shared checkout. A follow-on task written to provoke a stale number says the hazard
+exists when provoked, not how often a session provokes it: E5 is the only reading of that, and it was STOP.
+
+**Before a counted attempt:** the stage's record (arms' builds, the stop on spend), the follow-on tasks,
+the grader's `wrong_target` rule and the counting script are committed and pushed. No bar is moved after.
