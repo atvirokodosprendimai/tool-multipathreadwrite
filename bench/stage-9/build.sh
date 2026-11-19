@@ -12,9 +12,12 @@ set -eu
 
 [ $# -eq 2 ] || { echo "usage: build.sh TAG OUTDIR" >&2; exit 2; }
 tag=$1
+# A caller's git environment must not redirect the export or the patch.
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE
 here=$(cd "$(dirname "$0")" && pwd)
 repo=$(git -C "$here" rev-parse --show-toplevel)
-git -C "$repo" rev-parse --verify --quiet "$tag^{commit}" >/dev/null \
+# A tag, not a branch or any other ref of the same name.
+git -C "$repo" rev-parse --verify --quiet "refs/tags/$tag^{commit}" >/dev/null \
 	|| { echo "build.sh: no tag $tag in $repo" >&2; exit 2; }
 mkdir -p "$2"
 out=$(cd "$2" && pwd)
@@ -23,7 +26,7 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT INT TERM
 src=$work/src
 mkdir "$src"
-git -C "$repo" archive -o "$work/src.tar" "$tag"
+git -C "$repo" archive -o "$work/src.tar" "refs/tags/$tag^{commit}"
 tar -x -C "$src" -f "$work/src.tar"
 git -C "$src" init -q
 
@@ -32,7 +35,9 @@ ver=$(awk '/^go [0-9]/ { print $2; exit }' "$src/go.mod")
 [ -n "$ver" ] || { echo "build.sh: no go directive in go.mod of $tag" >&2; exit 2; }
 
 build() {
-	(cd "$src" && env GOFLAGS= GOWORK=off GOPROXY=off GOTOOLCHAIN="go$ver" CGO_ENABLED=0 \
+	# GOENV=off ignores `go env -w` settings, which GOFLAGS= alone does not.
+	(cd "$src" && env GOENV=off GOFLAGS= GOWORK=off GOPROXY=off GOPRIVATE= GONOPROXY= GONOSUMDB= \
+		GOTOOLCHAIN="go$ver" CGO_ENABLED=0 \
 		go build -trimpath -buildvcs=false -ldflags "-s -w -X main.version=$tag" -o "$out/$1" ./cmd/mrw)
 }
 

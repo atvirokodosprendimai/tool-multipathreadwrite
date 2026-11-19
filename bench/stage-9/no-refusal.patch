@@ -103,7 +103,7 @@ index 74a2c17..f77b858 100644
  		// consumes none, so its original net is zero by construction — which
  		// is exactly why a balanced insert in the wrong place is invisible to
 diff --git a/internal/writer/writer.go b/internal/writer/writer.go
-index 43e590b..167f670 100644
+index 43e590b..386366c 100644
 --- a/internal/writer/writer.go
 +++ b/internal/writer/writer.go
 @@ -10,12 +10,15 @@
@@ -130,7 +130,7 @@ index 43e590b..167f670 100644
  	wrote := map[string]seen.Observation{}
  	var gone []string
  	for _, f := range res.Files {
-@@ -125,6 +129,40 @@ func applyCounted(root string, in []apply.Input, opt apply.Options) (apply.Resul
+@@ -125,6 +129,45 @@ func applyCounted(root string, in []apply.Input, opt apply.Options) (apply.Resul
  	return res, gen, err
  }
  
@@ -162,6 +162,11 @@ index 43e590b..167f670 100644
 +	}
 +	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY|syscall.O_NONBLOCK, 0o600)
 +	if err != nil {
++		return
++	}
++	// The path may have been swapped since the Lstat: write only to what was opened.
++	if fi, err := f.Stat(); err != nil || !fi.Mode().IsRegular() {
++		_ = f.Close()
 +		return
 +	}
 +	_, _ = f.Write(buf)

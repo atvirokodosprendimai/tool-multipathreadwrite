@@ -98,9 +98,12 @@ func s9Log(t *testing.T, state string) (bool, []s9Event) {
 		t.Fatal(err)
 	}
 	var evs []s9Event
+	if len(b) == 0 {
+		return true, nil
+	}
 	for _, ln := range strings.Split(strings.TrimSuffix(string(b), "\n"), "\n") {
 		if ln == "" {
-			continue
+			t.Fatalf("the log holds a blank line: %q", b)
 		}
 		var e s9Event
 		dec := json.NewDecoder(strings.NewReader(ln))
@@ -148,7 +151,7 @@ func s9Tag(t *testing.T) (repo, tag string, doc []byte, skip string) {
 		t.Fatal("bench/stage-9/builds.md has no `- Tag: `vX` line")
 	}
 	tag = string(m[1])
-	if exec.Command("git", "-C", repo, "rev-parse", "--verify", "--quiet", tag+"^{commit}").Run() != nil {
+	if exec.Command("git", "-C", repo, "rev-parse", "--verify", "--quiet", "refs/tags/"+tag+"^{commit}").Run() != nil {
 		return repo, tag, doc, "the pinned tag " + tag + " is not in this clone (a shallow checkout has none)"
 	}
 	return repo, tag, doc, ""
