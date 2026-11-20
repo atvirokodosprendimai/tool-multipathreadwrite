@@ -590,6 +590,12 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			}
 		}
 	}
+	// loadErr is the first failure to load a file that no refusal names (a
+	// directory, an I/O error). It is still exit 2, but it is carried on its
+	// hunk and the other files are still judged, so the receipt keeps every
+	// verdict: returned at once, it left the receipt with none (#703).
+	var loadErr error
+	nest := newNesting(root, in)
 	clash := foldClashes(in, existsUnder(root))
 	var seenFiles []groupedFile
 	for _, path := range loopOrder {
@@ -736,7 +742,13 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			}
 		}
 		if err != nil {
-			return res, fmt.Errorf("%s: %w", path, err)
+			e := fmt.Errorf("%s: %w", path, err)
+			if loadErr == nil {
+				loadErr = e
+			}
+			refuseFile(results, path, hs, 0, e.Error())
+			failed = append(failed, FileResult{Path: path})
+			continue
 		}
 		// ADR-073: a line edit to a file mrw cannot split into lines — a UTF-16
 		// or UTF-32 byte-order mark, or a NUL in its first 8 KiB — rewrote it at
@@ -754,7 +766,7 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			fr.SHABefore = shaOf(orig)
 		}
 
-		out, ok, kind := planFile(root, path, full, hs, orig.lines, existed, fr.SHABefore, opt, unlinked, produced, destCount, results)
+		out, ok, kind := planFile(root, path, full, hs, orig.lines, existed, fr.SHABefore, opt, unlinked, produced, destCount, nest, results)
 		if !ok {
 			// The plan ADDRESSED this file even though nothing will be written
 			// to it. Dropping it here is how a two-file plan reported one file
@@ -869,7 +881,7 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			}
 		}
 		reportAddressed()
-		return res, nil
+		return res, loadErr
 	}
 
 	if dryRun {
@@ -927,6 +939,7 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 	// ADR-106: every change from staging on goes through the root, held open;
 	// opened just before staging, and read by discard, which runs only after.
 	var tr *tree
+	var destAbsent []bool
 	// nameDirs records the directories staging made that are still on disk:
 	// every one after a commit, and after a failed commit those a committed
 	// file still holds, since discard has taken back the rest (Codex review
@@ -1088,6 +1101,15 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			return abortStage(first[0].file.Path, fmt.Errorf("the root cannot be opened: %w", absErr))
 		}
 		defer tr.close()
+		// What did not exist at validation, noted before staging makes
+		// directories: see the recheck before the first rename.
+		destAbsent = make([]bool, len(pathOps))
+		for i, w := range pathOps {
+			if w.renameTo != "" {
+				_, err := os.Lstat(w.renameTo)
+				destAbsent[i] = os.IsNotExist(err)
+			}
+		}
 	}
 	for _, w := range content {
 		sf, err := stageFileFn(tr, w.full, w.out)
@@ -1194,6 +1216,46 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			return refuseStage(w.file.Path, errors.New(openRefusal(w.file.Path, err)), targetCause(err))
 		}
 	}
+	// #701 review: where a path resolves is the filesystem's to say, through a
+	// link that may not exist until an earlier create makes its target, so
+	// validation cannot predict it. With every temp and directory staged, each
+	// create target and each rename destination that was absent at validation
+	// is asked again. One that exists now was reached by another path of this
+	// plan (a directory staging made, a link redirecting a name) or by another
+	// process, and two that reach one place would land one over the other: the
+	// plan stops here with nothing written, exit 1, as ADR-132 does for a cause
+	// that is the target's.
+	reached := map[string]string{} // staged target -> plan path
+	for i, w := range content {
+		if !w.file.Created {
+			continue
+		}
+		t := filepath.Clean(staged[i].target)
+		if _, err := tr.stat(t); err == nil {
+			discard(0)
+			return refuseStage(w.file.Path, fmt.Errorf("%s exists now: another path in this plan, or a link it passes through, reached it while staging; nothing was written", w.file.Path), true)
+		}
+		if other, ok := reached[t]; ok {
+			discard(0)
+			return refuseStage(w.file.Path, fmt.Errorf("%s and %s reach the same place while staging (another path in this plan, or a link it passes through); nothing was written", w.file.Path, other), true)
+		}
+		reached[t] = w.file.Path
+	}
+	for i, w := range pathOps {
+		if w.renameTo == "" {
+			continue
+		}
+		t := filepath.Clean(w.renameTo)
+		if _, err := tr.lstat(t); err == nil && destAbsent[i] {
+			discard(0)
+			return refuseStage(w.file.Path, fmt.Errorf("%s exists now: another path in this plan, or a link it passes through, reached it while staging; nothing was written", asPlan(w.destRel)), true)
+		}
+		if other, ok := reached[t]; ok {
+			discard(0)
+			return refuseStage(w.file.Path, fmt.Errorf("rename dest %s and %s reach the same place while staging (another path in this plan, or a link it passes through); nothing was written", asPlan(w.destRel), other), true)
+		}
+		reached[t] = w.file.Path
+	}
 	for i, w := range content {
 		// ADR-071: a create whose target exists by now was made by an earlier
 		// rename in this commit under a name the filesystem folds into this one
@@ -1279,7 +1341,7 @@ func forceRemedy(format string, noForce bool) string {
 
 // planFile validates one file's hunks and splices its new content. It records a
 // verdict for every hunk and returns ok=false if any of them failed.
-func planFile(root, path, full string, hs []hunk, orig []string, existed bool, shaBefore string, opt Options, unlinked, produced map[string]bool, destCount map[string]int, out map[int]HunkResult) ([]string, bool, string) {
+func planFile(root, path, full string, hs []hunk, orig []string, existed bool, shaBefore string, opt Options, unlinked, produced map[string]bool, destCount map[string]int, nest *nesting, out map[int]HunkResult) ([]string, bool, string) {
 	total := len(orig)
 	ok := true
 	fail := func(h hunk, format string, a ...any) {
@@ -1296,6 +1358,18 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 		r.Kind = k
 		out[h.Index] = r
 	}
+	// #701: a plan cannot make one path both a file and a directory. Creates
+	// of new and new/child.txt validated, a dry run passed, then staging made
+	// directory new and the commit failed after other files had landed. The
+	// plan's own paths are compared here, lexically; only the path that sits
+	// under another written path fails. Where a link sends a path is judged by
+	// the filesystem, after staging.
+	if produced[path] {
+		if other, hit := nest.above(nest.prod, path); hit {
+			fail(hs[0], "%s and %s are both written by this plan, and one sits under the other: a path is a file or a directory, not both", asPlan(path), asPlan(other))
+			return nil, false, ""
+		}
+	}
 	// failStale is ADR-203's refusal: a number alone on a line no read has shown
 	// in this version of a file mrw wrote.
 	failStale := func(h hunk, line int) {
@@ -1303,9 +1377,10 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 			"Read it whole (%s; a --quiet read, or a line --max-cols cut, shows nothing), address it by pattern, or give anchor=", line, asPlan(path), staleRemedy(asPlan(path), line))
 	}
 
-	// ADR-118, mirrored from the parser (ADR-030) and checked FIRST, as the
+	// ADR-118, mirrored from the parser (ADR-030) and checked next, as the
 	// parser checks it, so a hunk carrying it is refused for this and not for
-	// something a later check finds: occurrence= picks among a pattern's
+	// something a later check finds (the #701 nesting refusal above comes first,
+	// and names a different fault): occurrence= picks among a pattern's
 	// matches, and a line address or a path op has none.
 	for _, h := range hs {
 		if h.Occurrence > 0 && h.StartPat == nil {
@@ -1481,7 +1556,7 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 	}
 
 	if pathLevel && !lineLevel {
-		if !planPathOp(root, path, full, hs[0], orig, existed, shaBefore, missingServed(existed, root, path, opt.Seen), unlinked, produced, destCount, covered, fail, out) {
+		if !planPathOp(root, path, full, hs[0], orig, existed, shaBefore, missingServed(existed, root, path, opt.Seen), unlinked, produced, destCount, nest, covered, fail, out) {
 			return nil, false, ""
 		}
 		return nil, true, hs[0].Op
@@ -1500,7 +1575,7 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 						"so they do not move one file — send them as two plans", path)
 					return nil, false, ""
 				}
-				if !planPathOp(root, path, full, h, orig, existed, shaBefore, missingServed(existed, root, path, opt.Seen), unlinked, produced, destCount, covered, fail, out) {
+				if !planPathOp(root, path, full, h, orig, existed, shaBefore, missingServed(existed, root, path, opt.Seen), unlinked, produced, destCount, nest, covered, fail, out) {
 					return nil, false, ""
 				}
 				continue

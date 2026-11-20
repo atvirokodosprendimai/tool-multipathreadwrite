@@ -104,8 +104,8 @@ func SlashLead(text, p string, sep rune) string {
 
 // SlashErr is err with the start of its text spelled by SlashLead against the
 // first path of res, as Apply returned it, that the text begins with; it still
-// unwraps to err. An error that begins with none of them (a directory named in
-// a plan, a lock) comes back as it was. A caller converts before the receipt's
+// unwraps to err. An error that begins with none of them (a lock, say) comes
+// back as it was. A caller converts before the receipt's
 // own conversion has spelled those paths with "/" (ADR-198 Decision 7).
 func SlashErr(res Result, err error, sep rune) error {
 	if err == nil {

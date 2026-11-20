@@ -8,13 +8,15 @@ import (
 	"testing"
 )
 
-// ADR-198 Decision 7. A write that stopped at its commit returns an error that
-// begins with the file as the platform spells it; a CLI --json refusal prints
-// that error in its document and again on stderr, and both begin as the
-// receipt's row does. The receipt separator is set to `\` and the plan names a
-// file with a backslash in it (q\n.txt) beside a path under it, so the commit
-// meets `q\n.txt` already made; the same file is q/n.txt on Windows, where the
-// backslash is the separator and q a directory.
+// ADR-198 Decision 7. A write that stopped returns an error that begins with
+// the file as the platform spells it; a CLI --json refusal prints that error in
+// its document and again on stderr, and both begin as the receipt's row does.
+// The receipt separator is set to `\` and the plan names a directory with a
+// backslash in its name (q\n.txt), whose load stops the write with its verdict
+// on its hunk (#703); on Windows the backslash is the separator, and q\n.txt
+// is n.txt under q. The stop once came from creates of q\n.txt and q\n.txt/x,
+// which #701 refuses before anything is staged. An error that begins with no
+// path of the result comes back as it was: lead198_test.go in internal/apply.
 func TestAStoppedWritesErrorBeginsAsTheRowDoes(t *testing.T) {
 	prev := receiptSep
 	receiptSep = '\\'
@@ -29,11 +31,18 @@ func TestAStoppedWritesErrorBeginsAsTheRowDoes(t *testing.T) {
 		}
 		return p
 	}
-	const stops = "@@ q\\n.txt 0 create\nx\n@@ q\\n.txt/x 0 create\ny\n"
+	const stops = "@@ q\\n.txt 1 replace\nz\n"
+	tree := func(t *testing.T) string {
+		t.Helper()
+		root := t.TempDir()
+		if e := os.MkdirAll(filepath.Join(root, `q\n.txt`), 0o755); e != nil {
+			t.Fatal(e)
+		}
+		return root
+	}
 
 	t.Run("under --json the document's error and the stderr line begin as the row does", func(t *testing.T) {
-		root := t.TempDir()
-		err, out := runMrw(t, root, "write", "--no-check", "--json", planFile(t, stops))
+		err, out := runMrw(t, tree(t), "write", "--no-check", "--json", planFile(t, stops))
 		if err == nil {
 			t.Fatalf("the plan did not stop: %s", out)
 		}
@@ -46,7 +55,7 @@ func TestAStoppedWritesErrorBeginsAsTheRowDoes(t *testing.T) {
 		if jerr := json.Unmarshal([]byte(out), &doc); jerr != nil {
 			t.Fatalf("stdout is not one JSON document: %v\n%s", jerr, out)
 		}
-		const want = "q/n.txt appeared before commit"
+		const want = "q/n.txt: "
 		if !strings.HasPrefix(doc.Error, want) {
 			t.Errorf("the document's error %q, want it to begin %q", doc.Error, want)
 		}
@@ -61,34 +70,13 @@ func TestAStoppedWritesErrorBeginsAsTheRowDoes(t *testing.T) {
 		}
 	})
 
-	t.Run("without --json the exit-2 line is what it was", func(t *testing.T) {
-		root := t.TempDir()
-		err, _ := runMrw(t, root, "write", "--no-check", planFile(t, stops))
+	t.Run("without --json the exit-2 line begins as the row does", func(t *testing.T) {
+		err, _ := runMrw(t, tree(t), "write", "--no-check", planFile(t, stops))
 		if err == nil {
 			t.Fatal("the plan did not stop")
 		}
 		if got := err.Error(); !strings.HasPrefix(got, "q/n.txt") || strings.Contains(got, `q\n`) {
 			t.Errorf("the plain exit-2 line %q does not begin with q/n.txt", got)
-		}
-	})
-
-	t.Run("an error that begins with no path of the result is printed as it is", func(t *testing.T) {
-		root := t.TempDir()
-		if e := os.MkdirAll(filepath.Join(root, `x\d`), 0o755); e != nil {
-			t.Fatal(e)
-		}
-		err, out := runMrw(t, root, "write", "--no-check", "--json", planFile(t, "@@ x\\d 1 replace\nz\n"))
-		if err == nil {
-			t.Fatalf("a directory named in a plan was written: %s", out)
-		}
-		if !strings.HasPrefix(err.Error(), `x\d`) {
-			t.Errorf("the stderr line %q, want it to begin with x\\d as it is", err.Error())
-		}
-		var doc struct {
-			Error string `json:"error"`
-		}
-		if jerr := json.Unmarshal([]byte(out), &doc); jerr != nil || !strings.HasPrefix(doc.Error, `x\d`) {
-			t.Errorf("the document's error %q, want it to begin with x\\d as it is", doc.Error)
 		}
 	})
 }

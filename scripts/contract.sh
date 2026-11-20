@@ -11697,6 +11697,36 @@ printf 'hello\n' | "$MRW" --root "$R355w/$(printf 'sub\ndir')" write --check --c
 want 0 "$?" "a write that lands in a root below a line-feed directory exits 0"
 [ -e "$R355w/$(printf 'sub\ndir')/marker" ] && ok "and its check ran" || bad "check did not run: $(head -c 300 "$WORK/o355w")"
 
+# 354. #701: a plan that writes a path and a path under it (new, new/child.txt)
+# is refused at validation, exit 1, nothing written, a dry run included. It once
+# validated, then landed ok.txt and failed the commit: PARTIALLY APPLIED, exit 2.
+R=$(mktemp -d "$WORK/r-XXXXXX")
+out=$(printf '@@ ok.txt 0 create\nok\n@@ new 0 create\nx\n@@ new/child.txt 0 create\ny\n' | m write --dry-run - 2>&1); rc=$?
+want 1 "$rc" "a dry run of creates of new and new/child.txt -> exit 1"
+out=$(printf '@@ ok.txt 0 create\nok\n@@ new 0 create\nx\n@@ new/child.txt 0 create\ny\n' | m write - 2>&1); rc=$?
+want 1 "$rc" "the same plan applied -> exit 1"
+grep -q 'sits under the other' <<<"$out" && ok "and the refusal names the nesting" || bad "refusal text: $(head -c 300 <<<"$out")"
+[ -z "$(ls -A "$R")" ] && ok "and nothing was written, ok.txt included" || bad "left: $(ls -A "$R")"
+out=$(printf '@@ ok.txt 0 create\nok\n@@ new/child.txt 0 create\ny\n' | m write - 2>&1); rc=$?
+want 0 "$rc" "the pair: ok.txt and new/child.txt alone apply"
+
+# 357. #703: a plan naming a directory beside a valid hunk stops at exit 2 with
+# a verdict for every hunk: the directory's failed with its load error, the
+# sibling skipped. Its receipt once held no hunks at all.
+R=$(mktemp -d "$WORK/r-XXXXXX"); printf 'a\n' > "$R/f.txt"; mkdir "$R/d"
+m read f.txt > "$WORK/served.out"
+out=$(printf '@@ f.txt 1 replace\nb\n@@ d 1 replace\nz\n' | m write --json - 2>/dev/null); rc=$?
+want 2 "$rc" "a plan naming a directory -> exit 2"
+python3 - "$out" <<'PY' && ok "and its receipt holds both verdicts, the directory's failed" || bad "receipt: $(head -c 400 <<<"$out")"
+import json, sys
+d = json.loads(sys.argv[1]); h = d["hunks"]
+sys.exit(0 if len(h) == 2 and h[0]["status"] == "skipped" and h[1]["path"] == "d" and h[1]["status"] == "failed" and d["applied"] is False else 1)
+PY
+[ "$(cat "$R/f.txt")" = a ] && ok "and nothing was written" || bad "f.txt changed: $(cat "$R/f.txt")"
+printf '@@ f.txt 1 replace\nb\n' | m write - >/dev/null 2>&1; rc=$?
+want 0 "$rc" "the pair: f.txt alone applies"
+[ "$(cat "$R/f.txt")" = b ] && ok "and f.txt holds the edit" || bad "f.txt: $(cat "$R/f.txt")"
+
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
 # killed process is a zombie until its adopter reaps it, and pgrep lists
