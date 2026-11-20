@@ -29,4 +29,14 @@ func TestAFileMarkerWithNoPathIsRefused(t *testing.T) {
 	if _, err := CompileApplyPatch(root, []byte("*** Begin Patch\n"+valid+"*** End Patch\n")); err != nil {
 		t.Fatalf("the valid section alone was refused: %v", err)
 	}
+	// An Update File section with no hunk and no Move to was dropped the same
+	// way, its sibling landing with no verdict for it.
+	doc := "*** Begin Patch\n" + valid + "*** Update File: demo.go\n*** End Patch\n"
+	if out, err := CompileApplyPatch(root, []byte(doc)); err == nil || !strings.Contains(err.Error(), "changes nothing") {
+		t.Fatalf("an Update File section that changes nothing compiled: err=%v\n%s", err, out)
+	}
+	move := "*** Begin Patch\n*** Update File: demo.go\n*** Move to: moved.go\n*** End Patch\n"
+	if _, err := CompileApplyPatch(root, []byte(move)); err != nil {
+		t.Fatalf("an Update File section that only moves was refused: %v", err)
+	}
 }

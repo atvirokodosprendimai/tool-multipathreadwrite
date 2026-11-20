@@ -46,6 +46,10 @@ func CompileApplyPatch(root string, doc []byte) ([]byte, error) {
 		// moved says this Update File section already carried its one Move to
 		// (ADR-114): a second is refused.
 		moved bool
+		// changed says this section compiled a hunk or a move: an Update File
+		// section that ends without one changes nothing and gets no verdict,
+		// so it is refused (#699).
+		changed bool
 	)
 	flush := func() error {
 		if path == "" {
@@ -61,21 +65,33 @@ func CompileApplyPatch(root string, doc []byte) ([]byte, error) {
 			return err
 		}
 		out.WriteString(text)
+		changed = true
 		hunk = nil
 		if kind == "add" {
 			path, kind = "", ""
 		}
 		return nil
 	}
+	// closeSection ends the open section at a marker or the end of the patch.
+	closeSection := func() error {
+		if err := flush(); err != nil {
+			return err
+		}
+		if kind == "update" && path != "" && !changed && !moved {
+			return fmt.Errorf("apply_patch: Update File %s changes nothing: give it a hunk or a Move to", path)
+		}
+		changed = false
+		return nil
+	}
 	for _, line := range strings.Split(body, "\n") {
 		switch {
 		case line == endPatch:
-			if err := flush(); err != nil {
+			if err := closeSection(); err != nil {
 				return nil, err
 			}
 			path, kind, moved = "", "", false
 		case strings.HasPrefix(line, deleteFile):
-			if err := flush(); err != nil {
+			if err := closeSection(); err != nil {
 				return nil, err
 			}
 			p := pathAfter(line, deleteFile)
@@ -109,9 +125,9 @@ func CompileApplyPatch(root string, doc []byte) ([]byte, error) {
 				return nil, err
 			}
 			out.WriteString(text)
-			moved = true
+			moved, changed = true, true
 		case strings.HasPrefix(line, updateFile):
-			if err := flush(); err != nil {
+			if err := closeSection(); err != nil {
 				return nil, err
 			}
 			if path = pathAfter(line, updateFile); path == "" {
@@ -121,7 +137,7 @@ func CompileApplyPatch(root string, doc []byte) ([]byte, error) {
 			moved = false
 			hunk = []string{}
 		case strings.HasPrefix(line, addFile):
-			if err := flush(); err != nil {
+			if err := closeSection(); err != nil {
 				return nil, err
 			}
 			// A marker naming no path once dropped its section and let a sibling
@@ -154,7 +170,7 @@ func CompileApplyPatch(root string, doc []byte) ([]byte, error) {
 			return nil, fmt.Errorf("apply_patch: unexpected line %q", line)
 		}
 	}
-	if err := flush(); err != nil {
+	if err := closeSection(); err != nil {
 		return nil, err
 	}
 	if out.Len() == 0 {

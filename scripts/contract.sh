@@ -11657,6 +11657,9 @@ grep -q 'names no path' <<<"$out" && ok "and the refusal names the marker" || ba
 out=$(printf '*** Begin Patch\n*** Add File: ok.txt\n+ok\n*** End Patch\n' | m write --format=apply_patch - 2>&1); rc=$?
 want 0 "$rc" "the pair: the sibling alone lands"
 [ "$(cat "$R/ok.txt" 2>/dev/null)" = ok ] && ok "with its body" || bad "ok.txt: $(cat "$R/ok.txt" 2>&1)"
+out=$(printf '*** Begin Patch\n*** Add File: two.txt\n+two\n*** Update File: ok.txt\n*** End Patch\n' | m write --format=apply_patch - 2>&1); rc=$?
+want 2 "$rc" "an apply_patch Update File section that changes nothing -> exit 2"
+[ ! -e "$R/two.txt" ] && grep -q 'changes nothing' <<<"$out" && ok "and its sibling did not land" || bad "empty Update File: $(head -c 300 <<<"$out")"
 
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
