@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -12,9 +14,28 @@ import (
 // observation whatever the plan calls it (ADR-029), and the read a refusal names
 // must be one that lifts it.
 
-// plainPath is what the remedy prints as a command: a root that needs quoting
-// (on Windows, any temp directory) is described instead (ADR-203).
-var plainPath = regexp.MustCompile(`^[A-Za-z0-9._/-]+$`)
+// plainPath is what the remedy prints as a command: a root that needs no quoting
+// in cmd, PowerShell or a POSIX shell. On Windows that includes a drive letter and
+// backslashes (issue #753); a space or a metacharacter is described instead (ADR-203).
+var plainPath plainMatcher
+
+type plainMatcher struct{}
+
+func (plainMatcher) MatchString(s string) bool {
+	if runtime.GOOS == "windows" {
+		return regexp.MustCompile(`^(?:[A-Za-z]:[\\/])?[A-Za-z0-9._\\/-][A-Za-z0-9._~\\/-]*$`).MatchString(s) && s[0] != '\\' && s[0] != '/'
+	}
+	return regexp.MustCompile(`^[A-Za-z0-9._/-][A-Za-z0-9._~/-]*$`).MatchString(s)
+}
+
+// shellRoot is the root as the remedy's command prints it: on Windows with slashes,
+// which Git Bash does not eat (issue #753).
+func shellRoot(root string) string {
+	if runtime.GOOS == "windows" {
+		return strings.ReplaceAll(root, `\`, "/")
+	}
+	return root
+}
 
 // remedyArgv is the read a refusal ends with, as arguments for runIn. Where the
 // root is described rather than commanded, the refusal must say so and the read is
@@ -35,7 +56,7 @@ func remedyArgv(t *testing.T, root, out, spec string) []string {
 	if len(f) < 4 {
 		t.Fatalf("the read to make is %q, want read --max-cols 0 SPEC", m[1])
 	}
-	return f[len(f)-4:]
+	return f // as printed, the root it names included: the test runs the command the refusal gave
 }
 
 // aliasRoot is a root with f.go written by mrw and an alias of it: link.go, a
@@ -133,7 +154,7 @@ func TestTheAliasRemedyKeepsAnEarlierOccurrenceShowing(t *testing.T) {
 // A root that needs quoting is described, not commanded.
 func TestTheRemedyNamesTheRootItWasGiven(t *testing.T) {
 	root := aliasRoot(t, "f.go")
-	lineAfter, stale := "mrw --root "+root+" read --max-cols 0 f.go:1-4", "mrw --root "+root+" read --max-cols 0 f.go:2"
+	lineAfter, stale := "mrw --root "+shellRoot(root)+" read --max-cols 0 f.go:1-4", "mrw --root "+shellRoot(root)+" read --max-cols 0 f.go:2"
 	if !plainPath.MatchString(root) {
 		lineAfter, stale = "a read that shows lines 1-4", "a read that shows line 2"
 	}
@@ -151,13 +172,54 @@ func TestTheRemedyNamesTheRootItWasGiven(t *testing.T) {
 // The branch Windows takes, forced on any platform: a root with a space needs
 // quoting, so no command is printed, and the refusal describes the read.
 func TestARootThatNeedsQuotingIsDescribedNotCommanded(t *testing.T) {
-	root := aliasRootIn(t, filepath.Join(t.TempDir(), "my root"), "f.go")
-	out, code := writeIn(t, root, "--no-check", planFile(t, rep208))
-	if code != 1 || !strings.Contains(out, "a read that shows lines 1-4") || strings.Contains(out, "mrw --root") || strings.Contains(out, "mrw read") {
-		t.Errorf("line-after refusal for a root with a space: exit %d\n%s", code, out)
+	for _, dir := range []string{"my root", "it's root"} { // a root with an apostrophe is Go-quoted in a description
+		t.Run(dir, func(t *testing.T) {
+			root := aliasRootIn(t, filepath.Join(t.TempDir(), dir), "f.go")
+			out, code := writeIn(t, root, "--no-check", planFile(t, rep208))
+			if want := "a read that shows lines 1-4 of 'f.go' under the root " + describedTwin(root); code != 1 || !strings.Contains(out, want) || strings.Contains(out, "mrw --root") || strings.Contains(out, "mrw read") {
+				t.Errorf("line-after refusal: exit %d, want %q in:\n%s", code, want, out)
+			}
+			out, code = writeIn(t, root, "--no-check", planFile(t, "@@ f.go 2 replace\n\tz()\n"))
+			if want := "(a read that shows line 2 of 'f.go' under the root " + describedTwin(root) + ";"; code != 1 || !strings.Contains(out, want) {
+				t.Errorf("stale-number refusal: exit %d, want %q in:\n%s", code, want, out)
+			}
+		})
 	}
-	out, code = writeIn(t, root, "--no-check", planFile(t, "@@ f.go 2 replace\n\tz()\n"))
-	if code != 1 || !strings.Contains(out, "(a read that shows line 2;") {
-		t.Errorf("stale-number refusal for a root with a space: exit %d\n%s", code, out)
+}
+
+// describedTwin is how a description names a root, written out for the test: single-quoted as
+// it is, and Go-quoted where it holds a quote or a control character, as production does.
+func describedTwin(s string) string {
+	if strings.ContainsAny(s, "'\x00\x01\x02\x03\x04\x05\x06\x07\x08\t\n\v\f\r\x0e\x0f\x7f") {
+		return strconv.Quote(s)
+	}
+	return "'" + s + "'"
+}
+
+// The remedy is run as the refusal printed it, root included: the command names the
+// root, and a doctored one that names another directory reads nothing there, so the
+// test cannot pass on the fixture's own root alone.
+func TestTheRemedyIsRunWithTheRootItPrints(t *testing.T) {
+	root := aliasRoot(t, "f.go")
+	if !plainPath.MatchString(root) {
+		t.Skip("a root that needs quoting is described, not commanded")
+	}
+	out, code := writeIn(t, root, "--no-check", planFile(t, rep208))
+	if code != 1 {
+		t.Fatalf("exit %d\n%s", code, out)
+	}
+	printed := remedyArgv(t, root, out, "f.go:1-4")
+	if len(printed) < 6 || printed[0] != "--root" {
+		t.Fatalf("the printed read is %q, want it to name its root first", printed)
+	}
+	doctored := append([]string{"--root", filepath.Join(root, "nowhere")}, printed[2:]...)
+	if rout, rcode := runIn(t, root, doctored...); rcode == 0 {
+		t.Errorf("a remedy that names another root read it: exit 0\n%s", rout)
+	}
+	if rout, rcode := runIn(t, root, printed...); rcode != 0 {
+		t.Fatalf("the remedy as printed: exit %d\n%s", rcode, rout)
+	}
+	if out, code := writeIn(t, root, "--no-check", planFile(t, rep208)); code != 0 {
+		t.Errorf("after the remedy as printed: exit %d\n%s", code, out)
 	}
 }
