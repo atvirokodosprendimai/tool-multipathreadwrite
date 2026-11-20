@@ -19,8 +19,20 @@ func TestAFromSourceUnderADirectorySwappedForALinkOutIsNotLoaded(t *testing.T) {
 	}
 	write(t, root, "d/a.txt", "inside\n")
 	write(t, outside, "a.txt", "OUTSIDE-SECRET\n")
-	if f := loadSource(root, "d/a.txt"); f.why != "" || len(f.text.lines) != 1 || f.text.lines[0] != "inside" {
-		t.Fatalf("the pair: a source inside the root did not load: %+v", f)
+	real, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("d", filepath.Join(root, "in")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(real, "d"), filepath.Join(root, "abs")); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []string{"d/a.txt", "in/a.txt", "abs/a.txt"} {
+		if f := loadSource(root, p); f.why != "" || len(f.text.lines) != 1 || f.text.lines[0] != "inside" {
+			t.Fatalf("the pair: %s, a source inside the root, did not load: %+v", p, f)
+		}
 	}
 	prev := afterSourceResolveFn
 	afterSourceResolveFn = func() {

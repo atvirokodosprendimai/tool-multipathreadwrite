@@ -30,7 +30,10 @@ func TestABodyFileUnderADirectorySwappedForALinkOutIsNotLoaded(t *testing.T) {
 	if err := os.Symlink("d", filepath.Join(real, "in")); err != nil {
 		t.Fatal(err)
 	}
-	for _, p := range []string{"d/b.txt", "in/b.txt"} {
+	if err := os.Symlink(filepath.Join(real, "d"), filepath.Join(real, "abs")); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []string{"d/b.txt", "in/b.txt", "abs/b.txt"} {
 		hs := []Hunk{{BodyFile: p, SrcLine: 1}}
 		if err := LoadBodyFiles(root, hs); err != nil || len(hs[0].Body) != 1 || hs[0].Body[0] != "inside" {
 			t.Fatalf("the pair: %s did not load: %v %q", p, err, hs[0].Body)
