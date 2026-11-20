@@ -2,7 +2,7 @@
 
 **Status:** Accepted
 **Accepted:** 2026-09-13 by M — *"both"*
-**Amended:** by #712 and #725 (merged 2026-11-20 at `b1188333`), without a record: Decision 7's "Record the dest after rename as a whole-file write" no longer holds for a moved symbolic link, whose record carries no content and licenses nothing (`internal/writer/link712_test.go::TestAMovedSymlinkCarriesNoContentAndLicensesNothing`, contract §364). For a regular file Decision 7 stands.
+**Amended:** by #712 and #725 (merged 2026-11-20 at `b1188333`), without a record: Decision 7's "Record the dest after rename as a whole-file write" no longer holds for a moved symbolic link, whose record carries no content and licenses nothing (`internal/writer/link712_test.go::TestAMovedSymlinkCarriesNoContentAndLicensesNothing`, contract §364). For a regular file Decision 7 stands. Recorded since by ADR-212 (2026-11-20), which states the receipt's meaning for that case.
 **Date:** 2026-09-13
 **Owner:** M
 **Spec:** None — no spec stage
