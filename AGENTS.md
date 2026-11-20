@@ -220,8 +220,8 @@ Which surface you are on is not purely your choice: it follows from where the
 server was registered, and a user-scope registration puts these two tools in
 every project on the machine, including the ones whose instructions say to use
 the shell. See the README, "Use it from an MCP host". Writers take turns on
-either surface, one writer per checkout and state home (ADR-075; two callers with different `XDG_STATE_HOME`
-keep separate write locks and ledgers for one checkout), so neither is the safer one
+either surface, one writer per checkout and state home (ADR-075; two callers whose state homes resolve to different
+directories keep separate write locks and ledgers for one checkout), so neither is the safer one
 for callers sharing a checkout. A writer waits up to 120 s for the one before it, then is refused, exit 2,
 nothing applied, naming the holder's pid; `MRW_WRITE_LOCK_TIMEOUT` sets the wait in seconds, `0` for one try (ADR-110).
 While an `mrw_write`'s check runs the server answers what arrives after it — a ping, a read, another write — and a
