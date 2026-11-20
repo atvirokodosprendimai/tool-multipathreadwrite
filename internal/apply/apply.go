@@ -28,6 +28,7 @@ import (
 	"strings"
 	"sync"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/lines"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/quote"
@@ -3190,14 +3191,13 @@ func staleMarks(h hunk, obs Seen, haveObs bool, opt Options, quoted map[int]int,
 }
 
 // staleRemedy is the read the stale-number refusal names: a command the caller
-// can paste when the path (and the root, when one is named) is letters, digits,
-// `.`, `_`, `-` and `/` only, with no leading dash, which is one word in every
-// shell mrw meets (single quotes do not quote in cmd.exe), and a description
-// otherwise (ADR-203). The command carries --max-cols 0, so the read shows the
-// line whole even under MRW_MAX_COLS. A single-letter path would read as a drive
-// on Windows (`a:8`), so it is described, not commanded. root is the checkout as
-// the command line named it when that is not the working directory (RemedyRoot):
-// the command is pasted where the caller is, so it says where the root is.
+// can paste when the path (and the root, when one is named) needs no quoting in
+// any shell mrw meets, and a description otherwise (ADR-203). The command carries
+// --max-cols 0, so the read shows the line whole even under MRW_MAX_COLS. A
+// single-letter path would read as a drive on Windows (`a:8`), so it is described,
+// not commanded. root is the checkout as the command line named it when that is
+// not the working directory (RemedyRoot): the command is pasted where the caller
+// is, so it says where the root is.
 func staleRemedy(root, p string, line int) string {
 	return staleRemedySpan(root, p, line, line)
 }
@@ -3208,34 +3208,102 @@ func staleRemedy(root, p string, line int) string {
 // one line after, made under an alias (a case-folded name, a link), would leave a
 // partial record that the retry refuses again (review of #745).
 func staleRemedySpan(root, p string, from, to int) string {
-	ok := p != "" && p[0] != '-' && len(p) > 1 && plainWord(p)
-	prefix := "mrw"
-	if root != "" {
-		ok = ok && root[0] != '-' && plainWord(root)
-		prefix = "mrw --root " + root
-	}
-	if from == to {
-		if ok {
-			return fmt.Sprintf("%s read --max-cols 0 %s:%d", prefix, p, from)
-		}
-		return fmt.Sprintf("a read that shows line %d", from)
-	}
-	if ok {
-		return fmt.Sprintf("%s read --max-cols 0 %s:%d-%d", prefix, p, from, to)
-	}
-	return fmt.Sprintf("a read that shows lines %d-%d", from, to)
+	return remedyFor(runtime.GOOS == "windows", root, p, from, to)
 }
 
-// plainWord is whether s is one word in every shell mrw meets: letters, digits,
-// `.`, `_`, `-` and `/`.
-func plainWord(s string) bool {
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '.' || c == '_' || c == '-' || c == '/') {
-			return false
+// remedyFor is staleRemedySpan for a platform given, so a test can ask both.
+func remedyFor(windows bool, root, p string, from, to int) string {
+	cp, okP := shellForm(windows, p)
+	okP = okP && p != "" && p[0] != '-' && len(p) > 1
+	prefix := "mrw"
+	ok := okP
+	if root != "" {
+		cr, okR := shellForm(windows, root)
+		ok = ok && okR && root[0] != '-'
+		prefix = "mrw --root " + cr
+	}
+	spans := fmt.Sprintf("%d", from)
+	words := "line " + spans
+	if from != to {
+		spans = fmt.Sprintf("%d-%d", from, to)
+		words = "lines " + spans
+	}
+	command := fmt.Sprintf("%s read --max-cols 0 %s:%s", prefix, cp, spans)
+	// cmd.exe refuses a command line over 8,191 characters: such a command could not
+	// run on Windows, so it is described there; 8,000 leaves room for what the shell adds.
+	if ok && !(windows && len(command) > 8000) {
+		return command
+	}
+	// A description names the file and the root as they were written, so the caller
+	// can tell which read is meant when no command can be printed (issue #753).
+	where := " of " + describedName(p)
+	if root != "" {
+		where += " under the root " + describedName(root)
+	}
+	return "a read that shows " + words + where
+}
+
+// describedName is a name inside a description: single-quoted as it is, so it can be
+// copied as written, and Go-quoted wherever a character could split a line or mislead
+// a reader: a control or format character (U+2028, U+2029, U+0085, a bidi mark, a
+// zero-width one), a quote, or bytes that are not UTF-8, which JSON would otherwise
+// replace silently.
+func describedName(s string) string {
+	if !utf8.ValidString(s) {
+		return strconv.Quote(s)
+	}
+	for _, r := range s {
+		if r == '\'' || unicode.IsControl(r) || unicode.In(r, unicode.Cf, unicode.Zl, unicode.Zp) {
+			return strconv.Quote(s)
 		}
 	}
-	return true
+	return "'" + s + "'"
+}
+
+// psNumber is a word PowerShell may turn into a number before a native command sees
+// it (`1.10` arrives as 1.1, `0x10` as 16, `007` as 7, `2kb` as 2048, `1.e2` as 100):
+// any one word, with no `/`, that starts with a digit, or a dot and a digit. PowerShell's
+// numeric grammar (hex, binary, decimals, exponents, type and multiplier suffixes,
+// digit separators) is wide, so no attempt is made to follow it: a word that starts
+// like a number is described, which costs a command for a root such as `2024-reports`.
+var psNumber = regexp.MustCompile(`^\.?[0-9][^/]*$`)
+
+// shellForm is s as a command prints it, and whether it needs no quoting in cmd.exe,
+// PowerShell 7, Windows PowerShell 5.1, Git Bash and a POSIX shell. Letters, digits,
+// `.`, `_`, `-` and `/` are plain, and so is a `~` that is not the first character
+// (literal in all of them). On Windows a `\` is a separator, but Git Bash eats a
+// backslash, so a path is printed with slashes, which every one of them runs and Go
+// reads as the same directory. Git Bash also converts what looks like a POSIX path
+// (find_path_start_and_type in msys2_path_conv.cc): it skips leading bytes that are
+// not alphanumeric and not one of `/ \ : - .` (in the plain set, only `_`), and
+// rewrites the rest if it begins with `/` (`_/worktree`, `__/x`, `_//x`, a UNC
+// path); `sub/r1`, `a//b`, `tmp/x` and `./x` it leaves alone, and a drive path
+// `X:/…` it copies verbatim when no further colon follows. So on Windows an argument
+// is commanded unless, with its leading `_`s stripped, it begins with a separator;
+// a `:` is outside the plain set but for the drive's, which also excludes the
+// path-list rule (a `:` followed by `/`, `:` or `.` after an earlier `/`). A space and
+// every other metacharacter (`& | < > ^ % ! ' " ( ) ; , = $`, a backtick, `@`, `#`,
+// `{`, `}`, `*`, `?`, `[`), and a word PowerShell may read as a number, needs quoting.
+func shellForm(windows bool, s string) (string, bool) {
+	drive := false
+	if windows {
+		if rest := strings.TrimLeft(s, "_"); rest != "" && (rest[0] == '/' || rest[0] == '\\') {
+			return s, false
+		}
+		s = strings.ReplaceAll(s, `\`, "/")
+		drive = len(s) >= 3 && (s[0] >= 'a' && s[0] <= 'z' || s[0] >= 'A' && s[0] <= 'Z') && s[1] == ':' && s[2] == '/'
+	}
+	i := 0
+	if drive {
+		i = 2
+	}
+	for ; i < len(s); i++ {
+		c := s[i]
+		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '.' || c == '_' || c == '-' || c == '/' || c == '~' && i > 0) {
+			return s, false
+		}
+	}
+	return s, !psNumber.MatchString(s)
 }
 
 func trim(s string) string {

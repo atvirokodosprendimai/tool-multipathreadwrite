@@ -75,6 +75,7 @@ None — one task.
 - **Positive:** a number alone no longer edits a line of a written file that no read has shown in its current version, with no new state. Decision 7 lists what stays outside that.
 - **Negative:** a new refusal on plans that landed before, including ones whose number was right; at the one measured width, about one typed-plan landing in twenty, with a large uncertain share.
 - **Neutral:** exit codes, receipt keys and the ledger are unchanged.
+- **Amended 2026-11-20, issue #753:** the set of characters in which a read is printed as a command is no longer "letters, digits, `.`, `_`, `-` and `/`" alone: it is the rule of ADR-208's amendment of the same date (a drive root in slash form on Windows, a `~` inside a word, the number-like words and UNC roots described), and the description names the file and the root.
 
 ## Out of Scope
 
