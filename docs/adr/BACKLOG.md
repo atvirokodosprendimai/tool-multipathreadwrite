@@ -1032,10 +1032,11 @@ verdict), written with the record on 2026-11-03, before any code or run.
 
 ## From ADR-195 (`--create` refuses empty standard input)
 
-- **`body=@path` naming an empty file (deferred from ADR-195)** (2026-11-04): AGENTS.md §2 says an empty body file
-  is `body=0`, so a producer that failed before writing the body file makes an empty create under a clean receipt,
+- **`body=@path` naming an empty file (deferred from ADR-195)** (2026-11-04): AGENTS.md §2 said an empty body file
+  is `body=0`, so a producer that failed before writing the body file made an empty create under a clean receipt,
   the failure ADR-195 refuses for `--create`. The caller names the file and can inspect it, which is why ADR-195
-  left it out; whether it should be refused too is its own record.
+  left it out. Since ADR-207 (2026-11-20) a delete refuses an empty `body=@` file; the create half stays open and
+  continues under "An empty create from a `body=@` file" in the ADR-207 section below, which is the one to act on.
 
 ## From ADR-197 (an anchor miss names the lines that hold the anchor)
 
