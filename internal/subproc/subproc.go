@@ -34,7 +34,7 @@ import (
 // grandchild still holds before it closes them itself.
 const waitDelay = time.Second
 
-// Trace, when set, is called with "exited" once a command has exited and "reaped"
+// Trace is a hook: when set, it is called with "exited" once a command has exited and "reaped"
 // once its process group has been reaped (Unix, through RunObserved). A test reads
 // where a cancel fell between them: the order is what makes a cancel one that
 // landed during the reap (#734).
