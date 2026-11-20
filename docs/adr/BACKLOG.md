@@ -1769,3 +1769,19 @@ changed after the first counted attempt.
 - **A second turn in the bench:** a follow-on task as two prompts, so the second change cannot be batched
   with the first. Owner: unassigned. Trigger: the pilot reporting, on either model, fewer than 3 of the 12
   follow-on tasks with an exposed attempt in N.
+
+## From ADR-211
+
+- **The hazard question, with tasks whose second edit needs a post-write fact:** does a number-only edit to a
+  line not shown since mrw wrote the file go wrong when nothing refuses it? Stage 9 cannot say (ADR-211
+  Decision 1): its prompts dictate both edits, so one plan from the pre-write read bypasses the refusal. Needs
+  a record and tasks whose second edit depends on a fact that exists only after the first write lands, such as
+  a line number or a name the first write produces. Owner: Zy. Trigger: Stage 9's RESULTS, or Zy asking sooner.
+- **Interleaving M and N within a model:** one run whose attempts alternate the two builds, so their cost
+  difference is not confounded with run windows and order. Needs a runner that can hold two pinned binaries in
+  one plan. Owner: unassigned. Trigger: a Stage 9 RESULTS where M and N differ on a model, or a causal cost
+  claim being wanted.
+- **Isolating N's log from the agent:** ADR-211 Decision 3 writes it beside the state home, in the agent's
+  `TMPDIR`, which removes a routine signal and is not isolation. Making it unreadable needs a writer the agent's
+  user cannot read back, such as another user or a descriptor the bench owns. Owner: unassigned. Trigger: an
+  N transcript that reads or lists the log, or a stage whose claim rests on N being unseen.
