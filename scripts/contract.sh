@@ -11646,6 +11646,21 @@ sys.exit(0 if "check" not in sc and sc.get("applied") is True else 1)
 PY
 [ ! -e "$R352b/marker" ] && [ ! -e "$R352b/runs" ] && [ "$(sed -n 2p "$R352b/notes.md")" = "line 2" ] && ok "and the check was never started" || bad "check started without check: true: $(ls "$R352b")"
 
+# 353. #699: an apply_patch file marker that names no path is a compile refusal,
+# exit 2, nothing written. It once dropped its section and let the sibling land
+# at exit 0 with no verdict for it. The pair: the sibling alone lands.
+R=$(mktemp -d "$WORK/r-XXXXXX")
+out=$(printf '*** Begin Patch\n*** Add File: ok.txt\n+ok\n*** Add File:\n+lost\n*** End Patch\n' | m write --format=apply_patch - 2>&1); rc=$?
+want 2 "$rc" "an apply_patch Add File naming no path -> exit 2"
+grep -q 'names no path' <<<"$out" && ok "and the refusal names the marker" || bad "refusal text: $(head -c 300 <<<"$out")"
+[ ! -e "$R/ok.txt" ] && ok "and its sibling did not land" || bad "the sibling landed beside a dropped section"
+out=$(printf '*** Begin Patch\n*** Add File: ok.txt\n+ok\n*** End Patch\n' | m write --format=apply_patch - 2>&1); rc=$?
+want 0 "$rc" "the pair: the sibling alone lands"
+[ "$(cat "$R/ok.txt" 2>/dev/null)" = ok ] && ok "with its body" || bad "ok.txt: $(cat "$R/ok.txt" 2>&1)"
+out=$(printf '*** Begin Patch\n*** Add File: two.txt\n+two\n*** Update File: ok.txt\n*** End Patch\n' | m write --format=apply_patch - 2>&1); rc=$?
+want 2 "$rc" "an apply_patch Update File section that changes nothing -> exit 2"
+[ ! -e "$R/two.txt" ] && grep -q 'changes nothing' <<<"$out" && ok "and its sibling did not land" || bad "empty Update File: $(head -c 300 <<<"$out")"
+
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
 # killed process is a zombie until its adopter reaps it, and pgrep lists

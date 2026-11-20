@@ -46,6 +46,10 @@ func CompileApplyPatch(root string, doc []byte) ([]byte, error) {
 		// moved says this Update File section already carried its one Move to
 		// (ADR-114): a second is refused.
 		moved bool
+		// changed says this section compiled a hunk or a move: an Update File
+		// section that ends without one changes nothing and gets no verdict,
+		// so it is refused (#699).
+		changed bool
 	)
 	flush := func() error {
 		if path == "" {
@@ -61,21 +65,33 @@ func CompileApplyPatch(root string, doc []byte) ([]byte, error) {
 			return err
 		}
 		out.WriteString(text)
+		changed = true
 		hunk = nil
 		if kind == "add" {
 			path, kind = "", ""
 		}
 		return nil
 	}
+	// closeSection ends the open section at a marker or the end of the patch.
+	closeSection := func() error {
+		if err := flush(); err != nil {
+			return err
+		}
+		if kind == "update" && path != "" && !changed && !moved {
+			return fmt.Errorf("apply_patch: Update File %s changes nothing: give it a hunk or a Move to", path)
+		}
+		changed = false
+		return nil
+	}
 	for _, line := range strings.Split(body, "\n") {
 		switch {
 		case line == endPatch:
-			if err := flush(); err != nil {
+			if err := closeSection(); err != nil {
 				return nil, err
 			}
 			path, kind, moved = "", "", false
 		case strings.HasPrefix(line, deleteFile):
-			if err := flush(); err != nil {
+			if err := closeSection(); err != nil {
 				return nil, err
 			}
 			p := pathAfter(line, deleteFile)
@@ -109,20 +125,26 @@ func CompileApplyPatch(root string, doc []byte) ([]byte, error) {
 				return nil, err
 			}
 			out.WriteString(text)
-			moved = true
+			moved, changed = true, true
 		case strings.HasPrefix(line, updateFile):
-			if err := flush(); err != nil {
+			if err := closeSection(); err != nil {
 				return nil, err
 			}
-			path = pathAfter(line, updateFile)
+			if path = pathAfter(line, updateFile); path == "" {
+				return nil, fmt.Errorf("apply_patch: %q names no path", line)
+			}
 			kind = "update"
 			moved = false
 			hunk = []string{}
 		case strings.HasPrefix(line, addFile):
-			if err := flush(); err != nil {
+			if err := closeSection(); err != nil {
 				return nil, err
 			}
-			path = pathAfter(line, addFile)
+			// A marker naming no path once dropped its section and let a sibling
+			// land with no verdict for it (#699).
+			if path = pathAfter(line, addFile); path == "" {
+				return nil, fmt.Errorf("apply_patch: %q names no path", line)
+			}
 			kind = "add"
 			moved = false
 			hunk = []string{}
@@ -148,7 +170,7 @@ func CompileApplyPatch(root string, doc []byte) ([]byte, error) {
 			return nil, fmt.Errorf("apply_patch: unexpected line %q", line)
 		}
 	}
-	if err := flush(); err != nil {
+	if err := closeSection(); err != nil {
 		return nil, err
 	}
 	if out.Len() == 0 {
@@ -165,7 +187,7 @@ func patchBody(s string) (string, error) {
 	if strings.TrimSpace(s[:begin]) != "" {
 		return "", fmt.Errorf("apply_patch: text before %s", beginPatch)
 	}
-	end := strings.Index(s, endPatch)
+	end := lineIndex(s, endPatch)
 	if end < 0 {
 		return "", fmt.Errorf("apply_patch: missing %s", endPatch)
 	}
@@ -177,6 +199,29 @@ func patchBody(s string) (string, error) {
 	}
 	rest := s[begin+len(beginPatch) : end]
 	return strings.TrimPrefix(rest, "\n"), nil
+}
+
+// lineIndex is the index of the first occurrence of marker that is a whole
+// line, or -1. A body line holding the marker as text (+literal *** End Patch)
+// was taken for the terminator: the patch was refused for text after it, or,
+// with no real terminator, compiled with its body cut there (Codex on #708).
+func lineIndex(s, marker string) int {
+	for off := 0; ; {
+		i := strings.Index(s[off:], marker)
+		if i < 0 {
+			return -1
+		}
+		at := off + i
+		after := at + len(marker)
+		tail := after // spaces or tabs may follow the marker on its line, as they did before
+		for tail < len(s) && (s[tail] == ' ' || s[tail] == '\t') {
+			tail++
+		}
+		if (at == 0 || s[at-1] == '\n') && (tail == len(s) || s[tail] == '\n' || s[tail] == '\r') {
+			return at
+		}
+		off = after
+	}
 }
 
 func looksLikeGit(s string) bool {
