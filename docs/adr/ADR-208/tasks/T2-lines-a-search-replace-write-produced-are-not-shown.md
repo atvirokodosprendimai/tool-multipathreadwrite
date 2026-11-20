@@ -1,6 +1,6 @@
 # Task ADR-208-T2: lines a search/replace write produced are not shown
 
-**Status of the decision:** Proposed (ADR-208 Decision 1a).
+**Status of the decision:** Accepted (ADR-208 Decision 1a; Zy, 2026-11-20, *"accept all"*).
 **Depends-on:** T1
 **Covers:** none — no spec
 **Estimated scope:** S
