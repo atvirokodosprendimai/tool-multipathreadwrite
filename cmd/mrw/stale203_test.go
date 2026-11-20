@@ -47,7 +47,7 @@ func TestAStaleNumberIsRefusedByTheBinary(t *testing.T) {
 		out, code := write(t, root, doc)
 		remedy := "mrw --root " + shellRoot(root) + " read --max-cols 0 f.txt:" + line
 		if !plainPath.MatchString(root) {
-			remedy = "a read that shows line " + line + ` of 'f.txt' under the root '` + root + `'` // a root that needs quoting is described (ADR-203, issue #753)
+			remedy = "a read that shows line " + line + ` of 'f.txt' under the root ` + describedTwin(root) // a root that needs quoting is described (ADR-203, issue #753)
 		}
 		if code != 1 || !strings.Contains(out, "line "+line+" of f.txt "+noShowing+remedy+"; a --quiet read, or a line --max-cols cut, shows nothing), address it by pattern, or give anchor=") {
 			t.Fatalf("want exit 1 naming line %s, got %d:\n%s", line, code, out)

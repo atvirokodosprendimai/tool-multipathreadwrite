@@ -84,8 +84,15 @@ func TestARootIsPrintedInTheCommandWheneverNoShellNeedsItQuoted(t *testing.T) {
 		{false, "v1.10", "v1.10"},
 		{false, "1.10/x", "1.10/x"},
 		{true, "r1", "r1"},
-		{true, "sub/r1", "sub/r1"},
-		{true, `sub\r1`, "sub/r1"},
+		// Git Bash (MSYS) converts what looks like a POSIX path: it skips some leading characters when it
+		// classifies an argument (`_/worktree` is converted against its install root) and the first directory
+		// is anyone's, so a relative path with a slash is described on Windows; one component has no slash to convert.
+		{true, "sub/r1", ""},
+		{true, `sub\r1`, ""},
+		{true, `_\worktree`, ""},
+		{true, "_/worktree", ""},
+		{true, "worktree", "worktree"},
+		{true, "tmp", "tmp"},
 		{true, `C:\Users\x\r1`, "C:/Users/x/r1"},
 		{true, `c:\r1`, "c:/r1"},
 		{true, "C:/Users/x/r1", "C:/Users/x/r1"},
@@ -94,15 +101,14 @@ func TestARootIsPrintedInTheCommandWheneverNoShellNeedsItQuoted(t *testing.T) {
 		{true, `\Users\x\r1`, ""},
 		{true, "/Users/x/r1", ""},
 		{true, "~r1", ""},
-		// Git Bash (MSYS) converts a POSIX-looking path component in an argument: `_/dev/null` arrives as `nul`.
 		{true, "_/dev/null", ""},
 		{true, "sub/tmp/r1", ""},
 		{true, "sub/Dev/r1", ""},
 		{true, "usr/x", ""},
 		{true, "a//b", ""},
-		{true, "sub/", "sub/"},
+		{true, "sub/", ""},
 		{true, `C:\dev\x`, "C:/dev/x"}, // a drive path is a Windows path already: MSYS leaves it
-		{true, "tmpdir/r1", "tmpdir/r1"},
+		{true, "tmpdir/r1", ""},
 		{true, `C:\Users\my dir\r1`, ""},
 		{true, `C:r1`, ""}, // drive-relative: not an absolute path, and `:` is not plain
 		{true, `C:`, ""},
@@ -147,8 +153,11 @@ func TestARootIsPrintedInTheCommandWheneverNoShellNeedsItQuoted(t *testing.T) {
 		}
 	}
 	// A path of the plan is judged the same way, and printed with slashes on Windows.
-	if got := remedyFor(true, "", `sub\F.go`, 1, 4); got != `mrw read --max-cols 0 sub/F.go:1-4` {
-		t.Errorf("a backslash path on Windows: %q", got)
+	if got := remedyFor(true, "", `sub\F.go`, 1, 4); got != `a read that shows lines 1-4 of 'sub\F.go'` {
+		t.Errorf("a path with a directory on Windows is described, since MSYS may convert it: %q", got)
+	}
+	if got := remedyFor(true, "", `F.go`, 1, 4); got != `mrw read --max-cols 0 F.go:1-4` {
+		t.Errorf("a one-component path on Windows: %q", got)
 	}
 	if got := remedyFor(false, "", `sub\F.go`, 1, 4); got != `a read that shows lines 1-4 of 'sub\F.go'` {
 		t.Errorf("a backslash path on POSIX: %q", got)
@@ -158,15 +167,16 @@ func TestARootIsPrintedInTheCommandWheneverNoShellNeedsItQuoted(t *testing.T) {
 // cmd.exe refuses a command line over 8,191 characters: a command longer than the
 // bound is described on Windows, where it could not run, and printed elsewhere.
 func TestACommandCmdCannotRunIsDescribedOnWindows(t *testing.T) {
-	long := "sub/" + strings.Repeat("a", 8000)
-	if got := remedyFor(true, long, "F.go", 1, 4); !strings.HasPrefix(got, "a read that shows lines 1-4 of 'F.go' under the root 'sub/aaa") {
+	long := "C:/" + strings.Repeat("a", 8000)
+	if got := remedyFor(true, long, "F.go", 1, 4); !strings.HasPrefix(got, "a read that shows lines 1-4 of 'F.go' under the root 'C:/aaa") {
 		t.Errorf("a root of 8,000 characters on Windows: %.80q", got)
 	}
-	if got := remedyFor(false, long, "F.go", 1, 4); !strings.HasPrefix(got, "mrw --root sub/aaa") {
+	posix := "sub/" + strings.Repeat("a", 8000)
+	if got := remedyFor(false, posix, "F.go", 1, 4); !strings.HasPrefix(got, "mrw --root sub/aaa") {
 		t.Errorf("a root of 8,000 characters on POSIX: %.80q", got)
 	}
-	short := "sub/" + strings.Repeat("a", 7000)
-	if got := remedyFor(true, short, "F.go", 1, 4); !strings.HasPrefix(got, "mrw --root sub/aaa") {
+	short := "C:/" + strings.Repeat("a", 7000)
+	if got := remedyFor(true, short, "F.go", 1, 4); !strings.HasPrefix(got, "mrw --root C:/aaa") {
 		t.Errorf("a root of 7,000 characters on Windows: %.80q", got)
 	}
 }

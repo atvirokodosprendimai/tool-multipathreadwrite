@@ -1,0 +1,43 @@
+check@2	1bb497e3e13a1105cf24e3359fa3ef75de08b66ff8a2839cd7f9ea97824d9eb3
+body	cmd/mrw/stale200_test.go	--rewrite	f8ed558a747efa6ebf7c8464ea317901353801a9eec1f8d8e833a7879c3c98a7
+body	cmd/mrw/stale200_test.go	TestStatsPrintsTheStaleNumberPricing	b64ca7c33a51d48b361862230a1af07ccabf944b4d01b39020c0b5d11d5411aa
+body	cmd/mrw/stale200_test.go	a dry run counts nothing	76a16a83a1073f2bfac5ba2af291e11c1438d80dadcc240a047f1658c91aad06
+body	cmd/mrw/stale200_test.go	a native plan given as a file is counted when its line was shown	63b7265b40e86674e090f2f40282272e3ba7a93bda538077240cd8604c1e5ca0
+body	cmd/mrw/stale200_test.go	a refused number counts nothing, and an anchored landing is no candidate	e249166780115dbab8d1095156a52afc576757b50841976e7280b7164addd919
+body	cmd/mrw/stale203_test.go	TestAStaleNumberIsRefusedByTheBinary	d8fb2a605499cb0ff2c0d904c64af2eb5dbfc333fce2f3f1594146fa7d4bf881
+body	cmd/mrw/stale203_test.go	TestAStaleNumberOnALineMaxColsCutIsRefusedUntilItIsReadWhole	9bfb0248de791d3c3e912671d97a9757a7c889f95759a6bf22bd9ab33c24b088
+body	cmd/mrw/stale203_test.go	a file read whole and never written lands by number	8a6ba2b8c0f333983eeebcc98301b82e745383c78ed82af4128480d8f3d629a5
+body	cmd/mrw/stale203_test.go	a number alone is refused and the file is unchanged	24134a3a96b8f8500c360dbd99625679affc7534f914fd59f6b9027d5a9d2f9c
+body	cmd/mrw/stale203_test.go	a pattern lands	1c9d12f5712fce63ca6292c62e2e789a413181d252efb1eed120a0e0b0b46e3f
+body	cmd/mrw/stale203_test.go	a plan mrw computed lands	7eb8471fbbd31a80285ba5b5d1aa9a4f363c89390dd1e43f91aee8c4f4cf2346
+body	cmd/mrw/stale203_test.go	a quiet read shows nothing, whole or ranged, on a file mrw wrote	a3630dea033f9adcc34e358ecef00791dac0edfd4320e6391d2c0afd0cdcd391
+body	cmd/mrw/stale203_test.go	a range names its first line	83b81a6e711c5d98f853926dd70b13d100751e16e5061cd2ab11dd32e896d04b
+body	cmd/mrw/stale203_test.go	a range with only its middle line missing names that line	6d123a73d2db637c9b42a21a84602af3d2a276bad8e1a849b0a5737bc7c7e71b
+body	cmd/mrw/stale203_test.go	a ranged quiet read of a file mrw never wrote is the per-line licence, as before	516eb463699ba7c458d63cf660e4d63815b20d9833b4ef9a7cae5532b7735022
+body	cmd/mrw/stale203_test.go	a read short of the range is refused, and the read of the range lands	2ad109678688d24032ba5581fa22d286213ad8406028da97c492596ab9b4d1fa
+body	cmd/mrw/stale203_test.go	a read that shows the line, then the number, lands	75bdfeee2ce3a8afa0f858b5a0c29c3f613ac02637f7735792d37077670b58c7
+body	cmd/mrw/stale203_test.go	a refused hunk skips its valid sibling on another file	e333a2bcaa2723873f2b583774f782601fcaeb6d3cecf1921b1bc4092f025637
+body	cmd/mrw/stale203_test.go	a whole quiet read of a file mrw never wrote shows nothing: a number alone is refused	aeb9cf3adeb1396dbfde68f00f2234d705024ed15a7f336037486e2081df4cb3
+body	cmd/mrw/stale203_test.go	a whole read after the write lands by number	4c601d2b66ac6d40d8aed49e5580c065f7f4bce71b80e19d89c1b27e0c3a5f9e
+body	cmd/mrw/stale203_test.go	an insert names its line	384b084442bc479726e2e4e2f43ef825eb0c9b43f7872e6d6adf3ecb8d789ec4
+body	cmd/mrw/stale203_test.go	anchor= lands on the line that holds L7	98aac430819219ace07f4664234ba51be3a2c636c299a5124df197ff09d47d4a
+body	cmd/mrw/stale203_test.go	force lands	ef6af12e875c89dc916df65a935236657ea0bb228bc8566f96a0f1ecc64b3028
+body	cmd/mrw/stale203_test.go	insert-after line 1 names that line and is refused	9520c200a7919c7f77f010dd69fef57f9cfd30a71497e1380278e24671381dfb
+body	cmd/mrw/stale203_test.go	mrw write --create, then a numbered edit is refused, and lands with anchor=	97edfdf34ddd8d0ab17d37ff26bd4a6ce3f16401e48c46b42e93d88c4d1e0358
+body	cmd/mrw/stale203_test.go	the plan read --sub prints lands when written later	d8f8f94f3910c70319bc3004a418d8aac352e72fb9af9a57331f9037e7e15be2
+body	internal/apply/stale203_test.go	TestANumberAloneIsRefusedOnALineNotShownSinceTheWrite	610519468d8ab2af97133618f524608906d33b05ab684d21e4fdd4a3d194a26e
+body	internal/apply/stale203_test.go	a stale hunk is reported beside a hunk of the same file that fails for another reason	2b30d7fbaadd89f8e278a866d0e1933c98a773d941ea7ca4c8e66928add7a73b
+body	internal/apply/stale203_test.go	a stale hunk still consumes its lines, so the hunk it overlaps is an overlap	aef60d6c93a4557d78607fe990d04e05d8b9c5085641320705a875a7559abb27
+body	internal/apply/stale203_test.go	an alias observation is the one apply selected	52cbd4e3d57ea93650c05cd0f796c8695c09656caedb5f7daa82418ebe0edf32
+body	internal/apply/stale203_test.go	an overlap is reported as an overlap, ahead of the stale number	ada361a9f9233bcfa56df4b733912b8f9fad9ab34759c29c86349dbdfc2fa756
+body	internal/apply/stale203_test.go	anchor= lands on the line that holds L7	a1c8634309aa91745592a285a91be61998a9fedeb768bd8e2ba884c3d8bcbb12
+body	internal/apply/stale203_test.go	every stale hunk of a plan is reported, and a valid sibling on another file is skipped	f1151c870ecedb911ff9ff83092514ea157a82c4823173ed64378bec3240b7b6
+body	internal/guide/stale203_test.go	TestTheInstructionsSayASecondEditNamesItsLine	57751ae529ce79a4527b4bdba6749177fcbd1c4535a718abf7cc47a36bc5deea
+body	internal/mcp/stale203_test.go	TestAnMCPSubReadAnchorsItsHunksAndNamesTheOnesItCannot	617aebcd5dd4506c10458bdde884c98a6d8e7950ca85e71afb11440f7fbb8c72
+body	internal/mcp/stale203_test.go	TestMrwWriteNamesAPendingPageOnlyWhenItCoversTheRefusedLine	6554fec288ef19448ba8f51bfe7c6261dd87a8790ccc7757103fe49357b52c80
+body	internal/mcp/stale203_test.go	TestMrwWriteRefusesAStaleNumber	394802df3a41a2e62f29c3dcb909ecf91ef4e1143e6707e21913af3ac0d8dfd1
+body	internal/mcp/stale203_test.go	a page for another spelling is not named	2f05f8326c9864473480dda00e4f762661bdea68d6ce946cfc52d6a4660ebafe
+body	internal/mcp/stale203_test.go	a page over the whole of a relative range is named	36d64bc2740be0ecc7a54b3c312195d471dd702ce753ecf0a0a74ea1c97c8985
+body	internal/mcp/stale203_test.go	a page short of the first unshown line is not named	af14a447252092f78986ea1d70098271140976b78f4109a8578cc5869014408e
+body	internal/mcp/stale203_test.go	a page that covers only the head of the range is not named	290650ae446cbda13b6bbd76978e20aea58c715ee54b9c5623a95a972210c50b
+body	internal/mcp/stale203_test.go	a page that covers the first unshown line is named, and its ack lands	dc17ab7ec390c371524134922e8a0438025de7b0f2fc7b971c4d98376d41a599

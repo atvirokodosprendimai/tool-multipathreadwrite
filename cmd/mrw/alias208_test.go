@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -171,15 +172,28 @@ func TestTheRemedyNamesTheRootItWasGiven(t *testing.T) {
 // The branch Windows takes, forced on any platform: a root with a space needs
 // quoting, so no command is printed, and the refusal describes the read.
 func TestARootThatNeedsQuotingIsDescribedNotCommanded(t *testing.T) {
-	root := aliasRootIn(t, filepath.Join(t.TempDir(), "my root"), "f.go")
-	out, code := writeIn(t, root, "--no-check", planFile(t, rep208))
-	if want := "a read that shows lines 1-4 of 'f.go' under the root '" + root + "'"; code != 1 || !strings.Contains(out, want) || strings.Contains(out, "mrw --root") || strings.Contains(out, "mrw read") {
-		t.Errorf("line-after refusal for a root with a space: exit %d, want %q in:\n%s", code, want, out)
+	for _, dir := range []string{"my root", "it's root"} { // a root with an apostrophe is Go-quoted in a description
+		t.Run(dir, func(t *testing.T) {
+			root := aliasRootIn(t, filepath.Join(t.TempDir(), dir), "f.go")
+			out, code := writeIn(t, root, "--no-check", planFile(t, rep208))
+			if want := "a read that shows lines 1-4 of 'f.go' under the root " + describedTwin(root); code != 1 || !strings.Contains(out, want) || strings.Contains(out, "mrw --root") || strings.Contains(out, "mrw read") {
+				t.Errorf("line-after refusal: exit %d, want %q in:\n%s", code, want, out)
+			}
+			out, code = writeIn(t, root, "--no-check", planFile(t, "@@ f.go 2 replace\n\tz()\n"))
+			if want := "(a read that shows line 2 of 'f.go' under the root " + describedTwin(root) + ";"; code != 1 || !strings.Contains(out, want) {
+				t.Errorf("stale-number refusal: exit %d, want %q in:\n%s", code, want, out)
+			}
+		})
 	}
-	out, code = writeIn(t, root, "--no-check", planFile(t, "@@ f.go 2 replace\n\tz()\n"))
-	if want := "(a read that shows line 2 of 'f.go' under the root '" + root + "';"; code != 1 || !strings.Contains(out, want) {
-		t.Errorf("stale-number refusal for a root with a space: exit %d, want %q in:\n%s", code, want, out)
+}
+
+// describedTwin is how a description names a root, written out for the test: single-quoted as
+// it is, and Go-quoted where it holds a quote or a control character, as production does.
+func describedTwin(s string) string {
+	if strings.ContainsAny(s, "'\x00\x01\x02\x03\x04\x05\x06\x07\x08\t\n\v\f\r\x0e\x0f\x7f") {
+		return strconv.Quote(s)
 	}
+	return "'" + s + "'"
 }
 
 // The remedy is run as the refusal printed it, root included: the command names the

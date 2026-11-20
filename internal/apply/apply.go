@@ -3268,40 +3268,28 @@ func describedName(s string) string {
 // like a number is described, which costs a command for a root such as `2024-reports`.
 var psNumber = regexp.MustCompile(`^\.?[0-9][^/]*$`)
 
-// msysSpecial are the names of the directories Git Bash (MSYS) maps to its own: an
-// argument holding one as a component, as `_/dev/null` or `sub/tmp/r1`, may be
-// converted before mrw sees it.
-var msysSpecial = map[string]bool{"dev": true, "tmp": true, "proc": true, "usr": true, "bin": true, "etc": true, "home": true, "mnt": true, "cygdrive": true, "var": true, "lib": true, "opt": true, "sys": true, "run": true}
-
 // shellForm is s as a command prints it, and whether it needs no quoting in cmd.exe,
 // PowerShell 7, Windows PowerShell 5.1, Git Bash and a POSIX shell. Letters, digits,
 // `.`, `_`, `-` and `/` are plain, and so is a `~` that is not the first character
 // (literal in all of them). On Windows a `\` is a separator, but Git Bash eats a
 // backslash, so a path is printed with slashes, which every one of them runs and Go
 // reads as the same directory. Git Bash also converts what looks like a POSIX path,
-// so on Windows only a drive path `X:/…` (a Windows path already: left alone) or a
-// relative one with no `//` and no component MSYS maps (`dev`, `tmp`, `usr`, …) is
-// commanded; a path with a leading separator (UNC, or rooted without a drive) is
-// described. A space and every other metacharacter (`& | < > ^ % ! ' " ( ) ; , = $`,
-// a backtick, `@`, `#`, `{`, `}`, `*`, `?`, `[`), and a word PowerShell may read as a
-// number, needs quoting.
+// skipping some leading characters when it classifies an argument (`_/worktree` is
+// converted against its install root) and mapping a first directory that is anyone's,
+// so no list of names can say which are safe: on Windows only a drive path `X:/…` (a
+// Windows path already: left alone) or a path of one component, which has no slash to
+// convert, is commanded, and every other relative path (and a UNC one, or one rooted
+// without a drive) is described, the safe direction. A space and every other
+// metacharacter (`& | < > ^ % ! ' " ( ) ; , = $`, a backtick, `@`, `#`, `{`, `}`, `*`,
+// `?`, `[`), and a word PowerShell may read as a number, needs quoting.
 func shellForm(windows bool, s string) (string, bool) {
 	drive := false
 	if windows {
-		if s != "" && (s[0] == '/' || s[0] == '\\') {
+		drive = len(s) >= 3 && (s[0] >= 'a' && s[0] <= 'z' || s[0] >= 'A' && s[0] <= 'Z') && s[1] == ':' && (s[2] == '/' || s[2] == '\\')
+		if drive {
+			s = strings.ReplaceAll(s, `\`, "/")
+		} else if strings.ContainsAny(s, `/\`) {
 			return s, false
-		}
-		s = strings.ReplaceAll(s, `\`, "/")
-		drive = len(s) >= 3 && (s[0] >= 'a' && s[0] <= 'z' || s[0] >= 'A' && s[0] <= 'Z') && s[1] == ':' && s[2] == '/'
-		if !drive {
-			if strings.Contains(s, "//") {
-				return s, false
-			}
-			for _, c := range strings.Split(s, "/") {
-				if msysSpecial[strings.ToLower(c)] {
-					return s, false
-				}
-			}
 		}
 	}
 	i := 0
