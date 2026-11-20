@@ -114,7 +114,9 @@ func CompileApplyPatch(root string, doc []byte) ([]byte, error) {
 			if err := flush(); err != nil {
 				return nil, err
 			}
-			path = pathAfter(line, updateFile)
+			if path = pathAfter(line, updateFile); path == "" {
+				return nil, fmt.Errorf("apply_patch: %q names no path", line)
+			}
 			kind = "update"
 			moved = false
 			hunk = []string{}
@@ -122,7 +124,11 @@ func CompileApplyPatch(root string, doc []byte) ([]byte, error) {
 			if err := flush(); err != nil {
 				return nil, err
 			}
-			path = pathAfter(line, addFile)
+			// A marker naming no path once dropped its section and let a sibling
+			// land with no verdict for it (#699).
+			if path = pathAfter(line, addFile); path == "" {
+				return nil, fmt.Errorf("apply_patch: %q names no path", line)
+			}
 			kind = "add"
 			moved = false
 			hunk = []string{}
