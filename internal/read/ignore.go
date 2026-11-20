@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/regular"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 )
 
 // ADR-116: a walk inside a checkout skips what the checkout's .gitignore
@@ -376,6 +377,12 @@ func foldsCase(top string) bool {
 // and that gitdir's commondir when it has one, where a worktree's info/exclude
 // lives. A gitdir is a path git wrote, not one a caller gave, so IsAbs is the
 // question; a path it cannot follow gives no rules, and the walk serves more.
+// The two reads below, of the .git pointer file and of commondir, are BY NAME on
+// purpose (#727): they are git's own metadata, written by git, and a linked
+// worktree's `.git` file names its gitdir, and that gitdir its commondir, at
+// places outside the checkout and the walk's root, which is what they are for.
+// They decide where info/exclude lives, and nothing of them is served; the
+// info/exclude read itself goes through a root held on that directory.
 func gitDir(top string) string {
 	dir := filepath.Join(top, ".git")
 	if b := readIgnoreFile(dir); b != nil {
@@ -418,28 +425,19 @@ func (ig *ignorer) load(dir string) {
 	}
 }
 
-// readIgnoreFile reads an ignore file the way a read serves a file: without
-// blocking on a FIFO or a device (ADR-109) and no more than maxFileBytes
-// (ADR-104). A .gitignore that is a FIFO hung every walk that met it, and one
-// linked to /dev/zero read without end. Anything it will not read — missing, a
-// directory, not regular, too large — gives no rules, so the walk serves more
-// rather than waiting.
 // afterIgnoreCheckFn runs between a .gitignore's link check and its open. It is
 // a seam for a test to swap a directory for a link there (#727).
 var afterIgnoreCheckFn = func() {}
 
-// readIgnoreFileIn is readIgnoreFile for the .gitignore at rel under the
-// checkout's top, opened through a root held on the top, so a directory swapped
-// for a link out of the checkout cannot lead the walk to rules from outside it
-// (#727). The checkout's top may be above the walk's root: that is the
-// boundary of an ignore file, not --root.
+// readIgnoreFileIn reads the ignore file at rel under top the way a read serves
+// a file, through a root held on top (rooted.OpenRead, with its handling of an
+// absolute link inside the root and of a directory it may search but not read),
+// so a directory swapped for a link out of top cannot lead the walk to rules
+// from outside it (#727). top is the checkout's top, which may be above the
+// walk's root: that is the boundary of an ignore file, not --root. Like
+// readIgnoreFile it gives no rules for what it will not read, as main did.
 func readIgnoreFileIn(top, rel string) []byte {
-	r, err := os.OpenRoot(top)
-	if err != nil {
-		return nil
-	}
-	defer func() { _ = r.Close() }()
-	f, fi, err := regular.OpenIn(r, rel)
+	f, fi, err := rooted.OpenRead(top, filepath.Join(top, rel))
 	if err != nil {
 		return nil
 	}
@@ -454,6 +452,14 @@ func readIgnoreFileIn(top, rel string) []byte {
 	return b
 }
 
+// readIgnoreFile reads an ignore file the way a read serves a file: without
+// blocking on a FIFO or a device (ADR-109) and no more than maxFileBytes
+// (ADR-104). A .gitignore that is a FIFO hung every walk that met it, and one
+// linked to /dev/zero read without end. Anything it will not read — missing, a
+// directory, not regular, too large — gives no rules, so the walk serves more
+// rather than waiting. It opens by name, and is used for git's own metadata only
+// (the .git pointer file and a gitdir's commondir, see gitDir), which names
+// places outside the checkout by design.
 func readIgnoreFile(p string) []byte {
 	f, fi, err := regular.Open(p)
 	if err != nil {

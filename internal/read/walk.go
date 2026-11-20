@@ -140,11 +140,13 @@ func Walk(root string, paths []string, opt WalkOptions) ([]Spec, []Problem, erro
 
 	// One root held open for every file the walk reads (#727): opening one per
 	// file cost a syscall and a close each, over a large tree.
-	rd, err := rooted.NewWalkReader(root)
-	if err != nil {
-		return nil, nil, err
+	// A root that cannot be held (it is not there) is not an error of the walk:
+	// every path judged under it is refused on its own row, as it always was, and
+	// nothing is read. The reader is then nil.
+	rd, _ := rooted.NewWalkReader(root)
+	if rd != nil {
+		defer rd.Close()
 	}
-	defer rd.Close()
 	w := walker{root: root, absRoot: absRoot, opt: opt, seen: map[string]bool{}, nested: map[string]*ignorer{},
 		skipFiles: map[string]bool{}, skipDirs: map[string]bool{}, skipBin: map[string]bool{}, skipNested: map[string]bool{}, skipNames: map[string]bool{}, skipLinks: map[string]bool{},
 		sem: make(chan struct{}, min(runtime.NumCPU(), maxScanners)), rd: rd, res: rooted.NewResolver(root)}
@@ -326,6 +328,12 @@ func (w *walker) walkDir(named string, full string) {
 		}
 		w.starts = append(w.starts, r)
 	}
+	// The ENUMERATION is by name, on purpose (#727): a listing is names and
+	// types, not content, filepath.WalkDir does not follow a link, and moving it
+	// to the held root would be a different walker. What a directory swapped for
+	// a link out of the root during the walk can show is the NAMES of the entries
+	// below it; every one is then read through the held root (scanRead), which
+	// refuses the outside path, so no byte of outside content is served.
 	err := filepath.WalkDir(full, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			if p == full {
@@ -443,6 +451,9 @@ const maxScanners = 8
 // after the walk found the file cannot lead outside it (#727). It is a variable
 // so a test can swap it for a counter of the reads in flight.
 var scanRead = func(rd *rooted.Reader, path string, budget int64) ([]byte, error) {
+	if rd == nil {
+		return nil, fs.ErrNotExist
+	}
 	if budget == 0 || budget >= maxFileBytes { // the cap is the tighter bound, and its refusal is worded by readCapped
 		return readCappedWith(rd, path)
 	}

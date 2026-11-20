@@ -18,6 +18,10 @@ import (
 // (#727).
 var openGapFn = func() {}
 
+// byNameGapFn runs between the root's refusal and the by-name open of the
+// fallback. It is a seam for a test to swap a directory there (#727).
+var byNameGapFn = func() {}
+
 // fallbackGapFn runs between the by-name open of the fallback and its identity
 // check. It is a seam for a test to swap a directory there (#727).
 var fallbackGapFn = func() {}
@@ -54,73 +58,99 @@ type Reader struct {
 	// opened, so a directory swapped afterwards is not followed by it.
 	mu   sync.Mutex
 	dirs map[string]*dirRoot
+	// maxDirs bounds dirs (dirBudget); zero keeps none.
+	maxDirs int
 }
 
 // dirRoot is a directory held open as an os.Root, shared by the reads in flight.
 type dirRoot struct {
 	r    *os.Root
 	refs int
-	temp bool // not kept in dirs (it was full): closed by its last release
 }
 
-// maxDirRoots bounds the directories a walk holds open at once; a walk reads a
-// directory's files together, and there are more reads in flight than directories
-// open only when a tree is wider than this.
-const maxDirRoots = 32
-
 // acquireDir returns the held handle for dir, a clean path below the root, or
-// nil when it cannot be opened (the read then goes through the root alone).
+// nil when there is none to give: the directory cannot be opened, is not a
+// directory, or the cache is full of handles in use (the read then goes through
+// the root alone). The cache never holds more than rd.maxDirs handles: one is
+// evicted BEFORE the next is opened, so the descriptors the walk holds are
+// bounded by what the process may open (#727: a walk under ulimit -n 24 read
+// nothing, having opened a 33rd handle before closing one).
 func (rd *Reader) acquireDir(dir string) *dirRoot {
 	rd.mu.Lock()
+	defer rd.mu.Unlock()
 	if d, ok := rd.dirs[dir]; ok {
 		d.refs++
-		rd.mu.Unlock()
 		return d
 	}
-	rd.mu.Unlock()
-	sub, err := rd.r.OpenRoot(dir)
-	if err != nil {
+	if rd.maxDirs <= 0 {
 		return nil
 	}
-	rd.mu.Lock()
-	defer rd.mu.Unlock()
-	if d, ok := rd.dirs[dir]; ok { // another read opened it meanwhile
-		_ = sub.Close()
-		d.refs++
-		return d
+	if len(rd.dirs) >= rd.maxDirs && !rd.evictOneLocked() {
+		return nil
+	}
+	// A directory replaced by a FIFO blocks OpenRoot until something writes to
+	// it: it is asked what it is first, through the root, which does not block.
+	// What changes in the instant between the two can only hold the walk, not
+	// lead it anywhere (OpenRoot still confines).
+	if fi, err := rd.r.Stat(dir); err != nil || !fi.IsDir() {
+		return nil
+	}
+	sub, err := rd.r.OpenRoot(dir)
+	if err != nil && fdExhausted(err) {
+		rd.dropIdleLocked()
+		sub, err = rd.r.OpenRoot(dir)
+	}
+	if err != nil {
+		return nil
 	}
 	d := &dirRoot{r: sub, refs: 1}
 	if rd.dirs == nil {
 		rd.dirs = map[string]*dirRoot{}
 	}
-	if len(rd.dirs) >= maxDirRoots {
-		for k, o := range rd.dirs {
-			if o.refs == 0 {
-				_ = o.r.Close()
-				delete(rd.dirs, k)
-				break
-			}
-		}
-	}
-	if len(rd.dirs) >= maxDirRoots {
-		d.temp = true
-		return d
-	}
 	rd.dirs[dir] = d
 	return d
+}
+
+// evictOneLocked closes one handle nobody is using and reports whether there was one.
+func (rd *Reader) evictOneLocked() bool {
+	for k, o := range rd.dirs {
+		if o.refs == 0 {
+			_ = o.r.Close()
+			delete(rd.dirs, k)
+			return true
+		}
+	}
+	return false
+}
+
+// dropIdleLocked closes every handle nobody is using, and stops the cache
+// growing again: the process is out of descriptors.
+func (rd *Reader) dropIdleLocked() {
+	for rd.evictOneLocked() {
+	}
+	rd.maxDirs = 0
 }
 
 func (rd *Reader) releaseDir(d *dirRoot) {
 	rd.mu.Lock()
 	defer rd.mu.Unlock()
-	if d.refs--; d.refs == 0 && d.temp {
-		_ = d.r.Close()
-	}
+	d.refs--
 }
 
 // openWalked opens rel, a clean path below the root, through its directory's
-// handle.
+// handle. A process out of descriptors drops the cache and tries once more.
 func (rd *Reader) openWalked(rel string) (*os.File, fs.FileInfo, error) {
+	f, fi, err := rd.openWalkedOnce(rel)
+	if err != nil && fdExhausted(err) {
+		rd.mu.Lock()
+		rd.dropIdleLocked()
+		rd.mu.Unlock()
+		return rd.openWalkedOnce(rel)
+	}
+	return f, fi, err
+}
+
+func (rd *Reader) openWalkedOnce(rel string) (*os.File, fs.FileInfo, error) {
 	dir, base := filepath.Split(rel)
 	dir = filepath.Clean(dir)
 	if dir == "." {
@@ -160,7 +190,30 @@ func stateTouches(abs string) bool {
 		return false
 	}
 	b, _ := resolvedBase(base)
-	return Contains(abs, b) || Contains(b, abs)
+	return fileUnder(abs, b) || fileUnder(b, abs)
+}
+
+// fileUnder reports whether p is top or lies below it, comparing as FILES where
+// the strings differ (os.SameFile), as inState does: on a filesystem that folds
+// case /work/Repo and /work/repo are one directory (#727).
+func fileUnder(top, p string) bool {
+	if Contains(top, p) {
+		return true
+	}
+	ti, err := os.Stat(top)
+	if err != nil {
+		return false
+	}
+	for q := p; ; {
+		if qi, err := os.Stat(q); err == nil && os.SameFile(ti, qi) {
+			return true
+		}
+		parent := filepath.Dir(q)
+		if parent == q {
+			return false
+		}
+		q = parent
+	}
 }
 
 // NewWalkReader is NewReader for the walk of a tree, whose files it has already
@@ -171,6 +224,7 @@ func NewWalkReader(root string) (*Reader, error) {
 	if rd != nil {
 		rd.walk = true
 		rd.stateIn = stateTouches(rd.abs)
+		rd.maxDirs = dirBudget()
 	}
 	return rd, err
 }
@@ -229,7 +283,7 @@ func (rd *Reader) Open(full string) (*os.File, fs.FileInfo, error) {
 			return f, fi, nil
 		}
 		if !fallsBack(err) {
-			return nil, nil, rd.classify(rel, resolved, err)
+			return nil, nil, rd.classify(full, rel, resolved, err)
 		}
 	}
 	return rd.openByName(rel, resolved)
@@ -256,20 +310,34 @@ func StatRead(root, full string) (fs.FileInfo, error) {
 	return rd.r.Stat(rel)
 }
 
-// classify turns the root's refusal of a link left at the end of the path, one
-// that resolves to nothing, into the error a missing file gives: os.Root says
-// "path escapes from parent" for an absolute target it will not follow, which
-// is not what a dangling link inside the root, or pointing nowhere, is.
-func (rd *Reader) classify(rel, resolved string, err error) error {
-	if fi, lerr := rd.r.Lstat(rel); lerr == nil && fi.Mode()&os.ModeSymlink != 0 {
-		if _, serr := os.Stat(resolved); errors.Is(serr, fs.ErrNotExist) {
-			// The system's own words for it: "no such file or directory".
-			var pe *fs.PathError
-			if errors.As(serr, &pe) {
-				return &fs.PathError{Op: "open", Path: rel, Err: pe.Err}
-			}
-			return &fs.PathError{Op: "open", Path: rel, Err: fs.ErrNotExist}
+// classify gives the root's refusal the words a lookup by name gave (#727). A
+// link on the way, at any component, that resolves to nothing is a file that
+// does not exist: os.Root says "path escapes from parent" for an absolute
+// target it will not follow, which is not what a dangling link inside the root,
+// or pointing nowhere, is. Any other error names the path as it was looked up,
+// in full ("open /root/README.md/nope: not a directory"), not as the root saw it.
+func (rd *Reader) classify(full, rel, resolved string, err error) error {
+	p := ""
+	for _, comp := range strings.Split(rel, string(filepath.Separator)) {
+		p = filepath.Join(p, comp)
+		fi, lerr := rd.r.Lstat(p)
+		if lerr != nil {
+			break
 		}
+		if fi.Mode()&os.ModeSymlink != 0 {
+			if _, serr := os.Stat(resolved); errors.Is(serr, fs.ErrNotExist) {
+				var pe *fs.PathError
+				if errors.As(serr, &pe) {
+					return &fs.PathError{Op: "open", Path: full, Err: pe.Err}
+				}
+				return &fs.PathError{Op: "open", Path: full, Err: fs.ErrNotExist}
+			}
+			break
+		}
+	}
+	var pe *fs.PathError
+	if errors.As(err, &pe) {
+		return &fs.PathError{Op: "open", Path: full, Err: pe.Err}
 	}
 	return err
 }
@@ -282,11 +350,27 @@ func (rd *Reader) classify(rel, resolved string, err error) error {
 // where the name resolves NOW: it must still be inside the root and be the file
 // that was opened (os.SameFile), or the read is refused.
 func (rd *Reader) openByName(rel, resolved string) (*os.File, fs.FileInfo, error) {
+	byNameGapFn()
 	f, fi, err := regular.Open(resolved)
 	if err != nil {
 		return nil, nil, err
 	}
 	fallbackGapFn()
+	// Where the system says the open file is, not a second lookup of the name:
+	// the descriptor is bound to what it is, wherever the name leads now.
+	if p, ok := fdPath(f); ok {
+		if !fileUnder(rd.abs, p) {
+			_ = f.Close()
+			return nil, nil, &OutsideError{Path: resolved, Resolved: p, Root: rd.abs, Exists: true}
+		}
+		if inState(p) {
+			_ = f.Close()
+			return nil, nil, fmt.Errorf("%s is inside mrw's own state directory; %w", rel, ErrOwnState)
+		}
+		return f, fi, nil
+	}
+	// No such path for a descriptor here (or the platform has none): compare it
+	// with where the name resolves again.
 	full, err := resolveIn(rd.abs, rel)
 	if err != nil {
 		_ = f.Close()

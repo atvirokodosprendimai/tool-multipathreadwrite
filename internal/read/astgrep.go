@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/lines"
-	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/regular"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/subproc"
 )
@@ -86,6 +85,11 @@ type AstGrepOptions struct {
 	Rewrites map[string]*RewriteFile
 }
 
+// afterJudgeNamedFn runs between the judgement of a named path and the probe
+// that opens it. It is a seam for a test to swap a directory for a link there
+// (#727).
+var afterJudgeNamedFn = func() {}
+
 // AstGrep shells out to ast-grep on PATH and maps hits to Specs read.Run
 // already serves. It records NOTHING: its process is finding, Run's read is
 // the only one that observes (ADR-007). It is a separate primitive from Walk
@@ -114,11 +118,17 @@ func AstGrep(root string, paths []string, pattern string, exclude []string, opt 
 	var accepted []string
 	for _, p := range paths {
 		n, prob := judgeNamed(root, absRoot, p)
+		afterJudgeNamedFn()
 		if prob == nil {
 			// ast-grep's own failure to read a path can come back as no
 			// hits, where the walk reports it; mrw asks first, without
 			// blocking on a FIFO swapped in after judgeNamed (ADR-109).
-			if f, _, err := regular.Open(n.full); err != nil {
+			// Through a root held on the root (#727), so a directory swapped for a
+			// link out of it after judgeNamed is not probed. The path that goes to
+			// ast-grep below is still opened by NAME, by the binary, which no
+			// held root can reach: it is the path mrw judged, and that is all that
+			// can be done for a subprocess.
+			if f, _, err := rooted.OpenRead(root, n.full); err != nil {
 				prob = &Problem{Path: n.rel, Reason: err.Error()}
 			} else {
 				_ = f.Close() // opened to learn it can be; nothing was read

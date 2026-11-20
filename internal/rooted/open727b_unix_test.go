@@ -8,8 +8,13 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
+	"syscall"
 	"testing"
+	"time"
 )
 
 func realRoot727(t *testing.T) string {
@@ -84,14 +89,21 @@ func TestAFileBelowARootThatCannotBeReadIsStillRead(t *testing.T) {
 	}
 }
 
-// A directory swapped for a link out DURING the fallback, after the by-name
-// open and before the identity check, is refused, and so is one swapped for a
-// link to another file of the root.
-func TestASwapDuringTheByNameFallbackIsRefused(t *testing.T) {
+// A directory swapped for a link out of the root BEFORE the by-name open of the
+// fallback is refused, because the opened descriptor says where it is now: the
+// path of the file the descriptor names is outside the root. One swapped for a
+// link to another directory of the root is read: what is opened is inside it.
+func TestASwapBeforeTheByNameFallbackIsRefusedByWhereTheDescriptorIs(t *testing.T) {
 	notRoot727(t)
-	for name, target := range map[string]func(root, outside string) string{
-		"outside":         func(root, outside string) string { return outside },
-		"inside, another": func(root, outside string) string { return filepath.Join(root, "other") },
+	if _, ok := fdPath(os.Stdin); !ok {
+		t.Skip("this platform cannot ask a descriptor for its path")
+	}
+	for name, c := range map[string]struct {
+		target func(root, outside string) string
+		refuse bool
+	}{
+		"outside":         {func(root, outside string) string { return outside }, true},
+		"inside, another": {func(root, outside string) string { return filepath.Join(root, "other") }, false},
 	} {
 		root, outside := realRoot727(t), realRoot727(t)
 		sub := filepath.Join(root, "sub")
@@ -106,10 +118,10 @@ func TestASwapDuringTheByNameFallbackIsRefused(t *testing.T) {
 		if err := os.Chmod(sub, 0o111); err != nil {
 			t.Fatal(err)
 		}
-		aim := target(root, outside)
-		prev := fallbackGapFn
-		fallbackGapFn = func() {
-			fallbackGapFn = prev
+		aim := c.target(root, outside)
+		prev := byNameGapFn
+		byNameGapFn = func() {
+			byNameGapFn = prev
 			_ = os.Chmod(sub, 0o755)
 			if err := os.Rename(sub, sub+".old"); err != nil {
 				t.Error(err)
@@ -120,11 +132,16 @@ func TestASwapDuringTheByNameFallbackIsRefused(t *testing.T) {
 			}
 		}
 		f, _, err := OpenRead(root, filepath.Join(sub, "a.txt"))
-		fallbackGapFn = prev
+		byNameGapFn = prev
 		_ = os.Chmod(sub+".old", 0o755)
-		if err == nil {
+		if f != nil {
 			_ = f.Close()
-			t.Errorf("%s: a swap during the fallback was not refused", name)
+		}
+		if c.refuse && err == nil {
+			t.Errorf("%s: a swap before the fallback was not refused", name)
+		}
+		if !c.refuse && err != nil {
+			t.Errorf("%s: a file inside the root was refused: %v", name, err)
 		}
 	}
 }
@@ -175,45 +192,183 @@ func TestOpenReadRefusesMrwsOwnState(t *testing.T) {
 	_ = f.Close()
 }
 
-// #727 review P2-3. A walk reader holds the directories it reads from, up to a
-// bound: files in more directories than that, read together, all open, and the
-// handles are released by Close.
-func TestAWalkReaderOpensFilesInMoreDirectoriesThanItKeepsOpen(t *testing.T) {
-	root := realRoot727(t)
-	const dirs = maxDirRoots + 20
-	for i := 0; i < dirs; i++ {
-		d := filepath.Join(root, "d"+string(rune('A'+i%26))+string(rune('a'+i/26)), "sub")
+// fdCount727 counts the descriptors this process holds, through /dev/fd.
+func fdCount727(t *testing.T) int {
+	t.Helper()
+	ents, err := os.ReadDir("/dev/fd")
+	if err != nil {
+		t.Skipf("no /dev/fd here: %v", err)
+	}
+	return len(ents)
+}
+
+// manyDirs727 makes n directories d<i>/sub each holding f.txt.
+func manyDirs727(t *testing.T, root string, n int) []string {
+	t.Helper()
+	var files []string
+	for i := 0; i < n; i++ {
+		d := filepath.Join(root, "d"+strconv.Itoa(i), "sub")
 		if err := os.MkdirAll(d, 0o755); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(filepath.Join(d, "f.txt"), []byte("x\n"), 0o644); err != nil {
+		f := filepath.Join(d, "f.txt")
+		if err := os.WriteFile(f, []byte("x\n"), 0o644); err != nil {
 			t.Fatal(err)
 		}
+		files = append(files, f)
+	}
+	return files
+}
+
+// #727 review (descriptors). A walk reader holds the directories it reads from,
+// up to a bound, evicting BEFORE it opens the next: the descriptors held never
+// pass the bound plus the reads in flight, and Close gives every one back. The
+// count is taken during the reads, by a sampler, and after Close.
+func TestAWalkReaderHoldsNoMoreDescriptorsThanItsBoundAndReleasesThemAll(t *testing.T) {
+	root := realRoot727(t)
+	files := manyDirs727(t, root, 80)
+	rd, err := NewWalkReader(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rd.maxDirs = 8
+	const inFlight = 4
+	base := fdCount727(t) // the held root is counted
+	var peak atomic.Int64
+	stop := make(chan struct{})
+	sampled := make(chan struct{})
+	go func() {
+		defer close(sampled)
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			if n := int64(fdCount727(t)); n > peak.Load() {
+				peak.Store(n)
+			}
+		}
+	}()
+	sem := make(chan struct{}, inFlight)
+	var wg sync.WaitGroup
+	for round := 0; round < 3; round++ {
+		for _, p := range files {
+			sem <- struct{}{}
+			wg.Add(1)
+			go func() {
+				defer func() { <-sem; wg.Done() }()
+				f, _, err := rd.Open(p)
+				if err != nil {
+					t.Errorf("%s: %v", p, err)
+					return
+				}
+				_ = f.Close()
+			}()
+		}
+	}
+	wg.Wait()
+	close(stop)
+	<-sampled
+	// Bound: what was held at the start, the handles kept, the reads in flight,
+	// and the sampler's own directory listing.
+	if limit := int64(base + rd.maxDirs + inFlight + 2); peak.Load() > limit {
+		t.Errorf("the walk held %d descriptors at its peak, want at most %d (%d at the start, %d kept, %d in flight)", peak.Load(), limit, base, rd.maxDirs, inFlight)
+	}
+	rd.Close()
+	if after := fdCount727(t); after > base-1 {
+		t.Errorf("%d descriptors held after Close, want at most %d: handles leaked", after, base-1)
+	}
+}
+
+// #727 review (descriptors). Under a descriptor limit the reads still succeed: a
+// walk under `ulimit -n 24` read nothing, having opened a 33rd handle before it
+// closed one. The reader sizes its cache from the limit, and gives the cache
+// up when the process runs out.
+func TestAWalkReaderReadsEverythingUnderALowDescriptorLimit(t *testing.T) {
+	root := realRoot727(t)
+	files := manyDirs727(t, root, 60)
+	var old syscall.Rlimit
+	if err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &old); err != nil {
+		t.Skip(err)
+	}
+	t.Cleanup(func() { _ = syscall.Setrlimit(syscall.RLIMIT_NOFILE, &old) })
+	for _, soft := range []uint64{64, 24} {
+		low := syscall.Rlimit{Cur: soft, Max: old.Max}
+		if err := syscall.Setrlimit(syscall.RLIMIT_NOFILE, &low); err != nil {
+			t.Skip(err)
+		}
+		rd, err := NewWalkReader(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		sem := make(chan struct{}, 8)
+		var wg sync.WaitGroup
+		for _, p := range files {
+			sem <- struct{}{}
+			wg.Add(1)
+			go func() {
+				defer func() { <-sem; wg.Done() }()
+				f, _, err := rd.Open(p)
+				if err != nil {
+					t.Errorf("limit %d: %s: %v", soft, p, err)
+					return
+				}
+				_ = f.Close()
+			}()
+		}
+		wg.Wait()
+		rd.Close()
+	}
+}
+
+// #727 review (FIFO). A directory replaced by a FIFO made OpenRoot wait for a
+// writer, and the walk with it. It is asked what it is first, and the read of a
+// file below it is refused at once.
+func TestADirectoryReplacedByAFIFODoesNotBlockTheWalk(t *testing.T) {
+	root := realRoot727(t)
+	if err := syscall.Mkfifo(filepath.Join(root, "d"), 0o644); err != nil {
+		t.Skipf("no FIFOs here: %v", err)
 	}
 	rd, err := NewWalkReader(root)
 	if err != nil {
 		t.Fatal(err)
 	}
-	done := make(chan error)
-	for round := 0; round < 3; round++ {
-		for i := 0; i < dirs; i++ {
-			go func() {
-				p := filepath.Join(root, "d"+string(rune('A'+i%26))+string(rune('a'+i/26)), "sub", "f.txt")
-				f, _, err := rd.Open(p)
-				if err == nil {
-					_ = f.Close()
-				}
-				done <- err
-			}()
+	defer rd.Close()
+	done := make(chan error, 1)
+	go func() {
+		f, _, err := rd.Open(filepath.Join(root, "d", "f.txt"))
+		if f != nil {
+			_ = f.Close()
 		}
-		for i := 0; i < dirs; i++ {
-			if err := <-done; err != nil {
-				t.Errorf("a read in round %d: %v", round, err)
-			}
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Error("a file below a FIFO was opened")
 		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the walk blocked on a directory replaced by a FIFO")
 	}
-	rd.Close()
-	if len(rd.dirs) != 0 {
-		t.Errorf("%d directory handles are still held after Close", len(rd.dirs))
+}
+
+// #727 review (state alias). On a filesystem that folds case, --root /work/Repo
+// with the state home at /work/repo/.st has the state inside the root, and a
+// walk must see it so; compared by string it did not.
+func TestAWalkSeesMrwsStateUnderADifferentSpellingOfTheRoot(t *testing.T) {
+	tmp := realRoot727(t)
+	if err := os.Mkdir(filepath.Join(tmp, "Repo"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(tmp, "repo")); err != nil {
+		t.Skip("this filesystem keeps case, so Repo and repo are two directories")
+	}
+	t.Setenv("XDG_STATE_HOME", filepath.Join(tmp, "repo", ".st"))
+	if !stateTouches(filepath.Join(tmp, "Repo")) {
+		t.Error("the state directory under a case-spelled alias of the root was not seen")
+	}
+	if stateTouches(realRoot727(t)) {
+		t.Error("the pair: an unrelated root was taken for one holding the state")
 	}
 }
