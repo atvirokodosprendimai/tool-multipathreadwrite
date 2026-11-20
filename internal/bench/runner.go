@@ -1092,9 +1092,9 @@ func runAttempt(o RunOptions, a attempt, order int, cli, mrwVersion string) (r R
 	}
 	var v Verdict
 	if a.Task.swe != nil {
-		v, err = o.SWE.grade(a.Task, tree, scratch, a.ID)
+		v, err = o.SWE.grade(a.Task, tree, baseSHA, scratch, a.ID)
 	} else {
-		v, err = Oracle(a.Task, tree)
+		v, err = Oracle(a.Task, tree, baseSHA)
 	}
 	if errors.Is(err, errGradingInterrupted) { // not graded, no receipt
 		r.interrupted = true
@@ -1118,7 +1118,7 @@ func runAttempt(o RunOptions, a attempt, order int, cli, mrwVersion string) (r R
 		r.HookRefused, r.HookReads = hookCounts(filepath.Join(scratch, "hook.log"))
 		// A backstop that could not run is not a count of zero: the
 		// attempt is a setup exclusion (the final review of #411).
-		if r.SlippedWrites, err = SlippedWrites(tree, filepath.Join(scratch, "state")); err != nil {
+		if r.SlippedWrites, err = SlippedWrites(tree, filepath.Join(scratch, "state"), baseSHA); err != nil {
 			r.Exclusion, r.Note = ExclusionSetup, "slipped writes: "+err.Error()
 		}
 	}

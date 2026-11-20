@@ -277,14 +277,15 @@ func (g SWEGrader) drop(image string) error {
 	return nil
 }
 
-// grade turns the tree's change into the harness's prediction, runs the
-// harness for that one instance in scratch, and reads back whether it was
-// resolved. A tree with no change is unsolved, and the harness is not started.
-func (g SWEGrader) grade(t Task, tree, scratch, run string) (Verdict, error) {
+// grade turns the tree's change since base, the commit the runner captured,
+// into the harness's prediction, runs the harness for that one instance in
+// scratch, and reads back whether it was resolved. A tree with no change is
+// unsolved, and the harness is not started.
+func (g SWEGrader) grade(t Task, tree, base, scratch, run string) (Verdict, error) {
 	if err := git(tree, "add", "-A"); err != nil {
 		return Verdict{}, err
 	}
-	patch, err := gitOut(tree, "diff", "--cached", "--binary", "HEAD")
+	patch, err := gitOut(tree, "diff", "--cached", "--binary", base)
 	if err != nil {
 		return Verdict{}, err
 	}

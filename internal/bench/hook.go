@@ -742,7 +742,7 @@ func hookCounts(log string) (refused, reads int) {
 // A ledger's paths are relative to the root its `root` marker names, so each
 // is read against that root; one with no marker is an error, not a guess (the
 // final review of #411).
-func SlippedWrites(tree, state string) ([]string, error) {
+func SlippedWrites(tree, state, base string) ([]string, error) {
 	realTree, err := filepath.EvalSymlinks(tree)
 	if err != nil {
 		return nil, err
@@ -787,7 +787,7 @@ func SlippedWrites(tree, state string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	changed, err := changes(tree)
+	changed, err := changes(tree, base)
 	if err != nil {
 		return nil, err
 	}

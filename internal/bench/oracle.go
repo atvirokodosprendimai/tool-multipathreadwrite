@@ -35,13 +35,15 @@ type Verdict struct {
 	BrokeTests      *bool `json:"broke_tests,omitempty"`
 }
 
-// Oracle grades the tree at dir, a git work tree whose HEAD is the task's
-// base. It consults no model and no rater (ADR-156 Decision 3): the required
-// change is a regular expression over the finished file, and anything changed
-// outside the reference fix's regions, widened by the task's slack, is named.
-func Oracle(t Task, dir string) (Verdict, error) {
+// Oracle grades the tree at dir, a git work tree whose commit base is the
+// task's base: the commit the runner captured, so an agent that commits its
+// work is still graded against where it started (#706). It consults no model
+// and no rater (ADR-156 Decision 3): the required change is a regular
+// expression over the finished file, and anything changed outside the
+// reference fix's regions, widened by the task's slack, is named.
+func Oracle(t Task, dir, base string) (Verdict, error) {
 	var v Verdict
-	changed, err := changes(dir)
+	changed, err := changes(dir, base)
 	if err != nil {
 		return v, err
 	}
@@ -80,12 +82,12 @@ func Oracle(t Task, dir string) (Verdict, error) {
 	// still has every token and is not the fix (the reviews of #411).
 	if t.Exact {
 		for _, f := range sortedKeys(t.regions) {
-			base, err := gitOut(dir, "show", "HEAD:"+f)
+			orig, err := gitOut(dir, "show", base+":"+f)
 			if err != nil {
 				return v, err
 			}
 			got, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(f)))
-			if err != nil || string(got) != reference(base, t.regions[f]) {
+			if err != nil || string(got) != reference(orig, t.regions[f]) {
 				v.Missing = append(v.Missing, f+": is not the reference result")
 			}
 		}
@@ -312,12 +314,12 @@ type change struct {
 	hunks     []hunk
 }
 
-// changes lists what differs from HEAD in the tree: each tracked file git
+// changes lists what differs from base in the tree: each tracked file git
 // names as changed, with its hunks in base numbering, and the untracked files
 // git does not ignore. A file deleted, made binary or changed only in mode has
 // no hunks to judge and is marked whole.
-func changes(dir string) ([]change, error) {
-	names, err := gitOut(dir, "diff", "--name-status", "-z", "--no-renames", "HEAD")
+func changes(dir, base string) ([]change, error) {
+	names, err := gitOut(dir, "diff", "--name-status", "-z", "--no-renames", base)
 	if err != nil {
 		return nil, err
 	}
@@ -327,7 +329,7 @@ func changes(dir string) ([]change, error) {
 		status, file := fields[i], fields[i+1]
 		c := change{file: file, whole: status == "D" || status == "T"}
 		if !c.whole {
-			out, err := gitOut(dir, "diff", "-U0", "--no-color", "--no-ext-diff", "--no-renames", "HEAD", "--", file)
+			out, err := gitOut(dir, "diff", "-U0", "--no-color", "--no-ext-diff", "--no-renames", base, "--", file)
 			if err != nil {
 				return nil, err
 			}

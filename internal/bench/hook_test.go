@@ -501,7 +501,7 @@ func TestASlippedWriteIsFoundFromTheLedger(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	got, err := SlippedWrites(tree, state)
+	got, err := SlippedWrites(tree, state, "HEAD")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -514,7 +514,7 @@ func TestASlippedWriteIsFoundFromTheLedger(t *testing.T) {
 	if err := os.WriteFile(ledger, []byte(body+one+"  -  sub/f.go\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := SlippedWrites(tree, state); err == nil {
+	if _, err := SlippedWrites(tree, state, "HEAD"); err == nil {
 		t.Error("two ledgers that disagree on sub/f.go were read as if either were the last word")
 	}
 	if err := os.WriteFile(ledger, []byte(body), 0o600); err != nil {
@@ -524,7 +524,7 @@ func TestASlippedWriteIsFoundFromTheLedger(t *testing.T) {
 	if err := os.Remove(filepath.Join(filepath.Dir(subLedger), "root")); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := SlippedWrites(tree, state); err == nil {
+	if _, err := SlippedWrites(tree, state, "HEAD"); err == nil {
 		t.Error("a ledger with no root marker was read as if its root were the tree")
 	}
 }
