@@ -88,8 +88,15 @@ var (
 	// one that goes in when the whole note does not fit the ceiling.
 	callAckNoteShort string
 	// callCommit is what a read that was answered without an error does after the
-	// final ceiling decision: promote its acknowledgements (#741). Nil otherwise.
-	callCommit func() error
+	// final ceiling decision: take its acknowledgements out of the pending store and
+	// record what they and a quiet read license (#741, #742). Nil otherwise.
+	callCommit func() *rpcError
+	// callQuiet is what a quiet read licenses, recorded by callCommit and not
+	// before: a call that ends in an error licenses nothing.
+	callQuiet map[string]seen.Observation
+	// callKeep is the acknowledged ids this call keeps pending for a retry: the
+	// serve's own checkpoints do not evict them.
+	callKeep map[string]bool
 )
 
 // ceiling is the budget an in-call measurement compares against.
@@ -203,12 +210,12 @@ func callToolCtx(ctx context.Context, root string, raw json.RawMessage, modern b
 	// that follows it are one transaction as far as another caller is concerned.
 	gate.Lock()
 	defer gate.Unlock()
-	callModern, callReserve, callRelease, callCtx, callAckNote, callAckNoteShort, callCommit = modern, 0, release, ctx, "", "", nil
+	callModern, callReserve, callRelease, callCtx, callAckNote, callAckNoteShort, callCommit, callQuiet, callKeep = modern, 0, release, ctx, "", "", nil, nil, nil
 	if modern {
 		callReserve = encodedSize(decorateCall(callToolResult{})) - encodedSize(callToolResult{})
 	}
 	defer func() {
-		callModern, callReserve, callRelease, callCtx, callAckNote, callAckNoteShort, callCommit = false, 0, nil, context.Background(), "", "", nil
+		callModern, callReserve, callRelease, callCtx, callAckNote, callAckNoteShort, callCommit, callQuiet, callKeep = false, 0, nil, context.Background(), "", "", nil, nil, nil
 	}()
 
 	var res callToolResult
@@ -253,8 +260,8 @@ func callToolCtx(ctx context.Context, root string, raw json.RawMessage, modern b
 	}
 	out, oerr := withinCeiling(decorateCall(res))
 	if oerr == nil && !out.IsError && callCommit != nil {
-		if err := callCommit(); err != nil {
-			return callToolResult{}, &rpcError{Code: codeInternal, Message: "ack: " + statehint.Hint(err).Error()}
+		if rerr := callCommit(); rerr != nil {
+			return callToolResult{}, rerr
 		}
 	}
 	return out, oerr
@@ -364,14 +371,32 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		return callToolResult{}, &rpcError{Code: codeInternal, Message: "ack: " + statehint.Hint(err).Error()}
 	}
 	noteAcks(batch.unknown, batch.kept)
+	// The ids kept for a retry are not evicted by this call's own checkpoints, so
+	// the note above stays true and needs no second look at the store.
+	callKeep = map[string]bool{}
+	for _, k := range batch.kept {
+		callKeep[k.id] = true
+	}
 	res, rpcErr := serveRead(root, args)
 	if rpcErr != nil || res.IsError {
 		return res, rpcErr
 	}
-	// hold evicts the oldest pending checkpoints past maxPending, and an id this
-	// call kept may be one: the note names only those still pending.
-	noteAcks(batch.unknown, stillPending(root, batch.kept))
-	callCommit = func() error { return batch.commit(root) }
+	callCommit = func() *rpcError {
+		if err := batch.commitAll(root, callQuiet); err != nil {
+			what := "ack: "
+			if len(callQuiet) > 0 {
+				what = "recording the licensed lines: "
+			}
+			return &rpcError{Code: codeInternal, Message: what + statehint.Hint(err).Error()}
+		}
+		// #702: a licence the ledger could not keep is refused, not reported.
+		if len(callQuiet) > 0 {
+			if err := seen.Unrecorded(root, callQuiet); err != nil {
+				return &rpcError{Code: codeInternal, Message: "recording the licensed lines: " + err.Error()}
+			}
+		}
+		return nil
+	}
 	return res, nil
 }
 
@@ -742,14 +767,8 @@ func serveRead(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// cut and no ack to wait for: it records what it served, as the CLI's --quiet
 	// does, for lines the caller says it already knows.
 	if a.Quiet && len(observed) > 0 {
-		licensed := LicensedNotShown(observed)
-		if err := seen.Record(root, licensed); err != nil {
-			return callToolResult{}, &rpcError{Code: codeInternal, Message: "recording the licensed lines: " + statehint.Hint(err).Error()}
-		}
-		// #702: a licence the ledger could not keep is refused, not reported.
-		if err := seen.Unrecorded(root, licensed); err != nil {
-			return callToolResult{}, &rpcError{Code: codeInternal, Message: "recording the licensed lines: " + err.Error()}
-		}
+		// Recorded by callCommit, with the acknowledgements, once the answer is final.
+		callQuiet = LicensedNotShown(observed)
 		return served, nil
 	}
 
@@ -2021,7 +2040,7 @@ func firstPage(root string, specs []string, cw *capped, maxCols int) (callToolRe
 		// header in two and cannot be a checkpoint's or a ledger record's key
 		// (#702). The page is served as it is, the header on one line, with no
 		// checkpoint and nothing held, and says so, as the fitting path does.
-		if strings.Contains(path, "\n") {
+		if unrecordableKey(observed) {
 			next := fmt.Sprintf("%s:%d-", path, end+1)
 			shown := b.String() // read.Run already printed the header quoted (ShownPath)
 			report := fmt.Sprintf("%s\n%s\n-- PARTIAL: lines %d-%d of %d. %d line(s) remain.\n"+
@@ -2103,6 +2122,18 @@ func firstPage(root string, specs []string, cw *capped, maxCols int) (callToolRe
 		return res, true
 	}
 	return callToolResult{}, false
+}
+
+// unrecordableKey says whether a page was observed under a key the ledger and a
+// checkpoint cannot hold. The key read.Run used decides, not the spelling typed:
+// a\nb/../f.txt is f.txt (#742).
+func unrecordableKey(observed map[string]seen.Observation) bool {
+	for k := range observed {
+		if !seen.Recordable(k) {
+			return true
+		}
+	}
+	return false
 }
 
 // openEnded reports the path and start line of a spec that asks for a whole
