@@ -1343,10 +1343,13 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 	if SyncsDirs {
 		changed = recordDirs(tr, staged, pathOps)
 	}
+	// stagedNoBarrier is set only once the drains have succeeded, and reaches the
+	// receipt only if the write lands: a failed write is not "files written".
+	stagedNoBarrier := false
 	if len(content) > 0 {
 		p, noBarrier, err := syncStaged(tr, staged)
-		if noBarrier {
-			res.SyncNote = NoBarrierNote
+		if err == nil {
+			stagedNoBarrier = noBarrier
 		}
 		if err != nil {
 			discard(0)
@@ -1416,7 +1419,7 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 	// stable, once, before Apply returns and so before the ledger is written. The
 	// files are in place, so a failure is a landed write with an error.
 	noBarrier, err := syncChanged(tr, changed)
-	if noBarrier {
+	if noBarrier || stagedNoBarrier {
 		res.SyncNote = NoBarrierNote
 	}
 	if err != nil {

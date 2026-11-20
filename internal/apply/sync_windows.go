@@ -5,6 +5,7 @@ package apply
 import (
 	"errors"
 	"os"
+	"strings"
 	"syscall"
 )
 
@@ -63,7 +64,7 @@ func (t *tree) openDirSync(p string) (*os.File, error) {
 	if _, err := t.rel(p); err != nil {
 		return nil, err
 	}
-	name, err := syscall.UTF16PtrFromString(p)
+	name, err := syscall.UTF16PtrFromString(extendedLength(p))
 	if err != nil {
 		return nil, err
 	}
@@ -74,4 +75,19 @@ func (t *tree) openDirSync(p string) (*os.File, error) {
 		return nil, &os.PathError{Op: "open", Path: p, Err: err}
 	}
 	return os.NewFile(uintptr(h), p), nil
+}
+
+// extendedLength spells an absolute path in the form that lifts MAX_PATH:
+// \\?\C:\dir for a drive path and \\?\UNC\server\share\dir for a share. A path
+// already in that form, or not absolute, is returned as it is.
+func extendedLength(p string) string {
+	switch {
+	case strings.HasPrefix(p, `\\?\`) || strings.HasPrefix(p, `\\.\`):
+		return p
+	case strings.HasPrefix(p, `\\`):
+		return `\\?\UNC\` + p[2:]
+	case len(p) >= 3 && p[1] == ':' && (p[2] == '\\' || p[2] == '/'):
+		return `\\?\` + strings.ReplaceAll(p, "/", `\`)
+	}
+	return p
 }

@@ -186,6 +186,10 @@ func TestStagedFilesAndTheirDirectoriesAreSyncedBeforeTheWriteReturns(t *testing
 			// Every device is drained though the first one's drain fails.
 			// A volume whose F_FULLFSYNC is not supported answers ErrNoBarrier from the
 			// drain: the write proceeds, both phases, with the note.
+			// The first device falls back (ErrNoBarrier), the second fails (EIO): the
+			// write stops with nothing written and carries no "files written" note.
+			row{name: "no_barrier_then_eio", in: []Input{edit, editOther}, device: true, fault: fault{noBarrierDrain: 1, drain: 2}, wantErr: "staging", wantSizes: []int64{4, 8},
+				want: []string{"temp", "temp", "drain", "drain"}},
 			row{name: "drain_no_barrier", in: []Input{edit, create, move}, fault: fault{noBarrierDrain: 1}, wantNote: true, wantSizes: []int64{5, 8},
 				want: join([]string{"temp", "temp", "drain", "rename", "rename", "rename"}, dirsAfter(true, ".", "n", "n/m", "s", "t"))},
 			row{name: "second_device_drain_fails", in: []Input{edit, editOther}, device: true, fault: fault{drain: 2}, wantErr: "staging", wantSizes: []int64{4, 8}, wantFailed: "other/c.txt",
@@ -236,6 +240,14 @@ func TestStagedFilesAndTheirDirectoriesAreSyncedBeforeTheWriteReturns(t *testing
 			case "staging":
 				if err == nil || res.Applied || errors.As(err, &se) {
 					t.Fatalf("applied=%v err=%v; want a staging failure, nothing written", res.Applied, err)
+				}
+				// Every failure before the first rename, the drain's included, is the
+				// environment's (ErrStagingSync) and says nothing about files written.
+				if !errors.Is(err, ErrStagingSync) {
+					t.Errorf("a failure before the first rename is %v; want it to be ErrStagingSync", err)
+				}
+				if res.SyncNote != "" {
+					t.Errorf("a write that failed carries the note %q", res.SyncNote)
 				}
 				if r.wantFailed != "" {
 					failed := ""
@@ -320,5 +332,27 @@ func TestTheDrainDoesNotReopenAStagedTempForReading(t *testing.T) {
 	}
 	if p, _, err := syncStaged(tr, []staged{{tmp: tmp}}); err != nil {
 		t.Errorf("the drain failed at %s: %v", p, err)
+	}
+}
+
+// ADR-210 final targeted pass. A directory whose identity was not recorded (the
+// stat at staging failed) cannot be told from another object, such as a junction
+// retargeted outside the checkout, so it is not opened and not flushed: a SyncError.
+func TestADirectoryWithoutARecordedIdentityIsNotFlushed(t *testing.T) {
+	root := evalOr(t.TempDir())
+	tr, err := openTree(root, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tr.close()
+	rs, rd := SyncsDirs, SyncDirFn
+	t.Cleanup(func() { SyncsDirs, SyncDirFn = rs, rd })
+	SyncsDirs = true
+	flushed := 0
+	SyncDirFn = func(f *os.File) error { flushed++; return rd(f) }
+	_, err = syncChanged(tr, []dirRef{{path: root}})
+	var se *SyncError
+	if !errors.As(err, &se) || flushed != 0 {
+		t.Errorf("err=%v, %d flush(es); want a SyncError and no flush for a directory with no recorded identity", err, flushed)
 	}
 }

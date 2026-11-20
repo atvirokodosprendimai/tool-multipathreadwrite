@@ -256,6 +256,13 @@ func syncChanged(tr *tree, refs []dirRef) (noBarrier bool, first error) {
 	}
 	var synced []string
 	for _, r := range refs {
+		// A directory with no recorded identity cannot be told from another object
+		// (a junction retargeted outside the checkout): it is not opened, let alone
+		// flushed.
+		if r.id == nil {
+			fail(r.path, errors.New("no identity was recorded for the directory, so it is not flushed"))
+			continue
+		}
 		f, err := tr.openDirSync(r.path)
 		if err != nil {
 			fail(r.path, err)
