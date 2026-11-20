@@ -330,6 +330,12 @@ func TestADirectoryReplacedByAFIFODoesNotBlockTheWalk(t *testing.T) {
 	if err := syscall.Mkfifo(filepath.Join(root, "d"), 0o644); err != nil {
 		t.Skipf("no FIFOs here: %v", err)
 	}
+	// A read left blocked by a mutant of the guard ends when a writer opens.
+	t.Cleanup(func() {
+		if w, err := os.OpenFile(filepath.Join(root, "d"), os.O_WRONLY|syscall.O_NONBLOCK, 0); err == nil {
+			_ = w.Close()
+		}
+	})
 	rd, err := NewWalkReader(root)
 	if err != nil {
 		t.Fatal(err)
@@ -370,5 +376,140 @@ func TestAWalkSeesMrwsStateUnderADifferentSpellingOfTheRoot(t *testing.T) {
 	}
 	if stateTouches(realRoot727(t)) {
 		t.Error("the pair: an unrelated root was taken for one holding the state")
+	}
+}
+
+// #727 final pass (state). A link swapped in AFTER the state check leads the
+// open to a file in mrw's own state; where the open descriptor says where it is,
+// that is refused (ADR-077). The check by name had passed.
+func TestAFileSwappedIntoMrwsStateAfterTheNameWasCheckedIsRefused(t *testing.T) {
+	root := realRoot727(t)
+	t.Setenv("XDG_STATE_HOME", filepath.Join(root, ".st"))
+	k := filepath.Join(root, ".st", "mrw", "k")
+	for _, d := range []string{k, filepath.Join(root, "d")} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, p := range []string{filepath.Join(k, "f.txt"), filepath.Join(root, "d", "f.txt")} {
+		if err := os.WriteFile(p, []byte("x\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	probe, err := os.Open(filepath.Join(root, "d", "f.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, canAsk := fdPath(probe)
+	_ = probe.Close()
+	if !canAsk {
+		t.Skip("this platform cannot ask a descriptor for its path")
+	}
+	prev := openGapFn
+	openGapFn = func() {
+		openGapFn = prev
+		if err := os.Rename(filepath.Join(root, "d"), filepath.Join(root, "d.old")); err != nil {
+			t.Error(err)
+			return
+		}
+		if err := os.Symlink(filepath.Join(".st", "mrw", "k"), filepath.Join(root, "d")); err != nil {
+			t.Error(err)
+		}
+	}
+	t.Cleanup(func() { openGapFn = prev })
+	f, _, err := OpenRead(root, filepath.Join(root, "d", "f.txt"))
+	if f != nil {
+		_ = f.Close()
+	}
+	if !errors.Is(err, ErrOwnState) {
+		t.Errorf("a file swapped into mrw's state was opened: %v", err)
+	}
+}
+
+// #727 final pass. The handle cache is opened WITHOUT its lock: a Close that
+// arrives while a handle is being opened (seam) neither deadlocks nor leaves the
+// handle cached afterwards, and another read gets through meanwhile.
+func TestAReaderClosedWhileAHandleIsBeingOpenedCachesNothing(t *testing.T) {
+	root := realRoot727(t)
+	files := manyDirs727(t, root, 3)
+	rd, err := NewWalkReader(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rd.maxDirs = 4
+	prev := acquireGapFn
+	acquireGapFn = func() {
+		acquireGapFn = prev
+		// A read of another directory proceeds while this one is being opened:
+		// the lock is not held across the open.
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			if f, _, err := rd.Open(files[1]); err == nil {
+				_ = f.Close()
+			}
+		}()
+		select {
+		case <-done:
+		case <-time.After(5 * time.Second):
+			t.Error("a read was held up by a handle being opened: the lock is held across the open")
+		}
+		closed := make(chan struct{})
+		go func() { rd.Close(); close(closed) }()
+		select {
+		case <-closed:
+		case <-time.After(5 * time.Second):
+			t.Error("Close was held up by a handle being opened")
+		}
+	}
+	t.Cleanup(func() { acquireGapFn = prev })
+	f, _, _ := rd.Open(files[0])
+	if f != nil {
+		_ = f.Close()
+	}
+	rd.mu.Lock()
+	n := len(rd.dirs)
+	rd.mu.Unlock()
+	if n != 0 {
+		t.Errorf("%d handle(s) cached after Close: the reader leaked them", n)
+	}
+}
+
+// #727 final pass. Eviction comes BEFORE the next open: at every open the
+// handles live (opened less evicted) are fewer than the bound.
+func TestTheHandleCacheEvictsBeforeItOpens(t *testing.T) {
+	root := realRoot727(t)
+	files := manyDirs727(t, root, 20)
+	rd, err := NewWalkReader(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rd.Close()
+	rd.maxDirs = 8
+	var live, opens, evicts int
+	prev := dirEventFn
+	dirEventFn = func(ev string) {
+		switch ev {
+		case "open":
+			if live >= rd.maxDirs {
+				t.Errorf("open number %d began with %d handles live, bound %d: eviction came after the open", opens+1, live, rd.maxDirs)
+			}
+			opens++
+			live++
+		case "evict":
+			evicts++
+			live--
+		}
+	}
+	t.Cleanup(func() { dirEventFn = prev })
+	for _, p := range files {
+		f, _, err := rd.Open(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = f.Close()
+	}
+	if opens != len(files) || evicts != len(files)-rd.maxDirs {
+		t.Errorf("%d opens and %d evictions for %d directories with a bound of %d", opens, evicts, len(files), rd.maxDirs)
 	}
 }

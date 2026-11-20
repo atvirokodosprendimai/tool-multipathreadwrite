@@ -351,7 +351,16 @@ func newIgnorer(absRoot string) *ignorer {
 		prefix = ""
 	}
 	ig := &ignorer{top: top, prefix: prefix, loaded: map[string]bool{}, fold: foldsCase(top)}
-	if b := readIgnoreFileIn(gitDir(top), filepath.Join("info", "exclude")); b != nil {
+	// The root of an ignore read is the checkout: .git/info/exclude may be a link
+	// to a rules file elsewhere in it (a link to repo/rules), as main followed.
+	// Only a gitdir that is not inside the checkout, a linked worktree's, is its
+	// own root.
+	gd := gitDir(top)
+	exRoot := top
+	if rel, err := filepath.Rel(top, gd); err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		exRoot = gd
+	}
+	if b := readIgnoreFileIn(exRoot, filepath.Join(gd, "info", "exclude")); b != nil {
 		ig.rules = append(ig.rules, parseIgnore("", b, ig.fold)...)
 	}
 	return ig
@@ -420,7 +429,7 @@ func (ig *ignorer) load(dir string) {
 		return
 	}
 	afterIgnoreCheckFn()
-	if b := readIgnoreFileIn(ig.top, filepath.Join(filepath.FromSlash(dir), ".gitignore")); b != nil {
+	if b := readIgnoreFileIn(ig.top, filepath.Join(ig.top, filepath.FromSlash(dir), ".gitignore")); b != nil {
 		ig.rules = append(ig.rules, parseIgnore(dir, b, ig.fold)...)
 	}
 }
@@ -429,15 +438,16 @@ func (ig *ignorer) load(dir string) {
 // a seam for a test to swap a directory for a link there (#727).
 var afterIgnoreCheckFn = func() {}
 
-// readIgnoreFileIn reads the ignore file at rel under top the way a read serves
-// a file, through a root held on top (rooted.OpenRead, with its handling of an
-// absolute link inside the root and of a directory it may search but not read),
-// so a directory swapped for a link out of top cannot lead the walk to rules
-// from outside it (#727). top is the checkout's top, which may be above the
-// walk's root: that is the boundary of an ignore file, not --root. Like
-// readIgnoreFile it gives no rules for what it will not read, as main did.
-func readIgnoreFileIn(top, rel string) []byte {
-	f, fi, err := rooted.OpenRead(top, filepath.Join(top, rel))
+// readIgnoreFileIn reads the ignore file full, which lies under root, the way a
+// read serves a file, through a root held on root (rooted.OpenRead, with its
+// handling of an absolute link inside the root and of a directory it may search
+// but not read), so a directory swapped for a link out of root cannot lead the
+// walk to rules from outside it (#727). root is the checkout (its top may be
+// above the walk's root: that is the boundary of an ignore file, not --root), or
+// a linked worktree's gitdir. Like readIgnoreFile it gives no rules for what it
+// will not read, as main did.
+func readIgnoreFileIn(root, full string) []byte {
+	f, fi, err := rooted.OpenRead(root, full)
 	if err != nil {
 		return nil
 	}

@@ -137,3 +137,41 @@ func TestTheAstGrepPreflightDoesNotProbeANamedDirectorySwappedForALinkOut(t *tes
 		t.Errorf("ast-grep was started with %v for a directory swapped out of the root", ops)
 	}
 }
+
+// #727 final pass. A dangling absolute link whose target runs through a FILE
+// (/repo/README.md/nope) gives the answer the lookup by name gave, "not a
+// directory", not "path escapes from parent".
+func TestAnAbsoluteLinkThroughAFileSaysNotADirectory(t *testing.T) {
+	root := realTemp727(t)
+	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(root, "README.md", "nope"), filepath.Join(root, "dabs")); err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	Run(&out, root, []Spec{{Path: "dabs/f.txt"}}, Options{})
+	want := "open " + filepath.Join(root, "dabs", "f.txt") + ": not a directory"
+	if !strings.Contains(out.String(), want) || strings.Contains(out.String(), "escapes") {
+		t.Errorf("output %q does not say %q", out.String(), want)
+	}
+}
+
+// #727 final pass. .git/info/exclude as an absolute link to a rules file inside
+// the checkout but outside .git applies, as it did when it was opened by name:
+// the root of an ignore read is the checkout, not .git.
+func TestAnExcludeFileLinkedToARulesFileOutsideDotGitStillApplies(t *testing.T) {
+	root := realTemp727(t)
+	if err := os.MkdirAll(filepath.Join(root, ".git", "info"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "rules"), []byte("*.txt\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(root, "rules"), filepath.Join(root, ".git", "info", "exclude")); err != nil {
+		t.Fatal(err)
+	}
+	if ig := newIgnorer(root); ig == nil || !ig.Ignored("a.txt", false, 0) {
+		t.Error("an exclude file linked to a rules file outside .git did not apply")
+	}
+}

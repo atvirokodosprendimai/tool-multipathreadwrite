@@ -4,6 +4,7 @@ package rooted
 
 import (
 	"errors"
+	"os"
 	"syscall"
 )
 
@@ -26,4 +27,16 @@ func dirBudget() int {
 // fdExhausted reports a refusal for want of descriptors.
 func fdExhausted(err error) bool {
 	return errors.Is(err, syscall.EMFILE) || errors.Is(err, syscall.ENFILE)
+}
+
+// openDirProbe opens dir through r as a directory, without blocking, and closes
+// it: true when it is one. A FIFO fails O_DIRECTORY at once, where OpenRoot would
+// wait for a writer (#727).
+func openDirProbe(r *os.Root, dir string) bool {
+	f, err := r.OpenFile(dir, os.O_RDONLY|syscall.O_DIRECTORY|syscall.O_NONBLOCK, 0)
+	if err != nil {
+		return false
+	}
+	_ = f.Close()
+	return true
 }

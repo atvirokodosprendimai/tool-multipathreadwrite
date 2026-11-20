@@ -653,6 +653,14 @@ func (w *walker) ignored(rel string, isDir bool, from int) bool {
 	return ig != nil && ig.Ignored(sub, isDir, from)
 }
 
+// DISPOSITION (#738 final pass): noteNested's Lstat of dir/.git, like the
+// WalkDir enumeration (see walkDir), is by name, and a directory swapped for a
+// link during the walk can make it look at an outside directory's .git for
+// METADATA only (whether it holds one, and the ignore rules read from it, which
+// go through readIgnoreFileIn). Main did exactly this (internal/read/walk.go:318
+// and :351 call noteNested; :322 filepath.WalkDir), so it is not a regression.
+// No content leaves the root through it.
+//
 // noteNested records dir (root-relative, "/"-joined; abs its path) as a
 // nested checkout when it holds a .git, so its own rules apply beneath it.
 func (w *walker) noteNested(dir, abs string) {

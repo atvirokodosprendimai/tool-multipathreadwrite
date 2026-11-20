@@ -128,6 +128,11 @@ func AstGrep(root string, paths []string, pattern string, exclude []string, opt 
 			// ast-grep below is still opened by NAME, by the binary, which no
 			// held root can reach: it is the path mrw judged, and that is all that
 			// can be done for a subprocess.
+			// The root is looked up by name when the probe runs (Abs inside
+			// OpenRead): a ROOT replaced between judgeNamed and here is probed as the
+			// new directory. Main probed by name too (internal/read/astgrep.go:121
+			// regular.Open(n.full)), nothing is read, and the probe's answer only
+			// decides whether to start ast-grep, so this is not a regression.
 			if f, _, err := rooted.OpenRead(root, n.full); err != nil {
 				prob = &Problem{Path: n.rel, Reason: err.Error()}
 			} else {
