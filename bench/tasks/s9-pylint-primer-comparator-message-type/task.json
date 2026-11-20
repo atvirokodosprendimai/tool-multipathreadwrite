@@ -3,7 +3,7 @@
   "shape": "control",
   "repo": "pylint-dev/pylint",
   "commit": "792fc68e315746d89b138f8020986ee904da4859",
-  "instruction": "In pylint/testutils/_primer/comparator.py, type the primer's messages as JSONMessage from pylint.reporters.json_reporter rather than OldJsonExport: import it in place of OldJsonExport, and use it in the annotation of package_missing_messages.",
+  "instruction": "In pylint/testutils/_primer/comparator.py, type the primer's messages as JSONMessage from pylint.reporters.json_reporter rather than OldJsonExport: import it in place of OldJsonExport, and use it in the annotation of package_missing_messages. Change nothing else.",
   "exact": true,
   "require": [
     {"file": "pylint/testutils/_primer/comparator.py", "match": "(?m)^from pylint\\.reporters\\.json_reporter import JSONMessage$"},

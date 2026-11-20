@@ -3,7 +3,7 @@
   "shape": "follow-on",
   "repo": "django/django",
   "commit": "6669d66a795029add189bebe6f7a7fdcf2c9f9d4",
-  "instruction": "In django/core/paginator.py, make the UnorderedObjectListWarning point at the caller's code outside Django: in its warnings.warn call, use skip_file_prefixes=django_file_prefixes() in place of stacklevel=3. Import django_file_prefixes from django.utils.warnings, in the place the module's sorted imports put it.",
+  "instruction": "In django/core/paginator.py, make the UnorderedObjectListWarning point at the caller's code outside Django: in its warnings.warn call, use skip_file_prefixes=django_file_prefixes() in place of stacklevel=3. Import django_file_prefixes from django.utils.warnings, in the place the module's sorted imports put it. Change nothing else.",
   "exact": true,
   "require": [
     {"file": "django/core/paginator.py", "match": "(?m)^from django\\.utils\\.warnings import django_file_prefixes$"},

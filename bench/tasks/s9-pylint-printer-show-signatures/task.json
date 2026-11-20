@@ -3,7 +3,7 @@
   "shape": "follow-on",
   "repo": "pylint-dev/pylint",
   "commit": "7dee1f853261fcd30952e9bb84964b134ca47030",
-  "instruction": "In pylint/pyreverse/printer.py, give Printer.__init__ a new last parameter show_signatures: bool = True, and store it as self.show_signatures alongside the other parameters it stores, in the same order.",
+  "instruction": "In pylint/pyreverse/printer.py, give Printer.__init__ a new last parameter show_signatures: bool = True, and store it, unannotated, as self.show_signatures alongside the other parameters it stores, in the same order. Change nothing else.",
   "exact": true,
   "require": [
     {"file": "pylint/pyreverse/printer.py", "match": "(?m)^        show_signatures: bool = True,$"},

@@ -3,7 +3,7 @@
   "shape": "control",
   "repo": "psf/requests",
   "commit": "f5dacf84468ab7e0631cc61a3f1431a32e3e143c",
-  "instruction": "In requests/utils.py, let callers of get_netrc_auth see netrc errors: add a parameter ignore_errors=True after url, and where a parse or permissions error is now skipped with pass, re-raise it when ignore_errors is false.",
+  "instruction": "In requests/utils.py, let callers of get_netrc_auth see netrc errors: add a parameter ignore_errors=True after url, and where a parse or permissions error is now skipped with pass, re-raise it when ignore_errors is false. Change nothing else.",
   "exact": true,
   "require": [
     {"file": "requests/utils.py", "match": "(?m)^def get_netrc_auth\\(url, ignore_errors=True\\):$"},

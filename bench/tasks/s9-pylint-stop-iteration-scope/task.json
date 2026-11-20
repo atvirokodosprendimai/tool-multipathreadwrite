@@ -3,7 +3,7 @@
   "shape": "follow-on",
   "repo": "pylint-dev/pylint",
   "commit": "58c87cffca9de2b3e89aa07b89686cbc90cfea2d",
-  "instruction": "In pylint/checkers/refactoring/refactoring_checker.py, make the stop-iteration-return message (R1708) node-scoped: end its message tuple with the options element {\"scope\": WarningScope.NODE}, on its own line after the message text. Import WarningScope from pylint.constants, in the place the module's sorted imports put it.",
+  "instruction": "In pylint/checkers/refactoring/refactoring_checker.py, make the stop-iteration-return message (R1708) node-scoped: end its message tuple with the options element {\"scope\": WarningScope.NODE}, on its own line after the message text. Import WarningScope from pylint.constants, in the place the module's sorted imports put it. Change nothing else.",
   "exact": true,
   "require": [
     {"file": "pylint/checkers/refactoring/refactoring_checker.py", "match": "(?m)^from pylint\\.constants import WarningScope$"},
