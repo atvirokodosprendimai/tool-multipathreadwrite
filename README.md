@@ -311,7 +311,7 @@ A plan piped to `mrw write -` that ends with nothing in the tree (a refusal once
 
 Ops are `replace`, `insert-after`, `insert-before`, `delete`, `create`,
 `unlink`, `rename`. `@@ path - unlink` removes the path. `@@ old - rename`
-with a one-line dest body moves it, edited first when the plan also edits it; on a filesystem that folds case it may change only the case of the name (`a.txt` → `A.txt`, ADR-129). A moved symbolic link reports no content, since its target is not read: the human receipt prints `sha -`, and it licenses nothing, so a write to it needs a read first (#712). Only `delete` may carry no body among
+with a one-line dest body moves it, edited first when the plan also edits it; on a filesystem that folds case it may change only the case of the name (`a.txt` → `A.txt`, ADR-129). A moved symbolic link reports no content, since the write does not read its target to report it: the human receipt prints `sha -` and the terse one omits the digest, and the move records no licence at the link's new path, so an edit through it needs a read, unless the caller already holds one for the file the link now reaches (#712). Only `delete` may carry no body among
 the line-range ops: a lost body reads like one never written, so an
 empty file is `@@ new.txt 0 create body=0`; a create's address is `-` or `0`. A bare `create` with nothing under
 it is refused and leaves no file behind.

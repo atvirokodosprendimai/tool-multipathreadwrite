@@ -2,7 +2,7 @@
 
 **Status:** Accepted
 **Accepted:** 2026-09-28 by Zy — "accept", on the record as drafted after two Codex reviews; step authorship "Both, ad-hoc marked" chosen the same day
-**Superseded in part:** by ADR-174 (2026-10-24): Decision 8's "`--then-sh` runs any shell its caller writes": it runs only when `MRW_SHELL=on` is in mrw's environment. `--then NAME` stands.
+**Superseded in part:** by ADR-174 (amended 2026-10-29): Decision 8's "`--then-sh` runs any shell its caller writes": it runs only when `MRW_SHELL=on` is in mrw's environment. `--then NAME` stands.
 **Superseded in part:** by ADR-094 (2026-09-29): five clauses narrowed (Decision 1's "runs `CMD` as given", Decision 2's refusal list, Decision 3's "Each step runs as the check does", Decision 5's one line per step, Decision 8's "Nothing filters the command's words" and its Out of Scope twin); by ADR-100 (2026-09-30): T4's Out of Scope boundary that left refusals unrelated to steps plain, and contract §187's row with it.
 **Date:** 2026-09-28
 **Owner:** Zy
