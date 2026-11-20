@@ -3,7 +3,7 @@
   "shape": "follow-on",
   "repo": "pylint-dev/pylint",
   "commit": "7dee1f853261fcd30952e9bb84964b134ca47030",
-  "instruction": "In pylint/pyreverse/printer.py, give Printer.__init__ a new parameter: add the line \"show_signatures: bool = True,\" right after the line \"use_automatic_namespace: bool | None = None,\". Then store it: add \"self.show_signatures = show_signatures\" right after the line \"self.use_automatic_namespace = use_automatic_namespace\".",
+  "instruction": "In pylint/pyreverse/printer.py, give Printer.__init__ a new last parameter show_signatures: bool = True, and store it as self.show_signatures alongside the other parameters it stores, in the same order.",
   "exact": true,
   "require": [
     {"file": "pylint/pyreverse/printer.py", "match": "(?m)^        show_signatures: bool = True,$"},

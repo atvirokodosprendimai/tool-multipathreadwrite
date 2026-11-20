@@ -3,7 +3,7 @@
   "shape": "control",
   "repo": "pydata/xarray",
   "commit": "e7b1e5bb69a4f75aeb9843d93f3b79b59916de93",
-  "instruction": "In xarray/backends/common.py, add a fourth parameter to _open_remote_file: its signature becomes \"def _open_remote_file(file, mode, storage_options=None, open_kwargs=None):\". Then pass it on: in place of the line \"return fs.open(paths[0], mode=mode)\" write an empty line, then \"open_kwargs = open_kwargs or {}\", an empty line, and \"return fs.open(paths[0], mode=mode, **open_kwargs)\".",
+  "instruction": "In xarray/backends/common.py, let _open_remote_file pass extra keyword arguments to fs.open: add a last parameter open_kwargs=None, and before the return set open_kwargs = open_kwargs or {}, with a blank line before and after that line, and pass **open_kwargs to fs.open.",
   "exact": true,
   "require": [
     {"file": "xarray/backends/common.py", "match": "(?m)^def _open_remote_file\\(file, mode, storage_options=None, open_kwargs=None\\):$"},

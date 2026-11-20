@@ -3,7 +3,7 @@
   "shape": "follow-on",
   "repo": "django/django",
   "commit": "64edef37e7b419dd584307d84650a192fb47dc4c",
-  "instruction": "In django/db/backends/base/schema.py, in the block under the comment \"# Find the index for this field\", add these three lines right before the line \"meta_index_names = {index.name for index in model._meta.indexes}\": \"meta_constraint_names = {\", then, indented one level deeper, \"constraint.name for constraint in model._meta.constraints\", then \"}\". Then change the argument \"exclude=meta_index_names,\" of the call below to \"exclude=meta_constraint_names | meta_index_names,\".",
+  "instruction": "In django/db/backends/base/schema.py, where _alter_field looks up the old field's index to remove, it excludes the names of the model's Meta.indexes but not of its Meta.constraints. Collect those as a set comprehension in meta_constraint_names, defined just before meta_index_names and formatted as black formats it, and exclude meta_constraint_names | meta_index_names.",
   "exact": true,
   "require": [
     {"file": "django/db/backends/base/schema.py", "match": "(?m)^            meta_constraint_names = \\{\\n                constraint\\.name for constraint in model\\._meta\\.constraints\\n            \\}\\n            meta_index_names = "},

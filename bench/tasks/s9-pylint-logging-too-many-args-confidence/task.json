@@ -3,7 +3,7 @@
   "shape": "follow-on",
   "repo": "pylint-dev/pylint",
   "commit": "e938c17d02c64ca7d173b5285bdf5f03e7c34bf3",
-  "instruction": "In pylint/checkers/logging.py, import HIGH with a new line \"from pylint.interfaces import HIGH\" right after the line \"from pylint.checkers.utils import infer_all\", then in the add_message call for \"logging-too-many-args\" add confidence=HIGH after node=node, on the same line, so that it reads: self.add_message(\"logging-too-many-args\", node=node, confidence=HIGH)",
+  "instruction": "In pylint/checkers/logging.py, report logging-too-many-args with HIGH confidence: its add_message call should pass confidence=HIGH after node=node. Import HIGH from pylint.interfaces, in the place the module's sorted imports put it.",
   "exact": true,
   "require": [
     {"file": "pylint/checkers/logging.py", "match": "(?m)^from pylint\\.interfaces import HIGH$"},
