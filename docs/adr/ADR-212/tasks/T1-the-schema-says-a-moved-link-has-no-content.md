@@ -83,6 +83,9 @@ What each clause holds. The runs are made with `MRW_UPDATE_LEGACY_GOLDEN` unset,
 ## Mutation Log
 
 ## Verification Log
+- 2026-11-20 · ff07f487 · exit 1 · `d="$(mktemp -d)" \ …` · acceptance-sha256:511a674f049098e591f4116d2d72747ecf4e58fa4a9083f068ec1bf877d30eb7 · ms:480 · test-lock-sha256:497fdf1b9ad066317a9a59a05a89bdefebb56bc815cf9108879f342f526a0f37 · test-lock-file:docs/adr/locks/497fdf1b9ad066317a9a59a05a89bdefebb56bc815cf9108879f342f526a0f37.lock
+  ```
+  ```
 
 ## Invariants
 
