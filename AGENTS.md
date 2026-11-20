@@ -220,7 +220,8 @@ Which surface you are on is not purely your choice: it follows from where the
 server was registered, and a user-scope registration puts these two tools in
 every project on the machine, including the ones whose instructions say to use
 the shell. See the README, "Use it from an MCP host". Writers take turns on
-either surface, one writer per checkout (ADR-075), so neither is the safer one
+either surface, one writer per checkout and state home (ADR-075; two callers with different `XDG_STATE_HOME`
+keep separate write locks and ledgers for one checkout), so neither is the safer one
 for callers sharing a checkout. A writer waits up to 120 s for the one before it, then is refused, exit 2,
 nothing applied, naming the holder's pid; `MRW_WRITE_LOCK_TIMEOUT` sets the wait in seconds, `0` for one try (ADR-110).
 While an `mrw_write`'s check runs the server answers what arrives after it — a ping, a read, another write — and a
@@ -454,6 +455,8 @@ body over lines nobody looked at, and the receipt cannot show it because the
 damage falls outside the lines the hunk named. Take the anchor from the
 `NNN| content` your read printed — one typed from memory can be wrong exactly as
 the address is wrong. `sha=` and `lines=` do not stand in for it: `sha=` pins the whole file, not which lines the range covers (ADR-164).
+`sha=` matches a prefix of the file's SHA-256, at least 8 hex digits, so 8 digits pin 32 bits; give more where that matters.
+`anchor=` is matched against the first line of the range only: the rest of the span is the address's to get right.
 An anchor that is not in the addressed line is refused, and the refusal ends with where it is — `; the anchor is in line N`, or `lines N, M, …`,
 the first five and a count of the rest — or `; no line of PATH holds it` (ADR-197): read the named line if you were not served it, and address
 that. A line that holds the anchor once its double quotes are gone, when no line holds it as written, ends with how to quote it instead.
