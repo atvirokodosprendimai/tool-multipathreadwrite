@@ -2,6 +2,7 @@
 
 **Status:** Accepted
 **Accepted:** 2026-09-30 by Zy — approved the plan "resolve the seven findings of the 2026-09-30 Codex design review" (`~/.claude/plans/ok-create-a-plan-whimsical-newell.md`), whose ADR-104 is this record's scope, and set the goal "deliver open tasks end to end". The record's text was drafted after that approval and not shown to Zy before execution: this line is the session's reading of it, stated so it can be checked
+**Superseded in part:** by ADR-108 (2026-10-01): the state-file half of the Out of Scope entry "`apply`'s load and the state files", for the ledger, which gets a record bound on both sides.
 **Date:** 2026-09-30
 **Owner:** Zy
 **Spec:** None — no spec stage

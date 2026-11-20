@@ -1,6 +1,7 @@
 # ADR-026: An address may say how many lines follow
 
 **Status:** Accepted
+**Superseded in part:** by ADR-053 (2026-09-13): the README tutorial-phrase greps of contract §64. Its binary pairing and AGENTS.md, `--help` and MCP-wire greps stand.
 **Date:** 2026-09-06
 **Owner:** M
 **Accepted:** M, 2026-09-06, choosing "Implement `,+N` as relative" over "Refuse `+N`" when the two were put side by side with the measured receipt: *"$ mrw read 'f.txt:/alpha/,+3' → @@ 1-4"*, which is the preview M selected and is therefore the specification of what the form means.

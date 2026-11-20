@@ -2,6 +2,7 @@
 
 **Status:** Accepted
 **Accepted:** 2026-10-01 by Zy — "work on the deffered ones", on the ADR-108 deferrals in `docs/adr/BACKLOG.md` "From ADR-108", of which B5 is this record's scope. The record's text was drafted after that instruction and not shown to Zy before execution: this line is the session's reading of it, stated so it can be checked
+**Superseded in part:** by ADR-113 (2026-10-01): the Out of Scope entry "MCP runs no check".
 **Date:** 2026-10-01
 **Owner:** Zy
 **Spec:** None — no spec stage

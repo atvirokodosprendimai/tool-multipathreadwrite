@@ -2,6 +2,8 @@
 
 **Status:** Accepted
 **Accepted:** 2026-09-24 by M — *"accepted"*
+**Superseded in part:** by ADR-199 (2026-11-15): Decision 1's "A destination whose `Lstat` fails for any reason other than 'does not exist' fails validation, with the error as the reason", for a destination below a path prefix that is a file, a FIFO or a device: that reason is ADR-199's words. A destination below a link keeps this record's.
+**Superseded in part:** by ADR-086 (2026-09-27): T3's contract §119 trigger, which no longer reaches commit (§119 now asserts nothing is written); by ADR-102 (2026-09-30): the deferral "Recording the ledger after a partial commit" is taken up.
 **Date:** 2026-09-24
 **Owner:** M
 **Spec:** None — no spec stage

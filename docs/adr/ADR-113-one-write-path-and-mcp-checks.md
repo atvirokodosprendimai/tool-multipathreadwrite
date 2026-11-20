@@ -2,6 +2,7 @@
 
 **Status:** Accepted
 **Accepted:** 2026-10-01 by Zy — "all", on the gap list whose items 1 (an MCP write is unverified) and 2 (the two surfaces decide the same outcome in two places) are this record's scope, with the answer "Default on, opt-out (Recommended)" to "should mrw_write run the project check when one is due?". The record's text was drafted after that instruction and not shown to Zy before execution: this line is the session's reading of it, stated so it can be checked
+**Superseded in part:** by ADR-115 (2026-10-02): Decision 6 ("Steps stay CLI-only") and its Out of Scope deferral of steps over MCP; by ADR-187 (2026-11-01): the rule that `mrw_write` runs the check unless `check: false`, so it runs none unless `check: true`; by ADR-205 (2026-11-19): Decision 3's "there is no MCP twin of `--check`" and the parenthesis that ends Decision 4. Decision 4's rule (a failed check is not `isError`; one that could not run is) stands.
 **Date:** 2026-10-01
 **Owner:** Zy
 **Spec:** None — no spec stage

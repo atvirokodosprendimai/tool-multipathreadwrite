@@ -2,6 +2,7 @@
 
 **Status:** Accepted
 **Accepted:** 2026-09-25 by M — *"Accepted"*
+**Superseded in part:** by ADR-161 (2026-10-16): T8's lone `-` that ended the parse now moves last, so the flags after it are read, and its fence's §137 PASS line is replaced (itself superseded by ADR-196; see the notice below).
 **Date:** 2026-09-25
 **Owner:** M
 **Spec:** None — no spec stage

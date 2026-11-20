@@ -7,7 +7,7 @@
 **Spec:** None — no spec stage
 **Cross-references:** ADR-051, ADR-141, ADR-156, ADR-162, ADR-168, ADR-171, ADR-190, ADR-192
 **Governs:** `internal/bench/**`, `cmd/bench/**`, `docs/bench/**`
-**Enforced-by:** None — until T1 lands, which adds `internal/bench/runner_test.go::TestConfigurationSIsBPlusTheEditParagraph`
+**Enforced-by:** `internal/bench/runner_test.go::TestConfigurationSIsBPlusTheEditParagraph`
 **Invalidates:** none — checked: without `--profile stage8` every configuration's arguments, tools, prompt and refusal text stay as ADR-162, ADR-163 and ADR-192 left them, so Stages 1 to 7 stay reproducible; `mrw instructions` and `mrw instructions --core` without `--host` print what the same build prints today (T5's test and Invariants), so ADR-141's bound and ADR-192 T1's invariant "B's prompt under stage7 is `mrw instructions` alone" hold
 **Served-path change:** None until T5, and T5 lands only on a SHIP verdict: then `mrw instructions --host claude` prints the full text with the paragraph S ran after it, and `docs/agents.md` names it as an option for Claude hosts; the standing trigger, the core, the skill and every output without `--host` stay as they are.
 

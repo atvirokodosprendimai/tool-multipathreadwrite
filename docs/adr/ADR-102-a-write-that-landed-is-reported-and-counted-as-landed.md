@@ -2,6 +2,8 @@
 
 **Status:** Accepted
 **Accepted:** 2026-09-30 by Zy — approved the plan "resolve the seven findings of the 2026-09-30 Codex design review" (`~/.claude/plans/ok-create-a-plan-whimsical-newell.md`), whose ADR-102 is this record's scope, and set the goal "deliver open tasks end to end". The record's text was drafted after that approval and not shown to Zy before execution: this line is the session's reading of it, stated so it can be checked
+**Superseded in part:** by ADR-203 (2026-11-19): served-path item 4, where it promises a follow-on edit by number: a line number alone is refused on a line of a written file that no read has shown since the write.
+**Superseded in part:** by ADR-113 (2026-10-01): the clause of Decision 4 counting an MCP landing whose ledger failed as `applied`: with a check due it is `check_not_run`.
 **Date:** 2026-09-30
 **Owner:** Zy
 **Spec:** None — no spec stage

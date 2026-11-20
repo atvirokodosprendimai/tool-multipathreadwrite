@@ -2,6 +2,7 @@
 
 **Status:** Accepted
 **Accepted:** 2026-10-24 by Zy — asked which drafted records to accept, chose *"ADR-171 guide cost, ADR-172 + ADR-119 D5, ADR-173 + ADR-174, ADR-175 forget"*, and for the breaking pair *"v1.76.0, loud note (Recommended)"*.
+**Amended:** by ADR-180 (2026-10-28): Decision 1's receipt text, which gains the checkout.
 **Date:** 2026-10-24
 **Amended:** 2026-10-24, before acceptance, from a Codex xhigh challenge (7 findings, each checked against the code): `--forget` also empties this root's pending MCP acknowledgements, which `internal/mcp/ack.go:487` promotes into the ledger without an existing observation (Decision 1); it clears what is persisted at its serialization point and does not revoke a command already in flight (Decision 2); `--sub`/`--rewrite` plans are exempt from the re-read rule (Decision 3); the hook takes the checkout from its input's `cwd`, since `CLAUDE_PROJECT_DIR` stays on the starting project after a worktree switch (Decision 4); T2's fence checks the hook as one block and both exclusions; rollback distinguishes before and after release; the BACKLOG receipt is filed with this record.
 **Owner:** Zy

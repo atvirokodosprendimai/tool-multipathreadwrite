@@ -2,6 +2,8 @@
 
 **Status:** Accepted
 **Accepted:** 2026-09-12 by M — *"steal their ideas and apply to us where it matters and makes us ahead."*
+**Superseded in part:** by ADR-190 (2026-11-02): the clause "A unique exact SEARCH match is location, not a license" (its Existing Primitives Audit and Decision 3), for `--format=search_replace` only: a SEARCH block that matches exactly once, in whole lines, licenses the lines it quotes.
+**Superseded in part:** by ADR-065 (2026-09-24): apply_patch spec fact F-10 (the compilers now read a target as the write engine does and keep its CR LF); by ADR-067 (2026-09-24): contract §83's `format=git` row, whose refusal is now a tool result with `isError: true`.
 **Date:** 2026-09-12
 **Owner:** M
 **Spec:** docs/adr/ADR-051-foreign-plan-grammars-compile-to-plan-hunks/apply-patch-ingest.md

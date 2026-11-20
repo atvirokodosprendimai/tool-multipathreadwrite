@@ -2,6 +2,7 @@
 
 **Status:** Accepted
 **Accepted:** 2026-09-04 by M — *"so you listed 6 defects, I think it is wise now to adress these first, then focus on paper and scientific benchmarking. those 6 defects are real blockers."* This record is the first of them. Quoted rather than inferred, because ADR-011 had to add its acceptance sentence retroactively when a reviewer asked whose decision the status was.
+**Superseded in part:** by ADR-118 (2026-10-02): the rejection of "An `occurrence=N` guard to disambiguate" and its Out of Scope deferral. The exactly-once rule stands for a start pattern without `occurrence=`.
 **Date:** 2026-09-04
 **Owner:** M
 **Spec:** None — no spec stage

@@ -2,6 +2,7 @@
 
 **Status:** Accepted
 **Accepted:** 2026-10-11 on Zy's answer "Additive prefix (Recommended)" to the question how to answer the adopter survey's "exit 1 means both no match and 'N range(s) could not be served'" (docs/adr/BACKLOG.md, 14-session survey of 2026-10-09)
+**Superseded in part:** by ADR-173 (2026-10-24): Decision 4 ("the exit codes do not change"), for a read that only the caller's own caps withheld, which exits 0.
 **Date:** 2026-10-11
 **Owner:** Zy
 **Spec:** None — no spec stage

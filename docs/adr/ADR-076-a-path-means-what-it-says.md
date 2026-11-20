@@ -2,6 +2,7 @@
 
 **Status:** Accepted
 **Accepted:** 2026-09-26 by M — approved the plan to clear the open backlog (*"build a plan to address them at once, no dangling pieces, no dead code, no mockery, no features only in tests, all is wired, all is exercised"*), and answered *"Refuse (Recommended)"* for read-only files
+**Amended:** by ADR-198 (2026-11-15): one expectation of `TestARenameToADirectorySpellingIsRefused`, whose suggested name is now `d/a.txt` on every platform. The rule stands.
 **Date:** 2026-09-26
 **Owner:** M
 **Spec:** None — no spec stage

@@ -1,6 +1,7 @@
 # ADR-033: A cap of zero is a cap
 
 **Status:** Accepted
+**Superseded in part:** by ADR-173 (2026-10-24): the clause that a capped read, a cap of zero included, exits non-zero: a read that only the caller's own caps withheld exits 0 and ends `capped:`. The cap's meaning and its licensing stand.
 **Date:** 2026-09-07
 **Owner:** M
 **Accepted:** M, 2026-09-07, choosing consistency with `body=0` and `lines=0` over the 0-means-unlimited convention.

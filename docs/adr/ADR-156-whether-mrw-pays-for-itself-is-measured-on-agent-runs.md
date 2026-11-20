@@ -2,6 +2,8 @@
 
 **Status:** Accepted
 **Accepted:** 2026-10-14 by Zy — "cut v1.66.0 when 155 lands, then do 156", after choosing both models, both task sources, mrw forced and the subscription only. The two choices the real runs waited on were made the same day: Zy chose "Your account, bypassPermissions" over a dedicated macOS user and over Docker, and did the one-time subscription login in the dedicated config directory (Decision 2).
+**Amended:** by ADR-158 (2026-10-15): Decision 2's "only the word mrw is taken out" and Decision 5's "one verdict per model and per task source"; by ADR-162 (2026-10-17): Decisions 1 and 2 and the registered bar's 95% interval and percentile bootstrap, for Stage 5 only.
+**Superseded in part:** by ADR-186 (2026-11-01): Decision 1's clause that a redirection target "with an expansion" is judged inside, for the forms ADR-186 names.
 **Date:** 2026-10-14
 **Owner:** Zy
 **Spec:** None — no spec stage

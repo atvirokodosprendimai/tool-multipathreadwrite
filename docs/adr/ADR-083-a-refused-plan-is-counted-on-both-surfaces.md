@@ -2,6 +2,7 @@
 
 **Status:** Accepted
 **Accepted:** 2026-09-27 by Zy — approved the backlog plan that names this record, having said "we can take our own decisison besides M, since we own this now"
+**Superseded in part:** by ADR-102 (2026-09-30): Decision 2's "a filesystem error from apply is one `refused_apply` … whatever reached disk before it" (one `partially_applied` when a file reached disk); by ADR-113 (2026-10-01): the line that the MCP path never runs a check.
 **Date:** 2026-09-27
 **Owner:** Zy
 **Spec:** None — no spec stage

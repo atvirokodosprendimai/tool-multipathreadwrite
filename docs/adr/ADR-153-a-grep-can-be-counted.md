@@ -2,6 +2,7 @@
 
 **Status:** Accepted
 **Accepted:** 2026-10-14 by Zy — approved the plan `glimmering-frolicking-harp` ("ADR-153 — `mrw read --count`") and set the goal "implement this plan end to end".
+**Amended:** by ADR-161 (2026-10-16): a plain `--grep` serves each match and the line after it; `--count` counts the matching lines.
 **Date:** 2026-10-14
 **Owner:** Zy
 **Spec:** None — no spec stage

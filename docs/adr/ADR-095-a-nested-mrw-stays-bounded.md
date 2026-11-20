@@ -2,6 +2,7 @@
 
 **Status:** Accepted
 **Accepted:** 2026-09-29 by Zy — "ADR-095 nested bounded", selected under "Which records do you accept as written, so I can execute them?", on the record as drafted after a Codex review, including the depth-8 refusal of a write whose check is due
+**Amended:** by ADR-100 (2026-09-30): the depth refusal keeps its words and exit code; only its turn changes (under `--json` it is a document).
 **Date:** 2026-09-29
 **Owner:** Zy
 **Spec:** None — no spec stage

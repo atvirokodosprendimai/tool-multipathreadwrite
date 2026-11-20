@@ -1,6 +1,8 @@
 # ADR-010: mrw speaks MCP over the same engine, and stays a binary
 
 **Status:** Accepted
+**Superseded in part:** by ADR-170 (2026-10-23): the clause that `mrw mcp` serves `mrw_read` and `mrw_write` to any host that starts it: they are served only when enabled (`mrw mcp --enable` or `MRW_MCP=on`).
+**Superseded in part:** by ADR-053 (2026-09-13): T3's clause that the documented host config is extracted from a README heading and `mcpServers` JSON fixture (§39).
 **Date:** 2026-09-03
 **Owner:** M
 **Spec:** None — no spec stage
