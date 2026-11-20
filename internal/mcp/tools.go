@@ -337,7 +337,31 @@ type readArgs struct {
 // readTool serves ranges and records what it observed, exactly as `mrw read`
 // does — including the ledger write, which is how mrw learns what a file holds
 // and therefore what a later write is allowed to address.
+//
+// The acknowledgements the call carries are promoted only when the call is
+// answered: one reported as an error changes nothing (#741: an ack with no spec
+// answered "needs at least one spec" and had already promoted it). They are
+// promoted before the answer goes out, so a write in the same turn sees the
+// licence this call grants.
 func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
+	res, rpcErr := serveRead(root, args)
+	if rpcErr != nil || res.IsError {
+		return res, rpcErr
+	}
+	var a struct {
+		Ack []string `json:"ack"`
+	}
+	_ = json.Unmarshal(args, &a) // serveRead parsed these arguments already
+	unknown, kept, err := promoteAcks(root, a.Ack)
+	if err != nil {
+		return callToolResult{}, &rpcError{Code: codeInternal, Message: "ack: " + statehint.Hint(err).Error()}
+	}
+	noteAcks(unknown, kept)
+	return res, nil
+}
+
+// serveRead is readTool without the acknowledgements.
+func serveRead(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	var a readArgs
 	if name := nonUTF8Arg(args); name != "" {
 		return errorResult(nonUTF8Refusal(name)), nil
@@ -346,13 +370,6 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		return errorResult("arguments: " + err.Error()), nil
 	}
 	a.has = presentKeys(args)
-	// Promote before serving: the caller is acknowledging the PREVIOUS page,
-	// and a write in the same turn must see the licence this call grants.
-	unknown, kept, err := promoteAcks(root, a.Ack)
-	if err != nil {
-		return callToolResult{}, &rpcError{Code: codeInternal, Message: "ack: " + statehint.Hint(err).Error()}
-	}
-	noteAcks(unknown, kept)
 	// With grep, no spec is required at all — the walk starts at the root, the
 	// way `mrw read --grep P` with no paths does. Without it, a read with
 	// nothing to read is the caller's mistake.
@@ -767,9 +784,6 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 					return callToolResult{}, &rpcError{Code: codeInternal, Message: "holding checkpoints: " + statehint.Hint(err).Error()}
 				}
 			}
-			// hold evicts the oldest pending checkpoints past maxPending, and an id
-			// this call kept may be one: the note names only those still pending.
-			noteAcks(unknown, stillPending(root, kept))
 			return markedServed, nil
 		}
 	}
@@ -1988,6 +2002,22 @@ func firstPage(root string, specs []string, cw *capped, maxCols int) (callToolRe
 		// 1-3619; a write to line 1500 then applied at exit 0. So the span is held
 		// PENDING against checkpoints woven through the text, and reaches the
 		// ledger only when the caller echoes them back (ADR-031).
+		// #716, on the paged path: a name that holds a line feed splits its
+		// header in two and cannot be a checkpoint's or a ledger record's key
+		// (#702). The page is served as it is, the header on one line, with no
+		// checkpoint and nothing held, and says so, as the fitting path does.
+		if strings.Contains(path, "\n") {
+			next := fmt.Sprintf("%s:%d-", path, end+1)
+			shown := strings.ReplaceAll(b.String(), "==> "+path+"  ", "==> "+strings.ReplaceAll(path, "\n", `\n`)+"  ")
+			report := fmt.Sprintf("%s\n%s\n-- PARTIAL: lines %d-%d of %d. %d line(s) remain.\n"+
+				"-- Send specs [%q] to continue, or a narrower range of your own.\n"+
+				"-- Stopping here means you have part of this file, not the file.",
+				strings.TrimSuffix(shown, "\n"), unrecordableNameNote, start, end, total, total-end, next)
+			if res := pagedResult(report, observed, problems, next); encodedSize(res) <= ceiling() {
+				return res, true
+			}
+			continue
+		}
 		var recorded func(int) bool
 		if o, ok := observationOf(observed, path); ok {
 			recorded = func(line int) bool { return o.Covers(line, line) }
