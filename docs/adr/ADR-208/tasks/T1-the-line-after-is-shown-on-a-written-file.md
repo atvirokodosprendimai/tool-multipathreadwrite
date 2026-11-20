@@ -33,9 +33,17 @@ ADR-208 Decisions 1 to 6.
 | `forced_nothing_shown` | written, whole, current sha, nothing shown | numbered, `Force` | failed |
 | `partial_written_licence` | written-shaped, partial licence 1-4 (a `read --rewrite` plan's on a read file) | numbered | ok (as today) |
 
-**`TestTheCLIRefusesAMultiLineReplaceOnAWrittenFileUntilTheLineAfterIsShown`** (`cmd/mrw`, the built binary, runs on Windows CI): `mrw write --create f.go`, the plan exits 1 with the failed hunk in `--json`; `mrw read f.go:4`, the same plan exits 0; a whole `--quiet` read of a fresh copy, then the plan, exits 1.
+**`TestTheCLIRefusesAMultiLineReplaceOnAWrittenFileUntilTheLineAfterIsShown`** (`cmd/mrw`, the built binary, runs on Windows CI), one subtest per row:
 
-**`TestMrwWriteRefusesAMultiLineReplaceOnAWrittenFileUntilTheLineAfterIsShown`** (`internal/mcp`): the same over `mrw_write`: `isError` with the failed hunk; after `mrw_read` of line 4 and its `ack`, the same plan lands.
+| Subtest | Steps | Outcome |
+|---------|-------|---------|
+| `numbered` | `mrw write --create f.go`, then the plan | exit 1, the failed hunk in `--json`; after `mrw read f.go:4`, the same plan exits 0 |
+| `whole_quiet_read` | a fresh copy read whole with `--quiet`, then the plan | exit 1 |
+| `ranged_quiet_read` | `mrw write --create f.go`, `mrw read --quiet f.go:1-3`, then the plan | exit 1 |
+| `same_call_rewrite` | `mrw write --create` of a file a fake ast-grep (as `astgrep_test.go` builds) reports a multi-line match in, then `mrw write --ast-grep P --rewrite R` | exit 0, the rewrite applied |
+| `later_call_rewrite` | the same file, `mrw read --ast-grep P --rewrite R` saved as a plan, then `mrw write PLAN` | exit 1 naming the line after; after `mrw read` of that line, the plan exits 0 |
+
+**`TestMrwWriteRefusesAMultiLineReplaceOnAWrittenFileUntilTheLineAfterIsShown`** (`internal/mcp`), the same over the server, one subtest per row: `numbered` (`isError` with the failed hunk; after `mrw_read` of line 4 and its `ack`, the same plan lands); `same_call_rewrite` (`mrw_write` with `ast_grep` and `rewrite` on a file mrw created lands); `later_call_rewrite` (the plan `mrw_read` returns for `ast_grep` and `rewrite`, sent as `plan`, is `isError` until `mrw_read` of the line after and its `ack`, then lands).
 
 ## Affected Files
 
@@ -53,7 +61,7 @@ ADR-208 Decisions 1 to 6.
 ## Ordered Steps
 
 1. [S1] The three tests; RED on `written_nothing_shown`, `later_call_rewrite_plan`, `search_replace_no_kept_tail`, `apply_patch`, `forced_stale_showing`, `forced_nothing_shown`, the CLI test and the MCP test; the other subtests hold today and stay. [proof: acceptance]
-2. [S2] The rule. Mutants, each killed: `Covers` kept for written records (`written_nothing_shown`); the sha comparison dropped (`forced_stale_showing`); the plan-source field ignored (`same_call_rewrite`); every `Computed` plan exempt (`search_replace_no_kept_tail`, `apply_patch`); `Force` exempt (`forced_nothing_shown`); the last-line skip dropped (`written_ends_on_last_line`); the field never set by `cmd/mrw` (§359's same-call row, and the CLI test where `ast-grep` is faked). [proof: mutation]
+2. [S2] The rule. Mutants, each killed: `Covers` kept for written records (`written_nothing_shown`); the sha comparison dropped (`forced_stale_showing`); the plan-source field ignored (`same_call_rewrite`); every `Computed` plan exempt (`search_replace_no_kept_tail`, `apply_patch`); `Force` exempt (`forced_nothing_shown`); the last-line skip dropped (`written_ends_on_last_line`); the field never set by `cmd/mrw` (the CLI test's `same_call_rewrite`, and §359's same-call row); the field never set by `internal/mcp` (the MCP test's `same_call_rewrite`); the field set for every `--rewrite` plan, a later call's included (both tests' `later_call_rewrite`). [proof: mutation]
 3. [S3] Contract §359 drives `$MRW`: the rows in the record's Wiring table, each paired: refused then landing after the read; a kept tail landing beside a block without one refused; §264's fake ast-grep for the same-call `--rewrite` landing and the later-call plan refused, then landing after `mrw read f359.go:N+1`. The sentences. [proof: acceptance]
 
 ## Acceptance
@@ -63,6 +71,8 @@ out="$(mktemp)" \
   && go test -count=1 -v ./internal/apply ./cmd/mrw ./internal/mcp -run '^(TestAMultiLineReplaceOnAWrittenFileNeedsTheLineAfterShown|TestTheCLIRefusesAMultiLineReplaceOnAWrittenFileUntilTheLineAfterIsShown|TestMrwWriteRefusesAMultiLineReplaceOnAWrittenFileUntilTheLineAfterIsShown)$' > "$out" \
   && [ "$(grep -c '^--- PASS: ' "$out")" -eq 3 ] \
   && [ "$(grep -c '^    --- PASS: TestAMultiLineReplaceOnAWrittenFileNeedsTheLineAfterShown/' "$out")" -eq 14 ] \
+  && [ "$(grep -cE '^    --- PASS: TestTheCLIRefusesAMultiLineReplaceOnAWrittenFileUntilTheLineAfterIsShown/(numbered|whole_quiet_read|ranged_quiet_read|same_call_rewrite|later_call_rewrite) ' "$out")" -eq 5 ] \
+  && [ "$(grep -cE '^    --- PASS: TestMrwWriteRefusesAMultiLineReplaceOnAWrittenFileUntilTheLineAfterIsShown/(numbered|same_call_rewrite|later_call_rewrite) ' "$out")" -eq 3 ] \
   && ! grep -q -- '--- SKIP' "$out" \
   && grep -q '^# 359\. ' scripts/contract.sh \
   && grep -q 'f359.go' scripts/contract.sh \
@@ -80,8 +90,8 @@ out="$(mktemp)" \
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
 | `TestAMultiLineReplaceOnAWrittenFileNeedsTheLineAfterShown` | `internal/apply/after208_test.go` | the first table, by the verdict, the reason and the bytes on disk | none | S1, S2 |
-| `TestTheCLIRefusesAMultiLineReplaceOnAWrittenFileUntilTheLineAfterIsShown` | `cmd/mrw/after208_test.go` | exit 1 and the `--json` failed hunk; landing after the read; the whole `--quiet` case | none | S1, S2 |
-| `TestMrwWriteRefusesAMultiLineReplaceOnAWrittenFileUntilTheLineAfterIsShown` | `internal/mcp/after208_test.go` | `isError` with the failed hunk; landing after `mrw_read` and `ack` | none | S1, S2 |
+| `TestTheCLIRefusesAMultiLineReplaceOnAWrittenFileUntilTheLineAfterIsShown` | `cmd/mrw/after208_test.go` | the CLI table: exit 1 and the `--json` failed hunk, landing after the read; both `--quiet` cases; a same-call `--rewrite` landing and a later-call `--rewrite` plan refused until its line after is read | none | S1, S2 |
+| `TestMrwWriteRefusesAMultiLineReplaceOnAWrittenFileUntilTheLineAfterIsShown` | `internal/mcp/after208_test.go` | `isError` with the failed hunk, landing after `mrw_read` and `ack`; `ast_grep` with `rewrite` landing in one call; the `mrw_read` rewrite plan sent later refused until the line after is read and acked | none | S1, S2 |
 
 ## Reachability
 
@@ -108,7 +118,7 @@ out="$(mktemp)" \
 
 ## Stop Condition
 
-The fence exits 0, `./scripts/contract.sh` exits 0 with §359's rows printed, `adr-debt` reports nothing broken or unreceipted, every gate in `AGENTS.md` passes on Linux and Windows CI, and the record is Accepted by Zy.
+The fence exits 0, `./scripts/contract.sh` exits 0 on Linux CI with §359's rows passing, the three Go tests pass on Linux and Windows CI (where `contract.sh` does not run, `.github/workflows/ci.yml:180`), `adr-debt` reports nothing broken or unreceipted, every gate in `AGENTS.md` passes, and the record is Accepted by Zy.
 
 ## Out of Scope
 

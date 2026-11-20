@@ -60,8 +60,8 @@ out="$(mktemp)" \
   && grep -q 'delete body=@empty358.txt' scripts/contract.sh \
   && grep -q 'delete body=@wrong358.txt' scripts/contract.sh \
   && grep -q "a delete's body=@ is the lines it expects to remove" internal/plan/plan.go \
-  && grep -q 'an empty file is body=0 for a create, is refused on a delete' <(tr -s '\n' ' ' < AGENTS.md) \
-  && grep -q 'an empty file is body=0 for a create, is refused on a delete' <(tr -s '\n' ' ' < cmd/mrw/main.go) \
+  && grep -q 'an empty file is body=0 for a create, is refused on a delete, and is an empty body, refused, on a replace or an insert' <(tr -s '\n ' '  ' < AGENTS.md) \
+  && grep -q 'an empty file is body=0 for a create, is refused on a delete, and is an empty body, refused, on a replace or an insert' <(tr -s '\n ' '  ' < cmd/mrw/main.go) \
   && base="$(git merge-base HEAD origin/main)" && [ -n "$base" ] \
   && git diff --quiet "$base" -- go.mod go.sum internal/read internal/apply internal/seen internal/check internal/state ':(exclude)*_test.go' \
   && [ -z "$(git status --porcelain --untracked-files=all -- internal/read internal/apply internal/seen internal/check internal/state)" ]
