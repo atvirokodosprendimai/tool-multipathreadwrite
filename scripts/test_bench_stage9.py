@@ -913,9 +913,10 @@ def mark_started(directory, when_text=T0, stems=None):
     Path(str(directory) + ".exit").write_text("0\n", encoding="utf-8")
 
 
-def canary_doc(model=CANARY_OPUS, **over):
+def canary_doc(model=CANARY_OPUS, arm="m", **over):
     doc = {"pass": True, "cli_version": "2.9.9", "model": model, "started": T0, "problems": {}, "total_cost_usd": {"A": 0.1, "B": 0.2},
-           "init_models": {"A": INIT, "B": INIT}, "max_spend_usd": stage9.CANARY_FIGURES[model]}
+           "init_models": {"A": INIT, "B": INIT}, "max_spend_usd": stage9.CANARY_FIGURES[model],
+           "mrw_sha256": N_HASH if arm == "n" else M_HASH, "mrw_instructions_sha256": I_HASH}
     doc.update(over)
     return doc
 
@@ -994,7 +995,7 @@ class Gate(unittest.TestCase):
         tmp = Path(tempfile.mkdtemp())
         self.addCleanup(lambda: __import__("shutil").rmtree(tmp, ignore_errors=True))
         pilot = tmp / "pilot.md"
-        pilot.write_text(f"init model {CANARY_OPUS}: {INIT}\n", encoding="utf-8")
+        pilot.write_text(f"init model {CANARY_OPUS}: {INIT}\nm sha256: {M_HASH}\nn sha256: {N_HASH}\ninstructions sha256: {I_HASH}\n", encoding="utf-8")
         gates = tmp / "gates.txt"
 
         gates.write_text(f"gate {CANARY_OPUS} canary-n cleared 2026-11-20T09:30:00Z\n", encoding="utf-8")
@@ -1019,7 +1020,7 @@ class Gate(unittest.TestCase):
             with self.assertRaisesRegex(stage9.Refusal, regex, msg=why):
                 run(doc)
         with self.assertRaisesRegex(stage9.Refusal, "different models"):
-            run(canary_doc(), canary_doc(init_models={"A": INIT, "B": "x"}))
+            run(canary_doc(), canary_doc(arm="n", init_models={"A": INIT, "B": "x"}))
         (tmp / f"canary-{CANARY_OPUS}-n.json").unlink()
         gates.write_text(f"gate {CANARY_OPUS} canary-n cleared 2026-11-20T12:00:00Z\n")
         with self.assertRaisesRegex(stage9.Refusal, "before"):
@@ -1151,6 +1152,122 @@ STEPS = [(POPUS, "n"), (POPUS, "m"), (POPUS, "a"), (PSONNET, "n"), (PSONNET, "m"
 STOPS = {(POPUS, "a"): 14, (POPUS, "m"): 14, (POPUS, "n"): 7, (PSONNET, "a"): 6, (PSONNET, "m"): 6, (PSONNET, "n"): 3}
 SMOKE_TASKS = [CLASSES["follow-on"][0], CLASSES["control"][0]]
 HOUR = "2026-11-20T{:02d}:{:02d}:00Z"
+
+
+class FinalReview(unittest.TestCase):
+    """The final review of #751: what the gate and count must refuse or accept that the first pass did not."""
+
+    REAL = json.loads((ROOT / "bench" / "stage-9" / "plans.json").read_text(encoding="utf-8"))
+
+    def n_world(self, tasks, **run):
+        w = World(self)
+        d = w.arm("n", {t: {} for t in tasks}, run=run_json("n", MODEL, sorted(tasks), **run))
+        w.gates = Path(w.tmp.name) / "gates.txt"
+        return w, d
+
+    def gate_n(self, w, d, plan):
+        return stage9.gate("run", MODEL, "n", d, w.plans([plan]), w.pilot, w.gates, "pilot", after=None, now="2026-11-20T11:00:00Z")
+
+    def test_a_run_is_the_registered_tasks_in_the_order_bench_run_sorts_them(self):
+        plan = next(p for p in self.REAL if p["directory"] == f"{MODEL}/n")
+        self.assertNotEqual(plan["tasks"], sorted(plan["tasks"]), "the registered order is not the sorted one")
+        w, d = self.n_world(plan["tasks"])
+        mark_started(d)
+        self.assertIn("cleared", self.gate_n(w, d, plan))
+        counts = stage9.count(w.root, w.root, ROOT / "bench" / "stage-9" / "classes.json", w.pilot, w.plans([plan]))
+        self.assertEqual(len(counts["models"][MODEL]["n"]["tasks"]), len(plan["tasks"]))
+        # but the same tasks, not others, and none twice
+        for why, tasks in (("a task missing", sorted(plan["tasks"])[1:]), ("a task twice", sorted(plan["tasks"]) + [plan["tasks"][0]]),
+                           ("another task", sorted(plan["tasks"])[1:] + ["x-other"])):
+            w, d = self.n_world(tasks)
+            mark_started(d)
+            with self.assertRaises(stage9.Refusal, msg=why):
+                self.gate_n(w, d, plan)
+
+    def test_an_n_run_is_the_n_build_with_its_scratch_file_kept(self):
+        tasks = CLASSES["follow-on"][:2]
+        plan = {"model": MODEL, "arm": "n", "directory": f"{MODEL}/n", "configs": ["B"], "max_spend_usd": 7.0, "tasks": tasks}
+        w, d = self.n_world(tasks)
+        mark_started(d)
+        self.assertIn("cleared", self.gate_n(w, d, plan))
+        for why, run, regex in (("N run with the M binary", {"mrw_sha256": M_HASH}, "n sha256"),
+                                ("no keep_scratch_file", {"keep_scratch_file": None}, "keep_scratch_file"),
+                                ("another instruction file", {"mrw_instructions_sha256": "e" * 64}, "instructions sha256"),
+                                ("a keep_state_file beside it", {"keep_state_file": "mrw/x"}, "keep_state_file")):
+            w, d = self.n_world(tasks, **run)
+            mark_started(d)
+            for p in d.glob("*.receipt.json"):  # the receipts carry the run's hash, so the receipt-to-run check holds
+                doc = json.loads(p.read_text(encoding="utf-8"))
+                doc["mrw_sha256"] = run.get("mrw_sha256", doc.get("mrw_sha256", ""))
+                p.write_text(json.dumps(doc), encoding="utf-8")
+            with self.assertRaisesRegex(stage9.Refusal, regex, msg=why):
+                self.gate_n(w, d, plan)
+
+    def test_a_canary_carries_its_arms_build_and_the_instructions(self):
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: __import__("shutil").rmtree(tmp, ignore_errors=True))
+        pilot = tmp / "pilot.md"
+        pilot.write_text(f"init model {CANARY_OPUS}: {INIT}\nm sha256: {M_HASH}\nn sha256: {N_HASH}\ninstructions sha256: {I_HASH}\n", encoding="utf-8")
+        gates = tmp / "gates.txt"
+
+        def gate(arm, doc):
+            (tmp / f"canary-{CANARY_OPUS}-{arm}.json").write_text(json.dumps(doc), encoding="utf-8")
+            (tmp / f"canary-{CANARY_OPUS}-{arm}.exit").write_text("0\n", encoding="utf-8")
+            return stage9.gate("canary", CANARY_OPUS, arm, tmp / f"canary-{CANARY_OPUS}-{arm}.json", None, pilot, gates, "smoke",
+                               after=None if arm == "n" else f"{CANARY_OPUS} canary-n", now="2026-11-20T11:00:00Z")
+
+        self.assertIn("cleared", gate("n", canary_doc(arm="n")))
+        gates.write_text(f"gate {CANARY_OPUS} canary-n cleared 2026-11-20T09:30:00Z\n", encoding="utf-8")
+        self.assertIn("cleared", gate("m", canary_doc(arm="m")))
+        with self.assertRaisesRegex(stage9.Refusal, "n sha256"):
+            gate("n", canary_doc(arm="n", mrw_sha256=M_HASH))
+        with self.assertRaisesRegex(stage9.Refusal, "m sha256"):
+            gate("m", canary_doc(arm="m", mrw_sha256=N_HASH))
+        with self.assertRaisesRegex(stage9.Refusal, "instructions sha256"):
+            gate("m", canary_doc(arm="m", mrw_instructions_sha256="e" * 64))
+
+    def test_a_receipt_moved_to_another_attempts_filenames_is_refused_by_count_and_the_gate(self):
+        tasks = CLASSES["follow-on"][:2]
+        plan = {"model": MODEL, "arm": "m", "directory": f"{MODEL}/m", "configs": ["B"], "max_spend_usd": 14.0, "tasks": tasks}
+        for key, value in (("repeat", 2), ("attempt", f"{tasks[0]}.B.{MODEL}.2")):
+            w = World(self)
+            d = w.arm("m", {t: {} for t in tasks}, run=run_json("m", MODEL, tasks))
+            w.gates = Path(w.tmp.name) / "gates.txt"
+            mark_started(d)
+            path = d / f"{tasks[0]}.B.{MODEL}.1.receipt.json"
+            doc = json.loads(path.read_text(encoding="utf-8"))
+            doc[key] = value
+            path.write_text(json.dumps(doc), encoding="utf-8")
+            with self.assertRaisesRegex(stage9.Refusal, key, msg=f"count, {key}"):
+                w.count(plans=[plan])
+            with self.assertRaisesRegex(stage9.Refusal, key, msg=f"gate, {key}"):
+                stage9.gate("run", MODEL, "m", d, w.plans([plan]), w.pilot, w.gates, "pilot", after=f"{MODEL} n", now="2026-11-20T11:00:00Z")
+
+    def test_a_kept_log_the_receipt_names_and_the_directory_lost_is_not_not_seen(self):
+        w = World(self)
+        w.arm("n", {"follow-on-00": dict(log=1), "follow-on-01": {}})
+        path = next(w.root.glob(f"*/n/follow-on-01.B.{MODEL}.1.receipt.json"))
+        doc = json.loads(path.read_text(encoding="utf-8"))
+        doc["kept_scratch_file_sha256"] = "a" * 64  # the receipt says a log was captured; there is none beside it
+        path.write_text(json.dumps(doc), encoding="utf-8")
+        got = w.attempts("n")
+        self.assertEqual((got["follow-on-01"]["exposure"], got["follow-on-01"]["exposed"]), ("unknown", None))
+
+    def test_a_write_with_a_quoted_flag_value_is_a_write_and_a_heredoc_flag_is_text(self):
+        spaced = 'mrw --root "/tmp/my repo" write plan.txt'
+        self.assertEqual(stage9.classify_command(spaced), "single")
+        self.assertEqual(stage9.classify_command("mrw -C '/tmp/my repo' write -"), "single")
+        self.assertEqual(stage9.classify_command("mrw --root=/tmp/a write plan.txt"), "single")
+        self.assertEqual(stage9.classify_command('mrw --root "/tmp/a;b" write plan.txt; rm x'), "unattributable")
+        w = World(self)
+        w.arm("m", {"follow-on-00": dict(steps=[(spaced, REFUSED)])})
+        got = w.attempts("m")["follow-on-00"]
+        self.assertEqual((got["write_calls"], got["write_results_read"], got["exposed"]), (1, 1, True))
+        heredoc = "mrw write - <<'PLAN'\n@@ f.go 3 replace\n  --dry-run is a flag of mrw write\nPLAN"
+        self.assertEqual(stage9.refusals_of(heredoc, REFUSED)[1], "lone")
+        self.assertEqual(stage9.refusals_of("mrw write --dry-run plan.txt", REFUSED)[1], "dry_run")
+        self.assertEqual(stage9.refusals_of("mrw --root '/tmp/my repo' write --dry-run -", REFUSED)[1], "dry_run")
+        self.assertEqual(stage9.refusals_of("printf '%s' '--dry-run' | mrw write -", REFUSED)[1], "lone")
 
 
 def sha_of(path):

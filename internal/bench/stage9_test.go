@@ -1325,6 +1325,23 @@ func TestAGraderWrittenFileIsNeitherInTheDiffNorASlippedWrite(t *testing.T) {
 	}
 }
 
+// A diff whose numstat is longer than the capped writer keeps (64 KiB) is counted
+// whole, or the run fails: totals cut at the cap would be a silent undercount.
+func TestDiffStatCountsAnOutputLongerThanTheOutputCap(t *testing.T) {
+	tree, base := stagedTree(t)
+	const files = 600
+	for i := range files {
+		name := fmt.Sprintf("%s%04d.txt", strings.Repeat("n", 130), i)
+		if err := os.WriteFile(filepath.Join(tree, name), []byte("x\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	d, err := diffStat(t.TempDir(), tree, base)
+	if err != nil || d.Files != files || d.Insertions != files {
+		t.Fatalf("diffStat: %+v %v, want %d files and %d insertions, from more than %d bytes of numstat", d, err, files, files, outputCap)
+	}
+}
+
 // stagedTree is a one-commit git tree and that commit.
 func stagedTree(t *testing.T) (tree, base string) {
 	t.Helper()

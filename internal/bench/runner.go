@@ -1,11 +1,13 @@
 package bench
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math/rand"
 	"os"
 	"os/exec"
@@ -1449,13 +1451,21 @@ func diffStat(scratch, tree, base string) (DiffStat, error) {
 	}
 	defer cleanup()
 	c := git("diff", "--cached", "--numstat", base)
-	var stdout, stderr capped
-	c.Stdout, c.Stderr = &stdout, &stderr
-	if err := c.Run(); err != nil {
-		return d, fmt.Errorf("git diff --numstat: %w: %s", err, stderr.String())
+	// Streamed, not captured: the output grows with the number of files and a cap
+	// would return success with the totals of the part kept.
+	var stderr capped
+	c.Stderr = &stderr
+	pipe, err := c.StdoutPipe()
+	if err != nil {
+		return d, fmt.Errorf("git diff --numstat: %w", err)
 	}
-	out := stdout.String()
-	for _, l := range strings.Split(strings.TrimSpace(out), "\n") {
+	if err := c.Start(); err != nil {
+		return d, fmt.Errorf("git diff --numstat: %w", err)
+	}
+	sc := bufio.NewScanner(pipe)
+	sc.Buffer(make([]byte, 0, 64<<10), 1<<20)
+	for sc.Scan() {
+		l := sc.Text()
 		var ins, del int
 		var name string
 		if n, _ := fmt.Sscanf(l, "%d\t%d\t%s", &ins, &del, &name); n == 3 {
@@ -1465,6 +1475,14 @@ func diffStat(scratch, tree, base string) (DiffStat, error) {
 		} else if strings.HasPrefix(l, "-\t-\t") {
 			d.Files++
 		}
+	}
+	scanErr := sc.Err()
+	_, _ = io.Copy(io.Discard, pipe) // a line too long to scan must not leave git blocked on a full pipe
+	if err := c.Wait(); err != nil {
+		return d, fmt.Errorf("git diff --numstat: %w: %s", err, stderr.String())
+	}
+	if scanErr != nil {
+		return DiffStat{}, fmt.Errorf("git diff --numstat: its output could not be read to the end: %w", scanErr)
 	}
 	return d, nil
 }

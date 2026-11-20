@@ -3,7 +3,7 @@
   bench_stage9.py count  --receipts DIR --transcripts DIR --pilot pilot.md [--classes FILE] [--plans FILE]
   bench_stage9.py report --receipts DIR --counts FILE
   bench_stage9.py spend  --receipts DIR
-  bench_stage9.py gate run|canary MODEL ARM --target PATH --pilot pilot.md --gates gates.txt [--plans FILE] [--after "MODEL ARM"]
+  bench_stage9.py gate run|canary MODEL ARM --target PATH --pilot pilot.md --gates gates.txt --sequence smoke|pilot [--plans FILE] [--after "MODEL ARM"]
   bench_stage9.py review --results RESULTS.md --counts counts.json --receipts DIR
   bench_stage9.py project --receipts SMOKE_DIR [--plans FILE]
   bench_stage9.py registration --backlog docs/adr/BACKLOG.md
@@ -32,6 +32,7 @@ import json
 import math
 import random
 import re
+import shlex
 import sys
 from datetime import datetime, timezone
 from decimal import Decimal, localcontext
@@ -69,8 +70,9 @@ MENTION = re.compile(r'''(?:\bmrw\b|\$\{?MRW\}?)[\s"'\\]*''' + FLAGS + r'''write
 # One trailing heredoc that feeds the plan: `<<DELIM`, `<<'DELIM'` or `<<-DELIM` ending the first line (2>&1 may follow it).
 HEREDOC = re.compile(r"(?<!<)<<-?[ \t]*(?P<q>['\"]?)(?P<delim>[^\s<'\"]\S*?)(?P=q)(?P<tail>[ \t]*2>&1)?[ \t]*\n(?P<body>(?:.*\n)?)[ \t]*(?P=delim)[ \t]*\n?\Z", re.S)
 CD = re.compile(r'''\s*cd\s+[^\s;&|<>$`()'"]+\s*&&\s*''')
-# What is left is one invocation: bare, `command`, `env VAR=x`, a path ending in /mrw, or "$MRW", then any flags, then write.
-SIMPLE = re.compile(r'''(?:command\s+|env\s+(?:\w+=\S*\s+)*)?(?:"?\$\{?MRW\}?"?|(?:[\w./~+@-]*/)?mrw)\s+(?:-{1,2}[A-Za-z][\w-]*(?:=\S+|\s+(?!write\b)[^\s-]\S*)?\s+)*write\b.*''', re.S)
+# What is left is one invocation, read as argv (shlex, so a quoted flag value with a space is one word): bare, `command`, `env VAR=x`,
+# a path ending in /mrw, or "$MRW", then any flags with their values, then write.
+COMMAND_WORD = re.compile(r"(?:[\w./~+@-]*/)?mrw|\$\{?MRW\}?")
 CHAINING = re.compile(r"[;&|<>`]|\$\(")
 # A producer stage in front of `| mrw write -`: printf, echo or cat FILE, and nothing else.
 PRODUCER = re.compile(r"(?:printf|echo)(?:\s.*)?|cat\s+\S.*", re.S)
@@ -159,7 +161,8 @@ def load_runs(root, pilot=None, plans=None):
             raise Refusal(f"{d}/run.json: configs is {run.get('configs')!r}, arm {arm} runs {ARM_CONFIGS[arm]!r}")
         if plan["max_spend_usd"] is not None and run.get("max_spend_usd") != plan["max_spend_usd"]:
             raise Refusal(f"{d}/run.json: max_spend_usd is {run.get('max_spend_usd')!r}, the registered plan's is {plan['max_spend_usd']!r}")
-        if plan["tasks"] is not None and run.get("tasks") != plan["tasks"]:
+        # bench run sorts the task ids it is given, so the list is compared as the multiset it is, not in the order plans.json writes it.
+        if plan["tasks"] is not None and sorted(run.get("tasks") or []) != sorted(plan["tasks"]):
             raise Refusal(f"{d}/run.json: tasks are not the registered plan's list of {len(plan['tasks'])}")
         other = {k: v for k, v in run.items() if k not in MAY_DIFFER}
         differing = sorted(k for k in set(base) | set(other) if base.get(k) != other.get(k))
@@ -267,11 +270,97 @@ def outcome_of(rec):
     return "outside" if oracle.get("outside") else "other"
 
 
+def flags_then_write(tokens, i):
+    """Whether tokens[i:] are mrw's flags, each with its value, and then `write`. A flag with no `=` takes the next word as its value
+    unless that is `write` or another flag."""
+    while i < len(tokens):
+        t = tokens[i]
+        if t == "write":
+            return True
+        if not t.startswith("-"):
+            return False
+        i += 1
+        if "=" not in t and i < len(tokens) and tokens[i] != "write" and not tokens[i].startswith("-"):
+            i += 1
+    return False
+
+
+def write_argv(tokens):
+    """Whether the words are one invocation of mrw write: [command | env NAME=v ...] mrw-or-$MRW, flags, write."""
+    i = 0
+    if tokens[:1] == ["command"]:
+        i = 1
+    elif tokens[:1] == ["env"]:
+        i = 1
+        while i < len(tokens) and re.fullmatch(r"\w+=.*", tokens[i]):
+            i += 1
+    return i < len(tokens) and COMMAND_WORD.fullmatch(tokens[i]) is not None and flags_then_write(tokens, i + 1)
+
+
+def words(text):
+    """shlex's words of text, or None where it is not one shell word list (an open quote)."""
+    try:
+        return shlex.split(text)
+    except ValueError:
+        return None
+
+
+def command_head(command):
+    """The command without the one trailing heredoc that feeds the plan: the heredoc's body is the plan's text, never a flag."""
+    heredoc = HEREDOC.search(command)
+    return command[:heredoc.start()] + (heredoc["tail"] or "") if heredoc else command
+
+
+def split_pipes(text):
+    """The stages of a pipeline: text split at every `|` outside quotes."""
+    stages, cur, quote, i = [], [], None, 0
+    while i < len(text):
+        c = text[i]
+        if quote:
+            cur.append(c)
+            if c == "\\" and quote == '"' and i + 1 < len(text):
+                i += 1
+                cur.append(text[i])
+            elif c == quote:
+                quote = None
+        elif c in "'\"":
+            quote = c
+            cur.append(c)
+        elif c == "\\" and i + 1 < len(text):
+            cur.extend((c, text[i + 1]))
+            i += 1
+        elif c == "|":
+            stages.append("".join(cur))
+            cur = []
+        else:
+            cur.append(c)
+        i += 1
+    stages.append("".join(cur))
+    return stages
+
+
+def token_mention(command):
+    """Whether the command's words hold `mrw`, its flags with their values, and write: the quoted-value form MENTION cannot read."""
+    tokens = words(command_head(command))
+    return tokens is not None and any(COMMAND_WORD.fullmatch(t) and flags_then_write(tokens, k + 1) for k, t in enumerate(tokens))
+
+
+def dry_flag(command):
+    """Whether the invocation carries --dry-run as a word of its own: the heredoc's text and a producer's arguments are not flags."""
+    head = command_head(command).strip()
+    cd = CD.match(head)
+    last = split_pipes(head[cd.end():] if cd else head)[-1]
+    tokens = words(last)
+    if tokens is None:
+        return re.search(r"(?<![\w-])--dry-run(?![\w-])", last) is not None
+    return "--dry-run" in tokens
+
+
 def classify_command(command):
     """None when the command does not mention `mrw write`; "single" when it is one simple write command, whose output is the
     write's; "unattributable" for any other command that mentions it (a chain, a pipe, a substitution, a redirect, text in an
     argument), whose output is never read."""
-    if not MENTION.search(command):
+    if not (MENTION.search(command) or token_mention(command)):
         return None
     head = command
     heredoc = HEREDOC.search(command)
@@ -282,11 +371,13 @@ def classify_command(command):
     head = head.strip()
     cd = CD.match(head)
     rest = head[cd.end():] if cd else head
-    # A pipeline's output is its last stage's. A single-quoted argument holds no operator, so it is blanked before the stages are read.
+    # A pipeline's output is its last stage's. A single-quoted argument holds no operator, so it is blanked before the operators are read.
     flat = re.sub(r"'[^']*'", "''", rest)
-    *producers, last = flat.split("|")
-    simple = SIMPLE.fullmatch(last.strip()) and not CHAINING.search(re.sub(r"(?<!\S)2>&1(?!\S)", "", last))
-    if "\n" in flat or not simple or not all(PRODUCER.fullmatch(p.strip()) and not CHAINING.search(p) for p in producers):
+    *producers, last = split_pipes(rest)
+    tokens = words(last)
+    quoted = last.lstrip()[:1] in ("'", '"') and not re.match(r'"\$\{?MRW\}?"', last.lstrip())  # a quoted command word is not read
+    simple = tokens is not None and not quoted and write_argv(tokens) and not CHAINING.search(re.sub(r"(?<!\S)2>&1(?!\S)", "", re.sub(r"'[^']*'", "''", last)))
+    if "\n" in flat or not simple or not all(PRODUCER.fullmatch(p.strip()) and not CHAINING.search(re.sub(r"'[^']*'", "''", p)) for p in producers):
         return "unattributable"
     return "single"
 
@@ -322,7 +413,7 @@ def refusals_of(command, text):
     receipt, whose reason is ADR-203's. The same words anywhere else, a quoted imitation included, are not one. The kind is
     `dry_run` when the invocation carries --dry-run or the receipt says dry_run, else `lone` when it is the plan's only failed
     hunk, else `beside` another failed hunk."""
-    dry = re.search(r"(?<![\w-])--dry-run(?![\w-])", command) is not None
+    dry = dry_flag(command)
     doc = json_receipt(text)
     if doc is not None:
         failed = [h for h in doc["hunks"] if isinstance(h, dict) and h.get("status") == "failed"]
@@ -416,9 +507,11 @@ def scratch_note(rec):
 def n_exposure(rec, kept, calls):
     """The exposure of an attempt in arm N, from the runner's kept log and what the transcript's write calls say."""
     events, bad = kept_events(kept)
+    # A receipt that names a captured log, with none beside it, lost what it captured: unknown, never a measured zero.
+    lost = bool((rec.get("kept_scratch_file_sha256") or rec.get("kept_state_file_sha256")) and not kept.exists())
     stage9 = any(STAGE9_LINE.search(c["text"]) for c in calls)
     unattributable = sum(not c["read"] for c in calls)
-    doubt = bool(bad or scratch_note(rec) or stage9 or unattributable)
+    doubt = bool(bad or lost or scratch_note(rec) or stage9 or unattributable)
     state = "exposed" if events else "unknown" if doubt else "not seen"
     return {"exposure": state, "hunks": events, "refusals": None, "flagged": bool(events and doubt), "write_calls": len(calls),
             "write_results_read": sum(c["read"] for c in calls), "write_unattributable": unattributable}
@@ -435,6 +528,8 @@ def attempt_entry(cls, arm, picked, chain, stray, started, index, transcripts, i
              "slipped": bool(rec) and bool(rec.get("slipped_writes"))}
     if rec is None:
         return entry
+    if rec.get("attempt") != entry["attempt"] or rec.get("repeat") != 1:  # the file's name is not what makes a receipt this attempt's
+        raise Refusal(f"{entry['attempt']}: the receipt says attempt {rec.get('attempt')!r} repeat {rec.get('repeat')!r}: it is not the receipt of this attempt (the stage runs repeat 1)")
     usage = rec.get("usage") or {}
     entry.update(spend=rec.get("total_cost_usd"), num_turns=rec.get("num_turns"), tool_calls=rec.get("tool_calls"), wall_ms=rec.get("wall_ms"),
                  tokens={"input": usage.get("input_tokens"), "output": usage.get("output_tokens"),
@@ -793,13 +888,34 @@ def run_start(directory, started):
     return min(times)
 
 
+def check_build(doc, arm, pilot_text, pilot, where):
+    """A run's or a canary's binary and instruction file are the arm's registered ones, pilot.md's: a receipt that matches its
+    own run.json says nothing of which build the run was made with."""
+    if arm == "a":
+        if doc.get("mrw_sha256") or doc.get("mrw_instructions_sha256"):
+            raise Refusal(f"{where}: arm a carries an mrw hash or instructions hash")
+        return
+    want = pilot_line(pilot_text, pilot, f"{arm} sha256", "[0-9a-f]{64}", "64 hex digits")
+    if doc.get("mrw_sha256") != want:
+        raise Refusal(f"{where}: mrw_sha256 is {doc.get('mrw_sha256')!r}, not the {arm} sha256 {want} of {pilot}: the wrong binary")
+    instructions = pilot_line(pilot_text, pilot, "instructions sha256", "[0-9a-f]{64}", "64 hex digits")
+    if doc.get("mrw_instructions_sha256") != instructions:
+        raise Refusal(f"{where}: mrw_instructions_sha256 is {doc.get('mrw_instructions_sha256')!r}, not the instructions sha256 {instructions} of {pilot}")
+
+
 def check_run(directory, plan, pilot_text, pilot, now_micros=None):
     """Everything Decision 9 asks of one run directory before the next step may start; returns its earliest start."""
     model, arm = plan["model"], plan["arm"]
     run = read_json(directory / "run.json")
-    for key, want in (("models", [model]), ("configs", plan["configs"]), ("max_spend_usd", plan["max_spend_usd"]), ("tasks", plan["tasks"])):
+    for key, want in (("models", [model]), ("configs", plan["configs"]), ("max_spend_usd", plan["max_spend_usd"])):
         if run.get(key) != want:
             raise Refusal(f"{directory}/run.json: {key} is {run.get(key)!r}, the registered plan's is {want!r}")
+    if sorted(run.get("tasks") or []) != sorted(plan["tasks"]):  # as a multiset: bench run sorts the ids it is given
+        raise Refusal(f"{directory}/run.json: tasks are not the registered plan's {len(plan['tasks'])}")
+    check_build(run, arm, pilot_text, pilot, f"{directory}/run.json")
+    if arm == "n":  # Decision 4: N's runs keep the scratch file the log is written to, and no state file
+        if run.get("keep_scratch_file") != "stage9-exposed.jsonl" or run.get("keep_state_file"):
+            raise Refusal(f"{directory}/run.json: keep_scratch_file is {run.get('keep_scratch_file')!r} and keep_state_file {run.get('keep_state_file')!r}; arm n needs keep_scratch_file stage9-exposed.jsonl and no keep_state_file")
     found, marks = receipts_in(directory)
     for stem, (path, _) in found.items():
         if stem not in marks:
@@ -819,6 +935,11 @@ def check_run(directory, plan, pilot_text, pilot, now_micros=None):
         tried = len(chain) - 1
         if replaced(rec.get("exclusion", ""), tried):
             raise Refusal(f"{picked[0].name}: excluded ({rec.get('exclusion')}) and its replacement {base}.r{tried + 1} is owed and missing")
+        # The stem names the repeat (`<task>.<config>.<model>.<repeat>[.rN]`), and the receipt says which it is: a repeat-2 receipt
+        # moved to repeat-1 filenames carries its own attempt and repeat.
+        for stem in chain:
+            if found[stem][1].get("repeat") != 1:
+                raise Refusal(f"{found[stem][0].name}: its repeat is {found[stem][1].get('repeat')!r}, the stage runs one: it is not the receipt of this attempt")
         for stem in chain:  # each receipt of the chain is of this run and this attempt, not another's under the name (the runner's readsBack)
             got = found[stem][1]
             for key, want in (("attempt", stem), ("task", task), ("model", model), ("config", ARM_CONFIGS[arm][0]), ("mrw_sha256", run.get("mrw_sha256") or "")):
@@ -864,6 +985,7 @@ def check_canary(path, model, arm, pilot_text, pilot):
         raise Refusal(f"{path}: the canary is of model {doc.get('model')!r}, not {model!r}")
     if doc.get("max_spend_usd") != CANARY_FIGURES[model]:
         raise Refusal(f"{path}: max_spend_usd is {doc.get('max_spend_usd')!r}, the registered {CANARY_FIGURES[model]!r}")
+    check_build(doc, arm, pilot_text, pilot, str(path))
     costs = doc.get("total_cost_usd") or {}
     if not costs or any(c is None or isinstance(c, bool) or not isinstance(c, (int, float)) for c in costs.values()):
         raise Refusal(f"{path}: a canary with a null cost, or none, does not say what it spent")
