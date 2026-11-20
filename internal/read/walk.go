@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"syscall"
 	"unicode"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/lines"
@@ -26,6 +27,19 @@ import (
 type Problem struct {
 	Path   string
 	Reason string
+	// Unreadable says the path could not be listed or opened, an I/O failure
+	// the walk met, as against a refusal by the walk's own rules: its line says
+	// UNREADABLE, as a directory named to read does (#752).
+	Unreadable bool
+}
+
+// Word is the kind a surface prints before the reason: UNREADABLE for an I/O
+// failure, REFUSED for a refusal by the walk's rules.
+func (p Problem) Word() string {
+	if p.Unreadable {
+		return "UNREADABLE"
+	}
+	return "REFUSED"
 }
 
 // WalkOptions is what the caller asked for.
@@ -69,6 +83,11 @@ type WalkSkipped struct {
 	// does not serve (ADR-135). It counts names the listing showed, never what
 	// a file held and never where a link leads.
 	Unkeepable int `json:"unkeepable"`
+	// DeviceNames is the discovered files named for a reserved Windows device
+	// (aux.txt, nul), which Resolve refuses by their spelling (ADR-081) and the
+	// walk does not serve; counted apart from Unkeepable, since Windows keeps such
+	// a name and the reason differs (#752).
+	DeviceNames int `json:"device_names"`
 	// LinkedDirs is the links — symlinks, and on Windows junctions — to a
 	// directory that resolve inside the root and that the walk does not follow
 	// (ADR-096), counted rather than dropped in silence (ADR-138). It says a link
@@ -85,10 +104,10 @@ func SkipNote(sk WalkSkipped, flag string) string {
 	}
 	var parts []string
 	if sk.Ignored > 0 {
-		parts = append(parts, fmt.Sprintf("%d file(s) .gitignore ignores", sk.Ignored))
+		parts = append(parts, fmt.Sprintf("%d file(s) the ignore rules skip", sk.Ignored))
 	}
 	if sk.IgnoredDirs > 0 {
-		parts = append(parts, fmt.Sprintf("%d director(ies) .gitignore ignores, not entered", sk.IgnoredDirs))
+		parts = append(parts, fmt.Sprintf("%d director(ies) the ignore rules skip, not entered", sk.IgnoredDirs))
 	}
 	if sk.Binary > 0 {
 		parts = append(parts, fmt.Sprintf("%d binary file(s) that matched", sk.Binary))
@@ -100,13 +119,18 @@ func SkipNote(sk WalkSkipped, flag string) string {
 	if sk.LinkedDirs > 0 {
 		parts = append(parts, fmt.Sprintf("%d link(s) to a directory, not followed", sk.LinkedDirs))
 	}
-	if sk.Unkeepable > 0 {
-		parts = append(parts, fmt.Sprintf("%d file(s) with a name Windows will not keep", sk.Unkeepable))
+	if sk.DeviceNames > 0 {
+		parts = append(parts, fmt.Sprintf("%d file(s) named for a Windows device (aux, nul), not served", sk.DeviceNames))
 	}
-	if sk.Unkeepable > 0 || sk.LinkedDirs > 0 {
-		// No flag walks either of these; naming one says why.
+	// Unkeepable counts both kinds (ADR-111: a key keeps its meaning), the device
+	// names among them; the note names the others apart from those.
+	if other := sk.Unkeepable - sk.DeviceNames; other > 0 {
+		parts = append(parts, fmt.Sprintf("%d file(s) with a name Windows will not keep", other))
+	}
+	if sk.Unkeepable > 0 || sk.DeviceNames > 0 || sk.LinkedDirs > 0 {
+		// No flag walks any of these; naming one says why.
 		tail = "; " + flag + " walks the others, and naming one tells why"
-		if sk == (WalkSkipped{Unkeepable: sk.Unkeepable, LinkedDirs: sk.LinkedDirs}) {
+		if sk == (WalkSkipped{Unkeepable: sk.Unkeepable, DeviceNames: sk.DeviceNames, LinkedDirs: sk.LinkedDirs}) {
 			tail = "; name one to be told why"
 		}
 	}
@@ -148,7 +172,7 @@ func Walk(root string, paths []string, opt WalkOptions) ([]Spec, []Problem, erro
 		defer rd.Close()
 	}
 	w := walker{root: root, absRoot: absRoot, opt: opt, seen: map[string]bool{}, nested: map[string]*ignorer{},
-		skipFiles: map[string]bool{}, skipDirs: map[string]bool{}, skipBin: map[string]bool{}, skipNested: map[string]bool{}, skipNames: map[string]bool{}, skipLinks: map[string]bool{},
+		skipFiles: map[string]bool{}, skipDirs: map[string]bool{}, skipBin: map[string]bool{}, skipNested: map[string]bool{}, skipNames: map[string]bool{}, skipDevices: map[string]bool{}, skipLinks: map[string]bool{},
 		sem: make(chan struct{}, min(runtime.NumCPU(), maxScanners)), rd: rd, res: rooted.NewResolver(root)}
 	if !opt.NoIgnore {
 		w.ign = newIgnorer(absRoot)
@@ -197,6 +221,9 @@ type walker struct {
 	skipNested map[string]bool
 	// skipNames is the discovered files Resolve refused for their names (ADR-135).
 	skipNames map[string]bool
+	// skipDevices is the discovered files Resolve refused for a reserved device
+	// name, counted apart from skipNames (#752).
+	skipDevices map[string]bool
 	// skipLinks is the in-root links to a directory the walk met (ADR-138).
 	skipLinks map[string]bool
 	starts    []string
@@ -272,7 +299,9 @@ func judgeNamed(root, absRoot, p string) (namedPath, *Problem) {
 	}
 	fi, err := os.Stat(full)
 	if err != nil {
-		return namedPath{}, &Problem{Path: p, Reason: err.Error()}
+		// An absent path is still a path the walk refuses (it was named and is not
+		// there), as it was; a permission or other OS failure is UNREADABLE (#752).
+		return namedPath{}, &Problem{Path: p, Reason: err.Error(), Unreadable: ioFailure(err) && !errors.Is(err, fs.ErrNotExist)}
 	}
 	if fi.IsDir() {
 		// ADR-096 decision 3: a path that resolves to the root IS the root,
@@ -339,7 +368,7 @@ func (w *walker) walkDir(named string, full string) {
 			if p == full {
 				return err
 			}
-			w.problems = append(w.problems, Problem{Path: w.rel(p), Reason: err.Error()})
+			w.problems = append(w.problems, Problem{Path: w.rel(p), Reason: err.Error(), Unreadable: true})
 			return fs.SkipDir
 		}
 		rel := w.rel(p)
@@ -390,12 +419,15 @@ func (w *walker) walkDir(named string, full string) {
 			if rooted.UnkeepableName(err) {
 				// The caller's own rules come first, as for a link below: an
 				// excluded name is not reported, and one the ignore rules name is
-				// the ignored file it is.
+				// the ignored file it is. A reserved device name is counted apart
+				// from the other names (#752).
 				r := filepath.ToSlash(rel)
 				switch {
 				case w.excluded(rel):
 				case w.ignored(r, false, from):
 					w.skipFiles[r] = true
+				case rooted.DeviceName(err):
+					w.skipDevices[r] = true
 				default:
 					w.skipNames[r] = true
 				}
@@ -436,7 +468,7 @@ func (w *walker) walkDir(named string, full string) {
 		return nil
 	})
 	if err != nil {
-		w.problems = append(w.problems, Problem{Path: named, Reason: err.Error()})
+		w.problems = append(w.problems, Problem{Path: named, Reason: err.Error(), Unreadable: true})
 	}
 }
 
@@ -598,6 +630,20 @@ func (w *walker) takeAll() {
 	}
 }
 
+// ioFailure says whether err is the operating system failing to open or read a
+// path (a permission, an I/O error), as against a refusal by the boundary's own
+// rules (a path that escapes the root, a name Windows will not keep, a file over
+// the cap), whose errors are not an errno: such a failure is UNREADABLE, as a
+// named path is (#752).
+func ioFailure(err error) bool {
+	var pe *fs.PathError
+	if !errors.As(err, &pe) {
+		return false
+	}
+	var errno syscall.Errno
+	return errors.As(pe.Err, &errno)
+}
+
 // flush waits for every queued read, then applies the results in queue order:
 // a key already served is skipped as before, and a read's Problem is put back
 // at the place in w.problems it was queued at. Only the problems from settled
@@ -618,7 +664,7 @@ func (w *walker) flush() {
 		done = j.at
 		switch {
 		case j.err != nil:
-			problems = append(problems, Problem{Path: j.p, Reason: j.err.Error()})
+			problems = append(problems, Problem{Path: j.p, Reason: j.err.Error(), Unreadable: ioFailure(j.err)})
 		case !j.matched:
 		case j.discovered && j.sniff:
 			w.skipBin[j.key] = true
@@ -705,7 +751,7 @@ type hitJudge struct{ w *walker }
 // judges paths and must never offer one.
 func newHitJudge(root, absRoot string) *hitJudge {
 	w := &walker{root: root, absRoot: absRoot, seen: map[string]bool{}, nested: map[string]*ignorer{},
-		skipFiles: map[string]bool{}, skipDirs: map[string]bool{}, skipBin: map[string]bool{}, skipNested: map[string]bool{}, skipNames: map[string]bool{}, skipLinks: map[string]bool{}}
+		skipFiles: map[string]bool{}, skipDirs: map[string]bool{}, skipBin: map[string]bool{}, skipNested: map[string]bool{}, skipNames: map[string]bool{}, skipDevices: map[string]bool{}, skipLinks: map[string]bool{}}
 	w.ign = newIgnorer(absRoot)
 	return &hitJudge{w: w}
 }
@@ -811,6 +857,12 @@ func (w *walker) skipCounts() WalkSkipped {
 	for p := range w.skipNames {
 		if !w.seen[p] {
 			sk.Unkeepable++
+		}
+	}
+	for p := range w.skipDevices {
+		if !w.seen[p] {
+			sk.DeviceNames++
+			sk.Unkeepable++ // a device name is one of the names Windows will not keep, as it was before #752
 		}
 	}
 	sk.LinkedDirs = len(w.skipLinks)

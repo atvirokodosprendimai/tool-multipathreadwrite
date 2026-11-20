@@ -265,6 +265,15 @@ func UnkeepableName(err error) bool {
 	return (errors.Is(err, ErrDeviceName) && !errors.Is(err, errViaLink)) || errors.Is(err, ErrWin32Alias)
 }
 
+// DeviceName reports whether err is Resolve's refusal of a reserved device name
+// (aux, nul, com1 …) by the path's own spelling: Windows keeps such a name and
+// opens it as a device (ADR-081), unlike the aliases UnkeepableName also counts. A
+// walk counts the two apart (#752). A device name reached through a link is not
+// one.
+func DeviceName(err error) bool {
+	return errors.Is(err, ErrDeviceName) && !errors.Is(err, errViaLink)
+}
+
 // RefusedByName reports whether err is Resolve's refusal of a name's own
 // spelling — a device name or a name Windows does not keep as written — whether
 // or not a link led there. Advice that fits an escape from the root ("point

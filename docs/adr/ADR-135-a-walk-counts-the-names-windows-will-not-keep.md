@@ -2,6 +2,7 @@
 
 **Status:** Accepted
 **Accepted:** 2026-10-09 by Zy — "do adr first, fix, test, then release" (the answer to the open decisions after the Windows chaos round, which listed this key) and "/loop continue delivering, end to end, no dead code"
+**Amended by #752 (2026-11-20, a Windows peer's report):** the note names a reserved device name (`aux.txt`, `nul`; ADR-081) apart from the other names Windows will not keep (a trailing dot or space), since Windows keeps a device name and the reason differs. The JSON keys keep their meaning (ADR-111): `skipped.unkeepable` still counts BOTH kinds, and `skipped.device_names`, new, is the device-name part of it, a subset; the note says the other kind as `unkeepable` minus `device_names`.
 **Date:** 2026-10-09
 **Owner:** Zy
 **Spec:** None — no spec stage

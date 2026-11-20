@@ -7,6 +7,7 @@
 # One exception, ADR-212, from the first release that contains #725: on a written row that is not removed,
 # files[].lines_after is a measured count only when files[].sha_after is present. A moved symbolic link's row has
 # no sha_after, and its lines_after 0 is not a count: the receipt is built without reading what the link leads to.
+# mcp_read skipped.device_names is the device-name part of skipped.unkeepable, a subset: unkeepable keeps counting both kinds.
 # cmd/mrw's TestNoShippedReceiptFieldDisappears and internal/mcp's TestNoShippedMCPReceiptFieldDisappears
 # hold the receipt types to this file both ways.
 #
@@ -234,6 +235,7 @@ mcp_write drift_writers
 write drift_writers
 mcp_read skipped.nested
 mcp_read skipped.unkeepable
+mcp_read skipped.device_names
 mcp_read skipped.linked_dirs
 mcp_read counts
 mcp_read unchanged

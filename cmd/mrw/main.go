@@ -993,7 +993,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			},
 			&cli.BoolFlag{
 				Name:  "no-ignore",
-				Usage: "under --grep or --ast-grep, walk every regular file: no .gitignore, no binary skip, nested repositories entered (ADR-116, ADR-122, ADR-130)",
+				Usage: "under --grep or --ast-grep, walk what the ignore rules, the binary check and nested repositories skip (a name Windows will not keep stays skipped) (ADR-116, ADR-122, ADR-130, ADR-135)",
 			},
 			&cli.BoolFlag{
 				Name:  "quiet",
@@ -1549,7 +1549,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			// reason, and counts. Rule 5: one bad path never costs the caller
 			// the answers about the good ones, but it is never silent either.
 			for _, p := range refusals {
-				fmt.Fprintf(read.Reporting(stdout, &withheld), "==> %s  REFUSED  %s\n", read.ShownPath(p.Path), read.OneLine(p.Reason))
+				fmt.Fprintf(read.Reporting(stdout, &withheld), "==> %s  %s  %s\n", read.ShownPath(p.Path), p.Word(), read.OneLine(p.Reason))
 			}
 			// ADR-116: what the walk skipped is said, never silent, as the
 			// read's last line.
@@ -1873,7 +1873,7 @@ held or went unchecked.`,
 			},
 			&cli.BoolFlag{
 				Name:  "no-ignore",
-				Usage: "with --grep --sub or --ast-grep --rewrite, walk every regular file as read --grep --no-ignore does (ADR-161)",
+				Usage: "with --grep --sub or --ast-grep --rewrite, walk what the ignore rules, the binary check and nested repositories skip, as read --grep --no-ignore does (ADR-161)",
 			},
 			&cli.IntFlag{
 				Name:  "echo-pad",

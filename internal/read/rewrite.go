@@ -294,7 +294,7 @@ func AstGrepRewrite(root string, paths []string, pattern, repl string, exclude [
 	}
 	for _, p := range unread {
 		if !named[filepath.ToSlash(filepath.Clean(p.Path))] {
-			problems = append(problems, Problem{Path: p.Path, Reason: "cannot be scanned, so ast-grep may have skipped it: " + p.Reason})
+			problems = append(problems, Problem{Path: p.Path, Reason: "cannot be scanned, so ast-grep may have skipped it: " + p.Reason, Unreadable: p.Unreadable})
 		}
 	}
 	if len(specs) == 0 {

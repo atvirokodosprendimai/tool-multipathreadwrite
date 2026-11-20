@@ -351,16 +351,19 @@ path mrw judged (`.` for the root).
 
 Inside a git checkout (a `.git` at or above the root) it skips what `.gitignore` and `.git/info/exclude`
 ignore — `core.excludesFile` is not read — and any walk skips a binary file (a UTF-16/32 BOM, or a NUL in
-the first 8 KiB). Under `--grep` nothing is skipped silently: a `-- skipped:` line counts both, and `--no-ignore` walks
-every file. A path you name is walked either way, an ignored directory included; the rules still apply
+the first 8 KiB). Under `--grep` nothing is skipped silently: a `-- skipped:` line counts both, and `--no-ignore` walks what those rules skip,
+nested repositories included (a name Windows will not keep stays skipped). A path you name is walked either way, an ignored directory included; the rules still apply
 inside it. Matching folds case where the filesystem does, as git's `core.ignorecase` defaults (ADR-116).
 It does not enter a directory below the checkout that holds its own `.git` — another repository, a submodule, a
 worktree — as git does not; the `-- skipped:` line counts it `nested`, a path you name inside one is walked by
 that repository's rules, and `--no-ignore` walks it (ADR-130).
-On a Windows build, a discovered file whose name Windows will not keep — a reserved device name such as `aux.txt`
-or `nul`, or a name ending in a dot or a space — is refused by its spelling and not served; the `-- skipped:`
-line counts it as `file(s) with a name Windows will not keep` (`skipped.unkeepable` over MCP), and no flag walks
-it: name one to be told why (ADR-135). The count says a name exists, never what the file held.
+On a Windows build, a discovered file whose name Windows will not keep (a name ending in a dot or a space) or that is
+named for a reserved device (`aux.txt`, `nul`: ADR-081) is refused by its spelling and not served; the `-- skipped:`
+line says the first as `file(s) with a name Windows will not keep` and the second as
+`file(s) named for a Windows device`; over MCP `skipped.unkeepable` counts both kinds and `skipped.device_names` is the device-name part of it; no flag walks either: name one to be told why
+(ADR-135, #752). The count says a name exists, never what the file held. A directory a walk cannot list, or a file it cannot open, is `UNREADABLE`,
+as one you name is, not `REFUSED`: it is an I/O failure, so it counts as a problem and the read exits 1 (`incomplete:`),
+and every sibling is still served (ADR-007 rule 5).
 A link to a directory met inside the root is not followed (ADR-096) and is counted as `link(s) to a directory, not
 followed` (`skipped.linked_dirs` over MCP, ADR-138); name the directory it leads to. A link that leaves the root is
 refused by `Resolve` first and stays uncounted.

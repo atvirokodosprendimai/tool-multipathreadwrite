@@ -76,6 +76,14 @@ jobs:
       - name: Stage 9 counting script checks
         run: python3 -B -m unittest discover -s scripts -p test_bench_stage9.py -v
 
+      # #757: THIRD_PARTY_NOTICES carries the licence of every module compiled into
+      # mrw, and this fails when it is missing, stale against go.mod, or a module
+      # has no licence file to put in it.
+      - name: Third-party notices
+        run: |
+          python3 scripts/third_party_notices.py --check
+          python3 -B -m unittest discover -s scripts -p test_third_party_notices.py -v
+
       - name: Vet
         run: go vet ./...
 
@@ -307,15 +315,19 @@ jobs:
       # download AND an unpack; the archive exists because that is what people
       # expect to find on a release page.
       #
-      # The archive carries LICENSE and AGENTS.md alongside the README. LICENSE
-      # because a distributed binary without its licence terms is the gap the
-      # repository just closed, and shipping archives that omit it would reopen
-      # it one directory down. AGENTS.md because it is the agent-facing guidance,
-      # and someone who downloads a release has neither this repository nor the
-      # centralised skill — they are the case both of those structurally miss.
+      # The archive carries LICENSE, THIRD_PARTY_NOTICES and AGENTS.md alongside the
+      # README. LICENSE because a distributed binary without its licence terms is the
+      # gap the repository just closed, and shipping archives that omit it would
+      # reopen it one directory down. THIRD_PARTY_NOTICES because the binary also
+      # carries the modules it is built from, each with a notice to keep (#757); the
+      # release stops here, before anything is built, when a module's notice is
+      # missing or the file is stale. AGENTS.md because it is the agent-facing
+      # guidance, and someone who downloads a release has neither this repository
+      # nor the centralised skill — they are the case both of those structurally miss.
       - name: Build
         id: build
         run: |
+          python3 scripts/third_party_notices.py --check
           raw="mrw-${{ matrix.goos }}-${{ matrix.goarch }}"
           bin=mrw
           if [ "${{ matrix.goos }}" = windows ]; then
@@ -331,10 +343,10 @@ jobs:
 
           name="mrw_${{ matrix.goos }}_${{ matrix.goarch }}"
           if [ "${{ matrix.goos }}" = windows ]; then
-            zip "$name.zip" "$bin" README.md AGENTS.md LICENSE
+            zip "$name.zip" "$bin" README.md AGENTS.md LICENSE THIRD_PARTY_NOTICES
             echo "archive=$name.zip" >> "$GITHUB_OUTPUT"
           else
-            tar -czf "$name.tar.gz" "$bin" README.md AGENTS.md LICENSE
+            tar -czf "$name.tar.gz" "$bin" README.md AGENTS.md LICENSE THIRD_PARTY_NOTICES
             echo "archive=$name.tar.gz" >> "$GITHUB_OUTPUT"
           fi
 

@@ -73,6 +73,7 @@ out=$(mktemp) \
 ## Risks
 
 - None beyond the record's.
+- A log row's stamp names the working commit at the moment of verification. A rebase, and the squash merge after it, replace that commit, so no stamp can name a commit that stays reachable, and the rows stamped `5269d271*`, `0c62084d*` and `8406e0f3*` (the relocks that follow the #752 change to this task's Windows test) are what the clone that made them saw. They are kept, as log rows are. What adr-lint recomputes is the lock digest, which the last relock set and which does not depend on any commit.
 
 ## Stop Condition
 
@@ -107,3 +108,6 @@ Stop and ask if a refusal other than a device name or a Win32 alias must be coun
   ```
 - 2026-10-09 · aa5727c* · exit 0 · `set -o pipefail …` · acceptance-sha256:a23e2ff6bee101ff081b7e4edd410e89760bf614e90704122b893a5c5dc74b1b · ms:36230
 - 2026-10-10 · human-observed · Zy's session read windows-latest runs for the Windows-only walk test TestAWalkCountsTheNamesWindowsWillNotKeep: red 37988152676 on 4264d6f (windows-shard 4: Unkeepable = 0, want 2) and green 37989334974 on e1ee41b (14 pass, 2 skipping); the final head's run is recorded on the PR
+- 2026-11-20 · 5269d271* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:a23e2ff6bee101ff081b7e4edd410e89760bf614e90704122b893a5c5dc74b1b · ms:0 · test-lock-sha256:b890967d406d41a276d723743405d02223b230e8026807fdec8a179f325d474c · test-lock-file:docs/adr/locks/b890967d406d41a276d723743405d02223b230e8026807fdec8a179f325d474c.lock · test-lock-kind:replace
+- 2026-11-21 · 0c62084d* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:a23e2ff6bee101ff081b7e4edd410e89760bf614e90704122b893a5c5dc74b1b · ms:0 · test-lock-sha256:33bee29141b1d07bd0c19a7b96446b5bab1ffd73e6c574035cd8ba2e75336ee5 · test-lock-file:docs/adr/locks/33bee29141b1d07bd0c19a7b96446b5bab1ffd73e6c574035cd8ba2e75336ee5.lock · test-lock-kind:replace
+- 2026-11-21 · 8406e0f3* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:a23e2ff6bee101ff081b7e4edd410e89760bf614e90704122b893a5c5dc74b1b · ms:0 · test-lock-sha256:22a72b981e25ec9c427225f05ea21764ff311c98b78e5c8652c1d195b0d3c5f7 · test-lock-file:docs/adr/locks/22a72b981e25ec9c427225f05ea21764ff311c98b78e5c8652c1d195b0d3c5f7.lock · test-lock-kind:replace
