@@ -1,6 +1,7 @@
 # ADR-032: The ceiling is the caller's, and it bounds the whole answer
 
 **Status:** Accepted
+**Amended:** by ADR-164 (2026-10-20): the elision order of an oversized `mrw_write` receipt gains two steps.
 **Date:** 2026-09-07
 **Owner:** M
 **Accepted:** M, 2026-09-07, choosing the shape from three questions put to them: the budget is *"Caller-set, bound whole result"*, `--max-lines 0` and by inheritance every numeric limit here means *"0 means zero"*, and the standing direction for this session is *"keep closing the open issues, highest rank. the product must not deteriorate and make the premise of his - false."*

@@ -2,6 +2,7 @@
 
 **Status:** Accepted
 **Accepted:** 2026-10-06 by Zy — "Probe + POSIX rename (Recommended)", on the Windows peers' finding that a held target turns a plan PARTIALLY APPLIED by plan order (BACKLOG "From the Windows peers"), and "plan these fixes then". The record's text was drafted after that answer.
+**Superseded in part:** by ADR-199 (2026-11-15): Decision 1's "Any other load error — a directory named in a plan, an I/O failure — stays the exit-2 failure it was", for a load that fails because a prefix of the path is a file, a FIFO or a device: that is a failed hunk.
 **Date:** 2026-10-06
 **Owner:** Zy
 **Spec:** None — no spec stage

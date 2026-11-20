@@ -2,13 +2,14 @@
 
 **Status:** Accepted
 **Accepted:** 2026-10-15 by Zy — picked "Accept, run on this Mac (Recommended)", after the adr-challenger's 13 findings were taken into the draft.
+**Amended:** by ADR-159 (2026-10-15): Decision 3's rule that a task is superseded "after the pilot only for an oracle defect shown on its base or its reference fix" governs a stage while it runs; a task can be superseded after its stage ran, for a later stage.
 **Date:** 2026-10-15
 **Owner:** Zy
 **Spec:** None — no spec stage
 **Cross-references:** ADR-156, ADR-054, ADR-133
 **Governs:** `internal/bench/**`, `cmd/bench/**`, `bench/**`, `docs/bench/**`
 **Amends:** ADR-156 Decision 2's "only the word mrw is taken out" (a section a repository declares is taken out too, Decision 2 here) and ADR-156 Decision 5's "one verdict per model and per task source" (per stage as well, Decision 6 here)
-**Enforced-by:** None — until T1 lands, which adds `internal/bench/runner_test.go::TestAnAttemptReadsNoneOfTheHostsShellOrGitSetup`
+**Enforced-by:** `internal/bench/runner_test.go::TestAnAttemptReadsNoneOfTheHostsShellOrGitSetup`
 **Served-path change:** None — this ADR changes only measurement: `bench`, its corpus and its registration.
 
 ## Context

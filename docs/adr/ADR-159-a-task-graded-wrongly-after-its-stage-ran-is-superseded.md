@@ -8,7 +8,7 @@
 **Cross-references:** ADR-156, ADR-158
 **Governs:** `internal/bench/analyze.go`, `cmd/bench/main.go`, `bench/tasks/cac-rename-post-send/`, `bench/tasks/cac-rename-post-send-2/`, `docs/bench/README.md`
 **Amends:** ADR-158 Decision 3's rule that a task is superseded "after the pilot only for an oracle defect shown on its base or its reference fix": that rule governs a stage while it runs; this record supersedes a task after its stage ran, for a later stage, and leaves every published verdict as it was computed.
-**Enforced-by:** None — until T2 lands, which adds `internal/bench/analyze_test.go::TestARowWithoutTheTasksSupersededSinceIsDescriptive`
+**Enforced-by:** `internal/bench/analyze_test.go::TestARowWithoutTheTasksSupersededSinceIsDescriptive`
 **Served-path change:** None — this ADR changes only measurement: `bench`, its corpus and its analysis.
 
 ## Context

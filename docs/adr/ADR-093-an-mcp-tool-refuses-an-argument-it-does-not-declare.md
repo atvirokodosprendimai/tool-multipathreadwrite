@@ -2,6 +2,8 @@
 
 **Status:** Accepted
 **Accepted:** 2026-09-29 by Zy — "ADR-093 MCP args", selected under "Which records do you accept as written, so I can execute them?", on the record as drafted after a Codex review
+**Superseded in part:** by ADR-113 (2026-10-01) and ADR-115 (2026-10-02): the statement that `mrw_write` runs no check and no step and points callers to the CLI for them: `mrw_write` takes `check` (ADR-113; see ADR-187 and ADR-205) and `then` (ADR-115). The refusal of an undeclared argument stands.
+**Superseded in part:** by ADR-117 (2026-10-02): the Out of Scope routing of `--max-lines`, `--stat` and `--files-from` to the CLI.
 **Date:** 2026-09-29
 **Owner:** Zy
 **Spec:** None — no spec stage

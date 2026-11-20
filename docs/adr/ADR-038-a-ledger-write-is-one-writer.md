@@ -2,6 +2,7 @@
 
 **Status:** Accepted
 **Accepted:** 2026-09-09 by M — *"accpeted the gate 2"*
+**Superseded in part:** by ADR-075 (2026-09-25): Decision 2's "A reader sees either the previous complete file or the next one"; by ADR-079 (2026-09-26): Decision 2's "Load stays unlocked for readers that only report"; by ADR-108 (2026-10-01): the ledger header moves from v2 to v3, and T1's fence clause pinning v2 is exempted in `scripts/fence-prose.py`.
 **Date:** 2026-09-09
 **Owner:** M
 **Spec:** None — no spec stage

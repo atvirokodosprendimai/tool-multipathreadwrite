@@ -2,6 +2,7 @@
 
 **Status:** Accepted
 **Accepted:** 2026-10-03 by Zy — "Document {files}, add {dirs} (Recommended)", on the gap list's "check maps packages for Go only" and the plan amendment of 2026-10-02. The record's text was drafted after that answer.
+**Superseded in part:** by ADR-164 (2026-10-20): Decision 2's "otherwise the full check runs, as before", which now holds only when nothing maps.
 **Date:** 2026-10-03
 **Owner:** Zy
 **Spec:** None — no spec stage

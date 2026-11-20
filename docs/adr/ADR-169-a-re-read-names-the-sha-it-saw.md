@@ -9,7 +9,7 @@
 **Spec:** None — no spec stage
 **Cross-references:** ADR-002, ADR-005, ADR-014, ADR-017, ADR-023, ADR-024, ADR-025, ADR-031, ADR-032, ADR-093, ADR-111, ADR-117, ADR-122, ADR-141, ADR-146, ADR-150, ADR-165, ADR-168, docs/bench/context-study/README.md, docs/adr/BACKLOG.md
 **Governs:** `internal/read/read.go`, `cmd/mrw/main.go`, `internal/mcp/tools.go`, `internal/mcp/mcp.go`, `internal/mcp/readreceipt.go`, `internal/guide/guide.go`, `docs/receipts.txt`, `scripts/contract.sh`
-**Enforced-by:** None — until T1 lands, which adds `internal/read/ifchanged169_test.go::TestAGuardedReadOfAnUnchangedFileServesNothing`
+**Enforced-by:** `internal/read/ifchanged169_test.go::TestAGuardedReadOfAnUnchangedFileServesNothing`
 **Invalidates:** ADR-025 — the clause of its Decision reading "An answer that delivered none of what was asked for is an error": a spec a guard answered `unchanged` is delivered, so the served-read return passes `len(observed) == 0 && len(unchanged) == 0` (T2, which adds the notice and Amendment to ADR-025 as ADR-024 carries ADR-025's). ADR-146's `incomplete:` kind is unchanged: an unchanged spec is not a range that was not served.
 **Served-path change:** `mrw read --if-changed PATH=SHA …` (MCP `mrw_read` `if_changed`) answers each spec of a named file whose whole content still has that sha with one line, `==> PATH  unchanged since sha SHA — N lines, B bytes not served`, instead of its lines, and serves it as before when it changed.
 

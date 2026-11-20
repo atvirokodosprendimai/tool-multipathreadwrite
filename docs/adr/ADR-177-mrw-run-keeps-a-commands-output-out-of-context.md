@@ -2,6 +2,8 @@
 
 **Status:** Accepted
 **Accepted:** 2026-10-27 by Zy — *"yes, go, address these, measure, plan, implement verify, udupate the instrucitons, no counter-arguing, all follow same direction"*, and, after the plan was presented, *"go on, implement all of it"*.
+**Superseded in part:** by ADR-174 (2026-10-24): Decision 9's "`mrw run` runs any shell command it is given": it runs only when `MRW_SHELL=on` is in mrw's environment. Its other decisions stand.
+**Superseded in part:** by ADR-181 (2026-10-28): Decision 5's single Windows `read:` line, now three labelled lines, and T2's "four-line receipt" wording, six lines on Windows.
 **Date:** 2026-10-27
 **Amended:** 2026-10-27, before acceptance, from four Codex challenges and a Claude adr-challenger pass, each finding checked against the code. The printed read form puts flags before `--` and quotes the path (it exited 2 as first drafted); the runner keeps a 24-hour ceiling, not "no timeout" (`internal/check/check.go:82-86`); every run keeps its log, including the short passing ones the check deletes (`:486`); a running log is never pruned; signal, timeout and interrupt exits are named; Windows gets its own read form; the baseline is re-measured over a fixed window, which shrinks the bucket this record addresses to non-read Bash output (Context). ADR-177 ships on its own branch from `main` (tasks/README.md).
 **Owner:** Zy

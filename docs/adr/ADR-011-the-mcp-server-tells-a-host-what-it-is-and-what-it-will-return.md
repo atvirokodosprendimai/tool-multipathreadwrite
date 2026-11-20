@@ -1,6 +1,7 @@
 # ADR-011: The MCP server tells a host what it is, and what it will return
 
 **Status:** Accepted
+**Superseded in part:** by ADR-014 (2026-09-04): T3's refusal statement ("Nothing was read and nothing was recorded …"), for a single spec only: a pageable read serves and records a page.
 **Date:** 2026-09-03
 **Accepted:** 2026-09-03 by M, in the instruction that opened the work — *"accepted, implemnt these, cover the gaps, make it sound"* — where "these" are the three gaps put to M in the session that found them: the root binding, the undeclared tool surface, and the unbounded read. Reaffirmed 2026-09-04 with *"address all of these open"*. Recorded here because a reviewer asked, correctly, whether the status was M's decision or the author's inference from one word; it is the former, and now says so rather than resting on a reading of it.
 **Owner:** M

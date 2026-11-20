@@ -2,6 +2,7 @@
 
 **Status:** Accepted
 **Accepted:** 2026-10-14 by Zy — approved the plan `glimmering-frolicking-harp` ("ADR-150 — the ledger names its writer; a newer one is not overwritten") and set the goal "implement this plan end to end".
+**Superseded in part:** by ADR-157 (2026-10-14): the Neutral consequence "the MCP read path prints no notice of its own", Decision 3's wording, and "every command that reads the ledger says so once", qualified for `write`; by ADR-161 (2026-10-16): the ledger format moves to v6.
 **Date:** 2026-10-14
 **Owner:** Zy
 **Spec:** None — no spec stage

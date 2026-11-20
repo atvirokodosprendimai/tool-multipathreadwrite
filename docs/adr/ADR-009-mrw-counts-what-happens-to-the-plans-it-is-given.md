@@ -1,6 +1,7 @@
 # ADR-009: mrw counts what happens to the plans it is given
 
 **Status:** Accepted
+**Superseded in part:** by ADR-054 (2026-09-13): the clause "the decision to leave `--check` opt-in" (later reversed again by ADR-187).
 **Date:** 2026-09-03
 **Owner:** M
 **Spec:** None — no spec stage

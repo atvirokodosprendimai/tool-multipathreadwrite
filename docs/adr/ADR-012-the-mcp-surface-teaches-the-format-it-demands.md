@@ -1,6 +1,7 @@
 # ADR-012: The MCP surface teaches the format it demands
 
 **Status:** Accepted
+**Superseded in part:** by ADR-013 (2026-09-04): T1-S2's instructions text "a regexp works in a read, never here" and the mutant its log records for it, which would now survive.
 **Date:** 2026-09-04
 **Accepted:** 2026-09-04 by M, in the instruction that opened the work — *"lets do this new adr and start implementing it"* — answering the five gaps put to M in the session that found them. Recorded here rather than inferred, because ADR-011 had to add that sentence retroactively when a reviewer asked whose decision the status was.
 **Owner:** M

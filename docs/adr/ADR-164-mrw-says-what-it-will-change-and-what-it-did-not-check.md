@@ -2,6 +2,7 @@
 
 **Status:** Accepted
 **Accepted:** 2026-10-20 by Zy — "Accept (Recommended)" for the record as drafted, six tasks, after Zy chose all four plan items ("Scoped + name the rest" for T4) and asked for the peer report's three refusals as a sixth task ("sixt task, no baclog")
+**Superseded in part:** by ADR-166 (2026-10-21): T3's assertion that a content read with an unusable state directory exits 2.
 **Date:** 2026-10-20
 **Owner:** Zy
 **Spec:** None — no spec stage

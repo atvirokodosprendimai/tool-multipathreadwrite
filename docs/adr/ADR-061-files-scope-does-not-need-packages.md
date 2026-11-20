@@ -2,6 +2,7 @@
 
 **Status:** Accepted
 **Accepted:** 2026-09-16 by M — *"so work on 054"*
+**Superseded in part:** by ADR-164 (2026-10-20): "A `{packages}`-only template still falls back to `Check`" and "Mixed templates keep falling back", which now hold only when nothing maps.
 **Date:** 2026-09-16
 **Owner:** M
 **Spec:** None — no spec stage

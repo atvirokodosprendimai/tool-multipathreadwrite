@@ -8,7 +8,7 @@
 **Spec:** None — no spec stage
 **Cross-references:** ADR-010, ADR-011, ADR-016, ADR-019, ADR-067, ADR-089, ADR-098, ADR-168, README.md, AGENTS.md, CLAUDE.md, docs/agents.md
 **Governs:** `cmd/mrw/main.go`, `internal/mcp/mcp.go`, `internal/mcp/instructions.go`, `cmd/opencode/mrw-plugin/src/index.ts`, `scripts/contract.sh`, `scripts/break-campaign.sh`, `scripts/chaos.py`
-**Enforced-by:** None — until T1 lands, which adds `cmd/mrw/mcpoff170_test.go::TestMrwMcpServesNoToolsUntilEnabled`
+**Enforced-by:** `cmd/mrw/mcpoff170_test.go::TestMrwMcpServesNoToolsUntilEnabled`
 **Invalidates:** ADR-010 — the clause that `mrw mcp` serves `mrw_read` and `mrw_write` to any host that starts it: from this record they are served only when enabled. ADR-016's guidance to prefer the CLI with a shell is kept.
 **Served-path change:** `mrw mcp` started without `--enable` or `MRW_MCP=on` lists no tools and refuses both tools, its instructions naming the CLI and the switch; with either, it serves as before.
 

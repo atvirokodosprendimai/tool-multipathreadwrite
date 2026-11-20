@@ -2,6 +2,8 @@
 
 **Status:** Accepted
 **Accepted:** 2026-09-25 by M — answered *"Yes, ADR-075 one writer per root (Recommended)"* when the plan for the v1.25.1 adversarial round asked whether concurrent writers get a record of their own
+**Superseded in part:** by ADR-203 (2026-11-19): Decision 6, where it promises a follow-on edit by number: a line number alone is refused on a line of a written file that no read has shown since the write.
+**Superseded in part:** by ADR-113 (2026-10-01): not a Decision clause but T1's fence grep for `writer.Apply(` in `cmd/mrw/main.go`, exempted in `scripts/fence-prose.py`.
 **Date:** 2026-09-25
 **Owner:** M
 **Spec:** None — no spec stage

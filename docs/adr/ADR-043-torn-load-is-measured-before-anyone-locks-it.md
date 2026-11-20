@@ -2,6 +2,7 @@
 
 **Status:** Accepted
 **Accepted:** 2026-09-12 by M — *"good, accepted all"*
+**Superseded in part:** by ADR-079 (2026-09-26): "Load unlocked" for `mrw seen`, the working set and the tally.
 **Date:** 2026-09-12
 **Owner:** M
 **Spec:** None — no spec stage

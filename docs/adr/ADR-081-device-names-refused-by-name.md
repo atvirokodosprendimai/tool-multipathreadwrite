@@ -6,7 +6,7 @@
 **Owner:** M
 **Spec:** None — no spec stage
 **Cross-references:** ADR-006, ADR-071, ADR-076, docs/adr/BACKLOG.md
-**Governs:** `internal/rooted/rooted.go`, `internal/rooted/links_windows.go`, `internal/rooted/links_other.go`, `internal/rooted/links.go`, `internal/read/read.go`, `internal/read/astgrep.go`, `internal/apply/apply.go`, `internal/apply/encoding_test.go`, `internal/rooted/paths076_test.go`, `cmd/mrw/device_windows_test.go`, `AGENTS.md`, `docs/adr/ADR-076-a-path-means-what-it-says.md`
+**Governs:** `internal/rooted/rooted.go`, `internal/rooted/links.go`, `internal/read/read.go`, `internal/read/astgrep.go`, `internal/apply/apply.go`, `internal/apply/encoding_test.go`, `internal/rooted/paths076_test.go`, `cmd/mrw/device_windows_test.go`, `AGENTS.md`, `docs/adr/ADR-076-a-path-means-what-it-says.md`
 **Enforced-by:** `cmd/mrw/device_windows_test.go::TestADeviceNameIsRefusedNotReadAsAnEmptyFile`
 **Invalidates:** ADR-076 Decision 3's *"`opensDevice` asks the OS"*
 **Served-path change:** on Windows a spec, a plan path or a rename destination any component of which, below the root — or the target of a link it passes through — is a reserved device name — `CON`, `PRN`, `AUX`, `NUL`, `COM1`–`9`, `LPT1`–`9`, `CONIN$`, `CONOUT$`, in any case, with or without an extension — is refused by name, on every Windows build; an ast-grep hit on one is dropped as the walk drops one, and the refusal carries no `--root` advice; before, only a last component `GetFullPathName` mapped to a device was refused.

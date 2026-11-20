@@ -8,7 +8,7 @@
 **Cross-references:** ADR-156, ADR-162, ADR-163, ADR-191, docs/bench/observability/HOOK-RESULTS.md
 **Amends:** ADR-162 Decision 5's sentence "later attempts of its second configuration are not run", for stage7 only (Decision 3)
 **Governs:** `internal/bench/**`, `cmd/bench/**`, `docs/bench/**`
-**Enforced-by:** None — until T1 lands, which adds `internal/bench/runner_test.go::TestConfigurationHIsBPlusReadAndTheReadHook`
+**Enforced-by:** `internal/bench/runner_test.go::TestConfigurationHIsBPlusReadAndTheReadHook`
 **Invalidates:** none — checked: without `--profile stage7` every configuration's arguments, tools, prompt and refusal text stay as ADR-162 and ADR-163 left them, so Stages 1 to 6 stay reproducible; `bench look docs/bench/stage-5` stays byte-identical to `looks/look-5.txt` (T2's fence); Stage 5's receipts, looks and verdicts are untouched
 **Served-path change:** None — this ADR changes only measurement: `bench`, its registration and its stage. Whether mrw's own guide stops telling agents to read with mrw is decided after the verdict (Out of Scope).
 

@@ -2,6 +2,7 @@
 
 **Status:** Accepted
 **Accepted:** 2026-10-27 by Zy — *"yes, go, address these, measure, plan, implement verify, udupate the instrucitons, no counter-arguing, all follow same direction"*, and, after the plan was presented, *"go on, implement all of it"*.
+**Superseded in part:** by ADR-173 (2026-10-24): (g)'s clauses that a read whose matches were left unshown "exits 1 `incomplete:`" and that the kind line then names the budget: when only the caller's caps withheld, the read exits 0 and ends `capped:`.
 **Date:** 2026-10-27
 **Amended:** 2026-10-27, before acceptance, from two Codex challenges and a Claude adr-challenger pass, each finding checked against the code: `--if-served` takes the sha the caller holds and judges each line with `Observation.ServedLine` (`internal/seen/seen.go:81`), keeps a missed range's report, and names when it is safe; a per-file notice from `--outline` or `--no-comments` is one line per invocation; `MRW_MAX_COLS` is read with `os.Getenv` and reaches standard input (`cmd/mrw/stdin.go:103-117`); `--max-matches` defines its boundary with context and the line after a range; T5 enumerates the notices it holds; each flag task names its flag in `CLI()` (`cmd/mrw/instructions_test.go:32`); the baseline is re-measured over a fixed window. ADR-178 (#541) and ADR-177 (#536) are merged, so ADR-179 ships on its own branch from main.
 **Owner:** Zy

@@ -2,6 +2,8 @@
 
 **Status:** Accepted
 **Accepted:** 2026-10-10 by Zy — "/loop continue delivering, end to end, no dead code", on the survey's second look-mode item ("a throwaway file costs a create plan and a hand-counted `body=`", 6 of 14 sessions as the author's 2026-10-09 synthesis recorded the replies)
+**Superseded in part:** by ADR-195 (2026-11-04): Decision 3's "empty input makes an empty file": empty input is refused, exit 2; an empty file is `@@ PATH 0 create body=0`.
+**Superseded in part:** by ADR-142 (2026-10-10): Decision 3's refusal of content whose last line ends in CRLF after LF lines, in the one shape a pipe produces.
 **Date:** 2026-10-10
 **Owner:** Zy
 **Spec:** None — no spec stage
