@@ -3,7 +3,7 @@
   "shape": "follow-on",
   "repo": "pydata/xarray",
   "commit": "ac43d3bdad6db3cb2ded0f9e145eb450763eaea2",
-  "instruction": "In xarray/core/formatting.py, make coords_repr list coordinates in dimension order, the ones that are not dimensions last: before its return, take dims = tuple(coords._data.dims), sort coords.items() into dim_ordered_coords with key=lambda x: dims.index(x[0]) if x[0] in dims else len(dims), formatted as black formats it with no trailing comma added, with no blank line before the return, and pass dict(dim_ordered_coords) to _mapping_repr in place of coords. Change nothing else.",
+  "instruction": "In xarray/core/formatting.py, make coords_repr list coordinates in dimension order, the ones that are not dimensions last: before its return, take dims = tuple(coords._data.dims), sort coords.items() into dim_ordered_coords with key=lambda x: dims.index(x[0]) if x[0] in dims else len(dims), formatted as black formats it with no trailing comma added, with no blank line before or after the new lines, and pass dict(dim_ordered_coords) to _mapping_repr in place of coords. Change nothing else.",
   "exact": true,
   "require": [
     {"file": "xarray/core/formatting.py", "match": "(?m)^    dims = tuple\\(coords\\._data\\.dims\\)$"},
