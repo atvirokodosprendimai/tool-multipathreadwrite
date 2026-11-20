@@ -28,6 +28,7 @@ import (
 	"strings"
 	"sync"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/lines"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/quote"
@@ -3227,8 +3228,11 @@ func remedyFor(windows bool, root, p string, from, to int) string {
 		spans = fmt.Sprintf("%d-%d", from, to)
 		words = "lines " + spans
 	}
-	if ok {
-		return fmt.Sprintf("%s read --max-cols 0 %s:%s", prefix, cp, spans)
+	command := fmt.Sprintf("%s read --max-cols 0 %s:%s", prefix, cp, spans)
+	// cmd.exe refuses a command line over 8,191 characters: such a command could not
+	// run on Windows, so it is described there; 8,000 leaves room for what the shell adds.
+	if ok && !(windows && len(command) > 8000) {
+		return command
 	}
 	// A description names the file and the root as they were written, so the caller
 	// can tell which read is meant when no command can be printed (issue #753).
@@ -3240,39 +3244,68 @@ func remedyFor(windows bool, root, p string, from, to int) string {
 }
 
 // describedName is a name inside a description: single-quoted as it is, so it can be
-// copied as written, and Go-quoted only where a control byte or a quote forces it.
+// copied as written, and Go-quoted wherever a character could split a line or mislead
+// a reader: a control or format character (U+2028, U+2029, U+0085, a bidi mark, a
+// zero-width one), a quote, or bytes that are not UTF-8, which JSON would otherwise
+// replace silently.
 func describedName(s string) string {
-	for i := 0; i < len(s); i++ {
-		if s[i] < 0x20 || s[i] == 0x7f || s[i] == '\'' {
+	if !utf8.ValidString(s) {
+		return strconv.Quote(s)
+	}
+	for _, r := range s {
+		if r == '\'' || unicode.IsControl(r) || unicode.In(r, unicode.Cf, unicode.Zl, unicode.Zp) {
 			return strconv.Quote(s)
 		}
 	}
 	return "'" + s + "'"
 }
 
-// psNumber is a word PowerShell turns into a number before a native command sees it
-// (`1.10` arrives as 1.1, `0x10` as 16, `007` as 7, `2kb` as 2048).
-var psNumber = regexp.MustCompile(`(?i)^(?:\d+(?:\.\d+)?(?:e[+-]?\d+)?|\.\d+|0x[0-9a-f]+|0b[01]+)(?:kb|mb|gb|tb|pb|ul|uy|us|ui|[ldusy])?$`)
+// psNumber is a word PowerShell may turn into a number before a native command sees
+// it (`1.10` arrives as 1.1, `0x10` as 16, `007` as 7, `2kb` as 2048, `1.e2` as 100):
+// any one word, with no `/`, that starts with a digit, or a dot and a digit. PowerShell's
+// numeric grammar (hex, binary, decimals, exponents, type and multiplier suffixes,
+// digit separators) is wide, so no attempt is made to follow it: a word that starts
+// like a number is described, which costs a command for a root such as `2024-reports`.
+var psNumber = regexp.MustCompile(`^\.?[0-9][^/]*$`)
+
+// msysSpecial are the names of the directories Git Bash (MSYS) maps to its own: an
+// argument holding one as a component, as `_/dev/null` or `sub/tmp/r1`, may be
+// converted before mrw sees it.
+var msysSpecial = map[string]bool{"dev": true, "tmp": true, "proc": true, "usr": true, "bin": true, "etc": true, "home": true, "mnt": true, "cygdrive": true, "var": true, "lib": true, "opt": true, "sys": true, "run": true}
 
 // shellForm is s as a command prints it, and whether it needs no quoting in cmd.exe,
 // PowerShell 7, Windows PowerShell 5.1, Git Bash and a POSIX shell. Letters, digits,
 // `.`, `_`, `-` and `/` are plain, and so is a `~` that is not the first character
 // (literal in all of them). On Windows a `\` is a separator, but Git Bash eats a
 // backslash, so a path is printed with slashes, which every one of them runs and Go
-// reads as the same directory; a drive letter `X:` before a separator is part of an
-// absolute path, and a path with a leading separator (UNC, or rooted without a
-// drive) is described, since MSYS rewrites it. A space and every other
-// metacharacter (`& | < > ^ % ! ' " ( ) ; , = $`, a backtick, `@`, `#`, `{`, `}`,
-// `*`, `?`, `[`), and a word PowerShell reads as a number, needs quoting.
+// reads as the same directory. Git Bash also converts what looks like a POSIX path,
+// so on Windows only a drive path `X:/…` (a Windows path already: left alone) or a
+// relative one with no `//` and no component MSYS maps (`dev`, `tmp`, `usr`, …) is
+// commanded; a path with a leading separator (UNC, or rooted without a drive) is
+// described. A space and every other metacharacter (`& | < > ^ % ! ' " ( ) ; , = $`,
+// a backtick, `@`, `#`, `{`, `}`, `*`, `?`, `[`), and a word PowerShell may read as a
+// number, needs quoting.
 func shellForm(windows bool, s string) (string, bool) {
+	drive := false
 	if windows {
 		if s != "" && (s[0] == '/' || s[0] == '\\') {
 			return s, false
 		}
 		s = strings.ReplaceAll(s, `\`, "/")
+		drive = len(s) >= 3 && (s[0] >= 'a' && s[0] <= 'z' || s[0] >= 'A' && s[0] <= 'Z') && s[1] == ':' && s[2] == '/'
+		if !drive {
+			if strings.Contains(s, "//") {
+				return s, false
+			}
+			for _, c := range strings.Split(s, "/") {
+				if msysSpecial[strings.ToLower(c)] {
+					return s, false
+				}
+			}
+		}
 	}
 	i := 0
-	if windows && len(s) >= 3 && (s[0] >= 'a' && s[0] <= 'z' || s[0] >= 'A' && s[0] <= 'Z') && s[1] == ':' && s[2] == '/' {
+	if drive {
 		i = 2
 	}
 	for ; i < len(s); i++ {

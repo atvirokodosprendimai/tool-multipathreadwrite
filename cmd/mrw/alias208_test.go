@@ -55,7 +55,7 @@ func remedyArgv(t *testing.T, root, out, spec string) []string {
 	if len(f) < 4 {
 		t.Fatalf("the read to make is %q, want read --max-cols 0 SPEC", m[1])
 	}
-	return f[len(f)-4:]
+	return f // as printed, the root it names included: the test runs the command the refusal gave
 }
 
 // aliasRoot is a root with f.go written by mrw and an alias of it: link.go, a
@@ -173,11 +173,39 @@ func TestTheRemedyNamesTheRootItWasGiven(t *testing.T) {
 func TestARootThatNeedsQuotingIsDescribedNotCommanded(t *testing.T) {
 	root := aliasRootIn(t, filepath.Join(t.TempDir(), "my root"), "f.go")
 	out, code := writeIn(t, root, "--no-check", planFile(t, rep208))
-	if code != 1 || !strings.Contains(out, "a read that shows lines 1-4") || strings.Contains(out, "mrw --root") || strings.Contains(out, "mrw read") {
-		t.Errorf("line-after refusal for a root with a space: exit %d\n%s", code, out)
+	if want := "a read that shows lines 1-4 of 'f.go' under the root '" + root + "'"; code != 1 || !strings.Contains(out, want) || strings.Contains(out, "mrw --root") || strings.Contains(out, "mrw read") {
+		t.Errorf("line-after refusal for a root with a space: exit %d, want %q in:\n%s", code, want, out)
 	}
 	out, code = writeIn(t, root, "--no-check", planFile(t, "@@ f.go 2 replace\n\tz()\n"))
-	if code != 1 || !strings.Contains(out, `(a read that shows line 2 of 'f.go' under the root `) {
-		t.Errorf("stale-number refusal for a root with a space: exit %d\n%s", code, out)
+	if want := "(a read that shows line 2 of 'f.go' under the root '" + root + "';"; code != 1 || !strings.Contains(out, want) {
+		t.Errorf("stale-number refusal for a root with a space: exit %d, want %q in:\n%s", code, want, out)
+	}
+}
+
+// The remedy is run as the refusal printed it, root included: the command names the
+// root, and a doctored one that names another directory reads nothing there, so the
+// test cannot pass on the fixture's own root alone.
+func TestTheRemedyIsRunWithTheRootItPrints(t *testing.T) {
+	root := aliasRoot(t, "f.go")
+	if !plainPath.MatchString(root) {
+		t.Skip("a root that needs quoting is described, not commanded")
+	}
+	out, code := writeIn(t, root, "--no-check", planFile(t, rep208))
+	if code != 1 {
+		t.Fatalf("exit %d\n%s", code, out)
+	}
+	printed := remedyArgv(t, root, out, "f.go:1-4")
+	if len(printed) < 6 || printed[0] != "--root" {
+		t.Fatalf("the printed read is %q, want it to name its root first", printed)
+	}
+	doctored := append([]string{"--root", filepath.Join(root, "nowhere")}, printed[2:]...)
+	if rout, rcode := runIn(t, root, doctored...); rcode == 0 {
+		t.Errorf("a remedy that names another root read it: exit 0\n%s", rout)
+	}
+	if rout, rcode := runIn(t, root, printed...); rcode != 0 {
+		t.Fatalf("the remedy as printed: exit %d\n%s", rcode, rout)
+	}
+	if out, code := writeIn(t, root, "--no-check", planFile(t, rep208)); code != 0 {
+		t.Errorf("after the remedy as printed: exit %d\n%s", code, out)
 	}
 }

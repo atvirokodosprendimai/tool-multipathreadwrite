@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"runtime"
 	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -74,7 +75,12 @@ func TestARootIsPrintedInTheCommandWheneverNoShellNeedsItQuoted(t *testing.T) {
 		{false, "007", ""},
 		{false, "2kb", ""},
 		{false, "1e3", ""},
-		{false, "1.0.0", "1.0.0"}, // two dots: not a number
+		{false, "1.0.0", ""}, // a word that starts with a digit is described: PowerShell's numeric grammar is wide (1.e2, 5., 0x, 2kb, 1_000)
+		{false, "1.e2", ""},
+		{false, "5.", ""},
+		{false, ".5", ""},
+		{false, "2024-reports", ""},
+		{false, "_/dev/null", "_/dev/null"}, // a POSIX shell converts nothing
 		{false, "v1.10", "v1.10"},
 		{false, "1.10/x", "1.10/x"},
 		{true, "r1", "r1"},
@@ -88,6 +94,15 @@ func TestARootIsPrintedInTheCommandWheneverNoShellNeedsItQuoted(t *testing.T) {
 		{true, `\Users\x\r1`, ""},
 		{true, "/Users/x/r1", ""},
 		{true, "~r1", ""},
+		// Git Bash (MSYS) converts a POSIX-looking path component in an argument: `_/dev/null` arrives as `nul`.
+		{true, "_/dev/null", ""},
+		{true, "sub/tmp/r1", ""},
+		{true, "sub/Dev/r1", ""},
+		{true, "usr/x", ""},
+		{true, "a//b", ""},
+		{true, "sub/", "sub/"},
+		{true, `C:\dev\x`, "C:/dev/x"}, // a drive path is a Windows path already: MSYS leaves it
+		{true, "tmpdir/r1", "tmpdir/r1"},
 		{true, `C:\Users\my dir\r1`, ""},
 		{true, `C:r1`, ""}, // drive-relative: not an absolute path, and `:` is not plain
 		{true, `C:`, ""},
@@ -137,6 +152,47 @@ func TestARootIsPrintedInTheCommandWheneverNoShellNeedsItQuoted(t *testing.T) {
 	}
 	if got := remedyFor(false, "", `sub\F.go`, 1, 4); got != `a read that shows lines 1-4 of 'sub\F.go'` {
 		t.Errorf("a backslash path on POSIX: %q", got)
+	}
+}
+
+// cmd.exe refuses a command line over 8,191 characters: a command longer than the
+// bound is described on Windows, where it could not run, and printed elsewhere.
+func TestACommandCmdCannotRunIsDescribedOnWindows(t *testing.T) {
+	long := "sub/" + strings.Repeat("a", 8000)
+	if got := remedyFor(true, long, "F.go", 1, 4); !strings.HasPrefix(got, "a read that shows lines 1-4 of 'F.go' under the root 'sub/aaa") {
+		t.Errorf("a root of 8,000 characters on Windows: %.80q", got)
+	}
+	if got := remedyFor(false, long, "F.go", 1, 4); !strings.HasPrefix(got, "mrw --root sub/aaa") {
+		t.Errorf("a root of 8,000 characters on POSIX: %.80q", got)
+	}
+	short := "sub/" + strings.Repeat("a", 7000)
+	if got := remedyFor(true, short, "F.go", 1, 4); !strings.HasPrefix(got, "mrw --root sub/aaa") {
+		t.Errorf("a root of 7,000 characters on Windows: %.80q", got)
+	}
+}
+
+// A name in a description is single-quoted as written, and Go-quoted wherever a
+// character could split a line or mislead a reader: a control or format character
+// (U+2028, U+2029, U+0085, a bidi mark), or bytes that are not UTF-8, which JSON
+// would otherwise replace silently.
+func TestADescriptionEscapesWhatCouldSplitALineOrMislead(t *testing.T) {
+	for name, want := range map[string]string{
+		"café r1":        "'café r1'",
+		"a\u2028b r":     `"a\u2028b r"`,
+		"a\u2029b r":     `"a\u2029b r"`,
+		"a\u0085b r":     `"a\u0085b r"`,
+		"a\u202eb r":     `"a\u202eb r"`, // right-to-left override
+		"a\u200eb r":     `"a\u200eb r"`,
+		"a\xffb r":       `"a\xffb r"`,
+		"it's r":         `"it's r"`,
+		"a\nb r":         `"a\nb r"`,
+		`C:\my dir\r`:    `'C:\my dir\r'`,
+		"\u00a0r1 and r": "'\u00a0r1 and r'", // a no-break space is printable
+	} {
+		got := remedyFor(false, name, "F.go", 1, 4)
+		if wantFull := "a read that shows lines 1-4 of 'F.go' under the root " + want; got != wantFull {
+			t.Errorf("%q: %q, want %q", name, got, wantFull)
+		}
 	}
 }
 
