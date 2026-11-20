@@ -456,7 +456,12 @@ the source of an unlink or a rename is not checked this way. Staging
 failures write nothing; a later rename failure can leave a partial tree and
 names the files already written. When two callers share a checkout, pin each
 file with `sha=` from the read header (`==> a.go … sha 1a2b3c4d`), so a plan
-written against a file the other caller has since changed is refused. The
+written against a file the other caller has since changed is refused. `sha=`
+matches a prefix of at least 8 hex digits, so 8 pin 32 bits; `anchor=` is
+matched against the range's first line only. The write lock and the read ledger
+are kept per checkout and state home: two callers whose state homes resolve to
+different directories do not share them. A file is judged binary by a UTF-16/32 byte
+order mark or a NUL in its first 8 KiB; a NUL further in is edited as text. The
 records are in [docs/adr/](docs/adr/).
 
 ## What a failure leaves on disk
