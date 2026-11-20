@@ -1329,6 +1329,8 @@ class Fixture:
     def rehearsal(self):
         v = dict(line.split(": ", 1) for line in (self.R / "pilot.md").read_text(encoding="utf-8").splitlines())
         text = "date: 2026-11-20\nrevision: rev1\n" + "".join(f"{k}: {v[k]}\n" for k in ("plans sha256", "smoke plans sha256", "tasks sha256", "instructions sha256"))
+        text += "".join(f"check {c}: exit 0\n" for c in ("instructions frozen", "build test", "oracle test", "bench build", "stub canaries", "stub plans", "count", "n event counted", "paid fences"))
+        text += "".join(f"check {c} negative: exit 1\n" for c in ("n event counted", "stub plans", "build test"))
         (self.R / "rehearsal.md").write_text(text, encoding="utf-8")
 
     def gate(self, kind, m, a, target, plans, gates, sequence, after, now):
@@ -1461,6 +1463,12 @@ class PaidFences(unittest.TestCase):
         def _(fx): (fx.R / "rehearsal.md").write_text((fx.R / "rehearsal.md").read_text().replace("revision: rev1", "revision: rev2"))
         @t5("a rehearsal of another day")
         def _(fx): (fx.R / "rehearsal.md").write_text((fx.R / "rehearsal.md").read_text().replace("2026-11-20", "2026-11-19"))
+        @t5("a rehearsal that is a trial run's record")
+        def _(fx): (fx.R / "rehearsal.md").write_text((fx.R / "rehearsal.md").read_text() + "subset: 1 task(s) of each class of each plan: a trial, not the rehearsal\n")
+        @t5("a rehearsal with a failed check")
+        def _(fx): (fx.R / "rehearsal.md").write_text((fx.R / "rehearsal.md").read_text().replace("check count: exit 0", "check count: exit 1"))
+        @t5("a rehearsal whose negative did not fail")
+        def _(fx): (fx.R / "rehearsal.md").write_text((fx.R / "rehearsal.md").read_text().replace("check n event counted negative: exit 1", "check n event counted negative: exit 0"))
         @t5("a probe whose exit was not 3")
         def _(fx): Path(str(S(fx) / PSONNET / "a-probe") + ".exit").write_text("2\n")
         @t5("a probe with no stop line")
@@ -1514,6 +1522,230 @@ class PaidFences(unittest.TestCase):
         self.assertNotEqual(code, 0, out)
         self.assertIn("REACHES THE FIGURE", out)
 
+
+class RehearsalFence(unittest.TestCase):
+    """ADR-211 T2's fence, extracted from its task file and run over a generated repository: a complete rehearsal record passes
+    and each way of breaking it fails. The fence's own first clause runs this module, so the inner run answers through a
+    python3 shim that prints the line the clause greps for."""
+
+    FILES = ("bench/stage-9/instructions.txt", "bench/stage-9/plans.json", "bench/stage-9/smoke-plans.json", "bench/stage-9/classes.json",
+             "scripts/bench_stage9.py", "scripts/bench_mechanism.py", "bench/stage-9/rehearse.sh", "bench/stage-9/stub-agent")
+    CHECKS = ("instructions frozen", "build test", "oracle test", "bench build", "stub canaries", "stub plans", "count", "n event counted", "paid fences")
+    NEGATIVES = ("n event counted", "stub plans", "build test")
+    ALIASES = (("plans", "bench/stage-9/plans.json"), ("smoke plans", "bench/stage-9/smoke-plans.json"), ("instructions", "bench/stage-9/instructions.txt"))
+    IDS = ("s9-one", "s9-two", "s9-three")
+    TASK = ROOT / "docs" / "adr" / "ADR-211" / "tasks" / "T2-the-free-rehearsal.md"
+
+    def git(self, *argv):
+        env = dict(os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null")
+        subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *argv], cwd=self.repo, env=env, check=True, capture_output=True)
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: __import__("shutil").rmtree(self.tmp, ignore_errors=True))
+        self.repo = self.tmp / "repo"
+        for name in self.FILES:
+            path = self.repo / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            real = ROOT / name
+            path.write_bytes(real.read_bytes() if name.endswith(("rehearse.sh", "stub-agent", ".py")) else f"{name}\n".encode())
+        (self.repo / "bench/stage-9/classes.json").write_text(json.dumps({"single-site": [self.IDS[0]], "follow-on": list(self.IDS[1:])}), encoding="utf-8")
+        (self.repo / "bench/stage-9/builds.md").write_text(f"m sha256: {M_HASH}\nn sha256: {N_HASH}\n", encoding="utf-8")
+        for i in self.IDS:
+            (self.repo / "bench/tasks" / i).mkdir(parents=True)
+            (self.repo / "bench/tasks" / i / "task.json").write_text(f'{{"id": "{i}"}}\n', encoding="utf-8")
+            (self.repo / "bench/tasks" / i / "reference.patch").write_text(f"patch {i}\n", encoding="utf-8")
+        self.git("init", "-q")
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", "inputs")
+        self.rev = subprocess.run(["git", "rev-parse", "HEAD"], cwd=self.repo, capture_output=True, text=True, check=True).stdout.strip()
+        self.git("update-ref", "refs/remotes/origin/main", self.rev)
+        shim = self.tmp / "shim"
+        shim.mkdir()
+        (shim / "python3").write_text(
+            f'#!/bin/sh\nif [ "$1 $2 $3" = "-m unittest -v" ]; then\n  echo "test_the_rehearsal_fence_refuses_a_missing_or_wrong_digest (scripts.test_bench_stage9.RehearsalFence) ... ok"\n  exit 0\nfi\n'
+            f'exec "{sys.executable}" "$@"\n', encoding="utf-8")
+        (shim / "python3").chmod(0o755)
+        self.shim = shim
+        self.lines = self.complete()
+
+    def sha(self, name):
+        return sha_of(self.repo / name)
+
+    def tasks_digest(self, ids=None):
+        if ids is None:
+            ids = subprocess.run(["jq", "-r", "[.[] | .[]] | .[]", "bench/stage-9/classes.json"], cwd=self.repo, capture_output=True, text=True, check=True).stdout.split()
+        body = b"".join((self.repo / "bench/tasks" / i / n).read_bytes() for i in ids for n in ("task.json", "reference.patch"))
+        return hashlib.sha256(body).hexdigest()
+
+    def complete(self, ids=None):
+        lines = ["date: 2026-11-20", f"revision: {self.rev}"]
+        lines += [f"{name} sha256: {self.sha(name)}" for name in self.FILES]
+        lines += [f"m sha256: {M_HASH}", f"n sha256: {N_HASH}", f"tasks sha256: {self.tasks_digest(ids)}"]
+        lines += [f"{k} sha256: {self.sha(f)}" for k, f in self.ALIASES]
+        lines += [f"check {c}: exit 0" for c in self.CHECKS] + [f"check {c} negative: exit 1" for c in self.NEGATIVES]
+        return lines
+
+    def run_fence(self, lines=None, record=True, name="rehearsal.md"):
+        record_path = self.tmp / name
+        if record:
+            record_path.write_text("\n".join(self.lines if lines is None else lines) + "\n", encoding="utf-8")
+        elif record_path.exists():
+            record_path.unlink()
+        fence = FENCE.search(self.TASK.read_text(encoding="utf-8")).group(1)
+        env = dict(os.environ, REHEARSAL=str(record_path), PATH=f"{self.shim}:{os.environ['PATH']}")
+        done = subprocess.run(["bash", "-c", fence], cwd=self.repo, env=env, capture_output=True, text=True)
+        return done.returncode, done.stdout + done.stderr
+
+    def test_the_rehearsal_fence_refuses_a_missing_or_wrong_digest(self):
+        code, out = self.run_fence()
+        self.assertEqual(code, 0, out)
+        code, _ = self.run_fence(record=False)
+        self.assertNotEqual(code, 0, "no record at all")
+        broken = []
+        for key in ("m sha256", "n sha256", "tasks sha256"):
+            line = next(ln for ln in self.lines if ln.startswith(key + ": "))
+            broken += [(f"{key} missing", [ln for ln in self.lines if ln != line]),
+                       (f"{key} twice", [*self.lines, line]),
+                       (f"{key} wrong", [ln.replace(line, key + ": " + "0" * 64) for ln in self.lines])]
+        for name in self.FILES:
+            line = next(ln for ln in self.lines if ln.startswith(name + " sha256: "))
+            broken += [(f"{name} digest missing", [ln for ln in self.lines if ln != line]),
+                       (f"{name} digest twice", [*self.lines, line]),
+                       (f"{name} digest wrong", [ln.replace(line, name + " sha256: " + "0" * 64) for ln in self.lines])]
+        for c in self.CHECKS:
+            line = f"check {c}: exit 0"
+            broken += [(f"check {c} missing", [ln for ln in self.lines if ln != line]), (f"check {c} failed", [ln.replace(line, f"check {c}: exit 1") for ln in self.lines])]
+        for c in self.NEGATIVES:
+            line = f"check {c} negative: exit 1"
+            broken += [(f"negative {c} recorded as exit 0", [ln.replace(line, f"check {c} negative: exit 0") for ln in self.lines]),
+                       (f"negative {c} missing", [ln for ln in self.lines if ln != line])]
+        broken += [("no date", [ln for ln in self.lines if not ln.startswith("date: ")]),
+                   ("a revision no commit has", [ln.replace(self.rev, "1" * 40) for ln in self.lines]),
+                   ("a thirteenth check", [*self.lines, "check extra: exit 0"]),
+                   ("a trial run's record", [*self.lines, "subset: 1 task(s) of each class of each plan: a trial, not the rehearsal"])]
+        for why, lines in broken:
+            code, out = self.run_fence(lines)
+            self.assertNotEqual(code, 0, f"the fence stayed green on: {why}\n{out}")
+
+    def test_the_rehearsal_fence_goes_red_when_an_input_changes_after_the_rehearsal(self):
+        for name in self.FILES:
+            with self.subTest(name):
+                path = self.repo / name
+                before = path.read_bytes()
+                path.write_bytes(before + b"\n")
+                try:
+                    code, out = self.run_fence()
+                    self.assertNotEqual(code, 0, out)
+                finally:
+                    path.write_bytes(before)
+    def test_the_rehearsal_fence_reads_the_working_tree_and_the_alias_digests(self):
+        # an input changed and not committed, its digest brought up to date: only the working tree says so
+        stub = self.repo / "bench/stage-9/stub-agent"
+        before = stub.read_bytes()
+        stub.write_bytes(before + b"\n")
+        code, out = self.run_fence(self.complete())
+        stub.write_bytes(before)
+        self.assertNotEqual(code, 0, out)
+        extra = self.repo / "bench/stage-9/extra.txt"  # an untracked file under the inputs
+        extra.write_text("x\n", encoding="utf-8")
+        code, out = self.run_fence()
+        extra.unlink()
+        self.assertNotEqual(code, 0, out)
+        for k, f in self.ALIASES:
+            line = f"{k} sha256: {self.sha(f)}"
+            for why, lines in ((f"{k} missing", [ln for ln in self.lines if ln != line]), (f"{k} twice", [*self.lines, line]),
+                               (f"{k} wrong", [ln.replace(line, f"{k} sha256: " + "0" * 64) for ln in self.lines])):
+                code, out = self.run_fence(lines)
+                self.assertNotEqual(code, 0, f"the fence stayed green on: {why}\n{out}")
+
+    def test_the_rehearsal_fence_takes_a_record_path_with_a_space(self):
+        code, out = self.run_fence(name="a record.md")
+        self.assertEqual(code, 0, out)
+
+    def test_the_rehearsal_fence_refuses_a_task_that_is_not_there(self):
+        # cat fails on the missing id and the hash of what it did print is the old one: the failure must not hide in the pipeline
+        classes = self.repo / "bench/stage-9/classes.json"
+        classes.write_text(json.dumps({"single-site": ["s9-ghost", self.IDS[0]], "follow-on": list(self.IDS[1:])}), encoding="utf-8")
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", "a task that is not there")
+        self.rev = subprocess.run(["git", "rev-parse", "HEAD"], cwd=self.repo, capture_output=True, text=True, check=True).stdout.strip()
+        self.git("update-ref", "refs/remotes/origin/main", self.rev)
+        lines = [ln for ln in self.complete(self.IDS)]
+        code, out = self.run_fence(lines)
+        self.assertNotEqual(code, 0, out)
+
+
+
+    def commit_change(self, name, body):
+        path = self.repo / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(body)
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", f"change {name}")
+
+    def test_the_rehearsal_fence_reads_the_commits_after_the_revision(self):
+        # a commit outside what the rehearsal ran leaves the record good; one to an input, with its digest brought up to date, does not
+        self.commit_change("docs/other.md", b"prose\n")
+        self.assertEqual(self.run_fence(self.complete())[0], 0)
+        stub = self.repo / "bench/stage-9/stub-agent"
+        self.commit_change("bench/stage-9/stub-agent", stub.read_bytes() + b"\n")
+        code, out = self.run_fence(self.complete())
+        self.assertNotEqual(code, 0, out)
+
+    def test_the_rehearsal_fence_reads_the_engine_against_origin_main(self):
+        self.commit_change("internal/plan/plan_test.go", b"package plan\n")
+        self.assertEqual(self.run_fence()[0], 0, "a test file of an engine package is not an engine change")
+        self.commit_change("internal/plan/plan.go", b"package plan\n")
+        code, out = self.run_fence()
+        self.assertNotEqual(code, 0, out)
+
+class RehearseScript(unittest.TestCase):
+    """What rehearse.sh refuses before it starts anything: each in a throwaway repository holding only the script and the stub."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: __import__("shutil").rmtree(self.tmp, ignore_errors=True))
+        self.repo = self.tmp / "repo"
+        (self.repo / "bench/stage-9").mkdir(parents=True)
+        (self.tmp / "t").mkdir()
+        for name in ("rehearse.sh", "stub-agent"):
+            (self.repo / "bench/stage-9" / name).write_bytes((ROOT / "bench/stage-9" / name).read_bytes())
+            (self.repo / "bench/stage-9" / name).chmod(0o755)
+        (self.repo / "bench/stage-9/plans.json").write_text("[]\n", encoding="utf-8")
+        (self.repo / "bench/stage-9/classes.json").write_text("{}\n", encoding="utf-8")
+        for argv in (["init", "-q"], ["add", "-A"], ["commit", "-q", "-m", "x"]):
+            subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *argv], cwd=self.repo, check=True, capture_output=True,
+                           env=dict(os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null"))
+
+    def run_script(self, **env):
+        done = subprocess.run(["bash", "bench/stage-9/rehearse.sh", str(self.tmp / "out.md")], cwd=self.repo, capture_output=True, text=True,
+                              env=dict(os.environ, TMPDIR=str(self.tmp / "t"), **env))
+        return done.returncode, done.stderr
+
+    def test_a_subset_is_a_positive_integer_with_no_leading_zero(self):
+        for bad in ("0", "01", "x", "1.5", "-1", " 1"):
+            code, err = self.run_script(REHEARSE_SUBSET=bad)
+            self.assertEqual(code, 2, bad)
+            self.assertIn("positive integer", err, bad)
+
+    def test_a_relative_scratch_is_resolved_before_it_is_used(self):
+        (self.repo / "scratch").mkdir()
+        (self.repo / "scratch/old").write_text("x\n", encoding="utf-8")
+        code, err = self.run_script(REHEARSE_SUBSET="1", REHEARSE_SCRATCH="scratch")
+        self.assertEqual(code, 2, err)
+        self.assertIn(str((self.repo / "scratch").resolve()), err)
+
+    def test_a_stub_that_differs_from_head_is_refused_even_in_a_trial(self):
+        stub = self.repo / "bench/stage-9/stub-agent"
+        stub.write_bytes(stub.read_bytes() + b"# changed\n")
+        code, err = self.run_script(REHEARSE_SUBSET="1")
+        self.assertEqual(code, 2, err)
+        self.assertIn("uncommitted change", err)
+        stub.unlink()
+        code, err = self.run_script(REHEARSE_SUBSET="1")
+        self.assertEqual(code, 2, err)
+        self.assertIn("uncommitted change", err)  # a deleted stub differs from HEAD too
 
 if __name__ == "__main__":
     unittest.main()

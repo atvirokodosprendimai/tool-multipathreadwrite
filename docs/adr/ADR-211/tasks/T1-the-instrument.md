@@ -185,6 +185,8 @@ a=$(go test ./internal/bench/ ./cmd/bench/ -count=1 -v -run '^(TestARunTakesOnly
 - 2026-11-20 · 79ed6aac* · exit 0 · `set -o pipefail …` · acceptance-sha256:d2e3efc6818e4c3fbf8b1f5b42c43582493ca034909b4e8bd236a74a8a3a0698 · ms:17651
 - 2026-11-20 · 41ee7f0b* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:d2e3efc6818e4c3fbf8b1f5b42c43582493ca034909b4e8bd236a74a8a3a0698 · ms:0 · test-lock-sha256:d85b43f19a7663f58fcb2fbfd5fa733ccca5d324b7221095e4c38fff0ce177cb · test-lock-file:docs/adr/locks/d85b43f19a7663f58fcb2fbfd5fa733ccca5d324b7221095e4c38fff0ce177cb.lock · test-lock-kind:replace
 - 2026-11-20 · 7a2d609d* · exit 0 · `set -o pipefail …` · acceptance-sha256:d2e3efc6818e4c3fbf8b1f5b42c43582493ca034909b4e8bd236a74a8a3a0698 · ms:19215
+- 2026-11-20 · b11bd4e4* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:d2e3efc6818e4c3fbf8b1f5b42c43582493ca034909b4e8bd236a74a8a3a0698 · ms:1 · test-lock-sha256:609eb7eb46fb8aa025a39ea8b2a8e3a5996c049586c10e341c8e565681c63300 · test-lock-file:docs/adr/locks/609eb7eb46fb8aa025a39ea8b2a8e3a5996c049586c10e341c8e565681c63300.lock · test-lock-kind:replace
+- 2026-11-20 · 48115fa0* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:d2e3efc6818e4c3fbf8b1f5b42c43582493ca034909b4e8bd236a74a8a3a0698 · ms:4 · test-lock-sha256:7562c3e423c1b5725436489eef3cfc8ed1254002c71b72867cd99cbeff9b8067 · test-lock-file:docs/adr/locks/7562c3e423c1b5725436489eef3cfc8ed1254002c71b72867cd99cbeff9b8067.lock · test-lock-kind:replace
 
 ## Invariants
 
@@ -194,6 +196,7 @@ a=$(go test ./internal/bench/ ./cmd/bench/ -count=1 -v -run '^(TestARunTakesOnly
 ## Risks
 
 - The canary's model check now applies to every run: a stage before ADR-206, resumed on another model's canary, is refused and needs a canary of its own model.
+- the diffStat streaming mutant (a LimitReader at the output cap) was killed by hand; T1's fence does not name TestDiffStatCountsAnOutputLongerThanTheOutputCap, so it is not logged.
 
 ## Stop Condition
 
