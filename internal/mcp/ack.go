@@ -551,32 +551,60 @@ func readCause(path string, err error) string {
 	return err.Error()
 }
 
-// promoteAcks turns each acknowledged checkpoint into a ledger record for its own
-// span and nothing else.
+// ackKey is a version of a file: acknowledged spans are kept per path AND sha.
+type ackKey struct{ path, sha string }
+
+// ackGroup is the acknowledged spans of one version of one file and the ids that
+// named them.
+type ackGroup struct {
+	spans [][2]int
+	ids   []string
+	// keep and record are what prepare saw of the file, and what commit does
+	// without looking again: a file whose read failed for a passing reason keeps
+	// its ids pending; one still at the acknowledged version has its span
+	// recorded; any other version is gone and its ids are consumed.
+	keep, record bool
+}
+
+// ackBatch is what a call's acknowledgements amount to, taken from the pending
+// store BEFORE the call serves anything: a serve holds new checkpoints, and a
+// full store drops its oldest, which may be the very one acknowledged. Nothing is
+// changed until commit, which runs only once the call has been answered without
+// an error (#741). kept is known at once, so the answer can name it (#733).
+type ackBatch struct {
+	byVersion map[ackKey]*ackGroup
+	unknown   []string  // ids that matched nothing
+	kept      []keptAck // ids whose file could not be read just now: they stay pending
+}
+
+// prepareAcks reads the pending entries the acknowledgements name, changing
+// nothing.
 //
-// ⚠ It records the PENDING span, never the requested one. Recording what was
-// asked for is the defect this file exists to close, wearing a new name.
+// ⚠ It records the PENDING span, never the requested one (commit). Recording what
+// was asked for is the defect this file exists to close, wearing a new name.
 //
 // An ack matching nothing is ignored rather than refused: it is a stale caller
 // from an earlier session, and failing the whole call would punish the spans
-// that were acknowledged honestly.
+// that were acknowledged honestly. A store that cannot be loaded is an error,
+// before the call records anything.
 //
-// An id is consumed only after its span was recorded or its version is known to
-// be gone (changed, removed, no longer a regular file). A read that failed for
-// any other reason (a permission, a descriptor limit) says nothing about the
-// version: the id is kept, unsaved as removed, and returned in kept (#733).
-func promoteAcks(root string, acks []string) (unknown []string, kept []keptAck, err error) {
+// An id is consumed (by commit) only after its span was recorded or its version
+// is known to be gone (changed, removed, no longer a regular file). A read that
+// failed for any other reason (a permission, a descriptor limit) says nothing
+// about the version: the id is kept, and returned in kept (#733).
+func prepareAcks(root string, acks []string) (*ackBatch, error) {
+	b := &ackBatch{byVersion: map[ackKey]*ackGroup{}}
 	if len(acks) == 0 {
-		return nil, nil, nil
+		return b, nil
 	}
 	release, err := state.Hold(root, pendingLock)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	defer release()
 	store, err := loadPending(root)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	// ⚠ KEYED BY PATH **AND SHA**, not by path alone. An earlier cut appended
 	// every acknowledged span to one observation per path and let the last
@@ -584,12 +612,6 @@ func promoteAcks(root string, acks []string) (unknown []string, kept []keptAck, 
 	// the same call produced spans from the OLD file recorded under the NEW
 	// file's SHA — a licence to write lines the caller never saw in the version
 	// on disk. Found by the review of PR #132.
-	type key struct{ path, sha string }
-	type group struct {
-		spans [][2]int
-		ids   []string
-	}
-	byVersion := map[key]*group{}
 	matched := map[string]bool{}
 	for _, ck := range acks {
 		p, ok := store[ck]
@@ -597,7 +619,7 @@ func promoteAcks(root string, acks []string) (unknown []string, kept []keptAck, 
 			// An id this call already used, or already named, is not named
 			// again: the caller sent it twice (the reviews of #343).
 			if !matched[ck] {
-				unknown = append(unknown, ck)
+				b.unknown = append(b.unknown, ck)
 				matched[ck] = true
 			}
 			continue
@@ -606,57 +628,128 @@ func promoteAcks(root string, acks []string) (unknown []string, kept []keptAck, 
 			continue
 		}
 		matched[ck] = true
-		k := key{p.Path, p.SHA}
-		g := byVersion[k]
+		k := ackKey{p.Path, p.SHA}
+		g := b.byVersion[k]
 		if g == nil {
-			g = &group{}
-			byVersion[k] = g
+			g = &ackGroup{}
+			b.byVersion[k] = g
 		}
 		g.spans = append(g.spans, [2]int{p.Start, p.End})
 		g.ids = append(g.ids, ck)
 	}
-	if len(byVersion) == 0 {
-		return unknown, nil, nil
-	}
-	// ⚠ ONLY THE VERSION ON DISK IS RECORDED, and the rest are dropped.
-	//
-	// An earlier cut recorded one observation per version by ranging over a map.
-	// seen.merge REPLACES the observation when the SHA differs, so the last
-	// iteration won — and map order is random, which meant a STALE
-	// acknowledgement could overwrite a current, valid licence and consume both
-	// ids doing it. Found by the review of PR #132.
-	//
-	// A span acknowledged against a version that is no longer on disk cannot
-	// license anything anyway: the ledger's own SHA check refuses it. Dropping
-	// it is what it already meant, done deterministically.
-	consumed := false
-	for k, g := range byVersion {
+	for k, g := range b.byVersion {
 		sha, serr := currentSHA(root, k.path)
-		if serr != nil && transientRead(serr) {
+		switch {
+		case serr != nil && transientRead(serr):
+			g.keep = true
 			for _, id := range g.ids {
-				kept = append(kept, keptAck{id: id, cause: readCause(k.path, serr)})
+				b.kept = append(b.kept, keptAck{id: id, cause: readCause(k.path, serr)})
 			}
+		case serr == nil && sha == k.sha:
+			g.record = true
+		}
+	}
+	sort.Slice(b.kept, func(i, j int) bool { return b.kept[i].id < b.kept[j].id })
+	return b, nil
+}
+
+// consume takes the acknowledged ids out of the pending store, except those prepare
+// kept, and saves it. It runs BEFORE any ledger record: a save that fails grants
+// nothing (#742). It returns the observations to record, each the acknowledged
+// span of a version prepare saw on disk and nothing else.
+//
+// ⚠ ONLY THE VERSION ON DISK IS RECORDED, and the rest are dropped.
+//
+// An earlier cut recorded one observation per version by ranging over a map.
+// seen.merge REPLACES the observation when the SHA differs, so the last
+// iteration won — and map order is random, which meant a STALE
+// acknowledgement could overwrite a current, valid licence and consume both
+// ids doing it. Found by the review of PR #132.
+//
+// A span acknowledged against a version that is no longer on disk cannot
+// license anything anyway: the ledger's own SHA check refuses it. Dropping
+// it is what it already meant, done deterministically.
+func (b *ackBatch) consume(root string) (map[string]seen.Observation, error) {
+	if len(b.byVersion) == 0 {
+		return nil, nil
+	}
+	release, err := state.Hold(root, pendingLock)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+	store, err := loadPending(root)
+	if err != nil {
+		return nil, err
+	}
+	obs := map[string]seen.Observation{}
+	consumed := false
+	for k, g := range b.byVersion {
+		if g.keep {
 			continue
 		}
-		if serr == nil && sha == k.sha {
-			o := seen.Observation{SHA: k.sha, Spans: g.spans}
-			if err := seen.Record(root, map[string]seen.Observation{k.path: o}); err != nil {
-				return unknown, kept, err
-			}
+		if g.record {
+			obs[k.path] = seen.Observation{SHA: k.sha, Spans: g.spans}
 		}
 		for _, id := range g.ids {
 			delete(store, id)
 		}
 		consumed = true
 	}
-	sort.Slice(kept, func(i, j int) bool { return kept[i].id < kept[j].id })
 	if !consumed {
-		return unknown, kept, nil
+		return nil, nil
 	}
-	return unknown, kept, savePending(root, store)
+	if err := savePending(root, store); err != nil {
+		return nil, err
+	}
+	return obs, nil
 }
 
-// evict drops the oldest entries once the store passes maxPending.
+// commitAll is consume, then one ledger record of the acknowledged spans and of
+// extra (a quiet read's licences), as one Record when no path is in both, so a
+// failure leaves none of them. When a path is in both the two are recorded one
+// after the other.
+func (b *ackBatch) commitAll(root string, extra map[string]seen.Observation) error {
+	obs, err := b.consume(root)
+	if err != nil {
+		return err
+	}
+	both := false
+	for p := range extra {
+		if _, dup := obs[p]; dup {
+			both = true
+		}
+	}
+	if both {
+		if err := seen.Record(root, obs); err != nil {
+			return err
+		}
+		return seen.Record(root, extra)
+	}
+	all := map[string]seen.Observation{}
+	for p, o := range obs {
+		all[p] = o
+	}
+	for p, o := range extra {
+		all[p] = o
+	}
+	return seen.Record(root, all)
+}
+
+// promoteAcks is prepareAcks and commitAll at once, for a call that has nothing to
+// answer first (mrw_write: its acknowledgements license the plan it carries). What
+// it reports kept is what it did.
+func promoteAcks(root string, acks []string) (unknown []string, kept []keptAck, err error) {
+	b, err := prepareAcks(root, acks)
+	if err != nil {
+		return nil, nil, err
+	}
+	return b.unknown, b.kept, b.commitAll(root, nil)
+}
+
+// evict drops the oldest entries once the store passes maxPending, never one the
+// call is keeping for a retry (callKeep, #742): the store may stay over the
+// bound by that many until the next call.
 func evict(store map[string]pending) {
 	if len(store) <= maxPending {
 		return
@@ -666,8 +759,13 @@ func evict(store map[string]pending) {
 		keys = append(keys, k)
 	}
 	sort.Slice(keys, func(i, j int) bool { return store[keys[i]].Seq < store[keys[j]].Seq })
-	for _, k := range keys[:len(store)-maxPending] {
-		delete(store, k)
+	for _, k := range keys {
+		if len(store) <= maxPending {
+			break
+		}
+		if !callKeep[k] {
+			delete(store, k)
+		}
 	}
 }
 
@@ -680,23 +778,6 @@ func readPending(root string) (map[string]pending, error) {
 		defer release()
 	}
 	return loadPending(root)
-}
-
-// stillPending is the kept ids the pending store still holds. A new checkpoint
-// held after they were kept can evict the oldest past maxPending, and the note
-// must not tell the caller to retry an id that is gone (#733).
-func stillPending(root string, kept []keptAck) []keptAck {
-	store, err := readPending(root)
-	if err != nil {
-		return kept
-	}
-	var out []keptAck
-	for _, k := range kept {
-		if _, ok := store[k.id]; ok {
-			out = append(out, k)
-		}
-	}
-	return out
 }
 
 // readPendingFile is regular.ReadFile, as a variable so a test can hold the
