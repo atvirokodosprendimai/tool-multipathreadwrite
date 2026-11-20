@@ -17,3 +17,7 @@ const Follow = false
 func platformInvalidName(err error) bool {
 	return errors.Is(err, syscall.ENOTDIR) || errors.Is(err, syscall.ENAMETOOLONG) || errors.Is(err, syscall.EILSEQ)
 }
+
+// platformUnreachable is false here: no unix errno reads as ErrNotExist while
+// saying the place could not be reached.
+func platformUnreachable(error) bool { return false }

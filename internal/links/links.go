@@ -69,9 +69,7 @@ func Through(p string, lfs FS) (string, error) {
 			if nameCannotBeALink(err) {
 				return filepath.Join(append([]string{next}, rest[1:]...)...), nil
 			}
-			// The walked prefix comes back with the refusal, so a fallback that
-			// judges by spelling still keeps the links resolved so far (#711).
-			return filepath.Join(append([]string{next}, rest[1:]...)...), fmt.Errorf("%s cannot be examined, so mrw cannot tell where it leads: %w", next, err)
+			return "", fmt.Errorf("%s cannot be examined, so mrw cannot tell where it leads: %w", next, err)
 		}
 		rest = rest[1:]
 		if fi.Mode()&(os.ModeSymlink|os.ModeIrregular) == 0 {
@@ -84,10 +82,10 @@ func Through(p string, lfs FS) (string, error) {
 				cur = next // a reparse point that redirects nothing
 				continue
 			}
-			return filepath.Join(append([]string{next}, rest...)...), fmt.Errorf("%s is a link or junction mrw cannot follow: %w", next, err)
+			return "", fmt.Errorf("%s is a link or junction mrw cannot follow: %w", next, err)
 		}
 		if hops++; hops > MaxLinks {
-			return filepath.Join(append([]string{cur}, rest...)...), fmt.Errorf("%s leads through more than %d links", p, MaxLinks)
+			return "", fmt.Errorf("%s leads through more than %d links", p, MaxLinks)
 		}
 		// A relative target is relative to the directory holding the link; a
 		// rooted one without a volume is on the link's own drive.
@@ -108,6 +106,11 @@ func Through(p string, lfs FS) (string, error) {
 // there or cannot be: absent, or a name the system refuses. Any other failure
 // leaves its nature unknown (#711).
 func nameCannotBeALink(err error) bool {
+	// Go answers ErrNotExist for ERROR_BAD_NETPATH too, but an unreachable
+	// share says nothing about whether the component exists (Codex on #717).
+	if platformUnreachable(err) {
+		return false
+	}
 	return errors.Is(err, fs.ErrNotExist) || platformInvalidName(err)
 }
 
@@ -165,9 +168,10 @@ func Real(p string) string { return realVia(p, OS, Follow) }
 func realVia(p string, lfs FS, follow bool) string {
 	p = filepath.Clean(p)
 	if follow {
-		// The walked prefix is kept even when the walk is refused (#711).
-		t, _ := Through(p, lfs)
-		if t != "" {
+		// A refused walk returns no path, and the path stays as spelled: a
+		// later Resolve walks it again and refuses it. A partial result would
+		// be a different path that Resolve could approve (Codex on #717).
+		if t, err := Through(p, lfs); err == nil {
 			p = t
 		}
 	}

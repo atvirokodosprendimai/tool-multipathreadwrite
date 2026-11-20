@@ -340,9 +340,9 @@ func SpelledAsDirectory(p string) bool {
 func RealAsFarAsItExists(p string) string {
 	p = filepath.Clean(p)
 	if followLinks {
-		// The walked prefix survives a refusal, so links resolved before the
-		// failing component still count (#711).
-		if t, _ := throughLinks(p, osLinks); t != "" {
+		// A refused walk keeps the path as spelled, which a later Resolve
+		// refuses; a partial result would be another path (Codex on #717).
+		if t, err := throughLinks(p, osLinks); err == nil {
 			p = t
 		}
 	}

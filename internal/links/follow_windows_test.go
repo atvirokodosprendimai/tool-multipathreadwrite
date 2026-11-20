@@ -17,7 +17,9 @@ func TestTheWindowsLstatErrnosThatEndTheWalkAreTheInvalidNames(t *testing.T) {
 			t.Errorf("errno %d: Through = %s, %v, want the path kept and no error", e, got, err)
 		}
 	}
-	if _, err := Through(in, lstatAnswering(syscall.Errno(21))); err == nil {
-		t.Error("ERROR_NOT_READY (21) ended the walk instead of refusing")
+	for _, e := range []syscall.Errno{21, 53} { // ERROR_NOT_READY; ERROR_BAD_NETPATH, which Go also reads as ErrNotExist
+		if _, err := Through(in, lstatAnswering(e)); err == nil {
+			t.Errorf("errno %d ended the walk instead of refusing", e)
+		}
 	}
 }

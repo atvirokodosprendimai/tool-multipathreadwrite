@@ -105,7 +105,7 @@ func TestTheLinkWalkEndsAtAnAbsentComponentOrAnInvalidName(t *testing.T) {
 // #711 review, P3-5. A failure beyond a junction must not drop the junction:
 // the fallbacks (Real, and rooted's RealAsFarAsItExists) judged the fully
 // spelled path, which put an escape through /r/j back inside the root.
-func TestARefusedWalkStillReturnsTheLinksResolvedBeforeTheFailure(t *testing.T) {
+func TestARefusedWalkReturnsNoPathSoTheFallbackKeepsTheSpelling(t *testing.T) {
 	junction, out, x := filepath.FromSlash("/r/j"), filepath.FromSlash("/out"), filepath.FromSlash("/out/x")
 	lfs := FS{
 		Lstat: func(p string) (os.FileInfo, error) {
@@ -126,13 +126,34 @@ func TestARefusedWalkStillReturnsTheLinksResolvedBeforeTheFailure(t *testing.T) 
 			return "", &fs.PathError{Op: "readlink", Path: p, Err: fs.ErrInvalid}
 		},
 	}
-	in, want := filepath.FromSlash("/r/j/x/y"), filepath.FromSlash("/out/x/y")
-	got, err := Through(in, lfs)
-	if err == nil || got != want {
-		t.Errorf("Through(%s) = %s, %v, want %s with the refusal", in, got, err, want)
+	in := filepath.FromSlash("/r/j/x/y")
+	if got, err := Through(in, lfs); err == nil || got != "" {
+		t.Errorf("Through(%s) = %q, %v, want no path and the refusal", in, got, err)
 	}
-	if got := realVia(in, lfs, true); got != want {
-		t.Errorf("realVia(%s) = %s, want %s: the junction was dropped", in, got, want)
+	if got := realVia(in, lfs, true); got != in {
+		t.Errorf("realVia(%s) = %s, want the path as spelled, which a later Resolve refuses", in, got)
+	}
+	// A junction that leads to itself: a partial result dropped the junction
+	// and named /r/note.txt, a different file a later Resolve could approve.
+	loop := filepath.FromSlash("/r/loop")
+	self := FS{
+		Lstat: func(p string) (os.FileInfo, error) {
+			switch filepath.Clean(p) {
+			case filepath.FromSlash("/r"):
+				return info{os.ModeDir}, nil
+			case loop:
+				return info{os.ModeIrregular}, nil
+			}
+			return nil, &fs.PathError{Op: "lstat", Path: p, Err: fs.ErrNotExist}
+		},
+		Readlink: func(p string) (string, error) { return loop, nil },
+	}
+	note := filepath.FromSlash("/r/loop/note.txt")
+	if got, err := Through(note, self); err == nil || got != "" {
+		t.Errorf("Through(%s) through a looping junction = %q, %v, want no path and the refusal", note, got, err)
+	}
+	if got := realVia(note, self, true); got != note {
+		t.Errorf("realVia(%s) = %s, want the path as spelled", note, got)
 	}
 }
 
