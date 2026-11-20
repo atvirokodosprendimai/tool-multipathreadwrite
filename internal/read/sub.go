@@ -53,7 +53,7 @@ func (s *Sub) file(path, sha string, lns []string, spans []span) [][2]int {
 			// ending in one (a line of a file whose endings are mixed) would be
 			// written a byte short. Refused, and the whole plan with it.
 			if strings.HasSuffix(next, "\r") {
-				s.Refused = append(s.Refused, fmt.Sprintf("%s:%d: the new text ends in a CR byte, which a plan line cannot carry (a file whose line endings are mixed)", path, ln))
+				s.Refused = append(s.Refused, fmt.Sprintf("%s:%d: the new text ends in a CR byte, which a plan line cannot carry (a file whose line endings are mixed)", ShownPath(path), ln))
 				return [][2]int{}
 			}
 			// A counted raw body whatever the text: one that starts with @@, body=

@@ -414,6 +414,8 @@ formats keep the path as written too, with one exception (ADR-117 T3): every UTF
 list is dropped, and standard error says so, with the count when there are several; `mrw_read`'s `files_from` drops them without a note. A first
 entry whose file name does begin with one is written `./NAME`, or put after a comment line.
 
+**A header is one line.** A path holding a control byte (a line feed or carriage return, anything below 0x20, DEL) is printed in a header, a REFUSED or UNREADABLE line, a withheld line or a note quoted and escaped, as `==> "a\nb"  1L  4B  sha …`, never split across lines (#740); an error text that embeds such a path is escaped the same way. That spelling names no file on disk, so no read observation matches it: `mrw_read` issues no checkpoint for that file and says so, and the ledger cannot hold its name (#702).
+
 ### 2. One plan, not N writes
 
 Every hunk gets a verdict. If any hunk fails validation, **nothing is written at
