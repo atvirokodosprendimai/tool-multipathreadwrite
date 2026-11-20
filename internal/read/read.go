@@ -17,6 +17,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -67,18 +68,44 @@ func (e errOverFileCap) Error() string {
 // the open's own error, permission denied included.
 var errIsDirectory = errors.New("is a directory")
 
-// readCapped reads path whole, up to maxFileBytes. It refuses by the file's
-// size first, and then reads through a limit of one byte more, because a size
-// taken before the read is outrun by a file that grows (the review of #295).
-// It opens through regular.Open (ADR-109): a file swapped for a FIFO after the
-// caller's path check is refused rather than blocking the read.
-// A directory is refused with errIsDirectory, judged by the descriptor rather
-// than the caller's earlier stat, so a path swapped in between is judged as it is.
-func readCapped(path string) ([]byte, error) {
-	f, fi, err := regular.Open(path)
+// afterResolveFn runs between the boundary decision and the open of a named
+// path. It is a seam for a test to swap a directory for a link there (#727).
+var afterResolveFn = func() {}
+
+// afterProbeResolveFn is afterResolveFn for the ast-grep CR-only probe.
+var afterProbeResolveFn = func() {}
+
+// readCappedIn reads full, a file under root that rooted.Resolve returned for a
+// path, whole, up to maxFileBytes. It opens through a root held open
+// (rooted.OpenRead, regular.OpenIn), so a directory swapped for a link after
+// that decision cannot lead outside the root (#727, ADR-007), and a file
+// swapped for a FIFO is refused rather than blocking the read (ADR-109). It
+// refuses by the file's size first, and then reads through a limit of one byte
+// more, because a size taken before the read is outrun by a file that grows (the
+// review of #295). A directory is refused with errIsDirectory, judged by the
+// descriptor rather than the caller's earlier stat, so a path swapped in between
+// is judged as it is.
+func readCappedIn(root, full string) ([]byte, error) {
+	rd, err := rooted.NewReader(root)
 	if err != nil {
 		return nil, err
 	}
+	defer rd.Close()
+	return readCappedWith(rd, full)
+}
+
+// readCappedWith is readCappedIn through a root already held open: a walk holds
+// one for its length rather than one per file.
+func readCappedWith(rd *rooted.Reader, full string) ([]byte, error) {
+	f, fi, err := rd.Open(full)
+	if err != nil {
+		return nil, err
+	}
+	return readCappedFile(f, fi)
+}
+
+// readCappedFile reads the open file f whole, up to maxFileBytes, and closes it.
+func readCappedFile(f *os.File, fi fs.FileInfo) ([]byte, error) {
 	defer func() { _ = f.Close() }()
 	if fi.IsDir() {
 		return nil, errIsDirectory
@@ -1371,19 +1398,20 @@ func load(w io.Writer, root string, sp *Spec) (b []byte, englishUnreadable, ok b
 		fmt.Fprintf(w, "==> %s  REFUSED  %v: read it with --root pointed where you mean%s\n", sp.Path, err, advice)
 		return nil, false, false
 	}
+	afterResolveFn()
 	// ADR-074: opening a FIFO for reading blocks until something writes to
 	// it, and a device can stream without end. The walk has refused a
 	// non-regular candidate since ADR-007; a named spec is reported the
-	// same way. A directory readCapped could open is errIsDirectory, and a
-	// stat that fails falls through to the error ReadFile gives.
-	fi, statErr := os.Stat(full)
-	if statErr == nil && !fi.Mode().IsRegular() && !fi.IsDir() {
+	// same way. The open is the held root's, without blocking, and says what
+	// it opened (a path Stat taken first named the file and then the open
+	// could name another: #727). A directory it could open is errIsDirectory.
+	// ADR-104: a file is read whole to serve any range of it, so readCapped
+	// refuses one over the cap by its size, and bounds the read itself.
+	b, err = readCappedIn(root, full)
+	if errors.Is(err, regular.ErrNotRegular) {
 		fmt.Fprintf(w, "==> %s  UNREADABLE  %s\n", sp.Path, lines.NotRegular)
 		return nil, false, false
 	}
-	// ADR-104: a file is read whole to serve any range of it, so readCapped
-	// refuses one over the cap by its size, and bounds the read itself.
-	b, err = readCapped(full)
 	if err != nil {
 		glob := hintUnexpandedGlob(sp.Path)
 		// Decided before the directory hint is added, so a directory name still counts

@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/lines"
-	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/regular"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/subproc"
 )
@@ -86,6 +85,11 @@ type AstGrepOptions struct {
 	Rewrites map[string]*RewriteFile
 }
 
+// afterJudgeNamedFn runs between the judgement of a named path and the probe
+// that opens it. It is a seam for a test to swap a directory for a link there
+// (#727).
+var afterJudgeNamedFn = func() {}
+
 // AstGrep shells out to ast-grep on PATH and maps hits to Specs read.Run
 // already serves. It records NOTHING: its process is finding, Run's read is
 // the only one that observes (ADR-007). It is a separate primitive from Walk
@@ -114,11 +118,22 @@ func AstGrep(root string, paths []string, pattern string, exclude []string, opt 
 	var accepted []string
 	for _, p := range paths {
 		n, prob := judgeNamed(root, absRoot, p)
+		afterJudgeNamedFn()
 		if prob == nil {
 			// ast-grep's own failure to read a path can come back as no
 			// hits, where the walk reports it; mrw asks first, without
 			// blocking on a FIFO swapped in after judgeNamed (ADR-109).
-			if f, _, err := regular.Open(n.full); err != nil {
+			// Through a root held on the root (#727), so a directory swapped for a
+			// link out of it after judgeNamed is not probed. The path that goes to
+			// ast-grep below is still opened by NAME, by the binary, which no
+			// held root can reach: it is the path mrw judged, and that is all that
+			// can be done for a subprocess.
+			// The root is looked up by name when the probe runs (Abs inside
+			// OpenRead): a ROOT replaced between judgeNamed and here is probed as the
+			// new directory. Main probed by name too (internal/read/astgrep.go:121
+			// regular.Open(n.full)), nothing is read, and the probe's answer only
+			// decides whether to start ast-grep, so this is not a regression.
+			if f, _, err := rooted.OpenRead(root, n.full); err != nil {
 				prob = &Problem{Path: n.rel, Reason: err.Error()}
 			} else {
 				_ = f.Close() // opened to learn it can be; nothing was read
@@ -304,7 +319,8 @@ func AstGrep(root string, paths []string, pattern string, exclude []string, opt 
 		// the file is reported once instead of served wrong.
 		cr, known := crOnly[rel]
 		if !known && !refused {
-			b, err := readCapped(filepath.Join(absRoot, filepath.FromSlash(rel)))
+			afterProbeResolveFn()
+			b, err := readCappedIn(absRoot, filepath.Join(absRoot, filepath.FromSlash(rel)))
 			if over := (errOverFileCap{}); errors.As(err, &over) {
 				// ADR-104: the probe reads the file whole, so it is bounded as
 				// read is; the hit is reported once and not served.

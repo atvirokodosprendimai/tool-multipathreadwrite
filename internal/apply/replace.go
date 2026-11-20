@@ -6,7 +6,7 @@ import (
 	"io/fs"
 	"os"
 
-	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/regular"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 )
 
 // sameFileFn is the seam the identity check (ADR-106, ADR-107) asks whether a
@@ -49,8 +49,8 @@ func openRefusal(path string, err error) string {
 // not be read (ADR-107). An open of the file says why when anything can; the
 // old advice to send the plan again is kept for when the open succeeds and
 // nothing explains the failure (ADR-125).
-func identityRefusal(path, full string) string {
-	f, _, err := regular.Open(full)
+func identityRefusal(root, path, full string) string {
+	f, _, err := rooted.OpenRead(root, full)
 	if err == nil {
 		_ = f.Close()
 		return fmt.Sprintf("%s: its identity could not be read, so a change before the commit could not be seen; send the plan again", path)

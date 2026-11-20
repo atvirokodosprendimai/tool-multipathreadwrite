@@ -16,7 +16,6 @@ import (
 	"unicode"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/lines"
-	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/regular"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 )
 
@@ -139,9 +138,18 @@ func Walk(root string, paths []string, opt WalkOptions) ([]Spec, []Problem, erro
 		paths = []string{"."}
 	}
 
+	// One root held open for every file the walk reads (#727): opening one per
+	// file cost a syscall and a close each, over a large tree.
+	// A root that cannot be held (it is not there) is not an error of the walk:
+	// every path judged under it is refused on its own row, as it always was, and
+	// nothing is read. The reader is then nil.
+	rd, _ := rooted.NewWalkReader(root)
+	if rd != nil {
+		defer rd.Close()
+	}
 	w := walker{root: root, absRoot: absRoot, opt: opt, seen: map[string]bool{}, nested: map[string]*ignorer{},
 		skipFiles: map[string]bool{}, skipDirs: map[string]bool{}, skipBin: map[string]bool{}, skipNested: map[string]bool{}, skipNames: map[string]bool{}, skipLinks: map[string]bool{},
-		sem: make(chan struct{}, min(runtime.NumCPU(), maxScanners)), res: rooted.NewResolver(root)}
+		sem: make(chan struct{}, min(runtime.NumCPU(), maxScanners)), rd: rd, res: rooted.NewResolver(root)}
 	if !opt.NoIgnore {
 		w.ign = newIgnorer(absRoot)
 	}
@@ -165,6 +173,7 @@ type walker struct {
 	problems []Problem
 	ign      *ignorer         // nil outside a checkout or under NoIgnore
 	res      *rooted.Resolver // resolves what this walk discovers, and dies with it (ADR-131)
+	rd       *rooted.Reader   // the root held open for the scans (#727); nil in a hit judge
 	// jobs are the candidates offer queued, in the order it was called; sem bounds
 	// how many are read at once, and wg waits for them (flush).
 	jobs []*scanJob
@@ -319,6 +328,12 @@ func (w *walker) walkDir(named string, full string) {
 		}
 		w.starts = append(w.starts, r)
 	}
+	// The ENUMERATION is by name, on purpose (#727): a listing is names and
+	// types, not content, filepath.WalkDir does not follow a link, and moving it
+	// to the held root would be a different walker. What a directory swapped for
+	// a link out of the root during the walk can show is the NAMES of the entries
+	// below it; every one is then read through the held root (scanRead), which
+	// refuses the outside path, so no byte of outside content is served.
 	err := filepath.WalkDir(full, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			if p == full {
@@ -430,26 +445,31 @@ func (w *walker) walkDir(named string, full string) {
 // what a walk waits on; more than this only queues in the kernel.
 const maxScanners = 8
 
-// scanRead reads one candidate: whole, up to ADR-104's cap, when budget is 0,
-// else up to budget bytes, or errBudget. It is a variable so a test can swap it
-// for a counter of the reads in flight.
-var scanRead = func(path string, budget int64) ([]byte, error) {
-	if budget == 0 || budget >= maxFileBytes { // the cap is the tighter bound, and its refusal is worded by readCapped
-		return readCapped(path)
+// scanRead reads one candidate under the walk's root: whole, up to ADR-104's cap,
+// when budget is 0, else up to budget bytes, or errBudget. It opens through the
+// root the walk holds open (rooted.Reader), so a directory swapped for a link
+// after the walk found the file cannot lead outside it (#727). It is a variable
+// so a test can swap it for a counter of the reads in flight.
+var scanRead = func(rd *rooted.Reader, path string, budget int64) ([]byte, error) {
+	if rd == nil {
+		return nil, fs.ErrNotExist
 	}
-	return readBudget(path, budget)
+	if budget == 0 || budget >= maxFileBytes { // the cap is the tighter bound, and its refusal is worded by readCapped
+		return readCappedWith(rd, path)
+	}
+	return readBudgetWith(rd, path, budget)
 }
 
 // errBudget is readBudget's answer to a file longer than its budget.
 var errBudget = errors.New("longer than the scan budget")
 
-// readBudget reads path whole if it is at most budget bytes, else errBudget. A
-// job takes one scan slot on the strength of a stat made earlier; a file that
-// has grown since, or a regular file whose stat underreports, must not be held
-// whole beside seven others (the Codex review of #525), so such a job is read
-// again alone.
-func readBudget(path string, budget int64) ([]byte, error) {
-	f, fi, err := regular.Open(path)
+// readBudgetWith reads path, under the root rd holds, whole if it is at most
+// budget bytes, else errBudget (#727). A job takes one scan
+// slot on the strength of a stat made earlier; a file that has grown since, or
+// a regular file whose stat underreports, must not be held whole beside seven
+// others (the Codex review of #525), so such a job is read again alone.
+func readBudgetWith(rd *rooted.Reader, path string, budget int64) ([]byte, error) {
+	f, fi, err := rd.Open(path)
 	if err != nil {
 		return nil, err
 	}
@@ -543,14 +563,14 @@ func (w *walker) offer(p, full string, discovered bool, size int64) {
 		if exclusive {
 			budget = 0
 		}
-		b, err := scanRead(j.full, budget)
+		b, err := scanRead(w.rd, j.full, budget)
 		if errors.Is(err, errBudget) {
 			// Larger than the stat said: give the slot back and read it alone.
 			<-w.sem
 			held = 0
 			w.takeAll()
 			held = cap(w.sem)
-			b, err = scanRead(j.full, 0)
+			b, err = scanRead(w.rd, j.full, 0)
 		}
 		if err != nil {
 			j.err = err
@@ -633,6 +653,14 @@ func (w *walker) ignored(rel string, isDir bool, from int) bool {
 	return ig != nil && ig.Ignored(sub, isDir, from)
 }
 
+// DISPOSITION (#738 final pass): noteNested's Lstat of dir/.git, like the
+// WalkDir enumeration (see walkDir), is by name, and a directory swapped for a
+// link during the walk can make it look at an outside directory's .git for
+// METADATA only (whether it holds one, and the ignore rules read from it, which
+// go through readIgnoreFileIn). Main did exactly this (internal/read/walk.go:318
+// and :351 call noteNested; :322 filepath.WalkDir), so it is not a regression.
+// No content leaves the root through it.
+//
 // noteNested records dir (root-relative, "/"-joined; abs its path) as a
 // nested checkout when it holds a .git, so its own rules apply beneath it.
 func (w *walker) noteNested(dir, abs string) {

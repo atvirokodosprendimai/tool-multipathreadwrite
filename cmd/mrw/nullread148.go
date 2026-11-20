@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/lines"
-	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/regular"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
 )
 
@@ -106,7 +106,7 @@ func licensedBy(root, path string, rec, o seen.Observation) bool {
 		}
 		return true
 	}
-	n, ok := lineCount(filepath.Join(root, filepath.FromSlash(path)), o.SHA)
+	n, ok := lineCount(root, filepath.Join(root, filepath.FromSlash(path)), o.SHA)
 	return ok && n > 0 && rec.Covers(1, n)
 }
 
@@ -120,8 +120,8 @@ var recountCap int64 = 1 << 30
 // when it still holds the version the read observed. It reads at most
 // recountCap+1 bytes: a file over the cap is cut there, and a cut file cannot
 // hash to a version the read served, since the read refuses a file that large.
-func lineCount(full, sha string) (int, bool) {
-	f, _, err := regular.Open(full)
+func lineCount(root, full, sha string) (int, bool) {
+	f, _, err := rooted.OpenRead(root, full)
 	if err != nil {
 		return 0, false
 	}

@@ -46,13 +46,13 @@ func TestAFileOverTheEditLimitIsRefusedBeforeItIsRead(t *testing.T) {
 	write(t, root, "grow.txt", "g\n")
 	real := loadFn
 	t.Cleanup(func() { loadFn = real })
-	loadFn = func(path string) (text, bool, error) {
+	loadFn = func(root, path string) (text, bool, error) {
 		if filepath.Base(path) == "grow.txt" {
 			if err := os.WriteFile(path, []byte(big), 0o644); err != nil {
 				t.Fatal(err)
 			}
 		}
-		return real(path)
+		return real(root, path)
 	}
 	res, err = Apply(root, []Input{
 		{Path: "grow.txt", Start: 1, End: 1, Op: "replace", Body: []string{"G"}, Lines: -1, Index: 0},

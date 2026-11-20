@@ -633,6 +633,7 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			failed = append(failed, FileResult{Path: path})
 			continue
 		}
+		afterTargetResolveFn()
 		// ADR-071: a name that differs only by case from one an earlier hunk
 		// leaves on disk, where one of the two does not exist yet. One refusal,
 		// on the hunk that collides; the file's other hunks skip.
@@ -648,7 +649,7 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			continue
 		}
 		var seen fs.FileInfo
-		if info, statErr := os.Stat(full); statErr == nil {
+		if info, statErr := statHeld(root, full); statErr == nil {
 			// ADR-106: kept for the identity recheck before commit. On Windows
 			// os.SameFile reads a file ID lazily, by name, when it compares, so
 			// the ID is loaded now — at the moment validation read the file.
@@ -657,7 +658,7 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			// comparison — the blindness loading it now exists to avoid — so
 			// the file is refused. On darwin and Linux this cannot fail.
 			if !sameFileFn(info, info) {
-				refuseFile(results, path, hs, 0, identityRefusal(path, full))
+				refuseFile(results, path, hs, 0, identityRefusal(root, path, full))
 				failed = append(failed, FileResult{Path: path})
 				continue
 			}
@@ -705,7 +706,7 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			}
 			seenFiles = append(seenFiles, groupedFile{path: path, info: info, line: hs[0].SrcLine})
 		}
-		orig, existed, err := loadFn(full)
+		orig, existed, err := loadFn(root, full)
 		// ADR-107: a file that grew past the limit after its size was taken is
 		// refused on its hunk like one that was over it then, so the receipt
 		// keeps every verdict (the Codex review of #302).
@@ -2365,21 +2366,30 @@ func (t text) join() string {
 // with returns a copy holding different lines and the same conventions.
 func (t text) with(lines []string) text { t.lines = lines; return t }
 
-// readLines splits a file into lines, reporting the conventions it used and
-// whether it existed at all. A missing file is not an error here — create needs
-// to know, and so does a hunk that must fail loudly.
+// readLinesIn splits file path, one under root that rooted.Resolve returned for
+// a hunk's path, into lines, reporting the conventions it used and whether it
+// existed at all. A missing file is not an error here — create needs to know,
+// and so does a hunk that must fail loudly.
+//
+// It opens through a root held open (rooted.OpenRead, regular.OpenIn), so a
+// directory swapped for a link after the boundary decision cannot lead outside
+// the root (#727, ADR-007), and a file validation judged regular that was then
+// swapped for a FIFO is refused rather than blocking (ADR-109).
 //
 // The terminators are lines.Split's (ADR-005 §3, moved there by ADR-065 so read,
 // --grep, MCP paging and the plan compilers number a file exactly as this does).
-func readLines(path string) (t text, existed bool, err error) {
-	// ADR-109: opened through regular.Open, so a file validation judged regular
-	// and that was then swapped for a FIFO is refused rather than blocking.
-	f, _, err := regular.Open(path)
-	if os.IsNotExist(err) {
+func readLinesIn(root, path string) (t text, existed bool, err error) {
+	f, _, openErr := rooted.OpenRead(root, path)
+	return readLinesFrom(f, openErr)
+}
+
+// readLinesFrom splits the open file f, which openErr says whether it opened.
+func readLinesFrom(f *os.File, openErr error) (t text, existed bool, err error) {
+	if os.IsNotExist(openErr) {
 		return text{eol: "\n"}, false, nil
 	}
-	if err != nil {
-		return text{eol: "\n"}, false, err
+	if openErr != nil {
+		return text{eol: "\n"}, false, openErr
 	}
 	defer func() { _ = f.Close() }()
 	// ADR-107: read through a bound, for a file that grew after validation
@@ -2415,7 +2425,12 @@ func (e errOverLoadLimit) Error() string {
 
 // loadFn is the seam validation reads a file through. A file that grows
 // between its stat and its read is not one a test can arrange without it.
-var loadFn = readLines
+var loadFn = readLinesIn
+
+// afterTargetResolveFn runs between the boundary decision on a hunk's file and
+// the load of it. It is a seam for a test to swap a directory for a link there
+// (#727).
+var afterTargetResolveFn = func() {}
 
 // stageFileFn is the seam the staging phase is driven through. A test swaps it
 // to fail on a chosen file, because the realistic trigger — an unwritable
@@ -2729,7 +2744,7 @@ func changedSince(tr *tree, p string, was fs.FileInfo) (string, error) {
 		// read as "another file replaced it", the target's doing. An open says
 		// what the failure was; one nothing explains is the environment's
 		// (the Codex review of #347).
-		f, _, oerr := regular.Open(p)
+		f, _, oerr := tr.openRead(p)
 		if oerr != nil {
 			return fmt.Sprintf("its identity could not be read (%v)", oerr), oerr
 		}
@@ -2743,6 +2758,23 @@ func changedSince(tr *tree, p string, was fs.FileInfo) (string, error) {
 		return "its modification time changed", nil
 	}
 	return "", nil
+}
+
+// statHeld describes the file full, under root, as the open descriptor says it
+// is: the file the plan will load, and not whatever a name Stat taken first
+// happens to reach (#727). What cannot be opened for reading, a FIFO or a file
+// the process may not read, is described by name, its metadata only: nothing is
+// read from it, and it is refused or reported on its hunk.
+func statHeld(root, full string) (fs.FileInfo, error) {
+	f, fi, err := rooted.OpenRead(root, full)
+	if err == nil {
+		_ = f.Close()
+		return fi, nil
+	}
+	if errors.Is(err, regular.ErrNotRegular) || errors.Is(err, fs.ErrPermission) {
+		return rooted.StatRead(root, full)
+	}
+	return nil, err
 }
 
 func shaOf(t text) string {

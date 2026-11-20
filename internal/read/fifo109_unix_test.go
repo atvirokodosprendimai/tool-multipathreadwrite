@@ -23,7 +23,7 @@ func TestReadCappedRefusesAFIFOAtOnce(t *testing.T) {
 	}
 	done := make(chan error, 1)
 	go func() {
-		_, err := readCapped(pipe)
+		_, err := readCappedIn(filepath.Dir(pipe), pipe)
 		done <- err
 	}()
 	select {

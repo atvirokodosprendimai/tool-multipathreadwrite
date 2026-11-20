@@ -22,7 +22,7 @@ func TestForeignFormatsAreBounded(t *testing.T) {
 	if err := os.WriteFile(big, []byte(strings.Repeat("x\n", 20)), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := targetBytes(big); err == nil || !strings.Contains(err.Error(), "40 bytes") || !strings.Contains(err.Error(), "16") {
+	if _, err := targetBytes(filepath.Dir(big), big); err == nil || !strings.Contains(err.Error(), "40 bytes") || !strings.Contains(err.Error(), "16") {
 		t.Errorf("a target over the limit was not refused naming size and limit: %v", err)
 	}
 	huge := filepath.Join(root, "huge")
@@ -32,7 +32,7 @@ func TestForeignFormatsAreBounded(t *testing.T) {
 	var before, after runtime.MemStats
 	runtime.GC()
 	runtime.ReadMemStats(&before)
-	_, herr := targetBytes(huge)
+	_, herr := targetBytes(filepath.Dir(huge), huge)
 	runtime.ReadMemStats(&after)
 	if herr == nil {
 		t.Error("a 4 MB target past a 16-byte limit was read")
@@ -44,7 +44,7 @@ func TestForeignFormatsAreBounded(t *testing.T) {
 	if err := os.WriteFile(small, []byte("s\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if b, err := targetBytes(small); err != nil || string(b) != "s\n" {
+	if b, err := targetBytes(filepath.Dir(small), small); err != nil || string(b) != "s\n" {
 		t.Errorf("a target under the limit read %q, %v", b, err)
 	}
 }

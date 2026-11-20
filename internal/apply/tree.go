@@ -11,6 +11,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/regular"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 )
 
@@ -167,6 +168,15 @@ func (t *tree) stat(p string) (fs.FileInfo, error) {
 		return nil, err
 	}
 	return t.r.Stat(r)
+}
+
+// openRead opens p for reading beneath the root, without blocking (regular.OpenIn).
+func (t *tree) openRead(p string) (*os.File, fs.FileInfo, error) {
+	r, err := t.rel(p)
+	if err != nil {
+		return nil, nil, err
+	}
+	return regular.OpenIn(t.r, r)
 }
 
 // readDir lists the directory p beneath the root.

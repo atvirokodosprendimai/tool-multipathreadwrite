@@ -13,7 +13,6 @@ import (
 	"github.com/urfave/cli/v3"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/lines"
-	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/regular"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
 )
@@ -170,6 +169,11 @@ func hookRel(root, path string) (string, bool) {
 // file is read once and hashed once, so the lines and the sha are one version.
 // Lines are mrw's own split (internal/lines): a CRLF line has no CR, as the host
 // showed it, and the empty element after a final newline is no line.
+// afterHookResolveFn runs between the boundary decision on a path and the open
+// of its file. It is a seam for a test to swap a directory for a link there
+// (#727).
+var afterHookResolveFn = func() {}
+
 func hookLicensed(root, path, content string, start int) (string, seen.Observation, bool) {
 	none := seen.Observation{}
 	rel, ok := hookRel(root, path)
@@ -180,7 +184,8 @@ func hookLicensed(root, path, content string, start int) (string, seen.Observati
 	if err != nil {
 		return ``, none, false
 	}
-	f, fi, err := regular.Open(full)
+	afterHookResolveFn()
+	f, fi, err := rooted.OpenRead(root, full)
 	if err != nil {
 		return ``, none, false
 	}

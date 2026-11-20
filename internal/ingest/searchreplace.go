@@ -140,7 +140,8 @@ func searchFileLines(root, path string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("search_replace: %w", err)
 	}
-	b, err := targetBytes(full)
+	afterTargetResolveFn()
+	b, err := targetBytes(root, full)
 	if err != nil {
 		return nil, fmt.Errorf("search_replace: %s: %w", path, err)
 	}

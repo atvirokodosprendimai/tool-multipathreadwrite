@@ -1,0 +1,2 @@
+check@2	1bb497e3e13a1105cf24e3359fa3ef75de08b66ff8a2839cd7f9ea97824d9eb3
+body	internal/apply/fifo109_unix_test.go	TestApplyLoadRefusesAFIFOAtOnce	e0baa9f8350dd4bae44d4f4e06826a79636e266073016963ed4f4a574703701d

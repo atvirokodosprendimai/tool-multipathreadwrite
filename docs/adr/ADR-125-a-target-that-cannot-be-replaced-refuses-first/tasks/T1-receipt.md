@@ -125,3 +125,4 @@ Stop and ask if a load error cannot be made a hunk refusal without changing a re
   ```
 - 2026-10-06 · cc32ee4* · exit 0 · `set -o pipefail …` · acceptance-sha256:6772b608c68ca4c9f4e23228360ff1deaef712cacf34ca1a05d5d2c2ddf3de8a · ms:37287
 - 2026-10-06 · cc32ee4* · exit 0 · `set -o pipefail …` · acceptance-sha256:6772b608c68ca4c9f4e23228360ff1deaef712cacf34ca1a05d5d2c2ddf3de8a · ms:37294
+- 2026-11-20 · 741bd503* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:6772b608c68ca4c9f4e23228360ff1deaef712cacf34ca1a05d5d2c2ddf3de8a · ms:0 · test-lock-sha256:f045332dcf3925fc5c4754f0e241f3620721c0bc4ed7a26ca108110799ee0649 · test-lock-file:docs/adr/locks/f045332dcf3925fc5c4754f0e241f3620721c0bc4ed7a26ca108110799ee0649.lock · test-lock-kind:replace

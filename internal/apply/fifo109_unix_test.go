@@ -49,7 +49,7 @@ func TestApplyLoadRefusesAFIFOAtOnce(t *testing.T) {
 	write(t, root, "small.txt", "a\n")
 	real := loadFn
 	t.Cleanup(func() { loadFn = real })
-	loadFn = func(path string) (text, bool, error) {
+	loadFn = func(root, path string) (text, bool, error) {
 		if filepath.Base(path) == "swap.txt" {
 			if err := os.Remove(path); err != nil {
 				t.Error(err)
@@ -58,7 +58,7 @@ func TestApplyLoadRefusesAFIFOAtOnce(t *testing.T) {
 				t.Error(err)
 			}
 		}
-		return real(path)
+		return real(root, path)
 	}
 	type outcome struct {
 		res Result
@@ -102,7 +102,7 @@ func TestApplyLoadRefusesAFIFOAtOnce(t *testing.T) {
 			_ = l.Close()
 		}
 	})
-	loadFn = func(path string) (text, bool, error) {
+	loadFn = func(root, path string) (text, bool, error) {
 		if filepath.Base(path) == "s.txt" {
 			if err := os.Remove(path); err != nil {
 				t.Error(err)
@@ -112,7 +112,7 @@ func TestApplyLoadRefusesAFIFOAtOnce(t *testing.T) {
 				t.Skipf("no unix sockets here: %v", lerr)
 			}
 		}
-		return real(path)
+		return real(root, path)
 	}
 	res, err := Apply(short, []Input{
 		{Path: "s.txt", Start: 1, End: 1, Op: "replace", Body: []string{"S"}, Lines: -1, Index: 0},

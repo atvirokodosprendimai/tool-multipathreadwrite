@@ -20,11 +20,11 @@ func TestAnUnreadableTargetGetsAReceipt(t *testing.T) {
 	write(t, root, "b.txt", "b\n")
 	real := loadFn
 	t.Cleanup(func() { loadFn = real })
-	loadFn = func(path string) (text, bool, error) {
+	loadFn = func(root, path string) (text, bool, error) {
 		if filepath.Base(path) == "b.txt" {
 			return text{eol: "\n"}, false, &fs.PathError{Op: "open", Path: path, Err: fs.ErrPermission}
 		}
-		return real(path)
+		return real(root, path)
 	}
 	res, err := Apply(root, []Input{
 		{Path: "a.txt", Start: 1, End: 1, Op: "replace", Body: []string{"A"}, Lines: -1, Index: 0},
