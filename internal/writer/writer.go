@@ -100,6 +100,15 @@ func applyCounted(root string, in []apply.Input, opt apply.Options) (apply.Resul
 			gone = append(gone, f.Path)
 			continue
 		}
+		if f.NotProduced {
+			// #712: a moved link's destination licenses nothing, and a record
+			// an earlier read left at that path, under this spelling or another
+			// that names the same directory entry, is dropped with it (Codex on
+			// #725: it could otherwise license an edit through the link).
+			gone = append(gone, f.Path)
+			gone = append(gone, entryAliases(root, f.Path, opt.Seen)...)
+			continue
+		}
 		if f.Written && f.QuotedOnly {
 			// ADR-190: a quote licensed these lines and the caller read nothing
 			// else, so the file is known only where it was written.
@@ -130,12 +139,32 @@ func applyCounted(root string, in []apply.Input, opt apply.Options) (apply.Resul
 // filesystem, or an in-root symlink (issue #597). Identity is os.SameFile, the
 // filesystem's own answer, so on a case-sensitive filesystem a.txt and A.TXT
 // stay two files with two entries. Each ledger key is stat'ed once.
+// entryAliases returns the ledger keys, other than p, that name the same
+// directory entry as p: os.SameFile on Lstat, so a directory alias reaches
+// the moved link itself and not the file it points at (#712).
+func entryAliases(root, p string, ledger map[string]apply.Seen) []string {
+	fi, err := os.Lstat(filepath.Join(root, filepath.FromSlash(p)))
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for key := range ledger {
+		if key == p || key == filepath.ToSlash(p) {
+			continue
+		}
+		if ki, err := os.Lstat(filepath.Join(root, filepath.FromSlash(key))); err == nil && os.SameFile(fi, ki) {
+			out = append(out, key)
+		}
+	}
+	return out
+}
+
 func otherSpellings(root string, files []apply.FileResult, ledger map[string]apply.Seen) []string {
 	named := map[string]bool{}
 	var written []os.FileInfo
 	for _, f := range files {
 		named[f.Path] = true
-		if !f.Written || f.Removed {
+		if !f.Written || f.Removed || f.NotProduced { // a moved link's target is not followed (#712)
 			continue
 		}
 		if fi, err := os.Stat(filepath.Join(root, filepath.FromSlash(f.Path))); err == nil {

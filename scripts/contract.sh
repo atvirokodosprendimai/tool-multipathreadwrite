@@ -11817,6 +11817,25 @@ printf 'x\n' > "$R363/file"
 out=$("$MRW" -C "$R363" read 2>&1)
 grep -q '^==> file ' <<<"$out" && ok "a spec main reads as file is not redirected by a later :\$. colon in it" || bad "redirect: $out"
 
+# 364. #712: moving a relative symlink to another directory makes it read
+# another file (B where it read A). Its record gives no sha_after, not A's
+# digest, and it licenses nothing: an edit to it is refused until it is read.
+# The pair: a plain file's move reports its own digest and stays licensed.
+R=$(mktemp -d "$WORK/r-XXXXXX"); mkdir "$R/a" "$R/b"; printf 'A\n' > "$R/a/payload.txt"; printf 'B\n' > "$R/b/payload.txt"
+ln -s payload.txt "$R/a/link.txt"; printf 'C\n' > "$R/c.txt"
+m read a/link.txt c.txt > "$WORK/served.out"
+out=$(printf '@@ a/link.txt - rename\nb/link.txt\n@@ c.txt - rename\nd.txt\n' | m write --json - 2>/dev/null); rc=$?
+want 0 "$rc" "a plan moving a symlink and a plain file -> exit 0"
+python3 - "$out" <<'PY' && ok "the moved link reports no sha_after, the plain file its own" || bad "receipt: $(head -c 500 <<<"$out")"
+import hashlib, json, sys
+files = {f["path"]: f for f in json.loads(sys.argv[1])["files"] if not f.get("removed")}
+h = lambda s: hashlib.sha256(s.encode()).hexdigest()
+sys.exit(0 if "sha_after" not in files["b/link.txt"] and files["d.txt"]["sha_after"] == h("C\n") else 1)
+PY
+out=$(printf '@@ b/link.txt 1 replace\nX\n' | m write - 2>&1); rc=$?
+want 1 "$rc" "an edit to the moved link before any read of it -> exit 1"
+[ "$(cat "$R/b/payload.txt")" = B ] && ok "and B is unchanged" || bad "B changed: $(cat "$R/b/payload.txt")"
+
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
 # killed process is a zombie until its adopter reaps it, and pgrep lists

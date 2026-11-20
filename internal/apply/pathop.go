@@ -475,6 +475,17 @@ func commitPathOps(tr *tree, res *Result, pathOps []pending) (string, error) {
 			LinesTo:  len(w.out.lines),
 			SHAAfter: shaOf(w.out),
 		}
+		// #712: a moved link can read another file at its new place, so the
+		// digest of the file it read before would be a false sha_after. Its
+		// target is not read at all: not here, where the plan's later path ops
+		// have not settled and a link may now lead outside the root or into
+		// mrw's state (Codex on #725), and not by the drift scan or the ledger.
+		// The record carries no content fields, and NotProduced: mrw wrote none
+		// of those bytes, so the destination licenses nothing (AGENTS.md rule
+		// 2) and a write to it needs a read first.
+		if fi, lerr := tr.lstat(w.renameTo); lerr == nil && fi.Mode()&os.ModeSymlink != 0 {
+			dest.LinesTo, dest.SHAAfter, dest.NotProduced = 0, "", true
+		}
 		// ADR-114: an edited source already has the record its content commit
 		// wrote; rewrite that one, so the receipt and the ledger name the path
 		// once.
