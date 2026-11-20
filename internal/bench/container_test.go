@@ -109,9 +109,9 @@ exec)
 	case "$*" in *"git apply"*) if [ -e "$ROOT/break-apply" ]; then echo "error: patch failed: notes.txt:1" >&2; exit 1; fi;; esac
 	case "$*" in *"git init -q"*) if [ -e "$ROOT/skew" ]; then echo extra > "$ROOT/testbed/skew.txt"; fi;; esac
 	if [ -n "$dir" ]; then cd "$dir"; fi
-	if [ -e "$ROOT/slow-sync" ]; then for i in "${!args[@]}"; do case "${args[$i]}" in *pid.sync*) args[$i]="${args[$i]//git reset -q --hard/sleep 30; git reset -q --hard}";; esac; done; fi
-	if [ -e "$ROOT/slow-kill" ]; then for i in "${!args[@]}"; do case "${args[$i]}" in *pid.sync*) args[$i]="${args[$i]//for f in /sleep 30; for f in }";; esac; done; fi
-	if [ -e "$ROOT/slow-post" ]; then for i in "${!args[@]}"; do case "${args[$i]}" in *pid.post*) args[$i]="${args[$i]//git diff-tree/sleep 30; git diff-tree}";; esac; done; fi
+	if [ -e "$ROOT/slow-sync" ]; then for i in "${!args[@]}"; do case "${args[$i]}" in *pid.sync*) args[$i]="${args[$i]//git reset -q --hard/: > '$ROOT/asleep'; sleep 30; git reset -q --hard}";; esac; done; fi
+	if [ -e "$ROOT/slow-kill" ]; then for i in "${!args[@]}"; do case "${args[$i]}" in *pid.sync*) args[$i]="${args[$i]//for f in /: > '$ROOT/asleep'; sleep 30; for f in }";; esac; done; fi
+	if [ -e "$ROOT/slow-post" ]; then for i in "${!args[@]}"; do case "${args[$i]}" in *pid.post*) args[$i]="${args[$i]//git diff-tree/: > '$ROOT/asleep'; sleep 30; git diff-tree}";; esac; done; fi
 	if [ -e "$ROOT/leftover" ]; then if [ -e "$ROOT/leader" ]; then set -m; fi; "${args[@]}" <&0 & wait $!; exit $?; fi
 	exec "${args[@]}";;
 *) exit 0;;
@@ -1113,6 +1113,10 @@ func midSyncKill(t *testing.T, knob, phase string) {
 	put(t, filepath.Join(g.root, knob), "", 0o644)
 	put(t, filepath.Join(g.root, "leader"), "", 0o644)
 	pidFiles := filepath.Join(g.root, "opt", "bench", "pid."+phase+".*")
+	// The knob's shell touches asleep as its sleep starts. Killing the shim
+	// before then let a loaded runner catch the shell in the steps before the
+	// sleep, where the fixture left no sync running (#694).
+	asleep := filepath.Join(g.root, "asleep")
 	start := func() (*exec.Cmd, *os.Process, chan error) {
 		// A file, not a buffer: with a pipe, Wait would wait for every process
 		// holding it, a container shell the kill left sleeping included.
@@ -1134,11 +1138,15 @@ func midSyncKill(t *testing.T, knob, phase string) {
 		// stale index.lock that made every later sync exit early.
 		deadline := time.After(time.Minute)
 		for {
-			if matches, _ := filepath.Glob(pidFiles); len(matches) == 1 {
+			matches, _ := filepath.Glob(pidFiles)
+			if _, serr := os.Stat(asleep); len(matches) == 1 && serr == nil {
 				b, err := os.ReadFile(matches[0])
 				if n, aerr := strconv.Atoi(strings.TrimSpace(string(b))); err == nil && aerr == nil {
 					p, _ := os.FindProcess(n)
 					t.Cleanup(func() { _ = p.Kill() })
+					if err := os.Remove(asleep); err != nil {
+						t.Fatal(err)
+					}
 					return cmd, p, exited
 				}
 			}
@@ -1148,7 +1156,7 @@ func midSyncKill(t *testing.T, knob, phase string) {
 				t.Fatalf("the shim ended before its %s shell recorded a pid: %v: %s", phase, err, out)
 			case <-deadline:
 				_ = cmd.Process.Kill()
-				t.Fatalf("the %s shell never recorded its pid", phase)
+				t.Fatalf("the %s shell never recorded its pid and reached its sleep", phase)
 			case <-time.After(50 * time.Millisecond):
 			}
 		}
