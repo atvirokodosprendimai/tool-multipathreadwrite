@@ -340,9 +340,14 @@ func SpelledAsDirectory(p string) bool {
 func RealAsFarAsItExists(p string) string {
 	p = filepath.Clean(p)
 	if followLinks {
-		if t, err := throughLinks(p, osLinks); err == nil {
-			p = t
+		// A refused walk returns the path as spelled, at once: canonicalizing a
+		// parent below would shorten the walk enough for a later Resolve to
+		// approve another path (Codex on #717).
+		t, err := throughLinks(p, osLinks)
+		if err != nil {
+			return p
 		}
+		p = t
 	}
 	var rest []string
 	for q := p; ; {
