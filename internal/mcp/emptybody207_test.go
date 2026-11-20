@@ -23,7 +23,7 @@ func TestMrwWriteRefusesAnEmptyBodyFileOnADelete(t *testing.T) {
 		first, _ := content[0].(map[string]any)
 		text = asString(first["text"])
 	}
-	if res["isError"] != true || !strings.Contains(text, "body=@empty.txt") || read("f.txt")+"|"+read("g.txt") != before {
-		t.Errorf("isError %v, text %q; want an error naming body=@empty.txt and both files untouched", res["isError"], text)
+	if res["isError"] != true || !strings.Contains(text, "line 3") || !strings.Contains(text, "body=@empty.txt") || read("f.txt")+"|"+read("g.txt") != before {
+		t.Errorf("isError %v, text %q; want an error naming line 3 and body=@empty.txt and both files untouched", res["isError"], text)
 	}
 }

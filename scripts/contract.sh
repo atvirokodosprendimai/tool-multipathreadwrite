@@ -11922,20 +11922,22 @@ run371() { # run371 DIR PLAN: write the plan, the output in DIR/out
 mk371 "$R371/a"
 run371 "$R371/a" '@@ g.txt 1 replace\ny\n@@ f.txt 2 delete body=@empty371.txt\n'
 want 2 "$?" "a delete whose body=@ file holds zero bytes is refused, exit 2"
-grep -q 'line 3: body=@empty371.txt is empty (0 bytes)' "$R371/a/out" && [ "$(cat "$R371/a/f.txt")" = "$(printf 'a\nb\nc')" ] && [ "$(cat "$R371/a/g.txt")" = x ] \
-  && ok "naming the plan line and the file, with the valid sibling hunk not applied" || bad "empty body=@ refusal: $(cat "$R371/a/out")"
+grep -q 'line 3: body=@empty371.txt is empty (0 bytes)' "$R371/a/out" && cmp -s "$R371/a/f.txt" <(printf 'a\nb\nc\n') && cmp -s "$R371/a/g.txt" <(printf 'x\n') \
+  && ok "naming the plan line and the file, with the valid sibling hunk not applied (bytes compared)" || bad "empty body=@ refusal: $(cat "$R371/a/out")"
 mk371 "$R371/b"
 run371 "$R371/b" '@@ f.txt 2 delete body=@wrong371.txt\n'
 want 1 "$?" "the pair: a wrong non-empty body=@ exits 1"
-[ "$(cat "$R371/b/f.txt")" = "$(printf 'a\nb\nc')" ] && ok "and leaves f.txt unchanged" || bad "wrong body: $(cat "$R371/b/f.txt")"
+cmp -s "$R371/b/f.txt" <(printf 'a\nb\nc\n') && ok "and leaves f.txt unchanged" || bad "wrong body: $(cat "$R371/b/f.txt")"
 mk371 "$R371/c"
 run371 "$R371/c" '@@ f.txt 2 delete body=@b371.txt\n'
 want 0 "$?" "and a matching body=@ exits 0"
-[ "$(cat "$R371/c/f.txt")" = "$(printf 'a\nc')" ] && ok "removing line 2" || bad "matching body: $(cat "$R371/c/f.txt")"
+cmp -s "$R371/c/f.txt" <(printf 'a\nc\n') && ok "removing line 2" || bad "matching body: $(cat "$R371/c/f.txt")"
 mk371 "$R371/d"; run371 "$R371/d" '@@ f.txt 2 delete body=0\n'
 want 0 "$?" "body=0 on a delete keeps its meaning, no expectation: exit 0"
+cmp -s "$R371/d/f.txt" <(printf 'a\nc\n') && ok "and removes line 2" || bad "body=0 delete: $(cat "$R371/d/f.txt")"
 mk371 "$R371/e"; run371 "$R371/e" '@@ f.txt 2 delete\n'
 want 0 "$?" "and a delete with no body at all: exit 0"
+cmp -s "$R371/e/f.txt" <(printf 'a\nc\n') && ok "and removes line 2" || bad "bodyless delete: $(cat "$R371/e/f.txt")"
 mk371 "$R371/f"; run371 "$R371/f" '@@ f.txt 2 insert-after body=@empty371.txt\n'
 want 1 "$?" "an empty body=@ on an insert-after is still refused by apply, exit 1"
 mk371 "$R371/g"; run371 "$R371/g" '@@ f.txt 2 insert-before body=@empty371.txt\n'

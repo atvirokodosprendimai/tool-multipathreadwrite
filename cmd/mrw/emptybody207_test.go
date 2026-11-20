@@ -31,12 +31,13 @@ func TestTheCLIRefusesAnEmptyBodyFileOnADelete(t *testing.T) {
 	}
 	out, code = writeIn(t, root, "--no-check", "--json", planFile(t, doc))
 	var r struct {
-		Error string `json:"error"`
+		Error   string `json:"error"`
+		Applied *bool  `json:"applied"`
 	}
 	if err := json.Unmarshal([]byte(out), &r); err != nil {
 		t.Fatalf("--json is not one document: %v\n%s", err, out)
 	}
-	if code != exitUsage || !strings.Contains(r.Error, "line 3") || !strings.Contains(r.Error, "body=@empty.txt") || snap() != before {
-		t.Errorf("--json: exit %d, error %q; want %d naming line 3 and body=@empty.txt, files untouched", code, r.Error, exitUsage)
+	if code != exitUsage || !strings.Contains(r.Error, "line 3") || !strings.Contains(r.Error, "body=@empty.txt") || (r.Applied != nil && *r.Applied) || snap() != before {
+		t.Errorf("--json: exit %d, error %q, applied %v; want %d naming line 3 and body=@empty.txt, nothing applied, files untouched", code, r.Error, r.Applied, exitUsage)
 	}
 }

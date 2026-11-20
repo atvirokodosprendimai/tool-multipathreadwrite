@@ -1762,6 +1762,7 @@ and a body whose first line begins body=; see mrw instructions.
 body= is a line count, not a character count. Python str splits characters;
 do not use len(body) as body=.
 body=@path loads the body from a root-relative file (an empty file is body=0 for a create, is refused on a delete, and is an empty body, refused, on a replace or an insert).
+An unlink takes no body: an empty body=@ file there is accepted and a non-empty one refused; a rename's destination is an inline line, never body=@.
 An unquoted anchor= that contains a double quote is refused;
 write it as anchor="…". A leftover body= names the declared count and how
 many extra lines sat before the next @@.
