@@ -1032,10 +1032,11 @@ verdict), written with the record on 2026-11-03, before any code or run.
 
 ## From ADR-195 (`--create` refuses empty standard input)
 
-- **`body=@path` naming an empty file (deferred from ADR-195)** (2026-11-04): AGENTS.md §2 says an empty body file
-  is `body=0`, so a producer that failed before writing the body file makes an empty create under a clean receipt,
+- **`body=@path` naming an empty file (deferred from ADR-195)** (2026-11-04): AGENTS.md §2 said an empty body file
+  is `body=0`, so a producer that failed before writing the body file made an empty create under a clean receipt,
   the failure ADR-195 refuses for `--create`. The caller names the file and can inspect it, which is why ADR-195
-  left it out; whether it should be refused too is its own record.
+  left it out. Since ADR-207 (2026-11-20) a delete refuses an empty `body=@` file; the create half stays open and
+  continues under "An empty create from a `body=@` file" in the ADR-207 section below, which is the one to act on.
 
 ## From ADR-197 (an anchor miss names the lines that hold the anchor)
 
@@ -1785,3 +1786,12 @@ changed after the first counted attempt.
   `TMPDIR`, which removes a routine signal and is not isolation. Making it unreadable needs a writer the agent's
   user cannot read back, such as another user or a descriptor the bench owns. Owner: unassigned. Trigger: an
   N transcript that reads or lists the log, or a stage whose claim rests on N being unseen.
+
+## From ADR-207 (an empty `body=@` file on a delete is refused)
+
+- **An empty create from a `body=@` file** (2026-11-20, deferred from ADR-207; first deferred by ADR-195, see its entry
+  above): ADR-207 refuses a zero-byte `body=@` file on a delete only. On a create it is still an empty file under a
+  clean receipt, so a producer that failed before writing the file makes an empty file nobody asked for; the
+  caller names the file and can inspect it, which is why it was left out twice. Owner: unassigned. Trigger: an
+  adopter report of an empty file created from a failed producer, or a measurement of how often a caller writes
+  one on purpose.

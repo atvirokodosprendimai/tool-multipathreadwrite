@@ -11904,6 +11904,45 @@ PY
 )
 [ "$modes" = "0o600 0o640 0o644 0o700" ] && ok "the umask-077 create is 0600, the replacement keeps 0640, the umask-022 create is 0644, the umask-077 directory is 0700" || bad "modes: $modes"
 
+# 371. ADR-207: a delete's body=@ is the lines it expects to remove, checked
+# before anything is written; a file of zero bytes loaded as no body at all, so the
+# check was off exactly when its producer had failed. It is refused at load, exit 2,
+# naming the plan line and the file, with a valid sibling hunk not applied. The
+# pairs: a wrong non-empty body exits 1 and a matching one lands; body=0 and a
+# bodyless delete still delete; an empty body=@ on both inserts still exits 1 (apply).
+R371="$WORK/r371"; rm -rf "$R371"; mkdir -p "$R371/st"
+mk371() { # mk371 DIR: f.txt = a b c and g.txt = x, both read whole, and the three body files
+  rm -rf "$1"; mkdir -p "$1"; printf 'a\nb\nc\n' > "$1/f.txt"; printf 'x\n' > "$1/g.txt"
+  : > "$1/empty371.txt"; printf 'zzz\n' > "$1/wrong371.txt"; printf 'b\n' > "$1/b371.txt"
+  XDG_STATE_HOME="$R371/st" "$MRW" -C "$1" read f.txt g.txt > "$1/rd.out" 2>&1
+}
+run371() { # run371 DIR PLAN: write the plan, the output in DIR/out
+  printf '%b' "$2" | XDG_STATE_HOME="$R371/st" "$MRW" -C "$1" write --no-check - > "$1/out" 2>&1
+}
+mk371 "$R371/a"
+run371 "$R371/a" '@@ g.txt 1 replace\ny\n@@ f.txt 2 delete body=@empty371.txt\n'
+want 2 "$?" "a delete whose body=@ file holds zero bytes is refused, exit 2"
+grep -Fq 'line 3: body=@empty371.txt is empty (0 bytes)' "$R371/a/out" && cmp -s "$R371/a/f.txt" <(printf 'a\nb\nc\n') && cmp -s "$R371/a/g.txt" <(printf 'x\n') \
+  && ok "naming the plan line and the file, with the valid sibling hunk not applied (bytes compared)" || bad "empty body=@ refusal: $(cat "$R371/a/out")"
+mk371 "$R371/b"
+run371 "$R371/b" '@@ f.txt 2 delete body=@wrong371.txt\n'
+want 1 "$?" "the pair: a wrong non-empty body=@ exits 1"
+cmp -s "$R371/b/f.txt" <(printf 'a\nb\nc\n') && ok "and leaves f.txt unchanged" || bad "wrong body: $(cat "$R371/b/f.txt")"
+mk371 "$R371/c"
+run371 "$R371/c" '@@ f.txt 2 delete body=@b371.txt\n'
+want 0 "$?" "and a matching body=@ exits 0"
+cmp -s "$R371/c/f.txt" <(printf 'a\nc\n') && ok "removing line 2" || bad "matching body: $(cat "$R371/c/f.txt")"
+mk371 "$R371/d"; run371 "$R371/d" '@@ f.txt 2 delete body=0\n'
+want 0 "$?" "body=0 on a delete keeps its meaning, no expectation: exit 0"
+cmp -s "$R371/d/f.txt" <(printf 'a\nc\n') && ok "and removes line 2" || bad "body=0 delete: $(cat "$R371/d/f.txt")"
+mk371 "$R371/e"; run371 "$R371/e" '@@ f.txt 2 delete\n'
+want 0 "$?" "and a delete with no body at all: exit 0"
+cmp -s "$R371/e/f.txt" <(printf 'a\nc\n') && ok "and removes line 2" || bad "bodyless delete: $(cat "$R371/e/f.txt")"
+mk371 "$R371/f"; run371 "$R371/f" '@@ f.txt 2 insert-after body=@empty371.txt\n'
+want 1 "$?" "an empty body=@ on an insert-after is still refused by apply, exit 1"
+mk371 "$R371/g"; run371 "$R371/g" '@@ f.txt 2 insert-before body=@empty371.txt\n'
+want 1 "$?" "and on an insert-before"
+
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
 # killed process is a zombie until its adopter reaps it, and pgrep lists

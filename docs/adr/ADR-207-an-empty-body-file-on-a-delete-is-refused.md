@@ -71,7 +71,7 @@ Engine package owned here: `internal/plan` (`LoadBodyFiles`). `cmd/mrw/main.go` 
 | `mrw write` / `mrw_write`: a delete with a zero-byte `body=@` | refused, exit 2 / `isError`, naming the plan line and the file | T1 | every caller |
 | `mrw stats` | the refusal counts as `refused_parse`, as every `LoadBodyFiles` refusal does | T1 | its readers |
 | `AGENTS.md`, `mrw write --help` | the "empty file is `body=0`" sentence (Decision 4) | T1 | every caller |
-| `scripts/contract.sh` §358 | the refusal beside a valid sibling hunk, with nothing written; a wrong non-empty `body=@` exits 1; a matching one lands; `body=0` and a bodyless delete still land; empty `body=@` on both inserts still exits 1 | T1 | the contract gate |
+| `scripts/contract.sh` §371 | the refusal beside a valid sibling hunk, with nothing written; a wrong non-empty `body=@` exits 1; a matching one lands; `body=0` and a bodyless delete still land; empty `body=@` on both inserts still exits 1 | T1 | the contract gate |
 
 No receipt key is added or renamed (ADR-111).
 
@@ -108,7 +108,7 @@ Revert T1; no state is involved.
 
 ## History
 
-- 2026-11-20, Codex at xhigh on `2ded135b`, AMEND, three points, all applied: the audit names the uncounted inline delete and `unlink`, and the empty create stays under ADR-195's deferral; ADR-060 Decision 4 is superseded for deletes only; §358 and the Go test pin the write boundary (a valid sibling, a wrong body, a matching body, zero bytes against one CRLF blank line, the CLI JSON and MCP shapes).
+- 2026-11-20, Codex at xhigh on `2ded135b`, AMEND, three points, all applied: the audit names the uncounted inline delete and `unlink`, and the empty create stays under ADR-195's deferral; ADR-060 Decision 4 is superseded for deletes only; §371 and the Go test pin the write boundary (a valid sibling, a wrong body, a matching body, zero bytes against one CRLF blank line, the CLI JSON and MCP shapes).
 
 ## Follow-ups
 

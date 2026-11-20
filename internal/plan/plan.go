@@ -1106,6 +1106,11 @@ func LoadBodyFiles(root string, hunks []Hunk) error {
 			return fmt.Errorf("line %d: body=@%s: %w", hunks[i].SrcLine, p, err)
 		}
 		if len(b) == 0 {
+			// ADR-207: a delete's body is the lines it expects to remove, and a file
+			// of zero bytes is the producer failing, which would switch the check off.
+			if hunks[i].Op == OpDelete {
+				return fmt.Errorf("line %d: body=@%s is empty (0 bytes), and a delete's body=@ is the lines it expects to remove, so nothing was deleted: give the file the lines you expect, or drop body=@ to delete without an expectation", hunks[i].SrcLine, p)
+			}
 			hunks[i].Body = nil
 			continue
 		}
