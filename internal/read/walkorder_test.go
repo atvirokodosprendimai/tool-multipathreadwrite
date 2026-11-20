@@ -10,6 +10,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 )
 
 // TestAParallelWalkAnswersAsASerialOneWould: the walk reads files concurrently
@@ -150,7 +152,7 @@ func TestBigFilesAreReadAloneAndSmallOnesTogether(t *testing.T) {
 		cur, bigCur, peak, bigAt int
 	)
 	prev := scanRead
-	scanRead = func(root, path string, budget int64) ([]byte, error) {
+	scanRead = func(root *rooted.Reader, path string, budget int64) ([]byte, error) {
 		fi, err := os.Stat(path)
 		if err != nil {
 			return nil, err
@@ -209,7 +211,7 @@ func TestAFileThatOutgrewItsStatIsReadAlone(t *testing.T) {
 		retried              bool
 	)
 	prev := scanRead
-	scanRead = func(root, path string, budget int64) ([]byte, error) {
+	scanRead = func(root *rooted.Reader, path string, budget int64) ([]byte, error) {
 		grew := filepath.Base(path) == "s07.txt"
 		if grew && budget > 0 {
 			return nil, errBudget
@@ -253,6 +255,11 @@ func TestAFileThatOutgrewItsStatIsReadAlone(t *testing.T) {
 // lines, and a file at the budget is read whole.
 func TestReadBudgetRefusesAFileOverItsBudget(t *testing.T) {
 	dir := t.TempDir()
+	rd, err := rooted.NewReader(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rd.Close()
 	at, over := filepath.Join(dir, "at"), filepath.Join(dir, "over")
 	for p, n := range map[string]int64{at: 64, over: 65} {
 		if err := os.WriteFile(p, nil, 0o644); err != nil {
@@ -262,10 +269,10 @@ func TestReadBudgetRefusesAFileOverItsBudget(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if b, err := readBudgetIn(filepath.Dir(at), at, 64); err != nil || len(b) != 64 {
+	if b, err := readBudgetWith(rd, at, 64); err != nil || len(b) != 64 {
 		t.Fatalf("a file at its budget: %d bytes, err %v, want 64 and none", len(b), err)
 	}
-	if _, err := readBudgetIn(filepath.Dir(over), over, 64); err != errBudget {
+	if _, err := readBudgetWith(rd, over, 64); err != errBudget {
 		t.Fatalf("a file over its budget: err %v, want errBudget", err)
 	}
 }

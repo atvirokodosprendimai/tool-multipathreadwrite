@@ -138,9 +138,16 @@ func Walk(root string, paths []string, opt WalkOptions) ([]Spec, []Problem, erro
 		paths = []string{"."}
 	}
 
+	// One root held open for every file the walk reads (#727): opening one per
+	// file cost a syscall and a close each, over a large tree.
+	rd, err := rooted.NewWalkReader(root)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rd.Close()
 	w := walker{root: root, absRoot: absRoot, opt: opt, seen: map[string]bool{}, nested: map[string]*ignorer{},
 		skipFiles: map[string]bool{}, skipDirs: map[string]bool{}, skipBin: map[string]bool{}, skipNested: map[string]bool{}, skipNames: map[string]bool{}, skipLinks: map[string]bool{},
-		sem: make(chan struct{}, min(runtime.NumCPU(), maxScanners)), res: rooted.NewResolver(root)}
+		sem: make(chan struct{}, min(runtime.NumCPU(), maxScanners)), res: rooted.NewResolver(root), rd: rd}
 	if !opt.NoIgnore {
 		w.ign = newIgnorer(absRoot)
 	}
@@ -164,6 +171,7 @@ type walker struct {
 	problems []Problem
 	ign      *ignorer         // nil outside a checkout or under NoIgnore
 	res      *rooted.Resolver // resolves what this walk discovers, and dies with it (ADR-131)
+	rd       *rooted.Reader   // the root held open for the scans (#727); nil in a hit judge
 	// jobs are the candidates offer queued, in the order it was called; sem bounds
 	// how many are read at once, and wg waits for them (flush).
 	jobs []*scanJob
@@ -429,28 +437,28 @@ func (w *walker) walkDir(named string, full string) {
 // what a walk waits on; more than this only queues in the kernel.
 const maxScanners = 8
 
-// scanRead reads one candidate under root: whole, up to ADR-104's cap, when
-// budget is 0, else up to budget bytes, or errBudget. It opens through a root
-// held open (rooted.OpenRead), so a directory swapped for a link after the walk
-// found the file cannot lead outside it (#727). It is a variable so a test can
-// swap it for a counter of the reads in flight.
-var scanRead = func(root, path string, budget int64) ([]byte, error) {
+// scanRead reads one candidate under the walk's root: whole, up to ADR-104's cap,
+// when budget is 0, else up to budget bytes, or errBudget. It opens through the
+// root the walk holds open (rooted.Reader), so a directory swapped for a link
+// after the walk found the file cannot lead outside it (#727). It is a variable
+// so a test can swap it for a counter of the reads in flight.
+var scanRead = func(rd *rooted.Reader, path string, budget int64) ([]byte, error) {
 	if budget == 0 || budget >= maxFileBytes { // the cap is the tighter bound, and its refusal is worded by readCapped
-		return readCappedIn(root, path)
+		return readCappedWith(rd, path)
 	}
-	return readBudgetIn(root, path, budget)
+	return readBudgetWith(rd, path, budget)
 }
 
 // errBudget is readBudget's answer to a file longer than its budget.
 var errBudget = errors.New("longer than the scan budget")
 
-// readBudgetIn reads path, under root, whole if it is at most budget bytes, else
-// errBudget. It is opened through a root held open (#727). A job takes one scan
+// readBudgetWith reads path, under the root rd holds, whole if it is at most
+// budget bytes, else errBudget (#727). A job takes one scan
 // slot on the strength of a stat made earlier; a file that has grown since, or
 // a regular file whose stat underreports, must not be held whole beside seven
 // others (the Codex review of #525), so such a job is read again alone.
-func readBudgetIn(root, path string, budget int64) ([]byte, error) {
-	f, fi, err := rooted.OpenRead(root, path)
+func readBudgetWith(rd *rooted.Reader, path string, budget int64) ([]byte, error) {
+	f, fi, err := rd.Open(path)
 	if err != nil {
 		return nil, err
 	}
@@ -544,14 +552,14 @@ func (w *walker) offer(p, full string, discovered bool, size int64) {
 		if exclusive {
 			budget = 0
 		}
-		b, err := scanRead(w.absRoot, j.full, budget)
+		b, err := scanRead(w.rd, j.full, budget)
 		if errors.Is(err, errBudget) {
 			// Larger than the stat said: give the slot back and read it alone.
 			<-w.sem
 			held = 0
 			w.takeAll()
 			held = cap(w.sem)
-			b, err = scanRead(w.absRoot, j.full, 0)
+			b, err = scanRead(w.rd, j.full, 0)
 		}
 		if err != nil {
 			j.err = err

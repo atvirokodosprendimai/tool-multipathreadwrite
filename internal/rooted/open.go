@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/regular"
 )
@@ -34,6 +35,97 @@ var fallbackGapFn = func() {}
 type Reader struct {
 	abs string   // the canonical root (Abs)
 	r   *os.Root // nil when the root cannot be held open: see fallback
+	// walk makes Open try the held root with the path as given first: a walk's
+	// discovered files were resolved, mrw's state refused and the links of their
+	// directories left alone by the walk itself, so resolving each again doubled
+	// the cost of a read of a large tree. Anything the held root refuses is
+	// judged again, in full.
+	walk bool
+	// dirs holds the directories a walk is reading from, each opened once as an
+	// os.Root of its own (confined by the held root), so that a file costs one
+	// openat and not one per component: opening through the held root alone was
+	// two thirds of a walk's time. A handle names the directory as it was when
+	// opened, so a directory swapped afterwards is not followed by it.
+	mu   sync.Mutex
+	dirs map[string]*dirRoot
+}
+
+// dirRoot is a directory held open as an os.Root, shared by the reads in flight.
+type dirRoot struct {
+	r    *os.Root
+	refs int
+	temp bool // not kept in dirs (it was full): closed by its last release
+}
+
+// maxDirRoots bounds the directories a walk holds open at once; a walk reads a
+// directory's files together, and there are more reads in flight than directories
+// open only when a tree is wider than this.
+const maxDirRoots = 32
+
+// acquireDir returns the held handle for dir, a clean path below the root, or
+// nil when it cannot be opened (the read then goes through the root alone).
+func (rd *Reader) acquireDir(dir string) *dirRoot {
+	rd.mu.Lock()
+	if d, ok := rd.dirs[dir]; ok {
+		d.refs++
+		rd.mu.Unlock()
+		return d
+	}
+	rd.mu.Unlock()
+	sub, err := rd.r.OpenRoot(dir)
+	if err != nil {
+		return nil
+	}
+	rd.mu.Lock()
+	defer rd.mu.Unlock()
+	if d, ok := rd.dirs[dir]; ok { // another read opened it meanwhile
+		_ = sub.Close()
+		d.refs++
+		return d
+	}
+	d := &dirRoot{r: sub, refs: 1}
+	if rd.dirs == nil {
+		rd.dirs = map[string]*dirRoot{}
+	}
+	if len(rd.dirs) >= maxDirRoots {
+		for k, o := range rd.dirs {
+			if o.refs == 0 {
+				_ = o.r.Close()
+				delete(rd.dirs, k)
+				break
+			}
+		}
+	}
+	if len(rd.dirs) >= maxDirRoots {
+		d.temp = true
+		return d
+	}
+	rd.dirs[dir] = d
+	return d
+}
+
+func (rd *Reader) releaseDir(d *dirRoot) {
+	rd.mu.Lock()
+	defer rd.mu.Unlock()
+	if d.refs--; d.refs == 0 && d.temp {
+		_ = d.r.Close()
+	}
+}
+
+// openWalked opens rel, a clean path below the root, through its directory's
+// handle.
+func (rd *Reader) openWalked(rel string) (*os.File, fs.FileInfo, error) {
+	dir, base := filepath.Split(rel)
+	dir = filepath.Clean(dir)
+	if dir == "." {
+		return regular.OpenIn(rd.r, base)
+	}
+	d := rd.acquireDir(dir)
+	if d == nil {
+		return regular.OpenIn(rd.r, rel)
+	}
+	defer rd.releaseDir(d)
+	return regular.OpenIn(d.r, base)
 }
 
 // NewReader holds root open for reading. A root the process may search but not
@@ -54,8 +146,25 @@ func NewReader(root string) (*Reader, error) {
 	return &Reader{abs: abs, r: r}, nil
 }
 
+// NewWalkReader is NewReader for the walk of a tree, whose files it has already
+// resolved: see Reader.walk. A file the walk did not discover, one it was named,
+// is opened by Open's full judgement when the held root refuses it as written.
+func NewWalkReader(root string) (*Reader, error) {
+	rd, err := NewReader(root)
+	if rd != nil {
+		rd.walk = true
+	}
+	return rd, err
+}
+
 // Close releases the held root.
 func (rd *Reader) Close() {
+	rd.mu.Lock()
+	for _, d := range rd.dirs {
+		_ = d.r.Close()
+	}
+	rd.dirs = nil
+	rd.mu.Unlock()
 	if rd.r != nil {
 		_ = rd.r.Close()
 	}
@@ -79,6 +188,14 @@ func OpenRead(root, full string) (*os.File, fs.FileInfo, error) {
 // have changed). A link that resolves to nothing is a file that does not exist,
 // whatever it points at.
 func (rd *Reader) Open(full string) (*os.File, fs.FileInfo, error) {
+	if rd.walk && rd.r != nil {
+		if rel, err := filepath.Rel(rd.abs, full); err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) && !filepath.IsAbs(rel) {
+			openGapFn()
+			if f, fi, err := rd.openWalked(rel); err == nil {
+				return f, fi, nil
+			}
+		}
+	}
 	resolved := RealAsFarAsItExists(full)
 	rel, err := filepath.Rel(rd.abs, resolved)
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {

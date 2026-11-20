@@ -8,6 +8,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 )
 
 // swapForLink727 renames dir d under root and puts a link to outside in its
@@ -61,7 +63,7 @@ func TestAWalkedFileUnderADirectorySwappedForALinkOutIsNotMatched(t *testing.T) 
 		root, outside := tree727(t, "nothing here\n", "needle\n")
 		swap := swapForLink727(t, root, outside)
 		prev := scanRead
-		scanRead = func(r, path string, budget int64) ([]byte, error) {
+		scanRead = func(r *rooted.Reader, path string, budget int64) ([]byte, error) {
 			swap()
 			if whole {
 				budget = 0

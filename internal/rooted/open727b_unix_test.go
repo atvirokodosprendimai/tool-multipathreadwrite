@@ -174,3 +174,46 @@ func TestOpenReadRefusesMrwsOwnState(t *testing.T) {
 	}
 	_ = f.Close()
 }
+
+// #727 review P2-3. A walk reader holds the directories it reads from, up to a
+// bound: files in more directories than that, read together, all open, and the
+// handles are released by Close.
+func TestAWalkReaderOpensFilesInMoreDirectoriesThanItKeepsOpen(t *testing.T) {
+	root := realRoot727(t)
+	const dirs = maxDirRoots + 20
+	for i := 0; i < dirs; i++ {
+		d := filepath.Join(root, "d"+string(rune('A'+i%26))+string(rune('a'+i/26)), "sub")
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(d, "f.txt"), []byte("x\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	rd, err := NewWalkReader(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error)
+	for round := 0; round < 3; round++ {
+		for i := 0; i < dirs; i++ {
+			go func() {
+				p := filepath.Join(root, "d"+string(rune('A'+i%26))+string(rune('a'+i/26)), "sub", "f.txt")
+				f, _, err := rd.Open(p)
+				if err == nil {
+					_ = f.Close()
+				}
+				done <- err
+			}()
+		}
+		for i := 0; i < dirs; i++ {
+			if err := <-done; err != nil {
+				t.Errorf("a read in round %d: %v", round, err)
+			}
+		}
+	}
+	rd.Close()
+	if len(rd.dirs) != 0 {
+		t.Errorf("%d directory handles are still held after Close", len(rd.dirs))
+	}
+}

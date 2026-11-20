@@ -85,7 +85,18 @@ var afterProbeResolveFn = func() {}
 // descriptor rather than the caller's earlier stat, so a path swapped in between
 // is judged as it is.
 func readCappedIn(root, full string) ([]byte, error) {
-	f, fi, err := rooted.OpenRead(root, full)
+	rd, err := rooted.NewReader(root)
+	if err != nil {
+		return nil, err
+	}
+	defer rd.Close()
+	return readCappedWith(rd, full)
+}
+
+// readCappedWith is readCappedIn through a root already held open: a walk holds
+// one for its length rather than one per file.
+func readCappedWith(rd *rooted.Reader, full string) ([]byte, error) {
+	f, fi, err := rd.Open(full)
 	if err != nil {
 		return nil, err
 	}
