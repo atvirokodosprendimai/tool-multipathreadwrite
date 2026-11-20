@@ -654,7 +654,7 @@ func tools() []tool {
 					},
 					"rewrite": map[string]any{
 						"type":        "string",
-						"description": "With `ast_grep`: return a PLAN of ast-grep's own rewrite of each match to this replacement (its $A metavariables expand; \"\" deletes the match), as `mrw read --ast-grep P --rewrite R`: one replace hunk per span of changed lines, licensed as `sub`'s are, with the line after each span. Matches that overlap are refused. Refused without `ast_grep` and beside the arguments `sub` is refused beside.",
+						"description": "With `ast_grep`: return a PLAN of ast-grep's own rewrite of each match to this replacement (its $A metavariables expand; \"\" deletes the match), as `mrw read --ast-grep P --rewrite R`: one replace hunk per span of changed lines, licensed as `sub`'s are, with the line after each span. Passed to mrw_write as `plan` in a later call, the plan is judged like any other: on a file mrw wrote, or one read whole with `quiet`, a multi-line replace that ends before the last line is refused until the line after it is shown (ADR-208). `mrw_write` with `ast_grep` and `rewrite` makes and applies it in one call and is not refused for it. Matches that overlap are refused. Refused without `ast_grep` and beside the arguments `sub` is refused beside.",
 						"examples":    []any{"bar($B, $A)"},
 					},
 					"quiet": map[string]any{

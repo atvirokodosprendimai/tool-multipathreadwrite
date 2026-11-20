@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -45,7 +46,11 @@ func TestAStaleNumberIsRefusedByTheBinary(t *testing.T) {
 	refused := func(t *testing.T, root, doc, line string) {
 		t.Helper()
 		out, code := write(t, root, doc)
-		if code != 1 || !strings.Contains(out, "line "+line+" of f.txt "+noShowing+"mrw read --max-cols 0 f.txt:"+line+"; a --quiet read, or a line --max-cols cut, shows nothing), address it by pattern, or give anchor=") {
+		remedy := "mrw --root " + root + " read --max-cols 0 f.txt:" + line
+		if !regexp.MustCompile(`^[A-Za-z0-9._/-]+$`).MatchString(root) {
+			remedy = "a read that shows line " + line // a root that needs quoting is described (ADR-203, review of #745)
+		}
+		if code != 1 || !strings.Contains(out, "line "+line+" of f.txt "+noShowing+remedy+"; a --quiet read, or a line --max-cols cut, shows nothing), address it by pattern, or give anchor=") {
 			t.Fatalf("want exit 1 naming line %s, got %d:\n%s", line, code, out)
 		}
 		if got := cat(t, root, "f.txt"); got != seeded {
@@ -239,13 +244,24 @@ func TestAStaleNumberOnALineMaxColsCutIsRefusedUntilItIsReadWhole(t *testing.T) 
 	if code != 1 || !strings.Contains(out, "line 3 of f.txt has no recorded showing in this version") || !strings.Contains(out, "a line --max-cols cut, shows nothing") {
 		t.Fatalf("the cut line: exit %d, want 1 and the reason:\n%.400s", code, out)
 	}
-	// The remedy as the reason prints it, not a hand-written flag.
-	i := strings.Index(out, "(mrw ")
-	j := strings.Index(out[i:], ";")
-	if i < 0 || j < 0 {
-		t.Fatalf("the reason prints no read to run:\n%.400s", out)
+	// The remedy as the reason prints it, not a hand-written flag. A root that needs
+	// quoting (any Windows temp directory) gets a description, and the read is then
+	// made from the line the reason names.
+	argv := []string{"read", "--max-cols", "0", "f.txt:3"}
+	if plainPath.MatchString(root) {
+		i := strings.Index(out, "(mrw ")
+		if i < 0 {
+			t.Fatalf("the reason prints no read to run:\n%.400s", out)
+		}
+		j := strings.Index(out[i:], ";")
+		if j < 0 {
+			t.Fatalf("the reason's read to run is not closed:\n%.400s", out)
+		}
+		argv = strings.Fields(out[i+len("(mrw ") : i+j])
+	} else if !strings.Contains(out, "(a read that shows line 3;") {
+		t.Fatalf("the reason names no read for a root that needs quoting:\n%.400s", out)
 	}
-	if o, code := runIn(t, root, strings.Fields(out[i+len("(mrw "):i+j])...); code != 0 || strings.Contains(o, "[cols ") || !strings.Contains(o, strings.Repeat("y", 600)) {
+	if o, code := runIn(t, root, argv...); code != 0 || strings.Contains(o, "[cols ") || !strings.Contains(o, strings.Repeat("y", 600)) {
 		t.Fatalf("the printed remedy: exit %d, want the line whole\n%.200s", code, o)
 	}
 	if out, code := writeIn(t, root, "--no-check", planFile(t, plan)); code != 0 || !strings.Contains(cat(t, root, "f.txt"), "\nX\nc\n") {

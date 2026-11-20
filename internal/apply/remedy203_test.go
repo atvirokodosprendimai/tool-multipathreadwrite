@@ -21,7 +21,7 @@ func TestTheStaleNumberRemedyIsACommandOnlyForAPlainPath(t *testing.T) {
 		"a\x1bb.txt":       "a read that shows line 8",
 		"":                 "a read that shows line 8",
 	} {
-		if got := staleRemedy(p, 8); got != want {
+		if got := staleRemedy("", p, 8); got != want {
 			t.Errorf("staleRemedy(%q, 8) = %q, want %q", p, got, want)
 		}
 	}

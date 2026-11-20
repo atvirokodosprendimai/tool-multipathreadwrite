@@ -11,16 +11,16 @@ description: >-
   heredocs. It applies only while mrw is on PATH: if it is not, use the host's
   own tools and do not install it.
 metadata:
-  mrw-version: "v1.93.0 (18ffa49)"
+  mrw-version: "dev (ae71921)"
   generated-by: "mrw skill"
-  content-sha256: "39c21a9812d57bb13bde8cee11e570ae92dadb20e8d8f2702326fabd508ef5e3"
+  content-sha256: "c48adf3ca15763fc3a94b5cafed6618443809cf667c058d3bc021cb2c6f2f8bf"
 ---
 
 # mrw
 
 The eight rules that matter most; read them once a session, and after a compaction only if lost:
 1. Use mrw for every file read, edit and create: one read of every site, one plan, one write (mrw write PLANFILE); one change at many sites: mrw write --grep P --sub R.
-2. Read before you write, per line: a line mrw never served is refused, except in a file mrw just wrote, where a number alone is refused unless a read showed the line: use a pattern or anchor=. After a multi-line body, read on past your range until the enclosing structure closes.
+2. Read before you write, per line: a line mrw never served is refused, except in a file mrw just wrote, where a number alone is refused unless a read showed the line: use a pattern or anchor=. After a multi-line replace, read on past your range until the enclosing structure closes.
 3. A plan that fails validation writes nothing: read the refusal; never --force. A commit that fails reports what reached disk.
 4. A hunk is @@ PATH N-M replace anchor="TEXT", @@ PATH N insert-after or @@ PATH N-M delete, then its lines; anchor=, required on a multi-line replace, is copied from line N as read; omit body= unless mrw instructions names your case.
 5. For a write: exit 0 fine, 1 a hunk failed and nothing was written, 2 usage or filesystem, 3 applied but the check did not pass. A read exits 1 when a range cannot be served; a range your own --max-lines or --max-matches withheld is not one: exits 0 (capped). Never read an exit code through a pipe: head's status replaces it.
@@ -72,6 +72,6 @@ Recipes:
 21. a second edit to a file you just wrote: a number alone is refused, unless a read has shown that line since the write, so name the line by a pattern and say what it holds (anchor=), or read the line first (mrw read f.go:40):
   printf '%s\n' '@@ f.go /^func B\(/ replace anchor="func B("' 'func B(x int) {' | mrw write -
 
-`mrw instructions` prints the whole contract. This file was printed by `mrw skill` from mrw v1.93.0 (18ffa49); when `mrw version` prints another version, `mrw skill --dir <the directory holding this mrw folder>` replaces it.
+`mrw instructions` prints the whole contract. This file was printed by `mrw skill` from mrw dev (ae71921); when `mrw version` prints another version, `mrw skill --dir <the directory holding this mrw folder>` replaces it.
 
 A host's per-path rules for its Edit and Write tools do not reach mrw, which writes wherever its user can: their absence is not permission, and mrw is not a way to reach a path the host refused you.

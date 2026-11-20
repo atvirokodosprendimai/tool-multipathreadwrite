@@ -26,6 +26,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"unicode"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/lines"
@@ -131,6 +132,9 @@ type HunkResult struct {
 	// Start is the first line of the span Before took out, in the file as it
 	// was. Set with Before; not a receipt field.
 	Start int `json:"-"`
+	// Span is the range a line-after refusal resolved (first and last line of
+	// the replace), for the surfaces that name the read: not a receipt field.
+	Span [2]int `json:"-"`
 
 	// Kind classifies a refusal the parser also makes, and the not-read
 	// refusal, so a caller compares kinds instead of Reason's words (ADR-087).
@@ -439,6 +443,22 @@ type Options struct {
 	// (--sub, --rewrite, a foreign format): its numbers are the file's own, so
 	// ADR-200 does not count its hunks as numbered candidates.
 	Computed bool
+
+	// SameCallRewrite marks a plan made by `--ast-grep P --rewrite R` in this very
+	// call: its spans are the matches mrw found, and the plan maker licensed the
+	// line after each (ADR-208 Decision 3). A plan from `read --rewrite`, written
+	// by a later call, is not marked.
+	SameCallRewrite bool
+
+	// RemedyRoot is the checkout as the command line named it, when that is not
+	// the working directory: the read a refusal tells the caller to make is
+	// pasted where the caller is, so it names the root (`mrw --root DIR read ...`).
+	// Empty when the root is the working directory, or the surface has no
+	// command line (MCP).
+	RemedyRoot string
+
+	// aliases is the ledger's spellings, found once per apply: set by apply.
+	aliases *aliasIndex
 }
 
 // Apply validates every hunk against the working tree rooted at root and, if
@@ -481,6 +501,9 @@ func Apply(root string, in []Input, opt Options) (Result, error) {
 }
 
 func apply(root string, in []Input, opt Options) (Result, error) {
+	if opt.Seen != nil {
+		opt.aliases = newAliasIndex(root, opt.Seen)
+	}
 	dryRun := opt.DryRun
 	res := Result{Root: root, DryRun: dryRun}
 
@@ -1379,7 +1402,7 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 	// in this version of a file mrw wrote.
 	failStale := func(h hunk, line int) {
 		failK(h, refusal.StaleNumber, "line %d of %s has no recorded showing in this version, and a line number alone cannot say which line you mean. "+
-			"Read it whole (%s; a --quiet read, or a line --max-cols cut, shows nothing), address it by pattern, or give anchor=", line, asPlan(path), staleRemedy(asPlan(path), line))
+			"Read it whole (%s; a --quiet read, or a line --max-cols cut, shows nothing), address it by pattern, or give anchor=", line, asPlan(path), staleRemedy(opt.RemedyRoot, asPlan(path), line))
 	}
 
 	// ADR-118, mirrored from the parser (ADR-030) and checked next, as the
@@ -1542,6 +1565,41 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 	// stale picture ADR-002 exists to refuse — the same failure as an edited
 	// file, one level finer.
 	obs, haveObs := recorded, known
+	// ONE FILE IS ONE OBSERVATION (ADR-029) for the judgments that ask what was
+	// SHOWN: the records of every spelling of the file, the plan's own among them.
+	// The exact-path record used to hide the others: a quiet read through an alias
+	// recorded a partial record there that covered the line after and hid the
+	// whole written record under the real name, and a read the remedy asked for
+	// under an alias hid the showings of the other spelling (review of #745). A
+	// record of another version shows nothing of this one, and the spellings are
+	// consulted only when the plan's own record does not decide (the ledger's
+	// stats are paid once per apply, by opt.aliases).
+	var aliasRecs []Seen
+	aliased := false
+	aliasRecords := func() []Seen {
+		if !aliased {
+			aliased = true
+			if haveObs {
+				idx := opt.aliases
+				if idx == nil {
+					idx = newAliasIndex(root, opt.Seen)
+				}
+				aliasRecs = idx.records(full, path, shaBefore)
+			}
+		}
+		return aliasRecs
+	}
+	servedAnywhere := func(line int) bool {
+		if obs.ServedLine(line) {
+			return true
+		}
+		for _, r := range aliasRecords() {
+			if r.ServedLine(line) {
+				return true
+			}
+		}
+		return false
+	}
 	covered := func(h hunk, from, to int) bool {
 		if !haveObs || opt.Force || obs.Whole() {
 			return true
@@ -1760,7 +1818,7 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 					if haveObs && !opt.Force {
 						var unread []int
 						for _, l := range at[:n-1] {
-							if !obs.ServedLine(l) {
+							if !servedAnywhere(l) {
 								unread = append(unread, l)
 							}
 						}
@@ -2010,16 +2068,55 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 			// still describes this file, and a file with none is refused, where
 			// covered() would wave it through.
 			needAfter := haveObs && !obs.Covers(end+1, end+1)
+			// ADR-208: on a record that is whole and written-shaped, Covers is
+			// true of every line, which is what hid the closer. There the line
+			// after must have been SHOWN since the write, in this version of the
+			// file (a showing bound to the sha: under --force the record kept can
+			// describe another version). A same-call --rewrite is not judged: its
+			// spans are the matches mrw found, and its plan maker licensed the
+			// line after each.
+			wholeWritten := haveObs && obs.Written && obs.Whole() && !opt.SameCallRewrite
+			shown := haveObs && recorded.SHA == shaBefore && obs.ServedLine(end+1)
+			if haveObs && !shown && h.Op == "replace" && end > start && end < total {
+				for _, r := range aliasRecords() {
+					if r.Written && r.Whole() && !opt.SameCallRewrite {
+						wholeWritten = true
+					}
+					if r.ServedLine(end + 1) {
+						shown = true
+					}
+				}
+			}
+			if wholeWritten {
+				needAfter = !shown
+			}
 			if isQuoted {
-				needAfter = tail == 0 && opt.Seen != nil && !(haveObs && recorded.SHA == shaBefore && obs.Covers(end+1, end+1))
+				met := haveObs && recorded.SHA == shaBefore && obs.Covers(end+1, end+1)
+				if wholeWritten {
+					met = shown
+				}
+				needAfter = tail == 0 && opt.Seen != nil && !met
 			}
 			if h.Op == "replace" && end > start && end < total && needAfter {
 				hint := ""
 				if isQuoted {
 					hint = "; or end SEARCH and REPLACE in the same line, which keeps it and quotes it"
 				}
-				fail(h, "replace of %s needs a served line after %d: read line %d (the closer sits below the body)%s",
+				// ADR-208 Decision 5: on a file mrw wrote, the reason ends with the
+				// read to make (ADR-203's remedy: --max-cols 0, so a line cut by
+				// MRW_MAX_COLS is read whole and licensed).
+				kind := refusal.Kind("")
+				if wholeWritten {
+					kind = refusal.LineAfter
+					hint += "; the read to make is " + staleRemedySpan(opt.RemedyRoot, asPlan(path), start, end+1)
+				}
+				failK(h, kind, "replace of %s needs a served line after %d: read line %d (the closer sits below the body)%s",
 					addrString(start, end), end, end+1, hint)
+				if kind == refusal.LineAfter {
+					r := out[h.Index]
+					r.Span = [2]int{start, end}
+					out[h.Index] = r
+				}
 				continue
 			}
 			// ADR-055 --strict-balance: the single-line sibling of the licence
@@ -2861,24 +2958,52 @@ func staleMarks(h hunk, obs Seen, haveObs bool, opt Options, quoted map[int]int,
 }
 
 // staleRemedy is the read the stale-number refusal names: a command the caller
-// can paste when the path is letters, digits, `.`, `_`, `-` and `/` only, with
-// no leading dash, which is one word in every shell mrw meets (single quotes
-// do not quote in cmd.exe), and a description otherwise (ADR-203). The command
-// carries --max-cols 0, so the read shows the line whole even under
-// MRW_MAX_COLS. A single-letter path would read as a drive on Windows
-// (`a:8`), so it is described, not commanded.
-func staleRemedy(p string, line int) string {
-	ok := p != "" && p[0] != '-' && len(p) > 1
-	for i := 0; i < len(p); i++ {
-		c := p[i]
-		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '.' || c == '_' || c == '-' || c == '/') {
-			ok = false
+// can paste when the path (and the root, when one is named) is letters, digits,
+// `.`, `_`, `-` and `/` only, with no leading dash, which is one word in every
+// shell mrw meets (single quotes do not quote in cmd.exe), and a description
+// otherwise (ADR-203). The command carries --max-cols 0, so the read shows the
+// line whole even under MRW_MAX_COLS. A single-letter path would read as a drive
+// on Windows (`a:8`), so it is described, not commanded. root is the checkout as
+// the command line named it when that is not the working directory (RemedyRoot):
+// the command is pasted where the caller is, so it says where the root is.
+func staleRemedy(root, p string, line int) string {
+	return staleRemedySpan(root, p, line, line)
+}
+
+// staleRemedySpan is staleRemedy for the lines from through to. The line-after
+// refusal names the range from the start of the edit through the line after it,
+// under the plan's own spelling: the ledger is per spelling, so a read of the
+// one line after, made under an alias (a case-folded name, a link), would leave a
+// partial record that the retry refuses again (review of #745).
+func staleRemedySpan(root, p string, from, to int) string {
+	ok := p != "" && p[0] != '-' && len(p) > 1 && plainWord(p)
+	prefix := "mrw"
+	if root != "" {
+		ok = ok && root[0] != '-' && plainWord(root)
+		prefix = "mrw --root " + root
+	}
+	if from == to {
+		if ok {
+			return fmt.Sprintf("%s read --max-cols 0 %s:%d", prefix, p, from)
 		}
+		return fmt.Sprintf("a read that shows line %d", from)
 	}
 	if ok {
-		return fmt.Sprintf("mrw read --max-cols 0 %s:%d", p, line)
+		return fmt.Sprintf("%s read --max-cols 0 %s:%d-%d", prefix, p, from, to)
 	}
-	return fmt.Sprintf("a read that shows line %d", line)
+	return fmt.Sprintf("a read that shows lines %d-%d", from, to)
+}
+
+// plainWord is whether s is one word in every shell mrw meets: letters, digits,
+// `.`, `_`, `-` and `/`.
+func plainWord(s string) bool {
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '.' || c == '_' || c == '-' || c == '/') {
+			return false
+		}
+	}
+	return true
 }
 
 func trim(s string) string {
@@ -3070,6 +3195,54 @@ func sameFileEntry(full, path string, ledger map[string]Seen) (Seen, bool) {
 		}
 	}
 	return Seen{}, false
+}
+
+// aliasStatFn stats a ledger key's file. A seam, so a test can count the stats a
+// batch pays for.
+var aliasStatFn = os.Stat
+
+// aliasIndex is the ledger's keys with their files' identities, built on first
+// use and once per apply: a stat of each key, not of each key for each file. The
+// filesystem's answer to "one file or two" is os.SameFile, so a symlink and a case
+// variant name one file and two files on a case-sensitive filesystem do not.
+type aliasIndex struct {
+	root   string
+	ledger map[string]Seen
+	once   sync.Once
+	keys   []aliasKey
+}
+
+type aliasKey struct {
+	key  string
+	info os.FileInfo
+}
+
+func newAliasIndex(root string, ledger map[string]Seen) *aliasIndex {
+	return &aliasIndex{root: root, ledger: ledger}
+}
+
+// records returns the records of every spelling but path's own that names the
+// same file as full and describes the version sha: a record of another version
+// is no showing of this one.
+func (a *aliasIndex) records(full, path, sha string) []Seen {
+	want, err := os.Stat(full)
+	if err != nil {
+		return nil
+	}
+	a.once.Do(func() {
+		for key := range a.ledger {
+			if info, err := aliasStatFn(filepath.Join(a.root, filepath.FromSlash(key))); err == nil {
+				a.keys = append(a.keys, aliasKey{key, info})
+			}
+		}
+	})
+	var recs []Seen
+	for _, k := range a.keys {
+		if k.key != path && a.ledger[k.key].SHA == sha && os.SameFile(want, k.info) {
+			recs = append(recs, a.ledger[k.key])
+		}
+	}
+	return recs
 }
 
 // groupedFile is a plan path that resolved to an existing file, with the stat

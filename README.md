@@ -370,7 +370,9 @@ These are gates, not a tour of the records behind them.
   A checkpoint brackets consecutive lines only, and served lines holding bytes that are not valid UTF-8 get none:
   the JSON answer replaces those bytes, so edit such a file with the CLI (ADR-108).
 - **Neighbour licence.** A multi-line `replace` is refused unless a prior read
-  already covered a line after End. Last line of the file is exempt.
+  already covered a line after End. Last line of the file is exempt. On a file mrw
+  wrote, or one read whole with `--quiet`, a multi-line replace that ends before the
+  last line also needs the line after it shown since the write (ADR-208); the refusal names the read to make.
   `--echo-pad N` (MCP `echo_pad`, default 0) prints N lines after an applied
   body so a surviving closer is visible; the hunk stays `ok`. The pad is not a
   checker.
