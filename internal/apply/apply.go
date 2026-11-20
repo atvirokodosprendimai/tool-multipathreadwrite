@@ -272,6 +272,12 @@ type Result struct {
 	// whatever is in it is named itself, or is not mrw's. Absent when nothing
 	// was left, which is every run whose cleanups succeeded.
 	LeftBehind []string `json:"left_behind,omitempty"`
+	// SyncNote says, when it is present, that a sync this write asked for is not
+	// supported by the volume the files are on, so they are synced as far as the
+	// volume allows and a power loss can still lose them (ADR-210): a drain
+	// answered ENOTSUP on macOS, or a directory flush answered "not supported"
+	// on Windows. The write landed; this is not an error. Absent otherwise.
+	SyncNote string `json:"sync_note,omitempty"`
 	// StrictSingleLine and StrictWouldRefuse feed ADR-056's pricing of
 	// --strict-balance and are NOT receipt fields: the balance rows already
 	// show the hunks. StrictSingleLine counts ok single-line replaces on
@@ -1338,7 +1344,11 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 		changed = recordDirs(tr, staged, pathOps)
 	}
 	if len(content) > 0 {
-		if p, err := syncStaged(tr, staged); err != nil {
+		p, noBarrier, err := syncStaged(tr, staged)
+		if noBarrier {
+			res.SyncNote = NoBarrierNote
+		}
+		if err != nil {
 			discard(0)
 			// The file named is one whose temp is on the device that failed, not
 			// the first file of the plan.
@@ -1405,7 +1415,11 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 	// ADR-210: after the last change, every directory the write changed is made
 	// stable, once, before Apply returns and so before the ledger is written. The
 	// files are in place, so a failure is a landed write with an error.
-	if err := syncChanged(tr, changed); err != nil {
+	noBarrier, err := syncChanged(tr, changed)
+	if noBarrier {
+		res.SyncNote = NoBarrierNote
+	}
+	if err != nil {
 		return res, err
 	}
 	return res, nil

@@ -37,14 +37,27 @@ func retryEINTR(fn func() error) error {
 }
 
 // platformDrain issues F_FULLFSYNC itself. Go's File.Sync does the same but falls
-// back to a plain fsync when the filesystem answers ENOTSUP (golang/go#64215), so
-// a drain that did not drain would pass as one. Here ENOTSUP is an error, as ADR-210
-// Decision 5 treats a mount that refuses a sync: before the first rename the write
-// stops with nothing written, after the renames it is a landed write with a sync
-// error. EINTR is retried.
+// back to a plain fsync when the filesystem answers ENOTSUP (golang/go#64215) and
+// reports success, so a drain that did not drain would pass as one without a word.
+// Here the fallback is made visible (ADR-210 Decision 5, as amended by Zy on
+// 2026-11-20): ENOTSUP is answered with a plain fsync of the same directory, and
+// when that succeeds the drain returns ErrNoBarrier, which the write takes as
+// "proceed, and say the volume gives no device barrier". Any other error, the
+// fallback's included, is an error. EINTR is retried.
 func platformDrain(f *os.File) error {
-	return retryEINTR(func() error { return fullFsync(f.Fd()) })
+	err := retryEINTR(func() error { return fullFsync(f.Fd()) })
+	if errors.Is(err, syscall.ENOTSUP) {
+		if ferr := fsyncRetrying(f); ferr != nil {
+			return ferr
+		}
+		return ErrNoBarrier
+	}
+	return err
 }
+
+// openDirSync opens a directory for the sync after the renames: on unix the same
+// non-blocking, directory-only open the drain uses.
+func (t *tree) openDirSync(p string) (*os.File, error) { return t.openDir(p) }
 
 // fullFsync is fcntl(fd, F_FULLFSYNC), a variable so a test can answer ENOTSUP.
 var fullFsync = func(fd uintptr) error {

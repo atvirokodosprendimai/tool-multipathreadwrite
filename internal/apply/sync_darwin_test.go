@@ -28,10 +28,12 @@ func TestAnInterruptedFsyncIsRetried(t *testing.T) {
 	}
 }
 
-// ADR-210 review (P1). A filesystem that answers F_FULLFSYNC with ENOTSUP gives no
-// barrier, and Go's File.Sync would quietly fall back to fsync and report success.
-// The drain here reports it; a signal that interrupts it is retried.
-func TestADrainTheFilesystemRefusesIsAnErrorNotAFallback(t *testing.T) {
+// ADR-210 (Zy, 2026-11-20). A volume that answers F_FULLFSYNC with ENOTSUP gives no
+// device barrier: the drain falls back to a plain fsync of the directory and, when
+// that works, answers ErrNoBarrier so the write proceeds and says so. Any other
+// error, the fallback's included, is an error; a signal that interrupts the drain
+// is retried.
+func TestAnUnsupportedDrainFallsBackToFsyncAndSaysSo(t *testing.T) {
 	f, err := os.Open(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -40,8 +42,20 @@ func TestADrainTheFilesystemRefusesIsAnErrorNotAFallback(t *testing.T) {
 	real := fullFsync
 	t.Cleanup(func() { fullFsync = real })
 	fullFsync = func(uintptr) error { return syscall.ENOTSUP }
-	if err := platformDrain(f); !errors.Is(err, syscall.ENOTSUP) {
-		t.Errorf("a drain answered ENOTSUP returned %v, want that error", err)
+	if err := platformDrain(f); !errors.Is(err, ErrNoBarrier) {
+		t.Errorf("a drain answered ENOTSUP returned %v, want ErrNoBarrier", err)
+	}
+	eio := errors.New("EIO")
+	fullFsync = func(uintptr) error { return eio }
+	if err := platformDrain(f); !errors.Is(err, eio) {
+		t.Errorf("a drain answered EIO returned %v, want that error", err)
+	}
+	// The fallback fails too: the directory handle is closed, so fsync errors.
+	fullFsync = func(uintptr) error { return syscall.ENOTSUP }
+	closed, _ := os.Open(t.TempDir())
+	_ = closed.Close()
+	if err := platformDrain(closed); err == nil || errors.Is(err, ErrNoBarrier) {
+		t.Errorf("an unsupported drain whose fallback failed returned %v, want an error", err)
 	}
 	calls := 0
 	fullFsync = func(uintptr) error {

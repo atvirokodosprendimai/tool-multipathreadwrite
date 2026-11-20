@@ -20,6 +20,10 @@ func platformSyncTemp(f *os.File) error { return f.Sync() }
 
 func platformDrain(*os.File) error { return nil }
 
+// openDirSync opens a directory for the sync after the renames: the same
+// non-blocking, directory-only open the drain uses.
+func (t *tree) openDirSync(p string) (*os.File, error) { return t.openDir(p) }
+
 func platformSyncDir(f *os.File) error { return f.Sync() }
 
 func platformDevice(os.FileInfo) uint64 { return 0 }

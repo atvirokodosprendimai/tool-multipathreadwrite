@@ -63,3 +63,21 @@ func TestMrwWriteReportsASyncThatFailedAfterLanding(t *testing.T) {
 		t.Errorf("no ceiling between the floor and +400 gave a terminal sentence that says %q", words)
 	}
 }
+
+// ADR-210 (Zy, 2026-11-20). A volume that cannot flush a directory or drain is not
+// a failure: mrw_write answers a clean landing, not an error, and the structured
+// receipt carries sync_note.
+func TestMrwWriteReportsAVolumeWithNoBarrierAsANote(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("XDG_STATE_HOME", filepath.Join(root, "state"))
+	rs, rf := apply.SyncsDirs, apply.SyncDirFn
+	t.Cleanup(func() { apply.SyncsDirs, apply.SyncDirFn = rs, rf })
+	apply.SyncsDirs = true
+	apply.SyncDirFn = func(*os.File) error { return apply.ErrNoBarrier }
+	res := call(t, root, "mrw_write", map[string]any{"plan": "@@ new.txt 0 create\nhello\n"})
+	sc, _ := res["structuredContent"].(map[string]any)
+	note, _ := sc["sync_note"].(string)
+	if res["isError"] == true || sc["applied"] != true || !strings.Contains(note, "no device barrier") {
+		t.Errorf("isError=%v applied=%v sync_note=%q; want a clean landing carrying the note", res["isError"], sc["applied"], note)
+	}
+}

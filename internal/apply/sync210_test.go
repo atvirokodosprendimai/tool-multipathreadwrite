@@ -35,6 +35,10 @@ func TestStagedFilesAndTheirDirectoriesAreSyncedBeforeTheWriteReturns(t *testing
 	type fault struct {
 		temp, drain int32  // fail this call number (1-based), 0 never
 		dir         string // fail the sync of this directory
+		// noBarrierDrain and noBarrierDir make that drain, or that directory's
+		// flush, answer ErrNoBarrier: the volume gives no barrier.
+		noBarrierDrain int32
+		noBarrierDir   string
 	}
 	// install puts the recording seams in place for one subtest.
 	install := func(t *testing.T, root string, f fault, devices bool) {
@@ -59,8 +63,12 @@ func TestStagedFilesAndTheirDirectoriesAreSyncedBeforeTheWriteReturns(t *testing
 		}
 		drainFn = func(fh *os.File) error {
 			events = append(events, "drain")
-			if f.drain != 0 && drainCalls.Add(1) == f.drain {
+			n := drainCalls.Add(1)
+			if f.drain != 0 && n == f.drain {
 				return errors.New("injected drain failure")
+			}
+			if f.noBarrierDrain != 0 && n == f.noBarrierDrain {
+				return ErrNoBarrier
 			}
 			return rd(fh)
 		}
@@ -70,6 +78,9 @@ func TestStagedFilesAndTheirDirectoriesAreSyncedBeforeTheWriteReturns(t *testing
 				d = relOf(root, fh.Name())
 			}
 			events = append(events, "dir:"+d)
+			if f.noBarrierDir != "" && d == f.noBarrierDir {
+				return ErrNoBarrier
+			}
 			if f.dir != "" && d == f.dir {
 				return errors.New("injected directory sync failure")
 			}
@@ -108,11 +119,8 @@ func TestStagedFilesAndTheirDirectoriesAreSyncedBeforeTheWriteReturns(t *testing
 	createS := Input{Path: "s/new/k.txt", Op: "create", Body: []string{"made"}, Lines: -1}
 	unlink := Input{Path: "s/b.txt", Op: "unlink", Lines: -1}
 
-	darwin, windows := runtime.GOOS == "darwin", runtime.GOOS == "windows"
+	darwin := runtime.GOOS == "darwin"
 	dirsAfter := func(drain bool, dirs ...string) []string {
-		if windows {
-			return nil
-		}
 		var out []string
 		for _, d := range dirs {
 			out = append(out, "dir:"+d)
@@ -149,6 +157,8 @@ func TestStagedFilesAndTheirDirectoriesAreSyncedBeforeTheWriteReturns(t *testing
 		wantDir string // the path a SyncError names
 		// wantSizes is the size of each temp when it was synced, ascending.
 		wantSizes []int64
+		// wantNote is whether the receipt carries the no-barrier note.
+		wantNote bool
 		// wantFailed, when set, is the one file whose hunk is failed by a drain
 		// failure: the file whose temp is on the device that failed.
 		wantFailed string
@@ -174,6 +184,10 @@ func TestStagedFilesAndTheirDirectoriesAreSyncedBeforeTheWriteReturns(t *testing
 	if darwin {
 		rows = append(rows,
 			// Every device is drained though the first one's drain fails.
+			// A volume whose F_FULLFSYNC is not supported answers ErrNoBarrier from the
+			// drain: the write proceeds, both phases, with the note.
+			row{name: "drain_no_barrier", in: []Input{edit, create, move}, fault: fault{noBarrierDrain: 1}, wantNote: true, wantSizes: []int64{5, 8},
+				want: join([]string{"temp", "temp", "drain", "rename", "rename", "rename"}, dirsAfter(true, ".", "n", "n/m", "s", "t"))},
 			row{name: "second_device_drain_fails", in: []Input{edit, editOther}, device: true, fault: fault{drain: 2}, wantErr: "staging", wantSizes: []int64{4, 8}, wantFailed: "other/c.txt",
 				want: []string{"temp", "temp", "drain", "drain"}},
 			row{name: "two_devices_first_drain_fails", in: []Input{edit, editOther}, device: true, fault: fault{drain: 1}, wantErr: "staging", wantSizes: []int64{4, 8},
@@ -186,16 +200,15 @@ func TestStagedFilesAndTheirDirectoriesAreSyncedBeforeTheWriteReturns(t *testing
 				want: join([]string{"temp", "temp", "drain", "rename", "rename", "rename"}, dirsAfter(true, ".", "n", "n/m", "s", "t"))},
 		)
 	}
-	if !windows {
-		// One failing directory does not stop the others: every directory is tried
-		// and the drain still runs; the first failure is the error.
-		rows = append(rows, row{name: "dir_sync_fails", in: []Input{edit, create, move}, fault: fault{dir: "n"}, wantErr: "sync", wantDir: "n", wantSizes: []int64{5, 8},
-			want: join([]string{"temp", "temp"}, drain(), []string{"rename", "rename", "rename"}, dirsAfter(true, ".", "n", "n/m", "s", "t"))})
-	}
-	if windows {
-		rows = append(rows, row{name: "windows", in: []Input{edit, create, move}, wantSizes: []int64{5, 8},
-			want: []string{"temp", "temp", "rename", "rename", "rename"}})
-	}
+	// One failing directory does not stop the others: every directory is tried
+	// and the drain still runs; the first failure is the error.
+	rows = append(rows, row{name: "dir_sync_fails", in: []Input{edit, create, move}, fault: fault{dir: "n"}, wantErr: "sync", wantDir: "n", wantSizes: []int64{5, 8},
+		want: join([]string{"temp", "temp"}, drain(), []string{"rename", "rename", "rename"}, dirsAfter(true, ".", "n", "n/m", "s", "t"))})
+	// A directory the volume cannot flush (macOS has none here; Windows over SMB
+	// answers ERROR_INVALID_FUNCTION) is skipped with a note, not a failure, and
+	// the other directories are still synced.
+	rows = append(rows, row{name: "dir_no_barrier", in: []Input{edit, create, move}, fault: fault{noBarrierDir: "n"}, wantNote: true, wantSizes: []int64{5, 8},
+		want: join([]string{"temp", "temp"}, drain(), []string{"rename", "rename", "rename"}, dirsAfter(true, ".", "n", "n/m", "s", "t"))})
 
 	for _, r := range rows {
 		t.Run(r.name, func(t *testing.T) {
@@ -216,6 +229,9 @@ func TestStagedFilesAndTheirDirectoriesAreSyncedBeforeTheWriteReturns(t *testing
 			case "":
 				if err != nil || (!r.opt.DryRun && !res.Applied) {
 					t.Fatalf("applied=%v err=%v; want a clean landing", res.Applied, err)
+				}
+				if (res.SyncNote != "") != r.wantNote {
+					t.Errorf("SyncNote %q, want a note: %v", res.SyncNote, r.wantNote)
 				}
 			case "staging":
 				if err == nil || res.Applied || errors.As(err, &se) {
@@ -261,13 +277,6 @@ func TestStagedFilesAndTheirDirectoriesAreSyncedBeforeTheWriteReturns(t *testing
 					}
 				}
 			}
-			if windows && r.name == "windows" {
-				for _, e := range events {
-					if strings.HasPrefix(e, "dir:") {
-						t.Errorf("a directory was synced on Windows: %s", e)
-					}
-				}
-			}
 		})
 	}
 	_ = fmt.Sprint
@@ -309,7 +318,7 @@ func TestTheDrainDoesNotReopenAStagedTempForReading(t *testing.T) {
 	if err := os.Chmod(tmp, 0o244); err != nil {
 		t.Fatal(err)
 	}
-	if p, err := syncStaged(tr, []staged{{tmp: tmp}}); err != nil {
+	if p, _, err := syncStaged(tr, []staged{{tmp: tmp}}); err != nil {
 		t.Errorf("the drain failed at %s: %v", p, err)
 	}
 }

@@ -8,7 +8,7 @@
 **Consumes:** `stageFile`, the commit loop, `commitPathOps`, `(*tree)`, `writer.LedgerError`'s handling in `Land`, `appliedButUnreportable`
 **Data dependency:** none — hermetic
 **Proof map:** v1
-**Rests-on:** `every temp is synced before the first rename`, `every changed directory is synced once after the last change`, `the drain runs once per device per phase on macOS`, `no directory is synced on Windows`, `a sync failure before the renames writes nothing`, `a sync failure after the renames is a landed write with an error`, `a sync failure and a ledger failure keep both errors`, `the check and steps do not run after a sync failure`, `a dry run syncs nothing`, `every subtest ran and none skipped`, `the CLI and mrw_write report it`, `the contract row exists with its trace`, `the new words are in the documents`, `the engine packages are untouched, tracked and untracked`
+**Rests-on:** `every temp is synced before the first rename`, `every changed directory is synced once after the last change`, `the drain runs once per device per phase on macOS`, `a Windows directory is synced like any other and a flush the volume does not support is a note`, `a sync failure before the renames writes nothing`, `a sync failure after the renames is a landed write with an error`, `a sync failure and a ledger failure keep both errors`, `the check and steps do not run after a sync failure`, `a dry run syncs nothing`, `every subtest ran and none skipped`, `the CLI and mrw_write report it`, `the contract row exists with its trace`, `the new words are in the documents`, `the engine packages are untouched, tracked and untracked`
 
 ## Goal
 
@@ -18,12 +18,13 @@ ADR-210 Decisions 1 to 6.
 
 | Subtest | Plan and seam | Outcome |
 |---------|---------------|---------|
-| `edit_create_rename` (every platform) | edit `a.txt`; create `n/m/k.txt` in new directories; rename `s/b.txt` to `t/b.txt` (both parents exist and differ) | every temp's sync before the first rename; on macOS one drain after the last temp sync and before the first rename; outside Windows, after the last change one sync each for `.`, `n`, `n/m`, `s` and `t`, then on macOS one drain; on Windows no directory sync; nothing synced after `Apply` returns |
+| `edit_create_rename` (every platform) | edit `a.txt`; create `n/m/k.txt` in new directories; rename `s/b.txt` to `t/b.txt` (both parents exist and differ) | every temp's sync before the first rename; on macOS one drain after the last temp sync and before the first rename; after the last change one sync each for `.`, `n`, `n/m`, `s` and `t`, then on macOS one drain; nothing synced after `Apply` returns |
 | `two_devices` (macOS) | edit a file on each of two devices, the second faked through the seam's device number | one drain per device in each phase |
-| `create_under_existing` (every platform) | create `s/new/k.txt` where `s` exists | outside Windows `s` and `new` synced and the root not; each temp is synced at the size of its content |
-| `rename_only` (every platform) | rename `s/b.txt` to `t/b.txt` | no file sync; outside Windows `s` and `t` synced; on Windows nothing synced |
-| `unlink_only` (every platform) | unlink `s/b.txt` | outside Windows `s` synced; on Windows nothing synced |
-| `windows` (Windows) | as `edit_create_rename`, with the directory-sync seam set to fail the test if called | the file syncs; the directory seam never called |
+| `create_under_existing` (every platform) | create `s/new/k.txt` where `s` exists | `s` and `new` synced and the root not; each temp is synced at the size of its content |
+| `rename_only` (every platform) | rename `s/b.txt` to `t/b.txt` | no file sync; `s` and `t` synced |
+| `unlink_only` (every platform) | unlink `s/b.txt` | `s` synced |
+| `dir_no_barrier` (every platform) | the flush of `n` answers `ErrNoBarrier` (a Windows directory over SMB) | a clean landing with `sync_note`; every other directory still synced; exit 0 |
+| `drain_no_barrier` (macOS) | the first drain answers `ErrNoBarrier` (`F_FULLFSYNC` not supported, the fallback `fsync` fine) | a clean landing with `sync_note` |
 | `temp_sync_fails` (every platform) | the second temp's sync fails | an error; nothing renamed; every temp removed |
 | `drain_before_fails` (macOS) | the first drain fails | as `temp_sync_fails` |
 | `dir_sync_fails` (Linux and macOS) | the sync of `n` fails | `Applied` true; the error is a sync error naming `n`; every other directory is still synced and drained, and every file is in place |
@@ -53,7 +54,7 @@ A row for another platform is not registered at all (a build tag or a `runtime.G
 ## Ordered Steps
 
 1. [S1] The three tests; RED on every subtest but `dry_run`, and on the CLI and MCP tests. [proof: acceptance]
-2. [S2] The syncs. Mutants, each killed: no temp sync (`edit_create_rename`); a temp synced after the first rename (`edit_create_rename`, by order); no directory sync (`edit_create_rename`); a directory synced once per rename (`edit_create_rename`, by count); the drain dropped on macOS (`edit_create_rename`); one drain for all devices (`two_devices`); a directory sync on Windows (`windows`); a failed temp sync ignored (`temp_sync_fails`); a failed directory sync ignored (`dir_sync_fails`); the sync error classified as `refused_apply` (the CLI test's stats); the check run after a sync failure (the CLI test); the ledger's error dropping the sync's (the CLI test); the dry run syncing (`dry_run`). [proof: mutation]
+2. [S2] The syncs. Mutants, each killed: no temp sync (`edit_create_rename`); a temp synced after the first rename (`edit_create_rename`, by order); no directory sync (`edit_create_rename`); a directory synced once per rename (`edit_create_rename`, by count); the drain dropped on macOS (`edit_create_rename`); one drain for all devices (`two_devices`); a flush answered not-supported counted as a failure (`dir_no_barrier`); a failed temp sync ignored (`temp_sync_fails`); a failed directory sync ignored (`dir_sync_fails`); the sync error classified as `refused_apply` (the CLI test's stats); the check run after a sync failure (the CLI test); the ledger's error dropping the sync's (the CLI test); the dry run syncing (`dry_run`). [proof: mutation]
 3. [S3] Contract §361, as the record's Wiring table says: `strace -f -y -e trace=fsync,fdatasync,rename,renameat,renameat2` over `$MRW write` of a plan editing two files in two directories, decoding each descriptor's path (`-y`) and taking only calls that returned 0: every temp's `fsync` precedes the first tree rename; each changed directory's `fsync` follows the last tree change; the ledger's rename follows those. Paired with `--dry-run` of the same plan on a fresh fixture, which must exit 0 and show no `fsync` on a tree path. Where `strace` is absent the row says `skip` and why; the CI job that proves it installs `strace`. The words. [proof: acceptance]
 4. [S4] The cost: ADR-105 T3's protocol (a 500-file, 5,000-hunk write and a one-file write, 5 alternating runs each, the old build against the new, each on a fresh copy with its own `XDG_STATE_HOME`) on the owner's Mac and the Linux and Windows CI runners; the medians, the load and the filesystem go into the record's Consequences, for Zy's decision under Decision 7. [proof: human: the medians, the load, the filesystem and the machine of each run, recorded in the record]
 
@@ -64,13 +65,15 @@ out="$(mktemp)" \
   && go test -count=1 -v ./internal/apply ./cmd/mrw ./internal/mcp -run '^(TestStagedFilesAndTheirDirectoriesAreSyncedBeforeTheWriteReturns|TestTheCLIReportsASyncThatFailedAfterLandingAsAWriteThatLanded|TestMrwWriteReportsASyncThatFailedAfterLanding)$' > "$out" \
   && [ "$(grep -c '^--- PASS: ' "$out")" -eq 3 ] \
   && out2="$(mktemp)" \
-  && go test -count=1 -v ./internal/apply ./internal/curve -run '^(TestAPlanWhoseSyncFailedAfterLandingIsScoredAsApplied|TestAStagingSyncFailureIsTheHarnessesNotARefusal|TestTheDrainDoesNotReopenAStagedTempForReading|TestADirectorySwappedAfterTheRenamesIsNotSynced|TestARetargetedLinkDoesNotMoveTheDirectorySync|TestAnInterruptedFsyncIsRetried|TestADrainTheFilesystemRefusesIsAnErrorNotAFallback)$' > "$out2" \
+  && go test -count=1 -v ./internal/apply ./internal/curve ./internal/mcp -run '^(TestAPlanWhoseSyncFailedAfterLandingIsScoredAsApplied|TestAStagingSyncFailureIsTheHarnessesNotARefusal|TestTheDrainDoesNotReopenAStagedTempForReading|TestADirectorySwappedAfterTheRenamesIsNotSynced|TestARetargetedLinkDoesNotMoveTheDirectorySync|TestAnInterruptedFsyncIsRetried|TestAnUnsupportedDrainFallsBackToFsyncAndSaysSo|TestMrwWriteReportsAVolumeWithNoBarrierAsANote|TestAWindowsDirectoryFlushThatIsNotSupportedIsNotAFailure|TestAWindowsDirectoryIsOpenedWithWriteAccessForTheFlush)$' > "$out2" \
   && grep -q '^--- PASS: TestAPlanWhoseSyncFailedAfterLandingIsScoredAsApplied ' "$out2" \
   && grep -q '^--- PASS: TestAStagingSyncFailureIsTheHarnessesNotARefusal ' "$out2" \
   && grep -q '^--- PASS: TestTheDrainDoesNotReopenAStagedTempForReading ' "$out2" \
   && { [ "$(go env GOOS)" = windows ] || { grep -q '^--- PASS: TestADirectorySwappedAfterTheRenamesIsNotSynced ' "$out2" && grep -q '^--- PASS: TestARetargetedLinkDoesNotMoveTheDirectorySync ' "$out2"; }; } \
-  && { [ "$(go env GOOS)" != darwin ] || { grep -q '^--- PASS: TestAnInterruptedFsyncIsRetried ' "$out2" && grep -q '^--- PASS: TestADrainTheFilesystemRefusesIsAnErrorNotAFallback ' "$out2"; }; } \
-  && case "$(go env GOOS)" in darwin) want='edit_create_rename create_under_existing rename_only unlink_only temp_sync_fails dry_run dir_sync_fails two_devices two_devices_first_drain_fails second_device_drain_fails drain_before_fails drain_after_fails' ;; windows) want='edit_create_rename create_under_existing rename_only unlink_only temp_sync_fails dry_run windows' ;; *) want='edit_create_rename create_under_existing rename_only unlink_only temp_sync_fails dry_run dir_sync_fails' ;; esac \
+  && grep -q '^--- PASS: TestMrwWriteReportsAVolumeWithNoBarrierAsANote ' "$out2" \
+  && { [ "$(go env GOOS)" != windows ] || { grep -q '^--- PASS: TestAWindowsDirectoryFlushThatIsNotSupportedIsNotAFailure ' "$out2" && grep -q '^--- PASS: TestAWindowsDirectoryIsOpenedWithWriteAccessForTheFlush ' "$out2"; }; } \
+  && { [ "$(go env GOOS)" != darwin ] || { grep -q '^--- PASS: TestAnInterruptedFsyncIsRetried ' "$out2" && grep -q '^--- PASS: TestAnUnsupportedDrainFallsBackToFsyncAndSaysSo ' "$out2"; }; } \
+  && case "$(go env GOOS)" in darwin) want='edit_create_rename create_under_existing rename_only unlink_only temp_sync_fails dry_run dir_sync_fails dir_no_barrier two_devices two_devices_first_drain_fails second_device_drain_fails drain_before_fails drain_after_fails drain_no_barrier' ;; *) want='edit_create_rename create_under_existing rename_only unlink_only temp_sync_fails dry_run dir_sync_fails dir_no_barrier' ;; esac \
   && missing=0 && for c in $want; do grep -q "^    --- PASS: TestStagedFilesAndTheirDirectoriesAreSyncedBeforeTheWriteReturns/$c " "$out" || missing=1; done && [ "$missing" -eq 0 ] \
   && ! grep -q -- '--- SKIP' "$out" \
   && grep -q '^# 361\. ' scripts/contract.sh \
@@ -80,7 +83,7 @@ out="$(mktemp)" \
   && grep -q 'not known to be on stable storage' internal/writer/writer.go \
   && readme="$(tr -s '\n ' '  ' < README.md)" \
   && grep -qF 'synced before the ledger' <<<"$readme" \
-  && grep -qF 'on Windows only the file contents are synced, not the directory entries' <<<"$readme" \
+  && grep -qF 'is said so in `sync_note`' <<<"$readme" \
   && grep -qF 'the files are written but not known to be on stable storage: do not send the plan again' <<<"$readme" \
   && grep -q 'the files could not be synced' <(tr -s '\n ' '  ' < AGENTS.md) \
   && base="$(git merge-base HEAD origin/main)" && [ -n "$base" ] \
@@ -88,7 +91,7 @@ out="$(mktemp)" \
   && [ -z "$(git status --porcelain --untracked-files=all -- internal/plan internal/read internal/seen internal/check internal/state)" ]
 ```
 
-The cases each platform must pass are named in the fence: six on Linux, nine on macOS, six on Windows. The fence runs where the test runs; CI runs it on Linux and Windows, and macOS's rows are proved on the owner's Mac.
+The cases each platform must pass are named in the fence: eight on Linux and on Windows, fourteen on macOS. The fence runs where the test runs; CI runs it on Linux and Windows, and macOS's rows are proved on the owner's Mac.
 
 ## Tests
 
@@ -346,7 +349,7 @@ The cases each platform must pass are named in the fence: six on Linux, nine on 
 ## Invariants
 
 - mrw's state files keep ADR-105's rule.
-- No receipt key is added, removed or renamed.
+- No receipt key is removed or renamed; `sync_note` is the one added (ADR-111, Zy's amendment of 2026-11-20).
 - Each file still lands by one rename.
 
 ## Risks

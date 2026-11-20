@@ -60,7 +60,8 @@ var (
 	// switch in the shipped binary. A value only a test sets, behind a name that
 	// says so, is the smaller surface.
 	SyncDirFn = platformSyncDir
-	// SyncsDirs is whether directories are synced at all: not on Windows.
+	// SyncsDirs is whether directories are synced at all (every platform, since
+	// ADR-210's Windows amendment).
 	SyncsDirs = syncsDirs
 	// deviceOfFn names the device a file is on, so the drain runs once per device.
 	deviceOfFn = platformDevice
@@ -97,19 +98,29 @@ func (t *tree) openDir(p string) (*os.File, error) {
 	return f, nil
 }
 
+// ErrNoBarrier is what a drain or a directory flush answers when the volume gives
+// no device barrier or does not support the flush (macOS: F_FULLFSYNC answered
+// ENOTSUP, then a plain fsync of the same directory succeeded; Windows:
+// ERROR_INVALID_FUNCTION from FlushFileBuffers on a directory, as over SMB). It is
+// not a failure: the write proceeds with the weaker guarantee and the receipt says
+// so (SyncNote). Exported with the other seams, for the tests of other packages.
+var ErrNoBarrier = errors.New("this volume gives no device barrier")
+
+// NoBarrierNote is the receipt's SyncNote.
+const NoBarrierNote = "this volume gives no device barrier for the sync (the drain or the directory flush is not supported here): the files are written and synced as far as the volume allows, but a power loss can still lose them"
+
 // drainDevices runs drainFn once on one of paths for each device they are on. The
 // paths are directories already synced or holding files already synced; a drain
 // is a barrier for what was synced before it on the same device, whichever
 // handle of that device asks. EVERY device is attempted: the first failure is
 // returned with its path, and the others are still drained, so one device's EIO
-// does not leave another's data unbarriered.
-func drainDevices(tr *tree, paths []string) (string, error) {
+// does not leave another's data unbarriered. A device whose volume gives no
+// barrier (ErrNoBarrier) is not a failure: noBarrier says so.
+func drainDevices(tr *tree, paths []string) (firstPath string, noBarrier bool, first error) {
 	if !drains {
-		return "", nil
+		return "", false, nil
 	}
 	done := map[uint64]bool{}
-	var firstPath string
-	var first error
 	note := func(p string, err error) {
 		if first == nil {
 			firstPath, first = p, err
@@ -135,11 +146,14 @@ func drainDevices(tr *tree, paths []string) (string, error) {
 		done[dev] = true
 		err = drainFn(f)
 		_ = f.Close()
-		if err != nil {
+		switch {
+		case errors.Is(err, ErrNoBarrier):
+			noBarrier = true
+		case err != nil:
 			note(p, err)
 		}
 	}
-	return firstPath, first
+	return firstPath, noBarrier, first
 }
 
 // syncStaged drains every device the staged temps are on, once, after each temp
@@ -147,7 +161,7 @@ func drainDevices(tr *tree, paths []string) (string, error) {
 // The drain asks through each temp's DIRECTORY: a temp takes its target's mode,
 // which may leave the owner unable to open it for reading (0244), and a drain is
 // the device's barrier whichever handle issues it.
-func syncStaged(tr *tree, staged []staged) (string, error) {
+func syncStaged(tr *tree, staged []staged) (string, bool, error) {
 	seenDir := map[string]bool{}
 	var dirs []string
 	for _, sf := range staged {
@@ -223,18 +237,18 @@ func recordDirs(tr *tree, staged []staged, pathOps []pending) []dirRef {
 var beforeDirSync = func() {}
 
 // syncChanged syncs each recorded directory once, after the last change, then
-// drains once per device. Outside the platforms that sync directories it does
-// nothing (ADR-210 Decision 3). A directory that fails does not stop the others:
-// each is tried, the drain still covers those that synced, and the first failure
-// is the *SyncError returned, naming the path. A directory that cannot be opened,
-// is no longer a directory, or is no longer the one recorded is such a failure
-// (Decision 4: a name that cannot be made stable is not quietly passed over).
-func syncChanged(tr *tree, refs []dirRef) error {
+// drains once per device. A directory that fails does not stop the others: each
+// is tried, the drain still covers those that synced, and the first failure is
+// the *SyncError returned, naming the path. A directory that cannot be opened, is
+// no longer a directory, or is no longer the one recorded is such a failure
+// (Decision 4: a name that cannot be made stable is not quietly passed over). A
+// directory the volume cannot flush (ErrNoBarrier) is not: it is skipped, and
+// noBarrier says so.
+func syncChanged(tr *tree, refs []dirRef) (noBarrier bool, first error) {
 	if !SyncsDirs {
-		return nil
+		return false, nil
 	}
 	beforeDirSync()
-	var first error
 	fail := func(d string, err error) {
 		if first == nil {
 			first = &SyncError{Path: tr.shown(d), Err: err}
@@ -242,7 +256,7 @@ func syncChanged(tr *tree, refs []dirRef) error {
 	}
 	var synced []string
 	for _, r := range refs {
-		f, err := tr.openDir(r.path)
+		f, err := tr.openDirSync(r.path)
 		if err != nil {
 			fail(r.path, err)
 			continue
@@ -258,14 +272,18 @@ func syncChanged(tr *tree, refs []dirRef) error {
 		}
 		err = SyncDirFn(f)
 		_ = f.Close()
-		if err != nil {
+		switch {
+		case errors.Is(err, ErrNoBarrier):
+			noBarrier = true
+		case err != nil:
 			fail(r.path, err)
 			continue
 		}
 		synced = append(synced, r.path)
 	}
-	if p, err := drainDevices(tr, synced); err != nil {
+	p, nb, err := drainDevices(tr, synced)
+	if err != nil {
 		fail(p, err)
 	}
-	return first
+	return noBarrier || nb, first
 }

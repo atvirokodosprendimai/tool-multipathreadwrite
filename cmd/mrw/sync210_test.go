@@ -114,4 +114,31 @@ func TestTheCLIReportsASyncThatFailedAfterLandingAsAWriteThatLanded(t *testing.T
 			t.Errorf("exit %d error=%q; want both the sync and the ledger failure named", code, msg)
 		}
 	})
+	// A volume that cannot flush a directory or drain (ErrNoBarrier) is not a
+	// failure (Zy, 2026-11-20): the write is a clean landing, exit 0, the JSON
+	// receipt carries sync_note, and the human form says it once on stderr.
+	t.Run("no_barrier_proceeds_with_a_note", func(t *testing.T) {
+		root := setup(t)
+		apply.SyncDirFn = func(*os.File) error { return apply.ErrNoBarrier }
+		out, code := runIn(t, root, "write", "--json", "--no-check", planFile(t, goPlan))
+		d := doc(t, out)
+		note, _ := d["sync_note"].(string)
+		if code != 0 || d["applied"] != true || d["error"] != nil || !strings.Contains(note, "no device barrier") {
+			t.Fatalf("exit %d applied=%v error=%v sync_note=%q; want a clean landing with the note", code, d["applied"], d["error"], note)
+		}
+		if l, _ := seen.Load(root); !l["a.go"].Written {
+			t.Errorf("the ledger does not record the written file: %v", l)
+		}
+	})
+	t.Run("no_barrier_is_said_once_in_the_human_form", func(t *testing.T) {
+		root := setup(t)
+		apply.SyncDirFn = func(*os.File) error { return apply.ErrNoBarrier }
+		var code int
+		errOut := stderrOf(t, func() {
+			_, code = runIn(t, root, "write", "--no-check", planFile(t, goPlan))
+		})
+		if code != 0 || strings.Count(errOut, "no device barrier") != 1 {
+			t.Errorf("exit %d, the line appears %d time(s) on stderr; want a clean landing saying it once:\n%s", code, strings.Count(errOut, "no device barrier"), errOut)
+		}
+	})
 }
