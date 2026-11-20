@@ -11943,6 +11943,67 @@ want 1 "$?" "an empty body=@ on an insert-after is still refused by apply, exit 
 mk371 "$R371/g"; run371 "$R371/g" '@@ f.txt 2 insert-before body=@empty371.txt\n'
 want 1 "$?" "and on an insert-before"
 
+# 367. #735: every `mrw write --json` receipt says how much of the plan reached the
+# tree, so exit 2 can be told apart: a landed write is "complete", a dry run and a
+# refused plan are "none", and a commit that failed after a file landed is
+# "partial" (the write to d/ fails in a read-only directory after a.go landed).
+R367="$WORK/r367"; rm -rf "$R367"; mkdir -p "$R367/st" "$R367/d"; printf 'package a\n' > "$R367/a.go"; printf 'x\n' > "$R367/d/x.txt"
+mut367() { python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("mutation","ABSENT"))' "$1" 2>/dev/null; }
+XDG_STATE_HOME="$R367/st" "$MRW" -C "$R367" read a.go d/x.txt > "$R367/rd.out" 2>&1
+printf '@@ a.go 9 replace\nx\n' | XDG_STATE_HOME="$R367/st" "$MRW" -C "$R367" write --json - > "$R367/none.json" 2>/dev/null
+want 1 "$?" "a refused plan exits 1"
+[ "$(mut367 "$R367/none.json")" = none ] && ok "and its receipt says mutation none" || bad "refused plan mutation: $(mut367 "$R367/none.json")"
+printf '@@ a.go 1 replace\npackage b\n' | XDG_STATE_HOME="$R367/st" "$MRW" -C "$R367" write --json --dry-run - > "$R367/dry.json" 2>/dev/null
+want 0 "$?" "a dry run exits 0"
+[ "$(mut367 "$R367/dry.json")" = none ] && ok "and its receipt says mutation none" || bad "dry run mutation: $(mut367 "$R367/dry.json")"
+chmod 555 "$R367/d"
+printf '@@ a.go 1 replace\npackage b\n@@ d/x.txt - unlink\n' | XDG_STATE_HOME="$R367/st" "$MRW" -C "$R367" write --json - > "$R367/partial.json" 2>/dev/null
+prc=$?
+chmod 755 "$R367/d"
+if [ "$(id -u)" = 0 ]; then
+  skip "a read-only directory does not stop root, so no commit fails after a.go lands"
+else
+  want 2 "$prc" "a commit that fails after a file landed exits 2"
+  [ "$(mut367 "$R367/partial.json")" = partial ] && grep -q '^package b' "$R367/a.go" && ok "and its receipt says mutation partial, with a.go changed" || bad "partial mutation: $(mut367 "$R367/partial.json")"
+fi
+XDG_STATE_HOME="$R367/st" "$MRW" -C "$R367" read a.go > "$R367/rd2.out" 2>&1
+printf '@@ a.go 1 replace\npackage c\n' | XDG_STATE_HOME="$R367/st" "$MRW" -C "$R367" write --json - > "$R367/ok.json" 2>/dev/null
+want 0 "$?" "a landed write exits 0"
+[ "$(mut367 "$R367/ok.json")" = complete ] && ok "and its receipt says mutation complete" || bad "complete mutation: $(mut367 "$R367/ok.json")"
+
+# 368. #732: under a ceiling too small for the receipt of a partial commit, the
+# answer names a file holding the whole receipt (kept in the state home, outside
+# the tree), and that file holds the commit's failure and the written name.
+R368="$WORK/r368"; S368="$WORK/st368"; rm -rf "$R368" "$S368"; mkdir -p "$R368/d" "$S368"; printf 'package a\n' > "$R368/a.go"; printf 'x\n' > "$R368/d/x.txt"
+XDG_STATE_HOME="$S368" "$MRW" -C "$R368" read a.go d/x.txt > "$R368/rd.out" 2>&1
+chmod 555 "$R368/d"
+if [ "$(id -u)" = 0 ]; then
+  skip "a read-only directory does not stop root, so no commit fails after a.go lands"
+else
+  python3 -c 'import json; print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ a.go 1 replace\npackage b\n@@ d/x.txt - unlink\n"}}}))' \
+    | env -u MRW_STEP_DEPTH -u MRW_MAX_RESULT_CHARS XDG_STATE_HOME="$S368" "$MRW" -C "$R368" mcp --enable --max-result-chars 1100 > "$R368/ans.json" 2>/dev/null
+  chmod 755 "$R368/d"
+  kept=$(python3 -c '
+import json,re,sys
+r=json.loads(open(sys.argv[1]).read().splitlines()[0])["result"]
+t=r["content"][0]["text"]
+m=re.search(r"The full receipt is at (\S+?)\.?$", t.strip())
+print(m.group(1) if m else "")' "$R368/ans.json" 2>/dev/null)
+  [ -n "$kept" ] && [ -f "$kept" ] && ok "the bounded answer names a kept whole receipt" || bad "no kept receipt named: $(head -c 600 "$R368/ans.json")"
+  grep -q '"mutation": "partial"' "$kept" 2>/dev/null && grep -q 'a.go' "$kept" 2>/dev/null && ok "and it holds the mutation and the written file" || bad "kept receipt: $(head -c 400 "$kept" 2>/dev/null)"
+  case $kept in "$R368"/*) bad "the kept receipt is inside the tree: $kept" ;; "$S368"/mrw-receipts/*) ok "and it is outside the tree, in the state home's mrw-receipts" ;; *) bad "kept receipt at an unexpected place: $kept" ;; esac
+  grep -q 'mutation: partial' "$R368/ans.json" && ok "and the sentence says the mutation in words, mutation: partial" || bad "no mutation token: $(head -c 700 "$R368/ans.json")"
+  # The pair, which must fail the other way: a receipt that fits keeps nothing and names nothing.
+  before368=$(ls "$S368/mrw-receipts" 2>/dev/null | wc -l | tr -d ' ')
+  mkdir -p "$R368/fit"; printf 'one\n' > "$R368/fit/f.txt"
+  XDG_STATE_HOME="$S368" "$MRW" -C "$R368" read fit/f.txt > "$R368/rd2.out" 2>&1
+  python3 -c 'import json; print(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_write","arguments":{"plan":"@@ fit/f.txt 1 replace\nTWO\n"}}}))' \
+    | env -u MRW_STEP_DEPTH -u MRW_MAX_RESULT_CHARS XDG_STATE_HOME="$S368" "$MRW" -C "$R368" mcp --enable --max-result-chars 20000 > "$R368/fit.json" 2>/dev/null
+  after368=$(ls "$S368/mrw-receipts" 2>/dev/null | wc -l | tr -d ' ')
+  [ "$(sed -n 1p "$R368/fit/f.txt")" = TWO ] && ! grep -q 'full receipt is at' "$R368/fit.json" && ! grep -q '"full_receipt"' "$R368/fit.json" && [ "$before368" = "$after368" ] \
+    && ok "a receipt that fits keeps nothing and names nothing" || bad "fitting receipt: kept $before368 -> $after368, $(head -c 400 "$R368/fit.json")"
+fi
+
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
 # killed process is a zombie until its adopter reaps it, and pgrep lists

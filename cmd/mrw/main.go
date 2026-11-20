@@ -2058,7 +2058,7 @@ held or went unchecked.`,
 					enc := json.NewEncoder(os.Stdout)
 					enc.SetIndent("", "  ")
 					enc.SetEscapeHTML(false)
-					_ = enc.Encode(receipt{Result: res, Pattern: authoring.PatternOf(root), Error: msg, Then: stepsNotRun, RefusedPlan: refusedPlan})
+					_ = enc.Encode(receipt{Result: res, Pattern: authoring.PatternOf(root), Error: msg, Then: stepsNotRun, RefusedPlan: refusedPlan, Mutation: writer.MutationOf(res).String()})
 				}
 				return appendLost(res, err, lost)
 			}
@@ -2409,7 +2409,7 @@ held or went unchecked.`,
 				return refuseWith(res, land.LedgerErr)
 			}
 
-			receipt := receipt{Result: res, RefusedPlan: refusedPlan}
+			receipt := receipt{Result: res, RefusedPlan: refusedPlan, Mutation: writer.MutationOf(res).String()}
 
 			// ADR-055: a landed write joined the recent-window ring in Land,
 			// BEFORE the receipt is rendered, so the receipt can say "3 of
@@ -2563,6 +2563,12 @@ type receipt struct {
 	// RefusedPlan is where a standard-input plan that ended with nothing in the
 	// tree was kept (ADR-176): absent when nothing was kept.
 	RefusedPlan string `json:"refused_plan,omitempty"`
+	// Mutation is how much of the plan reached the tree (#735): "none" (a dry
+	// run, a refusal, a commit that failed before its first file landed),
+	// "partial" (a commit that failed after a file landed) or "complete" (the
+	// plan applied whole, whatever happened after the landing). Always present,
+	// so a caller can tell from any exit code whether resending the plan is safe.
+	Mutation string `json:"mutation"`
 }
 
 // checkReceipt is `mrw check --json`: the check's own flat fields, unchanged,

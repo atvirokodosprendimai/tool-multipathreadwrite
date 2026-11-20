@@ -263,3 +263,6 @@ stats numbering.landed_writes
 stats numbering.numbered_candidates
 stats numbering.numbered_would_refuse
 mcp_read note
+write mutation
+mcp_write mutation
+mcp_write full_receipt

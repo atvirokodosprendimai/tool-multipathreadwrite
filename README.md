@@ -308,6 +308,7 @@ mrw write -
 ```
 
 A plan piped to `mrw write -` that ends with nothing in the tree (a refusal once the plan is read, a dry run, a commit that landed nothing) is kept in `<state home>/mrw-refused/`, the newest 16, beside mrw's state directory and not in it: stderr names the path (`refused_plan` under `--json`), and the caller edits that file and runs the same command with the path in place of `-` instead of sending the plan again (ADR-176).
+Every `mrw write --json` receipt and every `mrw_write` structured result carries `mutation` (`none`, `partial` or `complete`): how much of the plan reached the tree, so an exit 2 can say whether resending is safe. When an MCP result ceiling leaves recovery detail out of every answer, the whole receipt is kept in `<state home>/mrw-receipts/`, the newest 16 (plus any younger than 10 s, until the next save), beside `mrw-refused/`, and the answer names it.
 
 Ops are `replace`, `insert-after`, `insert-before`, `delete`, `create`,
 `unlink`, `rename`. `@@ path - unlink` removes the path. `@@ old - rename`

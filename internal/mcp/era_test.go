@@ -249,6 +249,7 @@ func jsonInner(s string) string {
 // (its default and its text) no longer say the check runs by default: those three strings and the outputSchema `check` description in tools/list, nothing
 // else; and once by ADR-205, whose check: true runs the check on any write: the write description, `check`'s input description, the outputSchema `check` and `then` descriptions, the routing sentence and the instructions' CLI-only list, nothing else;
 // and once by ADR-189, whose read gutter is as wide as its block needs: the transcript's one read answer's served lines, nothing else;
+// and once by #735 and #732, whose write receipt gained `mutation` and `full_receipt`: those two schema properties, the outputSchema's `required` (which gained `mutation`), and the write answer's `"mutation":"none"`, nothing else;
 // before that no answer to a call had changed: the transcript
 // held only initialize, tools/list and that read.
 func TestALegacyResultIsUnchangedByTheModernPath(t *testing.T) {

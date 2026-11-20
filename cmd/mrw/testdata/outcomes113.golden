@@ -36,6 +36,7 @@ pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 st
     "fires": false
   }
   "error": "--then-sh needs a command: a step with none would run nothing and pass"
+  "mutation": "none"
 }
 --then-sh needs a command: a step with none would run nothing and pass
 == then_sh_empty human
@@ -61,6 +62,7 @@ pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 st
     "fires": false
   }
   "error": "open no-such-plan.mrw: no such file or directory — looked in the working directory <CWD>, because --root (<ROOT>) moves the paths INSIDE a plan and not the plan file itself"
+  "mutation": "none"
 }
 open no-such-plan.mrw: no such file or directory — looked in the working directory <CWD>, because --root (<ROOT>) moves the paths INSIDE a plan and not the plan file itself
 == plan_unreadable human
@@ -86,6 +88,7 @@ pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 st
     "fires": false
   }
   "error": "unknown --format \"bogus\" (plan, apply_patch, or search_replace)"
+  "mutation": "none"
 }
 unknown --format "bogus" (plan, apply_patch, or search_replace)
 == format_unknown human
@@ -111,6 +114,7 @@ pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 st
     "fires": false
   }
   "error": "<PLAN>: plan has 1 error(s):\n  line 1: text before the first @@ header: \"not a plan\""
+  "mutation": "none"
 }
 <PLAN>: plan has 1 error(s):
   line 1: text before the first @@ header: "not a plan"
@@ -138,6 +142,7 @@ pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 st
     "fires": false
   }
   "error": "<PLAN>: apply_patch: missing *** Begin Patch"
+  "mutation": "none"
 }
 <PLAN>: apply_patch: missing *** Begin Patch
 == apply_patch_refused human
@@ -163,6 +168,7 @@ pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 st
     "fires": false
   }
   "error": "<PLAN>: search_replace: no line starts <<<<<<< SEARCH: the argument is the SEARCH/REPLACE document, not the file it edits; write the blocks to a file and name it, or name - and send them on standard input"
+  "mutation": "none"
 }
 <PLAN>: search_replace: no line starts <<<<<<< SEARCH: the argument is the SEARCH/REPLACE document, not the file it edits; write the blocks to a file and name it, or name - and send them on standard input
 == search_replace_refused human
@@ -188,6 +194,7 @@ pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 st
     "fires": false
   }
   "error": "<PLAN>: line 1: body=@nope.txt: stat <ROOT>/nope.txt: no such file or directory"
+  "mutation": "none"
 }
 <PLAN>: line 1: body=@nope.txt: stat <ROOT>/nope.txt: no such file or directory
 == body_file_missing human
@@ -213,6 +220,7 @@ pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 st
     "fires": false
   }
   "error": "<PLAN> line 1: @1: the working set has 0 entr(ies)"
+  "mutation": "none"
 }
 <PLAN> line 1: @1: the working set has 0 entr(ies)
 == pointer_unresolved human
@@ -238,6 +246,7 @@ pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 st
     "fires": false
   }
   "error": "<PLAN> line 1: \"\\xff.go\" is not valid UTF-8, and a --json receipt cannot name it as written; drop --json to write it"
+  "mutation": "none"
 }
 <PLAN> line 1: "\xff.go" is not valid UTF-8, and a --json receipt cannot name it as written; drop --json to write it
 == harness_malformed json
@@ -258,6 +267,7 @@ pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 st
     "fires": false
   }
   "error": ".quality-harness.json: unexpected end of JSON input: nothing was written"
+  "mutation": "none"
 }
 .quality-harness.json: unexpected end of JSON input: nothing was written
 == harness_malformed human
@@ -283,6 +293,7 @@ pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 st
     "fires": false
   }
   "error": "--then nosuch: .quality-harness.json \"steps\" has no such step (none are declared): nothing was written"
+  "mutation": "none"
 }
 --then nosuch: .quality-harness.json "steps" has no such step (none are declared): nothing was written
 == then_undeclared human
@@ -308,6 +319,7 @@ pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 st
     "fires": false
   }
   "error": "a check is refused 8 deep (MRW_STEP_DEPTH=8): a check or step that runs mrw again would recurse without end; --no-check writes without it: nothing was written"
+  "mutation": "none"
 }
 a check is refused 8 deep (MRW_STEP_DEPTH=8): a check or step that runs mrw again would recurse without end; --no-check writes without it: nothing was written
 == depth_refused human
@@ -333,6 +345,7 @@ pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 st
     "fires": false
   }
   "error": "the read ledger could not be read, so this call wrote and changed nothing: open <STATE>/mrw/<KEY>/seen: permission denied"
+  "mutation": "none"
 }
 the read ledger could not be read, so this call wrote and changed nothing: open <STATE>/mrw/<KEY>/seen: permission denied
 == ledger_unloadable human
@@ -376,6 +389,7 @@ pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 st
     "window": 0
     "fires": false
   }
+  "mutation": "none"
 }
 1 hunk(s) failed — nothing was written
 == hunk_failed_unread human
@@ -421,6 +435,7 @@ pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 st
     "window": 0
     "fires": false
   }
+  "mutation": "none"
 }
 1 hunk(s) failed — nothing was written
 == dry_run_refused human
@@ -467,6 +482,7 @@ pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 st
     "fires": false
   }
   "error": "d: read <ROOT>/d: is a directory"
+  "mutation": "none"
 }
 d: read <ROOT>/d: is a directory
 == names_a_directory human
@@ -530,6 +546,7 @@ pricing strict_candidates=1 strict_would_refuse=0 strict_would_refuse_broke=0 st
     "fires": false
   }
   "error": "d/x.txt: openat d/.mrw-aside-<X>: permission denied (ALREADY WRITTEN: a.go)"
+  "mutation": "partial"
 }
 d/x.txt: openat d/.mrw-aside-<X>: permission denied (ALREADY WRITTEN: a.go)
 == partial_commit human
@@ -578,6 +595,7 @@ pricing strict_candidates=1 strict_would_refuse=0 strict_would_refuse_broke=0 st
     "fires": false
   }
   "error": "the read ledger could not be updated; whatever this call already did (lines served, changes applied) stands, but is not recorded there, so read the files again before editing them: write <STATE>/mrw/<KEY>/seen: the file is read-only: permission denied"
+  "mutation": "complete"
 }
 the read ledger could not be updated; whatever this call already did (lines served, changes applied) stands, but is not recorded there, so read the files again before editing them: write <STATE>/mrw/<KEY>/seen: the file is read-only: permission denied
 == ledger_failed_no_check human
@@ -625,6 +643,7 @@ pricing strict_candidates=1 strict_would_refuse=0 strict_would_refuse_broke=0 st
     "fires": false
   }
   "error": "the read ledger could not be updated; whatever this call already did (lines served, changes applied) stands, but is not recorded there, so read the files again before editing them: write <STATE>/mrw/<KEY>/seen: the file is read-only: permission denied"
+  "mutation": "complete"
 }
 the read ledger could not be updated; whatever this call already did (lines served, changes applied) stands, but is not recorded there, so read the files again before editing them: write <STATE>/mrw/<KEY>/seen: the file is read-only: permission denied
 == ledger_failed_check_due human
@@ -684,6 +703,7 @@ pricing strict_candidates=1 strict_would_refuse=0 strict_would_refuse_broke=0 st
     ]
     "pruned_logs": 0
   }
+  "mutation": "complete"
 }
 the read ledger could not be updated; whatever this call already did (lines served, changes applied) stands, but is not recorded there, so read the files again before editing them: write <STATE>/mrw/<KEY>/seen: the file is read-only: permission denied
 == ledger_failed_with_step human
@@ -731,6 +751,7 @@ pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 st
     "window": 0
     "fires": false
   }
+  "mutation": "none"
 }
 
 == dry_run human
@@ -777,6 +798,7 @@ pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 st
     "window": 1
     "fires": false
   }
+  "mutation": "complete"
 }
 
 == applied_prose_no_check_due human
@@ -823,6 +845,7 @@ pricing strict_candidates=1 strict_would_refuse=0 strict_would_refuse_broke=0 st
     "window": 1
     "fires": false
   }
+  "mutation": "complete"
 }
 
 == applied_no_check human
@@ -869,6 +892,7 @@ pricing strict_candidates=1 strict_would_refuse=0 strict_would_refuse_broke=0 st
     "window": 1
     "fires": false
   }
+  "mutation": "complete"
 }
 
 == applied_no_harness human
@@ -921,6 +945,7 @@ pricing strict_candidates=1 strict_would_refuse=0 strict_would_refuse_broke=0 st
     "window": 1
     "fires": false
   }
+  "mutation": "complete"
 }
 
 == check_passed human
@@ -979,6 +1004,7 @@ pricing strict_candidates=1 strict_would_refuse=0 strict_would_refuse_broke=0 st
     "window": 1
     "fires": false
   }
+  "mutation": "complete"
 }
 the write applied but the check did not pass — the tree is changed and unverified
 == check_failed human
@@ -1035,6 +1061,7 @@ pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 st
     "window": 1
     "fires": false
   }
+  "mutation": "complete"
 }
 
 == check_demanded_on_prose human
@@ -1089,6 +1116,7 @@ pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 st
     "window": 1
     "fires": false
   }
+  "mutation": "complete"
 }
 the write applied but no check could run: no check declared and no go.mod found — declare one in .quality-harness.json
 == check_demanded_none_declared human
@@ -1137,6 +1165,7 @@ pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 st
     "fires": false
   }
   "error": "open <TMP>/missing/<LOG>: no such file or directory"
+  "mutation": "complete"
 }
 open <TMP>/missing/<LOG>: no such file or directory
 == check_could_not_run human
@@ -1190,6 +1219,7 @@ pricing strict_candidates=1 strict_would_refuse=0 strict_would_refuse_broke=0 st
     "window": 1
     "fires": false
   }
+  "mutation": "complete"
 }
 the write applied but no check could run: could not start: exec: "sh": executable file not found in $PATH — no sh on PATH
 == check_could_not_start human
@@ -1245,6 +1275,7 @@ pricing strict_candidates=1 strict_would_refuse=0 strict_would_refuse_broke=0 st
     "window": 1
     "fires": false
   }
+  "mutation": "complete"
 }
 the write applied but the check did not pass — the tree is changed and unverified
 == check_timed_out human
@@ -1302,6 +1333,7 @@ pricing strict_candidates=1 strict_would_refuse=0 strict_would_refuse_broke=0 st
     "window": 1
     "fires": false
   }
+  "mutation": "complete"
 }
 
 == check_inferred_from_gomod human
@@ -1360,6 +1392,7 @@ pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 st
     "window": 1
     "fires": false
   }
+  "mutation": "complete"
 }
 
 == check_scoped_unlink human
@@ -1427,6 +1460,7 @@ pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 st
     "window": 1
     "fires": false
   }
+  "mutation": "complete"
 }
 
 == check_scoped_rename human
@@ -1486,6 +1520,7 @@ pricing strict_candidates=1 strict_would_refuse=0 strict_would_refuse_broke=0 st
   "drift": [
     "a.go"
   ]
+  "mutation": "complete"
 }
 
 == check_drift human
@@ -1556,6 +1591,7 @@ pricing strict_candidates=1 strict_would_refuse=0 strict_would_refuse_broke=0 st
     ]
     "pruned_logs": 0
   }
+  "mutation": "complete"
 }
 
 == step_passed human
@@ -1628,6 +1664,7 @@ pricing strict_candidates=1 strict_would_refuse=0 strict_would_refuse_broke=0 st
     ]
     "pruned_logs": 0
   }
+  "mutation": "complete"
 }
 
 == step_named_passed human
@@ -1704,6 +1741,7 @@ pricing strict_candidates=1 strict_would_refuse=0 strict_would_refuse_broke=0 st
     ]
     "pruned_logs": 0
   }
+  "mutation": "complete"
 }
 the write applied but step 1 (--then-sh) did not pass — the tree is changed and unverified
 == step_failed human
@@ -1775,6 +1813,7 @@ pricing strict_candidates=1 strict_would_refuse=0 strict_would_refuse_broke=0 st
     ]
     "pruned_logs": 0
   }
+  "mutation": "complete"
 }
 the write applied but step 1 (--then-sh) did not pass — the tree is changed and unverified
 == step_timed_out human
@@ -1844,6 +1883,7 @@ pricing strict_candidates=1 strict_would_refuse=0 strict_would_refuse_broke=0 st
     ]
     "pruned_logs": 0
   }
+  "mutation": "complete"
 }
 the write applied but the check did not pass — the tree is changed and unverified
 == step_after_failed_check human
@@ -1906,6 +1946,7 @@ pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 st
     ]
     "pruned_logs": 0
   }
+  "mutation": "complete"
 }
 the write applied but step 1 (--then-sh) could not start: exec: "sh": executable file not found in $PATH — no sh on PATH
 == step_could_not_start human
@@ -1960,6 +2001,7 @@ pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 st
     "window": 1
     "fires": false
   }
+  "mutation": "complete"
 }
 
 == strict_balance_advisory human
@@ -2009,6 +2051,7 @@ pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 st
     "window": 0
     "fires": false
   }
+  "mutation": "none"
 }
 1 hunk(s) failed — nothing was written
 == strict_balance_refused human
@@ -2061,6 +2104,7 @@ pricing strict_candidates=1 strict_would_refuse=1 strict_would_refuse_broke=0 st
     "window": 1
     "fires": false
   }
+  "mutation": "complete"
 }
 
 == pricing_would_refuse_held human
@@ -2118,6 +2162,7 @@ pricing strict_candidates=1 strict_would_refuse=1 strict_would_refuse_broke=1 st
     "window": 1
     "fires": false
   }
+  "mutation": "complete"
 }
 the write applied but the check did not pass — the tree is changed and unverified
 == pricing_would_refuse_broke human
@@ -2174,6 +2219,7 @@ pricing strict_candidates=3 strict_would_refuse=1 strict_would_refuse_broke=0 st
     "window": 3
     "fires": true
   }
+  "mutation": "complete"
 }
 
 == pattern_fires human
