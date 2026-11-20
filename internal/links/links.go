@@ -78,7 +78,7 @@ func Through(p string, lfs FS) (string, error) {
 		}
 		target, err := lfs.Readlink(next)
 		if err != nil {
-			if fi.Mode()&os.ModeSymlink == 0 && errors.Is(err, fs.ErrNotExist) {
+			if fi.Mode()&os.ModeSymlink == 0 && errors.Is(err, fs.ErrNotExist) && !platformUnreachable(err) {
 				cur = next // a reparse point that redirects nothing
 				continue
 			}
