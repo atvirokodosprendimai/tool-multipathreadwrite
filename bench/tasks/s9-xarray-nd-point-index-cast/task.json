@@ -3,7 +3,7 @@
   "shape": "control",
   "repo": "pydata/xarray",
   "commit": "a2dc5dcd5df630014ea095a64412e036fee6f2d9",
-  "instruction": "In xarray/indexes/nd_point_index.py, add cast at the end of the line \"from typing import TYPE_CHECKING, Any, Generic, TypeVar\", then change \"tree_adapter_cls = ScipyKDTreeAdapter\" to \"tree_adapter_cls = cast(type[T_TreeAdapter], ScipyKDTreeAdapter)\".",
+  "instruction": "In xarray/indexes/nd_point_index.py, where NDPointIndex falls back to ScipyKDTreeAdapter for tree_adapter_cls, cast that default to type[T_TreeAdapter] for the type checker. Import cast on the existing from typing import line, where that line's sorted order puts it. Change nothing else.",
   "exact": true,
   "require": [
     {"file": "xarray/indexes/nd_point_index.py", "match": "(?m)^from typing import TYPE_CHECKING, Any, Generic, TypeVar, cast$"},

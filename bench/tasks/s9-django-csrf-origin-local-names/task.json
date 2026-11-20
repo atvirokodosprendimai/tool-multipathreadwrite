@@ -3,7 +3,7 @@
   "shape": "control",
   "repo": "django/django",
   "commit": "014be2f0dabb1eea4748df528edf65878dcfdecc",
-  "instruction": "In django/middleware/csrf.py, in the method that checks an origin against allowed_origin_subdomains, rename the local variable request_scheme to parsed_origin_scheme and request_netloc to parsed_origin_netloc: their two assignments, and their uses in the any(...) expression below them. Change nothing else.",
+  "instruction": "In django/middleware/csrf.py, in the method that checks an origin against allowed_origin_subdomains, rename the locals request_scheme and request_netloc to parsed_origin_scheme and parsed_origin_netloc, since they come from parsed_origin, not from the request. Change nothing else.",
   "exact": true,
   "require": [
     {"file": "django/middleware/csrf.py", "match": "(?m)^        parsed_origin_scheme = parsed_origin\\.scheme$"},

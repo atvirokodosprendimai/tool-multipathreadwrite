@@ -3,7 +3,7 @@
   "shape": "control",
   "repo": "psf/requests",
   "commit": "6d082ea9724a6dc75d14c08ebe3d4f4ac7b6610f",
-  "instruction": "In requests/help.py, rename the function information to info: its definition, and the call to it inside main. Change nothing else.",
+  "instruction": "In requests/help.py, rename the function information to info, and update its caller in main. Change nothing else.",
   "exact": true,
   "require": [
     {"file": "requests/help.py", "match": "(?m)^def info\\(\\):$"},

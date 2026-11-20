@@ -3,7 +3,7 @@
   "shape": "follow-on",
   "repo": "pytest-dev/pytest",
   "commit": "8f81c76744daf72d4f77cfc8423f4bdc60733d78",
-  "instruction": "In src/_pytest/config/argparsing.py, make Argument.__repr__ cope with an Argument whose _action is not set yet. Right before the line \"args: list[str] = []\" add three lines: 'action = getattr(self, \"_action\", None)', 'if action is None:', and, indented one level deeper, 'return \"Argument(<uninitialized>)\"'. Then change the later test \"if self._action.type:\" to \"if action.type:\".",
+  "instruction": "In src/_pytest/config/argparsing.py, Argument.__repr__ fails on an Argument whose _action is not set yet. At the start of __repr__, take action = getattr(self, \"_action\", None) and return \"Argument(<uninitialized>)\" when it is None, with no blank line after that return; then use action in place of self._action in the method's type test. Change nothing else.",
   "exact": true,
   "require": [
     {"file": "src/_pytest/config/argparsing.py", "match": "(?m)^        action = getattr\\(self, \"_action\", None\\)$"},

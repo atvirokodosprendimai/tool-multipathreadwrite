@@ -3,7 +3,7 @@
   "shape": "control",
   "repo": "pylint-dev/pylint",
   "commit": "77a2b07d3160bfe05a4f21adef6a718dc52491b3",
-  "instruction": "In pylint/extensions/typing.py, add TypeGuard to the line \"from typing import TYPE_CHECKING, NamedTuple\" (at its end), then change the return annotation of _is_deprecated_union_annotation from bool to TypeGuard[nodes.Subscript]. Change nothing else.",
+  "instruction": "In pylint/extensions/typing.py, make _is_deprecated_union_annotation a type guard: its return annotation becomes TypeGuard[nodes.Subscript] in place of bool. Import TypeGuard on the existing from typing import line, where that line's sorted order puts it. Change nothing else.",
   "exact": true,
   "require": [
     {"file": "pylint/extensions/typing.py", "match": "(?m)^from typing import TYPE_CHECKING, NamedTuple, TypeGuard$"},

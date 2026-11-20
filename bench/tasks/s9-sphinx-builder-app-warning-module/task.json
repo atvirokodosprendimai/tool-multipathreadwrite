@@ -3,7 +3,7 @@
   "shape": "follow-on",
   "repo": "sphinx-doc/sphinx",
   "commit": "acdf4a86980efdb37146169fc09d435e54a4a47d",
-  "instruction": "In sphinx/builders/__init__.py, in the app property, add the line \"cls_module = self.__class__.__module__\" just before the line that sets cls_name. Then pass cls_module instead of __name__ as the first argument of the _deprecation_warning call below it.",
+  "instruction": "In sphinx/builders/__init__.py, the Builder.app property's deprecation warning names this module (__name__) rather than the module of the builder's own class. Take that module into a local cls_module = self.__class__.__module__, set just before cls_name is, and pass cls_module as the warning's first argument. Change nothing else.",
   "exact": true,
   "require": [
     {"file": "sphinx/builders/__init__.py", "match": "(?m)^        cls_module = self\\.__class__\\.__module__$"},

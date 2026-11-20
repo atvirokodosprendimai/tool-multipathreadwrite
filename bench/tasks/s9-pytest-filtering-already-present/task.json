@@ -3,7 +3,7 @@
   "shape": "follow-on",
   "repo": "pytest-dev/pytest",
   "commit": "d889ca0f3b8c45f92ef90f34e67ddbaa2c988134",
-  "instruction": "In src/_pytest/logging.py, make LogCaptureFixture.filtering leave a filter that was already on the handler alone. Before \"self.handler.addFilter(filter_)\" add the line \"already_present = filter_ in self.handler.filters\", and make that addFilter call run only \"if not already_present:\" (indent it under that line). Then make the removeFilter call in the finally block run only under \"if not already_present:\" too.",
+  "instruction": "In src/_pytest/logging.py, LogCaptureFixture.filtering removes the filter when it exits even if the filter was already on the handler before. Record that first in a local, already_present = filter_ in self.handler.filters, and both add the filter and, in the finally block, remove it only if not already_present. Change nothing else.",
   "exact": true,
   "require": [
     {"file": "src/_pytest/logging.py", "match": "(?m)^        already_present = filter_ in self\\.handler\\.filters$"},

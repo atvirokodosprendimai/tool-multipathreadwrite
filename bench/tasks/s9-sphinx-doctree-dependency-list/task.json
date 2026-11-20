@@ -3,7 +3,7 @@
   "shape": "follow-on",
   "repo": "sphinx-doc/sphinx",
   "commit": "a672c54642ee57c152a5a8b21444c2afbbcec24a",
-  "instruction": "In sphinx/builders/__init__.py, import DependencyList with a new line \"from docutils.utils import DependencyList\" right after the line \"from docutils import nodes\". Then in write_doctree, set doctree.settings.record_dependencies to DependencyList() instead of None.",
+  "instruction": "In sphinx/builders/__init__.py, write_doctree sets the doctree's record_dependencies to None before it pickles the doctree; set it to an empty DependencyList() instead. Import DependencyList from docutils.utils, in the place the module's sorted imports put it. Change nothing else.",
   "exact": true,
   "require": [
     {"file": "sphinx/builders/__init__.py", "match": "(?m)^from docutils\\.utils import DependencyList$"},
