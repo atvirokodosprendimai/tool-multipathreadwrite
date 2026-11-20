@@ -48,12 +48,12 @@ test "$(v seed)" = 206 && test "$(v 'max turns')" = 60 \
          jq -e --arg h "$(v "$a sha256")" --arg s "$(v 'instructions sha256')" --arg c "$(v 'claude code')" --arg sl "$(v 'status line sha256')" '.mrw_sha256 == $h and .mrw_instructions_sha256 == $s and .cli_version == $c and .status_line_sha256 == $sl and .keep_diff == true and (.tasks | length) == 2' $R/smoke/$m/$a/run.json > /dev/null || exit 1
        done
        jq -e --arg c "$(v 'claude code')" '.configs == ["A"] and .cli_version == $c and (.tasks | length) == 2' $R/smoke/$m/a/run.json > /dev/null || exit 1
-       for a in a m n; do d=0; for r in $R/smoke/$m/$a/*.receipt.json; do [ -f "${r%.receipt.json}.diff" ] || exit 1; d=$((d+1)); done; [ $d -ge 2 ] || exit 1; done
+       for a in a m n; do d=0; for r in $R/smoke/$m/$a/*.receipt.json; do h=$(jq -r '.kept_diff_sha256 // empty' "$r"); [ -n "$h" ] && test "$h" = "$(shasum -a 256 "${r%.receipt.json}.diff" | cut -d' ' -f1)" || exit 1; d=$((d+1)); done; [ $d -ge 2 ] || exit 1; done
        k=0; for r in $R/smoke/$m/n/*.receipt.json; do h=$(jq -r '.kept_state_file_sha256 // empty' "$r"); [ -n "$h" ] || continue; test "$h" = "$(shasum -a 256 "${r%.receipt.json}.kept" | cut -d' ' -f1)" || exit 1; k=$((k+1)); done; [ $k -ge 1 ] || exit 1
      done \
   && jq -e '.max_spend_usd == 0.01 and (.tasks | length) == 2' $R/smoke/stop/run.json > /dev/null \
   && [ "$(ls $R/smoke/stop/*.started | wc -l | tr -d ' ')" -eq 1 ] \
-  && s=$(ls $R/smoke/stop/*.started) && jq -e '.total_cost_usd >= 0.01' "${s%.started}.receipt.json" > /dev/null
+  && s=$(ls $R/smoke/stop/*.started) && i=$(basename "${s%.started}") && jq -e --arg i "$i" '.attempt == $i and (.total_cost_usd | type) == "number" and .total_cost_usd >= 0.01' "${s%.started}.receipt.json" > /dev/null
 ```
 
 ## Tests
