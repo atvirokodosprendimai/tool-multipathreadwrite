@@ -70,8 +70,12 @@ type jobAPI interface {
 type jobTree struct {
 	api jobAPI
 	ctx context.Context // the Command's; nil in tests that need none
-	mu  sync.Mutex
-	job uintptr
+	// exited, when set, is called once Wait has returned, before the job is
+	// terminated and closed: the cancellation a caller reads there is the one the
+	// command lived through, not the cleanup's (#734).
+	exited func()
+	mu     sync.Mutex
+	job    uintptr
 }
 
 // cancel stops the child's whole tree: before the child is in its job, kill
@@ -130,6 +134,9 @@ func runInJob(c *exec.Cmd, t *jobTree) error {
 		return fmt.Errorf("%w: %w", ErrNotContained, err)
 	}
 	waitErr := c.Wait()
+	if t.exited != nil {
+		t.exited()
+	}
 	t.mu.Lock()
 	_ = t.api.terminate(job)
 	_ = t.api.close(job)

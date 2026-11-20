@@ -129,7 +129,7 @@ func compileSearchHunk(root, path string, search, replace []string) (string, err
 		if end > start {
 			anchor = search[0]
 		}
-		return emitMarked("replace", path, start, end, replace, anchor, quote.Mark(path, start, end, tail, search)), nil
+		return emitMarked("replace", path, start, end, replace, anchor, quote.Mark(path, start, end, tail, search), ""), nil
 	default:
 		return "", fmt.Errorf("search_replace: %s: SEARCH matched %d times; refuse rather than guess", path, n)
 	}

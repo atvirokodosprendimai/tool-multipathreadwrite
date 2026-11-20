@@ -7,6 +7,8 @@
 package ingest
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"strings"
@@ -25,9 +27,23 @@ const (
 	moveTo     = "*** Move to:"
 )
 
+// AfterCompile is a hook: when set, it is called once a document has compiled,
+// before CompileApplyPatch returns. A test sets it to land another writer's change
+// between the compile and the write lock, which no binary invocation can do: it
+// is how the public callers' forwarding of the compiled sha= is tested (#729).
+var AfterCompile func()
+
 // CompileApplyPatch turns a Codex apply_patch document into native plan text.
 // root is the checkout the paths are relative to. The function writes nothing.
 func CompileApplyPatch(root string, doc []byte) ([]byte, error) {
+	out, err := compileApplyPatch(root, doc)
+	if err == nil && AfterCompile != nil {
+		AfterCompile()
+	}
+	return out, err
+}
+
+func compileApplyPatch(root string, doc []byte) ([]byte, error) {
 	doc, _ = DropLeadingMarks(doc)
 	s := strings.ReplaceAll(string(doc), "\r\n", "\n")
 	s = strings.ReplaceAll(s, "\r", "\n")
@@ -286,7 +302,7 @@ func compileHunk(root, path, kind string, hunk []string) (string, error) {
 	if len(old) == 0 {
 		return "", fmt.Errorf("apply_patch: %s: update hunk has no old side (use Add File, or give context)", path)
 	}
-	lines, err := fileLines(root, path)
+	lines, sha, err := fileLines(root, path)
 	if err != nil {
 		return "", err
 	}
@@ -299,7 +315,10 @@ func compileHunk(root, path, kind string, hunk []string) (string, error) {
 		if end > start {
 			anchor = old[0]
 		}
-		return emit("replace", path, start, end, neu, anchor), nil
+		// The numbers are the file as the compiler read it, before the write lock
+		// is taken; sha= makes the write refuse if another writer's change landed
+		// in between, as the numbers would then name other lines (#729).
+		return emitMarked("replace", path, start, end, neu, anchor, "", sha), nil
 	default:
 		return "", fmt.Errorf("apply_patch: %s: old side matched %d times; refuse rather than guess", path, n)
 	}
@@ -335,19 +354,22 @@ func plusLine(line string) (string, bool) {
 	return line[1:], true
 }
 
-func fileLines(root, path string) ([]string, error) {
+func fileLines(root, path string) ([]string, string, error) {
 	full, err := rooted.Resolve(root, path)
 	if err != nil {
-		return nil, fmt.Errorf("apply_patch: %w", err)
+		return nil, "", fmt.Errorf("apply_patch: %w", err)
 	}
 	b, err := targetBytes(full)
 	if err != nil {
-		return nil, fmt.Errorf("apply_patch: %s: %w", path, err)
+		return nil, "", fmt.Errorf("apply_patch: %s: %w", path, err)
 	}
 	// The target's lines as the write engine numbers them (ADR-065): an LF
 	// patch then meets "two", not "two\r", in a CRLF or CR-only file.
 	ls, _, _ := lines.Split(string(b))
-	return ls, nil
+	// The engine's hash of a file's text (apply.shaOf) is the sha256 of its bytes:
+	// the lines rejoin with their own endings to the bytes, empty file included.
+	sum := sha256.Sum256(b)
+	return ls, hex.EncodeToString(sum[:]), nil
 }
 
 // targetBytes reads the file a foreign document edits, to locate its old side.
@@ -413,12 +435,13 @@ func emitPath(op, path string, body []string) string {
 }
 
 func emit(op, path string, start, end int, body []string, anchor string) string {
-	return emitMarked(op, path, start, end, body, anchor, "")
+	return emitMarked(op, path, start, end, body, anchor, "", "")
 }
 
 // emitMarked is emit with the quote mark of a SEARCH block that quoted the
-// lines it replaces (ADR-190); apply_patch writes none.
-func emitMarked(op, path string, start, end int, body []string, anchor, mark string) string {
+// lines it replaces (ADR-190) and the sha of the file the numbers were taken
+// from, which apply_patch guards its replace with (#729).
+func emitMarked(op, path string, start, end int, body []string, anchor, mark, sha string) string {
 	var b strings.Builder
 	addr := fmt.Sprintf("%d", start)
 	if op != "create" && end != start {
@@ -430,6 +453,9 @@ func emitMarked(op, path string, start, end int, body []string, anchor, mark str
 	}
 	if mark != "" {
 		fmt.Fprintf(&b, " quote=%s", mark)
+	}
+	if sha != "" {
+		fmt.Fprintf(&b, " sha=%s", sha[:16])
 	}
 	// A body with an @@ line needs a count so the parser knows where it ends;
 	// one whose first line begins body= needs one so the parser does not refuse

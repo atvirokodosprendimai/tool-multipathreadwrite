@@ -95,6 +95,17 @@ func Run(c *exec.Cmd) error {
 	return run(c)
 }
 
+// RunObserved is Run, and also says whether ctx was already done when the command
+// exited, before its process group was reaped (#734). The reap can take up to
+// waitDelay, and a deadline or a signal that lands inside it did not stop the
+// command: its own exit status was already in hand. A caller that reads ctx after
+// Run cannot tell the two apart. On Windows, where the job is closed inside the
+// run, the answer is read after it, as ctx would be.
+func RunObserved(ctx context.Context, c *exec.Cmd) (ctxAtExit error, err error) {
+	err = runObserved(c, func() { ctxAtExit = ctx.Err() })
+	return ctxAtExit, err
+}
+
 // ErrOutputTooLarge is Output's refusal of an answer over its limit (ADR-104).
 type ErrOutputTooLarge struct {
 	Size, Limit int64

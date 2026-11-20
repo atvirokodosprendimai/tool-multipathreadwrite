@@ -15,3 +15,10 @@ func group(_ context.Context, c *exec.Cmd) {}
 func run(c *exec.Cmd) error {
 	return c.Run()
 }
+
+// runObserved is run, observed once it has returned.
+func runObserved(c *exec.Cmd, exited func()) error {
+	err := run(c)
+	exited()
+	return err
+}

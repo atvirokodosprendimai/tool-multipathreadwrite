@@ -26,6 +26,8 @@ func TestJobHelper(t *testing.T) {
 	switch mode {
 	case "exit0":
 		os.Exit(0)
+	case "exit1":
+		os.Exit(1)
 	case "sleep":
 		time.Sleep(30 * time.Second)
 	case "grandchild":
@@ -59,10 +61,11 @@ func helper(mode string, env ...string) *exec.Cmd {
 
 // fakeJobs records the calls runInJob makes, and fails the ones a test names.
 type fakeJobs struct {
-	mu        sync.Mutex
-	calls     []string
-	pid       int
-	assignErr error
+	mu          sync.Mutex
+	calls       []string
+	pid         int
+	assignErr   error
+	onTerminate func() // runs inside terminate, as a cancel landing during cleanup
 }
 
 func (f *fakeJobs) record(s string) {
@@ -77,9 +80,15 @@ func (f *fakeJobs) assign(job uintptr, pid int) error {
 	f.pid = pid
 	return f.assignErr
 }
-func (f *fakeJobs) resume(pid int) error        { f.record("resume"); return nil }
-func (f *fakeJobs) terminate(job uintptr) error { f.record("terminate"); return nil }
-func (f *fakeJobs) close(job uintptr) error     { f.record("close"); return nil }
+func (f *fakeJobs) resume(pid int) error { f.record("resume"); return nil }
+func (f *fakeJobs) terminate(job uintptr) error {
+	f.record("terminate")
+	if f.onTerminate != nil {
+		f.onTerminate()
+	}
+	return nil
+}
+func (f *fakeJobs) close(job uintptr) error { f.record("close"); return nil }
 
 func (f *fakeJobs) got() []string {
 	f.mu.Lock()
@@ -173,5 +182,27 @@ func TestTheJobLimitStructHasTheWin32Size(t *testing.T) {
 	}
 	if got := unsafe.Sizeof(extendedLimitInformation{}); got != 144 {
 		t.Fatalf("extendedLimitInformation is %d bytes, Win32 says 144", got)
+	}
+}
+
+// Review of #736 (Windows). A child that exited 1 on its own, with a cancel
+// landing while its job is being terminated, keeps its exit status: the context
+// is read right after Wait, before the cleanup the cancel belongs to.
+func TestACancelDuringTheJobCleanupDoesNotReachAnObservedExit(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	f := &fakeJobs{onTerminate: cancel}
+	var ctxAtExit error
+	tree := &jobTree{api: f, ctx: ctx, exited: func() { ctxAtExit = ctx.Err() }}
+	err := runInJob(helper("exit1"), tree)
+	var ee *exec.ExitError
+	if !errors.As(err, &ee) || ee.ExitCode() != 1 {
+		t.Fatalf("err %v, want the child's own exit 1", err)
+	}
+	if ctxAtExit != nil {
+		t.Errorf("the context read after Wait was already %v: the cancel of the cleanup reached an observed exit", ctxAtExit)
+	}
+	if ctx.Err() == nil {
+		t.Error("the fake terminate did not cancel: the fixture is not reaching the cleanup")
 	}
 }
