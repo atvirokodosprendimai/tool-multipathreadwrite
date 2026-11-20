@@ -184,6 +184,14 @@ func RunCanary(o RunOptions, task Task, claudeMD string) (CanaryReceipt, error) 
 		if r.InitModel != "" {
 			c.InitModels[name] = r.InitModel
 		}
+		// The missing-cost stop is reached the moment an attempt records no cost:
+		// canary.json is written and the exit is 3 before anything else, a transcript
+		// that cannot be read included (review of #751).
+		if r.CostUSD == nil {
+			if why := canarySpendStop(c, o.MaxSpend); why != "" {
+				return stopCanary(o, &c, why)
+			}
+		}
 		var problems []string
 		if r.Exclusion != "" || r.IsError {
 			problems = append(problems, fmt.Sprintf("the attempt did not run cleanly: exclusion %q, error %v, exit %d %s", r.Exclusion, r.IsError, r.ExitCode, r.Note))

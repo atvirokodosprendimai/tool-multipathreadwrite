@@ -110,17 +110,22 @@ func Oracle(t Task, dir, base string) (Verdict, error) {
 			v.Missing = append(v.Missing, fmt.Sprintf("%s: still matches %s", m.File, m.Match))
 		}
 	}
+	// ADR-211 Decision 11 (#709): the tests that grade are the task's, not the
+	// ones the agent left in the package, and they come back before the structural
+	// check: a test file the agent broke is replaced, or removed, and cannot fail
+	// the grade of a fix (review of #751). Only a tree that is otherwise graded
+	// solvable is rewritten; one the verdict already refuses is left as it is.
+	if t.TestPackage != "" && len(v.Missing)+len(v.Outside) == 0 {
+		if err := t.restoreTests(dir, base); err != nil {
+			return v, err
+		}
+	}
 	for _, c := range changed {
 		if msg := structural(filepath.Join(dir, c.file)); msg != "" {
 			v.Structure = append(v.Structure, c.file+": "+msg)
 		}
 	}
 	if t.TestPackage != "" && len(v.Missing)+len(v.Outside)+len(v.Structure) == 0 {
-		// ADR-211 Decision 11 (#709): the tests that grade are the task's, not
-		// the ones the agent left in the package.
-		if err := t.restoreTests(dir, base); err != nil {
-			return v, err
-		}
 		msg, err := packageTests(dir, t.TestPackage, t.AssertingTests)
 		if err != nil {
 			return v, err
@@ -174,7 +179,7 @@ func (t Task) restoreTests(dir, base string) error {
 		return err
 	}
 	for _, e := range ents {
-		f := t.TestPackage + "/" + e.Name()
+		f := path.Join(t.TestPackage, e.Name()) // "." is the root: its files are keyed without a directory
 		if _, ok := want[f]; !ok && strings.HasSuffix(e.Name(), "_test.go") {
 			if err := os.RemoveAll(filepath.Join(dir, filepath.FromSlash(f))); err != nil {
 				return err

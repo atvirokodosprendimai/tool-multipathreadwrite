@@ -603,14 +603,19 @@ func TestARunPinsItsMrwItsInstructionsAndItsSpend(t *testing.T) {
 		}
 		refused("freeold", "a run that pins nothing, on a canary that recorded no model", run("freeold", noModel, false, false))
 
-		two := func(name, model string) error {
+		two := func(name string, models ...string) error {
 			o := rig.opts
 			o.Models = []string{"stub-model", "second-model"}
-			o.Canary, o.Out, o.MrwInstructions = canary(rig.sha, insSHA, model), filepath.Join(rig.dir, "out-"+name), instr
+			o.Canary, o.Out, o.MrwInstructions = canary(rig.sha, insSHA, models[0]), filepath.Join(rig.dir, "out-"+name), instr
+			for _, m := range models[1:] {
+				o.MoreCanaries = append(o.MoreCanaries, canary(rig.sha, insSHA, m))
+			}
 			return Run(o)
 		}
-		if err := two("two", "second-model"); err != nil {
-			t.Errorf("a pinned run of two models, on a canary of one of them: %v", err)
+		// A canary authorises the model it ran: two models need a canary of each (the review of #751).
+		refused("two", "a pinned run of two models, on a canary of one of them", two("two", "second-model"))
+		if err := two("twoboth", "stub-model", "second-model"); err != nil {
+			t.Errorf("a pinned run of two models, on a canary of each: %v", err)
 		}
 		refused("twoother", "a pinned run of two models, on a canary of neither", two("twoother", "third-model"))
 		// RunCanary records what it ran.

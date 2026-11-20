@@ -184,7 +184,8 @@ func runWith(args []string, start func(bench.RunOptions) error) error {
 	fs, o, models, tasksDir := stageFlags("run")
 	var only multi
 	fs.StringVar(&o.Stage, "stage", "", "the stage's name")
-	fs.StringVar(&o.Canary, "canary", "", "a passing canary.json for this CLI version")
+	var canaries multi
+	fs.Var(&canaries, "canary", "a passing canary.json for this CLI version; one for each model the run schedules (repeatable)")
 	fs.Var(&only, "task", "run only this task (repeatable); default every measured task")
 	configs := fs.String("configs", "A,B", "the configurations: A, B, H (B plus the Read tool, ADR-191's read hook and one sentence, under --profile stage7), S (B plus one paragraph of edit instructions, under --profile stage8 with B), P (the quality-harness plugin, under --profile stage5 with --plugin-dir), W (P plus --work-line's line, under --profile stage6), and the side arms G (P with its hooks run by the qh binary) and C (P with turnEnd notify), under --profile stage6 with --side-arms and beside P")
 	fs.IntVar(&o.Repeats, "repeats", 2, "attempts per task, configuration and model")
@@ -202,6 +203,9 @@ func runWith(args []string, start func(bench.RunOptions) error) error {
 	python := fs.String("swebench-python", "", "an interpreter with the SWE-bench harness installed")
 	if err := fs.Parse(args); err != nil {
 		return err
+	}
+	if len(canaries) > 0 {
+		o.Canary, o.MoreCanaries = canaries[0], canaries[1:]
 	}
 	o.Models, o.Configs = *models, strings.Split(*configs, ",")
 	for _, s := range configsFor {

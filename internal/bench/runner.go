@@ -210,6 +210,10 @@ type RunOptions struct {
 	mrwSHA          string  // their SHA-256
 	instr           []byte  // MrwInstructions' bytes
 	instrSHA        string  // their SHA-256
+
+	// MoreCanaries are further canaries, one for each further model the run
+	// schedules: a canary authorises the one model it ran (ADR-211 Decision 8).
+	MoreCanaries []string
 }
 
 // plan is what run.json records; a second Run into the same directory must
@@ -292,7 +296,7 @@ func Run(o RunOptions) (err error) {
 	if err != nil {
 		return fmt.Errorf("%s --version: %w", o.Claude, err)
 	}
-	if err := checkCanary(o.Canary, cli, o); err != nil {
+	if err := checkCanaries(o, cli); err != nil {
 		return err
 	}
 	if o.Block > 0 {
@@ -762,6 +766,36 @@ func Verify(dir, stage string, tasks, repeats int) error {
 // and repeat rep, and for a side arm records what run.json says it ran.
 func readsBack(p plan, r Receipt, id, t, c, m string, rep int) bool {
 	return r.Attempt == id && r.Task == t && r.Config == c && r.Model == m && r.Repeat == rep && (!isSide(c) || sameMeta(r.Side, p.Side[c])) && r.MrwSHA256 == wantMrwSHA(p, c)
+}
+
+// checkCanaries judges every canary the run was given and refuses a run that
+// schedules a model none of them covers: a canary authorises the one model it ran,
+// so `--model opus --model sonnet` needs one of each (ADR-211 Decision 8; the
+// review of #751).
+func checkCanaries(o RunOptions, cli string) error {
+	covered := map[string]bool{}
+	for _, p := range append([]string{o.Canary}, o.MoreCanaries...) {
+		if err := checkCanary(p, cli, o); err != nil {
+			return err
+		}
+		var c struct {
+			Model string `json:"model"`
+		}
+		b, err := os.ReadFile(p)
+		if err == nil {
+			err = json.Unmarshal(b, &c)
+		}
+		if err != nil {
+			return fmt.Errorf("canary %s: %w", p, err)
+		}
+		covered[c.Model] = true
+	}
+	for _, m := range o.Models {
+		if !covered[m] {
+			return fmt.Errorf("no canary of model %q: a run of several models needs one --canary of each, since a canary authorises the model it ran (ADR-211 Decision 8)", m)
+		}
+	}
+	return nil
 }
 
 // checkCanary refuses a stage whose canary did not pass for this CLI version.
