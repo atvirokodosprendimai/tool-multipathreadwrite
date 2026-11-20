@@ -658,7 +658,7 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			// comparison — the blindness loading it now exists to avoid — so
 			// the file is refused. On darwin and Linux this cannot fail.
 			if !sameFileFn(info, info) {
-				refuseFile(results, path, hs, 0, identityRefusal(path, full))
+				refuseFile(results, path, hs, 0, identityRefusal(root, path, full))
 				failed = append(failed, FileResult{Path: path})
 				continue
 			}
@@ -2744,7 +2744,7 @@ func changedSince(tr *tree, p string, was fs.FileInfo) (string, error) {
 		// read as "another file replaced it", the target's doing. An open says
 		// what the failure was; one nothing explains is the environment's
 		// (the Codex review of #347).
-		f, _, oerr := regular.Open(p)
+		f, _, oerr := tr.openRead(p)
 		if oerr != nil {
 			return fmt.Sprintf("its identity could not be read (%v)", oerr), oerr
 		}
@@ -2772,7 +2772,7 @@ func statHeld(root, full string) (fs.FileInfo, error) {
 		return fi, nil
 	}
 	if errors.Is(err, regular.ErrNotRegular) || errors.Is(err, fs.ErrPermission) {
-		return os.Stat(full)
+		return rooted.StatRead(root, full)
 	}
 	return nil, err
 }

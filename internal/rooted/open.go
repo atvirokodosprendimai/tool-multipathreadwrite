@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/regular"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/state"
 )
 
 // openGapFn runs between the last name-based step of Open and the open beneath
@@ -41,6 +42,11 @@ type Reader struct {
 	// the cost of a read of a large tree. Anything the held root refuses is
 	// judged again, in full.
 	walk bool
+	// stateIn is set for a walk whose root and mrw's state directory contain one
+	// another (XDG_STATE_HOME inside the checkout, or the root inside the state):
+	// then the walk's files are judged again, state check included (ADR-077),
+	// because a swap could lead a discovered file into the state. Computed once.
+	stateIn bool
 	// dirs holds the directories a walk is reading from, each opened once as an
 	// os.Root of its own (confined by the held root), so that a file costs one
 	// openat and not one per component: opening through the held root alone was
@@ -146,6 +152,17 @@ func NewReader(root string) (*Reader, error) {
 	return &Reader{abs: abs, r: r}, nil
 }
 
+// stateTouches reports whether mrw's state directory lies inside abs, or abs
+// inside it: only then can a discovered file be led into the state (ADR-077).
+func stateTouches(abs string) bool {
+	base, err := state.Base()
+	if err != nil {
+		return false
+	}
+	b, _ := resolvedBase(base)
+	return Contains(abs, b) || Contains(b, abs)
+}
+
 // NewWalkReader is NewReader for the walk of a tree, whose files it has already
 // resolved: see Reader.walk. A file the walk did not discover, one it was named,
 // is opened by Open's full judgement when the held root refuses it as written.
@@ -153,6 +170,7 @@ func NewWalkReader(root string) (*Reader, error) {
 	rd, err := NewReader(root)
 	if rd != nil {
 		rd.walk = true
+		rd.stateIn = stateTouches(rd.abs)
 	}
 	return rd, err
 }
@@ -188,7 +206,7 @@ func OpenRead(root, full string) (*os.File, fs.FileInfo, error) {
 // have changed). A link that resolves to nothing is a file that does not exist,
 // whatever it points at.
 func (rd *Reader) Open(full string) (*os.File, fs.FileInfo, error) {
-	if rd.walk && rd.r != nil {
+	if rd.walk && !rd.stateIn && rd.r != nil {
 		if rel, err := filepath.Rel(rd.abs, full); err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) && !filepath.IsAbs(rel) {
 			openGapFn()
 			if f, fi, err := rd.openWalked(rel); err == nil {
@@ -215,6 +233,27 @@ func (rd *Reader) Open(full string) (*os.File, fs.FileInfo, error) {
 		}
 	}
 	return rd.openByName(rel, resolved)
+}
+
+// StatRead describes the file full, under root, through a root held for the
+// one call: its type and size are those of the file the root reaches, and an
+// outside file's are never reported (#727). For what OpenRead cannot open, a
+// FIFO or a file the process may not read.
+func StatRead(root, full string) (fs.FileInfo, error) {
+	rd, err := NewReader(root)
+	if err != nil {
+		return nil, err
+	}
+	defer rd.Close()
+	resolved := RealAsFarAsItExists(full)
+	rel, err := filepath.Rel(rd.abs, resolved)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
+		return nil, &OutsideError{Path: full, Resolved: resolved, Root: rd.abs, Exists: true}
+	}
+	if rd.r == nil { // a root that cannot be held open: the name, as the fallback does
+		return os.Stat(resolved)
+	}
+	return rd.r.Stat(rel)
 }
 
 // classify turns the root's refusal of a link left at the end of the path, one

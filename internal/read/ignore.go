@@ -350,7 +350,7 @@ func newIgnorer(absRoot string) *ignorer {
 		prefix = ""
 	}
 	ig := &ignorer{top: top, prefix: prefix, loaded: map[string]bool{}, fold: foldsCase(top)}
-	if b := readIgnoreFile(filepath.Join(gitDir(top), "info", "exclude")); b != nil {
+	if b := readIgnoreFileIn(gitDir(top), filepath.Join("info", "exclude")); b != nil {
 		ig.rules = append(ig.rules, parseIgnore("", b, ig.fold)...)
 	}
 	return ig
