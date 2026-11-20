@@ -3212,11 +3212,14 @@ func staleRemedySpan(root, p string, from, to int) string {
 
 // remedyFor is staleRemedySpan for a platform given, so a test can ask both.
 func remedyFor(windows bool, root, p string, from, to int) string {
-	ok := p != "" && p[0] != '-' && len(p) > 1 && plainFor(windows, p)
+	cp, okP := shellForm(windows, p)
+	okP = okP && p != "" && p[0] != '-' && len(p) > 1
 	prefix := "mrw"
+	ok := okP
 	if root != "" {
-		ok = ok && root[0] != '-' && plainFor(windows, root)
-		prefix = "mrw --root " + root
+		cr, okR := shellForm(windows, root)
+		ok = ok && okR && root[0] != '-'
+		prefix = "mrw --root " + cr
 	}
 	spans := fmt.Sprintf("%d", from)
 	words := "line " + spans
@@ -3225,35 +3228,60 @@ func remedyFor(windows bool, root, p string, from, to int) string {
 		words = "lines " + spans
 	}
 	if ok {
-		return fmt.Sprintf("%s read --max-cols 0 %s:%s", prefix, p, spans)
+		return fmt.Sprintf("%s read --max-cols 0 %s:%s", prefix, cp, spans)
 	}
-	// A description names the file and the root, quoted, since the caller must be able
-	// to tell which read is meant when no command can be printed (issue #753).
-	where := " of " + strconv.Quote(p)
+	// A description names the file and the root as they were written, so the caller
+	// can tell which read is meant when no command can be printed (issue #753).
+	where := " of " + describedName(p)
 	if root != "" {
-		where += " under the root " + strconv.Quote(root)
+		where += " under the root " + describedName(root)
 	}
 	return "a read that shows " + words + where
 }
 
-// plainFor is whether s needs no quoting: letters, digits, `.`, `_`, `-` and `/`
-// in a POSIX shell, and in cmd.exe, PowerShell 7 and Windows PowerShell 5.1 too,
-// where `\` is a separator and a drive letter `X:` before a separator is part of an
-// absolute path. A space and every shell metacharacter (`& | < > ^ % ! ' " ( ) ; ,
-// = $`, a backtick, `@`, `#`, `{`, `}`, `~`, `*`, `?`, `[`) is outside the set, so it needs
-// quoting and gets a description.
-func plainFor(windows bool, s string) bool {
+// describedName is a name inside a description: single-quoted as it is, so it can be
+// copied as written, and Go-quoted only where a control byte or a quote forces it.
+func describedName(s string) string {
+	for i := 0; i < len(s); i++ {
+		if s[i] < 0x20 || s[i] == 0x7f || s[i] == '\'' {
+			return strconv.Quote(s)
+		}
+	}
+	return "'" + s + "'"
+}
+
+// psNumber is a word PowerShell turns into a number before a native command sees it
+// (`1.10` arrives as 1.1, `0x10` as 16, `007` as 7, `2kb` as 2048).
+var psNumber = regexp.MustCompile(`(?i)^(?:\d+(?:\.\d+)?(?:e[+-]?\d+)?|\.\d+|0x[0-9a-f]+|0b[01]+)(?:kb|mb|gb|tb|pb|ul|uy|us|ui|[ldusy])?$`)
+
+// shellForm is s as a command prints it, and whether it needs no quoting in cmd.exe,
+// PowerShell 7, Windows PowerShell 5.1, Git Bash and a POSIX shell. Letters, digits,
+// `.`, `_`, `-` and `/` are plain, and so is a `~` that is not the first character
+// (literal in all of them). On Windows a `\` is a separator, but Git Bash eats a
+// backslash, so a path is printed with slashes, which every one of them runs and Go
+// reads as the same directory; a drive letter `X:` before a separator is part of an
+// absolute path, and a path with a leading separator (UNC, or rooted without a
+// drive) is described, since MSYS rewrites it. A space and every other
+// metacharacter (`& | < > ^ % ! ' " ( ) ; , = $`, a backtick, `@`, `#`, `{`, `}`,
+// `*`, `?`, `[`), and a word PowerShell reads as a number, needs quoting.
+func shellForm(windows bool, s string) (string, bool) {
+	if windows {
+		if s != "" && (s[0] == '/' || s[0] == '\\') {
+			return s, false
+		}
+		s = strings.ReplaceAll(s, `\`, "/")
+	}
 	i := 0
-	if windows && len(s) >= 3 && (s[0] >= 'a' && s[0] <= 'z' || s[0] >= 'A' && s[0] <= 'Z') && s[1] == ':' && (s[2] == '\\' || s[2] == '/') {
+	if windows && len(s) >= 3 && (s[0] >= 'a' && s[0] <= 'z' || s[0] >= 'A' && s[0] <= 'Z') && s[1] == ':' && s[2] == '/' {
 		i = 2
 	}
 	for ; i < len(s); i++ {
 		c := s[i]
-		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '.' || c == '_' || c == '-' || c == '/' || windows && c == '\\') {
-			return false
+		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '.' || c == '_' || c == '-' || c == '/' || c == '~' && i > 0) {
+			return s, false
 		}
 	}
-	return true
+	return s, !psNumber.MatchString(s)
 }
 
 func trim(s string) string {

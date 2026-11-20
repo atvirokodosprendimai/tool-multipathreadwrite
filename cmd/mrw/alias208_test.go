@@ -22,9 +22,18 @@ type plainMatcher struct{}
 
 func (plainMatcher) MatchString(s string) bool {
 	if runtime.GOOS == "windows" {
-		return regexp.MustCompile(`^(?:[A-Za-z]:[\\/])?[A-Za-z0-9._\\/-]+$`).MatchString(s)
+		return regexp.MustCompile(`^(?:[A-Za-z]:[\\/])?[A-Za-z0-9._\\/-][A-Za-z0-9._~\\/-]*$`).MatchString(s) && s[0] != '\\' && s[0] != '/'
 	}
-	return regexp.MustCompile(`^[A-Za-z0-9._/-]+$`).MatchString(s)
+	return regexp.MustCompile(`^[A-Za-z0-9._/-][A-Za-z0-9._~/-]*$`).MatchString(s)
+}
+
+// shellRoot is the root as the remedy's command prints it: on Windows with slashes,
+// which Git Bash does not eat (issue #753).
+func shellRoot(root string) string {
+	if runtime.GOOS == "windows" {
+		return strings.ReplaceAll(root, `\`, "/")
+	}
+	return root
 }
 
 // remedyArgv is the read a refusal ends with, as arguments for runIn. Where the
@@ -144,7 +153,7 @@ func TestTheAliasRemedyKeepsAnEarlierOccurrenceShowing(t *testing.T) {
 // A root that needs quoting is described, not commanded.
 func TestTheRemedyNamesTheRootItWasGiven(t *testing.T) {
 	root := aliasRoot(t, "f.go")
-	lineAfter, stale := "mrw --root "+root+" read --max-cols 0 f.go:1-4", "mrw --root "+root+" read --max-cols 0 f.go:2"
+	lineAfter, stale := "mrw --root "+shellRoot(root)+" read --max-cols 0 f.go:1-4", "mrw --root "+shellRoot(root)+" read --max-cols 0 f.go:2"
 	if !plainPath.MatchString(root) {
 		lineAfter, stale = "a read that shows lines 1-4", "a read that shows line 2"
 	}
@@ -168,7 +177,7 @@ func TestARootThatNeedsQuotingIsDescribedNotCommanded(t *testing.T) {
 		t.Errorf("line-after refusal for a root with a space: exit %d\n%s", code, out)
 	}
 	out, code = writeIn(t, root, "--no-check", planFile(t, "@@ f.go 2 replace\n\tz()\n"))
-	if code != 1 || !strings.Contains(out, `(a read that shows line 2 of "f.go" under the root `) {
+	if code != 1 || !strings.Contains(out, `(a read that shows line 2 of 'f.go' under the root `) {
 		t.Errorf("stale-number refusal for a root with a space: exit %d\n%s", code, out)
 	}
 }
