@@ -304,6 +304,10 @@ type pending struct {
 	// seen is the target as validation stat'ed it, its file ID loaded then;
 	// nil for a file the plan creates (ADR-106).
 	seen fs.FileInfo
+	// src is the entry an unlink or a rename acts on, as validation lstat'ed it,
+	// its file ID loaded then; nil when it could not be read. A rename of a file the
+	// plan also edits carries none, since its edit replaces it (#730).
+	src fs.FileInfo
 }
 
 // hunk is the subset of plan.Hunk this package needs. It is declared here so
@@ -729,6 +733,13 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			}
 			seenFiles = append(seenFiles, groupedFile{path: path, info: info, line: hs[0].SrcLine})
 		}
+		// #744 review: the entry's identity is taken before the bytes are read and
+		// compared with the one taken after, so a file replaced in between is not
+		// judged by the sha of the old bytes and the identity of the new file.
+		pre, _ := os.Lstat(resolvedAt(full))
+		if pre != nil {
+			_ = sameFileFn(pre, pre) // loads the file ID now, where it is read lazily
+		}
 		orig, existed, err := loadFn(root, full)
 		// ADR-107: a file that grew past the limit after its size was taken is
 		// refused on its hunk like one that was over it then, so the receipt
@@ -813,7 +824,18 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 		}
 		switch kind {
 		case "unlink":
-			writes = append(writes, pending{file: fr, full: full, unlink: true})
+			src, ok := lstatSource(full)
+			if !ok {
+				refuseFile(results, path, hs, 0, identityRefusal(root, path, full))
+				failed = append(failed, FileResult{Path: path})
+				continue
+			}
+			if why := entryDrift(pre, src); why != "" {
+				refuseFile(results, path, hs, 0, fmt.Sprintf("%s changed while mrw read it: %s; read it again and send the plan again", path, why))
+				failed = append(failed, FileResult{Path: path})
+				continue
+			}
+			writes = append(writes, pending{file: fr, full: full, unlink: true, src: src})
 			continue
 		case "rename":
 			destRel := filepath.Clean(hs[0].Body[0]) // not TrimSpace: "d " is a name (ADR-069)
@@ -829,7 +851,18 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 				continue
 			}
 			fr.RenamedTo = destRel
-			writes = append(writes, pending{file: fr, out: orig, full: full, renameTo: destFull, destRel: destRel})
+			src, ok := lstatSource(full)
+			if !ok {
+				refuseFile(results, path, hs, 0, identityRefusal(root, path, full))
+				failed = append(failed, FileResult{Path: path})
+				continue
+			}
+			if why := entryDrift(pre, src); why != "" {
+				refuseFile(results, path, hs, 0, fmt.Sprintf("%s changed while mrw read it: %s; read it again and send the plan again", path, why))
+				failed = append(failed, FileResult{Path: path})
+				continue
+			}
+			writes = append(writes, pending{file: fr, out: orig, full: full, renameTo: destFull, destRel: destRel, src: src})
 			continue
 		}
 		// ADR-114: a file this plan edits and renames lands its edit through
@@ -1244,6 +1277,15 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			return refuseStage(w.file.Path, errors.New(openRefusal(w.file.Path, err)), targetCause(err))
 		}
 	}
+	// #730: an unlink and a rename act on the entry at the path, so the entry
+	// validation saw must still be there; a file swapped in since is not mrw's
+	// to remove or move. Asked again just before each step (commitPathOps).
+	for _, w := range pathOps {
+		if why := srcChangedSince(tr, w); why != "" {
+			discard(0)
+			return refuseStage(w.file.Path, fmt.Errorf("%s changed after mrw read it: %s; read it again and send the plan again", w.file.Path, why), true)
+		}
+	}
 	// #701 review: where a path resolves is the filesystem's to say, through a
 	// link that may not exist until an earlier create makes its target, so
 	// validation cannot predict it. With every temp and directory staged, each
@@ -1304,8 +1346,19 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			err := fmt.Errorf("%s changed after mrw read it: %s; read it again and send the plan again", w.file.Path, why)
 			return commitFailed(w.file.Path, false, err, fmt.Errorf("%w (%s)", err, writtenSoFar(res.Files)))
 		}
-		if err := commitRenameFn(tr, staged[i].tmp, staged[i].target); err != nil {
+		// A create's install must not replace a file that appeared (#731); an edit
+		// of a file that exists replaces it, guarded by changedSince above.
+		itr := tr
+		if w.file.Created {
+			itr = tr.noReplace()
+		}
+		if err := commitRenameFn(itr, staged[i].tmp, staged[i].target); err != nil {
+			res.noteExtraName(tr, err)
 			discard(i)
+			if w.file.Created && errors.Is(err, fs.ErrExist) {
+				err = fmt.Errorf("%s appeared before commit: another name in this plan reaches the same file, or another process created it", w.file.Path)
+				return commitFailed(w.file.Path, false, err, fmt.Errorf("%w (%s)", err, writtenSoFar(res.Files)))
+			}
 			return commitFailed(w.file.Path, false, err, fmt.Errorf("%s: %w (%s)", w.file.Path, err, writtenSoFar(res.Files)))
 		}
 		w.file.Written = true
@@ -2544,17 +2597,55 @@ var probeNameFn = probeName
 // probeName asks the filesystem whether it can hold a name that does not exist
 // yet, by creating it exclusively and removing it again. lstat of a name APFS
 // refuses answers "does not exist", so only a create finds out (ADR-086).
+//
+// It makes the real path, an empty file another process can see for an instant
+// (a probe elsewhere in the directory would not test the name), and removes only
+// the file it made: a file another process swapped in meanwhile is not the
+// probe, is not mrw's to remove, and stays for the commit to refuse (#728). The
+// instant between the identity check and the removal remains.
 func probeName(tr *tree, target string) error {
 	f, err := tr.createExcl(target, 0o600)
 	if err != nil {
 		return fmt.Errorf("the filesystem will not create this name: %w", err)
 	}
-	_ = f.Close()
+	// The probe file stays open until it is removed: while it is, its inode number
+	// cannot be given to another file. Closed first, ext4 reused it for the file
+	// swapped in, and identity alone read that file as the probe (review of #744).
+	// Windows opens without delete sharing, so the file is closed before its
+	// removal there; the file must also be empty and keep the time it was made.
+	closed := false
+	defer func() {
+		if !closed {
+			_ = closeProbeFn(f)
+		}
+	}()
+	made, serr := f.Stat()
+	if serr != nil {
+		return &probeLeftError{err: serr}
+	}
+	now, lerr := lstatFn(tr, target)
+	if errors.Is(lerr, fs.ErrNotExist) {
+		return nil
+	}
+	if lerr != nil {
+		return &probeLeftError{err: lerr}
+	}
+	if !sameFileFn(made, now) || now.Size() != 0 || !now.ModTime().Equal(made.ModTime()) {
+		return nil
+	}
+	if runtime.GOOS == "windows" {
+		_ = closeProbeFn(f)
+		closed = true
+	}
 	if err := removeFn(tr, target); err != nil {
 		return &probeLeftError{err: err}
 	}
 	return nil
 }
+
+// closeProbeFn is how probeName closes its file, a seam for the test that the file
+// is still open when it is removed.
+var closeProbeFn = func(f *os.File) error { return f.Close() }
 
 // probeLeftError is probeName's refusal when the probe it created could not be
 // removed. Only then is the name mrw's leftover: a create that failed — the
@@ -2596,11 +2687,16 @@ func (res *Result) noteProbe(tr *tree, target string, err error) {
 	}
 }
 
-// commitRenameFn is the seam every COMMIT rename goes through: a content
-// temp onto its target, an unlink's file into its aside, a rename, and each
-// step of the undo that follows a failure (ADR-066). A realistic trigger — a
-// directory that becomes unwritable between staging and commit — is not one a
-// test can rely on, so the tests fail one chosen rename here instead.
+// commitRenameFn is the seam every COMMIT move goes through: a create's temp
+// onto its target, an unlink's file into its aside, a rename, and each step of
+// the undo that follows a failure (ADR-066). A realistic trigger — a directory
+// that becomes unwritable between staging and commit — is not one a test can
+// rely on, so the tests fail one chosen rename here instead.
+//
+// A tree made by noReplace refuses to replace (#726, #731): the undo, a create's
+// install and a rename's destination go through it, so that what another process
+// made at the destination is left alone. An edit of a file that exists replaces
+// it, through the tree itself.
 var commitRenameFn = (*tree).rename
 
 // removeFn is the seam every cleanup removal in this package goes through
@@ -2654,6 +2750,16 @@ func (res *Result) noteIfLeft(tr *tree, p string) {
 		}
 	}
 	res.LeftBehind = append(res.LeftBehind, res.rel(p))
+}
+
+// noteExtraName names the second name a move left when it could not take it
+// back (extraNameError): the receipt then says so in left_behind, though the move
+// itself failed and nothing is reported written.
+func (res *Result) noteExtraName(tr *tree, err error) {
+	var e *extraNameError
+	if errors.As(err, &e) {
+		res.noteIfLeft(tr, e.name)
+	}
 }
 
 // rel spells p root-relative for the receipt. Staging resolves through links,
@@ -2872,6 +2978,70 @@ func statHeld(root, full string) (fs.FileInfo, error) {
 		return rooted.StatRead(root, full)
 	}
 	return nil, err
+}
+
+// entryDrift says why the entry as it was before its bytes were read is not the
+// entry found after, or "": another file (identity), kind, size or time.
+func entryDrift(pre, post fs.FileInfo) string {
+	switch {
+	case pre == nil || post == nil:
+		return ""
+	case pre.Mode().Type() != post.Mode().Type():
+		return "another kind of file replaced it"
+	case !sameFileFn(pre, post):
+		return "another file replaced it"
+	case pre.Size() != post.Size():
+		return fmt.Sprintf("its size changed from %d to %d bytes", pre.Size(), post.Size())
+	case !pre.ModTime().Equal(post.ModTime()):
+		return "its modification time changed"
+	}
+	return ""
+}
+
+// lstatSource is the entry an unlink or a rename will act on, resolved as the
+// commit resolves it, or nil when it cannot be read now.
+func lstatSource(full string) (fs.FileInfo, bool) {
+	fi, err := os.Lstat(resolvedAt(full))
+	if err != nil {
+		return nil, true
+	}
+	// ADR-107: os.Lstat leaves the file ID to be loaded lazily from the path on
+	// Windows, where it would read whatever is there when compared. Loaded now; an
+	// entry whose ID cannot be loaded is refused, as a target is (review of #744).
+	if !sameFileFn(fi, fi) {
+		return nil, false
+	}
+	return fi, true
+}
+
+// srcChangedSince says why the entry an unlink or a rename acts on is no longer
+// the one validation saw, or "" (#730). Like changedSince it compares file
+// identity, size and modification time, but of the entry itself: the step acts on
+// a link, not on what the link leads to. Where the identity cannot be loaded
+// (Windows, lazily) the kind, size and time still decide. The instant between
+// this check and the step's own rename remains.
+func srcChangedSince(tr *tree, w pending) string {
+	if w.src == nil {
+		return ""
+	}
+	now, err := tr.lstat(resolvedAt(w.full))
+	switch {
+	case err != nil && !errors.Is(err, fs.ErrNotExist):
+		// Not a change: a path the root refuses (ADR-106, a parent swapped for a
+		// link) or a lookup that failed is the step's own refusal to make, as before.
+		return ""
+	case err != nil:
+		return fmt.Sprintf("it can no longer be read (%v)", err)
+	case now.Mode().Type() != w.src.Mode().Type():
+		return "another kind of file replaced it"
+	case sameFileFn(now, now) && !sameFileFn(w.src, now):
+		return "another file replaced it"
+	case now.Size() != w.src.Size():
+		return fmt.Sprintf("its size changed from %d to %d bytes", w.src.Size(), now.Size())
+	case !now.ModTime().Equal(w.src.ModTime()):
+		return "its modification time changed"
+	}
+	return ""
 }
 
 func shaOf(t text) string {
