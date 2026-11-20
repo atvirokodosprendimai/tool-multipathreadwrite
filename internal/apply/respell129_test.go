@@ -198,6 +198,16 @@ func TestAKeptRespellingAfterAContentEditIsReportedPartial(t *testing.T) {
 	if err == nil || res.Applied {
 		t.Fatalf("a kept respelling reported success: err=%v applied=%v", err, res.Applied)
 	}
+	// #744 review: the filesystem moved nothing, so there is nothing to undo, and no
+	// record of the rename may survive the undo.
+	if strings.Contains(err.Error(), "UNDO INCOMPLETE") {
+		t.Errorf("a no-op respelling is reported as an undo that could not finish: %v", err)
+	}
+	for _, f := range res.Files {
+		if f.Written && (f.Path == "a.txt" || f.Path == "A.txt") {
+			t.Errorf("a written record of the rename survives although the filesystem moved nothing: %+v", f)
+		}
+	}
 	wrote := false
 	for _, f := range res.Files {
 		if f.Path == "c.txt" && f.Written {

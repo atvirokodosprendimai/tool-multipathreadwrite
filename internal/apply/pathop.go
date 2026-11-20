@@ -342,6 +342,23 @@ type moved struct {
 	// this plan also edited (ADR-114): the rename rewrote it in place, and an
 	// undo puts it back, since the source then holds the edit again.
 	orig *FileResult
+	// respell marks a case-only rename (ADR-129): a filesystem that kept the
+	// original spelling made it a no-op, and the undo has nothing to move back,
+	// when the entry under the original spelling is still the renamed file: ident
+	// is what the renamed entry was when the rename was recorded.
+	respell bool
+	ident   fs.FileInfo
+}
+
+// keptSpelling says whether a case-only rename was left a no-op and still is: the
+// directory lists the original spelling and what it names is the renamed file. A
+// spelling alone is no proof, another file may hold it now.
+func keptSpelling(tr *tree, m moved) bool {
+	if !m.respell || m.ident == nil || !spelledAs(tr, m.from) {
+		return false
+	}
+	now, err := tr.lstat(m.from)
+	return err == nil && os.SameFile(now, m.ident)
 }
 
 // resolvedAt is p with its parent resolved through every link as far as it
@@ -349,6 +366,21 @@ type moved struct {
 // an unlink or a rename, which acts on that entry itself (ADR-106).
 func resolvedAt(p string) string {
 	return filepath.Join(rooted.RealAsFarAsItExists(filepath.Dir(p)), filepath.Base(p))
+}
+
+// spelledAs says whether the directory lists p's leaf exactly as p spells it: on
+// a filesystem that folds case, the one way to tell a name from its other spelling.
+func spelledAs(tr *tree, p string) bool {
+	es, err := tr.readDir(filepath.Dir(p))
+	if err != nil {
+		return false
+	}
+	for _, e := range es {
+		if e.Name() == filepath.Base(p) {
+			return true
+		}
+	}
+	return false
 }
 
 func commitPathOps(tr *tree, res *Result, pathOps []pending) (string, error) {
@@ -371,10 +403,15 @@ func commitPathOps(tr *tree, res *Result, pathOps []pending) (string, error) {
 		var left []string
 		for i := len(renames) - 1; i >= 0; i-- {
 			r := renames[i]
-			if err := commitRenameFn(tr, r.to, r.from); err != nil {
-				occupied[r.key] = true
-				left = append(left, fmt.Sprintf("could not move %s back to %s: %v", r.to, r.from, err))
-				continue
+			// A case-only rename the filesystem kept in the original spelling: the
+			// entry is already where the undo would put it, nothing to move back.
+			if !keptSpelling(tr, r) {
+				if err := commitRenameFn(tr.noReplace(), r.to, r.from); err != nil {
+					res.noteExtraName(tr, err)
+					occupied[r.key] = true
+					left = append(left, fmt.Sprintf("could not move %s back to %s: %v", r.to, r.from, err))
+					continue
+				}
 			}
 			if r.orig != nil {
 				res.Files[r.recs[0]] = *r.orig
@@ -390,7 +427,8 @@ func commitPathOps(tr *tree, res *Result, pathOps []pending) (string, error) {
 				res.noteIfLeft(tr, a.tmp)
 				continue
 			}
-			if err := commitRenameFn(tr, a.tmp, a.orig); err != nil {
+			if err := commitRenameFn(tr.noReplace(), a.tmp, a.orig); err != nil {
+				res.noteExtraName(tr, err)
 				left = append(left, fmt.Sprintf("could not restore %s from %s: %v", a.orig, a.tmp, err))
 				res.noteIfLeft(tr, a.tmp)
 				continue
@@ -407,6 +445,9 @@ func commitPathOps(tr *tree, res *Result, pathOps []pending) (string, error) {
 		return strings.Join(left, "; ")
 	}
 	unlinkOne := func(w pending) error {
+		if why := srcChangedSince(tr, w); why != "" {
+			return fmt.Errorf("%s changed after mrw read it: %s; read it again and send the plan again", w.file.Path, why)
+		}
 		full := resolvedAt(w.full)
 		tmp, name, err := tr.createTemp(filepath.Dir(full), ".mrw-aside-")
 		if err != nil {
@@ -420,6 +461,9 @@ func commitPathOps(tr *tree, res *Result, pathOps []pending) (string, error) {
 			res.noteIfLeft(tr, name)
 			return err
 		}
+		// The aside's name is fresh, so nothing there can be replaced: a plain
+		// rename vacates the old name at once, where a link and a removal can leave
+		// it delete-pending on a Windows that lacks POSIX delete semantics.
 		if err := commitRenameFn(tr, full, name); err != nil {
 			return err
 		}
@@ -432,6 +476,9 @@ func commitPathOps(tr *tree, res *Result, pathOps []pending) (string, error) {
 		return nil
 	}
 	renameOne := func(w pending) error {
+		if why := srcChangedSince(tr, w); why != "" {
+			return fmt.Errorf("%s changed after mrw read it: %s; read it again and send the plan again", w.file.Path, why)
+		}
 		// w.renameTo was resolved at staging (apply.go); the source is
 		// resolved here, both handed to the root with no link left (ADR-106).
 		from := resolvedAt(w.full)
@@ -447,7 +494,11 @@ func commitPathOps(tr *tree, res *Result, pathOps []pending) (string, error) {
 			}
 			respell = true
 		}
-		if err := commitRenameFn(tr, from, w.renameTo); err != nil {
+		if err := commitRenameFn(tr.noReplace(), from, w.renameTo); err != nil {
+			res.noteExtraName(tr, err)
+			if errors.Is(err, fs.ErrExist) {
+				return fmt.Errorf("rename dest %s appeared before commit", asPlan(w.destRel))
+			}
 			return err
 		}
 		// A filesystem that reports the rename done and leaves the source's
@@ -467,6 +518,12 @@ func commitPathOps(tr *tree, res *Result, pathOps []pending) (string, error) {
 				}
 			}
 			return nil
+		}
+		// What the renamed entry is under its new name: the undo of a case-only
+		// rename tells a filesystem that kept the spelling from another file by it.
+		var ident fs.FileInfo
+		if respell {
+			ident, _ = tr.lstat(w.renameTo)
 		}
 		dest := FileResult{
 			Path:     w.destRel,
@@ -498,12 +555,12 @@ func commitPathOps(tr *tree, res *Result, pathOps []pending) (string, error) {
 				rec := prev
 				rec.Written, rec.Removed, rec.RenamedTo, rec.LinesTo, rec.SHAAfter = true, true, w.destRel, 0, ""
 				res.Files[i] = rec
-				renames = append(renames, moved{from: from, to: w.renameTo, key: w.destRel, recs: [2]int{i, len(res.Files)}, orig: &prev})
+				renames = append(renames, moved{from: from, to: w.renameTo, key: w.destRel, recs: [2]int{i, len(res.Files)}, orig: &prev, respell: respell, ident: ident})
 				res.Files = append(res.Files, dest)
 				return confirm()
 			}
 		}
-		renames = append(renames, moved{from: from, to: w.renameTo, key: w.destRel, recs: [2]int{len(res.Files), len(res.Files) + 1}})
+		renames = append(renames, moved{from: from, to: w.renameTo, key: w.destRel, recs: [2]int{len(res.Files), len(res.Files) + 1}, respell: respell, ident: ident})
 		w.file.Written = true
 		w.file.Removed = true
 		w.file.LinesTo = 0
