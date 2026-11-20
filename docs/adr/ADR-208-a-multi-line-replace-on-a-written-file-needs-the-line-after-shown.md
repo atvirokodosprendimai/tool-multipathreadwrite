@@ -1,7 +1,8 @@
 # ADR-208: A multi-line replace on a file mrw wrote needs the line after it shown
 
-**Status:** Proposed
-**Drafted for:** Zy, 2026-11-20, from an independent critique of the same day (issue #704). Zy's instruction on the critique's findings, as relayed to the drafter by the session that commissioned these records, was *"address all, no choosing"*, so this record carries one decision. Challenged before acceptance (Codex at xhigh, 2026-11-20, on `2ded135b`: AMEND); every amendment is applied below or answered in History. It is not accepted, and nothing here merges before Zy reads it.
+**Status:** Accepted
+**Accepted by:** Zy, 2026-11-20: *"accepted the rest"*, to the question of accepting the open records ADR-207 to ADR-211 (#723, #720) as they stand.
+**Drafted for:** Zy, 2026-11-20, from an independent critique of the same day (issue #704). Zy's instruction on the critique's findings, as relayed to the drafter by the session that commissioned these records, was *"address all, no choosing"*, so this record carries one decision. Challenged before acceptance (Codex at xhigh, 2026-11-20, on `2ded135b`: AMEND); every amendment is applied below or answered in History.
 **Date:** 2026-11-20
 **Owner:** Zy
 **Spec:** None — no spec stage

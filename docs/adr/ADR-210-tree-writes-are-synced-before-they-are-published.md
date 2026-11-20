@@ -1,7 +1,8 @@
 # ADR-210: Tree writes are synced before they are published
 
-**Status:** Proposed
-**Drafted for:** Zy, 2026-11-20, from an independent critique of the same day (finding S4). Zy's instruction on the critique's findings, as relayed to the drafter by the session that commissioned these records, was *"address all, no choosing"*, so this record carries one decision. It sets aside a bar ADR-105 registered and a decision ADR-105 made on it, which is Zy's call and not the drafter's: the measurement below says what the change costs, and the criterion that replaces the bar is Zy's to state (Decision 7). Challenged before acceptance (Codex at xhigh, 2026-11-20, on `2ded135b`: AMEND); every amendment is applied below or answered in History. It is not accepted, and nothing here merges before Zy reads it.
+**Status:** Accepted
+**Accepted by:** Zy, 2026-11-20: *"accepted the rest"*, to the question of accepting the open records ADR-207 to ADR-211 (#723, #720) as they stand. Decision 7 as proposed: the end-to-end cost T1 measures replaces ADR-105's 10 % bar, and Zy judges the record on those numbers.
+**Drafted for:** Zy, 2026-11-20, from an independent critique of the same day (finding S4). Zy's instruction on the critique's findings, as relayed to the drafter by the session that commissioned these records, was *"address all, no choosing"*, so this record carries one decision. It sets aside a bar ADR-105 registered and a decision ADR-105 made on it, which is Zy's call and not the drafter's: the measurement below says what the change costs, and the criterion that replaces the bar is Zy's to state (Decision 7). Challenged before acceptance (Codex at xhigh, 2026-11-20, on `2ded135b`: AMEND); every amendment is applied below or answered in History.
 **Date:** 2026-11-20
 **Owner:** Zy
 **Spec:** None — no spec stage
