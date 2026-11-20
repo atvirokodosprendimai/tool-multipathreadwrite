@@ -123,8 +123,8 @@ type Landed struct {
 	// Err is the apply's own error — a filesystem failure, a lock that was
 	// not given — or nil. A ledger failure after landing is LedgerErr.
 	Err error
-	// LedgerErr is the ledger's failure to record a write that landed
-	// (writer.LedgerError's cause).
+	// LedgerErr is the failure after a landing that ended the write: the ledger's
+	// failure to record it (writer.LedgerError's cause), or a sync that failed (SyncError).
 	LedgerErr error
 	// Then is every step asked for, not_run, when LedgerErr ended the write
 	// before any could follow it (ADR-092 Decision 5).
@@ -156,9 +156,19 @@ func (p *Prepared) Land() (*Landed, error) {
 	newerLedger(root, &res)
 	l := &Landed{p: p, Res: res, gen: gen}
 	var lerr *LedgerError
+	var serr *SyncError
+	// A failure after the tree changed (the ledger's, or a sync's, ADR-210) ends
+	// the write alike: the files are written, no check or step follows.
+	var landed error
 	switch {
 	case errors.As(err, &lerr):
-		l.LedgerErr = lerr.Err
+		landed = lerr.Err
+	case errors.As(err, &serr):
+		landed = serr
+	}
+	switch {
+	case landed != nil:
+		l.LedgerErr = landed
 		_ = authoring.RecordRecent(root, res.Advisories)
 		if !strict {
 			_ = authoring.RecordPricing(root, res.StrictSingleLine > 0, res.StrictWouldRefuse > 0, authoring.PricedUnchecked)

@@ -10,6 +10,7 @@
 package writer
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -73,6 +74,31 @@ func (e *LedgerError) Error() string { return e.Err.Error() }
 
 // Unwrap returns the ledger's own error.
 func (e *LedgerError) Unwrap() error { return e.Err }
+
+// SyncError is a failure to make the tree stable AFTER the plan landed (ADR-210):
+// every file is where the plan put it, the ledger has recorded it, and a caller
+// reports the landed receipt beside it, as for a LedgerError. Ledger is the
+// ledger's failure too, when it also failed, so neither error is lost.
+type SyncError struct {
+	Err    error // the *apply.SyncError
+	Ledger error
+}
+
+func (e *SyncError) Error() string {
+	s := e.Err.Error() + "; the files are written but not known to be on stable storage: do not send the plan again"
+	if e.Ledger != nil {
+		s += "; and the ledger could not record what landed: " + e.Ledger.Error()
+	}
+	return s
+}
+
+// Unwrap returns the sync's own error and the ledger's.
+func (e *SyncError) Unwrap() []error {
+	if e.Ledger != nil {
+		return []error{e.Err, e.Ledger}
+	}
+	return []error{e.Err}
+}
 
 // applyCounted applies in under root's write lock and records what landed
 // before it releases the lock: a written file as wholly known (ADR-002,
@@ -142,7 +168,7 @@ func applyCounted(root string, in []apply.Input, opt apply.Options) (apply.Resul
 	if lerr := seen.Record(root, wrote); lerr != nil {
 		return res, gen, ledgerFailed(m, err, lerr)
 	}
-	return res, gen, err
+	return res, gen, syncLanded(err)
 }
 
 // otherSpellings returns the ledger keys that name a file this write changed
@@ -210,8 +236,22 @@ func otherSpellings(root string, files []apply.FileResult, ledger map[string]app
 // LedgerError there would be counted as a clean landing — and the ledger's
 // failure is added to it.
 func ledgerFailed(m Mutation, commitErr, lerr error) error {
+	var perr *apply.SyncError
+	if m == Complete && errors.As(commitErr, &perr) {
+		return &SyncError{Err: perr, Ledger: lerr} // both errors kept
+	}
 	if m == Complete {
 		return &LedgerError{Err: lerr}
 	}
 	return fmt.Errorf("%w; and the ledger could not record what landed: %w", commitErr, lerr)
+}
+
+// syncLanded turns apply's sync failure after landing into the writer's class,
+// which a caller reads as "the plan landed". Any other error passes through.
+func syncLanded(err error) error {
+	var perr *apply.SyncError
+	if errors.As(err, &perr) {
+		return &SyncError{Err: perr}
+	}
+	return err
 }

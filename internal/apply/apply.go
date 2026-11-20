@@ -272,6 +272,12 @@ type Result struct {
 	// whatever is in it is named itself, or is not mrw's. Absent when nothing
 	// was left, which is every run whose cleanups succeeded.
 	LeftBehind []string `json:"left_behind,omitempty"`
+	// SyncNote says, when it is present, that a sync this write asked for is not
+	// supported by the volume the files are on, so they are synced as far as the
+	// volume allows and a power loss can still lose them (ADR-210): a drain
+	// answered ENOTSUP on macOS, or a directory flush answered "not supported"
+	// on Windows. The write landed; this is not an error. Absent otherwise.
+	SyncNote string `json:"sync_note,omitempty"`
 	// StrictSingleLine and StrictWouldRefuse feed ADR-056's pricing of
 	// --strict-balance and are NOT receipt fields: the balance rows already
 	// show the hunks. StrictSingleLine counts ok single-line replaces on
@@ -1182,7 +1188,8 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			// back. ENOSPC is one of the three failures that comment names.
 			staged = append(staged, sf)
 			discard(0)
-			return refuseStage(w.file.Path, err, targetCause(err))
+			var te *tempSyncError
+			return refuseStage(w.file.Path, err, targetCause(err) && !errors.As(err, &te))
 		}
 		staged = append(staged, sf)
 		// ADR-086: a name that does not exist yet is asked of the filesystem
@@ -1326,6 +1333,38 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 		}
 		reached[t] = w.file.Path
 	}
+	// ADR-210: every temp was synced as it was staged; on a platform whose
+	// per-file sync is not a drain, one drain per device makes them stable before
+	// the first rename. A failure here writes nothing.
+	// The directories the write is about to change, with their identity, are
+	// recorded here, while every path is already resolved and every directory
+	// exists; the sync after the renames opens exactly those.
+	var changed []dirRef
+	if SyncsDirs {
+		changed = recordDirs(tr, staged, pathOps)
+	}
+	// stagedNoBarrier is set only once the drains have succeeded, and reaches the
+	// receipt only if the write lands: a failed write is not "files written".
+	stagedNoBarrier := false
+	if len(content) > 0 {
+		p, noBarrier, err := syncStaged(tr, staged)
+		if err == nil {
+			stagedNoBarrier = noBarrier
+		}
+		if err != nil {
+			discard(0)
+			// The file named is one whose temp is on the device that failed, not
+			// the first file of the plan.
+			who := content[0].file.Path
+			for i := range content {
+				if filepath.Dir(staged[i].tmp) == p {
+					who = content[i].file.Path
+					break
+				}
+			}
+			return abortStage(who, &tempSyncError{Err: fmt.Errorf("the drain of the device holding %s: %w", tr.shown(p), err)})
+		}
+	}
 	for i, w := range content {
 		// ADR-071: a create whose target exists by now was made by an earlier
 		// rename in this commit under a name the filesystem folds into this one
@@ -1376,6 +1415,16 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 	}
 	nameDirs()
 	res.Applied = true
+	// ADR-210: after the last change, every directory the write changed is made
+	// stable, once, before Apply returns and so before the ledger is written. The
+	// files are in place, so a failure is a landed write with an error.
+	noBarrier, err := syncChanged(tr, changed)
+	if noBarrier || stagedNoBarrier {
+		res.SyncNote = NoBarrierNote
+	}
+	if err != nil {
+		return res, err
+	}
 	return res, nil
 }
 
@@ -2851,6 +2900,12 @@ func stageFile(tr *tree, path string, t text) (staged, error) {
 	// came out visible. Only Windows has such attributes to carry.
 	if err := keepAttributes(tr, path, tmp); err != nil {
 		return fail(err)
+	}
+	// ADR-210: the staged bytes are made durable before the rename that
+	// publishes them; the directory entry is synced after the last change.
+	if err := SyncTempFn(tmp); err != nil {
+		_ = tmp.Close()
+		return staged{tmp: name, dirs: missing}, &tempSyncError{Err: err}
 	}
 	if err := tmp.Close(); err != nil {
 		return staged{tmp: name, dirs: missing}, err

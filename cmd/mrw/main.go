@@ -2371,6 +2371,9 @@ held or went unchecked.`,
 			if notice := writer.NewerUntold(root, land.Res); notice != "" {
 				fmt.Fprintln(os.Stderr, notice)
 			}
+			if land.Res.SyncNote != "" {
+				fmt.Fprintln(os.Stderr, "mrw: "+land.Res.SyncNote)
+			}
 			if land.Res.Applied && !land.Res.DryRun {
 				emitNotes()
 			}

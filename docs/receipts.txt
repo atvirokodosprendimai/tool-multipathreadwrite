@@ -266,3 +266,5 @@ mcp_read note
 write mutation
 mcp_write mutation
 mcp_write full_receipt
+write sync_note
+mcp_write sync_note
