@@ -1,7 +1,7 @@
 # ADR-007: mrw finds the files it serves
 
 **Status:** Accepted
-**Superseded in part:** by ADR-116 (2026-10-02): rule 6 ("`.gitignore` is not read") and the Out of Scope entries that made ignore files and binary detection permanent: inside a git checkout a walk skips what `.gitignore` and `.git/info/exclude` ignore, any walk skips binary files, and `--no-ignore` walks every file. mrw still runs no git.
+**Superseded in part:** by ADR-116 (2026-10-02): rule 6 ("`.gitignore` is not read") and the Out of Scope entries that made ignore files and binary detection permanent; ADR-116 says what a walk now skips, and `--no-ignore`'s reach. mrw still runs no git.
 **Date:** 2026-09-01
 **Owner:** M
 **Spec:** None — no spec stage

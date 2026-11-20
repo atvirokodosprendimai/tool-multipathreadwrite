@@ -1,7 +1,7 @@
 # ADR-003: A check's verdict comes from the process, never its output
 
 **Status:** Accepted
-**Superseded in part:** by ADR-164 (2026-10-20): the Decision clause "If any changed path is not a Go file the scoped form is abandoned for the full one" and its Risks row: a non-Go file beside mapped Go paths is named, not a reason to run everything (a `go.mod` or other module file, an unplaceable `.go` path, a directory holding no package, or a removed `.go` or module file still forces the full check).
+**Superseded in part:** by ADR-164 (2026-10-20): the Decision clause "If any changed path is not a Go file the scoped form is abandoned for the full one" and its Risks row; ADR-164 Decision 4 says when a scoped check now runs and when the full one does.
 **Date:** 2026-08-31
 **Owner:** M
 **Spec:** None — no spec stage

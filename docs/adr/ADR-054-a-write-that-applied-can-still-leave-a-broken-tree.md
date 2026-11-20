@@ -3,7 +3,7 @@
 **Status:** Accepted
 **Accepted:** 2026-09-13 by M — *"accepted"*
 **Superseded in part:** by ADR-113 (2026-10-01): the check runs on an MCP write too; then by ADR-187 (2026-11-01): Decision 1's default, so a write runs no check unless `--check` (or `mrw_write`'s `check: true`) asks for it; see ADR-205 (2026-11-19), under which `check: true` makes the check due on any landed write.
-**Superseded in part:** by ADR-061 (2026-09-16) and again by ADR-164 (2026-10-20): "When `packages()` cannot map (non-Go paths), the whole-project `Check` runs", now only where nothing maps (a `go.mod` or other module file, an unplaceable `.go` path, a directory holding no package, or a removed `.go` or module file still forces the full check); by ADR-102 (2026-09-30): the closed vocabulary gains `partially_applied`.
+**Superseded in part:** by ADR-061 (2026-09-16) and again by ADR-164 (2026-10-20): "When `packages()` cannot map (non-Go paths), the whole-project `Check` runs"; ADR-164 Decision 4 says when the full check now runs. By ADR-102 (2026-09-30): the closed vocabulary gains `partially_applied`.
 **Date:** 2026-09-13
 **Owner:** M
 **Spec:** None — no spec stage
