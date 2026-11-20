@@ -1,0 +1,40 @@
+#!/bin/sh
+# The stand-in for the `claude` CLI that bench/stage-9/rehearse.sh runs the bench against (ADR-211 Decision 10). It calls no
+# model and costs a fixed fraction of a cent: it answers --version, prints the stream-json lines bench parses, and changes
+# nothing in the task's tree except in one case. An attempt that has mrw on its PATH (arm M or N) and whose prompt holds a line
+# of stub-exposed.txt, beside this file, creates stub-rehearsal.txt and then replaces its line 2 by number alone: a line no
+# read has shown since the write that made the file, which arm M refuses and arm N applies and logs. With no such line the
+# stub makes no write at all, which is how rehearse.sh builds its negative.
+case " $* " in *" --version "*) echo "9.9.9 (Claude Code)"; exit 0 ;; esac
+model=''; tools=''; prompt=''
+while [ $# -gt 0 ]; do
+	case $1 in
+	-p) prompt=$2; shift ;;
+	--model) model=$2; shift ;;
+	--tools) tools=$2; shift ;;
+	esac
+	shift
+done
+here=$(dirname "$0")
+exposed=0
+if command -v mrw >/dev/null 2>&1 && [ -f "$here/stub-exposed.txt" ]; then
+	while IFS= read -r line; do
+		[ -n "$line" ] || continue
+		case $prompt in *"$line"*) exposed=1; break ;; esac
+	done <"$here/stub-exposed.txt"
+fi
+printf '{"type":"system","subtype":"init","model":"%s","tools":["%s"],"mcp_servers":[]}\n' "$model" "$(printf '%s' "$tools" | sed 's/,/","/g')"
+turns=1
+if [ "$exposed" = 1 ]; then
+	n=0
+	for cmd in "printf 'one\\ntwo\\nthree\\n' | mrw write --create stub-rehearsal.txt 2>&1" \
+		"printf '@@ stub-rehearsal.txt 2 replace\\nTWO\\n' | mrw write - 2>&1"; do
+		n=$((n + 1))
+		jq -nc --arg id "stub$n" --arg c "$cmd" '{type:"assistant",message:{content:[{type:"tool_use",id:$id,name:"Bash",input:{command:$c}}]}}'
+		out=$(sh -c "$cmd")
+		jq -nc --arg id "stub$n" --arg t "$out" '{type:"user",message:{content:[{type:"tool_result",tool_use_id:$id,content:[{type:"text",text:$t}]}]}}'
+	done
+	turns=3
+fi
+printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"text","text":"done"}]}}'
+printf '{"type":"result","subtype":"success","is_error":false,"num_turns":%s,"duration_ms":10,"total_cost_usd":0.002,"usage":{"input_tokens":100,"output_tokens":20,"cache_read_input_tokens":300,"cache_creation_input_tokens":40}}\n' "$turns"
