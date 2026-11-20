@@ -277,11 +277,12 @@ func TestEveryKeptIdIsListedWhileThereIsRoom(t *testing.T) {
 	}
 }
 
-// Final review of #736. Holding a new checkpoint in the same call can evict the
-// oldest pending ones past maxPending, a kept id among them: the note must not tell
-// the caller to retry an id that is gone. At the boundary (one past the bound) the
-// kept id, the oldest, is evicted and not named; one below it stays and is named.
-func TestAKeptIdThatTheCallsOwnCheckpointsEvictedIsNotNamed(t *testing.T) {
+// Final review of #736, changed by the final pass of #742. Holding a new
+// checkpoint in the same call used to evict the oldest pending ones past
+// maxPending, a kept id among them, and the note had to be trimmed to what was
+// left. Now the call's own checkpoints never evict an id it keeps: at the boundary
+// and one past it, the kept id stays pending and the note names it.
+func TestAKeptIdIsNeverEvictedByTheCallsOwnCheckpoints(t *testing.T) {
 	if runtime.GOOS == "windows" || os.Getuid() == 0 {
 		t.Skip("a mode-000 file is still readable here")
 	}
@@ -289,8 +290,8 @@ func TestAKeptIdThatTheCallsOwnCheckpointsEvictedIsNotNamed(t *testing.T) {
 		others    int // pending entries besides the kept id; the read adds one more
 		wantNamed bool
 	}{
-		{maxPending - 2, true},  // kept + others + the read's own = maxPending: nothing evicted
-		{maxPending - 1, false}, // one past: the oldest, the kept id, goes
+		{maxPending - 2, true}, // kept + others + the read's own = maxPending: nothing evicted
+		{maxPending - 1, true}, // one past: the oldest other goes, not the kept id
 	} {
 		root := licensed(t, map[string]string{"a.txt": "a\n", "b.txt": "b\n", "c.txt": "c\n"})
 		shaA, _ := currentSHA(root, "a.txt")
