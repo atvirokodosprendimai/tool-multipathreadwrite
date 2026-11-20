@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -12,9 +13,19 @@ import (
 // observation whatever the plan calls it (ADR-029), and the read a refusal names
 // must be one that lifts it.
 
-// plainPath is what the remedy prints as a command: a root that needs quoting
-// (on Windows, any temp directory) is described instead (ADR-203).
-var plainPath = regexp.MustCompile(`^[A-Za-z0-9._/-]+$`)
+// plainPath is what the remedy prints as a command: a root that needs no quoting
+// in cmd, PowerShell or a POSIX shell. On Windows that includes a drive letter and
+// backslashes (issue #753); a space or a metacharacter is described instead (ADR-203).
+var plainPath plainMatcher
+
+type plainMatcher struct{}
+
+func (plainMatcher) MatchString(s string) bool {
+	if runtime.GOOS == "windows" {
+		return regexp.MustCompile(`^(?:[A-Za-z]:[\\/])?[A-Za-z0-9._\\/-]+$`).MatchString(s)
+	}
+	return regexp.MustCompile(`^[A-Za-z0-9._/-]+$`).MatchString(s)
+}
 
 // remedyArgv is the read a refusal ends with, as arguments for runIn. Where the
 // root is described rather than commanded, the refusal must say so and the read is
@@ -157,7 +168,7 @@ func TestARootThatNeedsQuotingIsDescribedNotCommanded(t *testing.T) {
 		t.Errorf("line-after refusal for a root with a space: exit %d\n%s", code, out)
 	}
 	out, code = writeIn(t, root, "--no-check", planFile(t, "@@ f.go 2 replace\n\tz()\n"))
-	if code != 1 || !strings.Contains(out, "(a read that shows line 2;") {
+	if code != 1 || !strings.Contains(out, `(a read that shows line 2 of "f.go" under the root `) {
 		t.Errorf("stale-number refusal for a root with a space: exit %d\n%s", code, out)
 	}
 }

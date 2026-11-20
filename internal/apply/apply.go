@@ -3190,14 +3190,13 @@ func staleMarks(h hunk, obs Seen, haveObs bool, opt Options, quoted map[int]int,
 }
 
 // staleRemedy is the read the stale-number refusal names: a command the caller
-// can paste when the path (and the root, when one is named) is letters, digits,
-// `.`, `_`, `-` and `/` only, with no leading dash, which is one word in every
-// shell mrw meets (single quotes do not quote in cmd.exe), and a description
-// otherwise (ADR-203). The command carries --max-cols 0, so the read shows the
-// line whole even under MRW_MAX_COLS. A single-letter path would read as a drive
-// on Windows (`a:8`), so it is described, not commanded. root is the checkout as
-// the command line named it when that is not the working directory (RemedyRoot):
-// the command is pasted where the caller is, so it says where the root is.
+// can paste when the path (and the root, when one is named) needs no quoting in
+// any shell mrw meets, and a description otherwise (ADR-203). The command carries
+// --max-cols 0, so the read shows the line whole even under MRW_MAX_COLS. A
+// single-letter path would read as a drive on Windows (`a:8`), so it is described,
+// not commanded. root is the checkout as the command line named it when that is
+// not the working directory (RemedyRoot): the command is pasted where the caller
+// is, so it says where the root is.
 func staleRemedy(root, p string, line int) string {
 	return staleRemedySpan(root, p, line, line)
 }
@@ -3208,30 +3207,49 @@ func staleRemedy(root, p string, line int) string {
 // one line after, made under an alias (a case-folded name, a link), would leave a
 // partial record that the retry refuses again (review of #745).
 func staleRemedySpan(root, p string, from, to int) string {
-	ok := p != "" && p[0] != '-' && len(p) > 1 && plainWord(p)
-	prefix := "mrw"
-	if root != "" {
-		ok = ok && root[0] != '-' && plainWord(root)
-		prefix = "mrw --root " + root
-	}
-	if from == to {
-		if ok {
-			return fmt.Sprintf("%s read --max-cols 0 %s:%d", prefix, p, from)
-		}
-		return fmt.Sprintf("a read that shows line %d", from)
-	}
-	if ok {
-		return fmt.Sprintf("%s read --max-cols 0 %s:%d-%d", prefix, p, from, to)
-	}
-	return fmt.Sprintf("a read that shows lines %d-%d", from, to)
+	return remedyFor(runtime.GOOS == "windows", root, p, from, to)
 }
 
-// plainWord is whether s is one word in every shell mrw meets: letters, digits,
-// `.`, `_`, `-` and `/`.
-func plainWord(s string) bool {
-	for i := 0; i < len(s); i++ {
+// remedyFor is staleRemedySpan for a platform given, so a test can ask both.
+func remedyFor(windows bool, root, p string, from, to int) string {
+	ok := p != "" && p[0] != '-' && len(p) > 1 && plainFor(windows, p)
+	prefix := "mrw"
+	if root != "" {
+		ok = ok && root[0] != '-' && plainFor(windows, root)
+		prefix = "mrw --root " + root
+	}
+	spans := fmt.Sprintf("%d", from)
+	words := "line " + spans
+	if from != to {
+		spans = fmt.Sprintf("%d-%d", from, to)
+		words = "lines " + spans
+	}
+	if ok {
+		return fmt.Sprintf("%s read --max-cols 0 %s:%s", prefix, p, spans)
+	}
+	// A description names the file and the root, quoted, since the caller must be able
+	// to tell which read is meant when no command can be printed (issue #753).
+	where := " of " + strconv.Quote(p)
+	if root != "" {
+		where += " under the root " + strconv.Quote(root)
+	}
+	return "a read that shows " + words + where
+}
+
+// plainFor is whether s needs no quoting: letters, digits, `.`, `_`, `-` and `/`
+// in a POSIX shell, and in cmd.exe, PowerShell 7 and Windows PowerShell 5.1 too,
+// where `\` is a separator and a drive letter `X:` before a separator is part of an
+// absolute path. A space and every shell metacharacter (`& | < > ^ % ! ' " ( ) ; ,
+// = $`, a backtick, `@`, `#`, `{`, `}`, `~`, `*`, `?`, `[`) is outside the set, so it needs
+// quoting and gets a description.
+func plainFor(windows bool, s string) bool {
+	i := 0
+	if windows && len(s) >= 3 && (s[0] >= 'a' && s[0] <= 'z' || s[0] >= 'A' && s[0] <= 'Z') && s[1] == ':' && (s[2] == '\\' || s[2] == '/') {
+		i = 2
+	}
+	for ; i < len(s); i++ {
 		c := s[i]
-		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '.' || c == '_' || c == '-' || c == '/') {
+		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '.' || c == '_' || c == '-' || c == '/' || windows && c == '\\') {
 			return false
 		}
 	}

@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -48,7 +49,7 @@ func TestAStaleNumberIsRefusedByTheBinary(t *testing.T) {
 		out, code := write(t, root, doc)
 		remedy := "mrw --root " + root + " read --max-cols 0 f.txt:" + line
 		if !regexp.MustCompile(`^[A-Za-z0-9._/-]+$`).MatchString(root) {
-			remedy = "a read that shows line " + line // a root that needs quoting is described (ADR-203, review of #745)
+			remedy = "a read that shows line " + line + ` of "f.txt" under the root ` + strconv.Quote(root) // a root that needs quoting is described (ADR-203, issue #753)
 		}
 		if code != 1 || !strings.Contains(out, "line "+line+" of f.txt "+noShowing+remedy+"; a --quiet read, or a line --max-cols cut, shows nothing), address it by pattern, or give anchor=") {
 			t.Fatalf("want exit 1 naming line %s, got %d:\n%s", line, code, out)
@@ -258,7 +259,7 @@ func TestAStaleNumberOnALineMaxColsCutIsRefusedUntilItIsReadWhole(t *testing.T) 
 			t.Fatalf("the reason's read to run is not closed:\n%.400s", out)
 		}
 		argv = strings.Fields(out[i+len("(mrw ") : i+j])
-	} else if !strings.Contains(out, "(a read that shows line 3;") {
+	} else if !strings.Contains(out, `(a read that shows line 3 of "f.txt" under the root `) {
 		t.Fatalf("the reason names no read for a root that needs quoting:\n%.400s", out)
 	}
 	if o, code := runIn(t, root, argv...); code != 0 || strings.Contains(o, "[cols ") || !strings.Contains(o, strings.Repeat("y", 600)) {
