@@ -67,7 +67,7 @@ test "$(v seed)" = 206 && test "$(v 'max turns')" = 60 \
   && for s in canary:claude-opus-5-5:n canary:claude-opus-5-5:m canary:claude-sonnet-5-5:n canary:claude-sonnet-5-5:m run:claude-opus-5-5:n run:claude-opus-5-5:m run:claude-opus-5-5:a run:claude-sonnet-5-5:n run:claude-sonnet-5-5:m run:claude-sonnet-5-5:a; do
        IFS=: read -r k m a <<<"$s"
        if [ "$k" = canary ]; then t=$R/canary-$m-$a.json; l=canary-$a; else t=$R/smoke/$m/$a; l=$a; fi
-       out=$($B gate $k $m $a --target "$t" --plans $SP --pilot $R/pilot.md --gates $R/smoke/gates.txt ${prev:+--after "$prev"}) || exit 1
+       out=$($B gate $k $m $a --target "$t" --plans $SP --pilot $R/pilot.md --gates $R/smoke/gates.txt --sequence smoke ${prev:+--after "$prev"}) || exit 1
        grep -qxF "$out" $R/smoke/gates.txt || exit 1
        prev="$m $l"
      done \
@@ -77,7 +77,7 @@ test "$(v seed)" = 206 && test "$(v 'max turns')" = 60 \
   && s=$(ls $p/*.started) && i=$(basename "${s%.started}") && jq -e --arg i "$i" '.attempt == $i and (.total_cost_usd | type) == "number" and .total_cost_usd >= 0.01' "${s%.started}.receipt.json" > /dev/null \
   && T=$(v 'smoke transcripts') && test -d "$T" \
   && $B count --receipts $R/smoke --transcripts "$T" --pilot $R/pilot.md --classes bench/stage-9/classes.json --plans $SP > /dev/null \
-  && $B project --receipts $R/smoke --plans $SP
+  && $B project --receipts $R/smoke --plans bench/stage-9/plans.json
 ```
 
 ## Tests

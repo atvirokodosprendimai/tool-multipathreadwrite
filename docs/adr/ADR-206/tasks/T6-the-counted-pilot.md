@@ -46,7 +46,7 @@ test "$(v 'script sha256')" = "$(shasum -a 256 scripts/bench_stage9.py | cut -d'
        jq -e --arg m "$m" --arg c "$c" --argjson t "$t" --arg cli "$(v 'claude code')" --arg b "$(v 'bench revision')" --arg sl "$(v 'status line sha256')" --argjson bs "$(v 'budget seconds')" --argjson stop "$(v "stop $m $a")" '.models == [$m] and .configs == [$c] and .repeats == 1 and .seed == 206 and (.tasks | sort) == $t and .cli_version == $cli and .bench_revision == $b and .status_line_sha256 == $sl and .budget_seconds == $bs and .max_turns == 60 and .keep_diff == true and .max_spend_usd == $stop' $R/pilot/$m/$a/run.json > /dev/null || exit 1
        [ $a = a ] || jq -e --arg h "$(v "$a sha256")" --arg s "$(v 'instructions sha256')" '.mrw_sha256 == $h and .mrw_instructions_sha256 == $s' $R/pilot/$m/$a/run.json > /dev/null || exit 1
        [ $a != n ] || jq -e '.keep_scratch_file == "stage9-exposed.jsonl" and (.keep_state_file // "") == ""' $R/pilot/$m/$a/run.json > /dev/null || exit 1
-       out=$($B gate run $m $a --target $R/pilot/$m/$a --plans bench/stage-9/plans.json --pilot $R/pilot.md --gates $R/pilot/gates.txt ${prev:+--after "$prev"}) || exit 1
+       out=$($B gate run $m $a --target $R/pilot/$m/$a --plans bench/stage-9/plans.json --pilot $R/pilot.md --gates $R/pilot/gates.txt --sequence pilot ${prev:+--after "$prev"}) || exit 1
        grep -qxF "$out" $R/pilot/gates.txt || exit 1
        prev="$m $a"
        n=48; [ $a = n ] && n=24

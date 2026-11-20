@@ -77,7 +77,8 @@ class World:
         """specs: {task: dict(solved, outside, cost, exclusion, is_error, over_budget, status, kept, log, retry, steps)}."""
         d = self.root / model / arm
         d.mkdir(parents=True, exist_ok=True)
-        (d / "run.json").write_text(json.dumps(run if run is not None else run_json(arm, model, list(specs))), encoding="utf-8")
+        doc = run if run is not None else run_json(arm, model, list(specs))
+        (d / "run.json").write_text(json.dumps(doc), encoding="utf-8")
         for task, s in specs.items():
             config = "A" if arm == "a" else "B"
             suffix = s["suffix"] if "suffix" in s else f".r{s['retry']}" if s.get("retry") else ""
@@ -86,6 +87,8 @@ class World:
                    "is_error": s.get("is_error", False), "total_cost_usd": s.get("cost", 0.1), "status": s.get("status", "done"),
                    "usage": {"input_tokens": 1, "output_tokens": 2, "cache_read_input_tokens": 3, "cache_creation_input_tokens": 4},
                    "oracle": {"solved": s.get("solved", True)}}
+            if doc.get("mrw_sha256"):  # the runner writes the run's own build into each receipt (its readsBack checks it)
+                rec["mrw_sha256"] = s.get("mrw", doc["mrw_sha256"])
             if not s.get("exclusion"):
                 rec["init_model"] = s.get("init_model", INIT)
                 text = transcript(*s.get("steps", [("true", "")]))
@@ -717,6 +720,30 @@ class Refusals(unittest.TestCase):
         with self.assertRaisesRegex(stage9.Refusal, "no transcript_sha256"):
             w.count()
 
+    def test_count_binds_each_receipt_to_its_runs_build(self):
+        w = World(self)
+        for arm in ("m", "n"):
+            w.arm(arm, {t: {} for t in CLASSES["follow-on"][:2]})
+        self.assertEqual(sorted(w.count()["models"][MODEL]), ["m", "n"])
+
+        def receipt_path(arm):
+            return w.root / MODEL / arm / f"follow-on-00.B.{MODEL}.1.receipt.json"
+
+        # a swapped pair: M's receipt of the task is N's, and N's is M's, each with its transcript
+        docs = {arm: json.loads(receipt_path(arm).read_text(encoding="utf-8")) for arm in ("m", "n")}
+        for arm, other in (("m", "n"), ("n", "m")):
+            receipt_path(arm).write_text(json.dumps(docs[other]), encoding="utf-8")
+        with self.assertRaisesRegex(stage9.Refusal, "its receipt's mrw_sha256 is"):
+            w.count()
+        for arm in ("m", "n"):
+            receipt_path(arm).write_text(json.dumps(docs[arm]), encoding="utf-8")
+        w.count()
+        # a build the run never had, and none at all
+        for change in ({"mrw_sha256": "f" * 64}, {"mrw_sha256": ""}):
+            receipt_path("m").write_text(json.dumps({**docs["m"], **change}), encoding="utf-8")
+            with self.assertRaisesRegex(stage9.Refusal, "its receipt's mrw_sha256 is"):
+                w.count()
+
     def test_count_refuses_an_unobserved_init_model(self):
         for spec in (dict(drop=["init_model"]), dict(init_model="another-model")):
             w = World(self)
@@ -901,9 +928,12 @@ class Gate(unittest.TestCase):
         w.gates = Path(w.tmp.name) / "gates.txt"
         return w, d
 
-    def gate(self, w, d, **kw):
-        kw.setdefault("after", None)
-        return stage9.gate("run", MODEL, "m", d, w.plans(kw.pop("plans", None)), w.pilot, w.gates, **kw)
+    def gate(self, w, d, clear_pred="2026-11-20T09:00:00Z", **kw):
+        """Gate the m run after its predecessor in the pilot order, n, whose clearance the gates file holds unless clear_pred is None."""
+        kw.setdefault("after", f"{MODEL} n")
+        if clear_pred and not w.gates.exists():
+            w.gates.write_text(f"gate {MODEL} n cleared {clear_pred}\n", encoding="utf-8")
+        return stage9.gate("run", MODEL, "m", d, w.plans(kw.pop("plans", None)), w.pilot, w.gates, "pilot", **kw)
 
     def test_the_gate_passes_a_cleared_step_and_refuses_each_broken_one(self):
         w, d = self.world()
@@ -926,27 +956,36 @@ class Gate(unittest.TestCase):
             path.write_text(json.dumps(doc), encoding="utf-8")
 
         t0, t1 = CLASSES["follow-on"][:2]
-        refused("an exit 3 on a complete run whose last attempt crossed its figure", lambda w, d: Path(str(d) + ".exit").write_text("3\n"), "exited '3'")
+        refused("an exit 3 on a complete run whose last attempt crossed its figure", lambda w, d: (Path(str(d) + ".exit").write_text("3\n"), edit(receipt_of(d, t1), total_cost_usd=14.0)), "exited '3'")
         refused("no recorded exit", lambda w, d: Path(str(d) + ".exit").unlink(), "no recorded exit")
         refused("a plan that is not the registered one", lambda w, d: None, "max_spend_usd is 14.0, the registered plan's is 7.0",
                 plans=[{"model": MODEL, "arm": "m", "directory": f"{MODEL}/m", "configs": ["B"], "max_spend_usd": 7.0, "tasks": CLASSES["follow-on"][:2]}])
         refused("a .started with no receipt", lambda w, d: (d / f"{t1}.B.{MODEL}.1.r1.started").write_text(T0), "started and never given a receipt")
         refused("a receipt with no .started", lambda w, d: (d / f"{t0}.B.{MODEL}.1.started").unlink(), "no .started")
-        refused("a stray receipt", lambda w, d: (d / f"{t0}.B.{MODEL}.1.r1.receipt.json").write_text(json.dumps({"task": t0, "attempt": "x"})), "no .started|reached by no planned attempt")
+        refused("a stray receipt", lambda w, d: ((d / f"{t0}.B.{MODEL}.1.r1.receipt.json").write_text(json.dumps({"task": t0, "attempt": f"{t0}.B.{MODEL}.1.r1"})), (d / f"{t0}.B.{MODEL}.1.r1.started").write_text(T0)),
+                "reached by no planned attempt")
         refused("a missing owed replacement", lambda w, d: edit(receipt_of(d, t0), exclusion="start-error"), "owed and missing")
         refused("a kept diff that is not its receipt's", lambda w, d: ((d / f"{t0}.B.{MODEL}.1.diff").write_text("x"), edit(receipt_of(d, t0), kept_diff_sha256="0" * 64)), "not the one its receipt hashes")
         refused("a kept file its receipt does not name", lambda w, d: (d / f"{t0}.B.{MODEL}.1.kept").write_text("x"), "a .kept its receipt does not name")
         refused("spend at the figure", lambda w, d: (edit(receipt_of(d, t0), total_cost_usd=7.0), edit(receipt_of(d, t1), total_cost_usd=7.0)), "reached it|the figure", world={"run": {"max_spend_usd": 14.0}})
         refused("known spend a millionth under the figure that rounds to it", lambda w, d: (edit(receipt_of(d, t0), total_cost_usd=0.7999996), edit(receipt_of(d, t1), total_cost_usd=0.0)), "the figure", world={"run": {"max_spend_usd": 0.8}})
-        refused("three missing costs", lambda w, d: [edit(receipt_of(d, t), total_cost_usd=None) for t in (t0, t1)] + [(d / f"x.B.{MODEL}.1.receipt.json").write_text("{}")], "no .started|carry no cost", world={"tasks": 2})
+        t2 = CLASSES["follow-on"][2]
+        refused("three missing costs", lambda w, d: [edit(receipt_of(d, t), total_cost_usd=None) for t in (t0, t1, t2)], "3 receipts carry no cost", world={"tasks": 3})
         refused("the earliest .started before the predecessor's clearance", lambda w, d: w.gates.write_text(f"gate {MODEL} n cleared 2026-11-20T12:00:00Z\n"), "before", after=f"{MODEL} n")
-        refused("a predecessor that never cleared", lambda w, d: None, "no recorded clearance", after=f"{MODEL} n")
+        refused("a predecessor that never cleared", lambda w, d: None, "no recorded clearance", clear_pred=None, after=f"{MODEL} n")
+        refused("a later step that names no predecessor", lambda w, d: None, "its predecessor in the pilot order is claude-opus-5-5 n, not none", after=None)
+        refused("a later step that names another predecessor", lambda w, d: None, "is claude-opus-5-5 n, not claude-opus-5-5 a", after=f"{MODEL} a")
+        refused("a clearance recorded before the step started", lambda w, d: w.gates.write_text(f"gate {MODEL} n cleared 2026-11-20T09:00:00Z\ngate {MODEL} m cleared 2026-11-20T09:30:00Z\n"), "before the step started")
+        refused("a receipt swapped with another task's", lambda w, d: (lambda a, b: (receipt_of(d, t0).write_text(b), receipt_of(d, t1).write_text(a)))(receipt_of(d, t0).read_text(), receipt_of(d, t1).read_text()),
+                "not the receipt of this attempt")
+        refused("a receipt of another model", lambda w, d: edit(receipt_of(d, t0), model="another"), "its model is 'another'")
+        refused("a receipt of another run's build", lambda w, d: edit(receipt_of(d, t0), mrw_sha256="f" * 64), "its mrw_sha256")
         refused("a graded receipt whose init_model is not the observed one", lambda w, d: edit(receipt_of(d, t0), init_model="other"), "init_model")
         refused("a receipt nested below the run directory", lambda w, d: ((d / "sub").mkdir(), (d / "sub" / "z.receipt.json").write_text("{}")), "below")
         # A replayed step is judged by the clearance already recorded, never the time of the replay.
         w, d = self.world()
         mark_started(d)
-        w.gates.write_text(f"gate {MODEL} m cleared 2026-11-20T10:30:00Z\n")
+        w.gates.write_text(f"gate {MODEL} n cleared 2026-11-20T09:00:00Z\ngate {MODEL} m cleared 2026-11-20T10:30:00Z\n")
         self.assertEqual(self.gate(w, d, now="2027-01-01T00:00:00Z"), f"gate {MODEL} m cleared 2026-11-20T10:30:00Z")
         w.gates.write_text(f"gate {MODEL} n cleared 2026-11-20T09:00:00Z\n")
         self.assertIn("cleared", self.gate(w, d, after=f"{MODEL} n", now="2026-11-20T10:30:00Z"))
@@ -958,12 +997,14 @@ class Gate(unittest.TestCase):
         pilot.write_text(f"init model {CANARY_OPUS}: {INIT}\n", encoding="utf-8")
         gates = tmp / "gates.txt"
 
-        def run(m_doc, n_doc=None, after=None, **kw):
+        gates.write_text(f"gate {CANARY_OPUS} canary-n cleared 2026-11-20T09:30:00Z\n", encoding="utf-8")
+
+        def run(m_doc, n_doc=None, after=f"{CANARY_OPUS} canary-n", **kw):
             for arm, doc in (("m", m_doc), ("n", n_doc)):
                 if doc is not None:
                     (tmp / f"canary-{CANARY_OPUS}-{arm}.json").write_text(json.dumps(doc), encoding="utf-8")
                     (tmp / f"canary-{CANARY_OPUS}-{arm}.exit").write_text("0\n", encoding="utf-8")
-            return stage9.gate("canary", CANARY_OPUS, "m", tmp / f"canary-{CANARY_OPUS}-m.json", None, pilot, gates, after=after, now="2026-11-20T11:00:00Z")
+            return stage9.gate("canary", CANARY_OPUS, "m", tmp / f"canary-{CANARY_OPUS}-m.json", None, pilot, gates, "smoke", after=after, now="2026-11-20T11:00:00Z")
 
         self.assertEqual(run(canary_doc()), f"gate {CANARY_OPUS} canary-m cleared 2026-11-20T11:00:00Z")
         for why, doc, regex in (("a canary that did not pass", canary_doc(**{"pass": False}), "did not pass"),
@@ -972,6 +1013,8 @@ class Gate(unittest.TestCase):
                                 ("no max_spend_usd", {k: v for k, v in canary_doc().items() if k != "max_spend_usd"}, "max_spend_usd"),
                                 ("another figure", canary_doc(max_spend_usd=0.5), "max_spend_usd"),
                                 ("costs at the figure", canary_doc(total_cost_usd={"A": 0.4, "B": 0.35}), "reached its figure"),
+                                ("a cost for A only", canary_doc(total_cost_usd={"A": 0.1}), "no cost for configuration B"),
+                                ("an init model for A only", canary_doc(init_models={"A": INIT}), "no init model for configuration B"),
                                 ("another observed model", canary_doc(init_models={"A": "another", "B": "another"}), "observed")):
             with self.assertRaisesRegex(stage9.Refusal, regex, msg=why):
                 run(doc)
@@ -1030,11 +1073,23 @@ class Review(unittest.TestCase):
         refused("unassessable", good.replace("diff: unassessable: no kept diff", "diff: x"))
         # a row of another attempt's diff: the M row quoting N's diff
         refused("diff", good.replace("diff: unassessable: no kept diff", "diff:\n```\n-old\n+new\n```"))
+        # byte for byte: a blank line or a trailing space the row adds is not the kept diff
+        refused("byte for byte", good.replace("+new\n```", "+new\n\n```"))
+        refused("byte for byte", good.replace("+new\n```", "+new \n```"))
+        # an empty RESULTS.md, and counts of nothing against run directories that hold exposed attempts
+        refused("is empty", "")
+        refused("is empty", "\n  \n")
+        results = Path(w.tmp.name) / "RESULTS.md"
+        results.write_text(good, encoding="utf-8")
+        for why, counts in (("no models", {"models": {}}), ("a model with no arms", {"models": {MODEL: {}}}), ("no n arm", {"models": {MODEL: {"m": w.count()["models"][MODEL]["m"]}}})):
+            with self.assertRaisesRegex(stage9.Refusal, "counts.json holds no", msg=why):
+                stage9.review(results, counts, w.root)
 
 
 class Registration(unittest.TestCase):
-    ENTRY = ("## Pre-registered: cost per correctly completed edit task (Stage 9)\n\nA powered stage is registered only if, on both models,\n"
-             "the interval of the spend-per-correct ratio for M against A lies on the same side of 1.\n\n")
+    ENTRY = ("## Pre-registered: cost per correctly completed edit task (Stage 9)\n\nOne gate, M against A, per direction: on single-site or on batch, on both models,\n"
+             "the interval of the spend-per-correct ratio excludes 1 and lies on the same side of 1. On opposite sides\n"
+             "the models are reported as disagreeing and nothing is registered.\n\n")
 
     def check(self, text):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1054,6 +1109,14 @@ class Registration(unittest.TestCase):
                 self.check(text)
         with self.assertRaisesRegex(stage9.Refusal, "holds no gate"):  # `same side of 1` only in another entry
             self.check(self.ENTRY.replace("on the same side of 1", "elsewhere") + "## From ADR-211\n\nthe same side of 1 on the same side of 1\n")
+        for why, text in (("M against A not named", self.ENTRY.replace("M against A", "M against B")),
+                          ("a single direction", self.ENTRY.replace("on single-site or on batch", "on single-site")),
+                          ("one model only", self.ENTRY.replace("on both models", "on one model")),
+                          ("the interval not required to exclude 1", self.ENTRY.replace("excludes 1 and lies", "lies")),
+                          ("disagreement registering something", self.ENTRY.replace("nothing is registered", "a stage is registered")),
+                          ("an entry with only its heading", "## Pre-registered: cost per correctly completed edit task (Stage 9)\n\non the same side of 1\n")):
+            with self.assertRaisesRegex(stage9.Refusal, "lacks", msg=why):
+                self.check(text)
         with self.assertRaisesRegex(stage9.Refusal, "no Stage 9 entry"):
             self.check("## Other\n\nx\n")
 
@@ -1076,6 +1139,10 @@ class Project(unittest.TestCase):
         w.arm("m", {t: dict(cost=None) for t in CLASSES["follow-on"][:2]})
         with self.assertRaisesRegex(stage9.Refusal, "no cost"):
             stage9.project(w.root, w.plans(plan(14.0)))
+        with self.assertRaisesRegex(stage9.Refusal, "no smoke root"):
+            stage9.project(w.root / "absent", w.plans(plan(14.0)))
+        with self.assertRaisesRegex(stage9.Refusal, "no registered run to project"):
+            stage9.project(w.root, w.plans([plan(14.0)[1]]))  # a plan of the probe alone projects nothing, and says so
 
 
 FENCE = re.compile(r"^## Acceptance\n\n```bash\n(.*?)\n```", re.S | re.M)
@@ -1147,8 +1214,8 @@ class Fixture:
         text = "date: 2026-11-20\nrevision: rev1\n" + "".join(f"{k}: {v[k]}\n" for k in ("plans sha256", "smoke plans sha256", "tasks sha256", "instructions sha256"))
         (self.R / "rehearsal.md").write_text(text, encoding="utf-8")
 
-    def gate(self, kind, m, a, target, plans, gates, after, now):
-        line = stage9.gate(kind, m, a, target, plans, self.R / "pilot.md", gates, after=after, now=now)
+    def gate(self, kind, m, a, target, plans, gates, sequence, after, now):
+        line = stage9.gate(kind, m, a, target, plans, self.R / "pilot.md", gates, sequence, after=after, now=now)
         with open(gates, "a", encoding="utf-8") as fh:
             fh.write(line + "\n")
 
@@ -1163,7 +1230,7 @@ class Fixture:
             (self.R / f"canary-{m}-{a}.exit").write_text("0\n", encoding="utf-8")
         prev = None
         for k, (m, a) in enumerate(order):
-            self.gate("canary", m, a, self.R / f"canary-{m}-{a}.json", None, gates, prev, HOUR.format(10 + k // 3, (20 * k + 10) % 60))
+            self.gate("canary", m, a, self.R / f"canary-{m}-{a}.json", None, gates, "smoke", prev, HOUR.format(10 + k // 3, (20 * k + 10) % 60))
             prev = f"{m} canary-{a}"
         self.prev_after_canaries = prev
 
@@ -1197,13 +1264,15 @@ class Fixture:
         prev = self.prev_after_canaries
         figure = {POPUS: 0.8, PSONNET: 0.4}
         for k, (m, a) in enumerate(STEPS):
-            specs = {SMOKE_TASKS[0]: dict(cost=0.15, log=1 if a == "n" else 0), SMOKE_TASKS[1]: dict(cost=0.1)}
+            specs = {SMOKE_TASKS[0]: dict(cost=0.10, log=1 if a == "n" else 0), SMOKE_TASKS[1]: dict(cost=0.05)}
             if projection_over and (m, a) == (POPUS, "n"):
-                specs = {SMOKE_TASKS[0]: dict(cost=0.5), SMOKE_TASKS[1]: dict(cost=0.0, exclusion="infrastructure")}
+                # Under its smoke figure ($0.80), so the smoke's own plan clears it; at the registered pilot's 24 attempts
+                # it is $8.40 against $7: only a projection against the pilot's plan sees it.
+                specs = {SMOKE_TASKS[0]: dict(cost=0.35), SMOKE_TASKS[1]: dict(cost=0.35)}
             d = w.arm(a, specs, model=m, run=self.rj(a, m, SMOKE_TASKS, figure[m]))
             start = HOUR.format(14 + k, 0)
             self.finish(d, start)
-            self.gate("run", m, a, d, self.b / "smoke-plans.json", gates, prev, HOUR.format(14 + k, 30))
+            self.gate("run", m, a, d, self.b / "smoke-plans.json", gates, "smoke", prev, HOUR.format(14 + k, 30))
             prev = f"{m} {a}"
 
     def pilot_runs(self):
@@ -1215,11 +1284,11 @@ class Fixture:
         for k, (m, a) in enumerate(STEPS):
             tasks = CLASSES["follow-on"] + CLASSES["control"] if a == "n" else [t for c in CLASSES.values() for t in c]
             specs = {t: dict(cost=0.05) for t in tasks}
-            if (m, a) == (POPUS, "n"):
+            if a == "n":  # both models' N runs hold an exposed attempt, so a row can be taken from the wrong one
                 specs[tasks[0]] = dict(cost=0.05, log=1, outside=["f.go"])
             d = w.arm(a, specs, model=m, run=self.rj(a, m, tasks, STOPS[m, a]))
             self.finish(d, HOUR.format(15 + k, 0))
-            self.gate("run", m, a, d, self.b / "plans.json", gates, prev, HOUR.format(15 + k, 30))
+            self.gate("run", m, a, d, self.b / "plans.json", gates, "pilot", prev, HOUR.format(15 + k, 30))
             prev = f"{m} {a}"
         pilot = self.R / "pilot.md"
         code, counts, err = cli("count", "--receipts", str(self.R / "pilot"), "--transcripts", str(self.R / "pilot"), "--pilot", str(pilot),
@@ -1304,7 +1373,12 @@ class PaidFences(unittest.TestCase):
         def _(fx): (P(fx) / POPUS / "m" / "zz.receipt.json").write_text("{}")
         @t6("an exposed attempt with no review row")
         def _(fx): (fx.R / "RESULTS.md").write_text("# RESULTS\n\ntranscripts: " + str(P(fx)) + "\n")
-        @t6("a review row quoting another diff")
+        @t6("a review row quoting another attempt's diff")
+        def _(fx):
+            text = (fx.R / "RESULTS.md").read_text()
+            first, second = re.findall(r"^diff:\n```\n(.*?)\n```$", text, re.S | re.M)[:2]
+            (fx.R / "RESULTS.md").write_text(text.replace(first, "\0").replace(second, first).replace("\0", second))
+        @t6("a review row that alters its own diff")
         def _(fx): (fx.R / "RESULTS.md").write_text((fx.R / "RESULTS.md").read_text().replace("diff ", "diff x"))
         @t6("known spend at the figure")
         def _(fx): [fx.edit(p, total_cost_usd=0.5) for p in (P(fx) / PSONNET / "n").glob("*.receipt.json")]

@@ -424,7 +424,7 @@ def n_exposure(rec, kept, calls):
             "write_results_read": sum(c["read"] for c in calls), "write_unattributable": unattributable}
 
 
-def attempt_entry(cls, arm, picked, chain, stray, started, index, transcripts, init_model):
+def attempt_entry(cls, arm, picked, chain, stray, started, index, transcripts, init_model, run_mrw=""):
     path, rec = picked if picked else (None, None)
     outcome = outcome_of(rec)
     entry = {"class": cls, "attempt": path.name[:-len(".receipt.json")] if path else None, "started": started, "outcome": outcome,
@@ -443,6 +443,8 @@ def attempt_entry(cls, arm, picked, chain, stray, started, index, transcripts, i
         return entry
     if rec.get("init_model") != init_model:
         raise Refusal(f"{entry['attempt']}: init_model is {rec.get('init_model')!r}, the observed {init_model!r} of pilot.md")
+    if (rec.get("mrw_sha256") or "") != run_mrw:
+        raise Refusal(f"{entry['attempt']}: its receipt's mrw_sha256 is {rec.get('mrw_sha256')!r}, its run's is {run_mrw!r}: the receipt is another run's")
     if not rec.get("transcript_sha256"):
         raise Refusal(f"{entry['attempt']}: a graded receipt with no transcript_sha256")
     found = index.get(entry["attempt"] + ".transcript.jsonl", [])
@@ -539,7 +541,7 @@ def count(receipts, transcripts, classes, pilot, plans=None):
                 raise Refusal(f"{directory}/run.json: task {task} is in no class of {classes}")
             was_started = any(s.startswith(task + ".") for s in [*found, *marks])
             picked, chain, stray = walk(f"{task}.{ARM_CONFIGS[arm][0]}.{safe(model)}.1", task, found)
-            tasks[task] = attempt_entry(where[task], arm, picked, chain, stray, was_started, index, where_t, init_model)
+            tasks[task] = attempt_entry(where[task], arm, picked, chain, stray, was_started, index, where_t, init_model, run.get("mrw_sha256") or "")
             chain_stems.update(chain)
             if picked:
                 stem = picked[0].name[:-len(".receipt.json")]
@@ -742,10 +744,20 @@ def exposure_lines(arms, cls):
 
 # What each canary may spend, ADR-211 Decision 9: the Opus canaries $0.75, the Sonnet ones $0.25.
 CANARY_FIGURES = {"claude-opus-5-5": 0.75, "claude-sonnet-5-5": 0.25}
+# The configurations a canary runs, once each per model: every one must be in its costs and its init models.
+CANARY_CONFIGS = ("A", "B")
+# Decision 9's order of the steps, one list for the smoke (the canaries, then the runs) and one for the pilot (the runs): a
+# step is cleared only after the one before it in its list, and the first of a list after nothing.
+_MODELS = ("claude-opus-5-5", "claude-sonnet-5-5")
+_RUNS = [("run", m, a) for m in _MODELS for a in ("n", "m", "a")]
+SEQUENCES = {"smoke": [("canary", m, a) for m in _MODELS for a in ("n", "m")] + _RUNS, "pilot": _RUNS}
 # What a row of RESULTS.md may adjudicate about an exposed attempt, the Stage 9 entry of BACKLOG.md's three.
 ADJUDICATIONS = ("an edit to a line the task did not ask for", "no such edit", "unassessable")
 CLEARED = re.compile(r"^gate (\S+) (\S+) cleared (\S+)$", re.M)
 WITHDRAWN = ("excludes 1 for M against N", "exposed attempt ended `outside`", "fewer than 3 of the 12 follow-on", "at least 3 of the 12 follow-on")
+# What the entry's one gate is made of, besides `on the same side of 1`: M against A, on single-site or on batch, on both
+# models, the interval excluding 1, and the models disagreeing registering nothing.
+REQUIRED = ("M against A", "on single-site or on batch", "on both models", "excludes 1 and lies", "the models are reported as disagreeing and nothing is registered")
 
 
 def when(text, what):
@@ -807,6 +819,11 @@ def check_run(directory, plan, pilot_text, pilot, now_micros=None):
         tried = len(chain) - 1
         if replaced(rec.get("exclusion", ""), tried):
             raise Refusal(f"{picked[0].name}: excluded ({rec.get('exclusion')}) and its replacement {base}.r{tried + 1} is owed and missing")
+        for stem in chain:  # each receipt of the chain is of this run and this attempt, not another's under the name (the runner's readsBack)
+            got = found[stem][1]
+            for key, want in (("attempt", stem), ("task", task), ("model", model), ("config", ARM_CONFIGS[arm][0]), ("mrw_sha256", run.get("mrw_sha256") or "")):
+                if (got.get(key) or "") != want:
+                    raise Refusal(f"{found[stem][0].name}: its {key} is {got.get(key)!r}, the attempt's is {want!r}: it is not the receipt of this attempt")
         if outcome_of(rec) != "missing" and rec.get("init_model") != init_model:
             raise Refusal(f"{picked[0].name}: init_model is {rec.get('init_model')!r}, the observed {init_model!r}")
     if stray := sorted(set(found) - chained):
@@ -850,11 +867,15 @@ def check_canary(path, model, arm, pilot_text, pilot):
     costs = doc.get("total_cost_usd") or {}
     if not costs or any(c is None or isinstance(c, bool) or not isinstance(c, (int, float)) for c in costs.values()):
         raise Refusal(f"{path}: a canary with a null cost, or none, does not say what it spent")
+    if missing := [c for c in CANARY_CONFIGS if c not in costs]:
+        raise Refusal(f"{path}: no cost for configuration {', '.join(missing)}: a canary runs each configuration once, and the spend is not known without them")
     if micros(sum(costs.values())) >= micros(CANARY_FIGURES[model]):
         raise Refusal(f"{path}: the canary's costs reached its figure")
     init = doc.get("init_models")
     if not isinstance(init, dict) or not init:
         raise Refusal(f"{path}: no init_models: the model its attempts ran is not known")
+    if missing := [c for c in CANARY_CONFIGS if c not in init]:
+        raise Refusal(f"{path}: no init model for configuration {', '.join(missing)}: the model its attempt ran is not known")
     want = pilot_line(pilot_text, pilot, f"init model {model}", r"\S+(?: \S+)*", "the model its init line names")
     for config, got in sorted(init.items()):
         if got != want:
@@ -862,9 +883,10 @@ def check_canary(path, model, arm, pilot_text, pilot):
     return when(doc.get("started", ""), f"{path} started")
 
 
-def gate(kind, model, arm, target, plans, pilot, gates, after=None, now=None):
+def gate(kind, model, arm, target, plans, pilot, gates, sequence, after=None, now=None):
     """One step's clearance line, or a refusal. A run's target is its directory; a canary's is its canary-<model>-<arm>.json.
-    The step must have exited 0, be the registered one and start after its predecessor's recorded clearance."""
+    The step must have exited 0, be the registered one, be the step of `sequence` ("smoke" or "pilot") that follows `after`
+    (none for the first), start after its predecessor's recorded clearance and be cleared after it started."""
     pilot_text = Path(pilot).read_text(encoding="utf-8")
     status = exit_status(target if kind == "run" else str(target)[:-len(".json")])
     if status != "0":
@@ -884,14 +906,26 @@ def gate(kind, model, arm, target, plans, pilot, gates, after=None, now=None):
                 raise Refusal(f"{target} and {other} are canaries of {model} that report different models: {mine!r} against {theirs!r}")
     recorded = clearances(gates)
     label = f"canary-{arm}" if kind == "canary" else arm  # a canary and a run of one arm are two steps of one model
+    # The step's place in the registered order: every step after the first needs its predecessor's recorded clearance, and
+    # the first needs none; a caller cannot name another predecessor, or none, for a later step.
+    order = SEQUENCES[sequence]
+    if (kind, model, arm) not in order:
+        raise Refusal(f"{target}: {kind} {model} {arm} is no step of the {sequence} order")
+    at = order.index((kind, model, arm))
+    expected = None if at == 0 else (lambda k, m, a: f"{m} canary-{a}" if k == "canary" else f"{m} {a}")(*order[at - 1])
+    if after != expected:
+        raise Refusal(f"{target}: its predecessor in the {sequence} order is {expected or 'none'}, not {after or 'none'}")
     if after is not None:
         if after not in {f"{m} {a}" for m, a in recorded}:
             raise Refusal(f"{gates}: its predecessor {after} has no recorded clearance")
         before = when(recorded[tuple(after.split(" "))], f"{gates} clearance of {after}")
         if start < before:
             raise Refusal(f"{target}: the step started at {start.isoformat()}, before {after} cleared at {before.isoformat()}")
-    # A clearance already recorded is the one the replay judges by; a new one is the time it is made.
+    # A clearance already recorded is the one the replay judges by; a new one is the time it is made. Neither may precede
+    # the step's own start: a step is cleared after it began.
     time = recorded.get((model, label)) or now or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    if when(time, f"{gates} clearance of {model} {label}") < start:
+        raise Refusal(f"{target}: cleared at {time}, before the step started at {start.isoformat()}")
     return f"gate {model} {label} cleared {time}"
 
 
@@ -926,8 +960,14 @@ def review(results, counts, receipts):
     `<model> <arm> <attempt>` (M and N share their stems), whatever its outcome; each quotes the attempt's own kept
     .diff byte for byte, or says `unassessable: <reason>` where none was kept, gives the reason its receipt gives, the limits
     that apply and one adjudication; no row for an attempt that is not exposed."""
-    rows = parse_rows(Path(results).read_text(encoding="utf-8"))
+    text = Path(results).read_text(encoding="utf-8")
+    if not text.strip():
+        raise Refusal("RESULTS.md is empty: a row is owed for every exposed attempt, and a pilot with none still says so")
+    rows = parse_rows(text)
     runs = {(p["model"], p["arm"]): d for (d, _, p) in load_runs(receipts).values()}
+    for (model, arm), d in sorted(runs.items()):  # the counts must be of the runs the receipts hold, or an empty one clears them all
+        if arm in ("m", "n") and not (counts.get("models", {}).get(model, {}).get(arm) or {}).get("tasks"):
+            raise Refusal(f"counts.json holds no {model} {arm}, which {d} does")
     want = set()
     for model, arms in counts["models"].items():
         for arm in ("m", "n"):
@@ -950,8 +990,9 @@ def review(results, counts, receipts):
             raise Refusal(f"RESULTS.md row {model} {arm} {attempt}: no limits")
         diff = found[attempt][0].with_name(attempt + ".diff")
         if diff.exists():
-            quoted = re.search(r"^diff:\n```\n(.*?)\n?```$", block, re.S | re.M)
-            if quoted is None or quoted.group(1).strip("\n") != diff.read_text(encoding="utf-8").strip("\n"):
+            quoted = re.search(r"^diff:\n```\n(.*)\n```[ \t]*$", block, re.S | re.M)
+            kept = diff.read_text(encoding="utf-8")
+            if quoted is None or quoted.group(1) != (kept[:-1] if kept.endswith("\n") else kept):  # one framing newline, nothing else
                 raise Refusal(f"RESULTS.md row {model} {arm} {attempt}: it does not quote its attempt's own kept diff byte for byte")
         elif not re.search(r"^diff: unassessable: \S.*$", block, re.M):
             raise Refusal(f"RESULTS.md row {model} {arm} {attempt}: no kept diff, and the row does not say `diff: unassessable: <reason>`")
@@ -964,6 +1005,10 @@ def project(smoke, plans):
     """Each arm's smoke cost per graded attempt times the attempts the registered plan gives it, against its figure: the
     lines, and whether any arm reaches its figure."""
     lines, over = [], False
+    if not Path(smoke).is_dir():
+        raise Refusal(f"{smoke}: no smoke root")
+    if not [p for p in load_plans(plans) if not p.get("probe")]:
+        raise Refusal(f"{plans}: no registered run to project")
     for plan in (p for p in load_plans(plans) if not p.get("probe")):
         d = Path(smoke) / plan["directory"]
         if not d.is_dir():
@@ -991,6 +1036,9 @@ def registration(backlog):
     entry = " ".join(m.group(0).split())  # a phrase may wrap across lines of the file
     if "on the same side of 1" not in entry:
         raise Refusal("the Stage 9 entry holds no gate for M against A `on the same side of 1` on both models")
+    for text in REQUIRED:
+        if text not in entry:
+            raise Refusal(f"the Stage 9 entry lacks {text!r}, which the one gate is made of")
     for text in WITHDRAWN:
         if text in entry:
             raise Refusal(f"the Stage 9 entry still holds a withdrawn condition: {text!r}")
@@ -1022,6 +1070,7 @@ def main(argv):
     g.add_argument("--pilot", required=True)
     g.add_argument("--gates", required=True)
     g.add_argument("--after")
+    g.add_argument("--sequence", required=True, choices=sorted(SEQUENCES))
     rv = sub.add_parser("review")
     rv.add_argument("--results", required=True)
     rv.add_argument("--counts", required=True)
@@ -1038,7 +1087,7 @@ def main(argv):
         elif args.verb == "report":
             sys.stdout.write(report(args.receipts, read_json(args.counts)))
         elif args.verb == "gate":
-            sys.stdout.write(gate(args.kind, args.model, args.arm, args.target, args.plans, args.pilot, args.gates, args.after) + "\n")
+            sys.stdout.write(gate(args.kind, args.model, args.arm, args.target, args.plans, args.pilot, args.gates, args.sequence, args.after) + "\n")
         elif args.verb == "review":
             sys.stdout.write(review(args.results, read_json(args.counts), args.receipts) + "\n")
         elif args.verb == "project":
