@@ -294,10 +294,10 @@ func project(w, withheld io.Writer, bud *Budget, sp Spec, b []byte, opt Options)
 		if err == nil {
 			err = json.Compact(&value, b[s:e])
 		}
-		name, line, stop := sp.Path+":"+p.Expr, p.Expr+" = "+value.String(), false
+		name, line, stop := ShownPath(sp.Path)+":"+p.Expr, p.Expr+" = "+value.String(), false
 		switch {
 		case errors.Is(err, errNotJSON):
-			name, line, stop = sp.Path, "NOT JSON: "+strings.TrimPrefix(err.Error(), errNotJSON.Error()+": "), true
+			name, line, stop = ShownPath(sp.Path), "NOT JSON: "+strings.TrimPrefix(err.Error(), errNotJSON.Error()+": "), true
 		case err != nil:
 			line = p.Expr + "  NOT FOUND: " + err.Error()
 		}

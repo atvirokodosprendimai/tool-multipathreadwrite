@@ -51,6 +51,7 @@ import (
 	"syscall"
 	"unicode/utf8"
 
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/regular"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
@@ -291,6 +292,61 @@ func splitServed(report string) []servedSlice {
 	return out
 }
 
+// unrecordableNameNote is said under a served header whose name holds a control
+// byte: read.Run prints such a name quoted and escaped (read.ShownPath), a spelling
+// no observation carries, so the file gets no checkpoint, and the ledger cannot
+// hold its name either (#702, #716).
+const unrecordableNameNote = "-- not licensed: this file's name holds a control byte (a line feed, for one), which no checkpoint and no ledger record can name, so this read licenses none of its lines; edit it with --force or after a rename\n"
+
+// shownKeys maps each observation key to the spelling read.Run prints it in, the
+// other way round, so a served header is matched to the file it names by what the
+// header says and not by what it looks like when unquoted. read.ShownPath is
+// injective, so one spelling names one key.
+func shownKeys(observed map[string]seen.Observation) map[string]string {
+	m := make(map[string]string, len(observed))
+	for k := range observed {
+		m[read.ShownPath(k)] = k
+	}
+	return m
+}
+
+// servedKey is the observation key a served header names: its path as printed,
+// else the typed spelling cleaned the way read.Run keys it (a header prints the
+// spec as typed, the map is cleaned). A quoted header is unquoted first, so
+// `"./a\nb"` finds the observation of `a\nb`.
+func servedKey(path string, shown map[string]string) (string, bool) {
+	if k, ok := shown[path]; ok {
+		return k, true
+	}
+	name := path
+	if strings.HasPrefix(path, `"`) {
+		if u, err := strconv.Unquote(path); err == nil {
+			name = u
+		}
+	}
+	for _, p := range []string{filepath.Clean(name), name} {
+		if k, ok := shown[read.ShownPath(p)]; ok {
+			return k, true
+		}
+	}
+	return "", false
+}
+
+// unrecordableName says whether a served header names a file this read cannot
+// checkpoint: its key is one the ledger cannot hold, or no observation answers to
+// the header and the name it prints holds a control byte (read.ShownPath quotes
+// exactly those, and begins every escaped name with a quote).
+func unrecordableName(sl servedSlice, key string, found bool) bool {
+	if sl.sha == "" || sl.path == "" {
+		return false
+	}
+	if found {
+		return !seen.Recordable(key)
+	}
+	u, err := strconv.Unquote(sl.path)
+	return err == nil && strings.ContainsFunc(u, func(r rune) bool { return r < 0x20 || r == 0x7f })
+}
+
 // markServed interleaves checkpoints through each file of a fitting report
 // and returns the marked text plus per-path spans. A report with no numbered
 // lines is returned unchanged and holds nothing. observed is what the read
@@ -304,8 +360,21 @@ func markServed(report string, observed map[string]seen.Observation) (string, ma
 	}
 	var out strings.Builder
 	byPath := map[string]map[string]map[string][2]int{}
+	shown := shownKeys(observed)
 	for _, sl := range slices {
-		marked, spans := interleave(sl.text, recordedIn(observed, sl))
+		key, found := servedKey(sl.path, shown)
+		// #716, #740: a file whose name the ledger cannot hold is served as it is,
+		// and says so; an ack cannot name it.
+		if unrecordableName(sl, key, found) {
+			out.WriteString(sl.text)
+			out.WriteString(unrecordableNameNote)
+			continue
+		}
+		var o seen.Observation
+		if found {
+			o = observed[key]
+		}
+		marked, spans := interleave(sl.text, recordedIn(o, found, sl.sha))
 		out.WriteString(marked)
 		// Kept per file AND per version: two specs naming one file — a list
 		// split into ranges, each with its own max_lines budget — are two
@@ -316,6 +385,9 @@ func markServed(report string, observed map[string]seen.Observation) (string, ma
 		// merge, which licensed a line served from an older version).
 		if sl.path != "" && len(spans) > 0 {
 			p := filepath.Clean(sl.path)
+			if found {
+				p = filepath.Clean(key)
+			}
 			if byPath[p] == nil {
 				byPath[p] = map[string]map[string][2]int{}
 			}
@@ -351,11 +423,10 @@ func heldSpans(bySHA map[string]map[string][2]int, sha string) map[string][2]int
 	return held
 }
 
-// recordedIn is which lines of sl the read recorded, or nil — every line —
-// when the observation is of another version or there is none.
-func recordedIn(observed map[string]seen.Observation, sl servedSlice) func(int) bool {
-	o, ok := observationOf(observed, sl.path)
-	if !ok || sl.sha == "" || !strings.HasPrefix(o.SHA, sl.sha) {
+// recordedIn is which lines of a served slice the read recorded, or nil — every
+// line — when the observation is of another version or there is none.
+func recordedIn(o seen.Observation, found bool, sha string) func(int) bool {
+	if !found || sha == "" || !strings.HasPrefix(o.SHA, sha) {
 		return nil
 	}
 	return func(line int) bool { return o.Covers(line, line) }
