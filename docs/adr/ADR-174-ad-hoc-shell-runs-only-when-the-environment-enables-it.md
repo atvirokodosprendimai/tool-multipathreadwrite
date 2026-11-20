@@ -8,7 +8,7 @@
 **Spec:** None — no spec stage
 **Cross-references:** ADR-092, ADR-094, ADR-095, ADR-100, ADR-170, ADR-177, ADR-181, README.md, AGENTS.md, docs/agents.md, internal/guide/guide.go
 **Governs:** `cmd/mrw/main.go`, `cmd/mrw/run177.go`, `internal/guide/guide.go`, `scripts/contract.sh`, `docs/break/check-json/stress.py`, `docs/break/write-flags/stress.py`, `.github/workflows/release-smoke-windows.yml`
-**Enforced-by:** None — until T1 lands, which adds `cmd/mrw/shell174_test.go::TestAdHocShellRunsOnlyWhenTheEnvironmentEnablesIt`
+**Enforced-by:** `cmd/mrw/shell174_test.go::TestAdHocShellRunsOnlyWhenTheEnvironmentEnablesIt`
 **Invalidates:** ADR-092 Decision 8 in part — that `--then-sh` runs any shell its caller writes — and ADR-177 Decision 9's "`mrw run` runs any shell command it is given". From this record both run only when `MRW_SHELL=on` is in mrw's environment. ADR-092 Decision 8's `--then NAME` half, the declared check (ADR-054) and ADR-177's other decisions stand; ADR-181 is a consumer (its Windows smoke runs `mrw run`), not invalidated.
 **Served-path change:** `mrw write … --then-sh CMD`, `mrw check --then-sh CMD` and `mrw run 'CMD'` without `MRW_SHELL=on` in mrw's environment are refused, exit 2, before anything is written or any step, check or command is run, the message naming the variable (and, for `--then-sh`, `--then NAME`); with it, they run as before.
 

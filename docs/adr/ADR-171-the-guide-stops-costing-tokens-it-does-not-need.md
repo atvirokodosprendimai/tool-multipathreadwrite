@@ -8,7 +8,7 @@
 **Spec:** None — no spec stage
 **Cross-references:** ADR-037, ADR-054, ADR-060, ADR-070, ADR-141, ADR-161, ADR-168, ADR-170, ADR-175, docs/agents.md, README.md, AGENTS.md
 **Governs:** `internal/guide/guide.go`, `docs/agents.md`, `.claude/skills/mrw/SKILL.md`
-**Enforced-by:** None — until T1 lands, which adds `internal/guide/cost171_test.go::TestTheCoreTeachesTheBodyCountAsOptional`
+**Enforced-by:** `internal/guide/cost171_test.go::TestTheCoreTeachesTheBodyCountAsOptional`
 **Invalidates:** ADR-141 — core rule 4's clause "body= is a line count and goes on the header", which agents read as "write one", and the core's header, which pointed at the full contract (`core141_test.go:44` pins that prefix and changes with it); ADR-161 Decision 4's recipe 5 as the default way to send a plan. ADR-070's rule that a count, when written, goes on the header is kept.
 **Served-path change:** `mrw instructions --core`, `mrw instructions`, `mrw write --help` and `mrw skill` tell a caller that `body=` is optional for an ordinary body, that a plan is best sent in a file, and that the rules are read once a session while the lines to be edited are re-read after a compaction; no parser, exit code or receipt changes.
 

@@ -1,6 +1,7 @@
 # ADR-031: A page licenses only the part of it that came back
 
 **Status:** Accepted
+**Superseded in part:** by ADR-039 (2026-09-09): the Served-path clause that a read that fits carries no checkpoints, and the Out of Scope entry "Applying checkpoints to small reads that fit whole".
 **Date:** 2026-09-07
 **Owner:** M
 **Accepted:** M, 2026-09-07, choosing "page acknowledgement" over a preimage echo and over documenting the gap: *"accepted, finish."*

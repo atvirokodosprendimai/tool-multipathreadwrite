@@ -2,6 +2,7 @@
 
 **Status:** Accepted
 **Accepted:** 2026-10-31 by Zy — answered *"Accept and merge (Recommended)"* to "Do you accept ADR-184 so I can merge #577?", after run 3 and the Codex reviews of #577
+**Superseded in part:** by ADR-185 (2026-11-01): Decision 2's rule-6 clause `--stat lists files`, back to `--stat lists the matching files`.
 **Date:** 2026-10-31
 **Owner:** Zy
 **Spec:** None — no spec stage

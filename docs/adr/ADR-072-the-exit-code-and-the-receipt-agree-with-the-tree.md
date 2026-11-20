@@ -2,6 +2,7 @@
 
 **Status:** Accepted
 **Accepted:** 2026-09-25 by M — *"plan to address these, properly, no looping on small details"*; the plan that groups the v1.25.1 adversarial round into five records was approved the same day
+**Superseded in part:** by ADR-187 (2026-11-01): Decision 1's "Unless `--no-check` or `--dry-run` is given": a write reads the harness only when a check is asked for or a step is named, so a malformed harness refuses such a write before anything is written and does not block a write that asks for neither.
 **Date:** 2026-09-25
 **Owner:** M
 **Spec:** None — no spec stage

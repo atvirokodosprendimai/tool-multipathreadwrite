@@ -1,6 +1,7 @@
 # ADR-194: a write licenses the lines the caller saw and the lines it wrote, not the whole file
 
-**Status:** Accepted
+**Status:** Withdrawn
+**Withdrawn by:** Zy, 2026-11-20: *"Withdraw 194"*. T1's replay was INCONCLUSIVE (W=238, R=0, U=137), and T2, the code, was stopped on 2026-11-04 (`tasks/README.md`), so nothing was built: the Supersedes line below never took effect, and ADR-005 Decision 4's whole-file licence of a written file stays in force. ADR-203 took the narrower route, refusing a bare line number on a line not shown since the write, and does not supersede this record. The record is kept for what T1 measured.
 **Accepted:** 2026-11-04 by Zy — answered *"acept if this is beneficial"* to the two drafts, then *"go"*. "Beneficial" is T1's pre-registered verdict: T2, the code, starts only on GO (or on an override Zy gives and `replay.json` records).
 **Date:** 2026-11-04
 **Amended:** 2026-11-04, before acceptance, from an adr-challenger pass and one Codex xhigh challenge (a first run over both records was killed at its 600 s budget and returned nothing) (each finding checked against the code): the carry is computed in apply from the observation the plan was judged against, so an alias is carried and a rename is not a create; shown lines are not carried, so `from=` and `occurrence=` keep today's rule; the path-op refusal a partial licence brings is named; the refusal names no source of the licence (ADR-182); the replay's licence sources, uncertainty and verdict are pre-registered in full; one finding did not hold and is answered in Decision 6.

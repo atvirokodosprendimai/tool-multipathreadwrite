@@ -2,6 +2,7 @@
 
 **Status:** Accepted
 **Accepted:** 2026-09-09 by M — *"Accept"*
+**Superseded in part:** by ADR-062 (2026-09-16): `CLI()` is no longer a pamphlet, and `Shared()`'s first sentence is no longer a 3+ threshold.
 **Date:** 2026-09-09
 **Owner:** M
 **Spec:** None — no spec stage

@@ -7,7 +7,7 @@
 **Spec:** None — no spec stage
 **Cross-references:** ADR-009, ADR-156, ADR-160, ADR-192, ADR-193, ADR-200, ADR-203, ADR-205
 **Governs:** `internal/bench/**`, `cmd/bench/**`, `bench/stage-9/**`, `bench/tasks/**`, `scripts/bench_stage9.py`, `scripts/test_bench_stage9.py`, `docs/bench/**`
-**Enforced-by:** None — T1 adds `internal/bench/stage9_test.go::TestARunPinsItsMrwItsInstructionsAndItsSpend`; this line names it in the pull request that merges T1
+**Enforced-by:** `internal/bench/stage9_test.go::TestARunPinsItsMrwItsInstructionsAndItsSpend`
 **Served-path change:** none to `mrw`. `bench run` and `bench canary` gain flags; a run without them behaves as before. The backlog's "no new flag while the pilot is open" is about mrw's surface; these flags are the bench's.
 
 ## Context

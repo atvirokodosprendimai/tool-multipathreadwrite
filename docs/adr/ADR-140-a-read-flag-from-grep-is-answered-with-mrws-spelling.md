@@ -2,6 +2,7 @@
 
 **Status:** Accepted
 **Accepted:** 2026-10-10 by Zy — "/loop continue delivering, end to end, no dead code", on the survey's flag-friction item ("`--grep -i` shifts the pattern into the path slot", "`--plan` guessed", 4 of 14 sessions as the author's 2026-10-09 synthesis recorded the replies)
+**Superseded in part:** by ADR-153 (2026-10-14): Decision 3's `-c`/`--count` sentence, since `--count` is a flag of `read`; by ADR-164 (2026-10-20): the Out of Scope entry "`-v` `-o` `-z` (permanent: boundary: a hint would be a guess)", since `-v` and `-o` get a pointer.
 **Date:** 2026-10-10
 **Owner:** Zy
 **Spec:** None — no spec stage

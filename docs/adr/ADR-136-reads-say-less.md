@@ -2,6 +2,7 @@
 
 **Status:** Accepted
 **Accepted:** 2026-10-10 by Zy — "/loop continue delivering, end to end, no dead code", on the survey's top-ranked pain ("reads are quiet", recommended 2026-10-09 and not declined)
+**Superseded in part:** by ADR-157 (2026-10-14): Decision 2's sentence (it claimed a discard on commands that make none) and Decision 3's skip list (help and a bare `mrw` join it); by ADR-161 (2026-10-16): the neighbour note, since a ranged read now serves the line after instead of naming it.
 **Date:** 2026-10-10
 **Owner:** Zy
 **Spec:** None — no spec stage

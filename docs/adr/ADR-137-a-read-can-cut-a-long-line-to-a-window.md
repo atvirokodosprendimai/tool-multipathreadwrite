@@ -2,6 +2,8 @@
 
 **Status:** Accepted
 **Accepted:** 2026-10-10 by Zy — "/loop continue delivering, end to end, no dead code", on the survey's most-named missing function ("no column window around a match in a very long line", 8 of 14 sessions as reported in the author's 2026-10-09 synthesis)
+**Amended:** by ADR-154 (2026-10-14): "(CLI only)" in the Served-path line: `mrw_read` takes `max_cols`, and a line it serves cut is in no checkpoint and stays unlicensed. The CLI rule stands (ADR-154 declares no invalidation).
+**Amended:** by ADR-164 (2026-10-20): Decision 2's "centred on the first match" now means centred on the match itself.
 **Date:** 2026-10-10
 **Owner:** Zy
 **Spec:** None — no spec stage

@@ -1,6 +1,8 @@
 # ADR-002: mrw will not edit a file it has not seen
 
 **Status:** Accepted
+**Superseded in part:** by ADR-203 (2026-11-19): the numbered-address clause of the "edit again straight after" row and of "a chain of edits needs no re-read": a line number alone is refused on a line of a written file that no read has shown since the write. The whole-file licence of a written file stands.
+**Superseded in part:** by ADR-004 (2026-08-31): the four clauses that name `.mrw/seen` as the storage location (the Decision sentence, the Wiring row `.mrw/seen file format`, the Risk row on `/.mrw/` being gitignored, and Rollback step 2). The refusal itself stands.
 **Date:** 2026-08-31
 **Owner:** M
 **Spec:** None — no spec stage

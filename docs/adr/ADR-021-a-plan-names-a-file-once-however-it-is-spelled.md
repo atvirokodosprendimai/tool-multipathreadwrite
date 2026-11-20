@@ -2,6 +2,7 @@
 
 **Status:** Accepted
 **Accepted:** 2026-09-04 by M — asked for a local triage: *"test this mrw tool, try to break it, and if we cant - we call it a day success."* It broke, once, in 45 probes; the standing instruction is that a real defect is a blocker, so it is fixed rather than filed.
+**Superseded in part:** by ADR-071 (2026-09-25): Decision 4 ("Only existing files are checked"), since two creates are now checked by name, and Decision 5 ("Nothing folds case"), which now holds for existing files only.
 **Date:** 2026-09-04
 **Owner:** M
 **Spec:** None — no spec stage

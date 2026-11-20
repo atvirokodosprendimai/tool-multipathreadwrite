@@ -2,6 +2,7 @@
 
 **Status:** Accepted
 **Accepted:** 2026-09-25 by M — *"plan to address these, properly, no looping on small details"*; the plan that groups the v1.25.1 adversarial round into five records was approved the same day
+**Superseded in part:** by ADR-106 (2026-09-30): the rejected alternative "`os.Root` for every file access", for the write path only; the read path keeps this record's decision.
 **Date:** 2026-09-25
 **Owner:** M
 **Spec:** None — no spec stage

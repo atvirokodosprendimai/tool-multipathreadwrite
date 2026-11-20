@@ -2,6 +2,7 @@
 
 **Status:** Accepted
 **Accepted:** 2026-10-14 by Zy — approved the plan `glimmering-frolicking-harp` ("ADR-155 — JSON path address, read only") and set the goal "implement this plan end to end".
+**Amended:** by ADR-161 (2026-10-16): a JSON path serves and licenses its value's lines and the line after them.
 **Date:** 2026-10-14
 **Owner:** Zy
 **Spec:** None — no spec stage

@@ -2,6 +2,7 @@
 
 **Status:** Accepted
 **Accepted:** 2026-10-10 by Zy — answered "Guidance core (Recommended)" to "Which should the loop take next?", after "/loop continue delivering, end to end, no dead code"
+**Superseded in part:** by ADR-168 (2026-10-22): the Out of Scope entry "Shortening `mrw instructions`, AGENTS.md or the skill", narrowed: the skill is the output of `mrw skill`; by ADR-171 (2026-10-24): core rule 4's clause "body= is a line count and goes on the header" and the core's header.
 **Date:** 2026-10-10
 **Owner:** Zy
 **Spec:** None — no spec stage

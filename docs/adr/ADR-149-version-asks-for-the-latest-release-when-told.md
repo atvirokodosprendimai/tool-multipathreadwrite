@@ -2,6 +2,7 @@
 
 **Status:** Accepted
 **Accepted:** 2026-10-14 by Zy — chose "Opt-in network check" (`mrw version --check-latest` asks GitHub for the latest tag; never automatic) over an offline-only staleness line, approved the plan naming this record, and set the goal "implement this plan end to end".
+**Superseded in part:** by ADR-183 (2026-10-29): Decision 1's fourth bullet, `cannot be compared` for a version not a strict `vX.Y.Z`, which no longer covers a Go pseudo-version of the release form; and its User-Agent, which takes the reported version.
 **Date:** 2026-10-14
 **Owner:** Zy
 **Spec:** None — no spec stage

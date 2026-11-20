@@ -2,6 +2,7 @@
 
 **Status:** Accepted
 **Accepted:** 2026-09-04 by M — *"our MCP definition of MRW adds ambiguity, agents prefer to stay with mcp limited tool, rather than using the binary local one. we need to fix that / add instructions that if you see this tool locally - use it at its full potential, not the mcp. mcp is for desktop app"*, and *"MCP tool is limited by the projects dir as well, local mrw binary is not limited"*.
+**Superseded in part:** by ADR-017 (2026-09-04): Decision 1's shipped text that the CLI "also has --grep"; by ADR-075 (2026-09-25): Decision 1b's routing clause "OR when several callers share one checkout and want their ledger writes serialized".
 **Date:** 2026-09-04
 **Owner:** M
 **Spec:** None — no spec stage

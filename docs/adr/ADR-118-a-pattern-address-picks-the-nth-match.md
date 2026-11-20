@@ -2,6 +2,7 @@
 
 **Status:** Accepted
 **Accepted:** 2026-10-02 by Zy — "All matches up to N served (Recommended)", the answer to "occurrence=N — what makes picking the Nth match safe?", on the refreshed gap list of 2026-10-02 and the plan he approved the same day; and again on the assessment of 2026-10-02, whose first cost names it. The record's text was drafted after that answer and not shown to Zy before execution: this line is the answer, not a review of these words.
+**Amended:** by ADR-182 (2026-10-29): the exact strings T1's test asserts change (the ledger names no source of a licence). The rule stands.
 **Date:** 2026-10-02
 **Owner:** Zy
 **Spec:** None — no spec stage

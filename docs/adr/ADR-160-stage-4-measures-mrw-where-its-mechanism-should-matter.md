@@ -7,7 +7,7 @@
 **Spec:** None — no spec stage
 **Cross-references:** ADR-156, ADR-158, ADR-159, ADR-054
 **Governs:** `internal/bench/**`, `cmd/bench/**`, `bench/**`, `docs/bench/**`
-**Enforced-by:** None — until T1 lands, which adds `internal/bench/mine_test.go::TestAWideRenameCandidateIsDeclaredOnceAndNeverInAString`
+**Enforced-by:** `internal/bench/mine_test.go::TestAWideRenameCandidateIsDeclaredOnceAndNeverInAString`
 **Invalidates:** none — checked: ADR-156's bar, admission and budget are reused unchanged; of ADR-156 Decision 3's corpus only the six `single-line` tasks are rerun, unchanged, as the control; `SelectSWEBench`'s `adr-156:` salt stays the default, so Stage 3's selection is unchanged; `redbase_test.go`'s ten red-at-base tasks stay ten, since a `check-coupled` candidate red at base is skipped
 **Served-path change:** None — this ADR changes only measurement: `bench`, its corpus and its registration.
 

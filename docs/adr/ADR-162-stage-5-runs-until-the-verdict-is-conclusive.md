@@ -2,13 +2,14 @@
 
 **Status:** Accepted
 **Accepted:** 2026-10-17 by Zy — picked "Accept (Recommended)" after two challenger reviews (adr-challenger, Codex xhigh) and a Codex xhigh re-check, every finding that held taken into the draft.
+**Amended:** by ADR-192 (2026-11-03): Decision 5's sentence "later attempts of its second configuration are not run", for stage7 only.
 **Date:** 2026-10-17
 **Owner:** Zy
 **Spec:** None — no spec stage
 **Cross-references:** ADR-156, ADR-158, ADR-159, ADR-160, ADR-161
 **Amends:** ADR-156 Decision 1 (two configurations) and Decision 2 (the invocation, `--disable-slash-commands` included), and the registered bar's 95% interval level and its percentile bootstrap for the solved difference, for Stage 5 only
 **Governs:** `internal/bench/**`, `cmd/bench/**`, `bench/**`, `docs/bench/**`
-**Enforced-by:** None — until T1 lands, which adds `internal/bench/runner_test.go::TestConfigurationPIsAPlusThePluginAndSkills`
+**Enforced-by:** `internal/bench/runner_test.go::TestConfigurationPIsAPlusThePluginAndSkills`
 **Invalidates:** none — checked: Stages 1 to 4b keep their verdicts, since `bench analyze` keys a verdict by stage, model and source, and their level stays 95%; `SelectSWEBench`'s default salt stays `adr-156:` and ADR-160's `adr-160:`, so neither earlier selection moves; configurations A and B are unchanged in every stage that does not set the Stage 5 profile
 **Served-path change:** None — this ADR changes only measurement: `bench`, its registration and its stage.
 

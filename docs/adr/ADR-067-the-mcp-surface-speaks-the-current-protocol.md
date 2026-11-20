@@ -2,6 +2,7 @@
 
 **Status:** Accepted
 **Accepted:** 2026-09-24 by M — *"accepted"*
+**Superseded in part:** by ADR-093 (2026-09-29): Decision 3's "Acknowledgements sent with it are still promoted, as today", for a call refused for an undeclared argument.
 **Date:** 2026-09-24
 **Owner:** M
 **Spec:** None — no spec stage

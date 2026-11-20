@@ -2,6 +2,7 @@
 
 **Status:** Accepted
 **Accepted:** 2026-09-29 by Zy — "Accept, keep suffix (Recommended)", selected under "Next step is ADR-097. Accept it as drafted, and keep the `(see: mrw --help)` suffix on the new message?" (the option wording was the session's), on the record as drafted, with Decision 5 settled as written
+**Superseded in part:** by ADR-168 (2026-10-22): for one token, a bare `--skill` in the subcommand position is read as the subcommand `skill`; every other spelling at the root is refused with a sentence naming the bare one.
 **Date:** 2026-09-29
 **Owner:** Zy
 **Spec:** None — no spec stage

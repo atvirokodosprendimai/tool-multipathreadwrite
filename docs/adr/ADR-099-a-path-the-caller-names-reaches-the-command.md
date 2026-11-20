@@ -2,6 +2,7 @@
 
 **Status:** Accepted
 **Accepted:** 2026-09-29 by Zy — chose "Refuse, exit 2 (Recommended)" for `mrw check --full PATH` when asked, approved the plan "close the open items after v1.32.0" whose PR C is this record's scope, set the goal "implement this plan end to ned, test properly, test for dead code, gaps", and said "go". The record's own text was drafted after that approval and not shown to Zy before execution: this line is the session's reading of the approval, stated so it can be checked
+**Superseded in part:** by ADR-100 (2026-09-30): Decision 1's "nothing on stdout" for `mrw check --full PATH`, under `--json`, where stdout carries the refusal document.
 **Date:** 2026-09-29
 **Owner:** Zy
 **Spec:** None — no spec stage

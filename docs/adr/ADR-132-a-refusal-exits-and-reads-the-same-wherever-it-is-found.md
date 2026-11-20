@@ -2,6 +2,7 @@
 
 **Status:** Accepted
 **Accepted:** 2026-10-06 by Zy — "Unify on exit 1" and "Whole class → 1" for the exit, the Windows peers' four findings among the round's items, then "go next, properly, build a spec/adr and execute. i want complete stability and completeness". The record's text was drafted after those answers and revised after two Codex reviews of it.
+**Superseded in part:** by ADR-198 (2026-11-15): one clause of its Out of Scope (a plan's own path that mrw quotes inside a reason is spelled as its row spells it) and Decision 4's last sentence, "Under `--json`, `error` is unchanged".
 **Date:** 2026-10-06
 **Owner:** Zy
 **Spec:** None — no spec stage

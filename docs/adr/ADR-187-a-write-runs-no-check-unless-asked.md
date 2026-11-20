@@ -2,6 +2,7 @@
 
 **Status:** Accepted
 **Accepted:** 2026-11-01 by Zy — answered *"Default off everywhere"* to whether the post-write check's default changes, then *"Accept and merge (Recommended)"* to "Accept it and merge once CI is green?", after the Codex reviews of #583
+**Superseded in part:** by ADR-205 (2026-11-19): the rule for `mrw_write` ("runs none unless `check: true`, which runs it by ADR-054's rule"): `check: true` makes the check due on any landed write, and a tree with no command answers as a check that could not run. The default (no check unless asked) stands.
 **Date:** 2026-11-01
 **Owner:** Zy
 **Spec:** None — no spec stage
