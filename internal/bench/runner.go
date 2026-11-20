@@ -1111,7 +1111,7 @@ func runAttempt(o RunOptions, a attempt, order int, cli, mrwVersion string) (r R
 	v = settle(v, r.OverBudget, a.Task.swe != nil)
 	r.Oracle = v
 	r.SilentMisEdit = !r.IsError && (len(v.Outside) > 0 || len(v.Structure) > 0)
-	if r.Diff, err = diffStat(tree); err != nil {
+	if r.Diff, err = diffStat(tree, baseSHA); err != nil {
 		r.Note = "diffstat: " + err.Error()
 	}
 	if a.Config.Mrw {
@@ -1375,12 +1375,12 @@ func invocation(o RunOptions, a attempt, scratch string) ([]string, []string, er
 // the hook is told it, so a write outside it passes.
 func attemptTree(scratch string) string { return filepath.Join(scratch, "tree") }
 
-func diffStat(tree string) (DiffStat, error) {
+func diffStat(tree, base string) (DiffStat, error) {
 	var d DiffStat
 	if err := git(tree, "add", "-A"); err != nil {
 		return d, err
 	}
-	out, err := gitOut(tree, "diff", "--cached", "--numstat", "HEAD")
+	out, err := gitOut(tree, "diff", "--cached", "--numstat", base)
 	if err != nil {
 		return d, err
 	}

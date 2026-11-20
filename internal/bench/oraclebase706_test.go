@@ -16,25 +16,30 @@ import (
 func TestAnAttemptThatCommitsIsGradedAgainstItsBase(t *testing.T) {
 	t.Run("a committed stray edit is outside", func(t *testing.T) {
 		// The fix (beta to gamma) and a stray edit (alpha to ALPHA).
-		v := committedAttempt(t, false, "@@ -1,4 +1,4 @@\n-alpha\n-beta\n+ALPHA\n+gamma\n delta\n epsilon\n")
-		if v.Solved || len(v.Outside) == 0 {
-			t.Errorf("a committed stray edit was graded %+v, want it outside and the attempt not solved", v)
+		r := committedAttempt(t, false, "@@ -1,4 +1,4 @@\n-alpha\n-beta\n+ALPHA\n+gamma\n delta\n epsilon\n")
+		if r.Oracle.Solved || len(r.Oracle.Outside) == 0 {
+			t.Errorf("a committed stray edit was graded %+v, want it outside and the attempt not solved", r.Oracle)
+		}
+		if r.Diff.Files != 1 || r.Diff.Insertions != 2 || r.Diff.Deletions != 2 {
+			t.Errorf("the diff stats of a committed change are %+v, want one file, two lines in and out", r.Diff)
 		}
 	})
 	t.Run("a committed exact fix is the reference result", func(t *testing.T) {
 		// A fix that adds a line: rebuilt from the agent's commit instead
 		// of the base, the reference would add it a second time.
-		v := committedAttempt(t, true, "@@ -1,4 +1,5 @@\n alpha\n beta\n+gamma\n delta\n epsilon\n")
-		if !v.Solved || len(v.Missing) != 0 {
-			t.Errorf("a committed reference fix of an exact task was graded %+v, want it solved", v)
+		r := committedAttempt(t, true, "@@ -1,4 +1,5 @@\n alpha\n beta\n+gamma\n delta\n epsilon\n")
+		if !r.Oracle.Solved || len(r.Oracle.Missing) != 0 {
+			t.Errorf("a committed reference fix of an exact task was graded %+v, want it solved", r.Oracle)
 		}
 	})
 }
 
 // committedAttempt runs one attempt of the fixture task whose stub agent
-// applies hunk to notes.txt and commits the result, and returns its verdict.
+// applies hunk to notes.txt and commits the result, and returns its receipt.
+// The stub leaves a marker only when the commit succeeded, so a case cannot
+// pass on an uncommitted tree.
 // An exact task takes hunk as its reference fix too, with gamma required.
-func committedAttempt(t *testing.T, exact bool, hunk string) Verdict {
+func committedAttempt(t *testing.T, exact bool, hunk string) Receipt {
 	t.Helper()
 	opts, _ := runOptions(t)
 	work := filepath.Dir(opts.Out)
@@ -51,7 +56,7 @@ func committedAttempt(t *testing.T, exact bool, hunk string) Verdict {
 	if !strings.Contains(string(b), apply) {
 		t.Fatal("the stub no longer applies its patch the way this test expects")
 	}
-	script := strings.Replace(string(b), apply, apply+"\ngit -c user.name=agent -c user.email=agent@localhost -c commit.gpgsign=false commit -q --no-verify -am agent >/dev/null 2>&1 || exit 9", 1)
+	script := strings.Replace(string(b), apply, apply+"\ngit -c user.name=agent -c user.email=agent@localhost -c commit.gpgsign=false commit -q --no-verify -am agent >/dev/null 2>&1 || exit 9\ntouch \""+filepath.Join(work, "committed")+"\"", 1)
 	if err := os.WriteFile(claude, []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -62,9 +67,10 @@ func committedAttempt(t *testing.T, exact bool, hunk string) Verdict {
 		if err := os.WriteFile(filepath.Join(dir, "task.json"), []byte(def), 0o644); err != nil {
 			t.Fatal(err)
 		}
-		if b, err := os.ReadFile(patch); err != nil {
+		if err := os.Rename(patch, filepath.Join(dir, "reference.patch")); err != nil {
 			t.Fatal(err)
-		} else if err := os.WriteFile(filepath.Join(dir, "reference.patch"), b, 0o644); err != nil {
+		}
+		if err := os.Symlink(filepath.Join(dir, "reference.patch"), patch); err != nil {
 			t.Fatal(err)
 		}
 		task, err := LoadTask(dir)
@@ -76,6 +82,9 @@ func committedAttempt(t *testing.T, exact bool, hunk string) Verdict {
 	if err := Run(opts); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := os.Stat(filepath.Join(work, "committed")); err != nil {
+		t.Fatalf("the stub agent did not commit: %v", err)
+	}
 	got := receipts(t, opts.Out)
 	if len(got) != 1 {
 		t.Fatalf("receipts: %d, want 1", len(got))
@@ -86,5 +95,5 @@ func committedAttempt(t *testing.T, exact bool, hunk string) Verdict {
 			t.Fatalf("%s: %v", name, err)
 		}
 	}
-	return r.Oracle
+	return r
 }
