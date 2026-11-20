@@ -27,6 +27,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/addr"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/iter"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/lines"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/regular"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
@@ -476,24 +477,19 @@ func ParseSpec(s string) (Spec, error) {
 	// filepath.VolumeName returns "" on POSIX, so this is a no-op there. Found
 	// by the windows CI job, 2026-09-03 — its third real finding.
 	vol := len(filepath.VolumeName(s))
-	i := strings.LastIndex(s[vol:], ":")
+	// The separator is the last colon, unless an earlier `:/` begins a pattern or
+	// an earlier `:$[` / `:$.` begins a JSON path whose quoted key holds that last
+	// colon (#715); addr.SpecColon is the one rule the working set shares.
+	i := addr.SpecColon(s, vol, &specGrammar)
 	if i < 0 {
-		return spec, nil
-	}
-	i += vol
-	if i == 0 {
 		return spec, nil
 	}
 	path, rest := s[:i], s[i+1:]
 	if rest == "" {
 		return Spec{}, fmt.Errorf("%q: empty range after ':'%s", s, msysHint(s))
 	}
-	// A colon inside a regexp range is part of the pattern, not a separator.
-	if j := strings.Index(s[vol:], ":/"); j >= 0 && j+vol > 0 && j+vol < i {
-		path, rest = s[:j+vol], s[j+vol+1:]
-	}
 	spec.Path = path
-	for _, part := range splitRanges(rest) {
+	for _, part := range rangeParts(rest) {
 		r, err := parseRange(part)
 		if err != nil {
 			return Spec{}, fmt.Errorf("%q: %w%s", s, err, msysHint(s))
@@ -501,6 +497,46 @@ func ParseSpec(s string) (Spec, error) {
 		spec.Ranges = append(spec.Ranges, r)
 	}
 	return spec, nil
+}
+
+func init() { iter.Grammar = &specGrammar }
+
+// specGrammar is the grammar addr.SpecColon asks about: the unchanged address
+// list, and one JSON path whole (#715).
+var specGrammar = addr.Grammar{Valid: rangesValid, JSONPath: oneJSONPath}
+
+// oneJSONPath says whether rest is a single JSON path the jsonpath parser accepts
+// whole, with no comma list and no ranges.
+func oneJSONPath(rest string) bool {
+	if !isJSONPath(rest) {
+		return false
+	}
+	_, err := parseJSONPath(rest)
+	return err == nil
+}
+
+// rangeParts is the ranges of a spec's tail. A tail the unchanged grammar
+// rejects that is one whole JSON path (`$["a,b"]`) is that one range; every
+// other tail splits as it always did, so no spec main accepted reads differently.
+func rangeParts(rest string) []string {
+	if !rangesValid(rest) && oneJSONPath(rest) {
+		return []string{rest}
+	}
+	return splitRanges(rest)
+}
+
+// rangesValid says whether rest is a complete address list: every range of it
+// parses. ParseSpec asks it before it moves the path/range colon (addr.SpecColon).
+func rangesValid(rest string) bool {
+	if rest == "" {
+		return false
+	}
+	for _, part := range splitRanges(rest) {
+		if _, err := parseRange(part); err != nil {
+			return false
+		}
+	}
+	return true
 }
 
 // splitRanges splits on commas that separate ranges, keeping both a single

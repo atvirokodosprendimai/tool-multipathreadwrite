@@ -61,6 +61,53 @@ func CutRelative(s string) (base string, n int, err error) {
 	return s[:k], n, nil
 }
 
+// Grammar is what SpecColon asks of the package that owns the address grammar.
+type Grammar struct {
+	// Valid says whether a string is an address list the unchanged grammar
+	// accepts.
+	Valid func(rest string) bool
+	// JSONPath says whether a string is ONE JSON path address, parsed whole:
+	// no comma list, no ranges.
+	JSONPath func(rest string) bool
+}
+
+// SpecColon returns the index of the colon that separates a spec's path from
+// its range, or -1 when the spec has none (or begins with one). vol is the
+// length of a volume prefix whose colon is not a separator.
+//
+// No guessing (#715): the split is first exactly the one mrw always made, at
+// the last colon, or at the first `:/` before it when a pattern holds that
+// colon. Only when what follows that colon is NOT an address the unchanged
+// grammar accepts does it try an earlier `:$` colon, left to right, and take
+// the first after which the whole rest is one JSON path: `doc.json:$["a:b"]`
+// splits after `doc.json`. A spec main accepted splits as it did, whatever its
+// file name holds, and a list that mixes ranges with a quoted key stays
+// refused. A nil g is the last-colon rule alone. One function, so the read
+// parser and the working set cannot disagree about a spec.
+func SpecColon(s string, vol int, g *Grammar) int {
+	i := strings.LastIndex(s[vol:], ":")
+	if i < 0 {
+		return -1
+	}
+	i += vol
+	if i == 0 {
+		return -1
+	}
+	base := i
+	if j := strings.Index(s[vol:], ":/"); j >= 0 && j+vol > 0 && j+vol < i {
+		base = j + vol
+	}
+	if g == nil || g.Valid(s[base+1:]) {
+		return base
+	}
+	for c := max(vol, 1); c < i; c++ {
+		if s[c] == ':' && c != base && strings.HasPrefix(s[c+1:], "$") && g.JSONPath(s[c+1:]) {
+			return c
+		}
+	}
+	return base
+}
+
 // singleStart reports whether base names exactly one starting line. whole is the
 // address as the caller wrote it, so every refusal can quote that rather than
 // the fragment left after the cut.

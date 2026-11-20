@@ -23,6 +23,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/addr"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/regular"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/state"
 )
@@ -200,6 +201,16 @@ func Save(root string, s Set) error {
 	return state.Write(path, []byte(b.String()), 0o600)
 }
 
+// asEntry is the line an entry is kept as. One that begins with `#` (a file
+// named `#notes`) would load back as the note, so it is kept as `./#notes`, the
+// same path, which load reads as an entry (#715).
+func asEntry(e string) string {
+	if strings.HasPrefix(strings.TrimSpace(e), "#") {
+		return "./" + e
+	}
+	return e
+}
+
 // Add appends entries that are not already present and reports how many were
 // new. Re-adding an entry is a no-op rather than an error: the caller is
 // usually a loop that does not track what it has already said.
@@ -210,6 +221,7 @@ func (s *Set) Add(entries ...string) int {
 	}
 	n := 0
 	for _, e := range entries {
+		e = asEntry(e)
 		if strings.TrimSpace(e) == "" || have[e] {
 			continue
 		}
@@ -225,7 +237,7 @@ func (s *Set) Add(entries ...string) int {
 func (s *Set) Remove(entries ...string) int {
 	drop := map[string]bool{}
 	for _, e := range entries {
-		drop[e] = true
+		drop[e], drop[asEntry(e)] = true, true
 	}
 	kept := s.Entries[:0]
 	n := 0
@@ -353,15 +365,18 @@ func (s Set) ResolveAll(tokens []string) ([]string, error) {
 // Path strips a spec's range suffix. It mirrors the reader's rule: the path is
 // everything before the last colon, unless the colon introduces a /pattern/.
 func Path(spec string) string {
-	i := strings.LastIndex(spec, ":")
+	i := addr.SpecColon(spec, len(filepath.VolumeName(spec)), Grammar)
 	if i <= 0 {
 		return spec
 	}
-	if j := strings.Index(spec, ":/"); j > 0 && j < i {
-		return spec[:j]
-	}
 	return spec[:i]
 }
+
+// Grammar is the address grammar Path consults before it reads a colon inside a
+// quoted JSON key as part of the range (#715). The read package, which owns the
+// grammar, sets it when it is loaded; unset, the last colon is always the
+// separator.
+var Grammar *addr.Grammar
 
 // ReadPath is where the working set is READ from: the state directory, falling
 // back to a legacy in-tree file when the state directory holds none. Writes

@@ -1967,6 +1967,9 @@ held or went unchecked.`,
 					return cli.Exit("--exclude "+err.Error(), exitUsage)
 				}
 			}
+			// Before the first byte this command writes to standard output: a broken
+			// pipe there becomes the receipt's write error, not a death (#713).
+			catchSIGPIPE()
 			// ADR-072: under --json every refusal after the plan is named is
 			// one JSON document — the receipt's shape with an error field — so
 			// a consumer that parses stdout never meets text. A refusal after
@@ -1977,6 +1980,9 @@ held or went unchecked.`,
 			// parsed says the plan parsed: a refusal after that and before anything
 			// landed is one refused_apply, as mrw_write counts it (ADR-083).
 			printed, tallied, parsed := false, false, false
+			// lost is the first error from writing a human report to standard
+			// output. Every exit after it names it, and none retries the report (#713).
+			var lost error
 			var createNotes []string // what --create did to its content, told once the create has landed
 			emitNotes := func() {
 				for _, n := range createNotes {
@@ -2025,12 +2031,17 @@ held or went unchecked.`,
 					_ = authoring.Record(cmd.Root().String("root"), authoring.RefusedApply)
 					tallied = true
 				}
-				if !cmd.Bool("json") && landed && !printed {
-					reportAs(os.Stdout, res, cmd)
-					printed = true
+				if !cmd.Bool("json") && landed && !printed && lost == nil {
+					if rerr := reportAs(humanOut(), res, cmd); rerr != nil {
+						lost = rerr
+					} else {
+						printed = true
+					}
 				}
 				if !cmd.Bool("json") {
-					reportSteps(os.Stdout, stepsNotRun)
+					if rerr := reportSteps(humanOut(), stepsNotRun); rerr != nil && lost == nil {
+						lost = rerr
+					}
 				}
 				if cmd.Bool("json") {
 					if res.Files == nil {
@@ -2048,7 +2059,7 @@ held or went unchecked.`,
 					enc.SetEscapeHTML(false)
 					_ = enc.Encode(receipt{Result: res, Pattern: authoring.PatternOf(root), Error: msg, Then: stepsNotRun, RefusedPlan: refusedPlan})
 				}
-				return exitWith(err)
+				return appendLost(res, err, lost)
 			}
 			refuse := func(msg string) error {
 				return refuseWith(apply.Result{DryRun: cmd.Bool("dry-run")}, errors.New(msg))
@@ -2377,7 +2388,11 @@ held or went unchecked.`,
 					return refuseWith(res, apply.SlashErr(land.Res, land.Err, receiptSep))
 				}
 				if len(res.Hunks) > 0 {
-					reportAs(os.Stdout, res, cmd)
+					if rerr := reportAs(humanOut(), res, cmd); rerr != nil {
+						// The FAIL line it would point at never reached stdout:
+						// say the commit's own error in full, then the lost receipt.
+						return appendLost(res, land.Err, rerr)
+					}
 				}
 				return exitSaying(exitTwoLine(land.Res, land.Err), land.Err)
 			}
@@ -2410,13 +2425,21 @@ held or went unchecked.`,
 			// its check printed nothing and was missing from stats. --json
 			// stays one document, rendered once the check is done; the
 			// ledger and the tally carry the landing if mrw is killed first.
+			// A receipt that cannot be written does not end the write early: the
+			// check, the steps and the count still run, and the verdict below
+			// keeps its own exit code with the lost receipt named on it (#713).
 			if !cmd.Bool("json") {
-				reportAs(os.Stdout, res, cmd)
-				printed = true
+				if rerr := reportAs(humanOut(), res, cmd); rerr != nil {
+					lost = rerr
+				} else {
+					printed = true
+				}
 				if pattern != "" {
 					// Not hidden by --quiet: quiet drops ok rows, and this
 					// is the opposite of an ok row.
-					fmt.Println(pattern)
+					if _, perr := fmt.Fprintln(humanOut(), pattern); perr != nil && lost == nil {
+						lost = perr
+					}
 				}
 			}
 			// ADR-187, ADR-205: the check runs only when asked, and --check
@@ -2440,32 +2463,45 @@ held or went unchecked.`,
 					return exitWith(err)
 				}
 			} else {
-				reportCheck(os.Stdout, receipt.Check)
-				reportDrift(os.Stdout, receipt.Drift, receipt.DriftWriters)
-				reportSteps(os.Stdout, receipt.Then)
+				for _, rerr := range []error{
+					reportCheck(humanOut(), receipt.Check),
+					reportDrift(humanOut(), receipt.Drift, receipt.DriftWriters),
+					reportSteps(humanOut(), receipt.Then),
+				} {
+					if rerr != nil && lost == nil {
+						lost = rerr
+					}
+				}
 			}
 			// ADR-113: counted and priced once the receipt is out, so an
 			// output failure above leaves the count where Land put it.
 			land.Settle(v)
-			switch {
-			case res.Failed > 0:
-				return cli.Exit(fmt.Sprintf("%d hunk(s) failed — nothing was written", res.Failed), exitNotApplied)
-			case receipt.Check != nil && check.StoppedBeforeStart(*receipt.Check):
-				// ADR-080, ADR-126: stopped before the check started — by an
-				// interrupt or by its deadline — is the same exit as stopped while
-				// it ran, since the tree changed and nothing verified it, though
-				// the tally files it as check_not_run: nothing ran. Not "declare a
-				// check": one was.
-				return cli.Exit("the write applied and its check "+stoppedBefore(*receipt.Check)+" — the tree is changed and unverified", exitCheckFailed)
-			case receipt.Check != nil && !receipt.Check.Ran:
-				// The write stands. Say so first — the caller's tree changed
-				// even though the verification never happened.
-				return cli.Exit("the write applied but no check could run: "+receipt.Check.Skipped+
-					declareAdvice(receipt.Check.Skipped), exitUsage)
-			case receipt.Check != nil && !receipt.Check.OK():
-				return cli.Exit("the write applied but the check did not pass — the tree is changed and unverified", exitCheckFailed)
+			verdict := func() error {
+				switch {
+				case res.Failed > 0:
+					return cli.Exit(fmt.Sprintf("%d hunk(s) failed — nothing was written", res.Failed), exitNotApplied)
+				case receipt.Check != nil && check.StoppedBeforeStart(*receipt.Check):
+					// ADR-080, ADR-126: stopped before the check started — by an
+					// interrupt or by its deadline — is the same exit as stopped while
+					// it ran, since the tree changed and nothing verified it, though
+					// the tally files it as check_not_run: nothing ran. Not "declare a
+					// check": one was.
+					return cli.Exit("the write applied and its check "+stoppedBefore(*receipt.Check)+" — the tree is changed and unverified", exitCheckFailed)
+				case receipt.Check != nil && !receipt.Check.Ran:
+					// The write stands. Say so first — the caller's tree changed
+					// even though the verification never happened.
+					return cli.Exit("the write applied but no check could run: "+receipt.Check.Skipped+
+						declareAdvice(receipt.Check.Skipped), exitUsage)
+				case receipt.Check != nil && !receipt.Check.OK():
+					return cli.Exit("the write applied but the check did not pass — the tree is changed and unverified", exitCheckFailed)
+				}
+				return stepsExit(receipt.Then, "the write applied but ", " — the tree is changed and unverified")
 			}
-			return stepsExit(receipt.Then, "the write applied but ", " — the tree is changed and unverified")
+			verr := verdict()
+			if lost != nil {
+				return receiptLostExit(res, lost, verr)
+			}
+			return verr
 		},
 	}
 }
@@ -2731,12 +2767,12 @@ func stepLabel(s check.Step) string {
 // reportSteps prints one line per step after the check's report, with the tail
 // of any step that stopped the sequence (ADR-092) and the last non-empty line
 // of each step that passed (ADR-094).
-func reportSteps(w *os.File, r *check.StepsResult) {
+func reportSteps(w io.Writer, r *check.StepsResult) (err error) {
 	if r == nil {
-		return
+		return nil
 	}
 	out := bufio.NewWriter(w)
-	defer func() { _ = out.Flush() }()
+	defer func() { err = out.Flush() }()
 	for i, s := range r.Steps {
 		head := fmt.Sprintf("then %d/%d %s: %s", i+1, len(r.Steps), stepLabel(s.Step), writer.Shown(s.Command))
 		switch s.Status {
@@ -2787,6 +2823,7 @@ func reportSteps(w *os.File, r *check.StepsResult) {
 	if r.Pruned > 0 {
 		fmt.Fprintf(out, "removed %d check log(s) older than %d days from %s\n", r.Pruned, int(check.LogRetention.Hours()/24), os.TempDir())
 	}
+	return nil
 }
 
 // lastShown is the index of tail's last non-empty line, or -1 when it has none.
@@ -2959,7 +2996,7 @@ touched, which is a finding about the machine and not about your change.`,
 					enc.SetEscapeHTML(false)
 					_ = enc.Encode(checkRefusal{Error: err.Error(), Then: then})
 				} else {
-					reportSteps(os.Stdout, then)
+					_ = reportSteps(os.Stdout, then) // `mrw check` exits on its verdict; a lost report there is not #713's write receipt
 				}
 				return exitWith(err)
 			}
@@ -3021,8 +3058,8 @@ touched, which is a finding about the machine and not about your change.`,
 					return exitWith(err)
 				}
 			} else {
-				reportCheck(os.Stdout, &res)
-				reportSteps(os.Stdout, then)
+				_ = reportCheck(os.Stdout, &res) // as above
+				_ = reportSteps(os.Stdout, then)
 			}
 			if check.StoppedBeforeStart(res) {
 				return cli.Exit("the check "+stoppedBefore(res), exitCheckFailed)
@@ -3048,21 +3085,23 @@ touched, which is a finding about the machine and not about your change.`,
 // reportDrift names each file that changed while the write's check ran
 // (ADR-112). Worded for what is known — the bytes moved — and not for who moved
 // them: the check may have done it itself.
-func reportDrift(w *os.File, paths []string, others int) {
+func reportDrift(w io.Writer, paths []string, others int) error {
+	out := bufio.NewWriter(w)
 	for _, p := range paths {
-		fmt.Fprintf(w, "drift: %s changed while the check ran\n", p)
+		fmt.Fprintf(out, "drift: %s changed while the check ran\n", p)
 	}
 	if others > 0 {
-		fmt.Fprintf(w, "drift: %d other write(s) landed in this checkout while the check ran\n", others)
+		fmt.Fprintf(out, "drift: %d other write(s) landed in this checkout while the check ran\n", others)
 	}
+	return out.Flush()
 }
 
-func reportCheck(w *os.File, r *check.Result) {
+func reportCheck(w io.Writer, r *check.Result) (err error) {
 	if r == nil {
-		return
+		return nil
 	}
 	out := bufio.NewWriter(w)
-	defer func() { _ = out.Flush() }()
+	defer func() { err = out.Flush() }()
 	// ADR-152: a slow whole-project check says how to scope it, last, under
 	// its verdict; this runs before the flush above. ADR-164: so does the line
 	// naming the files a scoped check left out, which a scoped run has instead
@@ -3139,19 +3178,20 @@ func reportCheck(w *os.File, r *check.Result) {
 		return
 	}
 	fmt.Fprintf(out, "check %s (exit %d, %dms) — full output: %s\n", verdict, r.ExitCode, r.DurationMS, r.OutputFile)
+	return nil
 }
 
 // report renders the receipt for a human. It is terse on purpose: the caller is
 // usually an agent paying for every line it reads back.
-func report(w *os.File, res apply.Result, quiet bool) {
-	reportMode(w, res, quiet, false)
+func report(w io.Writer, res apply.Result, quiet bool) error {
+	return reportMode(w, res, quiet, false)
 }
 
 // reportAs prints the receipt the write's flags ask for: the default, --quiet's,
 // or --terse's one line per file (ADR-179). With neither flag, MRW_RECEIPT
 // chooses: quiet, terse, or full as unset (ADR-188); a flag on the call wins,
 // and any other value is ignored with one note, as MRW_MAX_COLS's is.
-func reportAs(w *os.File, res apply.Result, cmd *cli.Command) {
+func reportAs(w io.Writer, res apply.Result, cmd *cli.Command) error {
 	quiet, terse := cmd.Bool("quiet"), cmd.Bool("terse")
 	if !quiet && !terse {
 		switch v := os.Getenv("MRW_RECEIPT"); v {
@@ -3165,15 +3205,17 @@ func reportAs(w *os.File, res apply.Result, cmd *cli.Command) {
 		}
 	}
 	if terse {
-		reportMode(w, res, false, true)
-		return
+		return reportMode(w, res, false, true)
 	}
-	report(w, res, quiet)
+	return report(w, res, quiet)
 }
 
-func reportMode(w *os.File, res apply.Result, quiet, terse bool) {
+// reportMode renders the receipt and returns the error the buffered writer kept:
+// a receipt that could not be written is a lost answer, and the caller says so
+// (#713). The flush is the last statement, so an error from any earlier write
+// that the buffer remembered comes out of it too.
+func reportMode(w io.Writer, res apply.Result, quiet, terse bool) error {
 	out := bufio.NewWriter(w)
-	defer func() { _ = out.Flush() }()
 
 	for _, h := range res.Hunks {
 		switch {
@@ -3313,6 +3355,7 @@ func reportMode(w *os.File, res apply.Result, quiet, terse bool) {
 	}
 	fmt.Fprintf(out, "%d hunk(s), %d file(s), %d failed, %d %s%s — %s\n",
 		len(res.Hunks), len(res.Files), res.Failed, res.Advisories, plural(res.Advisories, "advisory", "advisories"), hints, state)
+	return out.Flush()
 }
 
 // prune removes the state directories whose checkout is gone, and SAYS what it
@@ -3659,6 +3702,54 @@ func shownPaths(paths []string) []string {
 		return paths
 	}
 	return out
+}
+
+// receiptSink, when set, is where the write command's human reports go instead
+// of standard output. A test sets it to a writer that fails partway.
+var receiptSink io.Writer
+
+// humanOut is where a human receipt, check report and step report are written.
+func humanOut() io.Writer {
+	if receiptSink != nil {
+		return receiptSink
+	}
+	return os.Stdout
+}
+
+// appendLost is a refusal's exit when the human receipt may have been lost:
+// exit 2 as exitWith, the lost receipt named after the refusal's own words.
+func appendLost(res apply.Result, err, lost error) error {
+	if lost == nil {
+		return exitWith(err)
+	}
+	return exitSaying(err.Error()+"; "+receiptLost(res, lost).Error(), err)
+}
+
+// receiptLostExit is the verdict of a write whose human receipt was lost (#713).
+// A verdict that is already a failure keeps its exit code and gains the lost
+// receipt in its words; a clean one becomes exit 2, the code for a failure after
+// the landing.
+func receiptLostExit(res apply.Result, lost, verdict error) error {
+	if verdict == nil {
+		return exitWith(receiptLost(res, lost))
+	}
+	return cli.Exit(verdict.Error()+"; "+receiptLost(res, lost).Error(), exitCode(verdict))
+}
+
+// receiptLost is the error for a human receipt that could not be written (#713):
+// it says what became of the write, since the receipt that would have said so is
+// the thing that was lost.
+func receiptLost(res apply.Result, err error) error {
+	fate := "nothing was written"
+	switch {
+	case res.DryRun:
+		fate = "dry run, nothing written"
+	case writer.MutationOf(res) == writer.Partial:
+		fate = "the write PARTIALLY landed: some files are changed, see the receipt or the tree"
+	case res.Applied:
+		fate = "the write landed"
+	}
+	return fmt.Errorf("the receipt could not be written (%w); %s", err, fate)
 }
 
 // exitTwoLine is the line an exit-2 write ends on (ADR-132): the error, with
