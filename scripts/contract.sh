@@ -12056,6 +12056,34 @@ m read a.go:8 > "$WORK/served.out"
 m write --no-check - < "$WORK/plan359" >/dev/null 2>&1; want 0 $? "the pair: it lands after mrw read a.go:8"
 cmp -s "$R/a.go" "$WORK/a264.want" && ok "with ast-grep's result" || bad "a.go is $(head -c 300 "$R/a.go")"
 
+# 370. Review of #744: a rename moves a file by linking it under its new name and
+# removing the old one. When neither name can be removed (an ACL denies the
+# delete) the file has two names: the move fails, exit 2, and left_behind names the
+# one mrw made, where the receipt would otherwise say only that nothing was
+# written. The pair: an ordinary rename leaves nothing behind. darwin only: it
+# needs `chmod +a`.
+R=$(mktemp -d "$WORK/r-XXXXXX"); printf 'A\n' > "$R/ok.txt"
+m read ok.txt > "$WORK/served.out"
+out=$(printf '@@ ok.txt - rename\nok2.txt\n' | m write --json - 2>/dev/null); rc=$?
+want 0 "$rc" "an ordinary rename -> exit 0"
+python3 - "$out" <<'PY' && ok "and it leaves nothing behind" || bad "receipt: $(head -c 500 <<<"$out")"
+import json, sys
+sys.exit(0 if not json.loads(sys.argv[1]).get("left_behind") else 1)
+PY
+if [ "$(uname)" = Darwin ] && printf 'A\n' > "$R/a.txt" && chmod +a "everyone deny delete" "$R/a.txt" 2>/dev/null; then
+  m read a.txt > "$WORK/served.out"
+  out=$(printf '@@ a.txt - rename\nb.txt\n' | m write --json - 2>/dev/null); rc=$?
+  want 2 "$rc" "a rename of a file whose delete an ACL denies -> exit 2"
+  python3 - "$out" <<'PY' && ok "left_behind names the extra name b.txt" || bad "receipt: $(head -c 500 <<<"$out")"
+import json, sys
+sys.exit(0 if "b.txt" in (json.loads(sys.argv[1]).get("left_behind") or []) else 1)
+PY
+  [ -e "$R/a.txt" ] && [ -e "$R/b.txt" ] && ok "and both names are there" || bad "names: $(ls "$R")"
+  chmod -N "$R/a.txt" "$R/b.txt" 2>/dev/null
+else
+  skip "the ACL rows need darwin and chmod +a"
+fi
+
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
 # killed process is a zombie until its adopter reaps it, and pgrep lists
