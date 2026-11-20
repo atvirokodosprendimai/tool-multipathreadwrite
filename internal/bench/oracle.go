@@ -116,6 +116,11 @@ func Oracle(t Task, dir, base string) (Verdict, error) {
 		}
 	}
 	if t.TestPackage != "" && len(v.Missing)+len(v.Outside)+len(v.Structure) == 0 {
+		// ADR-211 Decision 11 (#709): the tests that grade are the task's, not
+		// the ones the agent left in the package.
+		if err := t.restoreTests(dir, base); err != nil {
+			return v, err
+		}
 		msg, err := packageTests(dir, t.TestPackage, t.AssertingTests)
 		if err != nil {
 			return v, err
@@ -126,6 +131,57 @@ func Oracle(t Task, dir, base string) (Verdict, error) {
 	}
 	v.Solved = len(v.Missing)+len(v.Outside)+len(v.Structure) == 0
 	return v, nil
+}
+
+// restoreTests puts the _test.go files of the task's package back as the task has
+// them, before the package's tests run (#709): each file the base has is written
+// as the base has it, with the reference fix's own edit of it, which the task asks
+// for (a check-coupled task's instruction is to change a value and keep the tests
+// passing, and the reference changes the tests that assert it); a file the
+// reference creates is written as the reference has it; every other test file in
+// the package, one the agent added, is removed. A test the agent weakened or
+// emptied is the task's again, and one it added grades nothing. The tree is the
+// attempt's and is not used again: the diff statistics and the slipped writes
+// were taken before grading.
+func (t Task) restoreTests(dir, base string) error {
+	listed, err := gitOut(dir, "ls-tree", "-r", "--name-only", "-z", base, "--", t.TestPackage+"/")
+	if err != nil {
+		return err
+	}
+	want := map[string]string{}
+	for _, f := range strings.Split(strings.TrimSuffix(listed, "\x00"), "\x00") {
+		if f == "" || path.Dir(f) != t.TestPackage || !strings.HasSuffix(f, "_test.go") {
+			continue
+		}
+		orig, err := gitOut(dir, "show", base+":"+f)
+		if err != nil {
+			return err
+		}
+		want[f] = reference(orig, t.regions[f])
+	}
+	for f, made := range t.created {
+		if made && path.Dir(f) == t.TestPackage && strings.HasSuffix(f, "_test.go") {
+			want[f] = reference("", t.regions[f])
+		}
+	}
+	for f, body := range want {
+		if err := os.WriteFile(filepath.Join(dir, filepath.FromSlash(f)), []byte(body), 0o644); err != nil {
+			return err
+		}
+	}
+	ents, err := os.ReadDir(filepath.Join(dir, filepath.FromSlash(t.TestPackage)))
+	if err != nil {
+		return err
+	}
+	for _, e := range ents {
+		f := t.TestPackage + "/" + e.Name()
+		if _, ok := want[f]; !ok && strings.HasSuffix(e.Name(), "_test.go") {
+			if err := os.RemoveAll(filepath.Join(dir, filepath.FromSlash(f))); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // testBudget bounds a check-coupled attempt's go test: a hung test is

@@ -163,7 +163,7 @@ func TestConfigurationWIsPPlusTheWorkLine(t *testing.T) {
 
 	// run.json and the receipts.
 	g.claude("")
-	canary := `{"pass":true,"cli_version":"9.9.9","profile":"stage6","configs":["A","P","W"],"plugin":` + mustJSON(t, g.opts.plugin) + `,"plugin_data":` + mustJSON(t, pluginDataDir(g.opts)) + `}`
+	canary := `{"pass":true,"cli_version":"9.9.9","model":"stub-model","profile":"stage6","configs":["A","P","W"],"plugin":` + mustJSON(t, g.opts.plugin) + `,"plugin_data":` + mustJSON(t, pluginDataDir(g.opts)) + `}`
 	put(t, g.opts.Canary, canary, 0o644)
 	if err := Run(g.opts); err != nil {
 		t.Fatal(err)
@@ -362,7 +362,7 @@ func TestMaxTurnsIsTheStagesAndTheRowsCarryIt(t *testing.T) {
 	}
 	g := checkRig(t)
 	g.claude("")
-	put(t, g.opts.Canary, `{"pass":true,"cli_version":"9.9.9","profile":"stage6","configs":["A","P","W"],"plugin":`+mustJSON(t, g.opts.plugin)+`,"plugin_data":`+mustJSON(t, pluginDataDir(g.opts))+`}`, 0o644)
+	put(t, g.opts.Canary, `{"pass":true,"cli_version":"9.9.9","model":"stub-model","profile":"stage6","configs":["A","P","W"],"plugin":`+mustJSON(t, g.opts.plugin)+`,"plugin_data":`+mustJSON(t, pluginDataDir(g.opts))+`}`, 0o644)
 	if err := Run(g.opts); err != nil {
 		t.Fatal(err)
 	}

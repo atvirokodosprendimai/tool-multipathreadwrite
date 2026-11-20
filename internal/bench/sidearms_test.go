@@ -658,7 +658,7 @@ func TestConfigurationCDiffersFromPOnlyInTurnEnd(t *testing.T) {
 func TestCoreExportsAreIdenticalWithOrWithoutSideArms(t *testing.T) {
 	s := newSideRig(t)
 	canaryFor := func(sideToo bool) string {
-		c := map[string]any{"pass": true, "cli_version": "9.9.9", "profile": "stage6", "configs": []string{"A", "P", "W"}, "plugin": s.opts.plugin,
+		c := map[string]any{"pass": true, "cli_version": "9.9.9", "model": "stub-model", "profile": "stage6", "configs": []string{"A", "P", "W"}, "plugin": s.opts.plugin,
 			"plugin_data": pluginDataDir(s.opts), "total_cost_usd": map[string]any{"A": 0.1, "P": 0.2, "W": 0.3}}
 		if sideToo {
 			c["side_configs"] = []string{"G", "C"}

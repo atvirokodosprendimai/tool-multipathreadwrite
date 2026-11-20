@@ -3,12 +3,13 @@
 **Status:** Accepted
 **Accepted by:** Zy, 2026-11-20: *"accepted the rest"*, to the question of accepting the open records ADR-207 to ADR-211 (#723, #720) as they stand.
 **Date:** 2026-11-20
+**Amended:** 2026-11-20, in building T1: Decision 11's "as the base has them" reads "as the base with the task's reference.patch has them", since every check-coupled task's reference edits the package's tests (ADR-160); a weakened or added test file is still restored or removed.
 **Owner:** Zy
 **Spec:** None — no spec stage
 **Supersedes:** in part, as stated below, ADR-206 Decisions 4 (where N's log is written, that only an event creates it, what a failed append prints), 5 (N's kept file, and what an absent log means), 7 (exposure, the cost statistic, the checks of a run's identity), 8 (the order, the canary and smoke figures, and the rule that T6's fence fails only above $53 of known spend, which Decision 9's per-step gate replaces), 9 (what precedes a counted attempt) and 10 (the equivalence N is held to, and the failure condition that rested on the hazard question: agents batching or avoiding bare numbers so that nothing is exposed, which Decision 1 makes no longer a way for this record to be wrong); and the question and the powered-stage gate of the Stage 9 entry in `docs/adr/BACKLOG.md`. Decision 8 below enforces what ADR-206 Decision 2 already says, that an unpinned arm takes a canary of its own model. Every other ADR-206 decision stands
 **Cross-references:** ADR-156, ADR-203, ADR-206
 **Governs:** `internal/bench/**`, `cmd/bench/**`, `bench/stage-9/**`, `scripts/bench_stage9.py`, `scripts/test_bench_stage9.py`, `docs/adr/ADR-206/tasks/T2-the-two-builds.md`, `docs/adr/ADR-206/tasks/T5-canaries-and-smoke.md`, `docs/adr/ADR-206/tasks/T6-the-counted-pilot.md`, `docs/adr/BACKLOG.md`
-**Enforced-by:** None — T1 adds `internal/bench/stage9_test.go::TestARunTakesOnlyACanaryOfItsOwnModel`; this line names it in the pull request that merges T1
+**Enforced-by:** internal/bench/stage9_test.go::TestARunTakesOnlyACanaryOfItsOwnModel
 **Served-path change:** none to `mrw`. `bench canary` gains `--max-spend` and records the cap it applied and each configuration's init model; `bench run` gains `--keep-scratch-file`; a receipt records its transcript's hash when one was captured; diff statistics are taken in an index of their own; every run, pinned or not, refuses a canary of another model. The no-refusal patch changes, so `mrw-n`'s hash in `bench/stage-9/builds.md` changes with it.
 
 ## Context

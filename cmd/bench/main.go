@@ -45,8 +45,8 @@ const usageText = `usage:
   bench canary  --out DIR --model M --claude PATH --mrw PATH --config-dir DIR --containment bypass [--profile stage5|stage6|stage7|stage8 [--plugin-dir DIR] [--node PATH] [--work-line FILE] [--side-arms FILE [--qh-binary FILE --qh-sums FILE]]]
   bench verify  --stage S --tasks N --repeats R DIR
   bench run     … [--block K [--configs-for MODEL=A,B,P ...]] [--disk-path PATH --disk-floor GiB]
-  bench run     … [--mrw-sha256 HEX] [--mrw-instructions FILE] [--keep-state-file PATH] [--keep-diff] [--max-spend USD]   (ADR-206: pin the mrw and its instructions, keep what an attempt left, stop on recorded spend; exit 3)
-  bench canary  … [--mrw-sha256 HEX] [--mrw-instructions FILE]
+  bench run     … [--mrw-sha256 HEX] [--mrw-instructions FILE] [--keep-state-file PATH | --keep-scratch-file NAME] [--keep-diff] [--max-spend USD]   (ADR-206: pin the mrw and its instructions, keep what an attempt left, stop on recorded spend; exit 3)
+  bench canary  … [--mrw-sha256 HEX] [--mrw-instructions FILE] [--max-spend USD]   (ADR-211: the canary stops, exit 3, on the spend its attempts recorded)
   bench baseline --stage S --out DIR --selection FILE --dataset FILE --checks FILE [--surviving FILE] [--docker PATH] [--budget 20m]   (the declared check once per instance on the unmodified tree; no model)
   bench look    DIR
   bench export-paired --pair X,Y --model M --scorer-sha SHA --selection FILE --canary FILE DIR...
@@ -172,6 +172,7 @@ func stageFlags(name string) (*flag.FlagSet, *bench.RunOptions, *multi, *string)
 func runPinFlags(fs *flag.FlagSet, o *bench.RunOptions) {
 	fs.StringVar(&o.KeepStateFile, "keep-state-file", "", "ADR-206: copy this path, relative to the attempt's state home, to <attempt id>.kept beside the receipt")
 	fs.BoolVar(&o.KeepDiff, "keep-diff", false, "ADR-206: save each attempt's diff against its base commit as <attempt id>.diff beside the receipt")
+	fs.StringVar(&o.KeepScratchFile, "keep-scratch-file", "", "ADR-211: copy this file name, in the attempt's scratch directory, to <attempt id>.kept beside the receipt before grading; refused beside --keep-state-file")
 	fs.Float64Var(&o.MaxSpend, "max-spend", 0, "ADR-206: stop, with exit status 3, once the receipts record this many USD, or three of them record no cost; part of the plan, so it cannot be raised for the directory; 0 for no stop")
 }
 
@@ -309,8 +310,13 @@ func canaryConfigs(o bench.RunOptions) ([]string, error) {
 	return configs, nil
 }
 
-func canary(args []string) error {
+func canary(args []string) error { return canaryWith(args, bench.RunCanary) }
+
+// canaryWith is bench canary with the canary's start given, so a test sees what the
+// flags made of the options without starting one.
+func canaryWith(args []string, start func(bench.RunOptions, bench.Task, string) (bench.CanaryReceipt, error)) error {
 	fs, o, models, tasksDir := stageFlags("canary")
+	fs.Float64Var(&o.MaxSpend, "max-spend", 0, "ADR-211: stop, with exit status 3, once the canary's attempts record this many USD, or one of them records no cost; checked before each configuration's attempt and after the last, and written to canary.json with its costs; 0 for no stop")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -335,7 +341,7 @@ func canary(args []string) error {
 	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
-	c, err := bench.RunCanary(*o, task, string(md))
+	c, err := start(*o, task, string(md))
 	if err != nil {
 		return err
 	}

@@ -67,8 +67,39 @@ p=$(python3 -m unittest -v scripts.test_bench_stage9 2>&1) \
 ```
 
 ## Mutation Log
+- 2026-11-20 · 78de48c0* · mutant killed · exit 1 · `scripts/bench_stage9.py` · the registration check reads the whole file · acceptance-sha256:bd29dbea879ef48413f2b6aecf5064208f9483814f139de565daa5f492034b5c · covers:the registration check reads only the Stage 9 entry
+- 2026-11-20 · 78de48c0* · mutant killed · exit 1 · `scripts/bench_stage9.py` · the gate reads no exit status · acceptance-sha256:bd29dbea879ef48413f2b6aecf5064208f9483814f139de565daa5f492034b5c · covers:the gate refuses a step that has not cleared
+- 2026-11-20 · 78de48c0* · mutant killed · exit 1 · `scripts/bench_stage9.py` · the order check skipped · acceptance-sha256:bd29dbea879ef48413f2b6aecf5064208f9483814f139de565daa5f492034b5c · covers:the gate refuses a step started before its predecessor cleared
+- 2026-11-20 · 78de48c0* · mutant killed · exit 1 · `scripts/bench_stage9.py` · the review keyed by attempt alone · acceptance-sha256:bd29dbea879ef48413f2b6aecf5064208f9483814f139de565daa5f492034b5c · covers:every exposed attempt has its review row
+- 2026-11-20 · 78de48c0* · mutant killed · exit 1 · `scripts/bench_stage9.py` · spend judged with > where the runner uses >= · acceptance-sha256:bd29dbea879ef48413f2b6aecf5064208f9483814f139de565daa5f492034b5c · covers:the gate refuses a step that has not cleared
+- 2026-11-20 · 78de48c0* · mutant killed · exit 1 · `scripts/bench_stage9.py` · the projection judged with > where the runner uses >= · acceptance-sha256:bd29dbea879ef48413f2b6aecf5064208f9483814f139de565daa5f492034b5c · covers:the smoke projects each arm under its figure
+- 2026-11-20 · 78de48c0* · mutant killed · exit 1 · `scripts/bench_stage9.py` · the withdrawn conditions not looked for · acceptance-sha256:bd29dbea879ef48413f2b6aecf5064208f9483814f139de565daa5f492034b5c · covers:the withdrawn gates are gone from the registration
+- 2026-11-20 · 78de48c0* · mutant killed · exit 1 · `scripts/bench_stage9.py` · the same-direction gate not required · acceptance-sha256:bd29dbea879ef48413f2b6aecf5064208f9483814f139de565daa5f492034b5c · covers:the registration names one gate per direction
+- 2026-11-20 · 78de48c0* · mutant killed · exit 1 · `docs/adr/ADR-206/tasks/T6-the-counted-pilot.md` · T6's fence runs the gate without its predecessor · acceptance-sha256:bd29dbea879ef48413f2b6aecf5064208f9483814f139de565daa5f492034b5c · covers:T5's and T6's fences pass their fixture and fail each break
+- 2026-11-20 · 78de48c0* · mutant killed · exit 1 · `docs/adr/ADR-206/tasks/T5-canaries-and-smoke.md` · T5's fence runs no projection · acceptance-sha256:bd29dbea879ef48413f2b6aecf5064208f9483814f139de565daa5f492034b5c · covers:T5's and T6's fences pass their fixture and fail each break
+- 2026-11-20 · 78de48c0* · mutant killed · exit 1 · `docs/adr/ADR-206/tasks/T5-canaries-and-smoke.md` · T5's fence does not read the probe's exit · acceptance-sha256:bd29dbea879ef48413f2b6aecf5064208f9483814f139de565daa5f492034b5c · covers:T5's and T6's fences pass their fixture and fail each break
+- 2026-11-20 · 78de48c0* · mutant killed · exit 1 · `internal/read/read.go` · an engine package changed · acceptance-sha256:bd29dbea879ef48413f2b6aecf5064208f9483814f139de565daa5f492034b5c · covers:no engine package changed
+- 2026-11-20 · 78de48c0* · mutant killed · exit 1 · `scripts/bench_stage9.py` · a row not compared with its attempt's own diff · acceptance-sha256:bd29dbea879ef48413f2b6aecf5064208f9483814f139de565daa5f492034b5c · covers:a review row quotes its attempt's own diff and reasons
 
 ## Verification Log
+- 2026-11-20 · 78de48c0* · exit 1 · `set -o pipefail …` · acceptance-sha256:bd29dbea879ef48413f2b6aecf5064208f9483814f139de565daa5f492034b5c · ms:2534 · test-lock-sha256:0f3a8a49fb2c37dfb82fa1d85b30781a854cd3073d0efb39f642bc7935a7bda0 · test-lock-file:docs/adr/locks/0f3a8a49fb2c37dfb82fa1d85b30781a854cd3073d0efb39f642bc7935a7bda0.lock
+  ```
+  ```
+- 2026-11-20 · 78de48c0* · exit 0 · `set -o pipefail …` · acceptance-sha256:bd29dbea879ef48413f2b6aecf5064208f9483814f139de565daa5f492034b5c · ms:29452
+- 2026-11-20 · 78de48c0* · exit 0 · `set -o pipefail …` · acceptance-sha256:bd29dbea879ef48413f2b6aecf5064208f9483814f139de565daa5f492034b5c · ms:28888
+- 2026-11-20 · 78de48c0* · exit 0 · `set -o pipefail …` · acceptance-sha256:bd29dbea879ef48413f2b6aecf5064208f9483814f139de565daa5f492034b5c · ms:28803
+- 2026-11-20 · 78de48c0* · exit 0 · `set -o pipefail …` · acceptance-sha256:bd29dbea879ef48413f2b6aecf5064208f9483814f139de565daa5f492034b5c · ms:28998
+- 2026-11-20 · 78de48c0* · exit 0 · `set -o pipefail …` · acceptance-sha256:bd29dbea879ef48413f2b6aecf5064208f9483814f139de565daa5f492034b5c · ms:29103
+- 2026-11-20 · 78de48c0* · exit 0 · `set -o pipefail …` · acceptance-sha256:bd29dbea879ef48413f2b6aecf5064208f9483814f139de565daa5f492034b5c · ms:31116
+- 2026-11-20 · 78de48c0* · exit 0 · `set -o pipefail …` · acceptance-sha256:bd29dbea879ef48413f2b6aecf5064208f9483814f139de565daa5f492034b5c · ms:36980
+- 2026-11-20 · 78de48c0* · exit 0 · `set -o pipefail …` · acceptance-sha256:bd29dbea879ef48413f2b6aecf5064208f9483814f139de565daa5f492034b5c · ms:31952
+- 2026-11-20 · 78de48c0* · exit 0 · `set -o pipefail …` · acceptance-sha256:bd29dbea879ef48413f2b6aecf5064208f9483814f139de565daa5f492034b5c · ms:29767
+- 2026-11-20 · 78de48c0* · exit 0 · `set -o pipefail …` · acceptance-sha256:bd29dbea879ef48413f2b6aecf5064208f9483814f139de565daa5f492034b5c · ms:25780
+- 2026-11-20 · 78de48c0* · exit 0 · `set -o pipefail …` · acceptance-sha256:bd29dbea879ef48413f2b6aecf5064208f9483814f139de565daa5f492034b5c · ms:26779
+- 2026-11-20 · 78de48c0* · exit 0 · `set -o pipefail …` · acceptance-sha256:bd29dbea879ef48413f2b6aecf5064208f9483814f139de565daa5f492034b5c · ms:26379
+- 2026-11-20 · 78de48c0* · exit 0 · `set -o pipefail …` · acceptance-sha256:bd29dbea879ef48413f2b6aecf5064208f9483814f139de565daa5f492034b5c · ms:26333
+- 2026-11-20 · 78de48c0* · exit 0 · `set -o pipefail …` · acceptance-sha256:bd29dbea879ef48413f2b6aecf5064208f9483814f139de565daa5f492034b5c · ms:25911
+- 2026-11-20 · 40db33d1 · exit 0 · `set -o pipefail …` · acceptance-sha256:bd29dbea879ef48413f2b6aecf5064208f9483814f139de565daa5f492034b5c · ms:29361
 
 ## Invariants
 

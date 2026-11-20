@@ -137,3 +137,4 @@ The fence exits 0; or a stage shows the harness cannot measure what ADR-156 Deci
 - 2026-10-17 · 50479b4e* · exit 0 · `set -o pipefail …` · acceptance-sha256:bd7c2320d415c774d1b65ed11a59dcf20dfdd5b96b8f86ced2b58fa4afc8cf3e · ms:924
 - 2026-10-17 · 50479b4e* · exit 0 · `set -o pipefail …` · acceptance-sha256:bd7c2320d415c774d1b65ed11a59dcf20dfdd5b96b8f86ced2b58fa4afc8cf3e · ms:951
 - 2026-10-17 · 50479b4e* · exit 0 · `set -o pipefail …` · acceptance-sha256:bd7c2320d415c774d1b65ed11a59dcf20dfdd5b96b8f86ced2b58fa4afc8cf3e · ms:333
+- 2026-11-20 · 79054ce2* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:bd7c2320d415c774d1b65ed11a59dcf20dfdd5b96b8f86ced2b58fa4afc8cf3e · ms:0 · test-lock-sha256:874d395a8673884608a3096b5812b15b219a7bbcf019a2b6d80c6234058a7e29 · test-lock-file:docs/adr/locks/874d395a8673884608a3096b5812b15b219a7bbcf019a2b6d80c6234058a7e29.lock · test-lock-kind:replace

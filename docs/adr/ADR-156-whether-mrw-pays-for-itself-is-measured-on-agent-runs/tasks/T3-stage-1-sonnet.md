@@ -68,6 +68,7 @@ go run ./cmd/bench verify --stage stage1 --tasks 30 --repeats 2 docs/bench/stage
   ```
 - 2026-10-14 · 2d29f028* · exit 0 · `set -o pipefail …` · acceptance-sha256:898be2e90082b0879fa93f82541e8d078b4b5989a56f5b9858e22b7d2681c9c5 · ms:158
 - 2026-10-14 · human-observed · Pilot inspection observed for S3: the executor read every receipt of both pilots and every pilot transcript's tool calls, tool errors and final answers (20 transcripts), and found the isolation gaps recorded in tasks/README.md
+- 2026-11-20 · 79054ce2* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:898be2e90082b0879fa93f82541e8d078b4b5989a56f5b9858e22b7d2681c9c5 · ms:0 · test-lock-sha256:874d395a8673884608a3096b5812b15b219a7bbcf019a2b6d80c6234058a7e29 · test-lock-file:docs/adr/locks/874d395a8673884608a3096b5812b15b219a7bbcf019a2b6d80c6234058a7e29.lock · test-lock-kind:replace
 
 ## Invariants
 

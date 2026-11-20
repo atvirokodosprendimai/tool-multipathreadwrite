@@ -112,3 +112,4 @@ go run ./cmd/bench look $R > /tmp/adr162-look.txt \
 - 2026-10-21 · 6353ec98* · exit 0 · `set -o pipefail …` · acceptance-sha256:bf4eca9a150bf62a6f1d93f4aa387c5c6abf27f52567bc3c8f0fe680cc4329ea · ms:688
 - 2026-10-21 · 6353ec98* · exit 0 · `set -o pipefail …` · acceptance-sha256:bf4eca9a150bf62a6f1d93f4aa387c5c6abf27f52567bc3c8f0fe680cc4329ea · ms:2384
 - 2026-11-10 · c6a787e1 · exit 0 · `set -o pipefail …` · acceptance-sha256:bf4eca9a150bf62a6f1d93f4aa387c5c6abf27f52567bc3c8f0fe680cc4329ea · ms:3426
+- 2026-11-20 · 79054ce2* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:bf4eca9a150bf62a6f1d93f4aa387c5c6abf27f52567bc3c8f0fe680cc4329ea · ms:0 · test-lock-sha256:874d395a8673884608a3096b5812b15b219a7bbcf019a2b6d80c6234058a7e29 · test-lock-file:docs/adr/locks/874d395a8673884608a3096b5812b15b219a7bbcf019a2b6d80c6234058a7e29.lock · test-lock-kind:replace
