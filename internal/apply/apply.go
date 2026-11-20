@@ -26,6 +26,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"unicode"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/lines"
@@ -131,6 +132,9 @@ type HunkResult struct {
 	// Start is the first line of the span Before took out, in the file as it
 	// was. Set with Before; not a receipt field.
 	Start int `json:"-"`
+	// Span is the range a line-after refusal resolved (first and last line of
+	// the replace), for the surfaces that name the read: not a receipt field.
+	Span [2]int `json:"-"`
 
 	// Kind classifies a refusal the parser also makes, and the not-read
 	// refusal, so a caller compares kinds instead of Reason's words (ADR-087).
@@ -452,6 +456,9 @@ type Options struct {
 	// Empty when the root is the working directory, or the surface has no
 	// command line (MCP).
 	RemedyRoot string
+
+	// aliases is the ledger's spellings, found once per apply: set by apply.
+	aliases *aliasIndex
 }
 
 // Apply validates every hunk against the working tree rooted at root and, if
@@ -494,6 +501,9 @@ func Apply(root string, in []Input, opt Options) (Result, error) {
 }
 
 func apply(root string, in []Input, opt Options) (Result, error) {
+	if opt.Seen != nil {
+		opt.aliases = newAliasIndex(root, opt.Seen)
+	}
 	dryRun := opt.DryRun
 	res := Result{Root: root, DryRun: dryRun}
 
@@ -1560,24 +1570,30 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 	// The exact-path record used to hide the others: a quiet read through an alias
 	// recorded a partial record there that covered the line after and hid the
 	// whole written record under the real name, and a read the remedy asked for
-	// under an alias hid the showings of the other spelling (review of #745).
-	// Resolved lazily, once: it stats every key of the ledger.
-	var spellings []Seen
-	spelled := false
-	allSpellings := func() []Seen {
-		if !spelled {
-			spelled = true
+	// under an alias hid the showings of the other spelling (review of #745). A
+	// record of another version shows nothing of this one, and the spellings are
+	// consulted only when the plan's own record does not decide (the ledger's
+	// stats are paid once per apply, by opt.aliases).
+	var aliasRecs []Seen
+	aliased := false
+	aliasRecords := func() []Seen {
+		if !aliased {
+			aliased = true
 			if haveObs {
-				spellings = append([]Seen{obs}, otherSpellingRecords(full, path, opt.Seen)...)
+				idx := opt.aliases
+				if idx == nil {
+					idx = newAliasIndex(root, opt.Seen)
+				}
+				aliasRecs = idx.records(full, path, shaBefore)
 			}
 		}
-		return spellings
+		return aliasRecs
 	}
 	servedAnywhere := func(line int) bool {
 		if obs.ServedLine(line) {
 			return true
 		}
-		for _, r := range allSpellings() {
+		for _, r := range aliasRecords() {
 			if r.ServedLine(line) {
 				return true
 			}
@@ -2061,13 +2077,12 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 			// line after each.
 			wholeWritten := haveObs && obs.Written && obs.Whole() && !opt.SameCallRewrite
 			shown := haveObs && recorded.SHA == shaBefore && obs.ServedLine(end+1)
-			if haveObs && h.Op == "replace" && end > start && end < total {
-				wholeWritten, shown = false, false
-				for _, r := range allSpellings() {
+			if haveObs && !shown && h.Op == "replace" && end > start && end < total {
+				for _, r := range aliasRecords() {
 					if r.Written && r.Whole() && !opt.SameCallRewrite {
 						wholeWritten = true
 					}
-					if r.SHA == shaBefore && r.ServedLine(end+1) {
+					if r.ServedLine(end + 1) {
 						shown = true
 					}
 				}
@@ -2097,6 +2112,11 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 				}
 				failK(h, kind, "replace of %s needs a served line after %d: read line %d (the closer sits below the body)%s",
 					addrString(start, end), end, end+1, hint)
+				if kind == refusal.LineAfter {
+					r := out[h.Index]
+					r.Span = [2]int{start, end}
+					out[h.Index] = r
+				}
 				continue
 			}
 			// ADR-055 --strict-balance: the single-line sibling of the licence
@@ -3177,23 +3197,49 @@ func sameFileEntry(full, path string, ledger map[string]Seen) (Seen, bool) {
 	return Seen{}, false
 }
 
-// otherSpellingRecords returns the ledger records of every spelling but path's
-// own that names the same file as full, as sameFileEntry finds one: the
-// filesystem's answer (os.SameFile), so a symlink and a case variant count and
-// two files on a case-sensitive filesystem do not.
-func otherSpellingRecords(full, path string, ledger map[string]Seen) []Seen {
+// aliasStatFn stats a ledger key's file. A seam, so a test can count the stats a
+// batch pays for.
+var aliasStatFn = os.Stat
+
+// aliasIndex is the ledger's keys with their files' identities, built on first
+// use and once per apply: a stat of each key, not of each key for each file. The
+// filesystem's answer to "one file or two" is os.SameFile, so a symlink and a case
+// variant name one file and two files on a case-sensitive filesystem do not.
+type aliasIndex struct {
+	root   string
+	ledger map[string]Seen
+	once   sync.Once
+	keys   []aliasKey
+}
+
+type aliasKey struct {
+	key  string
+	info os.FileInfo
+}
+
+func newAliasIndex(root string, ledger map[string]Seen) *aliasIndex {
+	return &aliasIndex{root: root, ledger: ledger}
+}
+
+// records returns the records of every spelling but path's own that names the
+// same file as full and describes the version sha: a record of another version
+// is no showing of this one.
+func (a *aliasIndex) records(full, path, sha string) []Seen {
 	want, err := os.Stat(full)
 	if err != nil {
 		return nil
 	}
-	root := strings.TrimSuffix(full, filepath.FromSlash(path))
-	var recs []Seen
-	for key, obs := range ledger {
-		if key == path {
-			continue
+	a.once.Do(func() {
+		for key := range a.ledger {
+			if info, err := aliasStatFn(filepath.Join(a.root, filepath.FromSlash(key))); err == nil {
+				a.keys = append(a.keys, aliasKey{key, info})
+			}
 		}
-		if got, err := os.Stat(filepath.Join(root, filepath.FromSlash(key))); err == nil && os.SameFile(want, got) {
-			recs = append(recs, obs)
+	})
+	var recs []Seen
+	for _, k := range a.keys {
+		if k.key != path && a.ledger[k.key].SHA == sha && os.SameFile(want, k.info) {
+			recs = append(recs, a.ledger[k.key])
 		}
 	}
 	return recs

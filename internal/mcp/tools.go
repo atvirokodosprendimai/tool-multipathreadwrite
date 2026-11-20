@@ -2834,7 +2834,7 @@ func nameTheAck(root string, res *apply.Result) {
 		if h.Kind != refusal.LineAfter {
 			continue
 		}
-		if start, end, ok := addrRange(h.Addr); ok {
+		if start, end := h.Span[0], h.Span[1]; start > 0 { // the range the engine resolved, whatever form the address took
 			if cut := strings.Index(h.Reason, "; the read to make is "); cut >= 0 {
 				h.Reason = h.Reason[:cut] + fmt.Sprintf("; over this surface: mrw_read %s lines %d-%d and send its checkpoint ids in ack with the write", h.Path, start, end+1)
 			}
@@ -2879,8 +2879,15 @@ func nameTheAck(root string, res *apply.Result) {
 		case refusal.LineAfter:
 			// The line after is what an ack must lift; a page of it kept for the
 			// very spelling the retry uses (the ledger keys a record per spelling).
-			if _, e, ok := addrRange(h.Addr); ok {
-				start, end, known = e+1, e+1, true
+			// Under a spelling that holds the file's whole written record the line
+			// after is all an ack must add; under any other (a link, a case variant)
+			// the plan's own record holds only what was read there, so the ack must
+			// bring the range through the line after.
+			if h.Span[0] > 0 {
+				start, end, known = h.Span[1]+1, h.Span[1]+1, true
+				if !ownWholeWritten(root, path) {
+					start = h.Span[0]
+				}
 			}
 			if !known {
 				continue
@@ -2934,6 +2941,17 @@ func nameTheAck(root string, res *apply.Result) {
 		h.Reason += ". This file was served but never acknowledged, and an " +
 			"unacknowledged serve licenses nothing. " + AckRule
 	}
+}
+
+// ownWholeWritten says whether the ledger holds, under this very spelling of the
+// path, the whole-written record mrw's own write leaves.
+func ownWholeWritten(root, path string) bool {
+	l, err := seen.Load(root)
+	if err != nil {
+		return false
+	}
+	o, ok := l[path]
+	return ok && o.Written && o.Whole()
 }
 
 // pagesCover reports whether the pending pages kept for path (that very
