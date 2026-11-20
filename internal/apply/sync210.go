@@ -74,13 +74,27 @@ func (t *tree) shown(p string) string {
 	return p
 }
 
-// openDir opens the directory p beneath the root for a sync.
+// openDir opens the directory p beneath the root for a sync or a drain, through
+// the held root, without blocking and only if it is a directory: a path swapped
+// for a FIFO after the renames must not hang the write under its lock, and one
+// swapped for a regular file must not be synced as if it were the directory.
 func (t *tree) openDir(p string) (*os.File, error) {
 	r, err := t.rel(p)
 	if err != nil {
 		return nil, err
 	}
-	return t.r.Open(r)
+	f, err := t.r.OpenFile(r, os.O_RDONLY|dirOpenFlags, 0)
+	if err != nil {
+		return nil, err
+	}
+	if fi, serr := f.Stat(); serr != nil || !fi.IsDir() {
+		_ = f.Close()
+		if serr == nil {
+			serr = errors.New("not a directory")
+		}
+		return nil, serr
+	}
+	return f, nil
 }
 
 // drainDevices runs drainFn once on one of paths for each device they are on. The
@@ -148,10 +162,24 @@ func syncStaged(tr *tree, staged []staged) (string, error) {
 	return drainDevices(tr, dirs)
 }
 
-// changedDirs is every directory whose entries the write changed, each once,
-// sorted: a content target's directory, a directory staging made and its parent,
-// a path op's source directory and its rename's destination directory.
-func changedDirs(staged []staged, pathOps []pending) []string {
+// dirRef is a directory whose entries the write changes: the path staging or the
+// commit resolved for it, and its identity at that moment. The sync opens THAT
+// path and refuses what it finds if it is no longer that directory, so a link
+// retargeted, or a directory replaced by a file or a FIFO, after the renames
+// cannot send the sync to another object.
+type dirRef struct {
+	path string
+	id   os.FileInfo // nil when the directory could not be examined
+}
+
+// recordDirs names every directory the write is about to change, each once and
+// sorted by path: a content target's directory, a directory staging made and its
+// parent, a path op's source directory and its rename's destination directory.
+// It runs after staging and before the first rename, when every one of them
+// exists and every path is already resolved through links; one directory under
+// two spellings (d and D on a case-insensitive filesystem) is recorded once,
+// by identity.
+func recordDirs(tr *tree, staged []staged, pathOps []pending) []dirRef {
 	set := map[string]bool{}
 	for _, sf := range staged {
 		if sf.target != "" {
@@ -168,25 +196,44 @@ func changedDirs(staged []staged, pathOps []pending) []string {
 			set[filepath.Dir(w.renameTo)] = true
 		}
 	}
-	dirs := make([]string, 0, len(set))
+	paths := make([]string, 0, len(set))
 	for d := range set {
-		dirs = append(dirs, d)
+		paths = append(paths, d)
 	}
-	sort.Strings(dirs)
-	return dirs
+	sort.Strings(paths)
+	var refs []dirRef
+	for _, d := range paths {
+		fi, err := tr.stat(d)
+		if err != nil {
+			fi = nil
+		}
+		dup := false
+		for _, r := range refs {
+			dup = dup || (fi != nil && r.id != nil && os.SameFile(r.id, fi))
+		}
+		if !dup {
+			refs = append(refs, dirRef{path: d, id: fi})
+		}
+	}
+	return refs
 }
 
-// syncChanged syncs each changed directory once, after the last change, then
+// beforeDirSync runs when the directory syncs begin, after the last rename: a
+// seam for the tests that swap a directory for something else at that moment.
+var beforeDirSync = func() {}
+
+// syncChanged syncs each recorded directory once, after the last change, then
 // drains once per device. Outside the platforms that sync directories it does
 // nothing (ADR-210 Decision 3). A directory that fails does not stop the others:
 // each is tried, the drain still covers those that synced, and the first failure
-// is the *SyncError returned, naming the path. A changed directory that cannot be
-// opened is such a failure (Decision 4: a name that cannot be made stable is not
-// quietly passed over).
-func syncChanged(tr *tree, dirs []string) error {
+// is the *SyncError returned, naming the path. A directory that cannot be opened,
+// is no longer a directory, or is no longer the one recorded is such a failure
+// (Decision 4: a name that cannot be made stable is not quietly passed over).
+func syncChanged(tr *tree, refs []dirRef) error {
 	if !SyncsDirs {
 		return nil
 	}
+	beforeDirSync()
 	var first error
 	fail := func(d string, err error) {
 		if first == nil {
@@ -194,33 +241,28 @@ func syncChanged(tr *tree, dirs []string) error {
 		}
 	}
 	var synced []string
-	var opened []os.FileInfo
-	for _, d := range dirs {
-		f, err := tr.openDir(d)
+	for _, r := range refs {
+		f, err := tr.openDir(r.path)
 		if err != nil {
-			fail(d, err)
+			fail(r.path, err)
 			continue
 		}
-		// One directory under two spellings (d and D on a case-insensitive
-		// filesystem) is synced once: identity, not the spelling, decides.
-		if fi, serr := f.Stat(); serr == nil {
-			dup := false
-			for _, o := range opened {
-				dup = dup || os.SameFile(o, fi)
-			}
-			if dup {
-				_ = f.Close()
-				continue
-			}
-			opened = append(opened, fi)
+		if fi, serr := f.Stat(); serr != nil {
+			_ = f.Close()
+			fail(r.path, serr)
+			continue
+		} else if r.id != nil && !os.SameFile(r.id, fi) {
+			_ = f.Close()
+			fail(r.path, errors.New("the directory is not the one the write changed: it was replaced after the renames"))
+			continue
 		}
 		err = SyncDirFn(f)
 		_ = f.Close()
 		if err != nil {
-			fail(d, err)
+			fail(r.path, err)
 			continue
 		}
-		synced = append(synced, d)
+		synced = append(synced, r.path)
 	}
 	if p, err := drainDevices(tr, synced); err != nil {
 		fail(p, err)

@@ -15,6 +15,8 @@ import (
 const (
 	drains    = true
 	syncsDirs = true
+	// dirOpenFlags open a directory for a sync: only a directory, never blocking.
+	dirOpenFlags = syscall.O_DIRECTORY | syscall.O_NONBLOCK
 )
 
 func platformSyncTemp(f *os.File) error { return fsyncRetrying(f) }

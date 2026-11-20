@@ -149,6 +149,9 @@ func TestStagedFilesAndTheirDirectoriesAreSyncedBeforeTheWriteReturns(t *testing
 		wantDir string // the path a SyncError names
 		// wantSizes is the size of each temp when it was synced, ascending.
 		wantSizes []int64
+		// wantFailed, when set, is the one file whose hunk is failed by a drain
+		// failure: the file whose temp is on the device that failed.
+		wantFailed string
 	}
 	rows := []row{
 		{name: "edit_create_rename", in: []Input{edit, create, move}, wantSizes: []int64{5, 8},
@@ -171,6 +174,8 @@ func TestStagedFilesAndTheirDirectoriesAreSyncedBeforeTheWriteReturns(t *testing
 	if darwin {
 		rows = append(rows,
 			// Every device is drained though the first one's drain fails.
+			row{name: "second_device_drain_fails", in: []Input{edit, editOther}, device: true, fault: fault{drain: 2}, wantErr: "staging", wantSizes: []int64{4, 8}, wantFailed: "other/c.txt",
+				want: []string{"temp", "temp", "drain", "drain"}},
 			row{name: "two_devices_first_drain_fails", in: []Input{edit, editOther}, device: true, fault: fault{drain: 1}, wantErr: "staging", wantSizes: []int64{4, 8},
 				want: []string{"temp", "temp", "drain", "drain"}},
 			row{name: "two_devices", in: []Input{edit, editOther}, device: true, wantSizes: []int64{4, 8},
@@ -215,6 +220,17 @@ func TestStagedFilesAndTheirDirectoriesAreSyncedBeforeTheWriteReturns(t *testing
 			case "staging":
 				if err == nil || res.Applied || errors.As(err, &se) {
 					t.Fatalf("applied=%v err=%v; want a staging failure, nothing written", res.Applied, err)
+				}
+				if r.wantFailed != "" {
+					failed := ""
+					for _, h := range res.Hunks {
+						if h.Status == StatusFailed {
+							failed = h.Path
+						}
+					}
+					if failed != r.wantFailed {
+						t.Errorf("the failed hunk is %q, want %q (the file on the device that failed)", failed, r.wantFailed)
+					}
 				}
 				if b, _ := os.ReadFile(filepath.Join(root, "a.txt")); string(b) != "one\ntwo\n" {
 					t.Errorf("a.txt changed: %q", b)

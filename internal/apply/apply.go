@@ -1330,10 +1330,26 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 	// ADR-210: every temp was synced as it was staged; on a platform whose
 	// per-file sync is not a drain, one drain per device makes them stable before
 	// the first rename. A failure here writes nothing.
+	// The directories the write is about to change, with their identity, are
+	// recorded here, while every path is already resolved and every directory
+	// exists; the sync after the renames opens exactly those.
+	var changed []dirRef
+	if SyncsDirs {
+		changed = recordDirs(tr, staged, pathOps)
+	}
 	if len(content) > 0 {
 		if p, err := syncStaged(tr, staged); err != nil {
 			discard(0)
-			return abortStage(content[0].file.Path, &tempSyncError{Err: fmt.Errorf("the drain of the device holding %s: %w", tr.shown(p), err)})
+			// The file named is one whose temp is on the device that failed, not
+			// the first file of the plan.
+			who := content[0].file.Path
+			for i := range content {
+				if filepath.Dir(staged[i].tmp) == p {
+					who = content[i].file.Path
+					break
+				}
+			}
+			return abortStage(who, &tempSyncError{Err: fmt.Errorf("the drain of the device holding %s: %w", tr.shown(p), err)})
 		}
 	}
 	for i, w := range content {
@@ -1389,7 +1405,7 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 	// ADR-210: after the last change, every directory the write changed is made
 	// stable, once, before Apply returns and so before the ledger is written. The
 	// files are in place, so a failure is a landed write with an error.
-	if err := syncChanged(tr, changedDirs(staged, pathOps)); err != nil {
+	if err := syncChanged(tr, changed); err != nil {
 		return res, err
 	}
 	return res, nil

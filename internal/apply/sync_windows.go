@@ -8,8 +8,9 @@ import "os"
 // writing; os.Open of a directory gives none, so no directory is synced and what
 // is promised is the staged bytes (ADR-210 Decision 3).
 const (
-	drains    = false
-	syncsDirs = false
+	drains       = false
+	syncsDirs    = false
+	dirOpenFlags = 0 // no directory is synced here
 )
 
 func platformSyncTemp(f *os.File) error { return f.Sync() }

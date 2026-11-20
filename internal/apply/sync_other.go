@@ -2,13 +2,18 @@
 
 package apply
 
-import "os"
+import (
+	"os"
+	"syscall"
+)
 
 // Where File.Sync is fsync (Linux and the BSDs) there is no drain: each temp and
 // each directory is synced by itself.
 const (
 	drains    = false
 	syncsDirs = true
+	// dirOpenFlags open a directory for a sync: only a directory, never blocking.
+	dirOpenFlags = syscall.O_DIRECTORY | syscall.O_NONBLOCK
 )
 
 func platformSyncTemp(f *os.File) error { return f.Sync() }

@@ -64,12 +64,13 @@ out="$(mktemp)" \
   && go test -count=1 -v ./internal/apply ./cmd/mrw ./internal/mcp -run '^(TestStagedFilesAndTheirDirectoriesAreSyncedBeforeTheWriteReturns|TestTheCLIReportsASyncThatFailedAfterLandingAsAWriteThatLanded|TestMrwWriteReportsASyncThatFailedAfterLanding)$' > "$out" \
   && [ "$(grep -c '^--- PASS: ' "$out")" -eq 3 ] \
   && out2="$(mktemp)" \
-  && go test -count=1 -v ./internal/apply ./internal/curve -run '^(TestAPlanWhoseSyncFailedAfterLandingIsScoredAsApplied|TestAStagingSyncFailureIsTheHarnessesNotARefusal|TestTheDrainDoesNotReopenAStagedTempForReading|TestAnInterruptedFsyncIsRetried|TestADrainTheFilesystemRefusesIsAnErrorNotAFallback)$' > "$out2" \
+  && go test -count=1 -v ./internal/apply ./internal/curve -run '^(TestAPlanWhoseSyncFailedAfterLandingIsScoredAsApplied|TestAStagingSyncFailureIsTheHarnessesNotARefusal|TestTheDrainDoesNotReopenAStagedTempForReading|TestADirectorySwappedAfterTheRenamesIsNotSynced|TestARetargetedLinkDoesNotMoveTheDirectorySync|TestAnInterruptedFsyncIsRetried|TestADrainTheFilesystemRefusesIsAnErrorNotAFallback)$' > "$out2" \
   && grep -q '^--- PASS: TestAPlanWhoseSyncFailedAfterLandingIsScoredAsApplied ' "$out2" \
   && grep -q '^--- PASS: TestAStagingSyncFailureIsTheHarnessesNotARefusal ' "$out2" \
   && grep -q '^--- PASS: TestTheDrainDoesNotReopenAStagedTempForReading ' "$out2" \
+  && { [ "$(go env GOOS)" = windows ] || { grep -q '^--- PASS: TestADirectorySwappedAfterTheRenamesIsNotSynced ' "$out2" && grep -q '^--- PASS: TestARetargetedLinkDoesNotMoveTheDirectorySync ' "$out2"; }; } \
   && { [ "$(go env GOOS)" != darwin ] || { grep -q '^--- PASS: TestAnInterruptedFsyncIsRetried ' "$out2" && grep -q '^--- PASS: TestADrainTheFilesystemRefusesIsAnErrorNotAFallback ' "$out2"; }; } \
-  && case "$(go env GOOS)" in darwin) want='edit_create_rename create_under_existing rename_only unlink_only temp_sync_fails dry_run dir_sync_fails two_devices two_devices_first_drain_fails drain_before_fails drain_after_fails' ;; windows) want='edit_create_rename create_under_existing rename_only unlink_only temp_sync_fails dry_run windows' ;; *) want='edit_create_rename create_under_existing rename_only unlink_only temp_sync_fails dry_run dir_sync_fails' ;; esac \
+  && case "$(go env GOOS)" in darwin) want='edit_create_rename create_under_existing rename_only unlink_only temp_sync_fails dry_run dir_sync_fails two_devices two_devices_first_drain_fails second_device_drain_fails drain_before_fails drain_after_fails' ;; windows) want='edit_create_rename create_under_existing rename_only unlink_only temp_sync_fails dry_run windows' ;; *) want='edit_create_rename create_under_existing rename_only unlink_only temp_sync_fails dry_run dir_sync_fails' ;; esac \
   && missing=0 && for c in $want; do grep -q "^    --- PASS: TestStagedFilesAndTheirDirectoriesAreSyncedBeforeTheWriteReturns/$c " "$out" || missing=1; done && [ "$missing" -eq 0 ] \
   && ! grep -q -- '--- SKIP' "$out" \
   && grep -q '^# 361\. ' scripts/contract.sh \
