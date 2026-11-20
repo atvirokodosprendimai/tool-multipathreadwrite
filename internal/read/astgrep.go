@@ -304,7 +304,8 @@ func AstGrep(root string, paths []string, pattern string, exclude []string, opt 
 		// the file is reported once instead of served wrong.
 		cr, known := crOnly[rel]
 		if !known && !refused {
-			b, err := readCapped(filepath.Join(absRoot, filepath.FromSlash(rel)))
+			afterProbeResolveFn()
+			b, err := readCappedIn(absRoot, filepath.Join(absRoot, filepath.FromSlash(rel)))
 			if over := (errOverFileCap{}); errors.As(err, &over) {
 				// ADR-104: the probe reads the file whole, so it is bounded as
 				// read is; the hit is reported once and not served.

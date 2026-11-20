@@ -30,7 +30,6 @@ import (
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/addr"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/iter"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/lines"
-	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/regular"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
 )
@@ -68,28 +67,23 @@ func (e errOverFileCap) Error() string {
 // the open's own error, permission denied included.
 var errIsDirectory = errors.New("is a directory")
 
-// readCapped reads path whole, up to maxFileBytes. It refuses by the file's
-// size first, and then reads through a limit of one byte more, because a size
-// taken before the read is outrun by a file that grows (the review of #295).
-// It opens through regular.Open (ADR-109): a file swapped for a FIFO after the
-// caller's path check is refused rather than blocking the read.
-// A directory is refused with errIsDirectory, judged by the descriptor rather
-// than the caller's earlier stat, so a path swapped in between is judged as it is.
 // afterResolveFn runs between the boundary decision and the open of a named
 // path. It is a seam for a test to swap a directory for a link there (#727).
 var afterResolveFn = func() {}
 
-func readCapped(path string) ([]byte, error) {
-	f, fi, err := regular.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	return readCappedFile(f, fi)
-}
+// afterProbeResolveFn is afterResolveFn for the ast-grep CR-only probe.
+var afterProbeResolveFn = func() {}
 
-// readCappedIn is readCapped for the file full that rooted.Resolve returned for
-// a path under root, opened through a root held open, so a directory swapped
-// for a link after that decision cannot lead outside it (#727, ADR-007).
+// readCappedIn reads full, a file under root that rooted.Resolve returned for a
+// path, whole, up to maxFileBytes. It opens through a root held open
+// (rooted.OpenRead, regular.OpenIn), so a directory swapped for a link after
+// that decision cannot lead outside the root (#727, ADR-007), and a file
+// swapped for a FIFO is refused rather than blocking the read (ADR-109). It
+// refuses by the file's size first, and then reads through a limit of one byte
+// more, because a size taken before the read is outrun by a file that grows (the
+// review of #295). A directory is refused with errIsDirectory, judged by the
+// descriptor rather than the caller's earlier stat, so a path swapped in between
+// is judged as it is.
 func readCappedIn(root, full string) ([]byte, error) {
 	f, fi, err := rooted.OpenRead(root, full)
 	if err != nil {

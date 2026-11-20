@@ -162,11 +162,11 @@ func TestAPathBelowAFileIsRefusedOnItsHunk(t *testing.T) {
 			t.Run(c.name, func(t *testing.T) {
 				real := loadFn
 				t.Cleanup(func() { loadFn = real })
-				loadFn = func(path string) (text, bool, error) {
+				loadFn = func(root, path string) (text, bool, error) {
 					if strings.HasSuffix(path, filepath.FromSlash(below)) {
 						return text{}, false, nil
 					}
-					return real(path)
+					return real(root, path)
 				}
 				run(t, c)
 			})

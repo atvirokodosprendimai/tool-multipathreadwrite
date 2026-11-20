@@ -150,7 +150,7 @@ func TestBigFilesAreReadAloneAndSmallOnesTogether(t *testing.T) {
 		cur, bigCur, peak, bigAt int
 	)
 	prev := scanRead
-	scanRead = func(path string, budget int64) ([]byte, error) {
+	scanRead = func(root, path string, budget int64) ([]byte, error) {
 		fi, err := os.Stat(path)
 		if err != nil {
 			return nil, err
@@ -173,7 +173,7 @@ func TestBigFilesAreReadAloneAndSmallOnesTogether(t *testing.T) {
 			bigCur--
 		}
 		mu.Unlock()
-		return prev(path, budget)
+		return prev(root, path, budget)
 	}
 	t.Cleanup(func() { scanRead = prev })
 
@@ -209,7 +209,7 @@ func TestAFileThatOutgrewItsStatIsReadAlone(t *testing.T) {
 		retried              bool
 	)
 	prev := scanRead
-	scanRead = func(path string, budget int64) ([]byte, error) {
+	scanRead = func(root, path string, budget int64) ([]byte, error) {
 		grew := filepath.Base(path) == "s07.txt"
 		if grew && budget > 0 {
 			return nil, errBudget
@@ -233,7 +233,7 @@ func TestAFileThatOutgrewItsStatIsReadAlone(t *testing.T) {
 			growCur--
 		}
 		mu.Unlock()
-		return prev(path, budget)
+		return prev(root, path, budget)
 	}
 	t.Cleanup(func() { scanRead = prev })
 
@@ -262,10 +262,10 @@ func TestReadBudgetRefusesAFileOverItsBudget(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if b, err := readBudget(at, 64); err != nil || len(b) != 64 {
+	if b, err := readBudgetIn(filepath.Dir(at), at, 64); err != nil || len(b) != 64 {
 		t.Fatalf("a file at its budget: %d bytes, err %v, want 64 and none", len(b), err)
 	}
-	if _, err := readBudget(over, 64); err != errBudget {
+	if _, err := readBudgetIn(filepath.Dir(over), over, 64); err != errBudget {
 		t.Fatalf("a file over its budget: err %v, want errBudget", err)
 	}
 }

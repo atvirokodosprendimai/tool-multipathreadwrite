@@ -633,6 +633,7 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			failed = append(failed, FileResult{Path: path})
 			continue
 		}
+		afterTargetResolveFn()
 		// ADR-071: a name that differs only by case from one an earlier hunk
 		// leaves on disk, where one of the two does not exist yet. One refusal,
 		// on the hunk that collides; the file's other hunks skip.
@@ -705,7 +706,7 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			}
 			seenFiles = append(seenFiles, groupedFile{path: path, info: info, line: hs[0].SrcLine})
 		}
-		orig, existed, err := loadFn(full)
+		orig, existed, err := loadFn(root, full)
 		// ADR-107: a file that grew past the limit after its size was taken is
 		// refused on its hunk like one that was over it then, so the receipt
 		// keeps every verdict (the Codex review of #302).
@@ -2365,22 +2366,18 @@ func (t text) join() string {
 // with returns a copy holding different lines and the same conventions.
 func (t text) with(lines []string) text { t.lines = lines; return t }
 
-// readLines splits a file into lines, reporting the conventions it used and
-// whether it existed at all. A missing file is not an error here — create needs
-// to know, and so does a hunk that must fail loudly.
+// readLinesIn splits file path, one under root that rooted.Resolve returned for
+// a hunk's path, into lines, reporting the conventions it used and whether it
+// existed at all. A missing file is not an error here — create needs to know,
+// and so does a hunk that must fail loudly.
+//
+// It opens through a root held open (rooted.OpenRead, regular.OpenIn), so a
+// directory swapped for a link after the boundary decision cannot lead outside
+// the root (#727, ADR-007), and a file validation judged regular that was then
+// swapped for a FIFO is refused rather than blocking (ADR-109).
 //
 // The terminators are lines.Split's (ADR-005 §3, moved there by ADR-065 so read,
 // --grep, MCP paging and the plan compilers number a file exactly as this does).
-func readLines(path string) (t text, existed bool, err error) {
-	// ADR-109: opened through regular.Open, so a file validation judged regular
-	// and that was then swapped for a FIFO is refused rather than blocking.
-	f, _, openErr := regular.Open(path)
-	return readLinesFrom(f, openErr)
-}
-
-// readLinesIn is readLines for the file path that rooted.Resolve returned for a
-// path under root, opened through a root held open, so a directory swapped for a
-// link after that decision cannot lead outside it (#727, ADR-007).
 func readLinesIn(root, path string) (t text, existed bool, err error) {
 	f, _, openErr := rooted.OpenRead(root, path)
 	return readLinesFrom(f, openErr)
@@ -2428,7 +2425,12 @@ func (e errOverLoadLimit) Error() string {
 
 // loadFn is the seam validation reads a file through. A file that grows
 // between its stat and its read is not one a test can arrange without it.
-var loadFn = readLines
+var loadFn = readLinesIn
+
+// afterTargetResolveFn runs between the boundary decision on a hunk's file and
+// the load of it. It is a seam for a test to swap a directory for a link there
+// (#727).
+var afterTargetResolveFn = func() {}
 
 // stageFileFn is the seam the staging phase is driven through. A test swaps it
 // to fail on a chosen file, because the realistic trigger — an unwritable

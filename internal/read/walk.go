@@ -16,7 +16,6 @@ import (
 	"unicode"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/lines"
-	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/regular"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 )
 
@@ -430,26 +429,28 @@ func (w *walker) walkDir(named string, full string) {
 // what a walk waits on; more than this only queues in the kernel.
 const maxScanners = 8
 
-// scanRead reads one candidate: whole, up to ADR-104's cap, when budget is 0,
-// else up to budget bytes, or errBudget. It is a variable so a test can swap it
-// for a counter of the reads in flight.
-var scanRead = func(path string, budget int64) ([]byte, error) {
+// scanRead reads one candidate under root: whole, up to ADR-104's cap, when
+// budget is 0, else up to budget bytes, or errBudget. It opens through a root
+// held open (rooted.OpenRead), so a directory swapped for a link after the walk
+// found the file cannot lead outside it (#727). It is a variable so a test can
+// swap it for a counter of the reads in flight.
+var scanRead = func(root, path string, budget int64) ([]byte, error) {
 	if budget == 0 || budget >= maxFileBytes { // the cap is the tighter bound, and its refusal is worded by readCapped
-		return readCapped(path)
+		return readCappedIn(root, path)
 	}
-	return readBudget(path, budget)
+	return readBudgetIn(root, path, budget)
 }
 
 // errBudget is readBudget's answer to a file longer than its budget.
 var errBudget = errors.New("longer than the scan budget")
 
-// readBudget reads path whole if it is at most budget bytes, else errBudget. A
-// job takes one scan slot on the strength of a stat made earlier; a file that
-// has grown since, or a regular file whose stat underreports, must not be held
-// whole beside seven others (the Codex review of #525), so such a job is read
-// again alone.
-func readBudget(path string, budget int64) ([]byte, error) {
-	f, fi, err := regular.Open(path)
+// readBudgetIn reads path, under root, whole if it is at most budget bytes, else
+// errBudget. It is opened through a root held open (#727). A job takes one scan
+// slot on the strength of a stat made earlier; a file that has grown since, or
+// a regular file whose stat underreports, must not be held whole beside seven
+// others (the Codex review of #525), so such a job is read again alone.
+func readBudgetIn(root, path string, budget int64) ([]byte, error) {
+	f, fi, err := rooted.OpenRead(root, path)
 	if err != nil {
 		return nil, err
 	}
@@ -543,14 +544,14 @@ func (w *walker) offer(p, full string, discovered bool, size int64) {
 		if exclusive {
 			budget = 0
 		}
-		b, err := scanRead(j.full, budget)
+		b, err := scanRead(w.absRoot, j.full, budget)
 		if errors.Is(err, errBudget) {
 			// Larger than the stat said: give the slot back and read it alone.
 			<-w.sem
 			held = 0
 			w.takeAll()
 			held = cap(w.sem)
-			b, err = scanRead(j.full, 0)
+			b, err = scanRead(w.absRoot, j.full, 0)
 		}
 		if err != nil {
 			j.err = err
