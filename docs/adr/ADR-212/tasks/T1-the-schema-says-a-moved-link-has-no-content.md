@@ -14,7 +14,7 @@
 
 ADR-212 Decisions 1 and 3.
 
-- **`TestTheWriteSchemaSaysAMovedLinkCarriesNoContent`** (`internal/mcp`) reads `mrw_write`'s output schema from `tools/list` and asserts that `files.sha_after`'s description holds "Absent for a removed file and for a moved symbolic link, whose target mrw does not read." and `files.lines_after`'s holds "0 for a removed file and for a moved symbolic link, whose target mrw does not read: on a written row it is a count only when sha_after is present." Each assertion fails with a message naming its key (`files.sha_after's description lacks …`, `files.lines_after's description lacks …`).
+- **`TestTheWriteSchemaSaysAMovedLinkCarriesNoContent`** (`internal/mcp`) reads `mrw_write`'s output schema from `tools/list` and asserts that `files.sha_after`'s description holds "Absent for a removed file and for a moved symbolic link: the receipt is built without reading what the link leads to." and `files.lines_after`'s holds "0 for a removed file and for a moved symbolic link, whose receipt is built without reading what the link leads to: on a written row it is a count only when sha_after is present." Each assertion fails with a message naming its key (`files.sha_after's description lacks …`, `files.lines_after's description lacks …`).
 - **`TestTheMCPReceiptOfAMovedLinkGivesNoContent`** (`internal/mcp`): a relative symlink `a/link.txt` read, then moved to `b/link.txt` by `mrw_write`; the structured receipt's row for `b/link.txt` has `written` true, `lines_after` 0 and no `sha_after`; the same plan with `dry_run` gives one row, `a/link.txt`, with `renamed_to` `b/link.txt` and `written` false, and no row for `b/link.txt`. Skipped only where the OS cannot make a symlink, saying so.
 - **`TestALegacyResultIsUnchangedByTheModernPath`** passes against the regenerated golden; its comment gains "and once by ADR-212 … those two descriptions, nothing else".
 - **Contract §364**, extended: the applied `--json` row for `b/link.txt` has `lines_after` 0 and `written` true besides no `sha_after`; the human receipt's line for it reads `sha -`; a `--dry-run --json` of the same plan gives the source row with `renamed_to` and `written` false and no destination row.
@@ -49,8 +49,8 @@ d="$(mktemp -d)" \
   && g=internal/mcp/testdata/legacy_golden.jsonl \
   && git show "$base:$g" > "$d/golden.base" \
   && ! cmp -s "$d/golden.base" "$g" \
-  && sed -e 's/ Absent for a removed file and for a moved symbolic link, whose target mrw does not read\.//' \
-         -e 's/ 0 for a removed file and for a moved symbolic link, whose target mrw does not read: on a written row it is a count only when sha_after is present\.//' "$g" > "$d/golden.stripped" \
+  && sed -e 's/ Absent for a removed file and for a moved symbolic link: the receipt is built without reading what the link leads to\.//' \
+         -e 's/ 0 for a removed file and for a moved symbolic link, whose receipt is built without reading what the link leads to: on a written row it is a count only when sha_after is present\.//' "$g" > "$d/golden.stripped" \
   && cmp -s "$d/golden.base" "$d/golden.stripped" \
   && grep -qF 'once by ADR-212' internal/mcp/era_test.go \
   && s364="$(awk '/^# [0-9]+\. /{on = /^# 364\. /} on' scripts/contract.sh)" \

@@ -31,8 +31,8 @@ func fileProperty(t *testing.T, name string) string {
 // ADR-212. A moved symbolic link's record carries no content (#725), and the
 // schema, which is what a model reads, says so for the two keys it affects.
 func TestTheWriteSchemaSaysAMovedLinkCarriesNoContent(t *testing.T) {
-	const sha = "Absent for a removed file and for a moved symbolic link, whose target mrw does not read."
-	const lines = "0 for a removed file and for a moved symbolic link, whose target mrw does not read: on a written row it is a count only when sha_after is present."
+	const sha = "Absent for a removed file and for a moved symbolic link: the receipt is built without reading what the link leads to."
+	const lines = "0 for a removed file and for a moved symbolic link, whose receipt is built without reading what the link leads to: on a written row it is a count only when sha_after is present."
 	if d := fileProperty(t, "sha_after"); !strings.Contains(d, sha) {
 		t.Errorf("files.sha_after's description lacks %q:\n%s", sha, d)
 	}
@@ -77,16 +77,34 @@ func TestTheMCPReceiptOfAMovedLinkGivesNoContent(t *testing.T) {
 		out := map[string]map[string]any{}
 		fs, _ := structured(t, w)["files"].([]any)
 		for _, f := range fs {
-			row, _ := f.(map[string]any)
-			out[row["path"].(string)] = row
+			row, ok := f.(map[string]any)
+			if !ok {
+				t.Fatalf("a files row is %T, want an object: %v", f, f)
+			}
+			p, ok := row["path"].(string)
+			if !ok {
+				t.Fatalf("a files row has path %v (%T), want a string", row["path"], row["path"])
+			}
+			// Counted before indexing: a second row for one path is a defect
+			// the map below would hide.
+			if _, dup := out[p]; dup {
+				t.Fatalf("two files rows for %s: %v", p, fs)
+			}
+			out[p] = row
 		}
 		return out
 	}
 
 	dry := rows(true)
 	src, ok := dry["a/link.txt"]
-	if !ok || src["renamed_to"] != "b/link.txt" || src["written"] == true {
-		t.Errorf("the dry-run source row is %v, want renamed_to b/link.txt and written false", src)
+	if !ok {
+		t.Fatalf("a dry run gave rows %v, want the source a/link.txt", dry)
+	}
+	if src["renamed_to"] != "b/link.txt" {
+		t.Errorf("the dry-run source row's renamed_to is %v, want b/link.txt", src["renamed_to"])
+	}
+	if w, ok := src["written"].(bool); !ok || w {
+		t.Errorf("the dry-run source row's written is %v (%T), want present and false", src["written"], src["written"])
 	}
 	if _, ok := dry["b/link.txt"]; ok || len(dry) != 1 {
 		t.Errorf("a dry run gave rows %v, want only the source", dry)
@@ -94,8 +112,14 @@ func TestTheMCPReceiptOfAMovedLinkGivesNoContent(t *testing.T) {
 
 	applied := rows(false)
 	dst, ok := applied["b/link.txt"]
-	if !ok || dst["written"] != true || dst["lines_after"].(float64) != 0 {
-		t.Fatalf("the destination row is %v, want written true and lines_after 0", dst)
+	if !ok {
+		t.Fatalf("the applied rows %v have none for b/link.txt", applied)
+	}
+	if w, ok := dst["written"].(bool); !ok || !w {
+		t.Errorf("the destination row's written is %v (%T), want present and true", dst["written"], dst["written"])
+	}
+	if n, ok := dst["lines_after"].(float64); !ok || n != 0 {
+		t.Errorf("the destination row's lines_after is %v (%T), want the number 0", dst["lines_after"], dst["lines_after"])
 	}
 	if _, has := dst["sha_after"]; has {
 		t.Errorf("the destination row carries sha_after %v: mrw does not read a moved link's target", dst["sha_after"])
