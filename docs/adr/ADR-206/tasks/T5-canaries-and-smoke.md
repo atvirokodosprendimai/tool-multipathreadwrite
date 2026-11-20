@@ -55,6 +55,7 @@ test "$(v seed)" = 206 && test "$(v 'max turns')" = 60 \
   && test "$(v 'm sha256')" = "$(sed -n 's/^m sha256: //p' bench/stage-9/builds.md)" && test "$(v 'n sha256')" = "$(sed -n 's/^n sha256: //p' bench/stage-9/builds.md)" \
   && test "$(basename "$(v rehearsal)")" = rehearsal.md && test "$(r revision)" = "$(v 'bench revision')" \
   && ! grep -q '^subset:' $R/rehearsal.md && for c in 'instructions frozen' 'build test' 'oracle test' 'bench build' 'stub canaries' 'stub plans' 'count' 'n event counted' 'paid fences'; do grep -qxF "check $c: exit 0" $R/rehearsal.md || exit 1; done \
+  && for c in 'n event counted' 'stub plans' 'build test'; do grep -qE "^check $c negative: exit [1-9][0-9]*$" $R/rehearsal.md || exit 1; done \
   && for k in 'plans sha256' 'smoke plans sha256' 'tasks sha256' 'instructions sha256'; do test "$(r "$k")" = "$(v "$k")" || exit 1; done \
   && for m in claude-opus-5-5 claude-sonnet-5-5; do
        test "$(r date)" = "$(jq -r '.started[:10]' $R/canary-$m-m.json)" && test "$(r date)" = "$(jq -r '.started[:10]' $R/canary-$m-n.json)" || exit 1

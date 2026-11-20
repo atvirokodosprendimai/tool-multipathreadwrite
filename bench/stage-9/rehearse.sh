@@ -20,7 +20,7 @@ default=docs/bench/stage-9/rehearsal.md
 subset=${REHEARSE_SUBSET:-}
 out=${1:-}
 if [ -n "$subset" ]; then
-	case $subset in '' | *[!0-9]* | 0) echo "rehearse.sh: REHEARSE_SUBSET is a positive count" >&2; exit 2 ;; esac
+	case $subset in '' | *[!0-9]* | 0*) echo "rehearse.sh: REHEARSE_SUBSET is a positive integer with no leading zero" >&2; exit 2 ;; esac
 	[ -n "$out" ] || { echo "rehearse.sh: a subset run needs the file to write: it never writes $default" >&2; exit 2; }
 	# realpath of a path that does not exist yet too: a missing docs/bench/stage-9 must not let the committed record be named
 	if [ "$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$out")" = "$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$repo/$default")" ]; then
@@ -39,6 +39,7 @@ done
 if [ -n "${REHEARSE_SCRATCH:-}" ]; then
 	S=$REHEARSE_SCRATCH
 	mkdir -p "$S" || die "cannot make $S"
+	S=$(cd "$S" && pwd -P) || die "cannot resolve $S"
 	[ -z "$(ls -A "$S")" ] || die "$S is not empty: the scratch of a rehearsal is fresh"
 else
 	S=$(mktemp -d) || die "no scratch directory"
@@ -50,7 +51,11 @@ stage=bench/stage-9
 models=$(jq -r '[.[].model] | unique | .[]' $stage/plans.json)
 log() { printf '%s %s\n' "$(date +%H:%M:%S)" "$*" >&2; }
 sha() { shasum -a 256 "$1" | cut -d' ' -f1; }
-stub_sha=$(sha $stage/stub-agent) || die "cannot hash the stub"
+# The stub every attempt starts is the one HEAD commits: a stub changed in the working tree, in a trial too, is refused.
+git ls-files --error-unmatch $stage/stub-agent >/dev/null 2>&1 || die "$stage/stub-agent is not tracked"
+git diff --quiet HEAD -- $stage/stub-agent || die "$stage/stub-agent has an uncommitted change: the rehearsal runs the committed stub"
+stub_sha=$(git show "HEAD:$stage/stub-agent" | shasum -a 256 | cut -d' ' -f1)
+[ ${#stub_sha} -eq 64 ] || die "cannot hash the committed stub"
 # verify_stub DIR: the agent bench is given from DIR is the committed stub, byte for byte, and the only file there that runs.
 verify_stub() {
 	case $1 in "$S"/stub | "$S"/stub-quiet) ;; *) die "$1 is not one of the stub directories" ;; esac
@@ -111,6 +116,7 @@ go_test() {
 run_of() {
 	local model=$1 arm=$2 dir=$3 plans=$4 canary=$5 stubdir=$6 cfg=B figure c=1
 	shift 6
+	[ $# -gt 0 ] || die "run $model $arm has no task: bench run is never started without --task"
 	verify_stub "$stubdir"
 	[ "$arm" = a ] && cfg=A
 	figure=$(jq -r --arg d "$model/$arm" '.[] | select(.directory == $d) | .max_spend_usd' "$plans")
@@ -197,6 +203,7 @@ if [ $built = 1 ] && [ $bench_ok -eq 0 ]; then
 		m=${step_%%:*}; a=${step_##*:}
 		canary_arm=$a; [ "$a" = a ] && canary_arm=m
 		ids=(); while IFS= read -r line; do ids+=("$line"); done < <(tasks_of "$S/plans.json" "$m" "$a")
+		[ ${#ids[@]} -gt 0 ] || die "plan $m $a lists no task"
 		log "run $m $a: ${#ids[@]} attempts"
 		run_of "$m" "$a" "$S/runs" "$S/plans.json" "$S/canaries/canary-$m-$canary_arm.json" "$S/stub" "${ids[@]}" || { c=$?; break; }
 		g=$(python3 -B scripts/bench_stage9.py gate run "$m" "$a" --target "$S/runs/$m/$a" --plans "$S/plans.json" --pilot "$S/pilot.md" \
@@ -245,6 +252,7 @@ if [ $built = 1 ] && [ $bench_ok -eq 0 ]; then
 	m=$(jq -r '.[] | select(.arm == "n") | .model' "$S/plans.json" | head -n 1)
 	jq --arg m "$m" 'map(select(.model == $m and .arm == "n") | .tasks |= .[0:1])' "$S/plans.json" >"$S/neg/plans.json"
 	ids=(); while IFS= read -r line; do ids+=("$line"); done < <(tasks_of "$S/neg/plans.json" "$m" n)
+	[ ${#ids[@]} -gt 0 ] || die "the negative plan lists no task"
 	if run_of "$m" n "$S/neg" "$S/neg/plans.json" "$S/canaries/canary-$m-n.json" "$S/stub-quiet" "${ids[@]}" \
 		&& python3 -B scripts/bench_stage9.py count --receipts "$S/neg" --transcripts "$S/neg" --pilot "$S/pilot.md" --classes $stage/classes.json \
 			--plans "$S/neg/plans.json" >"$S/neg/counts.json" 2>"$S/neg/count.err"; then
@@ -275,7 +283,7 @@ negative 'build test' $c 'SKIP' "$S/TestArmNDiffersFromMInOneRefusal.out"
 rm -rf "$S/notags"
 
 # --- the record: every value is computed and checked first; nothing is published on a failure
-lines=("date: $(date +%Y-%m-%d)" "revision: $rev")
+lines=("date: $(date -u +%Y-%m-%d)" "revision: $rev")
 [ -z "$subset" ] || lines+=("subset: $subset task(s) of each class of each plan: a trial, not the rehearsal")
 for f in $stage/instructions.txt $stage/plans.json $stage/smoke-plans.json $stage/classes.json scripts/bench_stage9.py scripts/bench_mechanism.py \
 	$stage/rehearse.sh $stage/stub-agent; do

@@ -1330,6 +1330,7 @@ class Fixture:
         v = dict(line.split(": ", 1) for line in (self.R / "pilot.md").read_text(encoding="utf-8").splitlines())
         text = "date: 2026-11-20\nrevision: rev1\n" + "".join(f"{k}: {v[k]}\n" for k in ("plans sha256", "smoke plans sha256", "tasks sha256", "instructions sha256"))
         text += "".join(f"check {c}: exit 0\n" for c in ("instructions frozen", "build test", "oracle test", "bench build", "stub canaries", "stub plans", "count", "n event counted", "paid fences"))
+        text += "".join(f"check {c} negative: exit 1\n" for c in ("n event counted", "stub plans", "build test"))
         (self.R / "rehearsal.md").write_text(text, encoding="utf-8")
 
     def gate(self, kind, m, a, target, plans, gates, sequence, after, now):
@@ -1466,6 +1467,8 @@ class PaidFences(unittest.TestCase):
         def _(fx): (fx.R / "rehearsal.md").write_text((fx.R / "rehearsal.md").read_text() + "subset: 1 task(s) of each class of each plan: a trial, not the rehearsal\n")
         @t5("a rehearsal with a failed check")
         def _(fx): (fx.R / "rehearsal.md").write_text((fx.R / "rehearsal.md").read_text().replace("check count: exit 0", "check count: exit 1"))
+        @t5("a rehearsal whose negative did not fail")
+        def _(fx): (fx.R / "rehearsal.md").write_text((fx.R / "rehearsal.md").read_text().replace("check n event counted negative: exit 1", "check n event counted negative: exit 0"))
         @t5("a probe whose exit was not 3")
         def _(fx): Path(str(S(fx) / PSONNET / "a-probe") + ".exit").write_text("2\n")
         @t5("a probe with no stop line")
@@ -1696,6 +1699,53 @@ class RehearsalFence(unittest.TestCase):
         self.commit_change("internal/plan/plan.go", b"package plan\n")
         code, out = self.run_fence()
         self.assertNotEqual(code, 0, out)
+
+class RehearseScript(unittest.TestCase):
+    """What rehearse.sh refuses before it starts anything: each in a throwaway repository holding only the script and the stub."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: __import__("shutil").rmtree(self.tmp, ignore_errors=True))
+        self.repo = self.tmp / "repo"
+        (self.repo / "bench/stage-9").mkdir(parents=True)
+        (self.tmp / "t").mkdir()
+        for name in ("rehearse.sh", "stub-agent"):
+            (self.repo / "bench/stage-9" / name).write_bytes((ROOT / "bench/stage-9" / name).read_bytes())
+            (self.repo / "bench/stage-9" / name).chmod(0o755)
+        (self.repo / "bench/stage-9/plans.json").write_text("[]\n", encoding="utf-8")
+        (self.repo / "bench/stage-9/classes.json").write_text("{}\n", encoding="utf-8")
+        for argv in (["init", "-q"], ["add", "-A"], ["commit", "-q", "-m", "x"]):
+            subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *argv], cwd=self.repo, check=True, capture_output=True,
+                           env=dict(os.environ, GIT_CONFIG_GLOBAL="/dev/null", GIT_CONFIG_SYSTEM="/dev/null"))
+
+    def run_script(self, **env):
+        done = subprocess.run(["bash", "bench/stage-9/rehearse.sh", str(self.tmp / "out.md")], cwd=self.repo, capture_output=True, text=True,
+                              env=dict(os.environ, TMPDIR=str(self.tmp / "t"), **env))
+        return done.returncode, done.stderr
+
+    def test_a_subset_is_a_positive_integer_with_no_leading_zero(self):
+        for bad in ("0", "01", "x", "1.5", "-1", " 1"):
+            code, err = self.run_script(REHEARSE_SUBSET=bad)
+            self.assertEqual(code, 2, bad)
+            self.assertIn("positive integer", err, bad)
+
+    def test_a_relative_scratch_is_resolved_before_it_is_used(self):
+        (self.repo / "scratch").mkdir()
+        (self.repo / "scratch/old").write_text("x\n", encoding="utf-8")
+        code, err = self.run_script(REHEARSE_SUBSET="1", REHEARSE_SCRATCH="scratch")
+        self.assertEqual(code, 2, err)
+        self.assertIn(str((self.repo / "scratch").resolve()), err)
+
+    def test_a_stub_that_differs_from_head_is_refused_even_in_a_trial(self):
+        stub = self.repo / "bench/stage-9/stub-agent"
+        stub.write_bytes(stub.read_bytes() + b"# changed\n")
+        code, err = self.run_script(REHEARSE_SUBSET="1")
+        self.assertEqual(code, 2, err)
+        self.assertIn("uncommitted change", err)
+        stub.unlink()
+        code, err = self.run_script(REHEARSE_SUBSET="1")
+        self.assertEqual(code, 2, err)
+        self.assertIn("uncommitted change", err)  # a deleted stub differs from HEAD too
 
 if __name__ == "__main__":
     unittest.main()
