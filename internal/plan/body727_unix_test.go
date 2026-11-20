@@ -5,6 +5,7 @@ package plan
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -54,5 +55,43 @@ func TestABodyFileUnderADirectorySwappedForALinkOutIsNotLoaded(t *testing.T) {
 	hs := []Hunk{{BodyFile: "d/b.txt", SrcLine: 1}}
 	if err := LoadBodyFiles(root, hs); err == nil && len(hs[0].Body) > 0 {
 		t.Fatalf("a body file outside the root was loaded: %q", hs[0].Body)
+	}
+}
+
+// The size a refusal reports comes from the descriptor of the open through the
+// held root, not from a Stat of the name (#727).
+func TestABodyFileSwappedForALinkOutIsNotMeasured(t *testing.T) {
+	root, outside := t.TempDir(), t.TempDir()
+	real, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(filepath.Join(real, "d"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(real, "d", "b.txt"), []byte("in\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(outside, "b.txt"), []byte("OUTSIDE-SECRET-OF-SOME-LENGTH\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	old := maxBodyBytes
+	maxBodyBytes = 10
+	t.Cleanup(func() { maxBodyBytes = old })
+	prev := afterBodyResolveFn
+	afterBodyResolveFn = func() {
+		afterBodyResolveFn = prev
+		if err := os.Rename(filepath.Join(real, "d"), filepath.Join(real, "d.old")); err != nil {
+			t.Error(err)
+			return
+		}
+		if err := os.Symlink(outside, filepath.Join(real, "d")); err != nil {
+			t.Error(err)
+		}
+	}
+	t.Cleanup(func() { afterBodyResolveFn = prev })
+	err = LoadBodyFiles(root, []Hunk{{BodyFile: "d/b.txt", SrcLine: 1}})
+	if err != nil && strings.Contains(err.Error(), "30 bytes") {
+		t.Errorf("the size of a file outside the root was reported: %v", err)
 	}
 }

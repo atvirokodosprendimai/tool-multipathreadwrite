@@ -649,7 +649,7 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			continue
 		}
 		var seen fs.FileInfo
-		if info, statErr := os.Stat(full); statErr == nil {
+		if info, statErr := statHeld(root, full); statErr == nil {
 			// ADR-106: kept for the identity recheck before commit. On Windows
 			// os.SameFile reads a file ID lazily, by name, when it compares, so
 			// the ID is loaded now — at the moment validation read the file.
@@ -2758,6 +2758,23 @@ func changedSince(tr *tree, p string, was fs.FileInfo) (string, error) {
 		return "its modification time changed", nil
 	}
 	return "", nil
+}
+
+// statHeld describes the file full, under root, as the open descriptor says it
+// is: the file the plan will load, and not whatever a name Stat taken first
+// happens to reach (#727). What cannot be opened for reading, a FIFO or a file
+// the process may not read, is described by name, its metadata only: nothing is
+// read from it, and it is refused or reported on its hunk.
+func statHeld(root, full string) (fs.FileInfo, error) {
+	f, fi, err := rooted.OpenRead(root, full)
+	if err == nil {
+		_ = f.Close()
+		return fi, nil
+	}
+	if errors.Is(err, regular.ErrNotRegular) || errors.Is(err, fs.ErrPermission) {
+		return os.Stat(full)
+	}
+	return nil, err
 }
 
 func shaOf(t text) string {

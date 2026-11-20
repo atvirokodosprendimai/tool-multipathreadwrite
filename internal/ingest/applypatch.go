@@ -9,6 +9,7 @@ package ingest
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -354,12 +355,17 @@ func plusLine(line string) (string, bool) {
 	return line[1:], true
 }
 
+// afterTargetResolveFn runs between the boundary decision on a target and its
+// open. It is a seam for a test to swap a directory for a link there (#727).
+var afterTargetResolveFn = func() {}
+
 func fileLines(root, path string) ([]string, string, error) {
 	full, err := rooted.Resolve(root, path)
 	if err != nil {
 		return nil, "", fmt.Errorf("apply_patch: %w", err)
 	}
-	b, err := targetBytes(full)
+	afterTargetResolveFn()
+	b, err := targetBytes(root, full)
 	if err != nil {
 		return nil, "", fmt.Errorf("apply_patch: %s: %w", path, err)
 	}
@@ -379,8 +385,11 @@ func fileLines(root, path string) ([]string, string, error) {
 // descriptor, not a path Stat taken before the open, decides that the target is
 // a regular file, so a FIFO swapped in between is refused too. A directory keeps
 // the read's own error.
-func targetBytes(full string) ([]byte, error) {
-	f, fi, err := regular.Open(full)
+func targetBytes(root, full string) ([]byte, error) {
+	f, fi, err := rooted.OpenRead(root, full)
+	if errors.Is(err, regular.ErrNotRegular) {
+		return nil, regular.ErrNotRegular // the usual words, not an open error naming a path
+	}
 	if err != nil {
 		return nil, err
 	}

@@ -24,7 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
+	"io/fs"
 	"regexp"
 	"strconv"
 	"strings"
@@ -1043,26 +1043,28 @@ func LoadBodyFiles(root string, hunks []Hunk) error {
 			return fmt.Errorf("line %d: body=@%s: %w", hunks[i].SrcLine, p, err)
 		}
 		afterBodyResolveFn()
-		st, err := os.Stat(full)
-		if err != nil {
-			return fmt.Errorf("line %d: body=@%s: %w", hunks[i].SrcLine, p, err)
+		// ADR-109: the descriptor readBounded opens decides that the file is
+		// regular and how big it is, so a FIFO swapped in, or a path swapped for
+		// another file, after the boundary decision is judged as it is (#727: a
+		// path Stat taken first could name another file than the open).
+		b, err := readBounded(root, full)
+		var big errBodyTooBig
+		if errors.As(err, &big) {
+			return fmt.Errorf("line %d: body=@%s is %d bytes, over the %d-byte limit mrw reads", hunks[i].SrcLine, p, big.size, maxBodyBytes)
 		}
-		// ADR-109: a directory is refused by its path; anything else that is
-		// not a regular file by the descriptor readBounded opens, so a FIFO
-		// swapped in after this Stat is refused rather than blocking the write.
-		if st.IsDir() {
+		if errors.Is(err, errBodyIsDir) {
 			return notRegularBody{line: hunks[i].SrcLine, path: p}
 		}
-		// ADR-108: refused by its size and read through a bound, as read and
-		// apply read; this ran before apply's capped loader.
-		if st.Mode().IsRegular() && st.Size() > maxBodyBytes {
-			return fmt.Errorf("line %d: body=@%s is %d bytes, over the %d-byte limit mrw reads", hunks[i].SrcLine, p, st.Size(), maxBodyBytes)
-		}
-		b, err := readBounded(root, full)
 		if errors.Is(err, regular.ErrNotRegular) {
 			return notRegularBody{line: hunks[i].SrcLine, path: p}
 		}
 		if err != nil {
+			// A missing file keeps the words its by-name Stat gave: the receipt
+			// names the path as it always did.
+			var pe *fs.PathError
+			if errors.As(err, &pe) && errors.Is(err, fs.ErrNotExist) {
+				err = &fs.PathError{Op: "stat", Path: full, Err: pe.Err}
+			}
 			return fmt.Errorf("line %d: body=@%s: %w", hunks[i].SrcLine, p, err)
 		}
 		if len(b) == 0 {
@@ -1097,15 +1099,30 @@ func (e notRegularBody) Error() string {
 
 func (e notRegularBody) Unwrap() error { return regular.ErrNotRegular }
 
-// readBounded reads full through a bound of maxBodyBytes plus one byte, for a
-// file that grows after its size was taken. It opens through regular.Open
-// (ADR-109), whose descriptor decides that the file is regular.
+// errBodyIsDir is readBounded's refusal of a directory; errBodyTooBig of a file
+// whose descriptor says it is over the limit (ADR-108).
+var errBodyIsDir = errors.New("is a directory")
+
+type errBodyTooBig struct{ size int64 }
+
+func (e errBodyTooBig) Error() string { return fmt.Sprintf("is %d bytes", e.size) }
+
+// readBounded reads full, a file under root, through a bound of maxBodyBytes
+// plus one byte, for a file that grows after its size was taken. It opens
+// through the root held open (rooted.OpenRead, ADR-109, #727): the descriptor
+// decides that the file is regular, and what its size is.
 func readBounded(root, full string) ([]byte, error) {
-	f, _, err := rooted.OpenRead(root, full)
+	f, fi, err := rooted.OpenRead(root, full)
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = f.Close() }()
+	if fi.IsDir() {
+		return nil, errBodyIsDir
+	}
+	if fi.Mode().IsRegular() && fi.Size() > maxBodyBytes {
+		return nil, errBodyTooBig{size: fi.Size()}
+	}
 	b, err := io.ReadAll(io.LimitReader(f, maxBodyBytes+1))
 	if err != nil {
 		return nil, err

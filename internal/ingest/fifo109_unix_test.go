@@ -25,7 +25,7 @@ func TestForeignTargetFIFOIsRefusedByItsDescriptor(t *testing.T) {
 	}
 	done := make(chan error, 1)
 	go func() {
-		_, err := targetBytes(pipe)
+		_, err := targetBytes(filepath.Dir(pipe), pipe)
 		done <- err
 	}()
 	select {
@@ -53,7 +53,7 @@ func TestForeignTargetFIFOIsRefusedByItsDescriptor(t *testing.T) {
 		t.Skipf("no unix sockets here: %v", err)
 	}
 	t.Cleanup(func() { _ = l.Close() })
-	if _, err := targetBytes(sock); !errors.Is(err, regular.ErrNotRegular) || err.Error() != lines.NotRegular {
+	if _, err := targetBytes(filepath.Dir(sock), sock); !errors.Is(err, regular.ErrNotRegular) || err.Error() != lines.NotRegular {
 		t.Errorf("a socket target was not refused with the usual text: %v", err)
 	}
 }

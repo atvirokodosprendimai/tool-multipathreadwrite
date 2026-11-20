@@ -52,6 +52,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/regular"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/state"
 )
@@ -699,7 +700,12 @@ func currentSHA(root, path string) (string, error) {
 	// regular file — a FIFO swapped in after the read blocked a plain open,
 	// under the pending-store lock, and a device streams for ever. ADR-109 made
 	// that one function, regular.Open, which passes a directory back.
-	f, fi, err := regular.Open(filepath.Join(root, filepath.FromSlash(path)))
+	full, err := rooted.Resolve(root, filepath.FromSlash(path))
+	if err != nil {
+		return "", err
+	}
+	afterResolveFn()
+	f, fi, err := rooted.OpenRead(root, full)
 	if errors.Is(err, regular.ErrNotRegular) {
 		return "", fmt.Errorf("%s is no longer a regular file", path)
 	}

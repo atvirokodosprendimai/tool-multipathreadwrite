@@ -147,7 +147,7 @@ func Walk(root string, paths []string, opt WalkOptions) ([]Spec, []Problem, erro
 	defer rd.Close()
 	w := walker{root: root, absRoot: absRoot, opt: opt, seen: map[string]bool{}, nested: map[string]*ignorer{},
 		skipFiles: map[string]bool{}, skipDirs: map[string]bool{}, skipBin: map[string]bool{}, skipNested: map[string]bool{}, skipNames: map[string]bool{}, skipLinks: map[string]bool{},
-		sem: make(chan struct{}, min(runtime.NumCPU(), maxScanners)), res: rooted.NewResolver(root), rd: rd}
+		sem: make(chan struct{}, min(runtime.NumCPU(), maxScanners)), rd: rd, res: rooted.NewResolver(root)}
 	if !opt.NoIgnore {
 		w.ign = newIgnorer(absRoot)
 	}

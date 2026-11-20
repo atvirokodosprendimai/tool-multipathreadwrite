@@ -30,6 +30,7 @@ import (
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/addr"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/iter"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/lines"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/regular"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
 )
@@ -1401,16 +1402,16 @@ func load(w io.Writer, root string, sp *Spec) (b []byte, englishUnreadable, ok b
 	// ADR-074: opening a FIFO for reading blocks until something writes to
 	// it, and a device can stream without end. The walk has refused a
 	// non-regular candidate since ADR-007; a named spec is reported the
-	// same way. A directory readCapped could open is errIsDirectory, and a
-	// stat that fails falls through to the error ReadFile gives.
-	fi, statErr := os.Stat(full)
-	if statErr == nil && !fi.Mode().IsRegular() && !fi.IsDir() {
-		fmt.Fprintf(w, "==> %s  UNREADABLE  %s\n", sp.Path, lines.NotRegular)
-		return nil, false, false
-	}
+	// same way. The open is the held root's, without blocking, and says what
+	// it opened (a path Stat taken first named the file and then the open
+	// could name another: #727). A directory it could open is errIsDirectory.
 	// ADR-104: a file is read whole to serve any range of it, so readCapped
 	// refuses one over the cap by its size, and bounds the read itself.
 	b, err = readCappedIn(root, full)
+	if errors.Is(err, regular.ErrNotRegular) {
+		fmt.Fprintf(w, "==> %s  UNREADABLE  %s\n", sp.Path, lines.NotRegular)
+		return nil, false, false
+	}
 	if err != nil {
 		glob := hintUnexpandedGlob(sp.Path)
 		// Decided before the directory hint is added, so a directory name still counts

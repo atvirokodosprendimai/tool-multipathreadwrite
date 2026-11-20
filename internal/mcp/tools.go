@@ -832,6 +832,11 @@ const maxSpecList = 64 << 20
 // device, which would hold the server (ADR-109), and bounded, a list that grew
 // past the bound after it was measured included. Stdin is the protocol, so "-"
 // is refused.
+// afterResolveFn runs between a boundary decision on a path and the open of its
+// file, in the content reads of this package. It is a seam for a test to swap a
+// directory for a link there (#727).
+var afterResolveFn = func() {}
+
 func filesFrom(root, name string) ([]string, error) {
 	label := "files_from " + name
 	switch name {
@@ -844,7 +849,8 @@ func filesFrom(root, name string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", label, err)
 	}
-	f, fi, err := regular.Open(full)
+	afterResolveFn()
+	f, fi, err := rooted.OpenRead(root, full)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", label, err)
 	}
@@ -2089,7 +2095,8 @@ func countFileLines(root, path string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	f, fi, err := regular.Open(full)
+	afterResolveFn()
+	f, fi, err := rooted.OpenRead(root, full)
 	if errors.Is(err, regular.ErrNotRegular) {
 		return 0, fmt.Errorf("%s is not a regular file", path)
 	}
@@ -2720,7 +2727,7 @@ func staleEnd(root, path, addr string, first int) int {
 		return first
 	}
 	if strings.TrimSpace(hi) == "$" {
-		b, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(path)))
+		b, err := readStaleTarget(root, path)
 		if err != nil {
 			return 0
 		}
@@ -2735,6 +2742,22 @@ func staleEnd(root, path, addr string, first int) int {
 		return 0
 	}
 	return end
+}
+
+// readStaleTarget reads the file a stale-number refusal names, whole, up to
+// maxCountBytes, through a root held open (#727).
+func readStaleTarget(root, path string) ([]byte, error) {
+	full, err := rooted.Resolve(root, path)
+	if err != nil {
+		return nil, err
+	}
+	afterResolveFn()
+	f, _, err := rooted.OpenRead(root, full)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = f.Close() }()
+	return io.ReadAll(io.LimitReader(f, maxCountBytes+1))
 }
 
 // anySameFile reports whether path names the same file on disk as any of the

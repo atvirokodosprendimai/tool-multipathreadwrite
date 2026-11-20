@@ -63,3 +63,33 @@ func TestATargetThroughALinkInsideTheRootIsStillLoaded(t *testing.T) {
 		t.Errorf("d/f.txt is %q, want the edit", b)
 	}
 }
+
+// The size a refusal reports comes from the descriptor of the open through the
+// held root, not from a Stat of the name (#727).
+func TestATargetSwappedForALinkOutIsNotMeasured(t *testing.T) {
+	root, outside := t.TempDir(), t.TempDir()
+	if err := os.Mkdir(filepath.Join(root, "d"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	write(t, root, "d/f.txt", "in\n")
+	write(t, outside, "f.txt", "OUTSIDE-SECRET-OF-SOME-LENGTH\n")
+	old := maxLoadBytes
+	maxLoadBytes = 10
+	t.Cleanup(func() { maxLoadBytes = old })
+	prev := afterTargetResolveFn
+	afterTargetResolveFn = func() {
+		afterTargetResolveFn = prev
+		if err := os.Rename(filepath.Join(root, "d"), filepath.Join(root, "d.old")); err != nil {
+			t.Error(err)
+			return
+		}
+		if err := os.Symlink(outside, filepath.Join(root, "d")); err != nil {
+			t.Error(err)
+		}
+	}
+	t.Cleanup(func() { afterTargetResolveFn = prev })
+	res, err := Apply(root, []Input{{Path: "d/f.txt", Op: "replace", Start: 1, End: 1, Body: []string{"x"}, Lines: -1}}, Options{Force: true})
+	if got := fmt.Sprintf("%+v %v", res, err); strings.Contains(got, "30 bytes") {
+		t.Errorf("the size of a file outside the root was reported: %s", got)
+	}
+}

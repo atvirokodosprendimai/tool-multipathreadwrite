@@ -9,6 +9,7 @@ import (
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/lines"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/refusal"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/regular"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 )
 
@@ -178,25 +179,30 @@ func loadSource(root, p string) *sourceFile {
 	}
 	f.full = full
 	afterSourceResolveFn()
-	info, err := os.Stat(full)
+	// The descriptor of the open through the held root says what the source is
+	// and how big: a path Stat taken first could name another file than the
+	// open (#727).
+	file, info, err := rooted.OpenRead(root, full)
 	switch {
 	case os.IsNotExist(err):
 		f.why = fmt.Sprintf("from=%s does not exist before the plan, so it has no original to copy", asPlan(p))
+		return f
+	case errors.Is(err, regular.ErrNotRegular):
+		f.why = fmt.Sprintf("from=%s is %s", asPlan(p), lines.NotRegular)
 		return f
 	case err != nil:
 		f.why = fmt.Sprintf("from=%s: %v", asPlan(p), err)
 		return f
 	case info.IsDir():
+		_ = file.Close()
 		f.why = fmt.Sprintf("from=%s is a directory; a copy takes lines of a file", asPlan(p))
 		return f
-	case !info.Mode().IsRegular():
-		f.why = fmt.Sprintf("from=%s is %s", asPlan(p), lines.NotRegular)
-		return f
 	case info.Size() > maxLoadBytes:
+		_ = file.Close()
 		f.why = fmt.Sprintf("from=%s is %d bytes, over the %d-byte limit mrw reads (ADR-104, ADR-107)", asPlan(p), info.Size(), maxLoadBytes)
 		return f
 	}
-	t, existed, err := readLinesIn(root, full)
+	t, existed, err := readLinesFrom(file, nil)
 	var over errOverLoadLimit
 	switch {
 	case errors.As(err, &over):

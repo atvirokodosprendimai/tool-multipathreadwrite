@@ -112,3 +112,4 @@ Stop and ask if a locked test must change to pass.
 - 2026-10-01 · 1fb4932* · exit 0 · `set -o pipefail …` · acceptance-sha256:5d13b9126bf8ff20d31d62b4171801b2d974be71c691c708a66ea24c887c2fc9 · ms:819
 - 2026-10-01 · 1fb4932* · exit 0 · `set -o pipefail …` · acceptance-sha256:5d13b9126bf8ff20d31d62b4171801b2d974be71c691c708a66ea24c887c2fc9 · ms:854
 - 2026-10-01 · 1fb4932* · exit 0 · `set -o pipefail …` · acceptance-sha256:5d13b9126bf8ff20d31d62b4171801b2d974be71c691c708a66ea24c887c2fc9 · ms:855
+- 2026-11-20 · d62d1798* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:5d13b9126bf8ff20d31d62b4171801b2d974be71c691c708a66ea24c887c2fc9 · ms:1 · test-lock-sha256:aeaee6ca712345e38ff1bd1f402a6335ab496023fcba3a0c2b8fc6cd92d59a0c · test-lock-file:docs/adr/locks/aeaee6ca712345e38ff1bd1f402a6335ab496023fcba3a0c2b8fc6cd92d59a0c.lock · test-lock-kind:replace

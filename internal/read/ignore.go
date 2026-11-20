@@ -412,7 +412,8 @@ func (ig *ignorer) load(dir string) {
 	if fi, err := os.Lstat(p); err != nil || fi.Mode()&(os.ModeSymlink|os.ModeIrregular) != 0 {
 		return
 	}
-	if b := readIgnoreFile(p); b != nil {
+	afterIgnoreCheckFn()
+	if b := readIgnoreFileIn(ig.top, filepath.Join(filepath.FromSlash(dir), ".gitignore")); b != nil {
 		ig.rules = append(ig.rules, parseIgnore(dir, b, ig.fold)...)
 	}
 }
@@ -423,6 +424,36 @@ func (ig *ignorer) load(dir string) {
 // linked to /dev/zero read without end. Anything it will not read — missing, a
 // directory, not regular, too large — gives no rules, so the walk serves more
 // rather than waiting.
+// afterIgnoreCheckFn runs between a .gitignore's link check and its open. It is
+// a seam for a test to swap a directory for a link there (#727).
+var afterIgnoreCheckFn = func() {}
+
+// readIgnoreFileIn is readIgnoreFile for the .gitignore at rel under the
+// checkout's top, opened through a root held on the top, so a directory swapped
+// for a link out of the checkout cannot lead the walk to rules from outside it
+// (#727). The checkout's top may be above the walk's root: that is the
+// boundary of an ignore file, not --root.
+func readIgnoreFileIn(top, rel string) []byte {
+	r, err := os.OpenRoot(top)
+	if err != nil {
+		return nil
+	}
+	defer func() { _ = r.Close() }()
+	f, fi, err := regular.OpenIn(r, rel)
+	if err != nil {
+		return nil
+	}
+	defer func() { _ = f.Close() }()
+	if fi.IsDir() || fi.Size() > maxFileBytes {
+		return nil
+	}
+	b, err := io.ReadAll(io.LimitReader(f, maxFileBytes+1))
+	if err != nil || int64(len(b)) > maxFileBytes {
+		return nil
+	}
+	return b
+}
+
 func readIgnoreFile(p string) []byte {
 	f, fi, err := regular.Open(p)
 	if err != nil {
