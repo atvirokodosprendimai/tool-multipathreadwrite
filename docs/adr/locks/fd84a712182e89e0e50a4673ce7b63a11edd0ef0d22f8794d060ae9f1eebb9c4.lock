@@ -1,0 +1,21 @@
+check@2	1bb497e3e13a1105cf24e3359fa3ef75de08b66ff8a2839cd7f9ea97824d9eb3
+body	internal/bench/sidearms_test.go	G is P plus the runtime setting, the fetch switch and the binary	c2ffd8532a4990a4d8ad9c5b930fde1b33f8a1d7ee8c9ce75da7b7474da21517
+body	internal/bench/sidearms_test.go	P is the control, never A	0e5943163888d76581e676b22261e0c587f68b0124809224de72343a4b375a4e
+body	internal/bench/sidearms_test.go	TestConfigurationCDiffersFromPOnlyInTurnEnd	a947c0fc5c2f40a99154e3d82f14089e0880166da2383feaa79257772bb5e267
+body	internal/bench/sidearms_test.go	TestConfigurationGRunsTheHooksThroughTheBinaryAndPThroughNode	0a1da9af7e1d66b95d3ff3bd12e4e86588d47acb57264629d40e45c9e4f75f51
+body	internal/bench/sidearms_test.go	TestCoreExportsAreIdenticalWithOrWithoutSideArms	642dc7df2f6e84a2d51a15a7b19345d9cefc3f223775ae4926cce18a610beaa9
+body	internal/bench/sidearms_test.go	TestTheSideReaderUsesPAsControlAndTheRegisteredBar	ef6c6a1867045b97e10d700d292e06be673baca88ba8b75a1eeb4d9fc0843ede
+body	internal/bench/sidearms_test.go	a canary authorizes only the data directory and side registration it ran	2627ccefd143a29ca0762351620843f8f87e9f4efded4e21669f53040132f14c
+body	internal/bench/sidearms_test.go	a pilot is never counted	69c6b1c17c3ffa7ccc84dd5fdfd7d8da8e2a3b177c39a059c53a5993b63f8db9
+body	internal/bench/sidearms_test.go	a side arm cannot join or leave after block 1	9a59794e1be6b7d4961cd16644bcf1eff17d95fc69a7924003f61748c0bb7977
+body	internal/bench/sidearms_test.go	a side arm is not a pair	782f30cc81f9a49b75faa5dd177e3b253ab6f0cbec24982855f7ad8913752bc6
+body	internal/bench/sidearms_test.go	blocks that ran another plugin, asset or setting are not pooled	b6f0b68a76f01d32975be6d90fba62f6b09c749c689e27ba5545adf85a92cea3
+body	internal/bench/sidearms_test.go	blocks with and without side arms export as one	5914b81c5a900f909f07de708a288febc589a7a0aa5b6adf565348063a6748f5
+body	internal/bench/sidearms_test.go	cost at each boundary, end to end	4069ee077117b454c82b00ba43301638fb3b85153c74ba1ca707878d7fb74543
+body	internal/bench/sidearms_test.go	each model is its own count, and blocks are cumulated	afcfcfb2fd4a1c5052335df1effdcea606c2e87eaed8572338804cb919db738e
+body	internal/bench/sidearms_test.go	every plugin arm gets a fresh data directory where Claude Code puts it	a034c1a63b615a0242b9976179cb8c2ae70bc743d64422e19ef9a28fa5259574
+body	internal/bench/sidearms_test.go	no receipts of the arm is an error, not a verdict	30c41ff5010d93107cae92a134192cb8fd4b1cd0d106a148faa8af0ef12058ad
+body	internal/bench/sidearms_test.go	pairing, exclusions and the 60-pair floor	09b31ff3979896ceed550176a547dd997cdd7d09d030b9a770ddd061cfd360ca
+body	internal/bench/sidearms_test.go	refusals	6e029f3e4a4783a2911d66e5129881ec620505f48f9b09ff9b084612089dfe6f
+body	internal/bench/sidearms_test.go	the bar at each boundary, both sides	e5d8e39cb9e07c20ab1df76daa24ebd31bb62fcb14a4e7f7acb79ca28e7ad970
+body	internal/bench/sidearms_test.go	the canary attests the runtime only from the output of a hook that succeeded	ce1926b372d8f2f9958be11f3dfa417346bea106e614dc6e23abcaf4bc34c650

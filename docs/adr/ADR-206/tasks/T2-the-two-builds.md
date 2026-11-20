@@ -12,18 +12,20 @@
 
 ## Goal
 
-ADR-206 Decision 4. `build.sh TAG OUTDIR` builds `mrw-m` and `mrw-n`. The test builds both and drives them from identical fresh trees and state homes:
+ADR-206 Decision 4, as ADR-211 Decision 3 amends it (T1 of ADR-211). `build.sh TAG OUTDIR` builds `mrw-m` and `mrw-n`. The test builds both and drives them from identical fresh trees and state homes; N's log is `stage9-exposed.jsonl` in the parent of `$XDG_STATE_HOME`, beside the state home and none inside it:
 
 | Case | M | N |
 |------|---|---|
-| write a file, then replace a line of it by number alone | exit 1, ADR-203's refusal | exit 0, the line replaced; one object in `mrw/stage9-exposed.jsonl` with `path`, `op`, `start`, `end`, `first_unshown`, `sha_before` |
+| write a file, then replace a line of it by number alone | exit 1, ADR-203's refusal | exit 0, the line replaced; one object in the log with `path`, `op`, `start`, `end`, `first_unshown`, `sha_before`; none in the state home |
 | the same as a numbered `delete` of two lines, and as an `insert-after` | exit 1 | exit 0; one object each, `op` and the span as resolved (a multi-line `replace` needs `anchor=`, which takes it out of this rule) |
 | a plan of two files that commits one and fails on the other, the landed one holding such a hunk | — | one object, for the hunk that landed |
-| the same under `--dry-run`, and in a plan whose other hunk fails | exit as M | nothing landed; no object |
-| the same second edit with `anchor=` | exit 0 | exit 0; no object; the log exists and is empty |
+| the same under `--dry-run`, and in a plan whose other hunk fails | exit as M | nothing landed; no object, and no log file |
+| the same second edit with `anchor=` | exit 0 | exit 0; no object; the anchored write leaves no log file at all |
 | replace by number a line no read has served, in a file mrw did not write | exit 1 | exit 1, the same reason |
 | `version`, `instructions`, `instructions --core`, `skill` | — | byte for byte M's |
-| the first case with the log's path made a directory | — | exit 0, stdout and stderr what they were with the log writable |
+| the first case with the log's path made a directory, or a FIFO with no reader | — | exit 0, the same stdout, the file as written, and one more line on stderr, `mrw: stage9 log: <what failed>` |
+| an event logged by one write, then a later write whose append fails | — | the later write lands, prints the one line, and the log still holds the first event |
+| `$XDG_STATE_HOME` unset (mrw itself refuses a relative one) | — | the write lands as it did, with the one `mrw: stage9 log:` line |
 
 And no tracked `.go` file contains the patch's added lines.
 

@@ -273,7 +273,7 @@ exit 0
 		t.Fatal(err)
 	}
 	canary := filepath.Join(work, "canary.json")
-	if err := os.WriteFile(canary, []byte(`{"pass":true,"cli_version":"9.9.9 (Claude Code)"}`), 0o644); err != nil {
+	if err := os.WriteFile(canary, []byte(`{"pass":true,"cli_version":"9.9.9 (Claude Code)","model":"stub-model"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	return RunOptions{Tasks: tasks, Stage: "s3", Out: filepath.Join(work, "out"), Models: []string{"stub-model"}, Configs: []string{"A", "B"},

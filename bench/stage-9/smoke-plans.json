@@ -1,0 +1,94 @@
+[
+ {
+  "model": "claude-opus-5-5",
+  "arm": "n",
+  "directory": "claude-opus-5-5/n",
+  "configs": [
+   "B"
+  ],
+  "max_spend_usd": 0.8,
+  "tasks": [
+   "s9-pylint-logging-too-many-args-confidence",
+   "s9-requests-help-information-rename"
+  ]
+ },
+ {
+  "model": "claude-opus-5-5",
+  "arm": "m",
+  "directory": "claude-opus-5-5/m",
+  "configs": [
+   "B"
+  ],
+  "max_spend_usd": 0.8,
+  "tasks": [
+   "s9-pylint-logging-too-many-args-confidence",
+   "s9-requests-help-information-rename"
+  ]
+ },
+ {
+  "model": "claude-opus-5-5",
+  "arm": "a",
+  "directory": "claude-opus-5-5/a",
+  "configs": [
+   "A"
+  ],
+  "max_spend_usd": 0.8,
+  "tasks": [
+   "s9-pylint-logging-too-many-args-confidence",
+   "s9-requests-help-information-rename"
+  ]
+ },
+ {
+  "model": "claude-sonnet-5-5",
+  "arm": "n",
+  "directory": "claude-sonnet-5-5/n",
+  "configs": [
+   "B"
+  ],
+  "max_spend_usd": 0.4,
+  "tasks": [
+   "s9-pylint-logging-too-many-args-confidence",
+   "s9-requests-help-information-rename"
+  ]
+ },
+ {
+  "model": "claude-sonnet-5-5",
+  "arm": "m",
+  "directory": "claude-sonnet-5-5/m",
+  "configs": [
+   "B"
+  ],
+  "max_spend_usd": 0.4,
+  "tasks": [
+   "s9-pylint-logging-too-many-args-confidence",
+   "s9-requests-help-information-rename"
+  ]
+ },
+ {
+  "model": "claude-sonnet-5-5",
+  "arm": "a",
+  "directory": "claude-sonnet-5-5/a",
+  "configs": [
+   "A"
+  ],
+  "max_spend_usd": 0.4,
+  "tasks": [
+   "s9-pylint-logging-too-many-args-confidence",
+   "s9-requests-help-information-rename"
+  ]
+ },
+ {
+  "model": "claude-sonnet-5-5",
+  "arm": "a",
+  "directory": "claude-sonnet-5-5/a-probe",
+  "configs": [
+   "A"
+  ],
+  "max_spend_usd": 0.01,
+  "tasks": [
+   "s9-pylint-logging-too-many-args-confidence",
+   "s9-requests-help-information-rename"
+  ],
+  "probe": true
+ }
+]

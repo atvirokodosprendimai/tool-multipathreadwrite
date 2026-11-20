@@ -103,14 +103,15 @@ index 74a2c17..f77b858 100644
  		// consumes none, so its original net is zero by construction — which
  		// is exactly why a balanced insert in the wrong place is invisible to
 diff --git a/internal/writer/writer.go b/internal/writer/writer.go
-index 43e590b..386366c 100644
+index 43e590b..f07c443 100644
 --- a/internal/writer/writer.go
 +++ b/internal/writer/writer.go
-@@ -10,12 +10,15 @@
+@@ -10,9 +10,12 @@
  package writer
  
  import (
 +	"encoding/json"
++	"errors"
  	"fmt"
  	"os"
  	"path/filepath"
@@ -118,10 +119,6 @@ index 43e590b..386366c 100644
  
  	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/apply"
  	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
-+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/state"
- )
- 
- // Mutation is how much of a plan reached the tree (ADR-102): the one answer
 @@ -93,6 +96,7 @@ func applyCounted(root string, in []apply.Input, opt apply.Options) (apply.Resul
  		return res, 0, err
  	}
@@ -130,47 +127,61 @@ index 43e590b..386366c 100644
  	wrote := map[string]seen.Observation{}
  	var gone []string
  	for _, f := range res.Files {
-@@ -125,6 +129,45 @@ func applyCounted(root string, in []apply.Input, opt apply.Options) (apply.Resul
+@@ -125,6 +129,59 @@ func applyCounted(root string, in []apply.Input, opt apply.Options) (apply.Resul
  	return res, gen, err
  }
  
-+// stage9Log is the Stage 9 bench build's kept log: one JSON object per line for
-+// each exposed hunk of a file that landed, appended to stage9-exposed.jsonl
-+// under the state home, which the first landed write of any kind creates. A
-+// failure here is silent: it changes nothing a caller sees.
++// stage9Log is the Stage 9 bench build's kept log (ADR-211 Decision 3): one JSON
++// object per line for each exposed hunk of a landed write, appended to
++// stage9-exposed.jsonl in the parent of $XDG_STATE_HOME, which the bench sets to
++// <scratch>/state. A write with no exposed hunk touches nothing, so the build acts
++// as the other does until a write the other would refuse. A failure leaves the
++// write's result as it was and adds one stderr line after it.
 +func stage9Log(res apply.Result) {
-+	base, err := state.Base()
-+	if err != nil {
++	if len(res.Exposed) == 0 {
 +		return
 +	}
++	if err := stage9Append(res.Exposed); err != nil {
++		fmt.Fprintf(os.Stderr, "mrw: stage9 log: %v\n", err)
++	}
++}
++
++func stage9Append(events []apply.Exposed) (err error) {
++	home := os.Getenv("XDG_STATE_HOME")
++	if home == "" || !filepath.IsAbs(home) {
++		return errors.New("XDG_STATE_HOME is unset or not absolute")
++	}
++	path := filepath.Join(filepath.Dir(filepath.Clean(home)), "stage9-exposed.jsonl")
 +	// apply reports only hunks that landed as ok (commitFailed), so res.Exposed
 +	// needs no second filter by file.
 +	var buf []byte
-+	for _, e := range res.Exposed {
-+		if b, err := json.Marshal(e); err == nil {
-+			buf = append(append(buf, b...), '\n')
++	for _, e := range events {
++		b, merr := json.Marshal(e)
++		if merr != nil {
++			return merr
 +		}
-+	}
-+	if os.MkdirAll(base, 0o700) != nil {
-+		return
++		buf = append(append(buf, b...), '\n')
 +	}
 +	// Only a regular file or an absent path is opened, and without blocking: a
 +	// FIFO with no reader must not hang a landed write that holds the lock.
-+	path := filepath.Join(base, "stage9-exposed.jsonl")
-+	if fi, err := os.Lstat(path); err == nil && !fi.Mode().IsRegular() {
-+		return
++	if fi, lerr := os.Lstat(path); lerr == nil && !fi.Mode().IsRegular() {
++		return fmt.Errorf("%s is not a regular file", path)
 +	}
-+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY|syscall.O_NONBLOCK, 0o600)
-+	if err != nil {
-+		return
++	f, oerr := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY|syscall.O_NONBLOCK, 0o600)
++	if oerr != nil {
++		return oerr
 +	}
++	defer func() {
++		if cerr := f.Close(); err == nil {
++			err = cerr
++		}
++	}()
 +	// The path may have been swapped since the Lstat: write only to what was opened.
-+	if fi, err := f.Stat(); err != nil || !fi.Mode().IsRegular() {
-+		_ = f.Close()
-+		return
++	if fi, serr := f.Stat(); serr != nil || !fi.Mode().IsRegular() {
++		return fmt.Errorf("%s is not a regular file", path)
 +	}
-+	_, _ = f.Write(buf)
-+	_ = f.Close()
++	_, err = f.Write(buf)
++	return err
 +}
 +
  // otherSpellings returns the ledger keys that name a file this write changed

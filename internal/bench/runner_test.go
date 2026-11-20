@@ -87,7 +87,7 @@ func runOptions(t *testing.T) (RunOptions, string) {
 	task := fixtureTask(t, work)
 	claude, log := stubClaude(t, work, filepath.Join(task.Dir, "reference.patch"), "done")
 	canary := filepath.Join(work, "canary.json")
-	if err := os.WriteFile(canary, []byte(`{"pass":true,"cli_version":"9.9.9 (Claude Code)"}`), 0o644); err != nil {
+	if err := os.WriteFile(canary, []byte(`{"pass":true,"cli_version":"9.9.9 (Claude Code)","model":"stub-model"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	return RunOptions{
@@ -558,16 +558,16 @@ func TestAFailingExitIsAnErrorAndAnInterruptStopsTheStage(t *testing.T) {
 		t.Errorf("a slip check that could not run: %+v %v, want a setup exclusion naming it", r, err)
 	}
 
-	// An interrupt during the canary stops it: no canary.json, no second
-	// configuration.
+	// An interrupt during the canary stops it: canary.json is written, pass false,
+	// under problems["interrupted"] (ADR-211 Decision 9), and no second configuration runs.
 	o = opts
 	o.Out = filepath.Join(work, "canary-interrupted")
 	o.Claude = stub("claude-int-canary", "kill -INT "+strconv.Itoa(os.Getpid())+"\nsleep 30\n"+result)
 	if _, err := RunCanary(o, o.Tasks[0], ""); err == nil || !strings.Contains(err.Error(), "interrupted") {
 		t.Errorf("an interrupted canary went on: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(o.Out, "canary.json")); err == nil {
-		t.Error("an interrupted canary wrote canary.json")
+	if m := fileMap(t, filepath.Join(o.Out, "canary.json")); m["pass"] != false || m["problems"] == nil {
+		t.Errorf("an interrupted canary wrote canary.json %v, want it written pass false with problems", m)
 	}
 	if b, _ := filepath.Glob(filepath.Join(o.Out, "canary.B.*")); len(b) != 0 {
 		t.Errorf("an interrupted canary started configuration B: %v", b)
@@ -781,7 +781,7 @@ func TestConfigurationPIsAPlusThePluginAndSkills(t *testing.T) {
 	}
 	write := func(profile, configs string, plugin *PluginRef) {
 		pb, _ := json.Marshal(plugin)
-		if err := os.WriteFile(opts.Canary, []byte(`{"pass":true,"cli_version":"9.9.9 (Claude Code)","profile":"`+profile+`","configs":`+configs+`,"plugin":`+string(pb)+`}`), 0o644); err != nil {
+		if err := os.WriteFile(opts.Canary, []byte(`{"pass":true,"cli_version":"9.9.9 (Claude Code)","model":"stub-model","profile":"`+profile+`","configs":`+configs+`,"plugin":`+string(pb)+`}`), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -1095,7 +1095,7 @@ func TestABlockRunsPerModelConfigurations(t *testing.T) {
 		t.Fatal(err)
 	}
 	pb, _ := json.Marshal(po.plugin)
-	if err := os.WriteFile(po.Canary, []byte(`{"pass":true,"cli_version":"9.9.9 (Claude Code)","profile":"stage5","configs":["A"],"plugin":`+string(pb)+`}`), 0o644); err != nil {
+	if err := os.WriteFile(po.Canary, []byte(`{"pass":true,"cli_version":"9.9.9 (Claude Code)","model":"stub-model","profile":"stage5","configs":["A"],"plugin":`+string(pb)+`}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := Run(po); err == nil {
@@ -1201,7 +1201,7 @@ printf '%s\n' '{"type":"result","subtype":"success","is_error":false,"num_turns"
 
 func writeStage7Canary(t *testing.T, opts RunOptions, configs string) {
 	t.Helper()
-	if err := os.WriteFile(opts.Canary, []byte(`{"pass":true,"cli_version":"9.9.9 (Claude Code)","profile":"stage7","configs":`+configs+`}`), 0o644); err != nil {
+	if err := os.WriteFile(opts.Canary, []byte(`{"pass":true,"cli_version":"9.9.9 (Claude Code)","model":"stub-model","profile":"stage7","configs":`+configs+`}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -1520,7 +1520,7 @@ func stage8Options(t *testing.T, configs ...string) RunOptions {
 
 func writeStage8Canary(t *testing.T, opts RunOptions, configs string) {
 	t.Helper()
-	if err := os.WriteFile(opts.Canary, []byte(`{"pass":true,"cli_version":"9.9.9 (Claude Code)","profile":"stage8","configs":`+configs+`}`), 0o644); err != nil {
+	if err := os.WriteFile(opts.Canary, []byte(`{"pass":true,"cli_version":"9.9.9 (Claude Code)","model":"stub-model","profile":"stage8","configs":`+configs+`}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -1646,7 +1646,7 @@ func TestRunJSONNamesAConfigurationsTextOnlyUnderItsProfile(t *testing.T) {
 	}{{ProfileStage5, false, false}, {ProfileStage7, true, false}, {ProfileStage8, false, true}} {
 		opts := stage7Options(t, "B")
 		opts.Profile, opts.StatusLine = c.profile, true
-		if err := os.WriteFile(opts.Canary, []byte(`{"pass":true,"cli_version":"9.9.9 (Claude Code)","profile":"`+c.profile+`","configs":["B"]}`), 0o644); err != nil {
+		if err := os.WriteFile(opts.Canary, []byte(`{"pass":true,"cli_version":"9.9.9 (Claude Code)","model":"stub-model","profile":"`+c.profile+`","configs":["B"]}`), 0o644); err != nil {
 			t.Fatal(err)
 		}
 		opts.Block, opts.Out = 1, filepath.Join(filepath.Dir(opts.Out), "stage", "block-1")

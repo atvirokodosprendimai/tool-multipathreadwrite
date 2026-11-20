@@ -142,6 +142,19 @@ deleted.
   (the task's flag, when it carries one).
 - `….transcript.jsonl`, `….stderr` — what the CLI printed.
 
+**Stage 9 flags and keys (ADR-206, ADR-211).** `bench run --mrw-sha256 HEX --mrw-instructions FILE` pin the mrw and its instructions;
+`--keep-diff` saves each attempt's diff as `<attempt id>.diff` and `--keep-state-file PATH` or `--keep-scratch-file NAME` one file as
+`<attempt id>.kept` (not both: a link, a directory or a name with a separator is a `scratch:` or `state:` note in `kept_note`, and `kept_scratch_file_sha256` or
+`kept_state_file_sha256` is the kept file's hash); `--max-spend USD` stops a run, exit status 3, once its receipts record the figure or
+three record no cost. `bench canary --max-spend USD` stops a canary the same way before each configuration's attempt and after the last, and writes
+`canary.json` `pass: false` with its costs under `problems["spend"]` (`problems["interrupted"]` on an interrupt); `canary.json` also records
+`max_spend_usd` and `init_models`, the model each configuration's init line named. Every run, pinned or not, takes only a canary whose
+`model` it runs and whose `profile` is its own. A receipt carries `transcript_sha256`, the hash of the transcript read back after it was
+closed, when its attempt captured one. Diff statistics and slipped writes are read before the grader runs, the statistics in an index of the
+attempt's own, and a check-coupled task's package tests run with the package's `_test.go` files as the task has them (the base's, with the
+reference's own edit of them), those the agent added removed. `bench/stage-9/plans.json` and `smoke-plans.json` are the registered runs
+`scripts/bench_stage9.py count` reads.
+
 **The claim line (ADR-162 Decision 3).** With `--status-line` every instruction
 ends with one sentence, the same in every configuration: "When you have
 finished, end your reply with one line, exactly `STATUS: done` if the task is

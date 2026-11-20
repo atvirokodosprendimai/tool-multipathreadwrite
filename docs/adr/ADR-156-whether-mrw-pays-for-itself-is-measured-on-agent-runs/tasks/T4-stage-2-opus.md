@@ -78,6 +78,7 @@ The corpus compared is the one in the tree. If a task is superseded after Stage 
 - 2026-10-15 · 36a44f18* · exit 0 · `set -o pipefail …` · acceptance-sha256:7bb3a825e52cd5331b4b6408a3ec8d3313f7825a9d930eaec22ff19e06290b4f · ms:1075
 - 2026-10-15 · 36a44f18* · exit 0 · `set -o pipefail …` · acceptance-sha256:7bb3a825e52cd5331b4b6408a3ec8d3313f7825a9d930eaec22ff19e06290b4f · ms:1048
 - 2026-10-15 · 36a44f18* · exit 0 · `set -o pipefail …` · acceptance-sha256:7bb3a825e52cd5331b4b6408a3ec8d3313f7825a9d930eaec22ff19e06290b4f · ms:942
+- 2026-11-20 · 79054ce2* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:7bb3a825e52cd5331b4b6408a3ec8d3313f7825a9d930eaec22ff19e06290b4f · ms:0 · test-lock-sha256:874d395a8673884608a3096b5812b15b219a7bbcf019a2b6d80c6234058a7e29 · test-lock-file:docs/adr/locks/874d395a8673884608a3096b5812b15b219a7bbcf019a2b6d80c6234058a7e29.lock · test-lock-kind:replace
 
 ## Invariants
 

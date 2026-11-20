@@ -100,3 +100,4 @@ The fence exits 0 and S3's sign-off is recorded; or P's canary fails, or a synce
 - 2026-10-17 · c1ab35bb* · exit 0 · `set -o pipefail …` · acceptance-sha256:ada178dd20c0b26458605f839cc01d2bf143f7cbbffa2b60fe4fff245ccffbb4 · ms:1276
 - 2026-10-17 · c1ab35bb* · exit 0 · `set -o pipefail …` · acceptance-sha256:ada178dd20c0b26458605f839cc01d2bf143f7cbbffa2b60fe4fff245ccffbb4 · ms:1225
 - 2026-10-17 · c1ab35bb* · exit 0 · `set -o pipefail …` · acceptance-sha256:ada178dd20c0b26458605f839cc01d2bf143f7cbbffa2b60fe4fff245ccffbb4 · ms:1266
+- 2026-11-20 · 79054ce2* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:ada178dd20c0b26458605f839cc01d2bf143f7cbbffa2b60fe4fff245ccffbb4 · ms:0 · test-lock-sha256:874d395a8673884608a3096b5812b15b219a7bbcf019a2b6d80c6234058a7e29 · test-lock-file:docs/adr/locks/874d395a8673884608a3096b5812b15b219a7bbcf019a2b6d80c6234058a7e29.lock · test-lock-kind:replace

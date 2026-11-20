@@ -258,6 +258,23 @@ func hasNote(note, prefix string) bool {
 // must be regular, and the file opened must be the one that was looked at. What
 // is refused is a note, not an error.
 func keepStateFile(stateHome, rel, base string) (sha, note string, err error) {
+	return keepFileUnder(stateHome, rel, base, "state", "state home")
+}
+
+// keepScratchFile is keepStateFile for one file of the attempt's scratch
+// directory, which is the agent's TMPDIR and holds the log the bench build of
+// mrw writes beside the state home (ADR-211 Decision 4). Its argument is a file
+// name: one with a separator is a note, as a link or a directory is.
+func keepScratchFile(scratch, name, base string) (sha, note string, err error) {
+	if name == "" || name == "." || name == ".." || strings.ContainsAny(name, `/\`) {
+		return "", fmt.Sprintf("scratch: %q not kept: it is not a file name of the scratch directory", name), nil
+	}
+	return keepFileUnder(scratch, name, base, "scratch", "scratch directory")
+}
+
+// keepFileUnder is what both share: label prefixes the note, and home names the
+// directory in it.
+func keepFileUnder(stateHome, rel, base, label, home string) (sha, note string, err error) {
 	fi, err := os.Lstat(stateHome)
 	if errors.Is(err, os.ErrNotExist) {
 		return "", "", nil
@@ -266,7 +283,7 @@ func keepStateFile(stateHome, rel, base string) (sha, note string, err error) {
 		return "", "", err
 	}
 	if !fi.IsDir() {
-		return "", "state: not kept: the state home is a link or a file, not a directory", nil
+		return "", label + ": not kept: the " + home + " is a link or a file, not a directory", nil
 	}
 	root, err := os.OpenRoot(stateHome)
 	if err != nil {
@@ -274,7 +291,7 @@ func keepStateFile(stateHome, rel, base string) (sha, note string, err error) {
 	}
 	defer func() { _ = root.Close() }()
 	if rst, err := root.Stat("."); err != nil || !os.SameFile(fi, rst) {
-		return "", "state: not kept: the state home changed while it was opened", nil
+		return "", label + ": not kept: the " + home + " changed while it was opened", nil
 	}
 	name := filepath.FromSlash(rel)
 	st, err := root.Lstat(name)
@@ -282,28 +299,28 @@ func keepStateFile(stateHome, rel, base string) (sha, note string, err error) {
 		return "", "", nil
 	}
 	if err != nil {
-		return "", fmt.Sprintf("state: %s not kept: %v", rel, err), nil
+		return "", fmt.Sprintf("%s: %s not kept: %v", label, rel, err), nil
 	}
 	if !st.Mode().IsRegular() {
-		return "", fmt.Sprintf("state: %s not kept: it is not a regular file", rel), nil
+		return "", fmt.Sprintf("%s: %s not kept: it is not a regular file", label, rel), nil
 	}
 	if st.Size() > keptLimit {
-		return "", fmt.Sprintf("state: %s not kept: it is %d bytes, over the %d bound", rel, st.Size(), keptLimit), nil
+		return "", fmt.Sprintf("%s: %s not kept: it is %d bytes, over the %d bound", label, rel, st.Size(), keptLimit), nil
 	}
 	f, err := root.Open(name)
 	if err != nil {
-		return "", fmt.Sprintf("state: %s not kept: %v", rel, err), nil
+		return "", fmt.Sprintf("%s: %s not kept: %v", label, rel, err), nil
 	}
 	defer func() { _ = f.Close() }()
 	if fst, err := f.Stat(); err != nil || !os.SameFile(st, fst) {
-		return "", fmt.Sprintf("state: %s not kept: it changed while it was opened", rel), nil
+		return "", fmt.Sprintf("%s: %s not kept: it changed while it was opened", label, rel), nil
 	}
 	b, err := io.ReadAll(io.LimitReader(f, keptLimit+1))
 	if err != nil {
 		return "", "", err
 	}
 	if len(b) > keptLimit {
-		return "", fmt.Sprintf("state: %s not kept: it grew over the %d bound", rel, keptLimit), nil
+		return "", fmt.Sprintf("%s: %s not kept: it grew over the %d bound", label, rel, keptLimit), nil
 	}
 	if err := writeOnce(base+".kept", b); err != nil {
 		return "", "", err
@@ -332,18 +349,17 @@ func copyIndex(src, dst string) error {
 	return err
 }
 
-// keepDiff saves what the attempt's tree holds against its base commit, files
-// it created included, as <id>.diff beside the receipt, and returns its
-// SHA-256. It is taken before grading and works in an index of its own under
-// scratch, a copy of the tree's, so the tree's index, which the oracle reads, is
-// left as the agent left it, and a path the agent added by force or committed
-// stays though it is ignored; `add -A` then takes in what the copy lacks. The
-// diff includes edits the agent committed.
-func keepDiff(scratch, tree, baseSHA, base string) (sha, note string, err error) {
-	idx := filepath.Join(scratch, "kept-diff.index")
-	defer func() { _ = os.Remove(idx) }()
+// privateIndex makes an index of its own under scratch, a copy of the tree's (the
+// base's tree when the tree has none), with everything the tree holds added to it,
+// and returns a git command that uses it and the function that removes it. The
+// tree's own index, which the oracle reads, is left as the agent left it, and a
+// path the agent added by force or committed stays though it is ignored; `add -A`
+// then takes in what the copy lacks (ADR-206 Decision 5, ADR-211 Decision 11).
+func privateIndex(scratch, tree, baseSHA, name string) (git func(args ...string) *exec.Cmd, cleanup func(), err error) {
+	idx := filepath.Join(scratch, name)
+	cleanup = func() { _ = os.Remove(idx) }
 	env := append(os.Environ(), "GIT_INDEX_FILE="+idx)
-	git := func(args ...string) *exec.Cmd {
+	git = func(args ...string) *exec.Cmd {
 		c := exec.Command("git", append([]string{"-C", tree, "-c", "core.quotepath=off", "-c", "core.autocrlf=false"}, args...)...)
 		c.Env = env
 		return c
@@ -352,16 +368,31 @@ func keepDiff(scratch, tree, baseSHA, base string) (sha, note string, err error)
 	if err := copyIndex(filepath.Join(tree, ".git", "index"), idx); errors.Is(err, os.ErrNotExist) {
 		steps = [][]string{{"read-tree", baseSHA}, {"add", "-A"}}
 	} else if err != nil {
-		return "", "", err
+		cleanup()
+		return nil, nil, err
 	}
 	for _, args := range steps {
 		c := git(args...)
 		var out capped
 		c.Stdout, c.Stderr = &out, &out
 		if err := c.Run(); err != nil {
-			return "", "", fmt.Errorf("git %s: %w: %s", args[0], err, out.String())
+			cleanup()
+			return nil, nil, fmt.Errorf("git %s: %w: %s", args[0], err, out.String())
 		}
 	}
+	return git, cleanup, nil
+}
+
+// keepDiff saves what the attempt's tree holds against its base commit, files
+// it created included, as <id>.diff beside the receipt, and returns its
+// SHA-256. It is taken before grading and works in a private index. The diff
+// includes edits the agent committed.
+func keepDiff(scratch, tree, baseSHA, base string) (sha, note string, err error) {
+	git, cleanup, err := privateIndex(scratch, tree, baseSHA, "kept-diff.index")
+	if err != nil {
+		return "", "", err
+	}
+	defer cleanup()
 	cmd := git("diff", "--cached", "--binary", "--no-color", "--no-ext-diff", "--no-renames", baseSHA)
 	var stderr capped
 	cmd.Stderr = &stderr
@@ -402,6 +433,17 @@ func (o RunOptions) keep(r *Receipt, scratch, tree, baseSHA, base string) {
 		if err != nil {
 			notes = append(notes, "state: failed: "+err.Error())
 			r.Exclusion, r.Note = ExclusionSetup, "kept state file: "+err.Error()
+		}
+	}
+	if o.KeepScratchFile != "" {
+		sha, note, err := keepScratchFile(scratch, o.KeepScratchFile, base)
+		r.KeptScratchFileSHA256 = sha
+		if note != "" {
+			notes = append(notes, note)
+		}
+		if err != nil {
+			notes = append(notes, "scratch: failed: "+err.Error())
+			r.Exclusion, r.Note = ExclusionSetup, "kept scratch file: "+err.Error()
 		}
 	}
 	if o.KeepDiff {
@@ -459,7 +501,7 @@ func keptProblem(p plan, dir string, r Receipt) string {
 		ext, want, setting string
 		on                 bool
 	}{
-		{".kept", r.KeptStateFileSHA256, "keep_state_file", p.KeepStateFile != ""},
+		{".kept", r.KeptStateFileSHA256 + r.KeptScratchFileSHA256, "keep_state_file or keep_scratch_file", p.KeepStateFile != "" || p.KeepScratchFile != ""},
 		{".diff", r.KeptDiffSHA256, "keep_diff", p.KeepDiff},
 	} {
 		path := filepath.Join(dir, r.Attempt+k.ext)

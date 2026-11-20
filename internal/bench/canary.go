@@ -90,6 +90,10 @@ type CanaryReceipt struct {
 	// canary with the same hashes.
 	MrwSHA256             string `json:"mrw_sha256,omitempty"`
 	MrwInstructionsSHA256 string `json:"mrw_instructions_sha256,omitempty"`
+	// ADR-211 Decisions 8 and 9: the model each configuration's init line named,
+	// and the spend figure the canary ran under.
+	InitModels map[string]string `json:"init_models,omitempty"`
+	MaxSpend   float64           `json:"max_spend_usd,omitempty"`
 }
 
 // canaryReadFirst is what the canary adds to H's instruction: a Read before
@@ -149,6 +153,7 @@ func RunCanary(o RunOptions, task Task, claudeMD string) (CanaryReceipt, error) 
 	c = CanaryReceipt{Pass: true, CLIVersion: cli, Model: o.Models[0], Started: time.Now().UTC().Format(time.RFC3339),
 		Problems: map[string][]string{}, Costs: map[string]*float64{}, Profile: o.Profile, Plugin: o.plugin}
 	c.MrwSHA256, c.MrwInstructionsSHA256 = o.mrwSHA, o.instrSHA
+	c.MaxSpend, c.InitModels = o.MaxSpend, map[string]string{}
 	if o.Profile != "" {
 		c.Configs, c.SideConfigs = splitSide(o.Configs)
 	}
@@ -159,15 +164,40 @@ func RunCanary(o RunOptions, task Task, claudeMD string) (CanaryReceipt, error) 
 		c.SideRegistration, c.SideAsset = o.side, o.qhSHA
 	}
 	for i, name := range o.Configs {
+		// ADR-211 Decision 9: the spend is read before each configuration's attempt.
+		if why := canarySpendStop(c, o.MaxSpend); why != "" {
+			return stopCanary(o, &c, why)
+		}
 		a := attempt{ID: "canary." + name, Task: task, Model: o.Models[0], Config: Configs[name], Repeat: 1}
 		r := runAttempt(o, a, i, cli, mrwVersion)
 		if r.interrupted {
-			return c, fmt.Errorf("interrupted during the canary's configuration %s: no canary.json is written and nothing more runs", name)
+			c.Pass, c.Problems["interrupted"] = false, []string{fmt.Sprintf("interrupted during configuration %s: nothing more ran", name)}
+			err := fmt.Errorf("interrupted during the canary's configuration %s: canary.json is written, pass false, and nothing more runs", name)
+			if werr := writeCanary(o, c); werr != nil {
+				err = errors.Join(err, werr)
+			}
+			return c, err
 		}
 		c.Costs[name] = r.CostUSD
+		// ADR-211 Decision 8: the model the attempt's init line named, beside the
+		// requested one; the two are never compared.
+		if r.InitModel != "" {
+			c.InitModels[name] = r.InitModel
+		}
+		// The missing-cost stop is reached the moment an attempt records no cost:
+		// canary.json is written and the exit is 3 before anything else, a transcript
+		// that cannot be read included (review of #751).
+		if r.CostUSD == nil {
+			if why := canarySpendStop(c, o.MaxSpend); why != "" {
+				return stopCanary(o, &c, why)
+			}
+		}
 		var problems []string
 		if r.Exclusion != "" || r.IsError {
 			problems = append(problems, fmt.Sprintf("the attempt did not run cleanly: exclusion %q, error %v, exit %d %s", r.Exclusion, r.IsError, r.ExitCode, r.Note))
+		}
+		if r.InitModel == "" {
+			problems = append(problems, "its init line names no model, so the model the attempt ran is not known")
 		}
 		b, err := os.ReadFile(filepath.Join(outDir(o, a.Config), a.ID+".transcript.jsonl"))
 		if err != nil {
@@ -208,11 +238,72 @@ func RunCanary(o RunOptions, task Task, claudeMD string) (CanaryReceipt, error) 
 		c.Pass = false
 		c.Problems["sentinel"] = []string{"a file outside the attempt's tree changed or vanished"}
 	}
+	if models := distinctModels(c.InitModels); len(models) > 1 {
+		c.Pass = false
+		c.Problems["init_models"] = []string{fmt.Sprintf("the configurations reported different init models %v: one canary is of one model", models)}
+	}
+	// ... and after the last (ADR-211 Decision 9).
+	if why := canarySpendStop(c, o.MaxSpend); why != "" {
+		return stopCanary(o, &c, why)
+	}
+	return c, writeCanary(o, c)
+}
+
+// distinctModels is the sorted set of models a canary's configurations reported.
+func distinctModels(m map[string]string) []string {
+	var out []string
+	for _, v := range m {
+		if !slices.Contains(out, v) {
+			out = append(out, v)
+		}
+	}
+	slices.Sort(out)
+	return out
+}
+
+// canarySpendStop says why a canary may not start another attempt, or "": the
+// cost its attempts recorded has reached the figure, compared in millionths as
+// a run's is, or one of them recorded none, so the spend is not known. 0 is no stop.
+func canarySpendStop(c CanaryReceipt, max float64) string {
+	if max <= 0 {
+		return ""
+	}
+	names := make([]string, 0, len(c.Costs))
+	for name := range c.Costs {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	var sum float64
+	for _, name := range names {
+		if c.Costs[name] == nil {
+			return fmt.Sprintf("configuration %s recorded no cost, so the spend is not known", name)
+		}
+		sum += *c.Costs[name]
+	}
+	if micros(sum) >= micros(max) {
+		return fmt.Sprintf("$%.4f is recorded and the figure is $%.2f", sum, max)
+	}
+	return ""
+}
+
+// stopCanary ends a canary on its spend: canary.json is written, pass false, with
+// the costs and the reason, and the error is a spend stop, exit status 3.
+func stopCanary(o RunOptions, c *CanaryReceipt, why string) (CanaryReceipt, error) {
+	c.Pass, c.Problems["spend"] = false, []string{why}
+	err := fmt.Errorf("%w: canary: %s; a stopped canary is not resumed", ErrSpendStop, why)
+	if werr := writeCanary(o, *c); werr != nil {
+		err = errors.Join(err, werr)
+	}
+	return *c, err
+}
+
+// writeCanary writes canary.json into the canary's directory.
+func writeCanary(o RunOptions, c CanaryReceipt) error {
 	b, err := json.MarshalIndent(c, "", "  ")
 	if err != nil {
-		return c, err
+		return err
 	}
-	return c, writeOnce(filepath.Join(o.Out, "canary.json"), append(b, '\n'))
+	return writeOnce(filepath.Join(o.Out, "canary.json"), append(b, '\n'))
 }
 
 // readHookProblems is what an H attempt's receipt must show of its read hook:

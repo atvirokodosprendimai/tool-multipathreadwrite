@@ -1,6 +1,6 @@
 # Stage 9 builds (ADR-206 Decision 4, T2)
 
-M and N are two builds of one tag. They differ in one refusal: N applies a number-only hunk that ADR-203 refuses, and logs it to `mrw/stage9-exposed.jsonl` under the state home. Neither is installed or released; the patched source is never compiled by this repository's build.
+M and N are two builds of one tag. They differ in one refusal: N applies a number-only hunk that ADR-203 refuses and, only when a landed write holds such a hunk, logs it to `stage9-exposed.jsonl` beside the state home (the parent of `$XDG_STATE_HOME`, which the bench sets to `<scratch>/state`; ADR-211 Decision 3). A failure to log leaves the write as it was and adds one `mrw: stage9 log:` line on standard error. Neither is installed or released; the patched source is never compiled by this repository's build.
 
 - Tag: `v1.93.0` (the newest `v*` tag reachable from `main` when T2 was written; `TestArmNDiffersFromMInOneRefusal` builds this tag, not a newer one)
 - Toolchain: `go1.27.4`, the version `go.mod` names (`GOTOOLCHAIN=go1.27.4`), `CGO_ENABLED=0`
@@ -10,5 +10,5 @@ M and N are two builds of one tag. They differ in one refusal: N applies a numbe
 
 ```
 m sha256: a51d6938442a0d8d851e7ad22d167422be2520cc2dc8f1119ff927111806c686
-n sha256: 9de5b62266d8d718918b3f8d53194648f8cfb6469173d17493db273be3ea921b
+n sha256: 642efd569b92ced9b99010c3cd0dc5844632048207f914675eb7c6df7d2481c3
 ```

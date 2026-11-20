@@ -766,12 +766,16 @@ func TestACheckCoupledTaskIsGradedByItsPackageTests(t *testing.T) {
 	if v := grade("the reference", fixed); !v.Solved {
 		t.Errorf("the reference is unsolved: %+v", v)
 	}
-	if v := grade("the source alone", map[string]string{"p/p.go": fixed["p/p.go"]}); v.Solved || !strings.Contains(strings.Join(v.Missing, " "), "go test") {
-		t.Errorf("a source-only change that breaks the package's test is not unsolved by go test: %+v", v)
+	// ADR-211 Decision 11: the package's tests are the task's own, put back before
+	// they run, so the source alone is graded by the reference's edit of the tests
+	// (a source-only fix is solved), and an answer that keeps the unedited tests
+	// passing another way (the code accepting both) is not.
+	if v := grade("the source alone", map[string]string{"p/p.go": fixed["p/p.go"]}); !v.Solved {
+		t.Errorf("a source-only fix is unsolved though the task's tests pass with it: %+v", v)
 	}
 	both := "package p\n\nimport \"strings\"\n\n// Status is the state a new subscription takes.\nfunc Status() string { return strings.ToLower(\"Active\") }\n"
-	if v := grade("the code accepting both", map[string]string{"p/p.go": both}); !v.Solved {
-		t.Errorf("an answer that keeps the tests passing another way is unsolved: %+v", v)
+	if v := grade("the code accepting both", map[string]string{"p/p.go": both}); v.Solved || !strings.Contains(strings.Join(v.Missing, " "), "go test") {
+		t.Errorf("an answer that passes only the unedited tests is solved: %+v", v)
 	}
 	message := map[string]string{"p/p.go": fixed["p/p.go"], "p/p_test.go": strings.ReplaceAll(fixed["p/p_test.go"], `want \"active\"`, `want \"Active\"`)}
 	if v := grade("the test message too", message); !v.Solved {
@@ -792,15 +796,16 @@ func TestACheckCoupledTaskIsGradedByItsPackageTests(t *testing.T) {
 	if v := grade("the new value only in a comment", elsewhere); v.Solved {
 		t.Errorf("a comment that quotes the new value solves the task: %+v", v)
 	}
-	if v := grade("the asserting test deleted", map[string]string{"p/p.go": fixed["p/p.go"], "p/p_test.go": ""}); v.Solved {
+	wrong := "package p\n\nvar _ = \"Active\"\n\nfunc Status() string { return \"Zctive\" }\n"
+	if v := grade("the asserting test deleted", map[string]string{"p/p.go": wrong, "p/p_test.go": ""}); v.Solved {
 		t.Errorf("deleting the asserting test solves the task: %+v", v)
 	}
 	skipped := strings.Replace(fixed["p/p_test.go"], "func TestStatus(t *testing.T) {\n", "func TestStatus(t *testing.T) {\n\tt.Skip(\"later\")\n", 1)
-	if v := grade("the asserting test skipped", map[string]string{"p/p.go": fixed["p/p.go"], "p/p_test.go": skipped}); v.Solved {
+	if v := grade("the asserting test skipped", map[string]string{"p/p.go": wrong, "p/p_test.go": skipped}); v.Solved {
 		t.Errorf("skipping the asserting test solves the task: %+v", v)
 	}
 	t.Setenv("GOFLAGS", "-run=^$")
-	if v := grade("the source alone, under GOFLAGS=-run=^$", map[string]string{"p/p.go": fixed["p/p.go"]}); v.Solved {
+	if v := grade("a wrong source, under GOFLAGS=-run=^$", map[string]string{"p/p.go": wrong}); v.Solved {
 		t.Errorf("a host GOFLAGS that runs no test lets a source-only change through: %+v", v)
 	}
 	// A host flag that skips a broken test the asserting one does not cover.
@@ -861,5 +866,124 @@ func TestACheckCoupledTaskIsGradedByItsPackageTests(t *testing.T) {
 	}
 	if got := last(env, "GOFLAGS"); got != "-modcacherw -mod=readonly" {
 		t.Errorf("the grading GOFLAGS is %q: a quoted field holding -run came apart (the fourth review of #434)", got)
+	}
+}
+
+// ADR-211 Decision 11 (#709). A check-coupled task is graded by its package's
+// tests, so a test file the agent can edit is trusted by the grade it feeds: the
+// asserting test emptied under its own name, the wrong value kept behind an unused
+// declaration that holds the required token. The package's _test.go files are put
+// back as the task has them (the base's, with the reference fix's own edit of a
+// test, which the task asks for) and a test file the agent added is removed before
+// the package's tests run.
+func TestACheckCoupledTaskGradesOnlyTheBasesTests(t *testing.T) {
+	needGit(t)
+	if _, err := exec.LookPath("go"); err != nil {
+		t.Skip("go is not on PATH")
+	}
+	repo := t.TempDir()
+	files := map[string]string{
+		"go.mod":          "module example.com/m\n\ngo 1.21\n",
+		"p/p.go":          "package p\n\n// Status is the state a new subscription takes.\nfunc Status() string { return \"active\" }\n",
+		"p/p_test.go":     "package p\n\nimport \"testing\"\n\nfunc TestStatus(t *testing.T) {\n\tif Status() != \"active\" {\n\t\tt.Fatalf(\"Status() = %q\", Status())\n\t}\n}\n",
+		"p/other_test.go": "package p\n\nimport \"testing\"\n\nfunc TestOther(t *testing.T) {\n\tif Status() == \"\" {\n\t\tt.Fatal(Status())\n\t}\n}\n",
+	}
+	write := func(root string, fs map[string]string) {
+		t.Helper()
+		for name, body := range fs {
+			p := filepath.Join(root, filepath.FromSlash(name))
+			if body == "" {
+				if err := os.Remove(p); err != nil {
+					t.Fatal(err)
+				}
+				continue
+			}
+			if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	git := func(dir string, args ...string) string {
+		t.Helper()
+		out, err := exec.Command("git", append([]string{"-C", dir, "-c", "user.name=b", "-c", "user.email=b@b"}, args...)...).CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %v: %s", args, err, out)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	write(repo, files)
+	git(repo, "init", "-q")
+	git(repo, "add", "-A")
+	git(repo, "commit", "-qm", "base")
+	sha := git(repo, "rev-parse", "HEAD")
+	fixed := map[string]string{
+		"p/p.go":      strings.Replace(files["p/p.go"], `"active"`, `"Active"`, 1),
+		"p/p_test.go": strings.Replace(files["p/p_test.go"], `Status() != "active"`, `Status() != "Active"`, 1),
+	}
+	write(repo, fixed)
+	patch := git(repo, "diff") + "\n"
+	git(repo, "checkout", "-q", "--", ".")
+	taskDir := filepath.Join(t.TempDir(), "am-coupled-p-active")
+	if err := os.MkdirAll(taskDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for name, body := range map[string]string{
+		"reference.patch": patch,
+		"task.json": `{"id": "am-coupled-p-active", "shape": "check-coupled", "repo": "m", "commit": "` + sha + `",
+  "instruction": "In p/p.go, change the string \"active\" to \"Active\", and keep the tests passing.",
+  "test_package": "p", "asserting_tests": ["TestStatus"],
+  "require": [{"file": "p/p.go", "match": "\"Active\""}], "forbid": [{"file": "p/p.go", "match": "\"active\""}]}`,
+	} {
+		if err := os.WriteFile(filepath.Join(taskDir, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	task, err := LoadTask(taskDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	grade := func(change map[string]string) Verdict {
+		t.Helper()
+		tree := t.TempDir()
+		git(tree, "clone", "-q", repo, ".")
+		write(tree, change)
+		v, err := Oracle(task, tree, "HEAD")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return v
+	}
+	if v := grade(fixed); !v.Solved {
+		t.Errorf("the reference, with its own edit of the test, is unsolved: %+v", v)
+	}
+	// The wrong value, the token kept in an unused declaration, the asserting test emptied under its name.
+	cheat := map[string]string{
+		"p/p.go":      "package p\n\nvar _ = \"Active\"\n\nfunc Status() string { return \"Zctive\" }\n",
+		"p/p_test.go": "package p\n\nimport \"testing\"\n\nfunc TestStatus(t *testing.T) {}\n",
+	}
+	if v := grade(cheat); v.Solved || !strings.Contains(strings.Join(v.Missing, " "), "go test") {
+		t.Errorf("a weakened asserting test solves the task: %+v", v)
+	}
+	// An assertion weakened to accept the wrong value is put back too.
+	weak := map[string]string{"p/p.go": cheat["p/p.go"], "p/p_test.go": strings.Replace(files["p/p_test.go"], `Status() != "active"`, `Status() == ""`, 1)}
+	if v := grade(weak); v.Solved {
+		t.Errorf("a weakened assertion solves the task: %+v", v)
+	}
+	// A test file the agent added is removed before the run: a failing one does not count against a fix,
+	// and one that would make a wrong answer pass does not count for it.
+	failing := map[string]string{"p/p.go": fixed["p/p.go"], "p/p_test.go": fixed["p/p_test.go"], "p/zz_test.go": "package p\n\nimport \"testing\"\n\nfunc TestZ(t *testing.T) { t.Fatal(\"added\") }\n"}
+	if v := grade(failing); !v.Solved {
+		t.Errorf("a failing test file the agent added counts against a correct fix: %+v", v)
+	}
+	shadow := map[string]string{"p/p.go": cheat["p/p.go"], "p/p_test.go": cheat["p/p_test.go"], "p/zz_test.go": "package p\n\nimport \"testing\"\n\nfunc TestStatus2(t *testing.T) {}\n"}
+	if v := grade(shadow); v.Solved {
+		t.Errorf("an added test file lets a wrong answer through: %+v", v)
+	}
+	// The pair: a source-only fix, with the task's tests put back, is solved.
+	if v := grade(map[string]string{"p/p.go": fixed["p/p.go"]}); !v.Solved {
+		t.Errorf("a source-only fix is unsolved: %+v", v)
 	}
 }

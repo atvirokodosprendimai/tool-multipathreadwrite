@@ -1,11 +1,13 @@
 package bench
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math/rand"
 	"os"
 	"os/exec"
@@ -139,6 +141,10 @@ type Receipt struct {
 	KeptDiffSHA256      string `json:"kept_diff_sha256,omitempty"`
 	KeptNote            string `json:"kept_note,omitempty"`
 	InitModel           string `json:"init_model,omitempty"`
+	// ADR-211 Decisions 4 and 7: the hash of the transcript as read back after it
+	// was closed, and of the scratch file the run was asked to keep.
+	TranscriptSHA256      string `json:"transcript_sha256,omitempty"`
+	KeptScratchFileSHA256 string `json:"kept_scratch_file_sha256,omitempty"`
 
 	interrupted bool // stopped by a signal to bench: no receipt is written for it
 }
@@ -199,12 +205,17 @@ type RunOptions struct {
 	MrwSHA256       string  // --mrw-sha256: the SHA-256 the file at Mrw must have; Run refuses another and runs its bytes
 	MrwInstructions string  // --mrw-instructions: a file appended in place of the binary's `instructions`
 	KeepStateFile   string  // --keep-state-file: a path under the attempt's state home copied beside the receipt
+	KeepScratchFile string  // --keep-scratch-file: a file name in the attempt's scratch directory copied beside the receipt (ADR-211)
 	KeepDiff        bool    // --keep-diff: the attempt's diff against its base commit, saved beside the receipt
 	MaxSpend        float64 // --max-spend: the recorded USD at which the run stops; 0 for no stop
 	mrwBytes        []byte  // Mrw's bytes, as verified
 	mrwSHA          string  // their SHA-256
 	instr           []byte  // MrwInstructions' bytes
 	instrSHA        string  // their SHA-256
+
+	// MoreCanaries are further canaries, one for each further model the run
+	// schedules: a canary authorises the one model it ran (ADR-211 Decision 8).
+	MoreCanaries []string
 }
 
 // plan is what run.json records; a second Run into the same directory must
@@ -240,6 +251,7 @@ type plan struct {
 	MrwSHA256             string  `json:"mrw_sha256,omitempty"`
 	MrwInstructionsSHA256 string  `json:"mrw_instructions_sha256,omitempty"`
 	KeepStateFile         string  `json:"keep_state_file,omitempty"`
+	KeepScratchFile       string  `json:"keep_scratch_file,omitempty"`
 	KeepDiff              bool    `json:"keep_diff,omitempty"`
 	MaxSpend              float64 `json:"max_spend_usd,omitempty"`
 	BenchRevision         string  `json:"bench_revision"`
@@ -276,6 +288,9 @@ func Run(o RunOptions) (err error) {
 	if o.KeepStateFile != "" && !runsMrw(o) {
 		return errors.New("--keep-state-file needs a configuration that carries mrw: only its attempts have a state home")
 	}
+	if o.KeepStateFile != "" && o.KeepScratchFile != "" {
+		return errors.New("--keep-scratch-file and --keep-state-file both keep their file as <attempt id>.kept: a run keeps one of them")
+	}
 	if o.Budget == 0 {
 		o.Budget = DefaultBudget
 	}
@@ -283,7 +298,7 @@ func Run(o RunOptions) (err error) {
 	if err != nil {
 		return fmt.Errorf("%s --version: %w", o.Claude, err)
 	}
-	if err := checkCanary(o.Canary, cli, o); err != nil {
+	if err := checkCanaries(o, cli); err != nil {
 		return err
 	}
 	if o.Block > 0 {
@@ -348,6 +363,7 @@ func Run(o RunOptions) (err error) {
 	core, _ := splitSide(o.Configs)
 	p := plan{Stage: o.Stage, Models: o.Models, Configs: core, Repeats: o.Repeats, Seed: o.Seed, CLIVersion: cli, MrwVersion: mrwVersion, Containment: o.Containment, Profile: o.Profile, Plugin: o.plugin}
 	p.MrwSHA256, p.MrwInstructionsSHA256, p.KeepStateFile, p.KeepDiff, p.MaxSpend, p.BenchRevision = o.mrwSHA, o.instrSHA, o.KeepStateFile, o.KeepDiff, o.MaxSpend, exporterRevision()
+	p.KeepScratchFile = o.KeepScratchFile
 	p.ConfigsFor = o.ConfigsFor
 	p.WorkLineSHA256 = o.workLineSHA
 	if o.Profile == ProfileStage7 {
@@ -754,6 +770,36 @@ func readsBack(p plan, r Receipt, id, t, c, m string, rep int) bool {
 	return r.Attempt == id && r.Task == t && r.Config == c && r.Model == m && r.Repeat == rep && (!isSide(c) || sameMeta(r.Side, p.Side[c])) && r.MrwSHA256 == wantMrwSHA(p, c)
 }
 
+// checkCanaries judges every canary the run was given and refuses a run that
+// schedules a model none of them covers: a canary authorises the one model it ran,
+// so `--model opus --model sonnet` needs one of each (ADR-211 Decision 8; the
+// review of #751).
+func checkCanaries(o RunOptions, cli string) error {
+	covered := map[string]bool{}
+	for _, p := range append([]string{o.Canary}, o.MoreCanaries...) {
+		if err := checkCanary(p, cli, o); err != nil {
+			return err
+		}
+		var c struct {
+			Model string `json:"model"`
+		}
+		b, err := os.ReadFile(p)
+		if err == nil {
+			err = json.Unmarshal(b, &c)
+		}
+		if err != nil {
+			return fmt.Errorf("canary %s: %w", p, err)
+		}
+		covered[c.Model] = true
+	}
+	for _, m := range o.Models {
+		if !covered[m] {
+			return fmt.Errorf("no canary of model %q: a run of several models needs one --canary of each, since a canary authorises the model it ran (ADR-211 Decision 8)", m)
+		}
+	}
+	return nil
+}
+
 // checkCanary refuses a stage whose canary did not pass for this CLI version.
 func checkCanary(path, cli string, o RunOptions) error {
 	b, err := os.ReadFile(path)
@@ -791,10 +837,14 @@ func checkCanary(path, cli string, o RunOptions) error {
 	if pins && c.MrwInstructionsSHA256 != o.instrSHA {
 		return fmt.Errorf("canary %s was given instructions %q; this run's are %q (none: the binary's own)", path, c.MrwInstructionsSHA256, o.instrSHA)
 	}
-	// Only a pinning run is judged on the canary's model, which must be one
-	// the run runs; a run that pins nothing keeps what it took before ADR-206.
-	if pins && !slices.Contains(o.Models, c.Model) {
+	// ADR-211 Decision 8: every run, pinned or not, is judged on a canary of a model
+	// it runs and of its own profile: a canary of another model or profile, or one
+	// that recorded no model, authorises nothing.
+	if !slices.Contains(o.Models, c.Model) {
 		return fmt.Errorf("canary %s is for model %q; this run is for %q", path, c.Model, o.Models)
+	}
+	if o.Profile == "" && c.Profile != "" {
+		return fmt.Errorf("canary %s ran the %s profile; this stage runs none", path, c.Profile)
 	}
 	// A profiled stage needs a canary that ran under the profile, tested each
 	// of its configurations and loaded its plugin (ADR-162 Decision 2; the
@@ -1059,6 +1109,9 @@ func runAttempt(o RunOptions, a attempt, order int, cli, mrwVersion string) (r R
 	}
 	o.keep(&r, scratch, tree, baseSHA, base)
 	b, err := os.ReadFile(base + ".transcript.jsonl")
+	// ADR-211 Decision 7: the hash of the bytes read back once the transcript is
+	// closed, so a transcript swapped for another with the same stem is told from it.
+	r.TranscriptSHA256 = hashHex(b)
 	if err != nil {
 		r.Exclusion, r.Note = ExclusionSetup, err.Error()
 		return r
@@ -1090,6 +1143,16 @@ func runAttempt(o RunOptions, a attempt, order int, cli, mrwVersion string) (r R
 			r.Exclusion, r.Note = ExclusionSetup, "hook files: "+err.Error()
 		}
 	}
+	// ADR-211 Decision 11 (#710): what the agent changed is read before the grader
+	// can write into the tree, the diff statistics in an index of their own, so the
+	// index the oracle reads is the one the agent left. They reach the receipt only
+	// once grading succeeds, as they did.
+	diff, diffErr := diffStat(scratch, tree, baseSHA)
+	var slipped []string
+	var slippedErr error
+	if a.Config.Mrw {
+		slipped, slippedErr = SlippedWrites(tree, filepath.Join(scratch, "state"), baseSHA)
+	}
 	var v Verdict
 	if a.Task.swe != nil {
 		v, err = o.SWE.grade(a.Task, tree, baseSHA, scratch, a.ID)
@@ -1111,15 +1174,17 @@ func runAttempt(o RunOptions, a attempt, order int, cli, mrwVersion string) (r R
 	v = settle(v, r.OverBudget, a.Task.swe != nil)
 	r.Oracle = v
 	r.SilentMisEdit = !r.IsError && (len(v.Outside) > 0 || len(v.Structure) > 0)
-	if r.Diff, err = diffStat(tree, baseSHA); err != nil {
-		r.Note = "diffstat: " + err.Error()
+	r.Diff = diff
+	if diffErr != nil {
+		r.Note = "diffstat: " + diffErr.Error()
 	}
 	if a.Config.Mrw {
 		r.HookRefused, r.HookReads = hookCounts(filepath.Join(scratch, "hook.log"))
 		// A backstop that could not run is not a count of zero: the
 		// attempt is a setup exclusion (the final review of #411).
-		if r.SlippedWrites, err = SlippedWrites(tree, filepath.Join(scratch, "state"), baseSHA); err != nil {
-			r.Exclusion, r.Note = ExclusionSetup, "slipped writes: "+err.Error()
+		r.SlippedWrites = slipped
+		if slippedErr != nil {
+			r.Exclusion, r.Note = ExclusionSetup, "slipped writes: "+slippedErr.Error()
 		}
 	}
 	return r
@@ -1375,16 +1440,32 @@ func invocation(o RunOptions, a attempt, scratch string) ([]string, []string, er
 // the hook is told it, so a write outside it passes.
 func attemptTree(scratch string) string { return filepath.Join(scratch, "tree") }
 
-func diffStat(tree, base string) (DiffStat, error) {
+// diffStat counts what the attempt changed against its base, in an index of its
+// own under scratch, as keepDiff takes the kept diff: the tree's index is not
+// touched, so the oracle still sees the agent's untracked files as untracked.
+func diffStat(scratch, tree, base string) (DiffStat, error) {
 	var d DiffStat
-	if err := git(tree, "add", "-A"); err != nil {
-		return d, err
-	}
-	out, err := gitOut(tree, "diff", "--cached", "--numstat", base)
+	git, cleanup, err := privateIndex(scratch, tree, base, "diffstat.index")
 	if err != nil {
 		return d, err
 	}
-	for _, l := range strings.Split(strings.TrimSpace(out), "\n") {
+	defer cleanup()
+	c := git("diff", "--cached", "--numstat", base)
+	// Streamed, not captured: the output grows with the number of files and a cap
+	// would return success with the totals of the part kept.
+	var stderr capped
+	c.Stderr = &stderr
+	pipe, err := c.StdoutPipe()
+	if err != nil {
+		return d, fmt.Errorf("git diff --numstat: %w", err)
+	}
+	if err := c.Start(); err != nil {
+		return d, fmt.Errorf("git diff --numstat: %w", err)
+	}
+	sc := bufio.NewScanner(pipe)
+	sc.Buffer(make([]byte, 0, 64<<10), 1<<20)
+	for sc.Scan() {
+		l := sc.Text()
 		var ins, del int
 		var name string
 		if n, _ := fmt.Sscanf(l, "%d\t%d\t%s", &ins, &del, &name); n == 3 {
@@ -1394,6 +1475,14 @@ func diffStat(tree, base string) (DiffStat, error) {
 		} else if strings.HasPrefix(l, "-\t-\t") {
 			d.Files++
 		}
+	}
+	scanErr := sc.Err()
+	_, _ = io.Copy(io.Discard, pipe) // a line too long to scan must not leave git blocked on a full pipe
+	if err := c.Wait(); err != nil {
+		return d, fmt.Errorf("git diff --numstat: %w: %s", err, stderr.String())
+	}
+	if scanErr != nil {
+		return DiffStat{}, fmt.Errorf("git diff --numstat: its output could not be read to the end: %w", scanErr)
 	}
 	return d, nil
 }

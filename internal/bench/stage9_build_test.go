@@ -87,10 +87,11 @@ type s9Event struct {
 	SHABefore    string `json:"sha_before"`
 }
 
-// s9Log reads the kept log: whether it exists, and its objects.
+// s9Log reads the kept log: whether it exists, and its objects. The log is
+// stage9-exposed.jsonl in the parent of the state home (ADR-211 Decision 3).
 func s9Log(t *testing.T, state string) (bool, []s9Event) {
 	t.Helper()
-	b, err := os.ReadFile(filepath.Join(state, "mrw", "stage9-exposed.jsonl"))
+	b, err := os.ReadFile(filepath.Join(filepath.Dir(state), "stage9-exposed.jsonl"))
 	if os.IsNotExist(err) {
 		return false, nil
 	}
@@ -336,20 +337,21 @@ func TestArmNDiffersFromMInOneRefusal(t *testing.T) {
 			if c.name == "dry run" && rn.code != 0 {
 				t.Fatalf("%s: N %+v", c.name, rn)
 			}
-			if ex, evs := s9Log(t, state); !ex || len(evs) != 0 {
-				t.Fatalf("%s: log exists=%v %+v, want it empty", c.name, ex, evs)
+			if ex, evs := s9Log(t, state); ex || len(evs) != 0 {
+				t.Fatalf("%s: log exists=%v %+v, want none", c.name, ex, evs)
 			}
 		}
 	})
 
-	t.Run("the same edit with anchor= lands in both and logs nothing", func(t *testing.T) {
+	t.Run("the same edit with anchor= lands in both and leaves no log", func(t *testing.T) {
 		rm, rn, fm, fn, state := both(t, "@@ a.txt 3 replace anchor=\"line3\"\nX\n")
 		if rm.code != 0 || rn.code != 0 || fm != fn {
 			t.Fatalf("M %+v N %+v files %q %q", rm, rn, fm, fn)
 		}
-		if ex, evs := s9Log(t, state); !ex || len(evs) != 0 {
-			t.Fatalf("log exists=%v %+v, want it present and empty", ex, evs)
+		if ex, evs := s9Log(t, state); ex || len(evs) != 0 {
+			t.Fatalf("log exists=%v %+v, want no file at all: a write with no exposed hunk touches nothing", ex, evs)
 		}
+		s9NoLogInside(t, state)
 	})
 
 	t.Run("a line no read has served, in a file mrw did not write, is refused by both alike", func(t *testing.T) {
@@ -382,54 +384,108 @@ func TestArmNDiffersFromMInOneRefusal(t *testing.T) {
 		}
 	})
 
-	t.Run("a log path that is a directory changes nothing an agent sees", func(t *testing.T) {
-		var runs [2]s9Run
-		for i := range runs {
-			root, state := s9Sandbox(t, filepath.Join(work, "dirlog"))
-			s9Written(t, n, root, state)
-			if i == 1 {
-				p := filepath.Join(state, "mrw", "stage9-exposed.jsonl")
-				if err := os.RemoveAll(p); err != nil {
-					t.Fatal(err)
-				}
-				if err := os.MkdirAll(p, 0o755); err != nil {
-					t.Fatal(err)
-				}
-			}
-			runs[i] = s9Exec(t, n, root, state, "@@ a.txt 3 replace\nX\n", "--root", root, "write", "-")
-			if got := s9File(t, root, "a.txt"); got != "line1\nline2\nX\nline4\nline5\n" {
-				t.Fatalf("a.txt %q", got)
-			}
-		}
-		if runs[0].code != 0 || runs[0] != runs[1] {
-			t.Fatalf("writable %+v, directory %+v", runs[0], runs[1])
-		}
-	})
-
-	t.Run("a log path that is a FIFO with no reader does not hang a landed write", func(t *testing.T) {
+	t.Run("a log path that is a directory, or a FIFO with no reader, changes nothing an agent sees but one stderr line", func(t *testing.T) {
 		if _, err := exec.LookPath("mkfifo"); err != nil {
 			t.Skip("mkfifo is not on PATH")
 		}
-		var runs [2]s9Run
-		for i := range runs {
-			root, state := s9Sandbox(t, filepath.Join(work, "fifolog"))
-			s9Written(t, n, root, state)
-			if i == 1 {
-				p := filepath.Join(state, "mrw", "stage9-exposed.jsonl")
-				if err := os.Remove(p); err != nil {
-					t.Fatal(err)
+		for _, kind := range []string{"directory", "FIFO"} {
+			var runs [2]s9Run
+			for i := range runs {
+				root, state := s9Sandbox(t, filepath.Join(work, "badlog"))
+				s9Written(t, n, root, state)
+				if i == 1 {
+					p := filepath.Join(filepath.Dir(state), "stage9-exposed.jsonl")
+					var err error
+					if kind == "directory" {
+						err = os.MkdirAll(p, 0o755)
+					} else {
+						err = exec.Command("mkfifo", p).Run()
+					}
+					if err != nil {
+						t.Fatal(err)
+					}
 				}
-				if err := exec.Command("mkfifo", p).Run(); err != nil {
-					t.Fatal(err)
+				runs[i] = s9Exec(t, n, root, state, "@@ a.txt 3 replace\nX\n", "--root", root, "write", "-")
+				if got := s9File(t, root, "a.txt"); got != "line1\nline2\nX\nline4\nline5\n" {
+					t.Fatalf("%s: a.txt %q", kind, got)
 				}
 			}
-			runs[i] = s9Exec(t, n, root, state, "@@ a.txt 3 replace\nX\n", "--root", root, "write", "-")
-			if got := s9File(t, root, "a.txt"); got != "line1\nline2\nX\nline4\nline5\n" {
-				t.Fatalf("a.txt %q", got)
+			rest, lines := s9StripLogLine(runs[1].err)
+			if runs[0].code != 0 || runs[1].code != 0 || runs[0].stdout != runs[1].stdout || lines != 1 || rest != runs[0].err {
+				t.Fatalf("%s: writable %+v, bad %+v (stderr lines %d, rest %q): want the same result and exactly one mrw: stage9 log: line", kind, runs[0], runs[1], lines, rest)
+			}
+			if _, lines := s9StripLogLine(runs[0].err); lines != 0 {
+				t.Fatalf("a writable log printed a stage9 log line: %q", runs[0].err)
 			}
 		}
-		if runs[0].code != 0 || runs[0] != runs[1] {
-			t.Fatalf("writable %+v, FIFO %+v", runs[0], runs[1])
+	})
+
+	t.Run("an event logged by one write survives a later write whose append fails", func(t *testing.T) {
+		if os.Geteuid() == 0 {
+			t.Skip("a read-only log is writable to root")
 		}
+		root, state := s9Sandbox(t, filepath.Join(work, "later"))
+		s9Written(t, n, root, state)
+		first := s9Exec(t, n, root, state, "@@ a.txt 3 replace\nX\n", "--root", root, "write", "-")
+		if first.code != 0 || strings.Contains(first.err, "stage9 log") {
+			t.Fatalf("first: %+v", first)
+		}
+		log := filepath.Join(filepath.Dir(state), "stage9-exposed.jsonl")
+		before, err := os.ReadFile(log)
+		if err != nil || strings.Count(string(before), "\n") != 1 {
+			t.Fatalf("the first write's log is %q (%v), want one event", before, err)
+		}
+		if err := os.Chmod(log, 0o444); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = os.Chmod(log, 0o644) })
+		second := s9Exec(t, n, root, state, "@@ a.txt 1 replace\nY\n", "--root", root, "write", "-")
+		if got := s9File(t, root, "a.txt"); second.code != 0 || got != "Y\nline2\nX\nline4\nline5\n" {
+			t.Fatalf("second: %+v file %q, want the write to land all the same", second, got)
+		}
+		if _, lines := s9StripLogLine(second.err); lines != 1 {
+			t.Errorf("second write's stderr %q, want exactly one mrw: stage9 log: line", second.err)
+		}
+		if after, _ := os.ReadFile(log); string(after) != string(before) {
+			t.Errorf("the log changed: %q, want the first event kept as it was", after)
+		}
+	})
+
+	// A relative XDG_STATE_HOME never reaches the log: mrw itself refuses to run on it.
+	t.Run("with XDG_STATE_HOME unset the write is unchanged and says so once", func(t *testing.T) {
+		for _, home := range []string{""} {
+			root, _ := s9Sandbox(t, filepath.Join(work, "nohome"))
+			s9Written(t, n, root, home)
+			r := s9Exec(t, n, root, home, "@@ a.txt 3 replace\nX\n", "--root", root, "write", "-")
+			if _, lines := s9StripLogLine(r.err); r.code != 0 || lines != 1 || s9File(t, root, "a.txt") != "line1\nline2\nX\nline4\nline5\n" {
+				t.Errorf("XDG_STATE_HOME=%q: %+v, want the write landed and one mrw: stage9 log: line", home, r)
+			}
+		}
+	})
+}
+
+// s9StripLogLine removes the lines that start with the log's failure prefix and
+// says how many there were.
+func s9StripLogLine(stderr string) (rest string, n int) {
+	var keep []string
+	for _, ln := range strings.SplitAfter(stderr, "\n") {
+		if strings.HasPrefix(ln, "mrw: stage9 log: ") {
+			n++
+			continue
+		}
+		keep = append(keep, ln)
+	}
+	return strings.Join(keep, ""), n
+}
+
+// s9NoLogInside fails when the state home holds a stage9-exposed.jsonl anywhere:
+// the log is beside it, in its parent.
+func s9NoLogInside(t *testing.T, state string) {
+	t.Helper()
+	_ = filepath.WalkDir(state, func(p string, d os.DirEntry, err error) error {
+		if err == nil && d.Name() == "stage9-exposed.jsonl" {
+			t.Errorf("the log is inside the state home: %s", p)
+		}
+		return nil
 	})
 }

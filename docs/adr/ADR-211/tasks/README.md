@@ -23,8 +23,8 @@ This README is a derived index — when it disagrees with a task file, the task 
 
 | Task | Goal | Status |
 |------|------|--------|
-| T1 | the instrument says what it cannot see, reconciles cost, and holds its identity | pending |
+| T1 | the instrument says what it cannot see, reconciles cost, and holds its identity | done |
 | T2 | a free rehearsal of everything the paid tasks rely on | pending |
-| T3 | each paid step is gated before the next, and the registration says what the pilot can show | pending |
+| T3 | each paid step is gated before the next, and the registration says what the pilot can show | done |
 
 Status: `pending` | `partial` | `blocked` | `done`.

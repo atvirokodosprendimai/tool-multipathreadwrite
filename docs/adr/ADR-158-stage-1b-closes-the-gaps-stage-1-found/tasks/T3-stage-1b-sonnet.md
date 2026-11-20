@@ -85,6 +85,7 @@ The corpus compared is the one at `edb65629`, the commit the stage ran from (ADR
   ```
 - 2026-10-15 · ffbcfd04* · exit 0 · `set -o pipefail …` · acceptance-sha256:a1f193663efe0afe7355e57c83919d35782d2352ffdeb08e93b04f3c252af795 · ms:3775
 - 2026-10-15 · ffbcfd04* · exit 0 · `set -o pipefail …` · acceptance-sha256:a1f193663efe0afe7355e57c83919d35782d2352ffdeb08e93b04f3c252af795 · ms:6363
+- 2026-11-20 · 79054ce2* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:a1f193663efe0afe7355e57c83919d35782d2352ffdeb08e93b04f3c252af795 · ms:0 · test-lock-sha256:874d395a8673884608a3096b5812b15b219a7bbcf019a2b6d80c6234058a7e29 · test-lock-file:docs/adr/locks/874d395a8673884608a3096b5812b15b219a7bbcf019a2b6d80c6234058a7e29.lock · test-lock-kind:replace
 
 ## Invariants
 

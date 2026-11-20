@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -43,7 +44,7 @@ func TestTheRunPinFlagsReachTheirOptions(t *testing.T) {
 	if co.MrwSHA256 != sha || co.MrwInstructions != "i.txt" {
 		t.Errorf("canary's flags reached %+v", *co)
 	}
-	for _, f := range []string{"--keep-state-file=x", "--keep-diff", "--max-spend=1"} {
+	for _, f := range []string{"--keep-state-file=x", "--keep-diff", "--keep-scratch-file=x"} {
 		if err := canary([]string{f}); err == nil || !strings.Contains(err.Error(), strings.TrimPrefix(strings.SplitN(f, "=", 2)[0], "--")) {
 			t.Errorf("bench canary %s: %v, want it refused as a flag only bench run has", f, err)
 		}
@@ -61,5 +62,26 @@ func TestTheRunPinFlagsReachTheirOptions(t *testing.T) {
 		if code := report(c.err, &out); code != c.want || !strings.Contains(out.String(), c.err.Error()) {
 			t.Errorf("bench ends %q with status %d, printing %q; want %d", c.err, code, out.String(), c.want)
 		}
+	}
+}
+
+// ADR-211 Decision 9: bench canary takes --max-spend, the flag reaches the canary's
+// options, and a spend stop ends bench canary with status 3.
+func TestBenchCanaryTakesMaxSpend(t *testing.T) {
+	tasks := filepath.Join("..", "..", "bench", "tasks")
+	var got bench.RunOptions
+	stop := fmt.Errorf("canary: %w", bench.ErrSpendStop)
+	args := []string{"--out", t.TempDir(), "--model", "m", "--claude", "/c", "--mrw", "/m", "--config-dir", "/d", "--containment", "bypass",
+		"--tasks-dir", tasks, "--max-spend", "0.75"}
+	err := canaryWith(args, func(o bench.RunOptions, _ bench.Task, _ string) (bench.CanaryReceipt, error) {
+		got = o
+		return bench.CanaryReceipt{}, stop
+	})
+	if got.MaxSpend != 0.75 {
+		t.Errorf("--max-spend reached the canary's options as %v, want 0.75", got.MaxSpend)
+	}
+	var out bytes.Buffer
+	if code := report(err, &out); !errors.Is(err, bench.ErrSpendStop) || code != 3 || !strings.Contains(out.String(), stop.Error()) {
+		t.Errorf("a canary stopped on its spend ends bench with status %d printing %q, want 3", code, out.String())
 	}
 }
