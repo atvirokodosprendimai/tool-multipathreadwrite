@@ -87,6 +87,9 @@ var (
 	// callAckNoteShort is the same note with the kept ids cut to five (#733): the
 	// one that goes in when the whole note does not fit the ceiling.
 	callAckNoteShort string
+	// callCommit is what a read that was answered without an error does after the
+	// final ceiling decision: promote its acknowledgements (#741). Nil otherwise.
+	callCommit func() error
 )
 
 // ceiling is the budget an in-call measurement compares against.
@@ -200,12 +203,12 @@ func callToolCtx(ctx context.Context, root string, raw json.RawMessage, modern b
 	// that follows it are one transaction as far as another caller is concerned.
 	gate.Lock()
 	defer gate.Unlock()
-	callModern, callReserve, callRelease, callCtx, callAckNote, callAckNoteShort = modern, 0, release, ctx, "", ""
+	callModern, callReserve, callRelease, callCtx, callAckNote, callAckNoteShort, callCommit = modern, 0, release, ctx, "", "", nil
 	if modern {
 		callReserve = encodedSize(decorateCall(callToolResult{})) - encodedSize(callToolResult{})
 	}
 	defer func() {
-		callModern, callReserve, callRelease, callCtx, callAckNote, callAckNoteShort = false, 0, nil, context.Background(), "", ""
+		callModern, callReserve, callRelease, callCtx, callAckNote, callAckNoteShort, callCommit = false, 0, nil, context.Background(), "", "", nil
 	}()
 
 	var res callToolResult
@@ -248,7 +251,13 @@ func callToolCtx(ctx context.Context, root string, raw json.RawMessage, modern b
 			}
 		}
 	}
-	return withinCeiling(decorateCall(res))
+	out, oerr := withinCeiling(decorateCall(res))
+	if oerr == nil && !out.IsError && callCommit != nil {
+		if err := callCommit(); err != nil {
+			return callToolResult{}, &rpcError{Code: codeInternal, Message: "ack: " + statehint.Hint(err).Error()}
+		}
+	}
+	return out, oerr
 }
 
 // withinCeiling is the last thing every tool result passes through.
@@ -338,25 +347,31 @@ type readArgs struct {
 // does — including the ledger write, which is how mrw learns what a file holds
 // and therefore what a later write is allowed to address.
 //
-// The acknowledgements the call carries are promoted only when the call is
-// answered: one reported as an error changes nothing (#741: an ack with no spec
-// answered "needs at least one spec" and had already promoted it). They are
-// promoted before the answer goes out, so a write in the same turn sees the
-// licence this call grants.
+// The acknowledgements the call carries are TAKEN before anything is served and
+// COMMITTED only when the call has been answered without an error, after the
+// final ceiling decision (callCommit, run by callTool): one reported as an error
+// changes nothing (#741), a serve that holds new checkpoints cannot evict the
+// very entry being acknowledged, and a pending store that cannot be loaded is
+// refused before anything is recorded. They are committed before the answer
+// goes out, so a write in the same turn sees the licence this call grants.
 func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
+	var a struct {
+		Ack []string `json:"ack"`
+	}
+	_ = json.Unmarshal(args, &a) // serveRead refuses arguments that do not parse
+	batch, err := prepareAcks(root, a.Ack)
+	if err != nil {
+		return callToolResult{}, &rpcError{Code: codeInternal, Message: "ack: " + statehint.Hint(err).Error()}
+	}
+	noteAcks(batch.unknown, batch.kept)
 	res, rpcErr := serveRead(root, args)
 	if rpcErr != nil || res.IsError {
 		return res, rpcErr
 	}
-	var a struct {
-		Ack []string `json:"ack"`
-	}
-	_ = json.Unmarshal(args, &a) // serveRead parsed these arguments already
-	unknown, kept, err := promoteAcks(root, a.Ack)
-	if err != nil {
-		return callToolResult{}, &rpcError{Code: codeInternal, Message: "ack: " + statehint.Hint(err).Error()}
-	}
-	noteAcks(unknown, kept)
+	// hold evicts the oldest pending checkpoints past maxPending, and an id this
+	// call kept may be one: the note names only those still pending.
+	noteAcks(batch.unknown, stillPending(root, batch.kept))
+	callCommit = func() error { return batch.commit(root) }
 	return res, nil
 }
 
@@ -2008,7 +2023,7 @@ func firstPage(root string, specs []string, cw *capped, maxCols int) (callToolRe
 		// checkpoint and nothing held, and says so, as the fitting path does.
 		if strings.Contains(path, "\n") {
 			next := fmt.Sprintf("%s:%d-", path, end+1)
-			shown := strings.ReplaceAll(b.String(), "==> "+path+"  ", "==> "+strings.ReplaceAll(path, "\n", `\n`)+"  ")
+			shown := b.String() // read.Run already printed the header quoted (ShownPath)
 			report := fmt.Sprintf("%s\n%s\n-- PARTIAL: lines %d-%d of %d. %d line(s) remain.\n"+
 				"-- Send specs [%q] to continue, or a narrower range of your own.\n"+
 				"-- Stopping here means you have part of this file, not the file.",
