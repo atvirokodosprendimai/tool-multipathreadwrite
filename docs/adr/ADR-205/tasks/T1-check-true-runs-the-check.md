@@ -103,6 +103,8 @@ go test -count=1 -v ./internal/mcp ./internal/writer -run '^(TestMrwWriteCheckTr
 - 2026-11-19 · 69de5b37* · exit 0 · `set -o pipefail …` · acceptance-sha256:75274f5e7767bed1adbcdf39c9e601d8263461ed9c5379c089386eb642cde7ff · ms:1903
 - 2026-11-19 · afabe090* · exit 0 · `set -o pipefail …` · acceptance-sha256:75274f5e7767bed1adbcdf39c9e601d8263461ed9c5379c089386eb642cde7ff · ms:1303
 - 2026-11-19 · 652e9dd2 · exit 0 · `set -o pipefail …` · acceptance-sha256:75274f5e7767bed1adbcdf39c9e601d8263461ed9c5379c089386eb642cde7ff · ms:1290
+- 2026-11-20 · a731ad50 · exit 0 · `set -o pipefail …` · acceptance-sha256:75274f5e7767bed1adbcdf39c9e601d8263461ed9c5379c089386eb642cde7ff · ms:2054
+- 2026-11-20 · a731ad50* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:75274f5e7767bed1adbcdf39c9e601d8263461ed9c5379c089386eb642cde7ff · ms:0 · test-lock-sha256:80650dfcc2a025b5afa2ded6270a42af07ed261d1acd534e1e7921105b4f392f · test-lock-file:docs/adr/locks/80650dfcc2a025b5afa2ded6270a42af07ed261d1acd534e1e7921105b4f392f.lock · test-lock-kind:replace
 
 ## Invariants
 
