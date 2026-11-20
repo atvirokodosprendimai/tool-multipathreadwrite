@@ -426,7 +426,7 @@ moves it — beside edits to the same file in one plan, the edited file moves (A
 body reads exactly like one never written, so an empty file is spelled
 `@@ new.txt 0 create body=0`, and a bare `create` with nothing under it is
 refused and leaves no file behind. `body=@path` loads those lines from a
-root-relative file (empty file ≡ `body=0`); that path is not a ledger read.
+root-relative file (an empty file is body=0 for a create, is refused on a delete, and is an empty body, refused, on a replace or an insert); that path is not a ledger read.
 `from=PATH:ADDR` takes a body from lines of a file as it was before the plan
 (`ADDR` is `N`, `N-M`, `A,+N`, `$` or `N-$`) instead of re-typing them: it is
 refused unless the caller was served those lines in the version on disk, `--force`

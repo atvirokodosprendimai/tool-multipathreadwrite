@@ -1785,3 +1785,12 @@ changed after the first counted attempt.
   `TMPDIR`, which removes a routine signal and is not isolation. Making it unreadable needs a writer the agent's
   user cannot read back, such as another user or a descriptor the bench owns. Owner: unassigned. Trigger: an
   N transcript that reads or lists the log, or a stage whose claim rests on N being unseen.
+
+## From ADR-207 (an empty `body=@` file on a delete is refused)
+
+- **An empty create from a `body=@` file** (2026-11-20, deferred from ADR-207; first deferred by ADR-195, see its entry
+  above): ADR-207 refuses a zero-byte `body=@` file on a delete only. On a create it is still an empty file under a
+  clean receipt, so a producer that failed before writing the file makes an empty file nobody asked for; the
+  caller names the file and can inspect it, which is why it was left out twice. Owner: unassigned. Trigger: an
+  adopter report of an empty file created from a failed producer, or a measurement of how often a caller writes
+  one on purpose.

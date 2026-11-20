@@ -1761,8 +1761,8 @@ is needed for an empty create (body=0), a body holding a line that begins @@,
 and a body whose first line begins body=; see mrw instructions.
 body= is a line count, not a character count. Python str splits characters;
 do not use len(body) as body=.
-body=@path loads the body from a root-relative file (an empty file is the
-same as body=0). An unquoted anchor= that contains a double quote is refused;
+body=@path loads the body from a root-relative file (an empty file is body=0 for a create, is refused on a delete, and is an empty body, refused, on a replace or an insert).
+An unquoted anchor= that contains a double quote is refused;
 write it as anchor="…". A leftover body= names the declared count and how
 many extra lines sat before the next @@.
 lines= is a guard on how many lines the ADDRESS covers, and is not body=.
