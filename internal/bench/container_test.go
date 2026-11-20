@@ -1155,6 +1155,14 @@ func midSyncKill(t *testing.T, knob, phase string) {
 				out, _ := os.ReadFile(stderr.Name())
 				t.Fatalf("the shim ended before its %s shell recorded a pid: %v: %s", phase, err, out)
 			case <-deadline:
+				// A shim that ended as the deadline came is reported as ended: its
+				// shells are gone and a pid they left may name another process now.
+				select {
+				case err := <-exited:
+					out, _ := os.ReadFile(stderr.Name())
+					t.Fatalf("the shim ended before its %s shell recorded a pid: %v: %s", phase, err, out)
+				default:
+				}
 				_ = cmd.Process.Kill()
 				// A shell that registered but never reached its sleep would outlive
 				// the shim: kill it too, as the cleanup of a found pid would.
