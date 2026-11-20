@@ -11727,6 +11727,96 @@ printf '@@ f.txt 1 replace\nb\n' | m write - >/dev/null 2>&1; rc=$?
 want 0 "$rc" "the pair: f.txt alone applies"
 [ "$(cat "$R/f.txt")" = b ] && ok "and f.txt holds the edit" || bad "f.txt: $(cat "$R/f.txt")"
 
+# 362. A human write receipt that cannot be written is not lost at exit 0
+# (#713). The buffered flush's error was dropped, so a write whose standard
+# output refused the receipt landed, printed nothing and exited 0 with an empty
+# stderr. The pair: the null device accepts the receipt and keeps exiting 0
+# (ADR-133); a standard output opened read-only (`1<file`) refuses every write
+# with EBADF, and that exits 2, the write landed, and stderr says both. A
+# CLOSED descriptor (`>&-`) is no stand-in: the Go runtime opens the null
+# device in its place at startup, so the receipt is accepted.
+R362="$WORK/r362"; rm -rf "$R362"; mkdir -p "$R362/null" "$R362/closed"; : > "$R362/ro"
+printf '@@ a.txt 0 create\nx\n' | "$MRW" -C "$R362/null" write --no-check - >/dev/null 2>"$R362/null.err"
+want 0 "$?" "a write whose receipt goes to the null device exits 0"
+[ -f "$R362/null/a.txt" ] && [ ! -s "$R362/null.err" ] && ok "and landed with nothing on stderr" || bad "null-device write: $(cat "$R362/null.err")"
+printf '@@ a.txt 0 create\nx\n' | "$MRW" -C "$R362/closed" write --no-check - 1<"$R362/ro" 2>"$R362/closed.err"
+want 2 "$?" "a write whose standard output refuses every write exits 2, not 0"
+[ -f "$R362/closed/a.txt" ] && grep -q 'receipt could not be written' "$R362/closed.err" && grep -q 'write landed' "$R362/closed.err" \
+  && ok "the write landed and the one stderr line says the receipt was lost and the write landed" \
+  || bad "closed-stdout write: file $([ -f "$R362/closed/a.txt" ] && echo present || echo missing), stderr: $(cat "$R362/closed.err")"
+# The verdict keeps its own code under a lost receipt (review of #722): a plan
+# that fails exits 1 and a failing check exits 3, as with a readable stdout;
+# only a clean verdict becomes 2. The check still runs.
+printf 'x\n' > "$R362/closed/c.txt"; printf '{"check":"echo ran >> marker; false"}\n' > "$R362/closed/.quality-harness.json"
+printf '@@ c.txt 9 replace\ny\n' | "$MRW" -C "$R362/closed" write - 1<"$R362/ro" 2>"$R362/refused.err"
+want 1 "$?" "a refused plan keeps exit 1 under a lost receipt"
+printf '@@ d.txt 0 create\nx\n' | "$MRW" -C "$R362/closed" write --check - 1<"$R362/ro" 2>"$R362/check.err"
+want 3 "$?" "a failing check keeps exit 3 under a lost receipt"
+[ -f "$R362/closed/marker" ] && grep -q 'receipt could not be written' "$R362/check.err" \
+  && ok "and the check ran, with the lost receipt named" || bad "check under lost receipt: $(cat "$R362/check.err")"
+# A broken pipe on standard output (SIGPIPE) is a lost receipt too, not a death
+# before the check (review of #722): the write lands, the check runs, exit 2.
+mkdir -p "$R362/pipe"; printf '{"check":"echo ran >> marker"}\n' > "$R362/pipe/.quality-harness.json"
+{ printf '@@ p.txt 0 create\nx\n' | "$MRW" -C "$R362/pipe" write --check - 2>"$R362/pipe.err"; echo $? > "$R362/pipe.rc"; } | { exec 0<&-; }
+sleep 0.2
+[ "$(cat "$R362/pipe.rc" 2>/dev/null)" = 2 ] && [ -f "$R362/pipe/p.txt" ] && [ -f "$R362/pipe/marker" ] \
+  && ok "a broken standard-output pipe exits 2 with the write landed and its check run" \
+  || bad "broken pipe: exit $(cat "$R362/pipe.rc" 2>/dev/null), landed $([ -f "$R362/pipe/p.txt" ] && echo yes || echo no), check $([ -f "$R362/pipe/marker" ] && echo ran || echo not-run), stderr: $(cat "$R362/pipe.err")"
+# The same for a dry run, whose `parsed:` lines are written before any receipt.
+{ printf '@@ q.txt 0 create\nx\n' | "$MRW" -C "$R362/pipe" write --dry-run - 2>"$R362/dry.err"; echo $? > "$R362/dry.rc"; } | { exec 0<&-; }
+sleep 0.2
+[ "$(cat "$R362/dry.rc" 2>/dev/null)" = 2 ] && grep -q 'receipt could not be written' "$R362/dry.err" \
+  && ok "a dry run into a broken pipe exits 2 naming the lost receipt, not 141" \
+  || bad "dry run into a broken pipe: exit $(cat "$R362/dry.rc" 2>/dev/null), stderr: $(cat "$R362/dry.err")"
+
+# 363. Two inputs that lost information keep it (#715). (a) A quoted JSON key
+# may hold the colon that separates a file from its range, or the comma that
+# separates two ranges: both were cut inside the key. The pair: a colon or a
+# comma OUTSIDE the quotes still separates, and a key the document lacks is a
+# miss (exit 1), not a parse error. (b) A file named `#notes` was counted by
+# `iter add` and gone from `iter`, reloaded as a comment; it now stays, as the
+# same path.
+R363="$WORK/r363"; rm -rf "$R363"; mkdir -p "$R363"
+printf '{\n "build:prod": 1,\n "a,b": 2,\n "z": 3\n}\n' > "$R363/doc.json"
+out=$("$MRW" -C "$R363" read 'doc.json:$["build:prod"]' 2>&1); rc=$?
+want 0 "$rc" "a JSON key holding a colon is addressable in a spec"
+grep -q '"build:prod": 1' <<<"$out" && ok "and serves the line that holds it" || bad "colon key served: $out"
+out=$("$MRW" -C "$R363" read 'doc.json:$["a,b"]' 2>&1); rc=$?
+want 0 "$rc" "a JSON key holding a comma is addressable in a spec"
+grep -q '"a,b": 2' <<<"$out" && ok "and serves the line that holds it" || bad "comma key served: $out"
+"$MRW" -C "$R363" read 'doc.json:$["a,b"],$.z' >/dev/null 2>&1
+want 2 "$?" "a list mixing a quoted key holding a comma with another range stays refused, as on main"
+"$MRW" -C "$R363" read 'doc.json:$["no:such"]' >/dev/null 2>&1
+want 1 "$?" "a quoted key the document lacks is a miss, exit 1"
+printf 'hi\n' > "$R363/#notes"
+"$MRW" -C "$R363" iter add '#notes' > "$R363/iter.add" 2>&1
+out=$("$MRW" -C "$R363" iter 2>&1)
+grep -q '#notes' <<<"$out" && grep -q '^1 entr' <<<"$out" && ok "a file named #notes is still in the working set after the next command" || bad "iter after add: $out"
+out=$("$MRW" -C "$R363" read 2>&1); rc=$?
+[ "$rc" -eq 0 ] && grep -q '^ *1| hi' <<<"$out" && ok "and the working-set read serves it" || bad "read of the set (exit $rc): $out"
+printf 'hi\n' > "$R363/a:\$.txt"
+"$MRW" -C "$R363" read 'a:$.txt:1' > "$R363/dollar.out" 2>&1
+want 0 "$?" "a file name holding :\$. is still read at its last colon"
+grep -q '^ *1| hi' "$R363/dollar.out" && ok "and serves its line" || bad "dollar name: $(cat "$R363/dollar.out")"
+"$MRW" -C "$R363" iter clear >/dev/null 2>&1
+"$MRW" -C "$R363" iter add 'doc.json:$["build:prod"]' > /dev/null 2>&1
+out=$("$MRW" -C "$R363" read 2>&1); rc=$?
+[ "$rc" -eq 0 ] && grep -q '"build:prod": 1' <<<"$out" && ok "a working-set entry with a quoted key holding a colon serves its line" || bad "iter entry with a colon key (exit $rc): $out"
+# The no-guessing cut (review of #722): a range list may follow a file name that
+# holds a quote, and a quoted key may follow a range or blanks.
+printf 'hi\n' > "$R363/a"; printf 'qq\n' > "$R363/a:\$[\"q"
+"$MRW" -C "$R363" iter clear >/dev/null 2>&1
+"$MRW" -C "$R363" iter add 'a:$["q:1' >/dev/null 2>&1
+out=$("$MRW" -C "$R363" read 2>&1)
+grep -q '^ *1| qq' <<<"$out" && ! grep -q '| hi' <<<"$out" && ok "an entry on a file name holding a quote points at that file, not at a" || bad "quote file entry: $out"
+"$MRW" -C "$R363" read 'doc.json:1,$["build:prod"]' >/dev/null 2>&1
+want 2 "$?" "a range then a quoted key holding a colon stays refused, as on main"
+printf 'x\n' > "$R363/file"
+"$MRW" -C "$R363" iter clear >/dev/null 2>&1
+"$MRW" -C "$R363" iter add 'file:/x/, $.a/b,:$.c:d' >/dev/null 2>&1
+out=$("$MRW" -C "$R363" read 2>&1)
+grep -q '^==> file ' <<<"$out" && ok "a spec main reads as file is not redirected by a later :\$. colon in it" || bad "redirect: $out"
+
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
 # killed process is a zombie until its adopter reaps it, and pgrep lists
