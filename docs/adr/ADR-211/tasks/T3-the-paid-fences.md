@@ -149,6 +149,7 @@ p=$(python3 -m unittest -v scripts.test_bench_stage9 2>&1) \
 - 2026-11-20 · 41ee7f0b* · exit 0 · `set -o pipefail …` · acceptance-sha256:bd29dbea879ef48413f2b6aecf5064208f9483814f139de565daa5f492034b5c · ms:47712
 - 2026-11-20 · 41ee7f0b* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:bd29dbea879ef48413f2b6aecf5064208f9483814f139de565daa5f492034b5c · ms:0 · test-lock-sha256:7d4afb44b357e9533f57b0a320a77effcbc098ec782c2df738142a3e78834c41 · test-lock-file:docs/adr/locks/7d4afb44b357e9533f57b0a320a77effcbc098ec782c2df738142a3e78834c41.lock · test-lock-kind:replace
 - 2026-11-20 · 7a2d609d · exit 0 · `set -o pipefail …` · acceptance-sha256:bd29dbea879ef48413f2b6aecf5064208f9483814f139de565daa5f492034b5c · ms:52775
+- 2026-11-20 · b11bd4e4* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:bd29dbea879ef48413f2b6aecf5064208f9483814f139de565daa5f492034b5c · ms:16 · test-lock-sha256:584a66938716549fb3914110643f602968099844824e75b7029d80cf09c40e93 · test-lock-file:docs/adr/locks/584a66938716549fb3914110643f602968099844824e75b7029d80cf09c40e93.lock · test-lock-kind:replace
 
 ## Invariants
 

@@ -9,6 +9,11 @@
 # and each negative; the exit code is what the check's command returned (a code the script computes, 1). A check or a negative
 # that fails does not stop the run: the record shows it, and the exit status is 1.
 set -u
+die() { echo "rehearse.sh: $*" >&2; exit 2; }
+# Nothing here may authenticate: no key or token of any provider reaches a child, and the CLAUDE_CONFIG_DIR bench is given is a
+# fresh empty directory. The only agent ever started is the stub, which is verified against the committed bytes before each use.
+unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN ANTHROPIC_BASE_URL ANTHROPIC_BEDROCK_BASE_URL CLAUDE_CODE_OAUTH_TOKEN CLAUDE_API_KEY \
+	CLAUDE_CODE_USE_BEDROCK CLAUDE_CODE_USE_VERTEX AWS_BEARER_TOKEN_BEDROCK GOOGLE_APPLICATION_CREDENTIALS OPENAI_API_KEY
 cd "$(git rev-parse --show-toplevel)" || exit 2
 repo=$PWD
 default=docs/bench/stage-9/rehearsal.md
@@ -17,7 +22,8 @@ out=${1:-}
 if [ -n "$subset" ]; then
 	case $subset in '' | *[!0-9]* | 0) echo "rehearse.sh: REHEARSE_SUBSET is a positive count" >&2; exit 2 ;; esac
 	[ -n "$out" ] || { echo "rehearse.sh: a subset run needs the file to write: it never writes $default" >&2; exit 2; }
-	if [ "$(cd "$(dirname "$out")" 2>/dev/null && pwd -P)/$(basename "$out")" = "$repo/$default" ]; then
+	# realpath of a path that does not exist yet too: a missing docs/bench/stage-9 must not let the committed record be named
+	if [ "$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$out")" = "$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$repo/$default")" ]; then
 		echo "rehearse.sh: a subset run never writes $default" >&2
 		exit 2
 	fi
@@ -29,28 +35,47 @@ fi
 for tool in jq shasum go git python3; do
 	command -v "$tool" >/dev/null 2>&1 || { echo "rehearse.sh: $tool is not on PATH" >&2; exit 2; }
 done
-S=${REHEARSE_SCRATCH:-$(mktemp -d)}
-mkdir -p "$S"/{builds,trees,canaries,runs,neg,stub,stub-quiet,config} || exit 2
-rev=$(git rev-parse HEAD)
+# A fresh scratch every run: a named one must be empty, so no earlier run's output can stand in for this one's.
+if [ -n "${REHEARSE_SCRATCH:-}" ]; then
+	S=$REHEARSE_SCRATCH
+	mkdir -p "$S" || die "cannot make $S"
+	[ -z "$(ls -A "$S")" ] || die "$S is not empty: the scratch of a rehearsal is fresh"
+else
+	S=$(mktemp -d) || die "no scratch directory"
+fi
+mkdir -p "$S"/{builds,trees,canaries,runs,neg,stub,stub-quiet,config} || die "cannot make the scratch directories"
+export CLAUDE_CONFIG_DIR=$S/config
+rev=$(git rev-parse HEAD) || die "no HEAD"
 stage=bench/stage-9
 models=$(jq -r '[.[].model] | unique | .[]' $stage/plans.json)
 log() { printf '%s %s\n' "$(date +%H:%M:%S)" "$*" >&2; }
 sha() { shasum -a 256 "$1" | cut -d' ' -f1; }
+stub_sha=$(sha $stage/stub-agent) || die "cannot hash the stub"
+# verify_stub DIR: the agent bench is given from DIR is the committed stub, byte for byte, and the only file there that runs.
+verify_stub() {
+	case $1 in "$S"/stub | "$S"/stub-quiet) ;; *) die "$1 is not one of the stub directories" ;; esac
+	[ "$(sha "$1/stub-agent")" = "$stub_sha" ] || die "$1/stub-agent is not the committed stub-agent"
+}
 rec=()
 
 # The plans the run uses: the registered file, or with a subset the first K tasks of each class of each plan.
 if [ -n "$subset" ]; then
 	jq --argjson k "$subset" --slurpfile c $stage/classes.json \
-		'map(.tasks as $t | .tasks = [$c[0][] | map(select(. as $x | $t | index($x))) | .[0:$k][]])' $stage/plans.json >"$S/plans.json"
+		'map(.tasks as $t | .tasks = [$c[0][] | map(select(. as $x | $t | index($x))) | .[0:$k][]])' $stage/plans.json >"$S/plans.json" || die "cannot cut the plans"
 else
-	cp $stage/plans.json "$S/plans.json"
+	cp $stage/plans.json "$S/plans.json" || die "cannot copy the plans"
+	# the six registered runs, not what a damaged copy holds
+	[ "$(sha "$S/plans.json")" = "$(sha $stage/plans.json)" ] || die "the copied plans.json is not the committed one"
 fi
 
 # --- the stub, with the instructions of every follow-on and control task beside it, and the same stub with none
-install -m 755 $stage/stub-agent "$S/stub/stub-agent"
-install -m 755 $stage/stub-agent "$S/stub-quiet/stub-agent"
-for id in $(jq -r '[."follow-on", .control] | add | .[]' $stage/classes.json); do
-	jq -r '.instruction | gsub("\n"; " ")' "bench/tasks/$id/task.json"
+install -m 755 $stage/stub-agent "$S/stub/stub-agent" || die "cannot install the stub"
+install -m 755 $stage/stub-agent "$S/stub-quiet/stub-agent" || die "cannot install the quiet stub"
+verify_stub "$S/stub"
+verify_stub "$S/stub-quiet"
+exposed_ids=$(jq -r '[."follow-on", .control] | add | .[]' $stage/classes.json) || die "cannot read the classes"
+for id in $exposed_ids; do
+	jq -r '.instruction | gsub("\n"; " ")' "bench/tasks/$id/task.json" || die "cannot read the instruction of $id"
 done >"$S/stub/stub-exposed.txt"
 : >"$S/stub-quiet/stub-exposed.txt"
 
@@ -74,7 +99,8 @@ fi
 
 # go_test NAME [DIR]: the named test passed, and was not skipped.
 go_test() {
-	local name=$1 dir=${2:-$repo} c
+	local name=$1 dir=${2:-$repo} c=1
+	rm -f "$S/$name.out"
 	(cd "$dir" && go test ./internal/bench -run "^$name\$" -count=1 -v) >"$S/$name.out" 2>&1
 	c=$?
 	if [ $c -eq 0 ] && { ! grep -q "^--- PASS: $name " "$S/$name.out" || grep -q SKIP "$S/$name.out"; }; then c=1; fi
@@ -83,8 +109,9 @@ go_test() {
 
 # run_of MODEL ARM DIR PLANS CANARY STUBDIR [TASKS...]: one bench run, its exit status recorded beside it.
 run_of() {
-	local model=$1 arm=$2 dir=$3 plans=$4 canary=$5 stubdir=$6 cfg=B figure c
+	local model=$1 arm=$2 dir=$3 plans=$4 canary=$5 stubdir=$6 cfg=B figure c=1
 	shift 6
+	verify_stub "$stubdir"
 	[ "$arm" = a ] && cfg=A
 	figure=$(jq -r --arg d "$model/$arm" '.[] | select(.directory == $d) | .max_spend_usd' "$plans")
 	local args=(run --stage stage9 --out "$dir/$model/$arm" --model "$model" --claude "$stubdir/stub-agent" --config-dir "$S/config"
@@ -117,12 +144,16 @@ n_event() {
 step() { rec+=("check $1: exit $2"); log "check $1: exit $2"; }
 
 # 1. instructions frozen
-if [ $built = 1 ]; then "$S/builds/mrw-m" instructions >"$S/instructions.m" 2>/dev/null && cmp -s "$S/instructions.m" $stage/instructions.txt; c=$?; else c=1; fi
+c=1
+rm -f "$S/instructions.m"
+if [ $built = 1 ]; then "$S/builds/mrw-m" instructions >"$S/instructions.m" 2>/dev/null && cmp -s "$S/instructions.m" $stage/instructions.txt; c=$?; fi
 step 'instructions frozen' $c
 # 2, 3. the two tests that skip when they cannot run
 go_test TestArmNDiffersFromMInOneRefusal; step 'build test' $?
 go_test TestEveryOracleFailsOnBasePassesOnFixAndRefusesAStrayEdit; step 'oracle test' $?
 # 4. the bench build: from the clean tree, stamped with its revision
+c=1
+rm -f "$S/bench"
 go build -o "$S/bench" ./cmd/bench >"$S/bench-build.out" 2>&1
 c=$?; bench_ok=$c # whether the binary exists: the stamp check below judges the tree, and a trial in a modified one still runs the rest
 if [ $c -eq 0 ]; then
@@ -139,6 +170,7 @@ if [ $built = 1 ] && [ $bench_ok -eq 0 ]; then
 		figure=$(python3 -B -c 'import sys; sys.path.insert(0, "scripts"); import bench_stage9 as s; print(s.CANARY_FIGURES[sys.argv[1]])' "$m")
 		for a in n m; do
 			name=canary-$m-$a
+			verify_stub "$S/stub"
 			"$S/bench" canary --out "$S/canaries/$name" --model "$m" --claude "$S/stub/stub-agent" --mrw "$S/builds/mrw-$a" \
 				--mrw-sha256 "$(sed -n "s/^$a sha256: //p" "$S/pilot.md")" --mrw-instructions $stage/instructions.txt \
 				--config-dir "$S/config" --containment bypass --scratch "$S/trees" --max-spend "$figure" >"$S/canaries/$name.out" 2>&1
@@ -196,6 +228,7 @@ c=1
 step 'n event counted' $c
 
 # 9. the paid steps' fences
+rm -f "$S/fences.out"
 python3 -B -m unittest scripts.test_bench_stage9.PaidFences.test_the_paid_fences_pass_a_fixture_and_fail_each_broken_one >"$S/fences.out" 2>&1
 step 'paid fences' $?
 
@@ -207,6 +240,7 @@ negative() { # NAME CODE REASON-PATTERN FILE: the check's code, or 0 when it fai
 }
 # n event counted, the stub making no write: one arm N attempt of the quiet stub, counted
 c=1
+rm -rf "$S/neg"; mkdir -p "$S/neg" || die "cannot clear the negatives' directory"
 if [ $built = 1 ] && [ $bench_ok -eq 0 ]; then
 	m=$(jq -r '.[] | select(.arm == "n") | .model' "$S/plans.json" | head -n 1)
 	jq --arg m "$m" 'map(select(.model == $m and .arm == "n") | .tasks |= .[0:1])' "$S/plans.json" >"$S/neg/plans.json"
@@ -220,6 +254,7 @@ fi
 negative 'n event counted' $c 'not as the stub makes it' "$S/neg/n-event.err"
 # stub plans, one plan's task list cut to one id: the gate refuses the full run it is shown
 c=1
+rm -f "$S/neg/cut.err" "$S/neg/cut-gates.txt" "$S/neg/cut-plans.json"
 if [ $plans_ok -eq 0 ]; then
 	first=$(jq -r '.[0] | "\(.model) \(.arm)"' "$S/plans.json")
 	jq '.[0].tasks |= .[0:1]' "$S/plans.json" >"$S/neg/cut-plans.json"
@@ -239,24 +274,31 @@ fi
 negative 'build test' $c 'SKIP' "$S/TestArmNDiffersFromMInOneRefusal.out"
 rm -rf "$S/notags"
 
-# --- the record
-{
-	echo "date: $(date +%Y-%m-%d)"
-	echo "revision: $rev"
-	[ -z "$subset" ] || echo "subset: $subset task(s) of each class of each plan: a trial, not the rehearsal"
-	for f in $stage/instructions.txt $stage/plans.json $stage/smoke-plans.json $stage/classes.json scripts/bench_stage9.py scripts/bench_mechanism.py \
-		$stage/rehearse.sh $stage/stub-agent; do
-		echo "$f sha256: $(sha "$f")"
-	done
-	echo "m sha256: $want_m"
-	echo "n sha256: $want_n"
-	# the aliases ADR-206 T5's fence reads
-	echo "plans sha256: $(sha $stage/plans.json)"
-	echo "smoke plans sha256: $(sha $stage/smoke-plans.json)"
-	echo "instructions sha256: $(sha $stage/instructions.txt)"
-	echo "tasks sha256: $(for id in $(jq -r '[.[] | .[]] | .[]' $stage/classes.json); do cat "bench/tasks/$id/task.json" "bench/tasks/$id/reference.patch"; done | shasum -a 256 | cut -d' ' -f1)"
-	printf '%s\n' "${rec[@]}"
-} >"$out.part" && mv "$out.part" "$out"
+# --- the record: every value is computed and checked first; nothing is published on a failure
+lines=("date: $(date +%Y-%m-%d)" "revision: $rev")
+[ -z "$subset" ] || lines+=("subset: $subset task(s) of each class of each plan: a trial, not the rehearsal")
+for f in $stage/instructions.txt $stage/plans.json $stage/smoke-plans.json $stage/classes.json scripts/bench_stage9.py scripts/bench_mechanism.py \
+	$stage/rehearse.sh $stage/stub-agent; do
+	d=$(sha "$f") || die "cannot hash $f"
+	lines+=("$f sha256: $d")
+done
+lines+=("m sha256: $want_m" "n sha256: $want_n")
+# the aliases ADR-206 T5's fence reads
+for a in "plans:plans.json" "smoke plans:smoke-plans.json" "instructions:instructions.txt"; do
+	d=$(sha "$stage/${a#*:}") || die "cannot hash ${a#*:}"
+	lines+=("${a%%:*} sha256: $d")
+done
+: >"$S/tasks.cat" || die "cannot write the tasks' digest input"
+for id in $(jq -r '[.[] | .[]] | .[]' $stage/classes.json); do
+	cat "bench/tasks/$id/task.json" "bench/tasks/$id/reference.patch" >>"$S/tasks.cat" || die "cannot read task $id"
+done
+[ -s "$S/tasks.cat" ] || die "no task was read"
+d=$(sha "$S/tasks.cat") || die "cannot hash the tasks"
+lines+=("tasks sha256: $d")
+mkdir -p "$(dirname "$out")" || die "cannot make the directory of $out"
+rm -f "$out.part"
+printf '%s\n' "${lines[@]}" "${rec[@]}" >"$out.part" || die "cannot write $out.part"
+mv "$out.part" "$out" || die "cannot publish $out"
 log "wrote $out; scratch $S"
 pos_bad=$(grep -E '^check [^:]*: exit [1-9]' "$out" | grep -vc ' negative: ' || true)
 neg_bad=$(grep -cE '^check .* negative: exit 0$' "$out" || true)

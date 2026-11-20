@@ -59,16 +59,20 @@ ADR-211 Decision 10. First, `bench/stage-9/instructions.txt` committed, byte-equ
 
 ```bash
 set -o pipefail
+I='bench/stage-9 bench/tasks scripts/bench_stage9.py scripts/bench_mechanism.py internal/bench cmd/bench'
 p=$(python3 -m unittest -v scripts.test_bench_stage9 2>&1) && grep -qE '^test_the_rehearsal_fence_refuses_a_missing_or_wrong_digest .* ok$' <<<"$p" \
-  && R=${REHEARSAL:-docs/bench/stage-9/rehearsal.md} && test -f $R && git ls-files --error-unmatch bench/stage-9/instructions.txt > /dev/null \
-  && for k in 'instructions frozen' 'build test' 'oracle test' 'bench build' 'stub canaries' 'stub plans' 'count' 'n event counted' 'paid fences'; do grep -qxF "check $k: exit 0" $R || exit 1; done \
-  && [ "$(grep -c '^check ' $R)" -eq 12 ] && ! grep -q '^subset:' $R && grep -qE '^date: [0-9]{4}-[0-9]{2}-[0-9]{2}$' $R \
-  && for k in 'n event counted' 'stub plans' 'build test'; do grep -qE "^check $k negative: exit [1-9][0-9]*$" $R || exit 1; done \
-  && rev=$(sed -n 's/^revision: \([0-9a-f]\{40\}\)$/\1/p' $R) && [ -n "$rev" ] && git merge-base --is-ancestor "$rev" HEAD \
-  && git diff --quiet "$rev" HEAD -- bench/stage-9 bench/tasks scripts/bench_stage9.py scripts/bench_mechanism.py internal/bench cmd/bench \
-  && for f in bench/stage-9/instructions.txt bench/stage-9/plans.json bench/stage-9/smoke-plans.json bench/stage-9/classes.json scripts/bench_stage9.py scripts/bench_mechanism.py bench/stage-9/rehearse.sh bench/stage-9/stub-agent; do [ "$(grep -c "^$f sha256: " $R)" -eq 1 ] && grep -qxF "$f sha256: $(shasum -a 256 $f | cut -d' ' -f1)" $R || exit 1; done \
-  && for d in m n; do [ "$(grep -c "^$d sha256: " $R)" -eq 1 ] && grep -qxF "$d sha256: $(sed -n "s/^$d sha256: //p" bench/stage-9/builds.md)" $R || exit 1; done \
-  && [ "$(grep -c '^tasks sha256: ' $R)" -eq 1 ] && grep -qxF "tasks sha256: $(for id in $(jq -r '[.[] | .[]] | .[]' bench/stage-9/classes.json); do cat bench/tasks/$id/task.json bench/tasks/$id/reference.patch; done | shasum -a 256 | cut -d' ' -f1)" $R \
+  && R=${REHEARSAL:-docs/bench/stage-9/rehearsal.md} && test -f "$R" && git ls-files --error-unmatch bench/stage-9/instructions.txt > /dev/null \
+  && for k in 'instructions frozen' 'build test' 'oracle test' 'bench build' 'stub canaries' 'stub plans' 'count' 'n event counted' 'paid fences'; do grep -qxF "check $k: exit 0" "$R" || exit 1; done \
+  && [ "$(grep -c '^check ' "$R")" -eq 12 ] && ! grep -q '^subset:' "$R" && grep -qE '^date: [0-9]{4}-[0-9]{2}-[0-9]{2}$' "$R" \
+  && for k in 'n event counted' 'stub plans' 'build test'; do grep -qE "^check $k negative: exit [1-9][0-9]*$" "$R" || exit 1; done \
+  && rev=$(sed -n 's/^revision: \([0-9a-f]\{40\}\)$/\1/p' "$R") && [ -n "$rev" ] && git merge-base --is-ancestor "$rev" HEAD \
+  && git diff --quiet "$rev" HEAD -- $I && git diff --quiet HEAD -- $I && [ -z "$(git ls-files --others --exclude-standard -- $I)" ] \
+  && for f in bench/stage-9/instructions.txt bench/stage-9/plans.json bench/stage-9/smoke-plans.json bench/stage-9/classes.json scripts/bench_stage9.py scripts/bench_mechanism.py bench/stage-9/rehearse.sh bench/stage-9/stub-agent; do [ "$(grep -c "^$f sha256: " "$R")" -eq 1 ] && grep -qxF "$f sha256: $(shasum -a 256 $f | cut -d' ' -f1)" "$R" || exit 1; done \
+  && for a in 'plans:bench/stage-9/plans.json' 'smoke plans:bench/stage-9/smoke-plans.json' 'instructions:bench/stage-9/instructions.txt'; do k=${a%%:*}; f=${a#*:}; [ "$(grep -c "^$k sha256: " "$R")" -eq 1 ] && grep -qxF "$k sha256: $(shasum -a 256 $f | cut -d' ' -f1)" "$R" || exit 1; done \
+  && for d in m n; do [ "$(grep -c "^$d sha256: " "$R")" -eq 1 ] && grep -qxF "$d sha256: $(sed -n "s/^$d sha256: //p" bench/stage-9/builds.md)" "$R" || exit 1; done \
+  && ids=$(jq -r '[.[] | .[]] | .[]' bench/stage-9/classes.json) && [ -n "$ids" ] \
+  && t=$(for id in $ids; do cat bench/tasks/$id/task.json bench/tasks/$id/reference.patch || exit 1; done | shasum -a 256 | cut -d' ' -f1) \
+  && [ "$(grep -c '^tasks sha256: ' "$R")" -eq 1 ] && grep -qxF "tasks sha256: $t" "$R" \
   && git diff --quiet "$(git merge-base HEAD origin/main)" -- go.mod go.sum internal/plan internal/read internal/apply internal/seen internal/check internal/state internal/writer cmd/mrw ':(exclude)*_test.go'
 ```
 

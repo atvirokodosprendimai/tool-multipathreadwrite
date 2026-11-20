@@ -1329,6 +1329,7 @@ class Fixture:
     def rehearsal(self):
         v = dict(line.split(": ", 1) for line in (self.R / "pilot.md").read_text(encoding="utf-8").splitlines())
         text = "date: 2026-11-20\nrevision: rev1\n" + "".join(f"{k}: {v[k]}\n" for k in ("plans sha256", "smoke plans sha256", "tasks sha256", "instructions sha256"))
+        text += "".join(f"check {c}: exit 0\n" for c in ("instructions frozen", "build test", "oracle test", "bench build", "stub canaries", "stub plans", "count", "n event counted", "paid fences"))
         (self.R / "rehearsal.md").write_text(text, encoding="utf-8")
 
     def gate(self, kind, m, a, target, plans, gates, sequence, after, now):
@@ -1461,6 +1462,10 @@ class PaidFences(unittest.TestCase):
         def _(fx): (fx.R / "rehearsal.md").write_text((fx.R / "rehearsal.md").read_text().replace("revision: rev1", "revision: rev2"))
         @t5("a rehearsal of another day")
         def _(fx): (fx.R / "rehearsal.md").write_text((fx.R / "rehearsal.md").read_text().replace("2026-11-20", "2026-11-19"))
+        @t5("a rehearsal that is a trial run's record")
+        def _(fx): (fx.R / "rehearsal.md").write_text((fx.R / "rehearsal.md").read_text() + "subset: 1 task(s) of each class of each plan: a trial, not the rehearsal\n")
+        @t5("a rehearsal with a failed check")
+        def _(fx): (fx.R / "rehearsal.md").write_text((fx.R / "rehearsal.md").read_text().replace("check count: exit 0", "check count: exit 1"))
         @t5("a probe whose exit was not 3")
         def _(fx): Path(str(S(fx) / PSONNET / "a-probe") + ".exit").write_text("2\n")
         @t5("a probe with no stop line")
@@ -1524,6 +1529,7 @@ class RehearsalFence(unittest.TestCase):
              "scripts/bench_stage9.py", "scripts/bench_mechanism.py", "bench/stage-9/rehearse.sh", "bench/stage-9/stub-agent")
     CHECKS = ("instructions frozen", "build test", "oracle test", "bench build", "stub canaries", "stub plans", "count", "n event counted", "paid fences")
     NEGATIVES = ("n event counted", "stub plans", "build test")
+    ALIASES = (("plans", "bench/stage-9/plans.json"), ("smoke plans", "bench/stage-9/smoke-plans.json"), ("instructions", "bench/stage-9/instructions.txt"))
     IDS = ("s9-one", "s9-two", "s9-three")
     TASK = ROOT / "docs" / "adr" / "ADR-211" / "tasks" / "T2-the-free-rehearsal.md"
 
@@ -1563,20 +1569,22 @@ class RehearsalFence(unittest.TestCase):
     def sha(self, name):
         return sha_of(self.repo / name)
 
-    def tasks_digest(self):
-        ids = subprocess.run(["jq", "-r", "[.[] | .[]] | .[]", "bench/stage-9/classes.json"], cwd=self.repo, capture_output=True, text=True, check=True).stdout.split()
+    def tasks_digest(self, ids=None):
+        if ids is None:
+            ids = subprocess.run(["jq", "-r", "[.[] | .[]] | .[]", "bench/stage-9/classes.json"], cwd=self.repo, capture_output=True, text=True, check=True).stdout.split()
         body = b"".join((self.repo / "bench/tasks" / i / n).read_bytes() for i in ids for n in ("task.json", "reference.patch"))
         return hashlib.sha256(body).hexdigest()
 
-    def complete(self):
+    def complete(self, ids=None):
         lines = ["date: 2026-11-20", f"revision: {self.rev}"]
         lines += [f"{name} sha256: {self.sha(name)}" for name in self.FILES]
-        lines += [f"m sha256: {M_HASH}", f"n sha256: {N_HASH}", f"tasks sha256: {self.tasks_digest()}"]
+        lines += [f"m sha256: {M_HASH}", f"n sha256: {N_HASH}", f"tasks sha256: {self.tasks_digest(ids)}"]
+        lines += [f"{k} sha256: {self.sha(f)}" for k, f in self.ALIASES]
         lines += [f"check {c}: exit 0" for c in self.CHECKS] + [f"check {c} negative: exit 1" for c in self.NEGATIVES]
         return lines
 
-    def run_fence(self, lines=None, record=True):
-        record_path = self.tmp / "rehearsal.md"
+    def run_fence(self, lines=None, record=True, name="rehearsal.md"):
+        record_path = self.tmp / name
         if record:
             record_path.write_text("\n".join(self.lines if lines is None else lines) + "\n", encoding="utf-8")
         elif record_path.exists():
@@ -1628,6 +1636,42 @@ class RehearsalFence(unittest.TestCase):
                     self.assertNotEqual(code, 0, out)
                 finally:
                     path.write_bytes(before)
+    def test_the_rehearsal_fence_reads_the_working_tree_and_the_alias_digests(self):
+        # an input changed and not committed, its digest brought up to date: only the working tree says so
+        stub = self.repo / "bench/stage-9/stub-agent"
+        before = stub.read_bytes()
+        stub.write_bytes(before + b"\n")
+        code, out = self.run_fence(self.complete())
+        stub.write_bytes(before)
+        self.assertNotEqual(code, 0, out)
+        extra = self.repo / "bench/stage-9/extra.txt"  # an untracked file under the inputs
+        extra.write_text("x\n", encoding="utf-8")
+        code, out = self.run_fence()
+        extra.unlink()
+        self.assertNotEqual(code, 0, out)
+        for k, f in self.ALIASES:
+            line = f"{k} sha256: {self.sha(f)}"
+            for why, lines in ((f"{k} missing", [ln for ln in self.lines if ln != line]), (f"{k} twice", [*self.lines, line]),
+                               (f"{k} wrong", [ln.replace(line, f"{k} sha256: " + "0" * 64) for ln in self.lines])):
+                code, out = self.run_fence(lines)
+                self.assertNotEqual(code, 0, f"the fence stayed green on: {why}\n{out}")
+
+    def test_the_rehearsal_fence_takes_a_record_path_with_a_space(self):
+        code, out = self.run_fence(name="a record.md")
+        self.assertEqual(code, 0, out)
+
+    def test_the_rehearsal_fence_refuses_a_task_that_is_not_there(self):
+        # cat fails on the missing id and the hash of what it did print is the old one: the failure must not hide in the pipeline
+        classes = self.repo / "bench/stage-9/classes.json"
+        classes.write_text(json.dumps({"single-site": ["s9-ghost", self.IDS[0]], "follow-on": list(self.IDS[1:])}), encoding="utf-8")
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", "a task that is not there")
+        self.rev = subprocess.run(["git", "rev-parse", "HEAD"], cwd=self.repo, capture_output=True, text=True, check=True).stdout.strip()
+        self.git("update-ref", "refs/remotes/origin/main", self.rev)
+        lines = [ln for ln in self.complete(self.IDS)]
+        code, out = self.run_fence(lines)
+        self.assertNotEqual(code, 0, out)
+
 
 
     def commit_change(self, name, body):
