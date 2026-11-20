@@ -4,11 +4,13 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"io"
+	"os"
 	"path/filepath"
 	"sort"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/apply"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/regular"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 )
 
 // Snapshot is the hash of each file a write touched, taken just before its
@@ -18,9 +20,9 @@ type Snapshot map[string]string
 
 // Before hashes each file res wrote and did not remove, as it stands now —
 // just before the check. The baseline is what is on disk, not the write's
-// sha_after: a renamed relative symlink keeps the sha of the file it pointed at
-// before the move and resolves to another after it, and a drift reported
-// against that would be a lie (the Codex review of #309).
+// sha_after: it is the bytes the check will see, whatever the receipt said
+// (the Codex review of #309; since #712 a moved link's sha_after is what it
+// reads at its new place).
 func Before(root string, res apply.Result) Snapshot {
 	s := Snapshot{}
 	for _, f := range res.Files {
@@ -31,7 +33,13 @@ func Before(root string, res apply.Result) Snapshot {
 		if f.RenamedTo != "" {
 			p = f.RenamedTo
 		}
-		s[p] = hashOf(filepath.Join(root, filepath.FromSlash(p)))
+		// A moved link is hashed only where the boundary allows it: a target
+		// outside the root or in mrw's state is never read (#712, Codex on
+		// #725); it can still drift inside the root (the Codex review of #309).
+		if _, err := rooted.Resolve(root, p); err != nil {
+			continue
+		}
+		s[p] = hashIn(root, p)
 	}
 	return s
 }
@@ -44,7 +52,9 @@ func Before(root string, res apply.Result) Snapshot {
 func Drift(root string, s Snapshot) []string {
 	var out []string
 	for p, sha := range s {
-		if hashOf(filepath.Join(root, filepath.FromSlash(p))) != sha {
+		// Judged again: a path that now resolves outside the root has drifted,
+		// and is not read.
+		if _, err := rooted.Resolve(root, p); err != nil || hashIn(root, p) != sha {
 			out = append(out, p)
 		}
 	}
@@ -52,12 +62,19 @@ func Drift(root string, s Snapshot) []string {
 	return out
 }
 
-// hashOf is the sha256 of full's bytes, streamed so a file that grew under the
-// check costs no more memory than one that did not, or "" when full is not a
-// regular file. It opens through regular.Open, so a file swapped for a FIFO is
-// not waited on (ADR-109).
-func hashOf(full string) string {
-	f, fi, err := regular.Open(full)
+// hashIn is the sha256 of the bytes of p, root-relative, streamed so a file
+// that grew under the check costs no more memory than one that did not, or ""
+// when p is not a regular file. It opens through an os.Root held on root, so
+// a link or a parent swapped after the boundary was judged cannot lead the
+// open outside it (Codex on #725), and through regular.OpenIn, so a file
+// swapped for a FIFO is not waited on (ADR-109).
+func hashIn(root, p string) string {
+	r, err := os.OpenRoot(root)
+	if err != nil {
+		return ""
+	}
+	defer func() { _ = r.Close() }()
+	f, fi, err := regular.OpenIn(r, filepath.FromSlash(p))
 	if err != nil {
 		return ""
 	}

@@ -3322,7 +3322,7 @@ func reportMode(w io.Writer, res apply.Result, quiet, terse bool) error {
 			if f.Target != "" {
 				through = "  target " + f.Target
 			}
-			fmt.Fprintf(out, "%s %s  %dL -> %dL  sha %s%s\n", verb, f.Path, f.LinesFrom, f.LinesTo, short(f.SHAAfter), through)
+			fmt.Fprintf(out, "%s %s  %dL -> %dL  sha %s%s\n", verb, f.Path, f.LinesFrom, f.LinesTo, shaOrNone(f.SHAAfter), through)
 		}
 	}
 
@@ -3479,6 +3479,15 @@ func plural(n int, one, many string) string {
 		return one
 	}
 	return many
+}
+
+// shaOrNone is short(s), or "-" for a file whose content the receipt does not
+// give: a moved link that reads nothing at its new place (#712).
+func shaOrNone(s string) string {
+	if s == "" {
+		return "-"
+	}
+	return short(s)
 }
 
 func short(sha string) string {

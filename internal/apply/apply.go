@@ -234,6 +234,10 @@ type FileResult struct {
 	// file's numbering, in place of a whole-file licence. Not receipt fields.
 	Spans      [][2]int `json:"-"`
 	QuotedOnly bool     `json:"-"`
+	// NotProduced is set on a moved link, whose destination may read bytes
+	// mrw did not write: its target is not read, the record carries no
+	// content fields, and it licenses nothing (#712). Not a receipt field.
+	NotProduced bool `json:"-"`
 }
 
 // Result is the whole run's receipt.
