@@ -6,6 +6,7 @@ import (
 	"io"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -91,7 +92,7 @@ func BuildSub(root string, posArgs []string, pattern, repl string, excludes []st
 		return nil, usageFrom(err)
 	}
 	for _, p := range refusals {
-		fmt.Fprintf(diag, "==> %s  REFUSED  %s\n", p.Path, p.Reason)
+		fmt.Fprintf(diag, "==> %s  REFUSED  %s\n", ShownPath(p.Path), OneLine(p.Reason))
 	}
 	skipNote := func() {
 		if note := SkipNote(skipped, "--no-ignore"); note != "" {
@@ -107,7 +108,7 @@ func BuildSub(root string, posArgs []string, pattern, repl string, excludes []st
 	skipNote()
 	if len(sub.Refused) > 0 {
 		for _, r := range sub.Refused {
-			fmt.Fprintf(diag, "==> %s\n", r)
+			fmt.Fprintf(diag, "==> %s\n", OneLine(r))
 		}
 		return nil, notApplied("incomplete: %d path(s) cannot be written in a plan, so nothing is planned", len(sub.Refused))
 	}
@@ -192,7 +193,7 @@ func BuildRewrite(root string, posArgs []string, pattern, repl string, excludes 
 		return nil, usageFrom(err)
 	}
 	for _, p := range refusals {
-		fmt.Fprintf(diag, "==> %s  REFUSED  %s\n", p.Path, p.Reason)
+		fmt.Fprintf(diag, "==> %s  REFUSED  %s\n", ShownPath(p.Path), OneLine(p.Reason))
 	}
 	if note := SkipNote(skipped, "--no-ignore"); note != "" {
 		fmt.Fprintln(diag, note)
@@ -208,7 +209,7 @@ func BuildRewrite(root string, posArgs []string, pattern, repl string, excludes 
 	}
 	if len(rw.Refused) > 0 {
 		for _, r := range rw.Refused {
-			fmt.Fprintf(diag, "==> %s\n", r)
+			fmt.Fprintf(diag, "==> %s\n", OneLine(r))
 		}
 		return nil, notApplied("incomplete: %d file(s) cannot be rewritten as a plan, so nothing is planned", len(rw.Refused))
 	}
@@ -256,8 +257,51 @@ func NoMatchLine(pattern string, refused int, hint string) string {
 	return "no match: " + found + hint
 }
 
-// OneLine spells a pattern's line breaks, so the kind that begins the last line
-// is on the last line a caller reads.
+// OneLine spells the control bytes of a line of text (a pattern, a reason, an
+// error that embeds a path), so no line a caller reads continues on the next: the
+// kind that begins the last line is on the last line (#740).
 func OneLine(s string) string {
-	return strings.NewReplacer("\r", `\r`, "\n", `\n`).Replace(s)
+	clean := true
+	for i := 0; i < len(s); i++ {
+		if s[i] < 0x20 || s[i] == 0x7f {
+			clean = false
+			break
+		}
+	}
+	if clean {
+		return s
+	}
+	var b strings.Builder
+	for i := 0; i < len(s); i++ {
+		switch c := s[i]; {
+		case c == '\n':
+			b.WriteString(`\n`)
+		case c == '\r':
+			b.WriteString(`\r`)
+		case c < 0x20 || c == 0x7f:
+			fmt.Fprintf(&b, `\x%02x`, c)
+		default:
+			b.WriteByte(c)
+		}
+	}
+	return b.String()
+}
+
+// ShownPath is a path as a header line prints it: unchanged, unless it holds a
+// control byte (a line feed, a carriage return, anything below 0x20, DEL) or
+// begins with a quote, when it is quoted and escaped, so no header ever spans
+// lines or reads as another file's header (#740). A path that begins with a quote
+// is quoted too, so the one kind of header that begins with a quote is an escaped
+// one and the escaped spelling of a name never equals a file literally named with
+// those characters: the function is injective.
+func ShownPath(p string) string {
+	if strings.HasPrefix(p, `"`) {
+		return strconv.Quote(p)
+	}
+	for i := 0; i < len(p); i++ {
+		if p[i] < 0x20 || p[i] == 0x7f {
+			return strconv.Quote(p)
+		}
+	}
+	return p
 }

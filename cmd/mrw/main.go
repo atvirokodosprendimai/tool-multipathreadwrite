@@ -1549,7 +1549,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			// reason, and counts. Rule 5: one bad path never costs the caller
 			// the answers about the good ones, but it is never silent either.
 			for _, p := range refusals {
-				fmt.Fprintf(read.Reporting(stdout, &withheld), "==> %s  REFUSED  %s\n", p.Path, p.Reason)
+				fmt.Fprintf(read.Reporting(stdout, &withheld), "==> %s  REFUSED  %s\n", read.ShownPath(p.Path), read.OneLine(p.Reason))
 			}
 			// ADR-116: what the walk skipped is said, never silent, as the
 			// read's last line.

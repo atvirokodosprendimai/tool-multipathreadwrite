@@ -478,12 +478,12 @@ func quoteWord(s string, windows bool) string {
 
 // withheldName is how the withheld report names a spec: the spec as the caller
 // wrote it when it carries ranges, so two withheld ranges of one file are two
-// different lines, else the path.
+// different lines, else the path. Either is one line, whatever bytes it holds.
 func withheldName(sp Spec) string {
 	if len(sp.Ranges) > 0 && sp.Raw != "" {
-		return sp.Raw
+		return OneLine(sp.Raw)
 	}
-	return sp.Path
+	return ShownPath(sp.Path)
 }
 
 // ParseSpec reads "path", "path:3-6", "path:1-8,100-130" or
@@ -817,7 +817,7 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 		line := fmt.Sprintf(format, args...)
 		fmt.Fprint(w, line)
 		if bud.Over() {
-			fmt.Fprintf(withheld, "%s: %s", path, line)
+			fmt.Fprintf(withheld, "%s: %s", ShownPath(path), line)
 		}
 	}
 	for _, sp := range specs {
@@ -865,7 +865,7 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 				spans = withNextLine(spans, len(lines))
 			}
 			n, size := spanSize(b, spans, opt.MaxLines)
-			fmt.Fprintf(w, "==> %s  unchanged since sha %s — %d lines, %d bytes not served\n", sp.Path, guard, n, size)
+			fmt.Fprintf(w, "==> %s  unchanged since sha %s — %d lines, %d bytes not served\n", ShownPath(sp.Path), guard, n, size)
 			// Whether the unchanged line itself reached the caller is judged
 			// before anything else is printed, so a diagnostic that overruns
 			// the budget after it cannot withdraw an answer already delivered
@@ -895,7 +895,7 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 				spans = withNextLine(spans, len(lines))
 			}
 			if rec := opt.Served(filepath.Clean(sp.Path)); rec.SHA == sha && len(spans) > 0 && allShown(rec, spans) {
-				fmt.Fprintf(w, "==> %s  %dL  %dB  sha %s\n", sp.Path, len(lines), len(b), sha[:8])
+				fmt.Fprintf(w, "==> %s  %dL  %dB  sha %s\n", ShownPath(sp.Path), len(lines), len(b), sha[:8])
 				listed := make([][2]int, len(spans))
 				parts := make([]string, len(spans))
 				for i, s := range spans {
@@ -935,7 +935,7 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 				continue
 			}
 		}
-		header := fmt.Sprintf("==> %s  %dL  %dB  sha %s", sp.Path, len(lines), len(b), sha[:8])
+		header := fmt.Sprintf("==> %s  %dL  %dB  sha %s", ShownPath(sp.Path), len(lines), len(b), sha[:8])
 		// countMissed is the pattern a counted file no longer matches: the walk
 		// found it, and another writer changed it before this read. A plain
 		// grep reports that as a missed range, and so does a count (the Codex
@@ -1111,7 +1111,7 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 				if j > 0 {
 					from = s.start
 				}
-				fmt.Fprintf(withheld, "%s: lines %d-%d WITHHELD (%d line(s)): --max-chars reached\n", sp.Path, from, s.end, s.end-from+1)
+				fmt.Fprintf(withheld, "%s: lines %d-%d WITHHELD (%d line(s)): --max-chars reached\n", ShownPath(sp.Path), from, s.end, s.end-from+1)
 				problems++
 			}
 			whole = false
@@ -1350,13 +1350,13 @@ func load(w io.Writer, root string, sp *Spec) (b []byte, englishUnreadable, ok b
 	if rooted.IsRooted(argPath) {
 		absRoot, absErr := rooted.Abs(root)
 		if absErr != nil {
-			fmt.Fprintf(w, "==> %s  REFUSED  %v\n", sp.Path, absErr)
+			fmt.Fprintf(w, "==> %s  REFUSED  %s\n", ShownPath(sp.Path), OneLine(absErr.Error()))
 			return nil, false, false
 		}
 		cleaned := rooted.Real(argPath)
 		if !rooted.Contains(absRoot, cleaned) {
-			fmt.Fprintf(w, "==> %s  REFUSED  %s is outside the root %s: "+
-				"read it with --root pointed where you mean%s\n", sp.Path, sp.Path, absRoot, readElsewhere(cleaned, sp.Raw, argPath))
+			fmt.Fprintf(w, "==> %s  REFUSED  %s\n", ShownPath(sp.Path), OneLine(fmt.Sprintf("%s is outside the root %s: "+
+				"read it with --root pointed where you mean%s", sp.Path, absRoot, readElsewhere(cleaned, sp.Raw, argPath))))
 			return nil, false, false
 		}
 		if rel, relErr := filepath.Rel(absRoot, cleaned); relErr == nil {
@@ -1373,16 +1373,16 @@ func load(w io.Writer, root string, sp *Spec) (b []byte, englishUnreadable, ok b
 		// ADR-081: no --root makes a device name, or a name Windows does not
 		// keep as written, a file, so the advice below would send the caller
 		// nowhere (the review of #243).
-		fmt.Fprintf(w, "==> %s  REFUSED  %v\n", sp.Path, err)
+		fmt.Fprintf(w, "==> %s  REFUSED  %s\n", ShownPath(sp.Path), OneLine(err.Error()))
 		return nil, false, false
 	}
 	if errors.Is(err, rooted.ErrNotADirectory) {
-		fmt.Fprintf(w, "==> %s  UNREADABLE  %v\n", sp.Path, err)
+		fmt.Fprintf(w, "==> %s  UNREADABLE  %s\n", ShownPath(sp.Path), OneLine(err.Error()))
 		return nil, false, false
 	}
 	if errors.Is(err, rooted.ErrOwnState) {
 		// ADR-157: no --root lifts this refusal, so none is advised.
-		fmt.Fprintf(w, "==> %s  REFUSED  %v\n", sp.Path, err)
+		fmt.Fprintf(w, "==> %s  REFUSED  %s\n", ShownPath(sp.Path), OneLine(err.Error()))
 		return nil, false, false
 	}
 	if err != nil {
@@ -1395,7 +1395,7 @@ func load(w io.Writer, root string, sp *Spec) (b []byte, englishUnreadable, ok b
 		if errors.As(err, &oe) && oe.Exists {
 			advice = readElsewhere(oe.Resolved, sp.Raw, sp.Path)
 		}
-		fmt.Fprintf(w, "==> %s  REFUSED  %v: read it with --root pointed where you mean%s\n", sp.Path, err, advice)
+		fmt.Fprintf(w, "==> %s  REFUSED  %s\n", ShownPath(sp.Path), OneLine(fmt.Sprintf("%v: read it with --root pointed where you mean%s", err, advice)))
 		return nil, false, false
 	}
 	afterResolveFn()
@@ -1409,7 +1409,7 @@ func load(w io.Writer, root string, sp *Spec) (b []byte, englishUnreadable, ok b
 	// refuses one over the cap by its size, and bounds the read itself.
 	b, err = readCappedIn(root, full)
 	if errors.Is(err, regular.ErrNotRegular) {
-		fmt.Fprintf(w, "==> %s  UNREADABLE  %s\n", sp.Path, lines.NotRegular)
+		fmt.Fprintf(w, "==> %s  UNREADABLE  %s\n", ShownPath(sp.Path), lines.NotRegular)
 		return nil, false, false
 	}
 	if err != nil {
@@ -1432,7 +1432,8 @@ func load(w io.Writer, root string, sp *Spec) (b []byte, englishUnreadable, ok b
 				english = false
 			}
 		}
-		fmt.Fprintf(w, "==> %s  UNREADABLE  %v%s\n", sp.Path, err, glob)
+		// glob is a hint whose own line breaks are intended; only the error, which embeds the path, is escaped.
+		fmt.Fprintf(w, "==> %s  UNREADABLE  %s%s\n", ShownPath(sp.Path), OneLine(err.Error()), glob)
 		return nil, english, false
 	}
 	return b, false, true
@@ -1818,10 +1819,14 @@ func split(b []byte) ([]string, string) {
 
 // NamedFiles names up to five files and counts the rest (ADR-148, ADR-179).
 func NamedFiles(names []string) string {
-	if len(names) <= 5 {
-		return strings.Join(names, ", ")
+	shown := make([]string, len(names))
+	for i, n := range names {
+		shown[i] = ShownPath(n)
 	}
-	return fmt.Sprintf("%s and %d more", strings.Join(names[:5], ", "), len(names)-5)
+	if len(shown) <= 5 {
+		return strings.Join(shown, ", ")
+	}
+	return fmt.Sprintf("%s and %d more", strings.Join(shown[:5], ", "), len(shown)-5)
 }
 
 // hintUnexpandedGlob explains an unreadable path that holds a glob

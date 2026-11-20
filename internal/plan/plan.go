@@ -457,6 +457,24 @@ func parseHeader(line string, srcLine int) (Hunk, int, error) {
 		return Hunk{}, 0, fmt.Errorf("unknown op %q (want replace, insert-after, insert-before, delete, create, unlink or rename)%s", fields[2], earlyEnd(fields))
 	}
 	if h.Addr, err = ParseAddr(fields[1]); err != nil {
+		// The tokenizer consumed the quotes of a JSON path (`$["a,b"]` reached
+		// ParseAddr as `$[a,b]`), and the refusal names the address it was given:
+		// it names the address as written instead (#719). Whenever the field is a
+		// JSON path, the raw field is used verbatim: only a quote around the `$`
+		// itself is left out (`"$".x` is refused as it always was, naming `$.x`),
+		// because that quote hides nothing of the address. A key named `$`
+		// (`$["$"]`) is not that quote and keeps its own.
+		if strings.HasPrefix(fields[1], "$.") || strings.HasPrefix(fields[1], "$[") {
+			if rawFields, _, rerr := splitHeaderMode(strings.TrimPrefix(line, "@@ "), true); rerr == nil && len(rawFields) > 1 {
+				raw := rawFields[1]
+				if rest, ok := strings.CutPrefix(raw, `"$"`); ok {
+					raw = "$" + rest
+				}
+				if raw != fields[1] {
+					err = jsonPathRefusal(rawFields[1])
+				}
+			}
+		}
 		return Hunk{}, 0, err
 	}
 
@@ -656,6 +674,12 @@ func joinUnquotedAnchorOptions(fields []string, quoted []bool) []string {
 // and single-quoted key=value fields together, so a path with a space or an
 // anchor= holding a phrase survives. A single-quoted path is literal.
 func splitHeader(s string) ([]string, []bool, error) {
+	return splitHeaderMode(s, false)
+}
+
+// splitHeaderMode is splitHeader; with raw, the quotes and escaping backslashes
+// stay in the fields, which then read as the header was written.
+func splitHeaderMode(s string, raw bool) ([]string, []bool, error) {
 	var (
 		out       []string
 		quoted    []bool
@@ -717,11 +741,17 @@ func splitHeader(s string) ([]string, []bool, error) {
 			// address, because it does not come through this splitter. Found by
 			// the third Codex review of PR #125, and it is the FOURTH scanner
 			// in this repository that had its own idea of what a pattern is.
+			if raw {
+				cur.WriteByte('\\')
+			}
 			cur.WriteByte(rs[i+1])
 			inTok = true
 			i++
 		case !inPat && !inSQ && r == '"':
 			wasQuoted = true
+			if raw {
+				cur.WriteByte(r)
+			}
 			// ⚠ NOT INSIDE A PATTERN. A quote is an ordinary regexp character,
 			// and toggling on it here CONSUMED it: `/^"foo"$/` reached the
 			// parser as `/^foo$/`, a different expression that matched a
@@ -738,6 +768,9 @@ func splitHeader(s string) ([]string, []bool, error) {
 			// both treat 'docs/adr/x.md' as that name, not docs/adr/x.md.
 			if inSQ || strings.Contains(cur.String(), "=") {
 				wasQuoted = true
+				if raw {
+					cur.WriteByte(r)
+				}
 				inSQ, inTok = !inSQ, true
 			} else {
 				cur.WriteByte(r)
@@ -810,6 +843,11 @@ func parsePattern(s string) (Addr, error) {
 	}
 }
 
+// jsonPathRefusal is the refusal of a JSON-path address in a plan, naming s.
+func jsonPathRefusal(s string) error {
+	return fmt.Errorf("%q: a JSON path is a read address: read it, then address the lines it served", s)
+}
+
 // ParseAddr reads an address: "N", "N-M", "N-" (to end of file), "$" (last
 // line), "0" (before the first line) or "-" (no address, for create).
 func ParseAddr(s string) (Addr, error) {
@@ -831,7 +869,7 @@ func ParseAddr(s string) (Addr, error) {
 	// A JSON path is a read address (ADR-155): a value's span moves with every
 	// hunk above it, and a write resolves against the original file.
 	if strings.HasPrefix(s, "$.") || strings.HasPrefix(s, "$[") {
-		return Addr{}, fmt.Errorf("%q: a JSON path is a read address: read it, then address the lines it served", s)
+		return Addr{}, jsonPathRefusal(s)
 	}
 	// A pattern is scanned before anything splits on "-" or ",": those are
 	// ordinary characters inside a regex, and cutting first is how `/a-b/`

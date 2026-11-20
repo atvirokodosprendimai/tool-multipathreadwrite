@@ -744,7 +744,15 @@ func merged(root string, obs map[string]Observation) func() error {
 		}
 		for path, o := range obs {
 			k := storedKey(prefix, path)
-			l[k] = merge(l[k], o)
+			nr := merge(l[k], o)
+			// #721: a record that outgrew the bound is left out by save, and with
+			// it every licence the file already held. Spans cannot be coalesced
+			// (that would license the gaps), so the previous record of the same
+			// version stays and the lines that did not fit are not licensed.
+			if old, ok := l[k]; ok && old.SHA == o.SHA && recordSize(k, nr) > maxRecordBytes {
+				continue
+			}
+			l[k] = nr
 		}
 		return save(top, l)
 	}
@@ -922,7 +930,7 @@ func save(root string, l Ledger) error {
 		// second one written by a file or directory name (the Codex review of
 		// ADR-161 T11): it is left out, as an unreadable record is, and that
 		// file needs reading again.
-		if strings.Contains(p, "\n") {
+		if !Recordable(p) {
 			continue
 		}
 		line := fmt.Sprintf("%s  %s  %s\n", l[p].SHA, formatSpans(l[p]), p)
@@ -939,6 +947,52 @@ func save(root string, l Ledger) error {
 	return nil
 }
 
+// Recordable says whether the ledger can hold a record under key k: a key holding
+// a line feed would read back as two records, so save leaves it out. A trailing
+// carriage return is part of a key the ledger keeps (ADR-068).
+func Recordable(k string) bool { return !strings.Contains(k, "\n") }
+
+// recordSize is the length of the ledger line for o under key k.
+func recordSize(k string, o Observation) int64 {
+	return int64(len(fmt.Sprintf("%s  %s  %s\n", o.SHA, formatSpans(o), k)))
+}
+
+// recordWith is the record the ledger would hold after recording o: o merged
+// into the held record of the same version, or o alone.
+func recordWith(r Observation, held bool, o Observation) Observation {
+	if held && r.SHA == o.SHA {
+		return merge(r, o)
+	}
+	return o
+}
+
+// covers says whether the held record r licenses every line o does.
+func covers(r, o Observation) bool {
+	if o.Whole() {
+		return r.Whole()
+	}
+	if r.Whole() {
+		return true
+	}
+	// Linear after one sort of each: the spans merged into sorted, disjoint runs
+	// (copies; mergeSpans sorts in place), then one sweep with two cursors. Asking
+	// the record about every line of every span was quadratic in the spans (#740).
+	rs := mergeSpans(append([][2]int(nil), r.Spans...))
+	i := 0
+	for _, s := range mergeSpans(append([][2]int(nil), o.Spans...)) {
+		if s[1] < s[0] {
+			continue // an empty range is covered trivially, as Covers leaves it
+		}
+		for i < len(rs) && rs[i][1] < s[0] {
+			i++
+		}
+		if i == len(rs) || rs[i][0] > s[0] || rs[i][1] < s[1] {
+			return false
+		}
+	}
+	return true
+}
+
 // OmittedError is what Unrecorded returns: records the ledger cannot hold and
 // save therefore left out (#702). Each omitted path is named with its reason,
 // so a read that exists to license lines can refuse instead of reporting a
@@ -947,7 +1001,13 @@ type OmittedError struct {
 	// Paths holds each omitted path, quoted, with its reason.
 	Paths []string
 	// LineFeed, Size and Changed say which reasons Paths holds, for the advice.
-	LineFeed, Size, Changed bool
+	// WholeSize is a Size omission of a whole-file read, which no narrower range
+	// can answer: the record is already the smallest the key allows. MergeSize is a
+	// whole-file licence whose record, kept beside the lines already shown of the
+	// same version, is over the bound though the whole-file record alone would fit.
+	// Single is a Size omission of a request for one line, which no smaller range
+	// can answer either.
+	LineFeed, Size, Changed, WholeSize, MergeSize, Single bool
 }
 
 // Error names what the ledger could not hold and what can be done about it.
@@ -956,8 +1016,17 @@ func (e *OmittedError) Error() string {
 	if e.LineFeed {
 		msg += "; a name holding a line feed cannot be recorded, so editing it needs --force or a rename"
 	}
-	if e.Size {
+	if e.Size && !e.Single {
 		msg += "; a record that large cannot be recorded, so read a smaller range"
+	}
+	if e.Single {
+		msg += "; the range asked for is one line, so no narrower range exists: read the whole file (mrw read PATH) to replace the record, or run mrw seen --forget"
+	}
+	if e.WholeSize {
+		msg += "; a whole-file record is the smallest a path can have and this one is still over the bound, so the path itself is too long to record: rename it or its directory shorter"
+	}
+	if e.MergeSize {
+		msg += "; the path fits, but its record would also have to keep the lines already shown of this version and that is over the bound: read the whole file again (mrw read PATH) to replace the record"
 	}
 	if e.Changed {
 		msg += "; another command changed its record meanwhile, so read it again"
@@ -1000,16 +1069,25 @@ func Unrecorded(root string, obs map[string]Observation) error {
 	for _, p := range paths {
 		o := obs[p]
 		k := storedKey(prefix, p)
-		if r, ok := l[k]; ok && r.SHA == o.SHA {
+		r, held := l[k]
+		if held && r.SHA == o.SHA && covers(r, o) {
 			continue
 		}
 		switch {
-		case strings.Contains(k, "\n"):
+		case !Recordable(k):
 			om.Paths = append(om.Paths, fmt.Sprintf("%q (its name holds a line feed)", k))
 			om.LineFeed = true
-		case int64(len(fmt.Sprintf("%s  %s  %s\n", o.SHA, formatSpans(o), k))) > maxRecordBytes:
+		case recordSize(k, recordWith(r, held, o)) > maxRecordBytes:
 			om.Paths = append(om.Paths, fmt.Sprintf("%q (its record is over %d bytes)", k, maxRecordBytes))
-			om.Size = true
+			switch {
+			case !o.Whole():
+				om.Size = true
+				om.Single = len(o.Spans) == 1 && o.Spans[0][0] == o.Spans[0][1]
+			case recordSize(k, o) > maxRecordBytes:
+				om.WholeSize = true // even the whole-file record alone is over the bound
+			default:
+				om.MergeSize = true
+			}
 		default:
 			// Neither reason holds: another command recorded the file again
 			// between this read's record and the check (Codex on #718).
