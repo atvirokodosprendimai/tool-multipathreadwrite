@@ -1,6 +1,7 @@
 package curve
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"math"
@@ -124,7 +125,17 @@ func ScoreTrial(dir string, r Result) (Score, error) {
 	}
 	ledger := map[string]apply.Seen{filepath.Clean(m.File): {SHA: seen.SHA(before)}}
 	res, err := apply.Apply(scratch, inputs(hunks), apply.Options{Seen: ledger})
-	if err != nil {
+	// A sync that failed BEFORE anything landed (a staged temp, the drain) is the
+	// storage's failure, not the plan's: the plan was never tried. It is the
+	// harness's error, so the trial is not scored (and so not counted as a
+	// refusal), as any failure with no verdict of the plan's is (ADR-020).
+	if errors.Is(err, apply.ErrStagingSync) {
+		return Score{}, fmt.Errorf("apply: %w", err)
+	}
+	// A sync that failed AFTER the plan landed (ADR-210) is a plan that applied:
+	// the file is changed, so it is scored on what it changed.
+	var syncErr *apply.SyncError
+	if err != nil && !(res.Applied && errors.As(err, &syncErr)) {
 		// Apply fills the receipt before returning an error, so a receipt with
 		// per-hunk verdicts means the PLAN drove this — a path naming a
 		// directory, for instance. That is the client being wrong, which is

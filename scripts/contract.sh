@@ -12084,6 +12084,46 @@ else
   skip "the ACL rows need darwin and chmod +a"
 fi
 
+# 361. ADR-210: a write syncs what it staged before the first rename, and every
+# directory it changed after the last change, before the ledger is written.
+# Under strace, following forks and decoding descriptors (Linux; a runner without strace or without ptrace says
+# so and skips) every temp's fsync must precede the first tree rename, each
+# changed directory's fsync must follow the last one, and the ledger's rename
+# must follow those. Paired with --dry-run, which syncs nothing in the tree.
+s361="$WORK/s361"; rm -rf "$s361"; mkdir -p "$s361/tree/d1" "$s361/tree/d2"
+st361="strace -f -y -e trace=fsync,fdatasync,rename,renameat,renameat2"
+if command -v strace >/dev/null 2>&1 && strace -o "$WORK/t361.probe" true >/dev/null 2>&1; then
+  r361="$(cd "$s361/tree" && pwd -P)"
+  printf 'a1\na2\na3\n' > "$r361/d1/a.txt"; printf 'b1\nb2\nb3\n' > "$r361/d2/b.txt"
+  "$MRW" -C "$r361" read d1/a.txt d2/b.txt > "$WORK/served.out"
+  printf '@@ d1/a.txt 2 replace\nA2\n@@ d2/b.txt 2 replace\nB2\n' > "$s361/plan"
+  $st361 -o "$s361/trace" "$MRW" -C "$r361" write --no-check "$s361/plan" > "$WORK/served.out" 2>&1
+  want 0 $? "the strace'd write lands"
+  # each call that returned 0, numbered in the order it was made: the temps
+  # fsynced before the first tree rename, that rename and the last, the two
+  # directories' fsyncs and the ledger's rename
+  read -r nt361 first361 last361 d1361 d2361 ledger361 <<<"$(grep -E ' = 0$' "$s361/trace" | awk -v R="$r361" '
+    /renameat2?\(/ && index($0, "<" R "/") { if (!first) first = NR; last = NR }
+    index($0, "fsync(") && index($0, "<" R "/") && index($0, ".mrw-") && !first { nt++ }
+    index($0, "fsync(") && index($0, "<" R "/d1>") { d1 = NR }
+    index($0, "fsync(") && index($0, "<" R "/d2>") { d2 = NR }
+    /renameat2?\(.*\/seen"\) = 0$/ { ledger = NR }
+    END { print nt + 0, first + 0, last + 0, d1 + 0, d2 + 0, ledger + 0 }')"
+  tr361="temps=$nt361 first=$first361 last=$last361 d1=$d1361 d2=$d2361 ledger=$ledger361"
+  { [ "$first361" -gt 0 ] && [ "$nt361" = 2 ]; } && ok "both temps are fsynced before the first tree rename, which the trace shows" || bad "temps fsynced before the first rename: $nt361 ($tr361)"
+  { [ "$last361" -gt 0 ] && [ "$d1361" -gt "$last361" ] && [ "$d2361" -gt "$last361" ]; } && ok "each changed directory is fsynced after the last tree rename" || bad "directory fsyncs not after the last rename ($tr361)"
+  { [ "$d1361" -gt 0 ] && [ "$d2361" -gt 0 ] && [ "$ledger361" -gt "$d1361" ] && [ "$ledger361" -gt "$d2361" ]; } && ok "the ledger's rename follows the directory syncs" || bad "ledger rename not last ($tr361)"
+  # the pair: a dry run on a fresh fixture exits 0 and syncs nothing in the tree
+  printf 'x1\nx2\n' > "$r361/d1/c.txt"
+  "$MRW" -C "$r361" read d1/c.txt > "$WORK/served.out"
+  printf '@@ d1/c.txt 2 replace\nX\n' > "$s361/plan2"
+  $st361 -o "$s361/trace2" "$MRW" -C "$r361" write --dry-run --no-check "$s361/plan2" > "$WORK/served.out" 2>&1
+  want 0 $? "the pair: the strace'd dry run exits 0"
+  if grep -E 'fsync\(' "$s361/trace2" | grep -qF "<$r361/"; then bad "a dry run synced a tree path: $(grep -E 'fsync\(' "$s361/trace2" | head -3)"; else ok "and syncs nothing in the tree"; fi
+else
+  skip "ADR-210's strace trace needs strace and ptrace; neither is usable here, so the order of the syncs is proved by the Go tests alone"
+fi
+
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
 # killed process is a zombie until its adopter reaps it, and pgrep lists

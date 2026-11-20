@@ -1,0 +1,57 @@
+package apply
+
+import (
+	"errors"
+	"os"
+	"syscall"
+	"testing"
+)
+
+// ADR-210 review. A signal that interrupts fsync is retried, not reported as a
+// failure to sync; any other error is returned at once.
+func TestAnInterruptedFsyncIsRetried(t *testing.T) {
+	calls := 0
+	err := retryEINTR(func() error {
+		calls++
+		if calls < 3 {
+			return syscall.EINTR
+		}
+		return nil
+	})
+	if err != nil || calls != 3 {
+		t.Errorf("err=%v after %d call(s); want nil after 3", err, calls)
+	}
+	calls = 0
+	boom := errors.New("EIO")
+	if err := retryEINTR(func() error { calls++; return boom }); err != boom || calls != 1 {
+		t.Errorf("err=%v after %d call(s); want the error at once", err, calls)
+	}
+}
+
+// ADR-210 review (P1). A filesystem that answers F_FULLFSYNC with ENOTSUP gives no
+// barrier, and Go's File.Sync would quietly fall back to fsync and report success.
+// The drain here reports it; a signal that interrupts it is retried.
+func TestADrainTheFilesystemRefusesIsAnErrorNotAFallback(t *testing.T) {
+	f, err := os.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = f.Close() }()
+	real := fullFsync
+	t.Cleanup(func() { fullFsync = real })
+	fullFsync = func(uintptr) error { return syscall.ENOTSUP }
+	if err := platformDrain(f); !errors.Is(err, syscall.ENOTSUP) {
+		t.Errorf("a drain answered ENOTSUP returned %v, want that error", err)
+	}
+	calls := 0
+	fullFsync = func(uintptr) error {
+		calls++
+		if calls < 3 {
+			return syscall.EINTR
+		}
+		return nil
+	}
+	if err := platformDrain(f); err != nil || calls != 3 {
+		t.Errorf("an interrupted drain: err=%v after %d call(s), want nil after 3", err, calls)
+	}
+}

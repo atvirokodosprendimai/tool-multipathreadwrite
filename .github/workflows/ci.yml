@@ -116,6 +116,11 @@ jobs:
       - name: Test
         run: go test ./...
 
+      # ADR-210's contract row 361 traces the syncs of a write under strace; without
+      # it the row prints a skip and proves nothing.
+      - name: Install strace for contract 361
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq strace
+
       # The contract script drives the real binary through a real shell and
       # asserts every promise the README makes, by making each one go wrong on
       # purpose. It is not a go test because exit statuses are half of what it

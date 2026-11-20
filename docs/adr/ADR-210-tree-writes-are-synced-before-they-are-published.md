@@ -46,7 +46,7 @@ Limits of the measurement: one machine; one directory (a plan over twenty direct
 
 ## Decision
 
-1. **Every staged temp's data is synced before the first rename.** On macOS: a plain `fsync` on each temp as it is staged, then one F_FULLFSYNC on one synced temp of each device the temps are on, before the commit loop (`man fcntl` promises the drain for the same device only, and a root can hold a mount). Elsewhere: `File.Sync` on each temp (`fsync` on Linux and the BSDs, `FlushFileBuffers` on Windows).
+1. **Every staged temp's data is synced before the first rename.** On macOS: a plain `fsync` on each temp as it is staged, then one F_FULLFSYNC on one synced temp of each device the temps are on, before the commit loop (`man fcntl` promises the drain for the same device only, and a root can hold a mount). The drain is issued as `fcntl(F_FULLFSYNC)` directly, since Go's `File.Sync` falls back to a plain `fsync` when the filesystem answers `ENOTSUP` (golang/go#64215) and would report a drain that did not happen: an `ENOTSUP` is an error here, handled as Decision 5 handles a refused directory sync (before the first rename nothing is written, exit 2; after the renames a landed write with `error`), and an `EINTR` is retried. The drain asks through each temp's directory, not the temp, which may have a mode its owner cannot open for reading. Elsewhere: `File.Sync` on each temp (`fsync` on Linux and the BSDs, `FlushFileBuffers` on Windows).
 2. **Every directory whose entries the write changed is synced once, after the last change and before `Apply` returns**: each content target's directory, each directory staging created and its parent, each path op's source and destination directory, and, if ADR-209 is accepted, after its asides are removed. On macOS a plain `fsync` on each, then one F_FULLFSYNC on one synced directory of each device; on Linux and the BSDs `fsync` on each.
 3. **On Windows no directory is synced.** `FlushFileBuffers` needs a handle opened for writing, which `os.Open` of a directory does not give (not run on Windows for this record; T1's Windows job confirms it, and the record is amended if it does not hold). What is promised there is the staged bytes, flushed by Decision 1; whether a new name survives a power loss is not promised.
 4. **What `applied` with no `error` promises**: every sync in Decisions 1 and 2 returned success, so the bytes mrw staged and, outside Windows, the directory entries it changed are on stable storage as far as the storage honours a sync. On Windows the promise is the staged bytes only; no directory entry is synced (Decision 3). A write that failed, or landed partly, promises nothing about durability.
@@ -74,6 +74,7 @@ Engine package owned here: `internal/apply` (staging, the commit, the directory 
 | every landed write | staged bytes synced before the first rename, changed directories after the last change, then the ledger | T1 | every caller |
 | a sync that fails | before the renames: `NOTHING WRITTEN`, exit 2; after: `applied` with `error`, exit 2 / `isError` with the landed receipt, check and steps not run | T1 | every caller |
 | `writer.SyncError` | new internal class beside `LedgerError` | T1 | `cmd/mrw`, `internal/mcp` |
+| `internal/curve/score.go` | a sync that failed before anything landed (`apply.ErrStagingSync`) is the harness's error, so the trial is not scored and is not a refusal; one that failed after landing scores as applied | T1 | the curve's scorer |
 | `README.md`, `AGENTS.md`, the `error` key's description | Decision 6 | T1 | callers recovering after a crash or a refusal |
 | `scripts/contract.sh` §361 | under `strace` (a proof job that has it; skipped elsewhere and saying so): every temp's successful `fsync` before the first tree rename, a successful `fsync` of each changed directory after the last tree change, and the ledger's rename after those; paired with a `--dry-run` on a fresh fixture, which must exit 0 and show no `fsync` on a tree path | T1 | the contract gate |
 
@@ -91,6 +92,22 @@ None — one task. If ADR-209 is accepted first, its aside removals come before 
 
 - **Positive:** a write mrw reported `applied` with no `error` survives a power loss with its staged bytes and, outside Windows, its names, on storage that honours a sync; the previous version is not replaced by an empty file.
 - **Negative — the cost:** on the owner's Mac about 6.7 ms per write call (two drains) plus about 0.05 ms per file in the publish step: a one-file write goes from a median 11.0 ms to about 18 ms; 50 files gain about 10 ms; 500 files about 32 ms. A plan over many directories adds one `fsync` per directory. Linux and Windows unmeasured until T1. On a mount that refuses a directory sync every write ends exit 2, its files written.
+- **Measured end to end (T1 S4, 2026-11-20): the numbers Zy decides on under Decision 7.** `mrw write --no-check` timed alone, main at `91a611c9` against T1's build, each run on a fresh copy of the fixture with its own `XDG_STATE_HOME`, the two builds alternating, medians; a 500-file write (100-line files in 20 directories, 10 single-line replaces per file, 5,000 hunks) and a one-file, one-hunk write. The raw samples are in the task's Verification Log.
+
+  | platform and conditions | write | main | T1 | difference |
+  |-------------------------|-------|------|----|------------|
+  | macOS, Apple silicon, APFS, 10 cores; 1-minute load average 6.9 to 7.5, 5-minute 9.8 to 10.6 (other sessions' tests were running); 21 runs each | one file | 12.7 ms | 21.2 ms | +8.5 ms, +66.9 % |
+  | the same | 500 files | 324.8 ms | 364.9 ms | +40.0 ms, +12.3 % |
+  | macOS, an earlier series the same hour, same conditions; 21 runs each (one file), 9 runs each (500 files) | one file | 13.1 ms | 20.0 ms | +6.9 ms, +53.1 % |
+  | the same | 500 files | 354.5 ms | 344.7 ms | −9.9 ms, −2.8 % (the samples of each build span 271 to 480 ms: this difference is inside the spread) |
+  | Linux in a Docker Desktop container: linuxkit 7.0.14 aarch64 on the owner's Mac, `--cpus 4` of 10 visible, an overlay filesystem on the VM's virtual disk (not tmpfs, not a bind mount); the container's load average 0.04 before and 0.5 after; 21 runs each | one file | 11.3 ms | 14.4 ms | +3.1 ms, +27.0 % |
+  | the same | 500 files | 142.2 ms | 704.1 ms | +561.9 ms, +395.3 % |
+  | GitHub Actions `ubuntu-latest` (Linux 7.0.0-1019-azure x86_64, 4 CPUs; the runner's load average 0.6 to 1.3); 21 runs each; two runs of the same workflow, six minutes apart | one file | 5.5 ms; 6.4 ms | 7.0 ms; 7.2 ms | +1.5 ms (+26.5 %); +0.8 ms (+11.9 %) |
+  | the same | 500 files | 260.6 ms; 306.4 ms | 474.0 ms; 448.8 ms | +213.4 ms (+81.9 %); +142.3 ms (+46.4 %) |
+  | GitHub Actions `windows-latest` (Windows Server 2025 10.0.26100, 4 CPUs; the load average is not available there); 21 runs each; the same two workflow runs | one file | 25.3 ms; 17.4 ms | 25.5 ms; 17.3 ms | +0.2 ms (+0.8 %); −0.1 ms (−0.7 %) |
+  | the same | 500 files | 1726.0 ms; 1394.7 ms | 1896.4 ms; 1461.3 ms | +170.4 ms (+9.9 %); +66.6 ms (+4.8 %) |
+
+  The Linux (Docker) numbers are a virtual machine's disk on the owner's Mac, not bare metal. The two GitHub rows are what a hosted runner does; the filesystem of the runner's temporary directory was not recorded, and the two runs of one workflow differ by more than the difference on Windows, so each series is a sample of one runner on one occasion. Windows syncs the staged bytes only (Decision 3). On the same two runs the task's three tests passed on both runners, the `windows` row included. ADR-105's bar was ≤ 10 % on the 500-file write.
 - **Neutral:** mrw's state files keep ADR-105's rule.
 
 ## Out of Scope
@@ -106,7 +123,7 @@ None — one task. If ADR-209 is accepted first, its aside removals come before 
 |------|------------|--------|------------|
 | The cost on Linux CI or a slow disk is much larger | Med | Med | T1 measures it end to end before the record is accepted (Decision 7) |
 | A host whose tests write thousands of files through mrw slows down | Low | Med | the per-file part is a plain `fsync`; the drains are per call and per device |
-| A mount refuses a directory sync, and every write there exits 2 | Low | Med | Decision 5 keeps the files written and says so; the case is named in the README row |
+| A mount refuses a directory sync, or answers F_FULLFSYNC with ENOTSUP, and every write there exits 2 | Low | Med | Decision 5 keeps the files written and says so; the case is named in the README row |
 
 ## Rollback
 
@@ -118,4 +135,4 @@ Revert T1; no state is involved.
 
 ## Follow-ups
 
-- [ ] The end-to-end cost on macOS, Linux and Windows, in T1.
+- [x] The end-to-end cost on macOS, Linux (Docker and GitHub runner) and Windows (GitHub runner), in T1, recorded in Consequences. Decision 3's claim that no directory can be flushed through `os.Open` on Windows is not confirmed: the code never tries, and no run attempted it.

@@ -1674,7 +1674,14 @@ func checkedReceipt(root string, res apply.Result, v *writer.Verified, applyErr 
 	// ADR-105: the structured value is gone in both branches below, and
 	// left_behind with it, so the sentence carries the count.
 	if written > 0 {
-		return withFull(errorResult(appliedButUnreportable(written, len(res.Hunks), res.Failed, writer.MutationOf(res) == writer.Partial) + checkPhrase(chk, checkErr) + stepPhrase(then) + leftNote(len(res.LeftBehind)))), nil
+		said := appliedButUnreportable(written, len(res.Hunks), res.Failed, writer.MutationOf(res) == writer.Partial) + checkPhrase(chk, checkErr) + stepPhrase(then) + leftNote(len(res.LeftBehind))
+		// ADR-210: a sync that failed after landing is said when the sentence still
+		// fits with it. It is not part of the write floor, so no ceiling that held
+		// before is refused for it; advisory, as the ack note is.
+		if with := said + syncSaid(applyErr); encodedSize(errorResult(with)) <= ceiling() {
+			said = with
+		}
+		return withFull(errorResult(said)), nil
 	}
 	// ADR-110 T3: a write refused before any hunk had a verdict — the write
 	// lock held past its wait — has no counts worth giving; its own words are
@@ -1950,6 +1957,25 @@ func unreportableAt(c, written, hunks, failed int, partial bool) string {
 		"— but the write HAPPENED: do not re-send this plan, it would apply again. Read the files "+
 		"to see what changed; a server started with a larger --max-result-chars reports later writes in full. mutation: %s.",
 		state, written, hunks, failed, c, mutation)
+}
+
+// syncPhrase is what a terminal receipt adds when a sync failed after the plan
+// landed (ADR-210): fixed, and said only when the sentence still fits with it: the write floor does not include it.
+const syncPhrase = " The files are written but not known to be on stable storage: do not send the plan again."
+
+// syncFailedAfterLanding says whether err is a sync that failed after the tree
+// changed.
+// syncSaid is syncPhrase when err is a sync that failed after landing, else "".
+func syncSaid(err error) string {
+	if syncFailedAfterLanding(err) {
+		return syncPhrase
+	}
+	return ""
+}
+
+func syncFailedAfterLanding(err error) bool {
+	var se *writer.SyncError
+	return errors.As(err, &se)
 }
 
 // leftNote is the sentence a terminal receipt adds when the write left paths

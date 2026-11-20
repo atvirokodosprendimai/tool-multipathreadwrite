@@ -1182,7 +1182,8 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			// back. ENOSPC is one of the three failures that comment names.
 			staged = append(staged, sf)
 			discard(0)
-			return refuseStage(w.file.Path, err, targetCause(err))
+			var te *tempSyncError
+			return refuseStage(w.file.Path, err, targetCause(err) && !errors.As(err, &te))
 		}
 		staged = append(staged, sf)
 		// ADR-086: a name that does not exist yet is asked of the filesystem
@@ -1326,6 +1327,15 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 		}
 		reached[t] = w.file.Path
 	}
+	// ADR-210: every temp was synced as it was staged; on a platform whose
+	// per-file sync is not a drain, one drain per device makes them stable before
+	// the first rename. A failure here writes nothing.
+	if len(content) > 0 {
+		if p, err := syncStaged(tr, staged); err != nil {
+			discard(0)
+			return abortStage(content[0].file.Path, &tempSyncError{Err: fmt.Errorf("the drain of the device holding %s: %w", tr.shown(p), err)})
+		}
+	}
 	for i, w := range content {
 		// ADR-071: a create whose target exists by now was made by an earlier
 		// rename in this commit under a name the filesystem folds into this one
@@ -1376,6 +1386,12 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 	}
 	nameDirs()
 	res.Applied = true
+	// ADR-210: after the last change, every directory the write changed is made
+	// stable, once, before Apply returns and so before the ledger is written. The
+	// files are in place, so a failure is a landed write with an error.
+	if err := syncChanged(tr, changedDirs(staged, pathOps)); err != nil {
+		return res, err
+	}
 	return res, nil
 }
 
@@ -2851,6 +2867,12 @@ func stageFile(tr *tree, path string, t text) (staged, error) {
 	// came out visible. Only Windows has such attributes to carry.
 	if err := keepAttributes(tr, path, tmp); err != nil {
 		return fail(err)
+	}
+	// ADR-210: the staged bytes are made durable before the rename that
+	// publishes them; the directory entry is synced after the last change.
+	if err := SyncTempFn(tmp); err != nil {
+		_ = tmp.Close()
+		return staged{tmp: name, dirs: missing}, &tempSyncError{Err: err}
 	}
 	if err := tmp.Close(); err != nil {
 		return staged{tmp: name, dirs: missing}, err
