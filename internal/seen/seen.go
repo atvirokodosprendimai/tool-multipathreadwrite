@@ -946,8 +946,8 @@ func save(root string, l Ledger) error {
 type OmittedError struct {
 	// Paths holds each omitted path, quoted, with its reason.
 	Paths []string
-	// LineFeed and Size say which reasons Paths holds, for the advice.
-	LineFeed, Size bool
+	// LineFeed, Size and Changed say which reasons Paths holds, for the advice.
+	LineFeed, Size, Changed bool
 }
 
 // Error names what the ledger could not hold and what can be done about it.
@@ -958,6 +958,9 @@ func (e *OmittedError) Error() string {
 	}
 	if e.Size {
 		msg += "; a record that large cannot be recorded, so read a smaller range"
+	}
+	if e.Changed {
+		msg += "; another command changed its record meanwhile, so read it again"
 	}
 	return msg
 }
@@ -971,35 +974,47 @@ func (e *OmittedError) Error() string {
 // instead, asks (#702). A path with no licensed line is not asked about. A
 // ledger a newer mrw wrote is left as it is, and so is not judged.
 func Unrecorded(root string, obs map[string]Observation) error {
-	if _, newer, err := Newer(root); err == nil && newer {
+	paths := make([]string, 0, len(obs))
+	for p, o := range obs {
+		if o.Whole() || len(o.Spans) > 0 {
+			paths = append(paths, p)
+		}
+	}
+	// Nothing licensed, nothing to ask about, not even a ledger that cannot be
+	// read: the read's own exit stands (Codex on #718).
+	if len(paths) == 0 {
 		return nil
+	}
+	sort.Strings(paths)
+	// A newer mrw's ledger is left as it is, so nothing this read licensed was
+	// recorded (ADR-150); a licence-only read says so instead of claiming it.
+	if w, newer, err := Newer(root); err == nil && newer {
+		return fmt.Errorf("the read ledger was written by a newer mrw (%s) and is left as it is, so nothing this read licensed was recorded", w)
 	}
 	top, prefix := state.Checkout(root)
 	l, err := loadAll(top)
 	if err != nil {
 		return ledgerNotRead(err)
 	}
-	paths := make([]string, 0, len(obs))
-	for p := range obs {
-		paths = append(paths, p)
-	}
-	sort.Strings(paths)
 	var om OmittedError
 	for _, p := range paths {
 		o := obs[p]
-		if !o.Whole() && len(o.Spans) == 0 {
-			continue
-		}
 		k := storedKey(prefix, p)
 		if r, ok := l[k]; ok && r.SHA == o.SHA {
 			continue
 		}
-		if strings.Contains(k, "\n") {
+		switch {
+		case strings.Contains(k, "\n"):
 			om.Paths = append(om.Paths, fmt.Sprintf("%q (its name holds a line feed)", k))
 			om.LineFeed = true
-		} else {
+		case int64(len(fmt.Sprintf("%s  %s  %s\n", o.SHA, formatSpans(o), k))) > maxRecordBytes:
 			om.Paths = append(om.Paths, fmt.Sprintf("%q (its record is over %d bytes)", k, maxRecordBytes))
 			om.Size = true
+		default:
+			// Neither reason holds: another command recorded the file again
+			// between this read's record and the check (Codex on #718).
+			om.Paths = append(om.Paths, fmt.Sprintf("%q (the ledger now holds another version of it)", k))
+			om.Changed = true
 		}
 	}
 	if len(om.Paths) > 0 {
