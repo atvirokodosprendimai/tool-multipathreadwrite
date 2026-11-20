@@ -439,9 +439,27 @@ pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 st
   "root": "<ROOT>"
   "dry_run": false
   "applied": false
-  "files": []
-  "hunks": []
-  "failed": 0
+  "files": [
+    {
+      "path": "d"
+      "written": false
+      "lines_before": 0
+      "lines_after": 0
+    }
+  ]
+  "hunks": [
+    {
+      "path": "d"
+      "addr": "1"
+      "op": "replace"
+      "status": "failed"
+      "reason": "d: read <ROOT>/d: is a directory"
+      "removed": 0
+      "added": 0
+      "plan_line": 1
+    }
+  ]
+  "failed": 1
   "advisories": 0
   "pattern": {
     "advisory_writes": 0
@@ -455,7 +473,9 @@ d: read <ROOT>/d: is a directory
 exit 2
 counts applied=0 check_not_run=0 failed_check=0 partially_applied=0 refused_apply=1 refused_parse=0 landed 0
 pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 strict_would_refuse_held=0 strict_would_refuse_unchecked=0
-d: read <ROOT>/d: is a directory
+FAIL d 1 replace (plan line 1): d: read <ROOT>/d: is a directory
+1 hunk(s), 1 file(s), 1 failed, 0 advisories — NOTHING WRITTEN
+d: see its FAIL line
 == partial_commit json
 exit 2
 counts applied=0 check_not_run=0 failed_check=0 partially_applied=1 refused_apply=0 refused_parse=0 landed 1

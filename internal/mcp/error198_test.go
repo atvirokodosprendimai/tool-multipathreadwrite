@@ -1,24 +1,30 @@
 package mcp
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
 
-// ADR-198 Decision 7, on mrw_write. A write that stopped at its commit returns
-// an error that begins with the file as the platform spells it; the structured
-// `error` and the text's `error:` line both begin as the row does. The
-// separator is set to `\` and the plan names a file with a backslash in it
-// (q\n.txt) beside a path under it, so the commit meets `q\n.txt` already made.
+// ADR-198 Decision 7, on mrw_write. A write that stopped returns an error that
+// begins with the file as the platform spells it; the structured `error` and
+// the text's `error:` line both begin as the row does. The separator is set to
+// `\` and the plan names a directory with a backslash in its name (q\n.txt),
+// whose load stops the write with its verdict on its hunk (#703). The stop once
+// came from creates of q\n.txt and q\n.txt/x, which #701 refuses at validation.
 func TestAStoppedWritesErrorBeginsAsTheRowDoesOnMCP(t *testing.T) {
 	prev := receiptSep
 	receiptSep = '\\'
 	t.Cleanup(func() { receiptSep = prev })
 	root, _ := checkout(t, "a.txt", "one\n")
+	if err := os.MkdirAll(filepath.Join(root, `q\n.txt`), 0o755); err != nil {
+		t.Fatal(err)
+	}
 
-	res := call(t, root, "mrw_write", map[string]any{"plan": "@@ q\\n.txt 0 create\nx\n@@ q\\n.txt/x 0 create\ny\n"})
+	res := call(t, root, "mrw_write", map[string]any{"plan": "@@ q\\n.txt 1 replace\nz\n"})
 	got := structured(t, res)
-	const want = "q/n.txt appeared before commit"
+	const want = "q/n.txt: "
 	if e, _ := got["error"].(string); !strings.HasPrefix(e, want) {
 		t.Errorf("the structured error %q, want it to begin %q", e, want)
 	}

@@ -1440,10 +1440,36 @@ func checkedReceipt(root string, res apply.Result, v *writer.Verified, applyErr 
 	// of #307). They are cut until the ENCODED result fits the ceiling: JSON
 	// writes <, > and & as six bytes each, so a cap on raw bytes overflowed and
 	// the generic size refusal replaced the cause (the Codex re-review).
-	if applyErr != nil && len(res.Hunks) == 0 {
+	// #703: a load error (a directory in the plan) now has a hunk, so the cause
+	// is kept whatever the hunk count.
+	if applyErr != nil {
 		note := leftNote(len(res.LeftBehind))
-		msg := "nothing was written: " + errText(applyErr)
+		lead := "nothing was written: "
+		if len(res.Hunks) > 0 { // the counts the receipt would have carried (AGENTS.md)
+			lead = fmt.Sprintf("%d of %d hunk(s) failed and nothing was written: ", res.Failed, len(res.Hunks))
+		}
+		body := errText(applyErr)
+		msg := lead + body
 		out := errorResult(msg + note)
+		if len(res.Hunks) > 0 {
+			// A load error is "PATH: read PATH: is a directory": the path is
+			// long and the cause is at the end, so it is the middle that goes,
+			// never the cause's own words (#724 review).
+			head, tail := len(body)/4, len(body)/2
+			for encodedSize(out) > ceiling() && head+tail > 0 {
+				head, tail = head*9/10, tail*9/10
+				h := head
+				for h > 0 && !utf8.RuneStart(body[h]) {
+					h--
+				}
+				t := len(body) - tail
+				for t < len(body) && !utf8.RuneStart(body[t]) {
+					t++
+				}
+				out = errorResult(lead + body[:h] + " … " + body[t:] + note)
+			}
+			return out, nil
+		}
 		for encodedSize(out) > ceiling() && msg != "" {
 			cut := len(msg) * 9 / 10
 			for cut > 0 && !utf8.RuneStart(msg[cut]) {

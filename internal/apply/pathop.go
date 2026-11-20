@@ -15,21 +15,102 @@ func isPathOp(op string) bool {
 	return op == "unlink" || op == "rename"
 }
 
-// nestedPath reports whether a and b name the same location or one sits
-// under the other. Exact-string dest collisions have their own messages;
-// this is the ancestor/descendant hole those miss: create new/child.txt
-// then rename onto new validates, content commits first, and the rename
-// then fails after the tree has already changed.
-func nestedPath(a, b string) bool {
-	a, b = filepath.Clean(a), filepath.Clean(b)
-	if a == "." || b == "." {
-		return a == b
+// nesting holds, for every path a plan writes and every rename destination,
+// the cleaned plan path, so a path and a path under it are refused at
+// validation with a clear message and a dry run says so (#701). It is lexical
+// on purpose: where a path resolves is the filesystem's to say, through links
+// that may not exist yet, so the commit asks it again after staging (see the
+// recheck before the first rename in Apply). Names equal once folded nest only
+// by foldClashes' rule, see sameEntry.
+type nesting struct {
+	root string
+	prod map[string]string // foldKey of the cleaned plan path -> plan path, for a path a hunk writes
+	dest map[string]string // the same for a rename destination
+}
+
+func newNesting(root string, in []Input) *nesting {
+	n := &nesting{root: root, prod: map[string]string{}, dest: map[string]string{}}
+	add := func(set map[string]string, p string) {
+		if p == "" || p == "." {
+			return
+		}
+		fk := foldKey(p)
+		if old, ok := set[fk]; !ok || p < old {
+			set[fk] = p
+		}
 	}
+	for _, i := range in {
+		switch {
+		case i.Op == "unlink":
+		case i.Op == "rename":
+			if len(i.Body) == 1 {
+				add(n.dest, filepath.Clean(i.Body[0]))
+			}
+		default:
+			add(n.prod, filepath.Clean(i.Path))
+		}
+	}
+	return n
+}
+
+// sameEntry says whether plan paths a and b, equal once case is folded, name
+// one entry: they do when they are spelled alike, or when either is not on disk
+// yet (foldClashes' rule), and otherwise when the filesystem says they are the
+// same file. Two entries that exist apart, as A and a on ext4, are not.
+func (n *nesting) sameEntry(a, b string) bool {
 	if a == b {
 		return true
 	}
+	ia, ea := os.Lstat(filepath.Join(n.root, a))
+	ib, eb := os.Lstat(filepath.Join(n.root, b))
+	if ea != nil || eb != nil {
+		return true
+	}
+	return os.SameFile(ia, ib)
+}
+
+// above is the plan path in set that is a proper ancestor of p.
+func (n *nesting) above(set map[string]string, p string) (string, bool) {
+	for cur := p; ; {
+		parent := filepath.Dir(cur)
+		if parent == "." || parent == cur {
+			return "", false
+		}
+		if q, ok := set[foldKey(parent)]; ok && n.sameEntry(q, parent) {
+			return q, true
+		}
+		cur = parent
+	}
+}
+
+// below is the first, by name, plan path in set that sits under p.
+func (n *nesting) below(set map[string]string, p string) (string, bool) {
+	var best string
+	var found bool
 	sep := string(filepath.Separator)
-	return strings.HasPrefix(a+sep, b+sep) || strings.HasPrefix(b+sep, a+sep)
+	prefix := foldKey(p) + sep
+	depth := strings.Count(p, sep)
+	for fk, q := range set {
+		if !strings.HasPrefix(fk, prefix) || (found && q >= best) {
+			continue
+		}
+		up := q
+		for strings.Count(up, sep) > depth {
+			up = filepath.Dir(up)
+		}
+		if n.sameEntry(p, up) {
+			best, found = q, true
+		}
+	}
+	return best, found
+}
+
+// nestsWith is above or below: a plan path in set that sits over or under p.
+func (n *nesting) nestsWith(set map[string]string, p string) (string, bool) {
+	if q, ok := n.above(set, p); ok {
+		return q, true
+	}
+	return n.below(set, p)
 }
 
 // What respelling finds a rename's existing destination to be (ADR-129).
@@ -113,7 +194,7 @@ func respelling(src, dst string) int {
 
 // planPathOp validates a single unlink or rename hunk. The caller has already
 // refused mixing those ops with line-edits on the same path.
-func planPathOp(root, path, full string, h hunk, orig []string, existed bool, shaBefore, miss string, unlinked, produced map[string]bool, destCount map[string]int, covered func(hunk, int, int) bool, fail func(hunk, string, ...any), out map[int]HunkResult) bool {
+func planPathOp(root, path, full string, h hunk, orig []string, existed bool, shaBefore, miss string, unlinked, produced map[string]bool, destCount map[string]int, nest *nesting, covered func(hunk, int, int) bool, fail func(hunk, string, ...any), out map[int]HunkResult) bool {
 	if h.StartPat != nil || h.Start != 0 || h.End != 0 || h.RelEnd > 0 {
 		fail(h, "%s takes no address, use %q", h.Op, "-")
 		return false
@@ -178,17 +259,13 @@ func planPathOp(root, path, full string, h hunk, orig []string, existed bool, sh
 			fail(h, "rename dest %s is also written by another hunk in this plan", asPlan(dest))
 			return false
 		}
-		for other := range destCount {
-			if other != dest && nestedPath(dest, other) {
-				fail(h, "rename dest %s nests with rename dest %s", asPlan(dest), asPlan(other))
-				return false
-			}
+		if other, hit := nest.nestsWith(nest.dest, dest); hit && other != dest {
+			fail(h, "rename dest %s nests with rename dest %s", asPlan(dest), asPlan(other))
+			return false
 		}
-		for p := range produced {
-			if nestedPath(dest, p) {
-				fail(h, "rename dest %s nests with %s written by another hunk in this plan", asPlan(dest), asPlan(p))
-				return false
-			}
+		if p, hit := nest.nestsWith(nest.prod, dest); hit {
+			fail(h, "rename dest %s nests with %s written by another hunk in this plan", asPlan(dest), asPlan(p))
+			return false
 		}
 		destFull, err := resolve(root, dest)
 		if err != nil {
