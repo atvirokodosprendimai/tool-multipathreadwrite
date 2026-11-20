@@ -12,26 +12,46 @@ import (
 // observation whatever the plan calls it (ADR-029), and the read a refusal names
 // must be one that lifts it.
 
-// remedyOf is the argv of the read a refusal ends with, without mrw.
-func remedyOf(t *testing.T, out string) []string {
+// plainPath is what the remedy prints as a command: a root that needs quoting
+// (on Windows, any temp directory) is described instead (ADR-203).
+var plainPath = regexp.MustCompile(`^[A-Za-z0-9._/-]+$`)
+
+// remedyArgv is the read a refusal ends with, as arguments for runIn. Where the
+// root is described rather than commanded, the refusal must say so and the read is
+// made from spec by hand: the test still follows the remedy's meaning.
+func remedyArgv(t *testing.T, root, out, spec string) []string {
 	t.Helper()
+	if !plainPath.MatchString(root) {
+		if !strings.Contains(out, "a read that shows line") {
+			t.Fatalf("a root that needs quoting is not described in:\n%s", out)
+		}
+		return []string{"read", "--max-cols", "0", spec}
+	}
 	m := regexp.MustCompile(`mrw ((?:--root \S+ )?read --max-cols 0 \S+)`).FindStringSubmatch(out)
 	if m == nil {
 		t.Fatalf("no read to make in:\n%s", out)
 	}
-	return strings.Fields(m[1])
+	f := strings.Fields(m[1])
+	if len(f) < 4 {
+		t.Fatalf("the read to make is %q, want read --max-cols 0 SPEC", m[1])
+	}
+	return f[len(f)-4:]
 }
 
 // aliasRoot is a root with f.go written by mrw and an alias of it: link.go, a
 // symlink, or F.go where the filesystem folds case.
 func aliasRoot(t *testing.T, alias string) string {
 	t.Helper()
+	return aliasRootIn(t, t.TempDir(), alias)
+}
+
+func aliasRootIn(t *testing.T, root, alias string) string {
+	t.Helper()
 	needShell(t)
-	if !regexp.MustCompile(`^[A-Za-z0-9._/-]+$`).MatchString(t.TempDir()) {
-		t.Skip("a root that needs quoting is described, not commanded: the remedy is not a command to run")
-	}
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
-	root := t.TempDir()
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		t.Fatal(err)
+	}
 	if out, code := writeIn(t, root, "--no-check", planFile(t, "@@ f.go 0 create\n"+strings.TrimSuffix(fGo208, "\n")+"\n")); code != 0 {
 		t.Fatalf("create: %d\n%s", code, out)
 	}
@@ -67,7 +87,7 @@ func TestAQuietReadThroughAnAliasDoesNotLiftTheLineAfterRule(t *testing.T) {
 				t.Errorf("a refused plan changed f.go: %q", got)
 			}
 			// The pair: a read that shows the line lifts it, through the same alias.
-			if out, code := runIn(t, root, remedyOf(t, out)[len(remedyOf(t, out))-4:]...); code != 0 {
+			if out, code := runIn(t, root, remedyArgv(t, root, out, alias+":1-4")...); code != 0 {
 				t.Fatalf("the remedy read: %d\n%s", code, out)
 			}
 			if out, code := writeIn(t, root, "--no-check", planFile(t, plan)); code != 0 {
@@ -99,8 +119,7 @@ func TestTheAliasRemedyKeepsAnEarlierOccurrenceShowing(t *testing.T) {
 	if code != 1 || !strings.Contains(out, "needs a served line after 4") {
 		t.Fatalf("first write: exit %d, want the line-after refusal:\n%s", code, out)
 	}
-	argv := remedyOf(t, out)
-	if out, code := runIn(t, root, argv[len(argv)-4:]...); code != 0 {
+	if out, code := runIn(t, root, remedyArgv(t, root, out, "link.txt:3-5")...); code != 0 {
 		t.Fatalf("the remedy read: %d\n%s", code, out)
 	}
 	if out, code := writeIn(t, root, "--no-check", plan); code != 0 {
@@ -111,20 +130,34 @@ func TestTheAliasRemedyKeepsAnEarlierOccurrenceShowing(t *testing.T) {
 // The read a refusal names runs from where the caller is, and the caller may be
 // outside the root: it names the root when the command line gave one that is not
 // the working directory, for the line-after rule and for ADR-203's stale number.
+// A root that needs quoting is described, not commanded.
 func TestTheRemedyNamesTheRootItWasGiven(t *testing.T) {
 	root := aliasRoot(t, "f.go")
-	if !regexp.MustCompile(`^[A-Za-z0-9._/-]+$`).MatchString(root) {
-		t.Skipf("a root that needs quoting is described, not commanded: %q", root)
+	lineAfter, stale := "mrw --root "+root+" read --max-cols 0 f.go:1-4", "mrw --root "+root+" read --max-cols 0 f.go:2"
+	if !plainPath.MatchString(root) {
+		lineAfter, stale = "a read that shows lines 1-4", "a read that shows line 2"
 	}
 	out, code := writeIn(t, root, "--no-check", planFile(t, rep208))
-	want := "mrw --root " + root + " read --max-cols 0 f.go:1-4"
-	if code != 1 || !strings.Contains(out, want) {
-		t.Errorf("line-after refusal: exit %d, want %q in:\n%s", code, want, out)
+	if code != 1 || !strings.Contains(out, lineAfter) {
+		t.Errorf("line-after refusal: exit %d, want %q in:\n%s", code, lineAfter, out)
 	}
 	// ADR-203's refusal, the same remedy: a number alone on a line no read has shown.
 	out, code = writeIn(t, root, "--no-check", planFile(t, "@@ f.go 2 replace\n\tz()\n"))
-	want = "mrw --root " + root + " read --max-cols 0 f.go:2"
-	if code != 1 || !strings.Contains(out, want) {
-		t.Errorf("stale-number refusal: exit %d, want %q in:\n%s", code, want, out)
+	if code != 1 || !strings.Contains(out, stale) {
+		t.Errorf("stale-number refusal: exit %d, want %q in:\n%s", code, stale, out)
+	}
+}
+
+// The branch Windows takes, forced on any platform: a root with a space needs
+// quoting, so no command is printed, and the refusal describes the read.
+func TestARootThatNeedsQuotingIsDescribedNotCommanded(t *testing.T) {
+	root := aliasRootIn(t, filepath.Join(t.TempDir(), "my root"), "f.go")
+	out, code := writeIn(t, root, "--no-check", planFile(t, rep208))
+	if code != 1 || !strings.Contains(out, "a read that shows lines 1-4") || strings.Contains(out, "mrw --root") || strings.Contains(out, "mrw read") {
+		t.Errorf("line-after refusal for a root with a space: exit %d\n%s", code, out)
+	}
+	out, code = writeIn(t, root, "--no-check", planFile(t, "@@ f.go 2 replace\n\tz()\n"))
+	if code != 1 || !strings.Contains(out, "(a read that shows line 2;") {
+		t.Errorf("stale-number refusal for a root with a space: exit %d\n%s", code, out)
 	}
 }
