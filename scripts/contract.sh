@@ -11922,7 +11922,7 @@ run371() { # run371 DIR PLAN: write the plan, the output in DIR/out
 mk371 "$R371/a"
 run371 "$R371/a" '@@ g.txt 1 replace\ny\n@@ f.txt 2 delete body=@empty371.txt\n'
 want 2 "$?" "a delete whose body=@ file holds zero bytes is refused, exit 2"
-grep -q 'line 3: body=@empty371.txt is empty (0 bytes)' "$R371/a/out" && cmp -s "$R371/a/f.txt" <(printf 'a\nb\nc\n') && cmp -s "$R371/a/g.txt" <(printf 'x\n') \
+grep -Fq 'line 3: body=@empty371.txt is empty (0 bytes)' "$R371/a/out" && cmp -s "$R371/a/f.txt" <(printf 'a\nb\nc\n') && cmp -s "$R371/a/g.txt" <(printf 'x\n') \
   && ok "naming the plan line and the file, with the valid sibling hunk not applied (bytes compared)" || bad "empty body=@ refusal: $(cat "$R371/a/out")"
 mk371 "$R371/b"
 run371 "$R371/b" '@@ f.txt 2 delete body=@wrong371.txt\n'

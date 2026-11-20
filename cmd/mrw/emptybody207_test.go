@@ -37,7 +37,7 @@ func TestTheCLIRefusesAnEmptyBodyFileOnADelete(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &r); err != nil {
 		t.Fatalf("--json is not one document: %v\n%s", err, out)
 	}
-	if code != exitUsage || !strings.Contains(r.Error, "line 3") || !strings.Contains(r.Error, "body=@empty.txt") || (r.Applied != nil && *r.Applied) || snap() != before {
-		t.Errorf("--json: exit %d, error %q, applied %v; want %d naming line 3 and body=@empty.txt, nothing applied, files untouched", code, r.Error, r.Applied, exitUsage)
+	if code != exitUsage || !strings.Contains(r.Error, "line 3: body=@empty.txt") || r.Applied == nil || *r.Applied || snap() != before {
+		t.Errorf("--json: exit %d, error %q, applied %v; want %d naming \"line 3: body=@empty.txt\", applied false, files untouched", code, r.Error, r.Applied, exitUsage)
 	}
 }
