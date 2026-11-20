@@ -71,4 +71,10 @@ func TestAnEndPatchMarkerInsideABodyLineIsText(t *testing.T) {
 	if out, err := CompileApplyPatch(root, []byte(cut)); err == nil || !strings.Contains(err.Error(), "missing") {
 		t.Fatalf("a patch with no terminator line compiled: err=%v\n%s", err, out)
 	}
+	// Spaces or tabs after the terminator on its line were accepted before the
+	// terminator had to be a whole line, and still are (Codex on #708).
+	trailing := "*** Begin Patch\n*** Add File: ok.txt\n+ok\n*** End Patch \t"
+	if _, err := CompileApplyPatch(root, []byte(trailing)); err != nil {
+		t.Fatalf("a terminator line with trailing blanks was refused: %v", err)
+	}
 }

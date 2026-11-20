@@ -213,7 +213,11 @@ func lineIndex(s, marker string) int {
 		}
 		at := off + i
 		after := at + len(marker)
-		if (at == 0 || s[at-1] == '\n') && (after == len(s) || s[after] == '\n' || s[after] == '\r') {
+		tail := after // spaces or tabs may follow the marker on its line, as they did before
+		for tail < len(s) && (s[tail] == ' ' || s[tail] == '\t') {
+			tail++
+		}
+		if (at == 0 || s[at-1] == '\n') && (tail == len(s) || s[tail] == '\n' || s[tail] == '\r') {
 			return at
 		}
 		off = after
