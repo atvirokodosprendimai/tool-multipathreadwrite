@@ -453,7 +453,7 @@ func TestATimedOutHarnessRemovesItsContainer(t *testing.T) {
 	}
 	g := *o.SWE
 	g.Python, g.Budget = slow, time.Second
-	if _, err := g.grade(o.Tasks[0], tree, t.TempDir(), "run.1"); err == nil {
+	if _, err := g.grade(o.Tasks[0], tree, "HEAD", t.TempDir(), "run.1"); err == nil {
 		t.Fatal("a harness past its budget graded the attempt")
 	}
 	// Only the run's own container and the harness's numbered retry of it
@@ -476,7 +476,7 @@ func TestAnEmptySWEBenchDiffIsUnsolvedWithoutTheHarness(t *testing.T) {
 	}
 	g := *o.SWE
 	g.Python = filepath.Join(work, "no-such-python")
-	v, err := g.grade(o.Tasks[0], tree, t.TempDir(), "run")
+	v, err := g.grade(o.Tasks[0], tree, "HEAD", t.TempDir(), "run")
 	if err != nil || v.Solved {
 		t.Errorf("an empty diff: %+v, %v; want unsolved, and no harness started", v, err)
 	}

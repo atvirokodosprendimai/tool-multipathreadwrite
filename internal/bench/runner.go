@@ -1092,9 +1092,9 @@ func runAttempt(o RunOptions, a attempt, order int, cli, mrwVersion string) (r R
 	}
 	var v Verdict
 	if a.Task.swe != nil {
-		v, err = o.SWE.grade(a.Task, tree, scratch, a.ID)
+		v, err = o.SWE.grade(a.Task, tree, baseSHA, scratch, a.ID)
 	} else {
-		v, err = Oracle(a.Task, tree)
+		v, err = Oracle(a.Task, tree, baseSHA)
 	}
 	if errors.Is(err, errGradingInterrupted) { // not graded, no receipt
 		r.interrupted = true
@@ -1111,14 +1111,14 @@ func runAttempt(o RunOptions, a attempt, order int, cli, mrwVersion string) (r R
 	v = settle(v, r.OverBudget, a.Task.swe != nil)
 	r.Oracle = v
 	r.SilentMisEdit = !r.IsError && (len(v.Outside) > 0 || len(v.Structure) > 0)
-	if r.Diff, err = diffStat(tree); err != nil {
+	if r.Diff, err = diffStat(tree, baseSHA); err != nil {
 		r.Note = "diffstat: " + err.Error()
 	}
 	if a.Config.Mrw {
 		r.HookRefused, r.HookReads = hookCounts(filepath.Join(scratch, "hook.log"))
 		// A backstop that could not run is not a count of zero: the
 		// attempt is a setup exclusion (the final review of #411).
-		if r.SlippedWrites, err = SlippedWrites(tree, filepath.Join(scratch, "state")); err != nil {
+		if r.SlippedWrites, err = SlippedWrites(tree, filepath.Join(scratch, "state"), baseSHA); err != nil {
 			r.Exclusion, r.Note = ExclusionSetup, "slipped writes: "+err.Error()
 		}
 	}
@@ -1375,12 +1375,12 @@ func invocation(o RunOptions, a attempt, scratch string) ([]string, []string, er
 // the hook is told it, so a write outside it passes.
 func attemptTree(scratch string) string { return filepath.Join(scratch, "tree") }
 
-func diffStat(tree string) (DiffStat, error) {
+func diffStat(tree, base string) (DiffStat, error) {
 	var d DiffStat
 	if err := git(tree, "add", "-A"); err != nil {
 		return d, err
 	}
-	out, err := gitOut(tree, "diff", "--cached", "--numstat", "HEAD")
+	out, err := gitOut(tree, "diff", "--cached", "--numstat", base)
 	if err != nil {
 		return d, err
 	}

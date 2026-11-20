@@ -61,7 +61,7 @@ func TestEveryOracleFailsOnBasePassesOnFixAndRefusesAStrayEdit(t *testing.T) {
 				}
 				t.Fatal(err)
 			}
-			v, err := Oracle(task, tree)
+			v, err := Oracle(task, tree, "HEAD")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -71,7 +71,7 @@ func TestEveryOracleFailsOnBasePassesOnFixAndRefusesAStrayEdit(t *testing.T) {
 			if err := ApplyPatch(tree, filepath.Join(task.Dir, "reference.patch")); err != nil {
 				t.Fatal(err)
 			}
-			v, err = Oracle(task, tree)
+			v, err = Oracle(task, tree, "HEAD")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -93,7 +93,7 @@ func TestEveryOracleFailsOnBasePassesOnFixAndRefusesAStrayEdit(t *testing.T) {
 				if err := os.WriteFile(nb, []byte(strings.Join(cut, "")), 0o644); err != nil {
 					t.Fatal(err)
 				}
-				if v, err := Oracle(task, tree); err != nil || v.Solved || len(v.Outside) == 0 {
+				if v, err := Oracle(task, tree, "HEAD"); err != nil || v.Solved || len(v.Outside) == 0 {
 					t.Fatalf("the oracle accepts the reference fix with %s:%d deleted: %+v %v", f, base, v, err)
 				}
 				if err := os.WriteFile(nb, keep, 0o644); err != nil {
@@ -113,7 +113,7 @@ func TestEveryOracleFailsOnBasePassesOnFixAndRefusesAStrayEdit(t *testing.T) {
 			if err := os.WriteFile(filepath.Join(tree, file), []byte(strings.Join(lines, "")), 0o644); err != nil {
 				t.Fatal(err)
 			}
-			v, err = Oracle(task, tree)
+			v, err = Oracle(task, tree, "HEAD")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -362,13 +362,13 @@ func TestTheOracleRefusesWhatTheReviewFound(t *testing.T) {
 		if err := ApplyPatch(tree, filepath.Join(c.task.Dir, "reference.patch")); err != nil {
 			t.Fatalf("%s: %v", c.name, err)
 		}
-		if v, err := Oracle(c.task, tree); err != nil || !v.Solved {
+		if v, err := Oracle(c.task, tree, "HEAD"); err != nil || !v.Solved {
 			t.Fatalf("%s: the reference fix alone is not solved: %+v %v", c.name, v, err)
 		}
 		if err := c.mangle(tree); err != nil {
 			t.Fatal(err)
 		}
-		v, err := Oracle(c.task, tree)
+		v, err := Oracle(c.task, tree, "HEAD")
 		if err != nil {
 			t.Fatalf("%s: the oracle failed instead of grading: %v", c.name, err)
 		}
@@ -605,7 +605,7 @@ func TestTheVariedOraclesGradeWhatTheReviewOf417Found(t *testing.T) {
 			if err := os.WriteFile(p, []byte(strings.Replace(string(b), c.from, c.to, 1)), 0o644); err != nil {
 				t.Fatal(err)
 			}
-			v, err := Oracle(task, tree)
+			v, err := Oracle(task, tree, "HEAD")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -652,7 +652,7 @@ func TestThePostSendRenameLeavesTheTestHelper(t *testing.T) {
 		if err := ApplyPatch(tree, c.patch); err != nil {
 			t.Fatal(err)
 		}
-		v, err := Oracle(task, tree)
+		v, err := Oracle(task, tree, "HEAD")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -754,7 +754,7 @@ func TestACheckCoupledTaskIsGradedByItsPackageTests(t *testing.T) {
 		tree := t.TempDir()
 		git(tree, "clone", "-q", repo, ".")
 		write(tree, change)
-		v, err := Oracle(task, tree)
+		v, err := Oracle(task, tree, "HEAD")
 		if err != nil {
 			t.Fatalf("%s: %v", name, err)
 		}
