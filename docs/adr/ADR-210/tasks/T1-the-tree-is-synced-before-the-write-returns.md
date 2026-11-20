@@ -413,6 +413,7 @@ The cases each platform must pass are named in the fence: eight on Linux and on 
 - 2026-11-20 · 24beedfe* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:d00cff50a0ce00350dc42ba04f47fae1e1f3fa917ac559e98e6b0b4a65b73f0c · ms:5389
 - 2026-11-20 · 24beedfe* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:d00cff50a0ce00350dc42ba04f47fae1e1f3fa917ac559e98e6b0b4a65b73f0c · ms:16443
 - 2026-11-20 · 24beedfe* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:d00cff50a0ce00350dc42ba04f47fae1e1f3fa917ac559e98e6b0b4a65b73f0c · ms:7184
+- 2026-11-20 · b95b3ce1 · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:d00cff50a0ce00350dc42ba04f47fae1e1f3fa917ac559e98e6b0b4a65b73f0c · ms:3804
 
 ## Invariants
 
