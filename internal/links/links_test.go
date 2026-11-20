@@ -4,6 +4,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -48,5 +49,56 @@ func TestRealFollowsAJunctionWhenTheWalkIsOn(t *testing.T) {
 	}
 	if got := realVia(in, lfs, false); got != in {
 		t.Errorf("realVia(%s) with the walk off = %s, want it left as spelled", in, got)
+	}
+}
+
+// lstatAnswering is a filesystem whose root is a directory and whose
+// /r/x answers Lstat with err; nothing else exists.
+func lstatAnswering(err error) FS {
+	return FS{
+		Lstat: func(p string) (os.FileInfo, error) {
+			switch filepath.Clean(p) {
+			case filepath.FromSlash("/r"):
+				return info{os.ModeDir}, nil
+			case filepath.FromSlash("/r/x"):
+				return nil, &fs.PathError{Op: "lstat", Path: p, Err: err}
+			}
+			return nil, &fs.PathError{Op: "lstat", Path: p, Err: fs.ErrNotExist}
+		},
+		Readlink: func(p string) (string, error) {
+			return "", &fs.PathError{Op: "readlink", Path: p, Err: fs.ErrInvalid}
+		},
+	}
+}
+
+// Issue #711 (ADR-071). A component whose Lstat fails for a reason that says
+// nothing about whether it exists, an I/O error say, may be a junction: ending
+// the walk there judged the path by its spelling while os.Open still followed
+// it. Only a missing component or a name that cannot exist ends the walk; any
+// other failure is refused.
+func TestTheLinkWalkRefusesAnLstatFailureThatIsNeitherAbsenceNorAnInvalidName(t *testing.T) {
+	in := filepath.FromSlash("/r/x/y")
+	for name, err := range map[string]error{"EIO": syscall.EIO, "EINVAL": syscall.EINVAL, "ErrInvalid": fs.ErrInvalid} {
+		got, gerr := Through(in, lstatAnswering(err))
+		if gerr == nil {
+			t.Errorf("%s: Through(%s) = %s with no error, want a refusal", name, in, got)
+		}
+	}
+}
+
+// The walk still ends where the component is simply not there, or cannot be:
+// a create names a file that does not exist yet.
+func TestTheLinkWalkEndsAtAnAbsentComponentOrAnInvalidName(t *testing.T) {
+	in := filepath.FromSlash("/r/x/y")
+	for name, err := range map[string]error{
+		"not exist":     fs.ErrNotExist,
+		"name too long": syscall.ENAMETOOLONG,
+		"bad encoding":  syscall.EILSEQ,
+		"not a dir":     syscall.ENOTDIR,
+	} {
+		got, gerr := Through(in, lstatAnswering(err))
+		if gerr != nil || got != in {
+			t.Errorf("%s: Through(%s) = %s, %v, want the path kept and no error", name, in, got, gerr)
+		}
 	}
 }

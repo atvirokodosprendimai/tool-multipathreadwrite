@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"unicode/utf8"
 )
 
@@ -62,9 +63,10 @@ func Through(p string, lfs FS) (string, error) {
 			// A component that is not there, or cannot be (an invalid name, a
 			// glob a shell left unexpanded), ends the walk: a create names a
 			// file that does not exist yet, and a name that cannot exist cannot
-			// be a link. One that exists but may not be examined is refused: it
-			// is not knowledge of where the path leads (review of #228, A1).
-			if !errors.Is(err, fs.ErrPermission) {
+			// be a link. Any other failure is refused: a component that may
+			// exist but cannot be examined is not knowledge of where the path
+			// leads (review of #228, A1; issue #711, ADR-071).
+			if nameCannotBeALink(err) {
 				return filepath.Join(append([]string{next}, rest[1:]...)...), nil
 			}
 			return "", fmt.Errorf("%s cannot be examined, so mrw cannot tell where it leads: %w", next, err)
@@ -98,6 +100,15 @@ func Through(p string, lfs FS) (string, error) {
 		cur = vol + string(filepath.Separator)
 	}
 	return cur, nil
+}
+
+// nameCannotBeALink reports an Lstat failure that says the component is not
+// there or cannot be: absent, not below a directory, or a name the system
+// refuses. Any other failure leaves its nature unknown (#711).
+func nameCannotBeALink(err error) bool {
+	return errors.Is(err, fs.ErrNotExist) || errors.Is(err, syscall.ENOTDIR) ||
+		errors.Is(err, syscall.ENAMETOOLONG) || errors.Is(err, syscall.EILSEQ) ||
+		platformInvalidName(err)
 }
 
 // components splits a volume-less path at this platform's separators.

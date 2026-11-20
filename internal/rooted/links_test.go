@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -51,7 +52,7 @@ func fakeLinks(entries map[string]fakeEntry) links.FS {
 			case "dir":
 				return fakeInfo{filepath.Base(p), os.ModeDir}, nil
 			case "invalid":
-				return nil, &fs.PathError{Op: "lstat", Path: p, Err: fs.ErrInvalid}
+				return nil, &fs.PathError{Op: "lstat", Path: p, Err: syscall.ENAMETOOLONG}
 			case "denied":
 				return nil, &fs.PathError{Op: "lstat", Path: p, Err: fs.ErrPermission}
 			case "brokensymlink":
