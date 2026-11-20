@@ -12,7 +12,7 @@
 
 ## Goal
 
-ADR-211 Decision 10. First, `bench/stage-9/instructions.txt` committed, byte-equal to `mrw-m instructions` from the build `builds.md` names. Then on the pilot Mac, on the day the canaries will run, `rehearse.sh` runs each check below and writes `rehearsal.md`: `date:`, `revision:` (`git rev-parse HEAD`, the tree clean), one `<input> sha256:` line for each of `bench/stage-9/instructions.txt`, `plans.json`, `smoke-plans.json`, `classes.json`, `scripts/bench_stage9.py`, `scripts/bench_mechanism.py`, `bench/stage-9/rehearse.sh`, `bench/stage-9/stub-agent`, and `m`, `n` and `tasks`, each line present exactly once: `m sha256:` and `n sha256:` the digests `builds.md` names for the two builds, and `tasks sha256:` the SHA-256 of each id's `bench/tasks/<id>/task.json` then `reference.patch`, concatenated in the order `jq -r '[.[] | .[]] | .[]' bench/stage-9/classes.json` prints the ids, which `rehearse.sh` and the fence compute with the same command, and one line `check <name>: exit <code>` per check, the code the command returned:
+ADR-211 Decision 10. First, `bench/stage-9/instructions.txt` committed, byte-equal to `mrw-m instructions` from the build `builds.md` names. Then on the pilot Mac, on the day the canaries will run, `rehearse.sh` runs each check below and writes `rehearsal.md`: `date:`, `revision:` (`git rev-parse HEAD`, the tree clean), one `<input> sha256:` line for each of `bench/stage-9/instructions.txt`, `plans.json`, `smoke-plans.json`, `classes.json`, `scripts/bench_stage9.py`, `scripts/bench_mechanism.py`, `bench/stage-9/rehearse.sh`, `bench/stage-9/stub-agent`, and `m`, `n` and `tasks`, each line present exactly once: `m sha256:` and `n sha256:` the digests `builds.md` names for the two builds, and `tasks sha256:` the SHA-256 of each id's `bench/tasks/<id>/task.json` then `reference.patch`, concatenated in the order `jq -r '[.[] | .[]] | .[]' bench/stage-9/classes.json` prints the ids, which `rehearse.sh` and the fence compute with the same command, three more lines ADR-206 T5's fence reads, `plans sha256:`, `smoke plans sha256:` and `instructions sha256:`, each the digest of the file of that name above, and one line `check <name>: exit <code>` per check, the code the command returned:
 
 - `instructions frozen`: `cmp` of the committed file and `mrw-m instructions`;
 - `build test`: `TestArmNDiffersFromMInOneRefusal`, with a `--- PASS` line and no `SKIP`;
@@ -62,7 +62,7 @@ set -o pipefail
 p=$(python3 -m unittest -v scripts.test_bench_stage9 2>&1) && grep -qE '^test_the_rehearsal_fence_refuses_a_missing_or_wrong_digest .* ok$' <<<"$p" \
   && R=${REHEARSAL:-docs/bench/stage-9/rehearsal.md} && test -f $R && git ls-files --error-unmatch bench/stage-9/instructions.txt > /dev/null \
   && for k in 'instructions frozen' 'build test' 'oracle test' 'bench build' 'stub canaries' 'stub plans' 'count' 'n event counted' 'paid fences'; do grep -qxF "check $k: exit 0" $R || exit 1; done \
-  && [ "$(grep -c '^check ' $R)" -eq 12 ] && grep -qE '^date: [0-9]{4}-[0-9]{2}-[0-9]{2}$' $R \
+  && [ "$(grep -c '^check ' $R)" -eq 12 ] && ! grep -q '^subset:' $R && grep -qE '^date: [0-9]{4}-[0-9]{2}-[0-9]{2}$' $R \
   && for k in 'n event counted' 'stub plans' 'build test'; do grep -qE "^check $k negative: exit [1-9][0-9]*$" $R || exit 1; done \
   && rev=$(sed -n 's/^revision: \([0-9a-f]\{40\}\)$/\1/p' $R) && [ -n "$rev" ] && git merge-base --is-ancestor "$rev" HEAD \
   && git diff --quiet "$rev" HEAD -- bench/stage-9 bench/tasks scripts/bench_stage9.py scripts/bench_mechanism.py internal/bench cmd/bench \
@@ -75,6 +75,12 @@ p=$(python3 -m unittest -v scripts.test_bench_stage9 2>&1) && grep -qE '^test_th
 ## Mutation Log
 
 ## Verification Log
+- 2026-11-20 · 751edd9b* · exit 1 · `set -o pipefail …` · acceptance-sha256:99feeb10ac9a59ddcc568f89bac971c10554f29929fb2009378e9e64b6819c54 · ms:87234 · test-lock-sha256:cd8d3106982901184cd9985d751d2771072ed2ef4a16cc36af00b2a038f67748 · test-lock-file:docs/adr/locks/cd8d3106982901184cd9985d751d2771072ed2ef4a16cc36af00b2a038f67748.lock
+  ```
+  ```
+- 2026-11-20 · 751edd9b* · exit 1 · `set -o pipefail …` · acceptance-sha256:edbfaffc09ce799683e0a9ed894176ec62e02818e4b449bdab30256cfc9cc39c · ms:53602
+  ```
+  ```
 
 ## Invariants
 
