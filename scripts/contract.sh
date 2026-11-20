@@ -11661,6 +11661,42 @@ out=$(printf '*** Begin Patch\n*** Add File: two.txt\n+two\n*** Update File: ok.
 want 2 "$rc" "an apply_patch Update File section that changes nothing -> exit 2"
 [ ! -e "$R/two.txt" ] && grep -q 'changes nothing' <<<"$out" && ok "and its sibling did not land" || bad "empty Update File: $(head -c 300 <<<"$out")"
 
+# 355. #702: a licence the ledger cannot hold is refused, not reported. A file whose
+# name holds a line feed cannot be a ledger record (the format is one line each), and
+# `read --quiet` printed "-- licensed 1 line(s)" and exit 0 while `mrw seen` held no
+# file. Now the --quiet read exits 2 naming the path and its reason (the "-- licensed"
+# count line still prints: read.Run counts before the ledger is asked, and whether a
+# key is recordable depends on the checkout prefix it cannot see; stderr and the exit
+# carry the verdict, and the ledger is asserted empty). A plain content read is as on
+# main: its text, exit 0. A --quiet read with no line to license (a range past the
+# end) is not asked about the ledger: exit 1 as ever, not 2. The pair: a sibling with
+# an ordinary name records. And a landed write in a root below a line-feed directory
+# keeps its exit 0 and runs its check.
+R355="$WORK/r355"; mkdir -p "$R355"
+NL355="$R355/$(printf 'a\nb')"
+printf 'one\n' > "$NL355"; printf 'two\n' > "$R355/plain.txt"
+"$MRW" --root "$R355" read --quiet "$NL355" > "$WORK/o355" 2> "$WORK/e355"
+want 2 "$?" "--quiet read of a name the ledger cannot hold exits 2"
+grep -q 'line feed' "$WORK/e355" && grep -q '^mrw: the read ledger cannot hold a record for' "$WORK/e355" \
+  && ok "and names the path and the reason on stderr" || bad "quiet: $(head -c 300 "$WORK/o355") / $(head -c 300 "$WORK/e355")"
+"$MRW" --root "$R355" seen > "$WORK/s355a" 2>&1
+grep -q '^0 file(s) seen' "$WORK/s355a" && ok "and the ledger holds nothing for it" || bad "seen: $(head -c 300 "$WORK/s355a")"
+"$MRW" --root "$R355" read --quiet plain.txt > "$WORK/o355b" 2> "$WORK/e355b"
+want 0 "$?" "the pair: --quiet read of an ordinary name exits 0"
+"$MRW" --root "$R355" seen > "$WORK/s355" 2>&1
+grep -q 'plain.txt' "$WORK/s355" && ok "and the ledger holds it" || bad "seen: $(head -c 300 "$WORK/s355")"
+"$MRW" --root "$R355" read --quiet plain.txt:99 > "$WORK/o355z" 2> "$WORK/e355z"
+want 1 "$?" "a --quiet read with no line to license exits 1 as ever, not 2"
+"$MRW" --root "$R355" read plain.txt "$NL355" > "$WORK/o355c" 2> "$WORK/e355c"
+want 0 "$?" "a plain read of an ordinary and an unrecordable name exits 0"
+grep -q 'one' "$WORK/o355c" \
+  && ok "and serves its text" || bad "plain: $(head -c 300 "$WORK/o355c") / $(head -c 300 "$WORK/e355c")"
+R355w="$WORK/r355w"; mkdir -p "$R355w/.git" "$R355w/$(printf 'sub\ndir')"
+printf '%s\n' '{"check":"echo ran > marker"}' > "$R355w/$(printf 'sub\ndir')/.quality-harness.json"
+printf 'hello\n' | "$MRW" --root "$R355w/$(printf 'sub\ndir')" write --check --create new.txt > "$WORK/o355w" 2>&1
+want 0 "$?" "a write that lands in a root below a line-feed directory exits 0"
+[ -e "$R355w/$(printf 'sub\ndir')/marker" ] && ok "and its check ran" || bad "check did not run: $(head -c 300 "$WORK/o355w")"
+
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
 # killed process is a zombie until its adopter reaps it, and pgrep lists

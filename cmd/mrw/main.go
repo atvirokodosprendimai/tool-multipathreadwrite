@@ -1687,6 +1687,12 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 					return exitWith(err)
 				}
 				defer fmt.Fprintln(os.Stderr, "mrw: nothing was recorded, so a write to these lines will be refused until a read can record them:", statehint.Hint(err))
+			} else if cmd.Bool("quiet") {
+				// #702: a --quiet read serves no line, so a licence the ledger
+				// could not keep is refused, not reported (ADR-166 Decision 3).
+				if err := seen.Unrecorded(root, recordedAs(true, observed)); err != nil {
+					return exitWith(err)
+				}
 			}
 			problems += len(refusals)
 			// A budget that dropped anything — a served line, or only the walk's

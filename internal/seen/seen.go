@@ -939,6 +939,90 @@ func save(root string, l Ledger) error {
 	return nil
 }
 
+// OmittedError is what Unrecorded returns: records the ledger cannot hold and
+// save therefore left out (#702). Each omitted path is named with its reason,
+// so a read that exists to license lines can refuse instead of reporting a
+// licence the ledger does not have.
+type OmittedError struct {
+	// Paths holds each omitted path, quoted, with its reason.
+	Paths []string
+	// LineFeed, Size and Changed say which reasons Paths holds, for the advice.
+	LineFeed, Size, Changed bool
+}
+
+// Error names what the ledger could not hold and what can be done about it.
+func (e *OmittedError) Error() string {
+	msg := "the read ledger cannot hold a record for " + strings.Join(e.Paths, ", ") + ", so nothing was recorded for it"
+	if e.LineFeed {
+		msg += "; a name holding a line feed cannot be recorded, so editing it needs --force or a rename"
+	}
+	if e.Size {
+		msg += "; a record that large cannot be recorded, so read a smaller range"
+	}
+	if e.Changed {
+		msg += "; another command changed its record meanwhile, so read it again"
+	}
+	return msg
+}
+
+// Unrecorded checks, after a Record of obs, that the ledger holds every path
+// obs licensed at least one line of, at the SHA obs gave, and returns an
+// *OmittedError naming those it does not. save leaves out a record it cannot
+// write (a line feed in the key, a record over the bound) and Record still
+// returns nil, which is main's contract for every caller; only a read that
+// exists to license lines, which serves nothing the caller could act on
+// instead, asks (#702). A path with no licensed line is not asked about. A
+// ledger a newer mrw wrote is left as it is, and so is not judged.
+func Unrecorded(root string, obs map[string]Observation) error {
+	paths := make([]string, 0, len(obs))
+	for p, o := range obs {
+		if o.Whole() || len(o.Spans) > 0 {
+			paths = append(paths, p)
+		}
+	}
+	// Nothing licensed, nothing to ask about, not even a ledger that cannot be
+	// read: the read's own exit stands (Codex on #718).
+	if len(paths) == 0 {
+		return nil
+	}
+	sort.Strings(paths)
+	// A newer mrw's ledger is left as it is, so nothing this read licensed was
+	// recorded (ADR-150); a licence-only read says so instead of claiming it.
+	if w, newer, err := Newer(root); err == nil && newer {
+		return fmt.Errorf("the read ledger was written by a newer mrw (%s) and is left as it is, so nothing this read licensed was recorded", w)
+	}
+	top, prefix := state.Checkout(root)
+	l, err := loadAll(top)
+	if err != nil {
+		return ledgerNotRead(err)
+	}
+	var om OmittedError
+	for _, p := range paths {
+		o := obs[p]
+		k := storedKey(prefix, p)
+		if r, ok := l[k]; ok && r.SHA == o.SHA {
+			continue
+		}
+		switch {
+		case strings.Contains(k, "\n"):
+			om.Paths = append(om.Paths, fmt.Sprintf("%q (its name holds a line feed)", k))
+			om.LineFeed = true
+		case int64(len(fmt.Sprintf("%s  %s  %s\n", o.SHA, formatSpans(o), k))) > maxRecordBytes:
+			om.Paths = append(om.Paths, fmt.Sprintf("%q (its record is over %d bytes)", k, maxRecordBytes))
+			om.Size = true
+		default:
+			// Neither reason holds: another command recorded the file again
+			// between this read's record and the check (Codex on #718).
+			om.Paths = append(om.Paths, fmt.Sprintf("%q (the ledger now holds another version of it)", k))
+			om.Changed = true
+		}
+	}
+	if len(om.Paths) > 0 {
+		return &om
+	}
+	return nil
+}
+
 // ledgerNotUpdated is what a call says when the ledger could not be read or
 // replaced after the call had already acted. What it did (lines a read served,
 // a plan applied) stands; only the licence is missing. A bare "rename … Access
