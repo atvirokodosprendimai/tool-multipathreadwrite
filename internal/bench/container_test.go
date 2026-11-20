@@ -109,9 +109,9 @@ exec)
 	case "$*" in *"git apply"*) if [ -e "$ROOT/break-apply" ]; then echo "error: patch failed: notes.txt:1" >&2; exit 1; fi;; esac
 	case "$*" in *"git init -q"*) if [ -e "$ROOT/skew" ]; then echo extra > "$ROOT/testbed/skew.txt"; fi;; esac
 	if [ -n "$dir" ]; then cd "$dir"; fi
-	if [ -e "$ROOT/slow-sync" ]; then for i in "${!args[@]}"; do case "${args[$i]}" in *pid.sync*) args[$i]="${args[$i]//git reset -q --hard/: > '$ROOT/asleep'; sleep 30; git reset -q --hard}";; esac; done; fi
-	if [ -e "$ROOT/slow-kill" ]; then for i in "${!args[@]}"; do case "${args[$i]}" in *pid.sync*) args[$i]="${args[$i]//for f in /: > '$ROOT/asleep'; sleep 30; for f in }";; esac; done; fi
-	if [ -e "$ROOT/slow-post" ]; then for i in "${!args[@]}"; do case "${args[$i]}" in *pid.post*) args[$i]="${args[$i]//git diff-tree/: > '$ROOT/asleep'; sleep 30; git diff-tree}";; esac; done; fi
+	if [ -e "$ROOT/slow-sync" ]; then for i in "${!args[@]}"; do case "${args[$i]}" in *pid.sync*) args[$i]="${args[$i]//git reset -q --hard/: > $ROOT/asleep; sleep 30; git reset -q --hard}";; esac; done; fi
+	if [ -e "$ROOT/slow-kill" ]; then for i in "${!args[@]}"; do case "${args[$i]}" in *pid.sync*) args[$i]="${args[$i]//for f in /: > $ROOT/asleep; sleep 30; for f in }";; esac; done; fi
+	if [ -e "$ROOT/slow-post" ]; then for i in "${!args[@]}"; do case "${args[$i]}" in *pid.post*) args[$i]="${args[$i]//git diff-tree/: > $ROOT/asleep; sleep 30; git diff-tree}";; esac; done; fi
 	if [ -e "$ROOT/leftover" ]; then if [ -e "$ROOT/leader" ]; then set -m; fi; "${args[@]}" <&0 & wait $!; exit $?; fi
 	exec "${args[@]}";;
 *) exit 0;;
