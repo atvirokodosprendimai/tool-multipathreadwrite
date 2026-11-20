@@ -2374,12 +2374,25 @@ func (t text) with(lines []string) text { t.lines = lines; return t }
 func readLines(path string) (t text, existed bool, err error) {
 	// ADR-109: opened through regular.Open, so a file validation judged regular
 	// and that was then swapped for a FIFO is refused rather than blocking.
-	f, _, err := regular.Open(path)
-	if os.IsNotExist(err) {
+	f, _, openErr := regular.Open(path)
+	return readLinesFrom(f, openErr)
+}
+
+// readLinesIn is readLines for the file path that rooted.Resolve returned for a
+// path under root, opened through a root held open, so a directory swapped for a
+// link after that decision cannot lead outside it (#727, ADR-007).
+func readLinesIn(root, path string) (t text, existed bool, err error) {
+	f, _, openErr := rooted.OpenRead(root, path)
+	return readLinesFrom(f, openErr)
+}
+
+// readLinesFrom splits the open file f, which openErr says whether it opened.
+func readLinesFrom(f *os.File, openErr error) (t text, existed bool, err error) {
+	if os.IsNotExist(openErr) {
 		return text{eol: "\n"}, false, nil
 	}
-	if err != nil {
-		return text{eol: "\n"}, false, err
+	if openErr != nil {
+		return text{eol: "\n"}, false, openErr
 	}
 	defer func() { _ = f.Close() }()
 	// ADR-107: read through a bound, for a file that grew after validation

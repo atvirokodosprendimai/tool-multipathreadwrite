@@ -158,6 +158,10 @@ func sourceSpan(i Input, total int) (start, end int, why string) {
 	return start, end, ""
 }
 
+// afterSourceResolveFn runs between the boundary decision on a from= source and
+// its open. It is a seam for a test to swap a directory for a link there (#727).
+var afterSourceResolveFn = func() {}
+
 // loadSource reads a source file as apply reads a target, through the same
 // bounds, and refuses what cannot be split into lines. rooted.Resolve and not
 // resolve: a read of .git is served, so a copy from it may be (ADR-167
@@ -173,6 +177,7 @@ func loadSource(root, p string) *sourceFile {
 		return f
 	}
 	f.full = full
+	afterSourceResolveFn()
 	info, err := os.Stat(full)
 	switch {
 	case os.IsNotExist(err):
@@ -191,7 +196,7 @@ func loadSource(root, p string) *sourceFile {
 		f.why = fmt.Sprintf("from=%s is %d bytes, over the %d-byte limit mrw reads (ADR-104, ADR-107)", asPlan(p), info.Size(), maxLoadBytes)
 		return f
 	}
-	t, existed, err := readLines(full)
+	t, existed, err := readLinesIn(root, full)
 	var over errOverLoadLimit
 	switch {
 	case errors.As(err, &over):

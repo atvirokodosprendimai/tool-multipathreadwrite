@@ -1042,6 +1042,7 @@ func LoadBodyFiles(root string, hunks []Hunk) error {
 		if err != nil {
 			return fmt.Errorf("line %d: body=@%s: %w", hunks[i].SrcLine, p, err)
 		}
+		afterBodyResolveFn()
 		st, err := os.Stat(full)
 		if err != nil {
 			return fmt.Errorf("line %d: body=@%s: %w", hunks[i].SrcLine, p, err)
@@ -1057,7 +1058,7 @@ func LoadBodyFiles(root string, hunks []Hunk) error {
 		if st.Mode().IsRegular() && st.Size() > maxBodyBytes {
 			return fmt.Errorf("line %d: body=@%s is %d bytes, over the %d-byte limit mrw reads", hunks[i].SrcLine, p, st.Size(), maxBodyBytes)
 		}
-		b, err := readBounded(full)
+		b, err := readBounded(root, full)
 		if errors.Is(err, regular.ErrNotRegular) {
 			return notRegularBody{line: hunks[i].SrcLine, path: p}
 		}
@@ -1074,6 +1075,10 @@ func LoadBodyFiles(root string, hunks []Hunk) error {
 	}
 	return nil
 }
+
+// afterBodyResolveFn runs between the boundary decision on a body=@ file and its
+// open. It is a seam for a test to swap a directory for a link there (#727).
+var afterBodyResolveFn = func() {}
 
 // maxBodyBytes is the largest body file body=@ reads (ADR-108), read's limit;
 // a variable so a test can set a small one.
@@ -1095,8 +1100,8 @@ func (e notRegularBody) Unwrap() error { return regular.ErrNotRegular }
 // readBounded reads full through a bound of maxBodyBytes plus one byte, for a
 // file that grows after its size was taken. It opens through regular.Open
 // (ADR-109), whose descriptor decides that the file is regular.
-func readBounded(full string) ([]byte, error) {
-	f, _, err := regular.Open(full)
+func readBounded(root, full string) ([]byte, error) {
+	f, _, err := rooted.OpenRead(root, full)
 	if err != nil {
 		return nil, err
 	}
