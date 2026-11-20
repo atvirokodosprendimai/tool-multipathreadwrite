@@ -11826,15 +11826,36 @@ ln -s payload.txt "$R/a/link.txt"; printf 'C\n' > "$R/c.txt"
 m read a/link.txt c.txt > "$WORK/served.out"
 out=$(printf '@@ a/link.txt - rename\nb/link.txt\n@@ c.txt - rename\nd.txt\n' | m write --json - 2>/dev/null); rc=$?
 want 0 "$rc" "a plan moving a symlink and a plain file -> exit 0"
-python3 - "$out" <<'PY' && ok "the moved link reports no sha_after, the plain file its own" || bad "receipt: $(head -c 500 <<<"$out")"
+python3 - "$out" <<'PY' && ok "the moved link reports no sha_after, lines_after 0 and written true, the plain file its own" || bad "receipt: $(head -c 500 <<<"$out")"
 import hashlib, json, sys
-files = {f["path"]: f for f in json.loads(sys.argv[1])["files"] if not f.get("removed")}
+rows = [f for f in json.loads(sys.argv[1])["files"] if not f.get("removed")]
+files = {f["path"]: f for f in rows}
+if len(files) != len(rows): sys.exit(1)  # counted before indexing: two rows for one path fail
 h = lambda s: hashlib.sha256(s.encode()).hexdigest()
-sys.exit(0 if "sha_after" not in files["b/link.txt"] and files["d.txt"]["sha_after"] == h("C\n") else 1)
+link = files["b/link.txt"]
+sys.exit(0 if "sha_after" not in link and type(link.get("lines_after")) is int and link["lines_after"] == 0 and link.get("written") is True and files["d.txt"]["sha_after"] == h("C\n") else 1)
 PY
 out=$(printf '@@ b/link.txt 1 replace\nX\n' | m write - 2>&1); rc=$?
 want 1 "$rc" "an edit to the moved link before any read of it -> exit 1"
 [ "$(cat "$R/b/payload.txt")" = B ] && ok "and B is unchanged" || bad "B changed: $(cat "$R/b/payload.txt")"
+# The same move's other shapes: a dry run names the source row, with renamed_to
+# and written false, and no row for the destination; the human receipt of the
+# applied move reads `sha -` for the link, which has none.
+R=$(mktemp -d "$WORK/r-XXXXXX"); mkdir "$R/a" "$R/b"; printf 'A\n' > "$R/a/payload.txt"; ln -s payload.txt "$R/a/link.txt"
+m read a/link.txt > "$WORK/served.out"
+out=$(printf '@@ a/link.txt - rename\nb/link.txt\n' | m write --dry-run --json - 2>/dev/null); rc=$?
+want 0 "$rc" "the same move as a dry run -> exit 0"
+python3 - "$out" <<'PY' && ok "the dry run names the source row with renamed_to and written false, and no destination row" || bad "dry-run receipt: $(head -c 500 <<<"$out")"
+import json, sys
+rows = json.loads(sys.argv[1])["files"]
+files = {f["path"]: f for f in rows}
+if len(files) != len(rows): sys.exit(1)  # counted before indexing: two rows for one path fail
+src = files.get("a/link.txt", {})
+sys.exit(0 if len(files) == 1 and src.get("renamed_to") == "b/link.txt" and src.get("written") is False and "b/link.txt" not in files else 1)
+PY
+out=$(printf '@@ a/link.txt - rename\nb/link.txt\n' | MRW_RECEIPT=full m write - 2>/dev/null); rc=$?
+want 0 "$rc" "and applied, in the human form -> exit 0"
+grep -qxF 'created b/link.txt  0L -> 0L  sha -' <<<"$out" && ok "the human receipt's line for the moved link reads exactly: created b/link.txt  0L -> 0L  sha -" || bad "human receipt: $out"
 
 # 366. An apply_patch compiles before the write lock, so its numbers are the file
 # as it was then; its replace now carries sha= of that file (#729). NO binary

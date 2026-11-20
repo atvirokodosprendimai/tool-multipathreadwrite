@@ -251,6 +251,7 @@ func jsonInner(s string) string {
 // and once by ADR-189, whose read gutter is as wide as its block needs: the transcript's one read answer's served lines, nothing else;
 // and once by #735 and #732, whose write receipt gained `mutation` and `full_receipt`: those two schema properties, the outputSchema's `required` (which gained `mutation`), and the write answer's `"mutation":"none"`, nothing else;
 // and once by ADR-210, whose `error` and `check` key descriptions (the outputSchema in tools/list) name a sync that failed after the write landed, and whose receipt gained `sync_note`: those two descriptions and that property, nothing else;
+// and once by ADR-212, whose `files.sha_after` and `files.lines_after` descriptions in the outputSchema say a moved symbolic link carries no content: those two descriptions, nothing else;
 // before that no answer to a call had changed: the transcript
 // held only initialize, tools/list and that read.
 func TestALegacyResultIsUnchangedByTheModernPath(t *testing.T) {
