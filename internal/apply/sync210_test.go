@@ -151,6 +151,10 @@ func TestStagedFilesAndTheirDirectoriesAreSyncedBeforeTheWriteReturns(t *testing
 		fault  fault
 		device bool
 		want   []string // the recorded calls, in order
+		// foldCase compares the calls ignoring case: which of two spellings of one
+		// directory is recorded first is the platform's, and the row asserts that the
+		// directory is synced once, not which spelling names it (Windows CI on #750).
+		foldCase bool
 		// wantErr is "" for a landing, "sync" for a SyncError after it, "staging" for
 		// a failure before the first rename.
 		wantErr string
@@ -178,7 +182,7 @@ func TestStagedFilesAndTheirDirectoriesAreSyncedBeforeTheWriteReturns(t *testing
 	}
 	// One directory under two spellings is synced once, where the filesystem folds case.
 	if foldsCase(t) {
-		rows = append(rows, row{name: "one_directory_two_spellings", in: []Input{editOther, editAlias}, wantSizes: []int64{4, 4},
+		rows = append(rows, row{name: "one_directory_two_spellings", in: []Input{editOther, editAlias}, wantSizes: []int64{4, 4}, foldCase: true,
 			want: join([]string{"temp", "temp"}, drain(), []string{"rename", "rename"}, dirsAfter(true, "OTHER"))})
 	}
 	if darwin {
@@ -221,7 +225,7 @@ func TestStagedFilesAndTheirDirectoriesAreSyncedBeforeTheWriteReturns(t *testing
 			opt := r.opt
 			opt.Seen = ledger
 			res, err := Apply(root, r.in, opt)
-			if got, want := strings.Join(events, " "), strings.Join(r.want, " "); got != want {
+			if got, want := strings.Join(events, " "), strings.Join(r.want, " "); got != want && !(r.foldCase && strings.EqualFold(got, want)) {
 				t.Errorf("calls:\n got %s\nwant %s", got, want)
 			}
 			slices.Sort(sizes)
