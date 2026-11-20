@@ -4,6 +4,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 	"testing"
@@ -52,7 +53,7 @@ func fakeLinks(entries map[string]fakeEntry) links.FS {
 			case "dir":
 				return fakeInfo{filepath.Base(p), os.ModeDir}, nil
 			case "invalid":
-				return nil, &fs.PathError{Op: "lstat", Path: p, Err: syscall.ENAMETOOLONG}
+				return nil, &fs.PathError{Op: "lstat", Path: p, Err: invalidNameErr()}
 			case "denied":
 				return nil, &fs.PathError{Op: "lstat", Path: p, Err: fs.ErrPermission}
 			case "brokensymlink":
@@ -241,4 +242,13 @@ func TestTheLinkWalkEndsAtANameThatCannotExist(t *testing.T) {
 	if slash(got) != "/r/*.go" {
 		t.Fatalf("got %s, want the name kept as written", slash(got))
 	}
+}
+
+// invalidNameErr is an Lstat error for a name the system refuses, as this
+// platform words it (the Go-invented errnos never come from a Windows Lstat).
+func invalidNameErr() error {
+	if runtime.GOOS == "windows" {
+		return syscall.Errno(123)
+	}
+	return syscall.ENAMETOOLONG
 }

@@ -4,6 +4,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"syscall"
 	"testing"
 	"time"
@@ -91,14 +92,70 @@ func TestTheLinkWalkRefusesAnLstatFailureThatIsNeitherAbsenceNorAnInvalidName(t 
 func TestTheLinkWalkEndsAtAnAbsentComponentOrAnInvalidName(t *testing.T) {
 	in := filepath.FromSlash("/r/x/y")
 	for name, err := range map[string]error{
-		"not exist":     fs.ErrNotExist,
-		"name too long": syscall.ENAMETOOLONG,
-		"bad encoding":  syscall.EILSEQ,
-		"not a dir":     syscall.ENOTDIR,
+		"not exist":    fs.ErrNotExist,
+		"invalid name": invalidName(),
 	} {
 		got, gerr := Through(in, lstatAnswering(err))
 		if gerr != nil || got != in {
 			t.Errorf("%s: Through(%s) = %s, %v, want the path kept and no error", name, in, got, gerr)
 		}
+	}
+}
+
+// #711 review, P3-5. A failure beyond a junction must not drop the junction:
+// the fallbacks (Real, and rooted's RealAsFarAsItExists) judged the fully
+// spelled path, which put an escape through /r/j back inside the root.
+func TestARefusedWalkStillReturnsTheLinksResolvedBeforeTheFailure(t *testing.T) {
+	junction, out, x := filepath.FromSlash("/r/j"), filepath.FromSlash("/out"), filepath.FromSlash("/out/x")
+	lfs := FS{
+		Lstat: func(p string) (os.FileInfo, error) {
+			switch filepath.Clean(p) {
+			case filepath.FromSlash("/r"), out:
+				return info{os.ModeDir}, nil
+			case junction:
+				return info{os.ModeIrregular}, nil
+			case x:
+				return nil, &fs.PathError{Op: "lstat", Path: p, Err: syscall.EIO}
+			}
+			return nil, &fs.PathError{Op: "lstat", Path: p, Err: fs.ErrNotExist}
+		},
+		Readlink: func(p string) (string, error) {
+			if filepath.Clean(p) == junction {
+				return out, nil
+			}
+			return "", &fs.PathError{Op: "readlink", Path: p, Err: fs.ErrInvalid}
+		},
+	}
+	in, want := filepath.FromSlash("/r/j/x/y"), filepath.FromSlash("/out/x/y")
+	got, err := Through(in, lfs)
+	if err == nil || got != want {
+		t.Errorf("Through(%s) = %s, %v, want %s with the refusal", in, got, err, want)
+	}
+	if got := realVia(in, lfs, true); got != want {
+		t.Errorf("realVia(%s) = %s, want %s: the junction was dropped", in, got, want)
+	}
+}
+
+// invalidName is an Lstat error for a name the system refuses, as this
+// platform words it: Win32 has its own errnos, and the Go-invented ones never
+// come from a Windows Lstat.
+func invalidName() error {
+	if runtime.GOOS == "windows" {
+		return syscall.Errno(123)
+	}
+	return syscall.ENAMETOOLONG
+}
+
+// P3-6. The Windows errno list is data every platform can test: each listed
+// errno names an invalid name and ends the walk, and ERROR_NOT_READY, an
+// I/O-class failure, does not.
+func TestEveryWindowsInvalidNameErrnoEndsTheWalkAndNotReadyDoesNot(t *testing.T) {
+	for _, e := range []syscall.Errno{123, 161, 206, 267} {
+		if !anyErrno(&fs.PathError{Op: "lstat", Path: "x", Err: e}, windowsInvalidNames) {
+			t.Errorf("errno %d is not in the list of invalid names", e)
+		}
+	}
+	if anyErrno(&fs.PathError{Op: "lstat", Path: "x", Err: syscall.Errno(21)}, windowsInvalidNames) {
+		t.Error("ERROR_NOT_READY (21) was taken for an invalid name")
 	}
 }

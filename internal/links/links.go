@@ -69,7 +69,9 @@ func Through(p string, lfs FS) (string, error) {
 			if nameCannotBeALink(err) {
 				return filepath.Join(append([]string{next}, rest[1:]...)...), nil
 			}
-			return "", fmt.Errorf("%s cannot be examined, so mrw cannot tell where it leads: %w", next, err)
+			// The walked prefix comes back with the refusal, so a fallback that
+			// judges by spelling still keeps the links resolved so far (#711).
+			return filepath.Join(append([]string{next}, rest[1:]...)...), fmt.Errorf("%s cannot be examined, so mrw cannot tell where it leads: %w", next, err)
 		}
 		rest = rest[1:]
 		if fi.Mode()&(os.ModeSymlink|os.ModeIrregular) == 0 {
@@ -82,10 +84,10 @@ func Through(p string, lfs FS) (string, error) {
 				cur = next // a reparse point that redirects nothing
 				continue
 			}
-			return "", fmt.Errorf("%s is a link or junction mrw cannot follow: %w", next, err)
+			return filepath.Join(append([]string{next}, rest...)...), fmt.Errorf("%s is a link or junction mrw cannot follow: %w", next, err)
 		}
 		if hops++; hops > MaxLinks {
-			return "", fmt.Errorf("%s leads through more than %d links", p, MaxLinks)
+			return filepath.Join(append([]string{cur}, rest...)...), fmt.Errorf("%s leads through more than %d links", p, MaxLinks)
 		}
 		// A relative target is relative to the directory holding the link; a
 		// rooted one without a volume is on the link's own drive.
@@ -103,12 +105,26 @@ func Through(p string, lfs FS) (string, error) {
 }
 
 // nameCannotBeALink reports an Lstat failure that says the component is not
-// there or cannot be: absent, not below a directory, or a name the system
-// refuses. Any other failure leaves its nature unknown (#711).
+// there or cannot be: absent, or a name the system refuses. Any other failure
+// leaves its nature unknown (#711).
 func nameCannotBeALink(err error) bool {
-	return errors.Is(err, fs.ErrNotExist) || errors.Is(err, syscall.ENOTDIR) ||
-		errors.Is(err, syscall.ENAMETOOLONG) || errors.Is(err, syscall.EILSEQ) ||
-		platformInvalidName(err)
+	return errors.Is(err, fs.ErrNotExist) || platformInvalidName(err)
+}
+
+// windowsInvalidNames are the Win32 errors an Lstat gives for a name the
+// system will not have: ERROR_INVALID_NAME, ERROR_BAD_PATHNAME,
+// ERROR_FILENAME_EXCED_RANGE and ERROR_DIRECTORY. Not ERROR_NOT_READY (21) or
+// any I/O error: those say nothing about the name (#711).
+var windowsInvalidNames = []syscall.Errno{123, 161, 206, 267}
+
+// anyErrno reports whether err is one of codes.
+func anyErrno(err error, codes []syscall.Errno) bool {
+	for _, c := range codes {
+		if errors.Is(err, c) {
+			return true
+		}
+	}
+	return false
 }
 
 // components splits a volume-less path at this platform's separators.
@@ -149,7 +165,9 @@ func Real(p string) string { return realVia(p, OS, Follow) }
 func realVia(p string, lfs FS, follow bool) string {
 	p = filepath.Clean(p)
 	if follow {
-		if t, err := Through(p, lfs); err == nil {
+		// The walked prefix is kept even when the walk is refused (#711).
+		t, _ := Through(p, lfs)
+		if t != "" {
 			p = t
 		}
 	}
