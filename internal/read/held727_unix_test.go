@@ -72,3 +72,20 @@ func TestALinkInsideTheRootStillReads(t *testing.T) {
 		}
 	}
 }
+
+// #727 review P2-2. A dangling absolute link inside the root is a file that
+// does not exist, not a path that escapes.
+func TestReadingADanglingAbsoluteLinkInsideTheRootDoesNotSayItEscapes(t *testing.T) {
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(root, "nowhere.txt"), filepath.Join(root, "dangabs")); err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	Run(&out, root, []Spec{{Path: "dangabs"}}, Options{})
+	if strings.Contains(out.String(), "escapes") || !strings.Contains(out.String(), "no such file") {
+		t.Errorf("a dangling link inside the root:\n%s", out.String())
+	}
+}
