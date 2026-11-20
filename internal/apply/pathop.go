@@ -343,8 +343,22 @@ type moved struct {
 	// undo puts it back, since the source then holds the edit again.
 	orig *FileResult
 	// respell marks a case-only rename (ADR-129): a filesystem that kept the
-	// original spelling made it a no-op, and the undo has nothing to move back.
+	// original spelling made it a no-op, and the undo has nothing to move back,
+	// when the entry under the original spelling is still the renamed file: ident
+	// is what the renamed entry was when the rename was recorded.
 	respell bool
+	ident   fs.FileInfo
+}
+
+// keptSpelling says whether a case-only rename was left a no-op and still is: the
+// directory lists the original spelling and what it names is the renamed file. A
+// spelling alone is no proof, another file may hold it now.
+func keptSpelling(tr *tree, m moved) bool {
+	if !m.respell || m.ident == nil || !spelledAs(tr, m.from) {
+		return false
+	}
+	now, err := tr.lstat(m.from)
+	return err == nil && os.SameFile(now, m.ident)
 }
 
 // resolvedAt is p with its parent resolved through every link as far as it
@@ -391,7 +405,7 @@ func commitPathOps(tr *tree, res *Result, pathOps []pending) (string, error) {
 			r := renames[i]
 			// A case-only rename the filesystem kept in the original spelling: the
 			// entry is already where the undo would put it, nothing to move back.
-			if !(r.respell && spelledAs(tr, r.from)) {
+			if !keptSpelling(tr, r) {
 				if err := commitRenameFn(tr.noReplace(), r.to, r.from); err != nil {
 					res.noteExtraName(tr, err)
 					occupied[r.key] = true
@@ -505,6 +519,12 @@ func commitPathOps(tr *tree, res *Result, pathOps []pending) (string, error) {
 			}
 			return nil
 		}
+		// What the renamed entry is under its new name: the undo of a case-only
+		// rename tells a filesystem that kept the spelling from another file by it.
+		var ident fs.FileInfo
+		if respell {
+			ident, _ = tr.lstat(w.renameTo)
+		}
 		dest := FileResult{
 			Path:     w.destRel,
 			Created:  true,
@@ -535,12 +555,12 @@ func commitPathOps(tr *tree, res *Result, pathOps []pending) (string, error) {
 				rec := prev
 				rec.Written, rec.Removed, rec.RenamedTo, rec.LinesTo, rec.SHAAfter = true, true, w.destRel, 0, ""
 				res.Files[i] = rec
-				renames = append(renames, moved{from: from, to: w.renameTo, key: w.destRel, recs: [2]int{i, len(res.Files)}, orig: &prev, respell: respell})
+				renames = append(renames, moved{from: from, to: w.renameTo, key: w.destRel, recs: [2]int{i, len(res.Files)}, orig: &prev, respell: respell, ident: ident})
 				res.Files = append(res.Files, dest)
 				return confirm()
 			}
 		}
-		renames = append(renames, moved{from: from, to: w.renameTo, key: w.destRel, recs: [2]int{len(res.Files), len(res.Files) + 1}, respell: respell})
+		renames = append(renames, moved{from: from, to: w.renameTo, key: w.destRel, recs: [2]int{len(res.Files), len(res.Files) + 1}, respell: respell, ident: ident})
 		w.file.Written = true
 		w.file.Removed = true
 		w.file.LinesTo = 0

@@ -128,7 +128,7 @@ func TestTheFallbackEntersOnlyWhereHardLinksAreUnavailableAndOnlyOnAFreeName(t *
 	p := func(n string) string { return filepath.Join(root, n) }
 	linkErr := func(e error) { linkFn = func(*tree, string, string) error { return &os.LinkError{Op: "link", Err: e} } }
 
-	linkErr(syscall.EXDEV)
+	linkErr(errNoLinksA)
 	write(t, root, "a.txt", "A\n")
 	write(t, root, "taken.txt", "T\n")
 	if err := tr.renameNew(p("a.txt"), p("taken.txt")); !errors.Is(err, fs.ErrExist) || read(t, root, "taken.txt") != "T\n" || read(t, root, "a.txt") != "A\n" {
@@ -145,7 +145,7 @@ func TestTheFallbackEntersOnlyWhereHardLinksAreUnavailableAndOnlyOnAFreeName(t *
 	if _, err := os.Lstat(p("d.txt")); err == nil || read(t, root, "c.txt") != "C\n" {
 		t.Error("a link error that is not 'no hard links' still renamed")
 	}
-	linkErr(syscall.EPERM)
+	linkErr(errNoLinksB)
 	fallbackLstatFn = func(*tree, string) (fs.FileInfo, error) { return nil, syscall.EACCES }
 	if err := tr.renameNew(p("c.txt"), p("e.txt")); !errors.Is(err, syscall.EACCES) {
 		t.Errorf("a destination that cannot be looked at: %v, want it refused", err)

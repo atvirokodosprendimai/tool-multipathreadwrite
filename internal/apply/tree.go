@@ -170,6 +170,11 @@ func (e *extraNameError) Unwrap() error { return e.err }
 // the instant other processes can act on either: a seam for the tests of it.
 var afterLink = func(from, to string) {}
 
+// beforeRemoveSource runs in finishLink after both names were looked at and
+// before the destination is looked at once more and the source removed: the
+// instant a test swaps the destination in.
+var beforeRemoveSource = func(to string) {}
+
 // linkFn and fallbackLstatFn are the seams of renameNew's two system calls: a
 // test makes a filesystem that cannot hard-link, or one whose lookups fail.
 var (
@@ -196,9 +201,15 @@ var (
 //
 // After the link, to is looked at again: it must still be the file linked, or
 // another file took the name and the move failed with the source where it was.
-// Then the source is looked at: gone, or another file now (an editor's atomic
-// save), it is not removed, and the move stands with the name it has. The
-// instant between that look and the removal remains. Any failure after the link
+// When to is instead a name for what the source is now, the source was replaced
+// between the first look and the link, the link is to the replacement, and mrw
+// takes it back (by identity: it made it), or names it as left behind. Then the
+// source is looked at: gone, or another file now (an editor's atomic save), it
+// is not removed, and the move stands with the name it has. Right before the
+// removal to is looked at once more, so a destination swapped in after the first
+// look keeps the source. A destination swapped in after THAT look, in the
+// instant before the removal, still loses the source's last name: no portable
+// no-replace rename (os.Root has none) closes it. Any failure after the link
 // leaves two names or none of ours, and says which: the new name is taken back,
 // and when that fails too, or when it cannot be looked at, the error carries it
 // (extraNameError) for left_behind.
@@ -219,7 +230,7 @@ func (t *tree) renameNew(from, to string) error {
 	switch {
 	case lerr == nil:
 		afterLink(from, to)
-		return t.finishLink(rf, rt, to, linked)
+		return t.finishLink(from, rf, rt, to, linked)
 	case errors.Is(lerr, fs.ErrExist):
 		if respelling(from, to) == respelled {
 			return t.r.Rename(rf, rt)
@@ -233,18 +244,9 @@ func (t *tree) renameNew(from, to string) error {
 
 // finishLink is the end of a move that linked: to must be the file linked, the
 // source is removed unless it is no longer that file.
-func (t *tree) finishLink(rf, rt, to string, linked fs.FileInfo) error {
-	b, berr := t.r.Lstat(rt)
-	switch {
-	case errors.Is(berr, fs.ErrNotExist):
-		return berr // the name made is gone and the source was not touched: nothing moved
-	case berr != nil:
-		// Both names may exist and neither can be looked at: say which one is ours.
-		return &extraNameError{err: fmt.Errorf("the new name %s cannot be looked at after the link: %w", to, berr), name: to}
-	case !os.SameFile(b, linked):
-		// Another file took the name after the link: the move failed, the source
-		// stands where it was, and the temp or old name is the caller's to clean.
-		return &fs.PathError{Op: "rename", Path: to, Err: fs.ErrExist}
+func (t *tree) finishLink(from, rf, rt, to string, linked fs.FileInfo) error {
+	if err := t.stillLinked(from, rf, rt, to, linked); err != nil {
+		return err
 	}
 	a, aerr := t.r.Lstat(rf)
 	switch {
@@ -252,6 +254,13 @@ func (t *tree) finishLink(rf, rt, to string, linked fs.FileInfo) error {
 		return nil // another process removed the source: to holds the file now
 	case aerr == nil && !os.SameFile(a, linked):
 		return nil // the source is another file now: not ours to remove
+	}
+	beforeRemoveSource(to)
+	// Once more, right before the removal: a destination swapped in since the
+	// first look must not cost the source its last name. What is swapped in
+	// after this look is the window that remains.
+	if err := t.stillLinked(from, rf, rt, to, linked); err != nil {
+		return err
 	}
 	if rerr := t.r.Remove(rf); rerr != nil {
 		if errors.Is(rerr, fs.ErrNotExist) {
@@ -264,6 +273,33 @@ func (t *tree) finishLink(rf, rt, to string, linked fs.FileInfo) error {
 		return rerr
 	}
 	return nil
+}
+
+// stillLinked is nil when to is the file linked. Gone, the source was not touched
+// and nothing moved; not looked at, both names may exist and to is ours; another
+// file, the move failed with the source where it was, unless to is a name for
+// what the source is now: the source was replaced before the link, to is a link
+// mrw made to the replacement, and it is taken back.
+func (t *tree) stillLinked(from, rf, rt, to string, linked fs.FileInfo) error {
+	b, berr := t.r.Lstat(rt)
+	switch {
+	case errors.Is(berr, fs.ErrNotExist):
+		return berr
+	case berr != nil:
+		return &extraNameError{err: fmt.Errorf("the new name %s cannot be looked at after the link: %w", to, berr), name: to}
+	case os.SameFile(b, linked):
+		return nil
+	}
+	if a, aerr := t.r.Lstat(rf); aerr == nil && os.SameFile(a, b) {
+		err := fmt.Errorf("%s was replaced while it was being moved; read it again and send the plan again", from)
+		if rerr := t.r.Remove(rt); rerr != nil {
+			return &extraNameError{err: fmt.Errorf("%w; and the extra name %s could not be removed: %w", err, to, rerr), name: to}
+		}
+		return err
+	}
+	// Another file took the name after the link: the move failed, the source
+	// stands where it was, and the temp or old name is the caller's to clean.
+	return &fs.PathError{Op: "rename", Path: to, Err: fs.ErrExist}
 }
 
 // checkThenRename is the move where hard links are unavailable: to must be free,

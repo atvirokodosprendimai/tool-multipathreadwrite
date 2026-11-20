@@ -2984,8 +2984,12 @@ func statHeld(root, full string) (fs.FileInfo, error) {
 // entry found after, or "": another file (identity), kind, size or time.
 func entryDrift(pre, post fs.FileInfo) string {
 	switch {
-	case pre == nil || post == nil:
-		return ""
+	case post == nil:
+		// A snapshot that cannot be taken after the bytes were read is a change,
+		// not a reason to skip the check.
+		return "it can no longer be looked at"
+	case pre == nil:
+		return "it could not be looked at before mrw read it"
 	case pre.Mode().Type() != post.Mode().Type():
 		return "another kind of file replaced it"
 	case !sameFileFn(pre, post):
@@ -3022,6 +3026,9 @@ func lstatSource(full string) (fs.FileInfo, bool) {
 // this check and the step's own rename remains.
 func srcChangedSince(tr *tree, w pending) string {
 	if w.src == nil {
+		// No snapshot only for the move of a file this plan edited (ADR-114): its
+		// entry is the one the edit just wrote. An unlink or a rename always has
+		// one, or was refused at validation (entryDrift).
 		return ""
 	}
 	now, err := tr.lstat(resolvedAt(w.full))
