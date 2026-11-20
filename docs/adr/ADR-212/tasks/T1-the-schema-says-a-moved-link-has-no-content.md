@@ -99,6 +99,7 @@ What each clause holds. The runs are made with `MRW_UPDATE_LEGACY_GOLDEN` unset,
 - 2026-11-20 · c1d43bfe* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:511a674f049098e591f4116d2d72747ecf4e58fa4a9083f068ec1bf877d30eb7 · ms:5445
 - 2026-11-20 · c1d43bfe* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:511a674f049098e591f4116d2d72747ecf4e58fa4a9083f068ec1bf877d30eb7 · ms:5602
 - 2026-11-20 · c1d43bfe* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:511a674f049098e591f4116d2d72747ecf4e58fa4a9083f068ec1bf877d30eb7 · ms:4395
+- 2026-11-20 · c1225b1b · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:511a674f049098e591f4116d2d72747ecf4e58fa4a9083f068ec1bf877d30eb7 · ms:2805
 
 ## Invariants
 
