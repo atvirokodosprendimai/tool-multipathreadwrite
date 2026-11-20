@@ -81,11 +81,24 @@ What each clause holds. The runs are made with `MRW_UPDATE_LEGACY_GOLDEN` unset,
 | 4 — it is used | telemetry is refused by ADR-009; the evidence is #712 |
 
 ## Mutation Log
+- 2026-11-20 · c1d43bfe* · mutant killed · exit 1 · `internal/mcp/schema.go` · the sha_after sentence dropped (files.sha_after's description lacks) · acceptance-sha256:511a674f049098e591f4116d2d72747ecf4e58fa4a9083f068ec1bf877d30eb7 · covers:the schema states the rule for both keys
+- 2026-11-20 · c1d43bfe* · mutant killed · exit 1 · `internal/mcp/schema.go` · the lines_after sentence dropped (files.lines_after's description lacks) · acceptance-sha256:511a674f049098e591f4116d2d72747ecf4e58fa4a9083f068ec1bf877d30eb7 · covers:the schema states the rule for both keys
+- 2026-11-20 · c1d43bfe* · mutant killed · exit 1 · `internal/mcp/testdata/legacy_golden.jsonl` · the golden left stale (a legacy answer changed) · acceptance-sha256:511a674f049098e591f4116d2d72747ecf4e58fa4a9083f068ec1bf877d30eb7 · covers:the legacy golden changed by those two strings only
+- 2026-11-20 · c1d43bfe* · mutant killed · exit 1 · `internal/mcp/testdata/legacy_golden.jsonl` · a third description changed in the golden (the fence golden-delta clause) · acceptance-sha256:511a674f049098e591f4116d2d72747ecf4e58fa4a9083f068ec1bf877d30eb7 · covers:the legacy golden changed by those two strings only
+- 2026-11-20 · c1d43bfe* · mutant killed · exit 1 · `internal/mcp/era_test.go` · the regeneration comment does not name ADR-212 · acceptance-sha256:511a674f049098e591f4116d2d72747ecf4e58fa4a9083f068ec1bf877d30eb7 · covers:the legacy golden changed by those two strings only
+- 2026-11-20 · c1d43bfe* · mutant killed · exit 1 · `scripts/contract.sh` · section 364's dry-run row drops --dry-run · acceptance-sha256:511a674f049098e591f4116d2d72747ecf4e58fa4a9083f068ec1bf877d30eb7 · covers:the CLI receipt and a dry run have the shapes the record states
 
 ## Verification Log
 - 2026-11-20 · ff07f487 · exit 1 · `d="$(mktemp -d)" \ …` · acceptance-sha256:511a674f049098e591f4116d2d72747ecf4e58fa4a9083f068ec1bf877d30eb7 · ms:480 · test-lock-sha256:497fdf1b9ad066317a9a59a05a89bdefebb56bc815cf9108879f342f526a0f37 · test-lock-file:docs/adr/locks/497fdf1b9ad066317a9a59a05a89bdefebb56bc815cf9108879f342f526a0f37.lock
   ```
   ```
+- 2026-11-20 · c1d43bfe · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:511a674f049098e591f4116d2d72747ecf4e58fa4a9083f068ec1bf877d30eb7 · ms:2463
+- 2026-11-20 · c1d43bfe* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:511a674f049098e591f4116d2d72747ecf4e58fa4a9083f068ec1bf877d30eb7 · ms:7160
+- 2026-11-20 · c1d43bfe* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:511a674f049098e591f4116d2d72747ecf4e58fa4a9083f068ec1bf877d30eb7 · ms:9284
+- 2026-11-20 · c1d43bfe* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:511a674f049098e591f4116d2d72747ecf4e58fa4a9083f068ec1bf877d30eb7 · ms:4696
+- 2026-11-20 · c1d43bfe* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:511a674f049098e591f4116d2d72747ecf4e58fa4a9083f068ec1bf877d30eb7 · ms:5445
+- 2026-11-20 · c1d43bfe* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:511a674f049098e591f4116d2d72747ecf4e58fa4a9083f068ec1bf877d30eb7 · ms:5602
+- 2026-11-20 · c1d43bfe* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:511a674f049098e591f4116d2d72747ecf4e58fa4a9083f068ec1bf877d30eb7 · ms:4395
 
 ## Invariants
 
