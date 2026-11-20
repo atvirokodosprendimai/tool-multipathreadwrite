@@ -82,7 +82,14 @@ func TestAWindowsDirectoryPathOver260CharactersIsOpenedInExtendedLengthForm(t *t
 	t.Cleanup(func() { createDirFile = real })
 	var asked string
 	createDirFile = func(name *uint16, a, share uint32, sa *syscall.SecurityAttributes, create, f uint32, tmpl int32) (syscall.Handle, error) {
-		asked = syscall.UTF16ToString((*[1 << 16]uint16)(unsafe.Pointer(name))[:])
+		// Walk to the NUL: a slice of a fixed length over the pointer runs past the
+		// string's allocation, which the race build's pointer check stops (Windows CI
+		// on #750).
+		var u []uint16
+		for p := name; *p != 0; p = (*uint16)(unsafe.Add(unsafe.Pointer(p), 2)) {
+			u = append(u, *p)
+		}
+		asked = syscall.UTF16ToString(u)
 		return syscall.InvalidHandle, syscall.Errno(2)
 	}
 	long := root
