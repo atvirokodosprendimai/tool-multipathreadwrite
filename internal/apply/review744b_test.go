@@ -93,31 +93,29 @@ func TestASourceReplacedBeforeTheLinkLeavesNoExtraName(t *testing.T) {
 }
 
 func TestAnExtraNameForAReplacedSourceThatCannotBeTakenBackIsNamed(t *testing.T) {
-	if os.Geteuid() == 0 {
-		t.Skip("needs a directory the caller cannot write to")
-	}
 	root := t.TempDir()
 	write(t, root, "a.txt", "A\n")
 	d := filepath.Join(root, "d")
 	if err := os.Mkdir(d, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = os.Chmod(d, 0o755) })
 	write(t, root, "d/a.txt", "A\n")
 	real := linkFn
-	t.Cleanup(func() { linkFn = real })
+	realRemove := removeNameFn
+	t.Cleanup(func() { linkFn, removeNameFn = real, realRemove })
 	linkFn = func(tr *tree, rf, rt string) error {
-		if filepath.Base(rt) != "b.txt" {
-			return real(tr, rf, rt)
+		if filepath.Base(rt) == "b.txt" {
+			replaceWith(t, root, "d/a.txt", "REPLACEMENT\n")
 		}
-		replaceWith(t, root, "d/a.txt", "REPLACEMENT\n")
-		err := real(tr, rf, rt)
-		if err == nil {
-			if cerr := os.Chmod(d, 0o555); cerr != nil {
-				t.Fatal(cerr)
-			}
+		return real(tr, rf, rt)
+	}
+	// The removal is refused by a seam, not by a permission: Windows deletes in a
+	// read-only directory, and the production code is the same on every OS.
+	removeNameFn = func(tr *tree, rt string) error {
+		if filepath.Base(rt) == "b.txt" {
+			return errors.New("injected: the extra name cannot be removed")
 		}
-		return err
+		return realRemove(tr, rt)
 	}
 	res, err := Apply(root, []Input{{Path: "d/a.txt", Op: "rename", Body: []string{"d/b.txt"}, Lines: -1, Index: 0}}, Options{})
 	if err == nil || res.Applied {
@@ -125,6 +123,40 @@ func TestAnExtraNameForAReplacedSourceThatCannotBeTakenBackIsNamed(t *testing.T)
 	}
 	if !slices.Contains(res.LeftBehind, "d/b.txt") {
 		t.Errorf("left_behind = %v, want d/b.txt", res.LeftBehind)
+	}
+}
+
+// A directory is never hard-linked, on any OS: the move asks and renames without
+// a link attempt, whose refusal Windows words as access denied (which noHardLinks
+// deliberately does not read as "no hard links").
+func TestADirectoryMoveNeverAttemptsALink(t *testing.T) {
+	root := t.TempDir()
+	tr, err := openTree(root, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tr.close()
+	for _, d := range []string{"d1", "d2"} {
+		if err := os.Mkdir(filepath.Join(root, d), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	real := linkFn
+	t.Cleanup(func() { linkFn = real })
+	calls := 0
+	linkFn = func(*tree, string, string) error {
+		calls++
+		return &os.LinkError{Op: "link", Err: errors.New("Access is denied.")}
+	}
+	p := func(n string) string { return filepath.Join(root, n) }
+	if err := tr.renameNew(p("d1"), p("d2")); !errors.Is(err, fs.ErrExist) {
+		t.Errorf("a directory onto a taken name: %v, want fs.ErrExist", err)
+	}
+	if err := tr.renameNew(p("d1"), p("d3")); err != nil {
+		t.Errorf("a directory onto a free name: %v", err)
+	}
+	if calls != 0 {
+		t.Errorf("a link was attempted %d time(s) for a directory", calls)
 	}
 }
 

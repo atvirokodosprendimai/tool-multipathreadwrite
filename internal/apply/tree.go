@@ -181,6 +181,10 @@ var (
 	linkFn = func(t *tree, rf, rt string) error { return t.r.Link(rf, rt) }
 
 	fallbackLstatFn = func(t *tree, rt string) (fs.FileInfo, error) { return t.r.Lstat(rt) }
+
+	// removeNameFn takes back a name renameNew made: a seam for a filesystem that
+	// refuses the removal, which no permission setup produces on every OS.
+	removeNameFn = func(t *tree, rt string) error { return t.r.Remove(rt) }
 )
 
 // renameNew moves from to to and never replaces: a file another process made at
@@ -226,6 +230,13 @@ func (t *tree) renameNew(from, to string) error {
 	if err != nil {
 		return err
 	}
+	// A directory cannot be hard-linked on any OS, and what the OS answers
+	// differs (Windows says access denied, which is not read as "no hard links":
+	// an ACL or a holder says it too). It is asked and renamed, as where links
+	// are unavailable.
+	if linked.IsDir() {
+		return t.checkThenRename(from, to, rf, rt)
+	}
 	lerr := linkFn(t, rf, rt)
 	switch {
 	case lerr == nil:
@@ -267,7 +278,7 @@ func (t *tree) finishLink(from, rf, rt, to string, linked fs.FileInfo) error {
 			return nil
 		}
 		// Two names for one file: take the new one back so the move is whole.
-		if uerr := t.r.Remove(rt); uerr != nil {
+		if uerr := removeNameFn(t, rt); uerr != nil {
 			return &extraNameError{err: fmt.Errorf("%w; and the extra name %s could not be removed: %w", rerr, to, uerr), name: to}
 		}
 		return rerr
@@ -292,7 +303,7 @@ func (t *tree) stillLinked(from, rf, rt, to string, linked fs.FileInfo) error {
 	}
 	if a, aerr := t.r.Lstat(rf); aerr == nil && os.SameFile(a, b) {
 		err := fmt.Errorf("%s was replaced while it was being moved; read it again and send the plan again", from)
-		if rerr := t.r.Remove(rt); rerr != nil {
+		if rerr := removeNameFn(t, rt); rerr != nil {
 			return &extraNameError{err: fmt.Errorf("%w; and the extra name %s could not be removed: %w", err, to, rerr), name: to}
 		}
 		return err
