@@ -35,6 +35,10 @@ const (
 	// wrote, on a line no read has shown in that version (ADR-203): an earlier
 	// write may have moved the line the number meant.
 	StaleNumber Kind = "stale-number"
+	// LineAfter is a multi-line replace on a file mrw wrote whose line after the
+	// range no read has shown since the write (ADR-208). The MCP surface answers
+	// it with its own read and the checkpoints it may already hold.
+	LineAfter Kind = "line-after"
 )
 
 // Error is a refusal with its kind. Its text is the message exactly, so a

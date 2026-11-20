@@ -62,7 +62,7 @@ ADR-208 Decisions 1 to 6.
 
 1. [S1] The three tests; RED on `written_nothing_shown`, `later_call_rewrite_plan`, `search_replace_no_kept_tail`, `apply_patch`, `forced_stale_showing`, `forced_nothing_shown`, the CLI test and the MCP test; the other subtests hold today and stay. [proof: acceptance]
 2. [S2] The rule. Mutants, each killed: `Covers` kept for written records (`written_nothing_shown`); the sha comparison dropped (`forced_stale_showing`); the plan-source field ignored (`same_call_rewrite`); every `Computed` plan exempt (`search_replace_no_kept_tail`, `apply_patch`); `Force` exempt (`forced_nothing_shown`); the last-line skip dropped (`written_ends_on_last_line`); the field never set by `cmd/mrw` (the CLI test's `same_call_rewrite`, and §359's same-call row); the field never set by `internal/mcp` (the MCP test's `same_call_rewrite`); the field set for every `--rewrite` plan, a later call's included (both tests' `later_call_rewrite`). [proof: mutation]
-3. [S3] Contract §359 drives `$MRW`: the rows in the record's Wiring table, each paired: refused then landing after the read; a kept tail landing beside a block without one refused; §264's fake ast-grep for the same-call `--rewrite` landing and the later-call plan refused, then landing after `mrw read f359.go:N+1`. The sentences. [proof: acceptance]
+3. [S3] Contract §359 drives `$MRW`: the rows in the record's Wiring table, each paired: refused then landing after the read; a kept tail landing beside a block without one refused; §264's fake ast-grep for the same-call `--rewrite` landing and the later-call plan refused, then landing after `mrw read f359.go:1-N+1`. The sentences. [proof: acceptance]
 
 ## Acceptance
 
@@ -103,8 +103,57 @@ out="$(mktemp)" \
 | 4 — it is used | telemetry is refused by ADR-009; the evidence for building it is the probe in the record |
 
 ## Mutation Log
+- 2026-11-20 · aeb2e833* · mutant killed · exit 1 · `internal/apply/apply.go` · Covers kept for a written record: the line after is judged as before · acceptance-sha256:511b7ee58adbe0d2245019b9a12c0df98cc232e9f2befdee60596884d26db1cd · covers:a written file's line after must be shown
+- 2026-11-20 · aeb2e833* · mutant killed · exit 1 · `internal/apply/apply.go` · the sha comparison dropped: a showing of another version meets it · acceptance-sha256:511b7ee58adbe0d2245019b9a12c0df98cc232e9f2befdee60596884d26db1cd · covers:a showing of another version does not, forced or not
+- 2026-11-20 · aeb2e833* · mutant killed · exit 1 · `internal/apply/apply.go` · the plan-source field ignored: a same-call rewrite is judged · acceptance-sha256:511b7ee58adbe0d2245019b9a12c0df98cc232e9f2befdee60596884d26db1cd · covers:a same-call rewrite is not judged
+- 2026-11-20 · aeb2e833* · mutant killed · exit 1 · `internal/apply/apply.go` · every Computed plan exempt: foreign formats are not judged · acceptance-sha256:511b7ee58adbe0d2245019b9a12c0df98cc232e9f2befdee60596884d26db1cd · covers:foreign formats are judged
+- 2026-11-20 · aeb2e833* · mutant killed · exit 1 · `internal/apply/apply.go` · --force exempts the rule · acceptance-sha256:511b7ee58adbe0d2245019b9a12c0df98cc232e9f2befdee60596884d26db1cd · covers:force does not waive it
+- 2026-11-20 · aeb2e833* · mutant killed · exit 1 · `internal/apply/apply.go` · the last-line skip dropped · acceptance-sha256:511b7ee58adbe0d2245019b9a12c0df98cc232e9f2befdee60596884d26db1cd · covers:the last line needs none
+- 2026-11-20 · aeb2e833* · mutant killed · exit 1 · `cmd/mrw/main.go` · the field never set by cmd/mrw: a same-call --rewrite is judged · acceptance-sha256:511b7ee58adbe0d2245019b9a12c0df98cc232e9f2befdee60596884d26db1cd · covers:the CLI refuses it and lands after the read
+- 2026-11-20 · aeb2e833* · mutant killed · exit 1 · `internal/mcp/tools.go` · the field never set by internal/mcp · acceptance-sha256:511b7ee58adbe0d2245019b9a12c0df98cc232e9f2befdee60596884d26db1cd · covers:mrw_write refuses it and lands after the read and ack
+- 2026-11-20 · aeb2e833* · mutant killed · exit 1 · `cmd/mrw/main.go` · the field set for every plan, a later call's included · acceptance-sha256:511b7ee58adbe0d2245019b9a12c0df98cc232e9f2befdee60596884d26db1cd · covers:a later-call rewrite plan is judged
+- 2026-11-20 · aeb2e833* · mutant killed · exit 1 · `internal/mcp/tools.go` · the field set for every plan, a later call's included · acceptance-sha256:511b7ee58adbe0d2245019b9a12c0df98cc232e9f2befdee60596884d26db1cd · covers:a later-call rewrite plan is judged
+- 2026-11-20 · aeb2e833* · mutant killed · exit 1 · `internal/apply/apply.go` · a partial written record judged by the showing too · acceptance-sha256:511b7ee58adbe0d2245019b9a12c0df98cc232e9f2befdee60596884d26db1cd · covers:a read-shaped record is judged as before
+- 2026-11-20 · aeb2e833* · mutant killed · exit 1 · `internal/apply/apply.go` · a showing never meets it · acceptance-sha256:511b7ee58adbe0d2245019b9a12c0df98cc232e9f2befdee60596884d26db1cd · covers:a showing in this version meets it
+- 2026-11-20 · aeb2e833* · mutant killed · exit 1 · `internal/apply/apply.go` · a kept tail no longer exempts a quoted hunk · acceptance-sha256:511b7ee58adbe0d2245019b9a12c0df98cc232e9f2befdee60596884d26db1cd · covers:a kept tail still lands
+- 2026-11-20 · aeb2e833* · mutant killed · exit 1 · `internal/apply/after208_test.go` · every subtest skips · acceptance-sha256:511b7ee58adbe0d2245019b9a12c0df98cc232e9f2befdee60596884d26db1cd · covers:every subtest ran and none skipped
+- 2026-11-20 · aeb2e833* · mutant killed · exit 1 · `internal/seen/seen.go` · an engine package outside the record edited · acceptance-sha256:511b7ee58adbe0d2245019b9a12c0df98cc232e9f2befdee60596884d26db1cd · covers:the engine packages are untouched, tracked and untracked
+- 2026-11-20 · aeb2e833* · mutant killed · exit 1 · `AGENTS.md` · the sentence reworded in AGENTS.md · acceptance-sha256:511b7ee58adbe0d2245019b9a12c0df98cc232e9f2befdee60596884d26db1cd · covers:the new sentence is in the three documents
+- 2026-11-20 · aeb2e833* · mutant survived · exit 0 · `scripts/contract.sh` · the row no longer uses §264's recorded answer · acceptance-sha256:511b7ee58adbe0d2245019b9a12c0df98cc232e9f2befdee60596884d26db1cd · covers:the contract row exists with its plans
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
+- 2026-11-20 · aeb2e833* · mutant killed · exit 1 · `scripts/contract.sh` · the row no longer uses §264's recorded answer · acceptance-sha256:511b7ee58adbe0d2245019b9a12c0df98cc232e9f2befdee60596884d26db1cd · covers:the contract row exists with its plans
 
 ## Verification Log
+- 2026-11-20 · aeb2e833* · exit 1 · `out="$(mktemp)" \ …` · acceptance-sha256:511b7ee58adbe0d2245019b9a12c0df98cc232e9f2befdee60596884d26db1cd · ms:2694 · test-lock-sha256:e69c6d462499549d453d87c31a01fe9ef2065bdb7971835155f7fea10e96dedd · test-lock-file:docs/adr/locks/e69c6d462499549d453d87c31a01fe9ef2065bdb7971835155f7fea10e96dedd.lock
+  ```
+  ```
+- 2026-11-20 · aeb2e833* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:511b7ee58adbe0d2245019b9a12c0df98cc232e9f2befdee60596884d26db1cd · ms:4749
+- 2026-11-20 · aeb2e833* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:511b7ee58adbe0d2245019b9a12c0df98cc232e9f2befdee60596884d26db1cd · ms:4418
+- 2026-11-20 · aeb2e833* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:511b7ee58adbe0d2245019b9a12c0df98cc232e9f2befdee60596884d26db1cd · ms:3440
+- 2026-11-20 · aeb2e833* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:511b7ee58adbe0d2245019b9a12c0df98cc232e9f2befdee60596884d26db1cd · ms:3689
+- 2026-11-20 · aeb2e833* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:511b7ee58adbe0d2245019b9a12c0df98cc232e9f2befdee60596884d26db1cd · ms:5790
+- 2026-11-20 · aeb2e833* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:511b7ee58adbe0d2245019b9a12c0df98cc232e9f2befdee60596884d26db1cd · ms:4644
+- 2026-11-20 · aeb2e833* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:511b7ee58adbe0d2245019b9a12c0df98cc232e9f2befdee60596884d26db1cd · ms:3524
+- 2026-11-20 · aeb2e833* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:511b7ee58adbe0d2245019b9a12c0df98cc232e9f2befdee60596884d26db1cd · ms:4996
+- 2026-11-20 · aeb2e833* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:511b7ee58adbe0d2245019b9a12c0df98cc232e9f2befdee60596884d26db1cd · ms:4277
+- 2026-11-20 · aeb2e833* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:511b7ee58adbe0d2245019b9a12c0df98cc232e9f2befdee60596884d26db1cd · ms:4429
+- 2026-11-20 · aeb2e833* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:511b7ee58adbe0d2245019b9a12c0df98cc232e9f2befdee60596884d26db1cd · ms:2222
+- 2026-11-20 · aeb2e833* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:511b7ee58adbe0d2245019b9a12c0df98cc232e9f2befdee60596884d26db1cd · ms:3234
+- 2026-11-20 · aeb2e833* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:511b7ee58adbe0d2245019b9a12c0df98cc232e9f2befdee60596884d26db1cd · ms:3171
+- 2026-11-20 · aeb2e833* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:511b7ee58adbe0d2245019b9a12c0df98cc232e9f2befdee60596884d26db1cd · ms:2950
+- 2026-11-20 · aeb2e833* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:511b7ee58adbe0d2245019b9a12c0df98cc232e9f2befdee60596884d26db1cd · ms:3285
+- 2026-11-20 · aeb2e833* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:511b7ee58adbe0d2245019b9a12c0df98cc232e9f2befdee60596884d26db1cd · ms:3774
+- 2026-11-20 · aeb2e833* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:511b7ee58adbe0d2245019b9a12c0df98cc232e9f2befdee60596884d26db1cd · ms:3208
+- 2026-11-20 · aeb2e833* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:511b7ee58adbe0d2245019b9a12c0df98cc232e9f2befdee60596884d26db1cd · ms:3351
+- 2026-11-20 · aeb2e833* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:511b7ee58adbe0d2245019b9a12c0df98cc232e9f2befdee60596884d26db1cd · ms:3215
+- 2026-11-20 · aeb2e833* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:511b7ee58adbe0d2245019b9a12c0df98cc232e9f2befdee60596884d26db1cd · ms:1375
+- 2026-11-20 · 6c81712f* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:511b7ee58adbe0d2245019b9a12c0df98cc232e9f2befdee60596884d26db1cd · ms:0 · test-lock-sha256:dc02a213b8f8cc7001496d90fa3d3d1e437cfd94f79dbd79c39016d55b369895 · test-lock-file:docs/adr/locks/dc02a213b8f8cc7001496d90fa3d3d1e437cfd94f79dbd79c39016d55b369895.lock · test-lock-kind:replace
+- 2026-11-20 · 6c81712f* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:511b7ee58adbe0d2245019b9a12c0df98cc232e9f2befdee60596884d26db1cd · ms:0 · test-lock-sha256:dc02a213b8f8cc7001496d90fa3d3d1e437cfd94f79dbd79c39016d55b369895 · test-lock-file:docs/adr/locks/dc02a213b8f8cc7001496d90fa3d3d1e437cfd94f79dbd79c39016d55b369895.lock · test-lock-kind:replace
+- 2026-11-20 · 6c81712f* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:511b7ee58adbe0d2245019b9a12c0df98cc232e9f2befdee60596884d26db1cd · ms:0 · test-lock-sha256:a87827fb02309e30766b7bb8935a0180601c571cb755c5c7dfe4a5f234eab5ab · test-lock-file:docs/adr/locks/a87827fb02309e30766b7bb8935a0180601c571cb755c5c7dfe4a5f234eab5ab.lock · test-lock-kind:replace
+- 2026-11-20 · 967b74cf* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:511b7ee58adbe0d2245019b9a12c0df98cc232e9f2befdee60596884d26db1cd · ms:1743
+- 2026-11-20 · b1ad6d06* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:511b7ee58adbe0d2245019b9a12c0df98cc232e9f2befdee60596884d26db1cd · ms:1254
 
 ## Invariants
 

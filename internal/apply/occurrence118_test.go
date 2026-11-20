@@ -98,7 +98,8 @@ func TestAnOccurrenceAfterAWriteNeedsTheMatchesRead(t *testing.T) {
 	if res.Failed != 1 || !strings.Contains(res.Hunks[0].Reason, "lines 3") {
 		t.Fatalf("after a write, no match read: failed=%d reason %q, want a refusal naming line 3", res.Failed, res.Hunks[0].Reason)
 	}
-	res, err = Apply(root, []Input{in}, Options{DryRun: true, Seen: map[string]Seen{"x.go": {SHA: sha, Written: true, Shown: [][2]int{{3, 3}}}}})
+	// ADR-208: the replace of 7-9 is multi-line, so the line after it, 10, is shown too.
+	res, err = Apply(root, []Input{in}, Options{DryRun: true, Seen: map[string]Seen{"x.go": {SHA: sha, Written: true, Shown: [][2]int{{3, 3}, {10, 10}}}}})
 	if err != nil || res.Failed != 0 {
 		t.Errorf("after a write and a read of the earlier match: %v failed=%d %+v", err, res.Failed, res.Hunks)
 	}

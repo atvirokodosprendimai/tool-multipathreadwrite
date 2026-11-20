@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -45,7 +46,11 @@ func TestAStaleNumberIsRefusedByTheBinary(t *testing.T) {
 	refused := func(t *testing.T, root, doc, line string) {
 		t.Helper()
 		out, code := write(t, root, doc)
-		if code != 1 || !strings.Contains(out, "line "+line+" of f.txt "+noShowing+"mrw read --max-cols 0 f.txt:"+line+"; a --quiet read, or a line --max-cols cut, shows nothing), address it by pattern, or give anchor=") {
+		remedy := "mrw --root " + root + " read --max-cols 0 f.txt:" + line
+		if !regexp.MustCompile(`^[A-Za-z0-9._/-]+$`).MatchString(root) {
+			remedy = "a read that shows line " + line // a root that needs quoting is described (ADR-203, review of #745)
+		}
+		if code != 1 || !strings.Contains(out, "line "+line+" of f.txt "+noShowing+remedy+"; a --quiet read, or a line --max-cols cut, shows nothing), address it by pattern, or give anchor=") {
 			t.Fatalf("want exit 1 naming line %s, got %d:\n%s", line, code, out)
 		}
 		if got := cat(t, root, "f.txt"); got != seeded {

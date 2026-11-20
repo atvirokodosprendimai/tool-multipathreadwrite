@@ -11533,7 +11533,7 @@ seed349; want 0 "$?" "ADR-203: the seed write, a file read whole and then writte
 cp "$R349/f.txt" "$R349/before.txt"
 printf '@@ f.txt 8 replace\nX\n' | e349 write --no-check - > "$R349/w1.out"
 want 1 "$?" "ADR-203: a number alone on a line no read has shown is refused"
-{ cmp -s "$R349/f.txt" "$R349/before.txt" && grep -q "line 8 of f.txt has no recorded showing in this version, and a line number alone cannot say which line you mean. Read it whole (mrw read --max-cols 0 f.txt:8; a --quiet read, or a line --max-cols cut, shows nothing), address it by pattern, or give anchor=" "$R349/w1.out"; } \
+{ cmp -s "$R349/f.txt" "$R349/before.txt" && grep -q "line 8 of f.txt has no recorded showing in this version, and a line number alone cannot say which line you mean. Read it whole (mrw --root $R349 read --max-cols 0 f.txt:8; a --quiet read, or a line --max-cols cut, shows nothing), address it by pattern, or give anchor=" "$R349/w1.out"; } \
   && ok "ADR-203: the file is byte-identical and the reason names line 8" || bad "refusal: $(head -c 300 "$R349/w1.out")"
 seed349; want 0 "$?" "ADR-203: the reseed lands"
 printf '@@ f.txt 8 replace anchor="L7"\nX\n' | e349 write --no-check - > "$R349/w2.out"
@@ -12003,6 +12003,58 @@ print(m.group(1) if m else "")' "$R368/ans.json" 2>/dev/null)
   [ "$(sed -n 1p "$R368/fit/f.txt")" = TWO ] && ! grep -q 'full receipt is at' "$R368/fit.json" && ! grep -q '"full_receipt"' "$R368/fit.json" && [ "$before368" = "$after368" ] \
     && ok "a receipt that fits keeps nothing and names nothing" || bad "fitting receipt: kept $before368 -> $after368, $(head -c 400 "$R368/fit.json")"
 fi
+
+# 359. ADR-208: a multi-line replace on a file mrw wrote, or read whole with
+# --quiet, needs the line after its range SHOWN since the write: ADR-005's
+# whole-file licence of a written file covered every line, so the closer the range
+# left behind went unseen. Each refusal (exit 1, the file unchanged, the reason
+# ending with the read to make: the range from the start of the edit through the
+# line after it, `mrw --root DIR read --max-cols 0 f359.go:1-4`) is paired with the
+# same plan landing after that read; a search_replace block that keeps its tail
+# lands beside one that does not; an apply_patch hunk and a ranged --quiet read
+# are refused; and with §264's recorded ast-grep, a same-call --rewrite on a
+# created file lands where the same plan from `read --rewrite`, written later, is
+# refused until the line after is read.
+fixture
+f359=$'func A() {\n\tif x {\n\t}\n}\n'
+rep359=$'@@ f359.go 1-3 replace anchor="func A"\nfunc A() {\n\ty()\n}\n'
+mk359() { rm -f "$R/f359.go"; printf '@@ f359.go 0 create\nfunc A() {\n\tif x {\n\t}\n}\n' | m write --no-check - >/dev/null 2>&1; }
+mk359
+out=$(printf '%s' "$rep359" | m write --no-check - 2>&1); rc=$?
+want 1 "$rc" "a multi-line replace on a file mrw wrote, its line after unread -> exit 1"
+{ grep -q 'needs a served line after 3' <<<"$out" && [ "${out%mrw --root $R read --max-cols 0 f359.go:1-4*}" != "$out" ] && [ "$(cat "$R/f359.go"; echo x)" = "${f359}x" ]; } \
+  && ok "naming the line and ending with the read to make, the file unchanged" || bad "refusal: $(head -c 400 <<<"$out")"
+m read f359.go:1-4 > "$WORK/served.out"
+printf '%s' "$rep359" | m write --no-check - >/dev/null 2>&1; want 0 $? "the pair: the same plan lands after mrw read f359.go:1-4"
+mk359
+m read --quiet f359.go:1-3 > "$WORK/served.out"
+out=$(printf '%s' "$rep359" | m write --no-check - 2>&1); want 1 $? "a ranged --quiet read adds no showing of the line after -> exit 1"
+# a record of its own: the ledger is emptied first, so what the --quiet read recorded is all there is
+rm -f "$R/f359.go"; printf 'func A() {\n\tif x {\n\t}\n}\n' > "$R/f359.go"; m seen --forget > "$WORK/served.out"; m read --quiet f359.go > "$WORK/served.out"
+out=$(printf '%s' "$rep359" | m write --no-check - 2>&1); want 1 $? "a whole-file --quiet read shows nothing -> exit 1"
+grep -q 'needs a served line after 3' <<<"$out" && ok "refused for the line after, not for a file never read" || bad "whole --quiet: $(head -c 300 <<<"$out")"
+m read f359.go:4 > "$WORK/served.out"
+printf '%s' "$rep359" | m write --no-check - >/dev/null 2>&1; want 0 $? "the pair: the same plan lands once line 4 is read"
+mk359
+out=$(printf 'f359.go\n<<<<<<< SEARCH\nfunc A() {\n\tif x {\n\t}\n=======\nfunc A() {\n\ty()\n}\n>>>>>>> REPLACE\n' | m write --no-check --format=search_replace - 2>&1); want 1 $? "a search_replace block that keeps no tail -> exit 1"
+mk359
+out=$(printf 'f359.go\n<<<<<<< SEARCH\nfunc A() {\n\tif x {\n\t}\n}\n=======\nfunc A() {\n\ty()\n}\n>>>>>>> REPLACE\n' | m write --no-check --format=search_replace - 2>&1); want 0 $? "the pair: a block whose REPLACE keeps SEARCH's last line lands"
+mk359
+out=$(printf '*** Begin Patch\n*** Update File: f359.go\n@@\n-func A() {\n-\tif x {\n-\t}\n+func A() {\n+\ty()\n+}\n*** End Patch\n' | m write --no-check --format=apply_patch - 2>&1); want 1 $? "an apply_patch hunk with no context -> exit 1"
+# a --rewrite: §264's recorded ast-grep answer on a.go
+d359="$WORK/bin264"
+mka359() { rm -f "$R/a.go"; m write --no-check --create a.go < "$WORK/a264.orig" >/dev/null 2>&1; }
+fake264 "$WORK/stream264.jsonl" # the answer §264 recorded
+mka359
+PATH="$d359:$PATH" m write --no-check --ast-grep 'foo($A, $B)' --rewrite 'bar($B, $A)' . >/dev/null 2>&1; want 0 $? "a same-call --rewrite on a file mrw created lands"
+cmp -s "$R/a.go" "$WORK/a264.want" && ok "with ast-grep's result" || bad "a.go is $(head -c 300 "$R/a.go")"
+mka359
+PATH="$d359:$PATH" m read --ast-grep 'foo($A, $B)' --rewrite 'bar($B, $A)' . > "$WORK/plan359" 2>/dev/null
+out=$(m write --no-check - < "$WORK/plan359" 2>&1); want 1 $? "the same plan from read --rewrite, written later -> exit 1"
+{ grep -q 'needs a served line after 7' <<<"$out" && cmp -s "$R/a.go" "$WORK/a264.orig"; } && ok "naming the line after and writing nothing" || bad "later rewrite: $(head -c 300 <<<"$out")"
+m read a.go:8 > "$WORK/served.out"
+m write --no-check - < "$WORK/plan359" >/dev/null 2>&1; want 0 $? "the pair: it lands after mrw read a.go:8"
+cmp -s "$R/a.go" "$WORK/a264.want" && ok "with ast-grep's result" || bad "a.go is $(head -c 300 "$R/a.go")"
 
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A

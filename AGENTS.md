@@ -565,6 +565,11 @@ whole list arrives as one argument and the regex swallows the rest of the line.
   inside the checkpoint that brackets the range, counted in its `N lines follow`), so a
   replace of exactly the lines read is not refused for it (ADR-161). A page of `mrw_read`
   adds none, since its continuation serves the line a page ends on.
+  On a file mrw wrote, or one read whole with `--quiet`, a multi-line replace that ends
+  before the last line also needs the line after it shown since the write: such a file
+  is wholly licensed, which would cover every line, so its line after must have been
+  read (ADR-208; the refusal ends with the read to make). A plan `--ast-grep ...
+  --rewrite` makes in the same call is exempt: its plan maker licensed that line.
   `--echo-pad N` (MCP `echo_pad`, default 0) prints N
   lines after the body so a surviving closer is visible; the hunk stays `ok`.
   The pad is not a checker.

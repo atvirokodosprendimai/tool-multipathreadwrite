@@ -1104,7 +1104,10 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 			// ADR-200: a plan built from the file as it is (grep with sub, ast_grep
 			// with rewrite, a foreign format) is not a typed one.
 			Computed: planning || (strings.TrimSpace(a.Format) != "" && strings.TrimSpace(a.Format) != "plan"),
-			Preview:  a.DryRun && (a.hasGrep() || a.hasAst())}}) // ADR-164: a plan maker's dry run shows each change
+			// ADR-208: ast_grep with rewrite, in this call, is not judged for the line
+			// after each span; the plan maker licensed it.
+			SameCallRewrite: a.Rewrite != nil && a.hasAst(),
+			Preview:         a.DryRun && (a.hasGrep() || a.hasAst())}}) // ADR-164: a plan maker's dry run shows each change
 	if err != nil {
 		return errorResult(gateRefusal(err)), nil
 	}
@@ -2823,6 +2826,20 @@ func nameTheAck(root string, res *apply.Result) {
 			h.Reason += ". Over this surface: mrw_read the line and send its checkpoint ids in ack with the write, or address it by pattern, or give anchor="
 		}
 	}
+
+	// ADR-208 over this surface: the read the engine names is a CLI one, so the
+	// refusal names mrw_read of the range through the line after, and its ack.
+	for i := range res.Hunks {
+		h := &res.Hunks[i]
+		if h.Kind != refusal.LineAfter {
+			continue
+		}
+		if start, end, ok := addrRange(h.Addr); ok {
+			if cut := strings.Index(h.Reason, "; the read to make is "); cut >= 0 {
+				h.Reason = h.Reason[:cut] + fmt.Sprintf("; over this surface: mrw_read %s lines %d-%d and send its checkpoint ids in ack with the write", h.Path, start, end+1)
+			}
+		}
+	}
 	// ADR-157: under a newer ledger an ack licenses nothing either.
 	if _, newer, err := seen.Newer(root); err == nil && newer {
 		return
@@ -2859,6 +2876,16 @@ func nameTheAck(root string, res *apply.Result) {
 				continue
 			}
 			sameSpelling = true
+		case refusal.LineAfter:
+			// The line after is what an ack must lift; a page of it kept for the
+			// very spelling the retry uses (the ledger keys a record per spelling).
+			if _, e, ok := addrRange(h.Addr); ok {
+				start, end, known = e+1, e+1, true
+			}
+			if !known {
+				continue
+			}
+			sameSpelling = true
 		case refusal.NotRead:
 			start, end, known = addrRange(h.Addr)
 		case refusal.SourceNotRead:
@@ -2881,7 +2908,7 @@ func nameTheAck(root string, res *apply.Result) {
 		// PR #132).
 		live, _ := currentSHA(root, path)
 		covers := false
-		if h.Kind == refusal.StaleNumber {
+		if h.Kind == refusal.StaleNumber || h.Kind == refusal.LineAfter {
 			covers = pagesCover(store, path, live, start, end)
 		} else {
 			for _, p := range store {

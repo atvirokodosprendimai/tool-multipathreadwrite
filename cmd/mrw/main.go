@@ -981,7 +981,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			},
 			&cli.StringFlag{
 				Name:  "rewrite",
-				Usage: "with --ast-grep, print a PLAN instead of lines: ast-grep's own rewrite of each match to `REPLACEMENT` (its $A metavariables expand; an empty one deletes the match), one replace hunk per span of changed lines, anchored on the span's first line, and license each span and the line after it. Pipe it to `mrw write -`, or use `mrw write --ast-grep P --rewrite R`. Matches that overlap are refused. Not with --grep, --sub, -C, --count, --stat, --quiet, --max-cols, --max-lines, -N, --files-from or a range (ADR-161)",
+				Usage: "with --ast-grep, print a PLAN instead of lines: ast-grep's own rewrite of each match to `REPLACEMENT` (its $A metavariables expand; an empty one deletes the match), one replace hunk per span of changed lines, anchored on the span's first line, and license each span and the line after it. Piped to `mrw write -` in a later call, the plan is judged like any other: on a file mrw wrote, or one read whole with --quiet, a multi-line replace that ends before the last line is refused until the line after it is shown (ADR-208). `mrw write --ast-grep P --rewrite R` makes and applies the plan in one call and is not refused for it. Matches that overlap are refused. Not with --grep, --sub, -C, --count, --stat, --quiet, --max-cols, --max-lines, -N, --files-from or a range (ADR-161)",
 			},
 			&cli.StringSliceFlag{
 				Name:  "exclude",
@@ -2347,6 +2347,11 @@ held or went unchecked.`,
 					// ADR-200: a plan mrw built from the file as it is (--sub,
 					// --rewrite, a foreign format) is not a typed one.
 					Computed: planned || format == "apply_patch" || format == "search_replace",
+					// ADR-208: a plan made by --ast-grep P --rewrite R in this call is
+					// not judged for the line after each span; the plan maker licensed it.
+					SameCallRewrite: cmd.IsSet("rewrite"),
+					// The read a refusal names is pasted where the caller is.
+					RemedyRoot: remedyRoot(cmd),
 				},
 			})
 			if err != nil {
