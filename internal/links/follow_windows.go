@@ -2,7 +2,26 @@
 
 package links
 
-import "syscall"
+import (
+	"errors"
+	"syscall"
+)
+
+// windowsInvalidNames are the Win32 errors an Lstat gives for a name the
+// system will not have: ERROR_INVALID_NAME, ERROR_BAD_PATHNAME,
+// ERROR_FILENAME_EXCED_RANGE and ERROR_DIRECTORY. Not ERROR_NOT_READY (21) or
+// any I/O error: those say nothing about the name (#711).
+var windowsInvalidNames = []syscall.Errno{123, 161, 206, 267}
+
+// anyErrno reports whether err is one of codes.
+func anyErrno(err error, codes []syscall.Errno) bool {
+	for _, c := range codes {
+		if errors.Is(err, c) {
+			return true
+		}
+	}
+	return false
+}
 
 // Follow is true on Windows, where Go 1.23+ neither marks a junction as a
 // symlink nor follows one in EvalSymlinks, so the walk has to (ADR-071).

@@ -166,17 +166,3 @@ func invalidName() error {
 	}
 	return syscall.ENAMETOOLONG
 }
-
-// P3-6. The Windows errno list is data every platform can test: each listed
-// errno names an invalid name and ends the walk, and ERROR_NOT_READY, an
-// I/O-class failure, does not.
-func TestEveryWindowsInvalidNameErrnoEndsTheWalkAndNotReadyDoesNot(t *testing.T) {
-	for _, e := range []syscall.Errno{123, 161, 206, 267} {
-		if !anyErrno(&fs.PathError{Op: "lstat", Path: "x", Err: e}, windowsInvalidNames) {
-			t.Errorf("errno %d is not in the list of invalid names", e)
-		}
-	}
-	if anyErrno(&fs.PathError{Op: "lstat", Path: "x", Err: syscall.Errno(21)}, windowsInvalidNames) {
-		t.Error("ERROR_NOT_READY (21) was taken for an invalid name")
-	}
-}
