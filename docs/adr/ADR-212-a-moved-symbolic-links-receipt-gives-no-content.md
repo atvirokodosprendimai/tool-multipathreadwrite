@@ -6,10 +6,10 @@
 **Owner:** Zy
 **Spec:** None — no spec stage
 **Cross-references:** ADR-005, ADR-057, ADR-111, ADR-114, issue #712, #725
-**Supersedes:** in part: ADR-111 Decision 1's "keeps … its meaning across releases" for `files[].sha_after` and `files[].lines_after` of one record only, the destination of a moved symbolic link, from the release that carried #725 (`b1188333`); ADR-057 Decision 7's "Record the dest after rename as a whole-file write", for a moved symbolic link (ADR-057 already carries a notice of #725).
-**Governs:** `internal/apply/pathop.go`, `internal/writer/writer.go`, `cmd/mrw/main.go`, `internal/mcp/schema.go`, `internal/mcp/era_test.go`, `internal/mcp/testdata/legacy_golden.jsonl`, `README.md`
+**Supersedes:** in part: ADR-111 Decision 1's "keeps … its meaning across releases" for `files[].sha_after` and `files[].lines_after` of one record only, the destination of a moved symbolic link, from the first release that contains #725 (`b1188333`). No tag contains it yet (`git tag --contains b1188333` is empty on 2026-11-20; the last release, `v1.93.0`, predates it), so the exception applies to that next release, which names it. Also ADR-057 Decision 7's "Record the dest after rename as a whole-file write", for a moved symbolic link (ADR-057 already carries a notice of #725).
+**Governs:** `internal/apply/pathop.go`, `internal/writer/writer.go`, `cmd/mrw/main.go`, `internal/mcp/schema.go`, `internal/mcp/era_test.go`, `internal/mcp/testdata/legacy_golden.jsonl`, `docs/receipts.txt`, `scripts/contract.sh`, `README.md`
 **Enforced-by:** `internal/writer/link712_test.go::TestAMovedSymlinkCarriesNoContentAndLicensesNothing`
-**Served-path change:** none to behaviour: this record states what #725 already ships. The words change: `mrw_write`'s output schema describes `files.sha_after` and `files.lines_after` for a moved symbolic link (T1).
+**Served-path change:** none to behaviour: this record states what #725 already does on `main`, which the next release will carry. The words change: `mrw_write`'s output schema describes `files.sha_after` and `files.lines_after` for a moved symbolic link, and the rule a consumer reads them by on both transports (Decision 3, T1); ADR-111 and `docs/receipts.txt`'s header name the exception.
 
 ## Context
 
@@ -17,9 +17,10 @@
 
 | Surface | For a moved symbolic link's destination |
 |---------|------------------------------------------|
-| `--json` and `mrw_write` receipt | `sha_after` absent (it is `omitempty`, `internal/apply/apply.go`), `lines_after` 0, `written` true |
+| `--json` and `mrw_write` receipt (the same `FileResult`, `internal/apply/apply.go:220`) | `sha_after` absent (it is `omitempty`), `lines_after` 0, `written` true |
 | human receipt | `sha -` (`shaOrNone`, `cmd/mrw/main.go:3498-3503`) |
-| ledger | no record for it; one an earlier read left at that path, under any spelling of the entry, is dropped (`internal/writer/writer.go:114-121`), so a write to it needs a read first |
+| reads of the target | the receipt builder does not read the target for those fields; validation still reads through the source link (the load at `internal/apply/apply.go:743`), and the drift scan of a write with a check hashes what the link reads at its new place when that is inside the root (`internal/writer/drift.go:20-35`) |
+| ledger | the move grants no licence: the writer records nothing for the destination and drops what an earlier read left at that entry under any spelling (`internal/writer/writer.go:114-121`). An observation of the link's target under the target's own path is not dropped, and apply's lookup by identity can still find it for a plan that names the link (`apply.go:1485` and the alias lookup after it), so an edit through the link needs a read only when no current observation of the target exists |
 | dry run | no destination record at all: a dry run lists the source with `renamed_to` (`apply.go:948-967`) |
 
 Contract §364 and `TestAMovedSymlinkCarriesNoContentAndLicensesNothing` pin it. ADR-057 carries a notice of the change; the README's rename paragraph says it (`README.md:315`).
@@ -38,9 +39,9 @@ Contract §364 and `TestAMovedSymlinkCarriesNoContentAndLicensesNothing` pin it.
 
 ## Decision
 
-1. **For the destination of a moved symbolic link, the receipt gives no content.** `sha_after` is absent, `lines_after` is 0 and says nothing about the lines the link leads to, `written` is true, the human receipt prints `sha -`, and the destination licenses nothing. This is the keys' meaning for that one case, and mrw does not read the target to fill them.
-2. **ADR-111 is amended for that case only.** ADR-111 makes a change of a key's meaning wait for a major version. #725 shipped one in a minor release, for one record whose old value was false (the digest of a file the link no longer reads). Zy accepted stating it rather than reverting or restoring the count. Every other record keeps the keys' meaning; no key is added, renamed or removed.
-3. **The words.** `mrw_write`'s output schema says it (T1): `files.sha_after` gains "Absent for a removed file and for a moved symbolic link, whose target mrw does not read."; `files.lines_after` gains "0 for a removed file and for a moved symbolic link, whose target mrw does not read: there it says nothing about the lines the link leads to." The legacy golden is regenerated for those two strings and nothing else.
+1. **For the destination of a moved symbolic link, the receipt gives no content.** `sha_after` is absent, `lines_after` is 0 and says nothing about the lines the link leads to, `written` is true, and the human receipt prints `sha -`. The receipt builder does not read the target to fill them (Context gives what else reads it). The move licenses nothing of its own and drops stale records at that entry; an existing current observation of the target under its own path stands.
+2. **ADR-111 is amended for that case only, from the first release that contains #725.** ADR-111 makes a change of a key's meaning wait for a major version. #725 changes one, for one record whose old value was false (the digest of a file the link no longer reads), and no release carries it yet; the next one, a minor release, will, and its release note names the exception. Zy accepted stating it rather than reverting or restoring the count. Every other record keeps the keys' meaning; no key is added, renamed or removed. ADR-111 and the header of `docs/receipts.txt` point at this record.
+3. **The consumer's rule, on both transports.** On a row with `written` true and no `removed`, `lines_after` is a measured count only when `sha_after` is present; without `sha_after` the row's content is not given. `mrw_write`'s output schema says it (T1): `files.sha_after` gains "Absent for a removed file and for a moved symbolic link, whose target mrw does not read."; `files.lines_after` gains "0 for a removed file and for a moved symbolic link, whose target mrw does not read: on a written row it is a count only when sha_after is present." The legacy golden is regenerated for those two strings and nothing else. The CLI's `--json` has no per-key text; `docs/receipts.txt`'s header says the rule.
 4. **What would make this wrong.** A caller that needs the count. It reads the destination after the write, which is what the ledger requires before an edit anyway.
 
 ## Alternatives Considered
@@ -58,9 +59,10 @@ Contract §364 and `TestAMovedSymlinkCarriesNoContentAndLicensesNothing` pin it.
 
 | Surface | Change | Producer | Consumer(s) |
 |---------|--------|----------|-------------|
-| `mrw_write` output schema: `files.sha_after`, `files.lines_after` | one sentence each for a removed file and a moved symbolic link | T1 | MCP hosts and callers |
+| `mrw_write` output schema: `files.sha_after`, `files.lines_after` | one sentence each, Decision 3 | T1 | MCP hosts and callers |
 | `internal/mcp/testdata/legacy_golden.jsonl` | regenerated for those two strings | T1 | `TestALegacyResultIsUnchangedByTheModernPath` |
-| contract §364 | unchanged: it already drives the behaviour through the built binary | — | the contract gate |
+| `docs/receipts.txt` header, ADR-111 | a comment naming the exception and the rule; a notice | this record | readers of the receipt contract |
+| contract §364 | extended in T1: the applied receipt's `lines_after` 0, `written` true and no `sha_after` in CLI `--json`, the human `sha -`, and a dry run's one source row with `renamed_to` and `written` false and no destination row; the MCP shape in T1's Go test | T1 | the contract gate |
 
 No receipt key is added or renamed (ADR-111); the meaning of two keys is stated for one record.
 
@@ -96,6 +98,7 @@ Revert T1; the behaviour is #725's.
 ## History
 
 - 2026-11-20: drafted after Zy's acceptance; the Codex xhigh challenge follows.
+- 2026-11-20, Codex xhigh challenge after acceptance, at `a549b331`: AMEND, four points, each checked against the code and applied. (1) No tag contains `b1188333` (`git tag --contains` empty; `v1.93.0` is the last release), so the exception applies from the next release; the consumer's rule is stated for both transports, and ADR-111 and `docs/receipts.txt`'s header point here. (2) The claims are narrowed: validation reads through the source link (`apply.go:743`) and the drift scan hashes an in-root target (`drift.go:20-35`); an observation of the target under its own path still licenses an edit through the link (`apply.go:1485`). (3) The applied and dry-run wire shapes are pinned in T1 and §364. (4) T1's fence unsets `MRW_UPDATE_LEGACY_GOLDEN`, checks that exactly the two descriptions changed, protects `internal/writer`, and its sentence mutants fail by the test's named message.
 
 ## Follow-ups
 

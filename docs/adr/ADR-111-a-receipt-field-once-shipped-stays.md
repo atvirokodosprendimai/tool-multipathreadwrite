@@ -2,6 +2,7 @@
 
 **Status:** Accepted
 **Accepted:** 2026-10-01 by Zy — "work on the deffered ones", on the ADR-108 deferrals in `docs/adr/BACKLOG.md` "From ADR-108", of which B4 is this record's scope. The record's text, including the promise it makes, was drafted after that instruction and not shown to Zy before execution: this line is the session's reading of it, stated so it can be checked
+**Amended in part:** by ADR-212 (2026-11-20): one exception to Decision 1's "keeps … its meaning", for a moved symbolic link's `files[].sha_after` and `files[].lines_after`, from the first release that contains #725. Every other record and key stands.
 **Date:** 2026-10-01
 **Owner:** Zy
 **Spec:** None — no spec stage
