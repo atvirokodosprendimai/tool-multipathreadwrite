@@ -11836,6 +11836,56 @@ out=$(printf '@@ b/link.txt 1 replace\nX\n' | m write - 2>&1); rc=$?
 want 1 "$rc" "an edit to the moved link before any read of it -> exit 1"
 [ "$(cat "$R/b/payload.txt")" = B ] && ok "and B is unchanged" || bad "B changed: $(cat "$R/b/payload.txt")"
 
+# 366. An apply_patch compiles before the write lock, so its numbers are the file
+# as it was then; its replace now carries sha= of that file (#729). NO binary
+# invocation can place another writer between the compile and the lock, so the
+# refusal ("file changed") is not shown here: the Go test
+# TestAnApplyPatchCompiledBeforeAnotherWriterLandsIsRefused lands the compiled
+# plan between the two, and it alone covers it. This row is the half a binary can
+# show, and only that half: the sha the compiler computes is the one the engine
+# computes, for a file of each shape, so a patch nothing moved is never refused;
+# a compiler that hashed the wrong bytes fails every row here. It passes on a
+# binary without the fix too: it guards against the fix refusing good patches.
+R366="$WORK/r366"; rm -rf "$R366"; mkdir -p "$R366/st"
+for shape in lf crlf noeol; do
+  case $shape in
+    lf)   printf 'l1\nl2\nl3\nl4\nl5\n' > "$R366/$shape.txt" ;;
+    crlf) printf 'l1\r\nl2\r\nl3\r\nl4\r\nl5\r\n' > "$R366/$shape.txt" ;;
+    noeol) printf 'l1\nl2\nl3\nl4\nl5' > "$R366/$shape.txt" ;;
+  esac
+  XDG_STATE_HOME="$R366/st" "$MRW" -C "$R366" read --quiet "$shape.txt" > "$R366/$shape.rd" 2>&1
+  XDG_STATE_HOME="$R366/st" "$MRW" -C "$R366" write --format apply_patch - > "$R366/$shape.out" 2>&1 <<PATCH
+*** Begin Patch
+*** Update File: $shape.txt
+@@
+-l3
++L3
+*** End Patch
+PATCH
+  want 0 "$?" "an apply_patch on a read $shape file applies"
+  grep -q '^L3' "$R366/$shape.txt" && ok "and replaced l3 in the $shape file" || bad "$shape file: $(cat "$R366/$shape.txt")"
+done
+
+# 369. #734, ADR-177: 130 is a run mrw stopped. A command that had already exited 1
+# on its own, its leftover child only being reaped when a TERM reaches mrw, keeps
+# its 1; the same TERM while the command still runs stops it, 130.
+R369="$WORK/r369"; rm -rf "$R369"; mkdir -p "$R369"; M369="$R369/armed"
+# The child writes the marker only once its TERM trap is installed, and the shell
+# waits for it before exiting 1, so the group is never empty when the reap begins.
+MRW_SHELL=on "$MRW" -C "$R369" run "(trap '' TERM; : > $M369; exec sleep 30) & while [ ! -e $M369 ]; do sleep 0.01; done; exit 1" > "$R369/exited.out" 2>&1 &
+p369=$!; armed369=no; for _ in $(seq 1 200); do [ -e "$M369" ] && { armed369=yes; break; }; sleep 0.05; done
+[ "$armed369" = yes ] || bad "the child never installed its TERM trap (no marker after 10 s): the row did not reach the reap"
+sleep 0.2
+kill -TERM "$p369" 2>/dev/null || bad "mrw run had already ended when the TERM was to be sent, so it did not land during the reap"
+wait "$p369"; rc369=$?
+want 1 "$rc369" "a TERM that lands while mrw reaps the leftover child of a command that exited 1 keeps exit 1"
+grep -q '^exit 1' "$R369/exited.out" && ok "and the receipt says exit 1" || bad "exited receipt: $(head -c 300 "$R369/exited.out")"
+MRW_SHELL=on "$MRW" -C "$R369" run 'exec sleep 30' > "$R369/running.out" 2>&1 &
+p369=$!; sleep 0.4
+kill -TERM "$p369" 2>/dev/null || bad "mrw run had already ended when the TERM was to be sent (the pair)"
+wait "$p369"; rc369=$?
+want 130 "$rc369" "the pair: the same TERM while the command still runs is 130"
+
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
 # killed process is a zombie until its adopter reaps it, and pgrep lists

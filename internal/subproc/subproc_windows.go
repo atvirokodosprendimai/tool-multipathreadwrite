@@ -62,11 +62,22 @@ func group(ctx context.Context, c *exec.Cmd) {
 
 // run runs a Command's child inside its job; any other Cmd runs as it is.
 func run(c *exec.Cmd) error {
+	return runObserved(c, func() {})
+}
+
+// runObserved is run with a call between the child's exit and the job's
+// termination: Wait has returned, so the exit status is in hand, and what the
+// caller reads there is not the cleanup's doing (#734).
+func runObserved(c *exec.Cmd, exited func()) error {
 	v, ok := trees.LoadAndDelete(c)
 	if !ok {
-		return c.Run()
+		err := c.Run()
+		exited()
+		return err
 	}
-	return runInJob(c, v.(*jobTree))
+	t := v.(*jobTree)
+	t.exited = exited
+	return runInJob(c, t)
 }
 
 // kernel32Jobs is jobAPI on Windows.

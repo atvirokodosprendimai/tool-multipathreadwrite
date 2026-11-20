@@ -49,6 +49,16 @@ func run(c *exec.Cmd) error {
 	return err
 }
 
+// runObserved is run with a call between the command's exit and the reap.
+func runObserved(c *exec.Cmd, exited func()) error {
+	err := c.Run()
+	trace("exited")
+	exited()
+	reap(c)
+	trace("reaped")
+	return err
+}
+
 // stopGroup stops process group pgid (ADR-095): SIGTERM, then a poll every
 // pollEvery until no member is left or waitDelay has passed since the TERM,
 // then SIGKILL to what is left. Only ESRCH means empty; any other answer,

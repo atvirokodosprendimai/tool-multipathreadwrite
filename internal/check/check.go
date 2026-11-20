@@ -447,7 +447,10 @@ func runWith(ctx context.Context, root string, cfg Config, cmdline string, env [
 	}
 
 	start := time.Now()
-	runErr := subproc.Run(c)
+	// ctxAtExit is the context as the command exited, before its group was
+	// reaped: a deadline that lands during the reap did not stop it, and its
+	// exit status stands (#734).
+	ctxAtExit, runErr := subproc.RunObserved(ctx, c)
 	res.DurationMS = time.Since(start).Milliseconds()
 	_ = f.Close()
 
@@ -484,7 +487,7 @@ func runWith(ctx context.Context, root string, cfg Config, cmdline string, env [
 	// "interrupted" of it would be a verdict the process did not give (review
 	// of #229). No test can reach that window; it is microseconds wide.
 	switch {
-	case runErr != nil && ctx.Err() == context.DeadlineExceeded:
+	case runErr != nil && errors.Is(ctxAtExit, context.DeadlineExceeded):
 		// ADR-126: a check that never started is a timeout only when its
 		// start failed for the deadline. One that could not start for its own
 		// reason (no shell) keeps that reason, though the deadline has also
@@ -497,7 +500,7 @@ func runWith(ctx context.Context, root string, cfg Config, cmdline string, env [
 			res.ExitCode = -1
 			res.Skipped = TimedOutBeforeStart
 		}
-	case runErr != nil && ctx.Err() == context.Canceled && res.Ran:
+	case runErr != nil && errors.Is(ctxAtExit, context.Canceled) && res.Ran:
 		// It started and was stopped from outside — an interrupt, or the
 		// caller's own cancel. A check that never started stays "could not
 		// start" above: nothing ran for an interrupt to stop.

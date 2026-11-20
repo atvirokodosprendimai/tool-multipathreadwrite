@@ -84,6 +84,9 @@ var (
 	// callAckNote names ack ids that matched no checkpoint (ADR-128); it opens
 	// the answer's text.
 	callAckNote string
+	// callAckNoteShort is the same note with the kept ids cut to five (#733): the
+	// one that goes in when the whole note does not fit the ceiling.
+	callAckNoteShort string
 )
 
 // ceiling is the budget an in-call measurement compares against.
@@ -197,12 +200,12 @@ func callToolCtx(ctx context.Context, root string, raw json.RawMessage, modern b
 	// that follows it are one transaction as far as another caller is concerned.
 	gate.Lock()
 	defer gate.Unlock()
-	callModern, callReserve, callRelease, callCtx, callAckNote = modern, 0, release, ctx, ""
+	callModern, callReserve, callRelease, callCtx, callAckNote, callAckNoteShort = modern, 0, release, ctx, "", ""
 	if modern {
 		callReserve = encodedSize(decorateCall(callToolResult{})) - encodedSize(callToolResult{})
 	}
 	defer func() {
-		callModern, callReserve, callRelease, callCtx, callAckNote = false, 0, nil, context.Background(), ""
+		callModern, callReserve, callRelease, callCtx, callAckNote, callAckNoteShort = false, 0, nil, context.Background(), "", ""
 	}()
 
 	var res callToolResult
@@ -233,11 +236,16 @@ func callToolCtx(ctx context.Context, root string, raw json.RawMessage, modern b
 	// that happened; a funnel cannot be forgotten. Found by the Codex review of
 	// #135.
 	if callAckNote != "" && len(res.Content) > 0 {
-		noted := res
-		noted.Content = append([]contentBlock(nil), res.Content...)
-		noted.Content[0].Text = callAckNote + "\n" + noted.Content[0].Text
-		if encodedSize(decorateCall(noted)) <= MaxResultChars {
-			res = noted
+		// The whole note when it fits; else the one with the kept ids cut to five;
+		// else none: an advisory never refuses an answer that fits without it.
+		for _, note := range []string{callAckNote, callAckNoteShort} {
+			noted := res
+			noted.Content = append([]contentBlock(nil), res.Content...)
+			noted.Content[0].Text = note + "\n" + noted.Content[0].Text
+			if encodedSize(decorateCall(noted)) <= MaxResultChars {
+				res = noted
+				break
+			}
 		}
 	}
 	return withinCeiling(decorateCall(res))
@@ -340,11 +348,11 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	a.has = presentKeys(args)
 	// Promote before serving: the caller is acknowledging the PREVIOUS page,
 	// and a write in the same turn must see the licence this call grants.
-	unknown, err := promote(root, a.Ack)
+	unknown, kept, err := promoteAcks(root, a.Ack)
 	if err != nil {
 		return callToolResult{}, &rpcError{Code: codeInternal, Message: "ack: " + statehint.Hint(err).Error()}
 	}
-	noteAcks(unknown)
+	noteAcks(unknown, kept)
 	// With grep, no spec is required at all — the walk starts at the root, the
 	// way `mrw read --grep P` with no paths does. Without it, a read with
 	// nothing to read is the caller's mistake.
@@ -759,6 +767,9 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 					return callToolResult{}, &rpcError{Code: codeInternal, Message: "holding checkpoints: " + statehint.Hint(err).Error()}
 				}
 			}
+			// hold evicts the oldest pending checkpoints past maxPending, and an id
+			// this call kept may be one: the note names only those still pending.
+			noteAcks(unknown, stillPending(root, kept))
 			return markedServed, nil
 		}
 	}
@@ -905,11 +916,11 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	}
 	// The checkpoints for the page this plan was written against, promoted
 	// before the ledger is consulted (ADR-031).
-	unknown, err := promote(root, a.Ack)
+	unknown, kept, err := promoteAcks(root, a.Ack)
 	if err != nil {
 		return callToolResult{}, &rpcError{Code: codeInternal, Message: "ack: " + statehint.Hint(err).Error()}
 	}
-	noteAcks(unknown)
+	noteAcks(unknown, kept)
 	// ADR-161: a walk makes the plan (grep and sub, ast_grep and rewrite), and it
 	// goes through the parse and apply every plan does.
 	planning := a.hasGrep() || a.hasAst() || a.Sub != nil || a.Rewrite != nil
@@ -1101,11 +1112,11 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 // both reviews of #343); gate is taken back by defer, so a panic in Verify does
 // not unlock it twice.
 func verifyUnlocked(land *writer.Landed) writer.Verified {
-	modern, reserve, release, ctx, note := callModern, callReserve, callRelease, callCtx, callAckNote
+	modern, reserve, release, ctx, note, shortNote := callModern, callReserve, callRelease, callCtx, callAckNote, callAckNoteShort
 	gate.Unlock()
 	defer func() {
 		gate.Lock()
-		callModern, callReserve, callRelease, callCtx, callAckNote = modern, reserve, release, ctx, note
+		callModern, callReserve, callRelease, callCtx, callAckNote, callAckNoteShort = modern, reserve, release, ctx, note, shortNote
 	}()
 	if release != nil {
 		release()
@@ -1113,11 +1124,23 @@ func verifyUnlocked(land *writer.Landed) writer.Verified {
 	return land.Verify(ctx)
 }
 
-// noteAcks sets the call's unknown-ack note (ADR-128). The note is advisory:
-// callToolCtx adds it only when the answer still fits the ceiling with it, so it
-// never moves a write's floor or refuses an answer that fits without it.
-func noteAcks(unknown []string) {
-	callAckNote = ackNote(unknown)
+// noteAcks sets the call's ack note (ADR-128): the ids that matched no
+// checkpoint, and those kept because their file could not be read (#733). The
+// note is advisory: callToolCtx adds it only when the answer still fits the
+// ceiling with it, so it never moves a write's floor or refuses an answer that
+// fits without it.
+func noteAcks(unknown []string, kept []keptAck) {
+	join := func(kn string) string {
+		var notes []string
+		for _, n := range []string{ackNote(unknown), kn} {
+			if n != "" {
+				notes = append(notes, n)
+			}
+		}
+		return strings.Join(notes, "\n")
+	}
+	callAckNote = join(keptNote(kept))
+	callAckNoteShort = join(keptNoteN(kept, 5))
 }
 
 // ackNote names, at most five, the ack ids that matched no checkpoint
@@ -1135,6 +1158,31 @@ func ackNote(unknown []string) string {
 		more = fmt.Sprintf(" (and %d more)", len(unknown)-len(shown))
 	}
 	return fmt.Sprintf("-- ack: %d id(s) matched no checkpoint and licensed nothing: %s%s", len(unknown), strings.Join(shown, ", "), more)
+}
+
+// keptNote names every ack id kept because the file it names could not be read
+// just now (#733): they are still pending, and licensed nothing yet, so each is
+// listed with its own cause. callToolCtx cuts it to five only under the ceiling.
+func keptNote(kept []keptAck) string { return keptNoteN(kept, len(kept)) }
+
+// keptNoteN is keptNote naming at most n of the ids.
+func keptNoteN(kept []keptAck, n int) string {
+	if len(kept) == 0 {
+		return ""
+	}
+	shown := kept
+	if len(shown) > n {
+		shown = shown[:n]
+	}
+	parts := make([]string, len(shown))
+	for i, k := range shown {
+		parts[i] = fmt.Sprintf("%s (%s)", k.id, k.cause)
+	}
+	more := ""
+	if len(kept) > len(shown) {
+		more = fmt.Sprintf(" (and %d more)", len(kept)-len(shown))
+	}
+	return fmt.Sprintf("-- ack: %d id(s) were kept and licensed nothing yet, because their file could not be read just now; send them again: %s%s", len(kept), strings.Join(parts, ", "), more)
 }
 
 // writeReceipt is what mrw_write returns: the engine's own Result, plus the one

@@ -34,6 +34,18 @@ import (
 // grandchild still holds before it closes them itself.
 const waitDelay = time.Second
 
+// Trace is a hook: when set, it is called with "exited" once a command has exited and "reaped"
+// once its process group has been reaped (Unix, through RunObserved). A test reads
+// where a cancel fell between them: the order is what makes a cancel one that
+// landed during the reap (#734).
+var Trace func(event string)
+
+func trace(event string) {
+	if Trace != nil {
+		Trace(event)
+	}
+}
+
 // ErrNotContained is wrapped by Run's error when a child could not be put in
 // the job object that stops its whole tree on Windows: it was killed before it
 // ran, so a caller that reads its output must not take the empty output for
@@ -93,6 +105,17 @@ func Interruptible(ctx context.Context) (context.Context, context.CancelFunc) {
 // process can break away from it (ADR-120).
 func Run(c *exec.Cmd) error {
 	return run(c)
+}
+
+// RunObserved is Run, and also says whether ctx was already done when the command
+// exited, before its process group was reaped (#734). The reap can take up to
+// waitDelay, and a deadline or a signal that lands inside it did not stop the
+// command: its own exit status was already in hand. A caller that reads ctx after
+// Run cannot tell the two apart. On Windows, where the job is closed inside the
+// run, the answer is read after it, as ctx would be.
+func RunObserved(ctx context.Context, c *exec.Cmd) (ctxAtExit error, err error) {
+	err = runObserved(c, func() { ctxAtExit = ctx.Err() })
+	return ctxAtExit, err
 }
 
 // ErrOutputTooLarge is Output's refusal of an answer over its limit (ADR-104).

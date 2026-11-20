@@ -39,13 +39,16 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 	"unicode/utf8"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/regular"
@@ -420,7 +423,63 @@ func hold(root, path, sha string, spans map[string][2]int) error {
 	return savePending(root, store)
 }
 
-// promote turns each acknowledged checkpoint into a ledger record for its own
+// keptAck is an acknowledged checkpoint promoteAcks did not consume because the
+// file it names could not be read just now: it stays pending, and the caller can
+// send it again (#733). cause says why, with the path relative to the root.
+type keptAck struct {
+	id    string
+	cause string
+}
+
+// transientRead says whether a read failed for a reason that says nothing about
+// the file's version, and may clear on its own: a permission, a descriptor limit,
+// an interrupt, a busy file, or on Windows a sharing violation or a handle or
+// memory limit. Every other error (the file is gone, it is a directory now, a
+// path component is a file, a link loops) is a fact about the version, so the
+// span is dropped as it always was.
+func transientRead(err error) bool { return transientReadOn(runtime.GOOS, err) }
+
+// windowsTransient are the native Win32 codes a Windows read can fail with that
+// clear on their own: syscall.EMFILE and its kin do not match them, since Go's
+// Windows errno values for those are its own invented ones.
+var windowsTransient = []syscall.Errno{
+	4,  // ERROR_TOO_MANY_OPEN_FILES
+	8,  // ERROR_NOT_ENOUGH_MEMORY
+	32, // ERROR_SHARING_VIOLATION
+	33, // ERROR_LOCK_VIOLATION
+}
+
+// transientReadOn is transientRead for the named OS, so the Windows codes are
+// tested wherever the tests run: on Unix the same numbers mean other errors
+// (4 is EINTR, 8 ENOEXEC, 32 EPIPE) and are not asked about.
+func transientReadOn(goos string, err error) bool {
+	for _, e := range []error{os.ErrPermission, syscall.EMFILE, syscall.ENFILE, syscall.EINTR, syscall.EAGAIN, syscall.EBUSY} {
+		if errors.Is(err, e) {
+			return true
+		}
+	}
+	if goos == "windows" {
+		for _, e := range windowsTransient {
+			if errors.Is(err, e) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// readCause names a failed read by the path the checkpoint stored, relative to
+// the checkout, whatever way the root was spelled: the open error's own path is
+// the absolute one.
+func readCause(path string, err error) string {
+	var pe *fs.PathError
+	if errors.As(err, &pe) {
+		return pe.Op + " " + path + ": " + pe.Err.Error()
+	}
+	return err.Error()
+}
+
+// promoteAcks turns each acknowledged checkpoint into a ledger record for its own
 // span and nothing else.
 //
 // ⚠ It records the PENDING span, never the requested one. Recording what was
@@ -429,18 +488,23 @@ func hold(root, path, sha string, spans map[string][2]int) error {
 // An ack matching nothing is ignored rather than refused: it is a stale caller
 // from an earlier session, and failing the whole call would punish the spans
 // that were acknowledged honestly.
-func promote(root string, acks []string) ([]string, error) {
+//
+// An id is consumed only after its span was recorded or its version is known to
+// be gone (changed, removed, no longer a regular file). A read that failed for
+// any other reason (a permission, a descriptor limit) says nothing about the
+// version: the id is kept, unsaved as removed, and returned in kept (#733).
+func promoteAcks(root string, acks []string) (unknown []string, kept []keptAck, err error) {
 	if len(acks) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 	release, err := state.Hold(root, pendingLock)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer release()
 	store, err := loadPending(root)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	// ⚠ KEYED BY PATH **AND SHA**, not by path alone. An earlier cut appended
 	// every acknowledged span to one observation per path and let the last
@@ -449,9 +513,11 @@ func promote(root string, acks []string) ([]string, error) {
 	// file's SHA — a licence to write lines the caller never saw in the version
 	// on disk. Found by the review of PR #132.
 	type key struct{ path, sha string }
-	byVersion := map[key][][2]int{}
-	changed := false
-	var unknown []string
+	type group struct {
+		spans [][2]int
+		ids   []string
+	}
+	byVersion := map[key]*group{}
 	matched := map[string]bool{}
 	for _, ck := range acks {
 		p, ok := store[ck]
@@ -464,14 +530,21 @@ func promote(root string, acks []string) ([]string, error) {
 			}
 			continue
 		}
+		if matched[ck] {
+			continue
+		}
 		matched[ck] = true
 		k := key{p.Path, p.SHA}
-		byVersion[k] = append(byVersion[k], [2]int{p.Start, p.End})
-		delete(store, ck)
-		changed = true
+		g := byVersion[k]
+		if g == nil {
+			g = &group{}
+			byVersion[k] = g
+		}
+		g.spans = append(g.spans, [2]int{p.Start, p.End})
+		g.ids = append(g.ids, ck)
 	}
-	if !changed {
-		return unknown, nil
+	if len(byVersion) == 0 {
+		return unknown, nil, nil
 	}
 	// ⚠ ONLY THE VERSION ON DISK IS RECORDED, and the rest are dropped.
 	//
@@ -484,17 +557,31 @@ func promote(root string, acks []string) ([]string, error) {
 	// A span acknowledged against a version that is no longer on disk cannot
 	// license anything anyway: the ledger's own SHA check refuses it. Dropping
 	// it is what it already meant, done deterministically.
-	for k, spans := range byVersion {
-		sha, err := currentSHA(root, k.path)
-		if err != nil || sha != k.sha {
+	consumed := false
+	for k, g := range byVersion {
+		sha, serr := currentSHA(root, k.path)
+		if serr != nil && transientRead(serr) {
+			for _, id := range g.ids {
+				kept = append(kept, keptAck{id: id, cause: readCause(k.path, serr)})
+			}
 			continue
 		}
-		o := seen.Observation{SHA: k.sha, Spans: spans}
-		if err := seen.Record(root, map[string]seen.Observation{k.path: o}); err != nil {
-			return unknown, err
+		if serr == nil && sha == k.sha {
+			o := seen.Observation{SHA: k.sha, Spans: g.spans}
+			if err := seen.Record(root, map[string]seen.Observation{k.path: o}); err != nil {
+				return unknown, kept, err
+			}
 		}
+		for _, id := range g.ids {
+			delete(store, id)
+		}
+		consumed = true
 	}
-	return unknown, savePending(root, store)
+	sort.Slice(kept, func(i, j int) bool { return kept[i].id < kept[j].id })
+	if !consumed {
+		return unknown, kept, nil
+	}
+	return unknown, kept, savePending(root, store)
 }
 
 // evict drops the oldest entries once the store passes maxPending.
@@ -521,6 +608,23 @@ func readPending(root string) (map[string]pending, error) {
 		defer release()
 	}
 	return loadPending(root)
+}
+
+// stillPending is the kept ids the pending store still holds. A new checkpoint
+// held after they were kept can evict the oldest past maxPending, and the note
+// must not tell the caller to retry an id that is gone (#733).
+func stillPending(root string, kept []keptAck) []keptAck {
+	store, err := readPending(root)
+	if err != nil {
+		return kept
+	}
+	var out []keptAck
+	for _, k := range kept {
+		if _, ok := store[k.id]; ok {
+			out = append(out, k)
+		}
+	}
+	return out
 }
 
 // readPendingFile is regular.ReadFile, as a variable so a test can hold the
