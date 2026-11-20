@@ -2610,7 +2610,7 @@ func stageFile(tr *tree, path string, t text) (staged, error) {
 		return staged{dirs: missing}, err
 	}
 
-	perm := os.FileMode(0o644)
+	perm := newFileMode // a new file; a replacement keeps its target's mode below
 	if fi, err := tr.stat(path); err == nil {
 		perm = fi.Mode().Perm()
 	}

@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -119,8 +121,8 @@ func TestSkillDirInstallsAndReplacesOnlyItsOwn(t *testing.T) {
 	if out, err := skillRun(t, "skill", "--dir", d); err != nil || !strings.Contains(out, "created "+target) || read(target) != want {
 		t.Fatalf("first --dir: err %v, out %q; the file is the skill: %v", err, out, read(target) == want)
 	}
-	if fi, _ := os.Stat(target); runtime.GOOS != "windows" && fi.Mode().Perm() != 0o644 {
-		t.Errorf("a created skill has mode %v, want 0644", fi.Mode().Perm())
+	if fi, _ := os.Stat(target); runtime.GOOS != "windows" && fi.Mode().Perm() != umaskedMode(t) {
+		t.Errorf("a created skill has mode %v, want %v (0666 &^ umask, #714)", fi.Mode().Perm(), umaskedMode(t))
 	}
 	old := time.Now().Add(-time.Hour).Truncate(time.Second)
 	if err := os.Chtimes(target, old, old); err != nil {
@@ -561,4 +563,21 @@ func TestKeptDifferenceNamesOnlyWhatIsKept(t *testing.T) {
 			t.Errorf("keptDifference(%q, %v) = %q, want it to name %q", c.file, c.replaced, got, c.want)
 		}
 	}
+}
+
+// umaskedMode is 0666 &^ umask, the mode mrw gives a file it creates (#714),
+// computed from the umask the test runs under (sh's umask builtin, which the
+// test's own umask reaches) rather than from a probe file, which a directory's
+// default ACL would set instead (Codex on #743).
+func umaskedMode(t *testing.T) os.FileMode {
+	t.Helper()
+	out, err := exec.Command("sh", "-c", "umask").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := strconv.ParseUint(strings.TrimSpace(string(out)), 8, 32)
+	if err != nil {
+		t.Fatalf("umask printed %q: %v", out, err)
+	}
+	return os.FileMode(0o666 &^ m)
 }
