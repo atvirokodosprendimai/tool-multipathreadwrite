@@ -1,6 +1,7 @@
 # ADR-211: Stage 9 is amended to the claim its instrument can carry, and pays only after a free rehearsal
 
-**Status:** Proposed
+**Status:** Accepted
+**Accepted by:** Zy, 2026-11-20: *"accepted the rest"*, to the question of accepting the open records ADR-207 to ADR-211 (#723, #720) as they stand.
 **Date:** 2026-11-20
 **Owner:** Zy
 **Spec:** None — no spec stage
