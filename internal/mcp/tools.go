@@ -2905,13 +2905,15 @@ func nameTheAck(root string, res *apply.Result) {
 		case refusal.LineAfter:
 			// The line after is what an ack must lift; a page of it kept for the
 			// very spelling the retry uses (the ledger keys a record per spelling).
-			// Under a spelling that holds the file's whole written record the line
-			// after is all an ack must add; under any other (a link, a case variant)
-			// the plan's own record holds only what was read there, so the ack must
-			// bring the range through the line after.
+			// Where that spelling's own record is written-shaped and licenses the
+			// whole hunk (a write's whole-file one, or the partial one a search_replace
+			// write or a quiet read left over these lines), the line after is all an
+			// ack must add; under any other (a link, a case variant) the plan's own
+			// record holds only what was read there, so the ack must bring the range
+			// through the line after.
 			if h.Span[0] > 0 {
 				start, end, known = h.Span[1]+1, h.Span[1]+1, true
-				if !ownWholeWritten(root, path) {
+				if !ownRecordLicenses(root, path, h.Span[0], h.Span[1]) {
 					start = h.Span[0]
 				}
 			}
@@ -2964,20 +2966,34 @@ func nameTheAck(root string, res *apply.Result) {
 		if !covers {
 			continue
 		}
+		// A pending page that covers all that is missing is the whole remedy: lead with
+		// the ack, and do not also ask for a read of the same lines.
+		if h.Kind == refusal.LineAfter {
+			if cut := strings.Index(h.Reason, "; over this surface: mrw_read "); cut >= 0 {
+				h.Reason = h.Reason[:cut]
+			}
+		}
 		h.Reason += ". This file was served but never acknowledged, and an " +
 			"unacknowledged serve licenses nothing. " + AckRule
 	}
 }
 
-// ownWholeWritten says whether the ledger holds, under this very spelling of the
-// path, the whole-written record mrw's own write leaves.
-func ownWholeWritten(root, path string) bool {
+// ownRecordLicenses says whether the ledger holds, under this very spelling of the
+// path, a record of the current version that licenses lines from-to, whatever its
+// shape: the whole-written record mrw's own write leaves, a partial one over the
+// lines a search_replace write produced, or what a read through this spelling
+// served. It is the record internal/apply judges the hunk's own lines by.
+func ownRecordLicenses(root, path string, from, to int) bool {
 	l, err := seen.Load(root)
 	if err != nil {
 		return false
 	}
 	o, ok := l[path]
-	return ok && o.Written && o.Whole()
+	if !ok || !o.Covers(from, to) {
+		return false
+	}
+	live, _ := currentSHA(root, path)
+	return live == "" || o.SHA == live
 }
 
 // pagesCover reports whether the pending pages kept for path (that very

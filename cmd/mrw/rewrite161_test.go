@@ -72,9 +72,16 @@ func TestARewriteReadAndWriteApplyAstGrepsResult(t *testing.T) {
 	}
 	unchanged("a read")
 
-	// the plan is licensed by the read that printed it
+	// the plan is licensed by the read that printed it, not shown: a replace ending above a line
+	// only the plan maker licensed is refused until that line is read (ADR-208 Decision 1a)
+	if wout, werr, wcode := run(out, "write", "--no-check", "-"); wcode != 1 || !strings.Contains(wout+werr, "needs a served line after 7") || subFile(t, root, "a.go") != a {
+		t.Errorf("read | write: exit %d, a.go %q, want a refusal naming line 8:\n%s%s", wcode, subFile(t, root, "a.go"), wout, werr)
+	}
+	if rout, rerr, rcode := run("", "read", "a.go:8"); rcode != 0 {
+		t.Fatalf("read of the line after: exit %d\n%s%s", rcode, rout, rerr)
+	}
 	if wout, werr, wcode := run(out, "write", "--no-check", "-"); wcode != 0 || subFile(t, root, "a.go") != want {
-		t.Errorf("read | write: exit %d, a.go %q, want %q:\n%s%s", wcode, subFile(t, root, "a.go"), want, wout, werr)
+		t.Errorf("read | write after the read: exit %d, a.go %q, want %q:\n%s%s", wcode, subFile(t, root, "a.go"), want, wout, werr)
 	}
 	subTree(t, root, map[string]string{"a.go": a})
 	if wout, werr, wcode := run("", "write", "--no-check", "--ast-grep", "foo($A, $B)", "--rewrite", "bar($B, $A)", "."); wcode != 0 || subFile(t, root, "a.go") != want {

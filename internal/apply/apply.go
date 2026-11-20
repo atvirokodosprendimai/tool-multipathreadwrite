@@ -2171,31 +2171,32 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 			// still describes this file, and a file with none is refused, where
 			// covered() would wave it through.
 			needAfter := haveObs && !obs.Covers(end+1, end+1)
-			// ADR-208: on a record that is whole and written-shaped, Covers is
-			// true of every line, which is what hid the closer. There the line
-			// after must have been SHOWN since the write, in this version of the
-			// file (a showing bound to the sha: under --force the record kept can
-			// describe another version). A same-call --rewrite is not judged: its
-			// spans are the matches mrw found, and its plan maker licensed the
-			// line after each.
-			wholeWritten := haveObs && obs.Written && obs.Whole() && !opt.SameCallRewrite
+			// ADR-208: on a written-shaped record, whole (Decision 1) or partial (Decision 1a:
+			// the lines a search_replace write produced, a plan's, a --quiet read's),
+			// the lines are LICENSED, which Covers answers for every one of them, and
+			// that is what hid the closer. There the line after must have been SHOWN
+			// since the write, in this version of the file (a showing bound to the
+			// sha: under --force the record kept can describe another version). A
+			// same-call --rewrite is not judged: its spans are the matches mrw found,
+			// and its plan maker licensed the line after each.
+			writtenRec := haveObs && obs.Written && !opt.SameCallRewrite
 			shown := haveObs && recorded.SHA == shaBefore && obs.ServedLine(end+1)
 			if haveObs && !shown && h.Op == "replace" && end > start && end < total {
 				for _, r := range aliasRecords() {
-					if r.Written && r.Whole() && !opt.SameCallRewrite {
-						wholeWritten = true
+					if r.Written && !opt.SameCallRewrite {
+						writtenRec = true
 					}
 					if r.ServedLine(end + 1) {
 						shown = true
 					}
 				}
 			}
-			if wholeWritten {
+			if writtenRec {
 				needAfter = !shown
 			}
 			if isQuoted {
 				met := haveObs && recorded.SHA == shaBefore && obs.Covers(end+1, end+1)
-				if wholeWritten {
+				if writtenRec {
 					met = shown
 				}
 				needAfter = tail == 0 && opt.Seen != nil && !met
@@ -2209,7 +2210,7 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 				// read to make (ADR-203's remedy: --max-cols 0, so a line cut by
 				// MRW_MAX_COLS is read whole and licensed).
 				kind := refusal.Kind("")
-				if wholeWritten {
+				if writtenRec {
 					kind = refusal.LineAfter
 					hint += "; the read to make is " + staleRemedySpan(opt.RemedyRoot, asPlan(path), start, end+1)
 				}

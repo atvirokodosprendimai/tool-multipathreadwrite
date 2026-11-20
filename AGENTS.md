@@ -51,7 +51,7 @@ through a new ADR that supersedes the old one and updates its contract rows in t
    committing reports what reached disk — `PARTIALLY APPLIED` when files remain
    written, `NOTHING WRITTEN` when the undo put everything back. — ADR-001, ADR-066
 2. **mrw will not edit a file it has not read**, and the guard is per *line*,
-   not per file; a file mrw just wrote is wholly known, but a number alone is refused on a line no read has shown since the write (the reason says the line `has no recorded showing in this version`): name the line by a pattern or `anchor=`, or read it first. A file whose every hunk in the write was a SEARCH/REPLACE block gains the lines written, not the whole file. — ADR-002, ADR-005, ADR-190, ADR-200, ADR-203
+   not per file; a file mrw just wrote is wholly known, but a number alone is refused on a line no read has shown since the write (the reason says the line `has no recorded showing in this version`): name the line by a pattern or `anchor=`, or read it first. A file whose every hunk in the write was a SEARCH/REPLACE block gains the lines written, not the whole file, unless it leaves the file byte-identical (the earlier licence stays under the same spelling). — ADR-002, ADR-005, ADR-190, ADR-200, ADR-203
 3. **A check's verdict comes from the process, never its output.** A check that
    prints `PASS` and exits 1 is a failure. — ADR-003
 4. **Nothing is left in the working tree** by a failed run — except, when an
@@ -163,7 +163,7 @@ mrw read --grep P --count . && mrw read 'f.go:/P/' -C 3 --max-lines 40
 mrw read 'a.go:/func A/,+12' b.go:40-60 && mrw write "$TMPDIR/plan.txt"
 # 6. a step after the write, in the same call (--then-sh's caveat is below, under the write rules)
 mrw write - --then NAME
-# 7. license lines you already know, without them in your context (/dev/null licenses nothing; a file mrw just wrote keeps a whole-file licence, unless every hunk on it was a search_replace block (the write then adds the lines it wrote to the licence it had), but until a read has shown a line a number alone is refused; a whole-file --quiet read shows nothing: recipe 21)
+# 7. license lines you already know, without them in your context (/dev/null licenses nothing; a file mrw just wrote keeps a whole-file licence, unless every hunk on it was a search_replace block (the write then licenses only the lines it wrote, and a second such write at a new version only its own, and a number alone is accepted on those lines; one that leaves the file byte-identical keeps the earlier licence, under the same spelling), but on a whole-file licence, until a read has shown a line a number alone is refused; a --quiet read, whole or ranged, shows nothing, so a multi-line replace ending above a line it only let you edit still needs the line after it read: recipe 21)
 mrw read --quiet f.go:40-60
 # 8. a file of long lines (logs, JSONL), each line cut to a window round the match
 mrw read --grep P --max-cols 200 f.jsonl
@@ -191,7 +191,7 @@ mrw read --grep P .
 mrw write --terse plan.txt
 # 20. by reference what you were already served: only in a session alone in its checkout whose host runs mrw seen --forget on start, resume, clear and compaction, with reads made under --max-chars below the host's limit
 mrw read --if-served f.go=8dc37337 f.go:40-60
-# 21. a second edit to a file you just wrote: a number alone is refused, unless a read has shown that line since the write, so name the line by a pattern and say what it holds (anchor=), or read the line first (mrw read f.go:40)
+# 21. a second edit to a file you just wrote, on its whole-file licence: a number alone is refused, unless a read has shown that line since the write, so name the line by a pattern and say what it holds (anchor=), or read the line first (mrw read f.go:40)
 printf '%s\n' '@@ f.go /^func B\(/ replace anchor="func B("' 'func B(x int) {' | mrw write -
 ```
 
@@ -563,13 +563,16 @@ whole list arrives as one argument and the regex swallows the rest of the line.
   the licence is skipped. A ranged read, on the CLI and on `mrw_read`, serves the line
   after each range that ends before the file does, numbered and licensed (on `mrw_read`
   inside the checkpoint that brackets the range, counted in its `N lines follow`), so a
-  replace of exactly the lines read is not refused for it (ADR-161). A page of `mrw_read`
-  adds none, since its continuation serves the line a page ends on.
-  On a file mrw wrote, or one read whole with `--quiet`, a multi-line replace that ends
-  before the last line also needs the line after it shown since the write: such a file
-  is wholly licensed, which would cover every line, so its line after must have been
-  read (ADR-208; the refusal ends with the read to make). A plan `--ast-grep ...
-  --rewrite` makes in the same call is exempt: its plan maker licensed that line.
+  replace of exactly the lines read is not refused for it (ADR-161), unless the read was
+  `--quiet` (below). A page of `mrw_read` adds none, since its continuation serves the
+  line a page ends on.
+  A line mrw LICENSED and no read SHOWED does not meet that rule (ADR-208): the lines a
+  write produced (a native write's, and a `search_replace` write's), a `--quiet` read's
+  lines, whole or ranged, and the lines of a `read --rewrite` plan written by a later
+  call are licensed for an edit and shown to nobody, so a multi-line replace that ends
+  before the last line also needs the line after it shown since the write, by a read
+  (the refusal ends with the read to make). A plan `--ast-grep ... --rewrite` makes in
+  the same call is exempt: its plan maker licensed that line.
   `--echo-pad N` (MCP `echo_pad`, default 0) prints N
   lines after the body so a surviving closer is visible; the hunk stays `ok`.
   The pad is not a checker.

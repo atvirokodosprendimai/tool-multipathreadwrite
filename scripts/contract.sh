@@ -9666,6 +9666,11 @@ good264=1
 PATH="$d264:$PATH" m read --ast-grep 'foo($A, $B)' --rewrite 'bar($B, $A)' . > "$WORK/plan264" 2> "$WORK/err264"; want 0 $? "a rewrite read exits 0"
 grep -q '^@@ a.go 4-7 replace sha=[0-9a-f]\{64\} body=2 raw=true anchor=' "$WORK/plan264" && ! grep -q -- '-- planned' "$WORK/plan264" && grep -qx -- '-- planned: 2 site(s) in 1 file(s)' "$WORK/err264" \
   || { good264=0; bad "rewrite read plan on stdout, count on stderr: $(head -c 300 "$WORK/plan264") / $(head -c 200 "$WORK/err264")"; }
+# The plan a read printed licenses its lines and the line after each, and shows none of them: a replace ending above a
+# line only the plan maker licensed is refused until that line is read (ADR-208 Decision 1a), then applies.
+out=$(m write --no-check - < "$WORK/plan264" 2>&1); want 1 $? "the rewrite plan piped to write is refused until the line after is read"
+{ grep -q 'needs a served line after 7' <<<"$out" && cmp -s "$R/a.go" "$WORK/a264.orig"; } || { good264=0; bad "read --rewrite | write before the read: $(head -c 300 <<<"$out")"; }
+m read a.go:8 > "$WORK/served.out"
 m write --no-check - < "$WORK/plan264" >/dev/null 2>&1; want 0 $? "the rewrite plan piped to write applies"
 cmp -s "$R/a.go" "$WORK/a264.want" || { good264=0; bad "read --rewrite | write: a.go is $(head -c 300 "$R/a.go")"; }
 seed264
@@ -12144,6 +12149,41 @@ if command -v strace >/dev/null 2>&1 && strace -o "$WORK/t361.probe" true >/dev/
 else
   skip "ADR-210's strace trace needs strace and ptrace; neither is usable here, so the order of the syncs is proved by the Go tests alone"
 fi
+
+# 374. ADR-208 Decision 1a: the lines a search_replace write produced are licensed
+# and not shown, so a multi-line replace that ends above them is refused until the
+# line after is read. The repro: f374.go of five lines, a search_replace block that
+# replaces its last line with five (lines 5-9 are the caller's earlier call), then
+# the plan 6-8 with a body ending in a closer: exit 1 naming line 9, the file
+# unchanged, the reason ending with the read to make, mrw read --max-cols 0
+# f374.go:6-9, paired with the same plan landing after it. Through an in-root
+# symlink g374.go a ranged --quiet read of 6-9 shows nothing and leaves the plan
+# refused with the same reason, paired with a read under g374.go landing it.
+fixture
+mk374() {
+  rm -f "$R/f374.go" "$R/g374.go"
+  printf '@@ f374.go 0 create\npackage a\n\nfunc A() {}\n\nvar z = 1\n' | m write --no-check - > /dev/null 2>&1
+  printf 'f374.go\n<<<<<<< SEARCH\nvar z = 1\n=======\nvar z = 2\nfunc B() {\n\tif y {\n\t}\n}\n>>>>>>> REPLACE\n' | m write --no-check --format=search_replace - > /dev/null 2>&1
+  cp "$R/f374.go" "$WORK/f374.written"
+}
+rep374=$'@@ f374.go 6-8 replace anchor="func B"\nfunc B() {\n\tz()\n}\n'
+mk374
+out=$(printf '%s' "$rep374" | m write --no-check - 2>&1); rc=$?
+want 1 "$rc" "a replace ending above lines a search_replace write produced -> exit 1"
+{ grep -q 'needs a served line after 8: read line 9' <<<"$out" && grep -q 'read --max-cols 0 f374.go:6-9' <<<"$out" && cmp -s "$R/f374.go" "$WORK/f374.written"; } \
+  && ok "naming line 9 and ending with the read to make, mrw read --max-cols 0 f374.go:6-9, the file unchanged" || bad "refusal: $(head -c 400 <<<"$out")"
+m read --max-cols 0 f374.go:6-9 > "$WORK/served.out"
+printf '%s' "$rep374" | m write --no-check - > /dev/null 2>&1; want 0 $? "the pair: the same plan lands after mrw read --max-cols 0 f374.go:6-9"
+mk374
+ln -s f374.go "$R/g374.go"
+rep374g=${rep374/@@ f374.go/@@ g374.go}
+m read --quiet g374.go:6-9 > "$WORK/served.out"
+out=$(printf '%s' "$rep374g" | m write --no-check - 2>&1); rc=$?
+want 1 "$rc" "a ranged --quiet read of 6-9 through g374.go shows nothing: the plan is refused"
+{ grep -q 'needs a served line after 8' <<<"$out" && cmp -s "$R/f374.go" "$WORK/f374.written"; } \
+  && ok "with the same reason, the file unchanged" || bad "alias refusal: $(head -c 400 <<<"$out")"
+m read --max-cols 0 g374.go:6-9 > "$WORK/served.out"
+printf '%s' "$rep374g" | m write --no-check - > /dev/null 2>&1; want 0 $? "the pair: a read under g374.go lands it"
 
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A

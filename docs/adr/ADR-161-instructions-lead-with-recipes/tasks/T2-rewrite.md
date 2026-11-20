@@ -123,3 +123,4 @@ ast-grep's `--json` with `--rewrite` does not carry both the byte range and the 
 - 2026-10-16 · 88e9961e* · exit 0 · `set -o pipefail …` · acceptance-sha256:ae0b7d5b70bd6618de0c872e4a587c2d215a8848d7c14ce808c5fd26dec0dcd9 · ms:134921
 - 2026-10-16 · 88e9961e* · exit 0 · `set -o pipefail …` · acceptance-sha256:ae0b7d5b70bd6618de0c872e4a587c2d215a8848d7c14ce808c5fd26dec0dcd9 · ms:87559
 - 2026-10-16 · 88e9961e* · exit 0 · `set -o pipefail …` · acceptance-sha256:c0bcce56c44cb3f1ef45ff0c4cfa940b81b55ce06c8cd39c6fffb51cf63ceffb · ms:108249
+- 2026-11-20 · fa093711* · exit 0 · `set -o pipefail …` · acceptance-sha256:c0bcce56c44cb3f1ef45ff0c4cfa940b81b55ce06c8cd39c6fffb51cf63ceffb · ms:128362
