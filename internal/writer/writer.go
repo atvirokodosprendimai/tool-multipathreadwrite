@@ -49,6 +49,17 @@ func MutationOf(res apply.Result) Mutation {
 	return None
 }
 
+// String is the name a receipt carries for m: none, partial or complete (#735).
+func (m Mutation) String() string {
+	switch m {
+	case Partial:
+		return "partial"
+	case Complete:
+		return "complete"
+	}
+	return "none"
+}
+
 // inside runs once the lock is held, before the plan is applied. A test uses
 // it to see that no two writers are ever inside at once.
 var inside func()

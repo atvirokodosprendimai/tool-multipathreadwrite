@@ -159,8 +159,9 @@ func TestTheWriteToolReturnsTheSameResultAsTheCLI(t *testing.T) {
 	}
 	want := struct {
 		apply.Result
-		Pattern authoring.PatternInfo `json:"pattern"`
-	}{engine, authoring.PatternInfo{AdvisoryWrites: advisoryWrites, Window: 1}}
+		Pattern  authoring.PatternInfo `json:"pattern"`
+		Mutation string                `json:"mutation"`
+	}{engine, authoring.PatternInfo{AdvisoryWrites: advisoryWrites, Window: 1}, "complete"}
 
 	// Compare the DECODED structuredContent against the CLI's result marshalled
 	// by the same encoder. Raw JSON-RPC equality would compare the envelope,

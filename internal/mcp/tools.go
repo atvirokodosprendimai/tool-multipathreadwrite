@@ -1270,6 +1270,12 @@ type writeReceipt struct {
 	// Then is every declared step's verdict after this write (ADR-115), the
 	// same object `mrw write --json` carries. Absent when none was asked for.
 	Then *check.StepsResult `json:"then,omitempty"`
+	// Mutation is how much of the plan reached the tree (#735), as `mrw write
+	// --json` carries it: none, partial or complete. Present on every receipt.
+	Mutation string `json:"mutation"`
+	// FullReceipt is where the whole receipt was kept when a ceiling too small
+	// for it left recovery detail out of this answer (#732). Absent otherwise.
+	FullReceipt string `json:"full_receipt,omitempty"`
 }
 
 // errText is err's message, or "" for none.
@@ -1331,6 +1337,21 @@ func withoutPreview(res apply.Result) apply.Result {
 	return res
 }
 
+// withoutContent is res with every field that carries text of a file taken off:
+// the preview (before, after) and the delete's, the copy's and the echo's lines
+// and the closer line. The kept whole receipt is written from it (#732), so it
+// holds no file content. A refused hunk's reason can still quote a clipped line
+// (an anchor that misses, an expected body that differs), as the answer's does.
+func withoutContent(res apply.Result) apply.Result {
+	res.Hunks = slices.Clone(res.Hunks)
+	for i := range res.Hunks {
+		h := &res.Hunks[i]
+		h.Before, h.After, h.Echo = nil, nil, nil
+		h.RemovedFirst, h.RemovedLast, h.CopiedFirst, h.CopiedLast, h.Closer = "", "", "", "", ""
+	}
+	return res
+}
+
 // boundedReceipt is the answer mrw_write sends: the whole receipt when it fits
 // the budget this server advertises, and otherwise one with its SUCCESSFUL
 // detail dropped (ADR-032).
@@ -1385,10 +1406,92 @@ func checkedReceipt(root string, res apply.Result, v *writer.Verified, applyErr 
 			drift = append(drift, filepath.ToSlash(p))
 		}
 	}
+	// fullPath is where the whole receipt was kept once an elision could drop
+	// recovery detail (#732); the structured value and the terminal sentence name it.
+	var fullPath string
 	render := func(r apply.Result, hunks []apply.HunkResult, c *check.Result, th *check.StepsResult, note string) (callToolResult, *rpcError) {
 		lead, tail := checkReport(c, checkErr, drift, others)
-		return result(writeReceipt{Result: r, Elided: note, Pattern: pattern, Error: errText(applyErr), Check: c, Drift: drift, DriftWriters: others, Then: th},
+		return result(writeReceipt{Result: r, Elided: note, Pattern: pattern, Error: errText(applyErr), Check: c, Drift: drift, DriftWriters: others, Then: th, Mutation: writer.MutationOf(res).String(), FullReceipt: fullPath},
 			lead+writeReport(res, hunks, applyErr, note)+tail+stepsReport(th), isErr)
+	}
+	// keepFull keeps the whole receipt outside the tree, once, and only when a cut
+	// drops recovery detail that no answer would then hold: a failed hunk, a written
+	// file's name, the commit error, or a failure tail with no log (#732). File
+	// content is taken off first. A receipt over the file cap is kept as its summary
+	// (counts, mutation, written files, the error) and then rows, the ok and skipped
+	// verdicts dropped first; when the failed rows alone pass the cap, the file ends
+	// with a note naming how many failed hunks it omits and their first and last plan
+	// lines. A keep that failed is not tried again.
+	origChk, origThen := chk, then
+	keepTried := false
+	keepFull := func() {
+		if keepTried {
+			return
+		}
+		keepTried = true
+		saved := res
+		res = withoutContent(res)
+		defer func() { res = saved }()
+		whole, rerr := render(res, res.Hunks, origChk, origThen, "")
+		if rerr != nil || len(whole.Content) == 0 {
+			return
+		}
+		if keptReceiptBytes(whole.Content[0].Text, whole.StructuredContent) > keptReceiptMaxBytes {
+			failedOnly := make([]apply.HunkResult, 0, res.Failed)
+			for _, h := range res.Hunks {
+				if h.Status == apply.StatusFailed {
+					failedOnly = append(failedOnly, h)
+				}
+			}
+			short := res
+			short.Hunks = failedOnly
+			note := fmt.Sprintf("the kept receipt is over %d bytes: %d successful or skipped hunk verdict(s) are not here. Every failed hunk is, and the counts are of the whole plan.",
+				keptReceiptMaxBytes, len(res.Hunks)-len(failedOnly))
+			whole, rerr = render(short, failedOnly, origChk, origThen, note)
+			if rerr != nil || len(whole.Content) == 0 {
+				return
+			}
+			// #739 final pass: the failed rows ALONE can pass the cap too. The file is
+			// never left to be cut by the byte cap, which would drop whatever lay past
+			// it (the summary, the commit error, the last failed hunks) by accident of
+			// order: the largest prefix of failed rows that fits is kept, with the
+			// summary, and a note names how many failed hunks it omits and their first
+			// and last plan lines.
+			if keptReceiptBytes(whole.Content[0].Text, whole.StructuredContent) > keptReceiptMaxBytes {
+				render1 := func(k int) (callToolResult, bool) {
+					s := res
+					s.Hunks = failedOnly[:k]
+					n := note
+					if k < len(failedOnly) {
+						n = fmt.Sprintf("the kept receipt is over %d bytes: %d successful or skipped hunk verdict(s) are not here, and %d failed hunk(s) are not here: plan lines %d to %d (the first and the last of them). The counts are of the whole plan.",
+							keptReceiptMaxBytes, len(res.Hunks)-len(failedOnly), len(failedOnly)-k, failedOnly[k].SrcLine, failedOnly[len(failedOnly)-1].SrcLine)
+					}
+					out, e := render(s, s.Hunks, origChk, origThen, n)
+					return out, e == nil && len(out.Content) > 0 && keptReceiptBytes(out.Content[0].Text, out.StructuredContent) <= keptReceiptMaxBytes
+				}
+				lo, hi := 0, len(failedOnly)-1 // the largest k that fits is in [lo, hi]
+				for lo < hi {
+					mid := (lo + hi + 1) / 2
+					if _, ok := render1(mid); ok {
+						lo = mid
+					} else {
+						hi = mid - 1
+					}
+				}
+				whole, _ = render1(lo)
+				if len(whole.Content) == 0 {
+					return
+				}
+			}
+		}
+		fullPath, _ = keepReceipt(whole.Content[0].Text, whole.StructuredContent)
+	}
+	// fit renders a cut and answers whether it fits the ceiling. Once a whole
+	// receipt is kept the cut names it, and a cut that cannot is not taken: the
+	// name outranks the ok verdicts a deeper cut drops (#732).
+	fit := func(r apply.Result, hunks []apply.HunkResult, c *check.Result, th *check.StepsResult, note string) (callToolResult, *rpcError, bool) {
+		out, rerr := render(r, hunks, c, th, note)
+		return out, rerr, rerr != nil || encodedSize(out) <= ceiling()
 	}
 	full, rpcErr := render(res, res.Hunks, chk, then, "")
 	if rpcErr != nil || encodedSize(full) <= ceiling() {
@@ -1396,116 +1499,133 @@ func checkedReceipt(root string, res apply.Result, v *writer.Verified, applyErr 
 	}
 	whole := encodedSize(full)
 
-	// ADR-164 Decision 2: a plan maker's preview is the first thing to go,
-	// before the check's tail and before any verdict.
-	previewNote := ""
-	if n := previewed(res.Hunks); n > 0 {
-		res = withoutPreview(res)
-		previewNote = fmt.Sprintf("the preview (hunks[].before and after, and the ~ - + rows) of %d hunk(s)", n)
-		note := fmt.Sprintf("elided to fit the %d-byte budget, which the whole receipt exceeded at %d: %s is not here. "+
-			"Every hunk verdict and file record is here, and the counts are of the whole plan.", MaxResultChars, whole, previewNote)
-		out, rpcErr := render(res, res.Hunks, chk, then, note)
-		if rpcErr != nil || encodedSize(out) <= ceiling() {
-			return out, rpcErr
+	// #739 final pass: the cuts run with the kept receipt's name when one was kept,
+	// and a name too long for every cut (a long state home) must not delete the
+	// receipt's detail with it, so they run once more without it (below).
+	attempt := func() (callToolResult, *rpcError, bool) {
+		res, chk, then := res, chk, then
+		// ADR-164 Decision 2: a plan maker's preview is the first thing to go,
+		// before the check's tail and before any verdict.
+		previewNote := ""
+		if n := previewed(res.Hunks); n > 0 {
+			res = withoutPreview(res)
+			previewNote = fmt.Sprintf("the preview (hunks[].before and after, and the ~ - + rows) of %d hunk(s)", n)
+			note := fmt.Sprintf("elided to fit the %d-byte budget, which the whole receipt exceeded at %d: %s is not here. "+
+				"Every hunk verdict and file record is here, and the counts are of the whole plan.", MaxResultChars, whole, previewNote)
+			out, rpcErr := render(res, res.Hunks, chk, then, note)
+			if rpcErr != nil || encodedSize(out) <= ceiling() {
+				return out, rpcErr, true
+			}
 		}
-	}
 
-	// ADR-113, ADR-115: the check's and the steps' tails are the first thing
-	// to go. The verdicts stay, and each tail is in its output_file.
-	tailNote := ""
-	if (chk != nil && len(chk.Tail) > 0) || stepTailLines(then) > 0 {
-		var dropped []string
-		if previewNote != "" {
-			dropped = append(dropped, previewNote)
-		}
-		cutChk, cutThen := chk, then
-		if chk != nil && len(chk.Tail) > 0 {
-			cut := *chk
-			cut.Tail = nil
-			// A passing check whose whole output fit its tail removed its log
-			// (internal/check), so the tail would be the only copy: write it to a
-			// log of its own before dropping it, and name that one.
-			if cut.OutputFile == "" {
-				cut.OutputFile = keptTail(chk.Tail)
+		// ADR-113, ADR-115: the check's and the steps' tails are the first thing
+		// to go. The verdicts stay, and each tail is in its output_file.
+		tailNote := ""
+		if (chk != nil && len(chk.Tail) > 0) || stepTailLines(then) > 0 {
+			var dropped []string
+			if previewNote != "" {
+				dropped = append(dropped, previewNote)
 			}
-			if cut.OutputFile == "" {
-				dropped = append(dropped, fmt.Sprintf("the check's %d tail line(s) (lost: no log could be written for them)", len(chk.Tail)))
-			} else {
-				dropped = append(dropped, fmt.Sprintf("the check's %d tail line(s) (its output_file holds them)", len(chk.Tail)))
-			}
-			cutChk = &cut
-		}
-		if n := stepTailLines(then); n > 0 {
-			cut := check.StepsResult{Pruned: then.Pruned, Steps: append([]check.StepResult(nil), then.Steps...)}
-			lost := false
-			for i := range cut.Steps {
-				if len(cut.Steps[i].Tail) == 0 {
-					continue
+			cutChk, cutThen := chk, then
+			if chk != nil && len(chk.Tail) > 0 {
+				cut := *chk
+				cut.Tail = nil
+				// A passing check whose whole output fit its tail removed its log
+				// (internal/check), so the tail would be the only copy: write it to a
+				// log of its own before dropping it, and name that one.
+				if cut.OutputFile == "" {
+					cut.OutputFile = keptTail(chk.Tail)
 				}
-				if cut.Steps[i].OutputFile == "" {
-					cut.Steps[i].OutputFile = keptTail(cut.Steps[i].Tail)
-					lost = lost || cut.Steps[i].OutputFile == ""
+				if cut.OutputFile == "" {
+					keepFull()
+					dropped = append(dropped, fmt.Sprintf("the check's %d tail line(s) (lost: no log could be written for them)", len(chk.Tail)))
+				} else {
+					dropped = append(dropped, fmt.Sprintf("the check's %d tail line(s) (its output_file holds them)", len(chk.Tail)))
 				}
-				cut.Steps[i].Tail = nil
+				cutChk = &cut
 			}
-			if lost {
-				dropped = append(dropped, fmt.Sprintf("the steps' %d tail line(s) (some lost: no log could be written for them)", n))
-			} else {
-				dropped = append(dropped, fmt.Sprintf("the steps' %d tail line(s) (their output_file holds them)", n))
+			if n := stepTailLines(then); n > 0 {
+				cut := check.StepsResult{Pruned: then.Pruned, Steps: append([]check.StepResult(nil), then.Steps...)}
+				lost := false
+				for i := range cut.Steps {
+					if len(cut.Steps[i].Tail) == 0 {
+						continue
+					}
+					if cut.Steps[i].OutputFile == "" {
+						cut.Steps[i].OutputFile = keptTail(cut.Steps[i].Tail)
+						lost = lost || cut.Steps[i].OutputFile == ""
+					}
+					cut.Steps[i].Tail = nil
+				}
+				if lost {
+					keepFull()
+					dropped = append(dropped, fmt.Sprintf("the steps' %d tail line(s) (some lost: no log could be written for them)", n))
+				} else {
+					dropped = append(dropped, fmt.Sprintf("the steps' %d tail line(s) (their output_file holds them)", n))
+				}
+				cutThen = &cut
 			}
-			cutThen = &cut
+			gone := strings.Join(dropped, " and ")
+			note := fmt.Sprintf("elided to fit the %d-byte budget, which the whole receipt exceeded at %d: %s are not here. "+
+				"Every hunk verdict and file record is here, and the counts are of the whole plan.", MaxResultChars, whole, gone)
+			if out, rpcErr, ok := fit(res, res.Hunks, cutChk, cutThen, note); ok {
+				return out, rpcErr, true
+			}
+			chk, then = cutChk, cutThen
+			tailNote = ", nor " + gone
 		}
-		gone := strings.Join(dropped, " and ")
-		note := fmt.Sprintf("elided to fit the %d-byte budget, which the whole receipt exceeded at %d: %s are not here. "+
-			"Every hunk verdict and file record is here, and the counts are of the whole plan.", MaxResultChars, whole, gone)
-		out, rpcErr := render(res, res.Hunks, cutChk, cutThen, note)
-		if rpcErr != nil || encodedSize(out) <= ceiling() {
+
+		if tailNote == "" && previewNote != "" {
+			tailNote = ", nor " + previewNote
+		}
+		kept := make([]apply.HunkResult, 0, res.Failed)
+		for _, h := range res.Hunks {
+			if h.Status == apply.StatusFailed {
+				kept = append(kept, h)
+			}
+		}
+		short := res
+		short.Hunks = kept
+
+		for _, alsoFiles := range []bool{false, true} {
+			note := fmt.Sprintf("elided to fit the %d-byte budget, which the whole receipt exceeded at %d: "+
+				"%d successful or skipped hunk verdict(s) are not here",
+				MaxResultChars, whole, len(res.Hunks)-len(kept)) + tailNote
+			if alsoFiles {
+				// ⚠ ONLY THE UNWRITTEN FILES GO. The first cut dropped every file
+				// record, and a PARTIAL application — Applied=false, Failed=0,
+				// earlier files already renamed — then came back as applied:false,
+				// failed:0, files:[], hunks:[], which a host that delivers only the
+				// structured value (ADR-023) reads as "nothing happened". That is
+				// the same denial the terminal branch below was fixed for, one
+				// return earlier: each cut of this record moved it up by one.
+				// Keeping the written records cannot hide a write, and when there
+				// are too many of them to fit, the terminal branch says so in
+				// words. Codex, third review of #135.
+				short.Files = writtenFiles(res.Files)
+				note += fmt.Sprintf(", nor %d file record(s) for files that were NOT written",
+					len(res.Files)-len(short.Files))
+			}
+			note += ". Every FAILED hunk is here, every file that WAS written is here, " +
+				"and the counts are of the whole plan."
+
+			if out, rpcErr, ok := fit(short, kept, chk, then, note); ok {
+				return out, rpcErr, true
+			}
+		}
+		return callToolResult{}, nil, false
+	}
+	if out, rpcErr, ok := attempt(); ok {
+		return out, rpcErr
+	}
+	if fullPath != "" {
+		// Order of preference: the shallowest cut that fits WITH the name, else the
+		// shallowest that fits WITHOUT it, with the file removed since nobody can be
+		// told of it, else the terminal sentence.
+		_ = os.Remove(fullPath)
+		fullPath = ""
+		if out, rpcErr, ok := attempt(); ok {
 			return out, rpcErr
-		}
-		chk, then = cutChk, cutThen
-		tailNote = ", nor " + gone
-	}
-
-	if tailNote == "" && previewNote != "" {
-		tailNote = ", nor " + previewNote
-	}
-	kept := make([]apply.HunkResult, 0, res.Failed)
-	for _, h := range res.Hunks {
-		if h.Status == apply.StatusFailed {
-			kept = append(kept, h)
-		}
-	}
-	short := res
-	short.Hunks = kept
-
-	for _, alsoFiles := range []bool{false, true} {
-		note := fmt.Sprintf("elided to fit the %d-byte budget, which the whole receipt exceeded at %d: "+
-			"%d successful or skipped hunk verdict(s) are not here",
-			MaxResultChars, whole, len(res.Hunks)-len(kept)) + tailNote
-		if alsoFiles {
-			// ⚠ ONLY THE UNWRITTEN FILES GO. The first cut dropped every file
-			// record, and a PARTIAL application — Applied=false, Failed=0,
-			// earlier files already renamed — then came back as applied:false,
-			// failed:0, files:[], hunks:[], which a host that delivers only the
-			// structured value (ADR-023) reads as "nothing happened". That is
-			// the same denial the terminal branch below was fixed for, one
-			// return earlier: each cut of this record moved it up by one.
-			// Keeping the written records cannot hide a write, and when there
-			// are too many of them to fit, the terminal branch says so in
-			// words. Codex, third review of #135.
-			short.Files = writtenFiles(res.Files)
-			note += fmt.Sprintf(", nor %d file record(s) for files that were NOT written",
-				len(res.Files)-len(short.Files))
-		}
-		note += ". Every FAILED hunk is here, every file that WAS written is here, " +
-			"and the counts are of the whole plan."
-
-		out, rpcErr := render(short, kept, chk, then, note)
-		if rpcErr != nil {
-			return out, rpcErr
-		}
-		if encodedSize(out) <= ceiling() {
-			return out, nil
 		}
 	}
 
@@ -1525,6 +1645,23 @@ func checkedReceipt(root string, res apply.Result, v *writer.Verified, applyErr 
 	// the engine has `writtenSoFar` for exactly that case. Asking Applied would
 	// deny a write that happened, one review after the same denial for a
 	// complete one. Found by the second Codex review of #135.
+	// withFull names the kept whole receipt (#732) when it fits: advisory, like the
+	// ack note, so it never moves the write floor or refuses an answer that fits
+	// without it.
+	withFull := func(out callToolResult) callToolResult {
+		keepFull()
+		if fullPath == "" || len(out.Content) == 0 {
+			return out
+		}
+		named := errorResult(out.Content[0].Text + " The full receipt is at " + fullPath + ".")
+		if encodedSize(named) <= ceiling() {
+			return named
+		}
+		// Not even the name fits: the receipt is kept for nobody, so it goes.
+		_ = os.Remove(fullPath)
+		fullPath = ""
+		return out
+	}
 	written := 0
 	for _, f := range res.Files {
 		if f.Written {
@@ -1534,7 +1671,7 @@ func checkedReceipt(root string, res apply.Result, v *writer.Verified, applyErr 
 	// ADR-105: the structured value is gone in both branches below, and
 	// left_behind with it, so the sentence carries the count.
 	if written > 0 {
-		return errorResult(appliedButUnreportable(written, len(res.Hunks), res.Failed, writer.MutationOf(res) == writer.Partial) + checkPhrase(chk, checkErr) + stepPhrase(then) + leftNote(len(res.LeftBehind))), nil
+		return withFull(errorResult(appliedButUnreportable(written, len(res.Hunks), res.Failed, writer.MutationOf(res) == writer.Partial) + checkPhrase(chk, checkErr) + stepPhrase(then) + leftNote(len(res.LeftBehind)))), nil
 	}
 	// ADR-110 T3: a write refused before any hunk had a verdict — the write
 	// lock held past its wait — has no counts worth giving; its own words are
@@ -1570,7 +1707,7 @@ func checkedReceipt(root string, res apply.Result, v *writer.Verified, applyErr 
 				}
 				out = errorResult(lead + body[:h] + " … " + body[t:] + note)
 			}
-			return out, nil
+			return withFull(out), nil
 		}
 		for encodedSize(out) > ceiling() && msg != "" {
 			cut := len(msg) * 9 / 10
@@ -1580,12 +1717,12 @@ func checkedReceipt(root string, res apply.Result, v *writer.Verified, applyErr 
 			msg = msg[:cut]
 			out = errorResult(msg + " …" + note)
 		}
-		return out, nil
+		return withFull(out), nil
 	}
-	return errorResult(fmt.Sprintf("%d of %d hunk(s) failed and nothing was written. Naming them "+
+	return withFull(errorResult(fmt.Sprintf("%d of %d hunk(s) failed and nothing was written. Naming them "+
 		"takes more than the %d-byte ceiling this server advertises, so they are not listed here. "+
 		"Send fewer hunks in one plan, or use the CLI `mrw write`, which streams and has no such "+
-		"limit.", res.Failed, len(res.Hunks), MaxResultChars) + leftNote(len(res.LeftBehind))), nil
+		"limit.", res.Failed, len(res.Hunks), MaxResultChars) + leftNote(len(res.LeftBehind)))), nil
 }
 
 // keptTail writes a check's tail to a log of its own and returns its path, or
@@ -1799,11 +1936,17 @@ func unreportableAt(c, written, hunks, failed int, partial bool) string {
 	if partial {
 		state = "the plan PARTIALLY APPLIED — a later file failed after earlier ones were already written"
 	}
+	// ⚠ THE TOKEN is stable and greppable (#735): a host that reads only this
+	// sentence still learns how much of the plan reached the tree.
+	mutation := "complete"
+	if partial {
+		mutation = "partial"
+	}
 	return fmt.Sprintf("%s: %d file(s) changed on disk, %d hunk(s), %d failed. NAMING them takes "+
 		"more than the %d-byte ceiling this server advertises, so the per-hunk detail is not here "+
 		"— but the write HAPPENED: do not re-send this plan, it would apply again. Read the files "+
-		"to see what changed; a server started with a larger --max-result-chars reports later writes in full.",
-		state, written, hunks, failed, c)
+		"to see what changed; a server started with a larger --max-result-chars reports later writes in full. mutation: %s.",
+		state, written, hunks, failed, c, mutation)
 }
 
 // leftNote is the sentence a terminal receipt adds when the write left paths
