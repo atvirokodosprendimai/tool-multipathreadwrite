@@ -702,8 +702,13 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// cut and no ack to wait for: it records what it served, as the CLI's --quiet
 	// does, for lines the caller says it already knows.
 	if a.Quiet && len(observed) > 0 {
-		if err := seen.Record(root, LicensedNotShown(observed)); err != nil {
+		licensed := LicensedNotShown(observed)
+		if err := seen.Record(root, licensed); err != nil {
 			return callToolResult{}, &rpcError{Code: codeInternal, Message: "recording the licensed lines: " + statehint.Hint(err).Error()}
+		}
+		// #702: a licence the ledger could not keep is refused, not reported.
+		if err := seen.Unrecorded(root, licensed); err != nil {
+			return callToolResult{}, &rpcError{Code: codeInternal, Message: "recording the licensed lines: " + err.Error()}
 		}
 		return served, nil
 	}
