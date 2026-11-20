@@ -610,6 +610,23 @@ func readPending(root string) (map[string]pending, error) {
 	return loadPending(root)
 }
 
+// stillPending is the kept ids the pending store still holds. A new checkpoint
+// held after they were kept can evict the oldest past maxPending, and the note
+// must not tell the caller to retry an id that is gone (#733).
+func stillPending(root string, kept []keptAck) []keptAck {
+	store, err := readPending(root)
+	if err != nil {
+		return kept
+	}
+	var out []keptAck
+	for _, k := range kept {
+		if _, ok := store[k.id]; ok {
+			out = append(out, k)
+		}
+	}
+	return out
+}
+
 // readPendingFile is regular.ReadFile, as a variable so a test can hold the
 // store busy. It never falls back to a blocking open (ADR-201).
 var readPendingFile = regular.ReadFile

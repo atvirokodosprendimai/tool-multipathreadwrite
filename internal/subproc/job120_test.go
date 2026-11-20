@@ -193,16 +193,39 @@ func TestACancelDuringTheJobCleanupDoesNotReachAnObservedExit(t *testing.T) {
 	defer cancel()
 	f := &fakeJobs{onTerminate: cancel}
 	var ctxAtExit error
-	tree := &jobTree{api: f, ctx: ctx, exited: func() { ctxAtExit = ctx.Err() }}
+	observed := false
+	tree := &jobTree{api: f, ctx: ctx, exited: func() { observed, ctxAtExit = true, ctx.Err() }}
 	err := runInJob(helper("exit1"), tree)
 	var ee *exec.ExitError
 	if !errors.As(err, &ee) || ee.ExitCode() != 1 {
 		t.Fatalf("err %v, want the child's own exit 1", err)
+	}
+	if !observed {
+		t.Fatal("the exited hook was never called: the test would pass on the nil it started with")
 	}
 	if ctxAtExit != nil {
 		t.Errorf("the context read after Wait was already %v: the cancel of the cleanup reached an observed exit", ctxAtExit)
 	}
 	if ctx.Err() == nil {
 		t.Error("the fake terminate did not cancel: the fixture is not reaching the cleanup")
+	}
+}
+
+// Final review of #736. A start that fails because the deadline was already past
+// still tells the observer: otherwise the check reads no context at exit, calls
+// the run "could not start" (exit 2), and not "timed out before it started" (124).
+func TestAStartThatFailedForThePastDeadlineIsObservedAsTheDeadline(t *testing.T) {
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	defer cancel()
+	c := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestJobHelper$")
+	observed := false
+	var ctxAtExit error
+	tree := &jobTree{api: &fakeJobs{}, ctx: ctx, exited: func() { observed, ctxAtExit = true, ctx.Err() }}
+	err := runInJob(c, tree)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("err %v, want the deadline", err)
+	}
+	if !observed || !errors.Is(ctxAtExit, context.DeadlineExceeded) {
+		t.Errorf("observed=%v ctx at exit=%v; want the observer called and told the deadline", observed, ctxAtExit)
 	}
 }

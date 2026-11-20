@@ -34,6 +34,18 @@ import (
 // grandchild still holds before it closes them itself.
 const waitDelay = time.Second
 
+// Trace, when set, is called with "exited" once a command has exited and "reaped"
+// once its process group has been reaped (Unix, through RunObserved). A test reads
+// where a cancel fell between them: the order is what makes a cancel one that
+// landed during the reap (#734).
+var Trace func(event string)
+
+func trace(event string) {
+	if Trace != nil {
+		Trace(event)
+	}
+}
+
 // ErrNotContained is wrapped by Run's error when a child could not be put in
 // the job object that stops its whole tree on Windows: it was killed before it
 // ran, so a caller that reads its output must not take the empty output for

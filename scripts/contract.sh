@@ -11873,11 +11873,17 @@ R369="$WORK/r369"; rm -rf "$R369"; mkdir -p "$R369"; M369="$R369/armed"
 # The child writes the marker only once its TERM trap is installed, and the shell
 # waits for it before exiting 1, so the group is never empty when the reap begins.
 MRW_SHELL=on "$MRW" -C "$R369" run "(trap '' TERM; : > $M369; exec sleep 30) & while [ ! -e $M369 ]; do sleep 0.01; done; exit 1" > "$R369/exited.out" 2>&1 &
-p369=$!; for _ in $(seq 1 200); do [ -e "$M369" ] && break; sleep 0.05; done; sleep 0.2; kill -TERM "$p369" 2>/dev/null; wait "$p369"; rc369=$?
+p369=$!; armed369=no; for _ in $(seq 1 200); do [ -e "$M369" ] && { armed369=yes; break; }; sleep 0.05; done
+[ "$armed369" = yes ] || bad "the child never installed its TERM trap (no marker after 10 s): the row did not reach the reap"
+sleep 0.2
+kill -TERM "$p369" 2>/dev/null || bad "mrw run had already ended when the TERM was to be sent, so it did not land during the reap"
+wait "$p369"; rc369=$?
 want 1 "$rc369" "a TERM that lands while mrw reaps the leftover child of a command that exited 1 keeps exit 1"
 grep -q '^exit 1' "$R369/exited.out" && ok "and the receipt says exit 1" || bad "exited receipt: $(head -c 300 "$R369/exited.out")"
 MRW_SHELL=on "$MRW" -C "$R369" run 'exec sleep 30' > "$R369/running.out" 2>&1 &
-p369=$!; sleep 0.4; kill -TERM "$p369" 2>/dev/null; wait "$p369"; rc369=$?
+p369=$!; sleep 0.4
+kill -TERM "$p369" 2>/dev/null || bad "mrw run had already ended when the TERM was to be sent (the pair)"
+wait "$p369"; rc369=$?
 want 130 "$rc369" "the pair: the same TERM while the command still runs is 130"
 
 # Nothing this run started may outlive it. Checked after the last row, so every

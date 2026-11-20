@@ -767,6 +767,9 @@ func readTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 					return callToolResult{}, &rpcError{Code: codeInternal, Message: "holding checkpoints: " + statehint.Hint(err).Error()}
 				}
 			}
+			// hold evicts the oldest pending checkpoints past maxPending, and an id
+			// this call kept may be one: the note names only those still pending.
+			noteAcks(unknown, stillPending(root, kept))
 			return markedServed, nil
 		}
 	}

@@ -90,6 +90,13 @@ func (t *jobTree) cancel(kill func() error) error {
 	return kill()
 }
 
+// observe calls the exited hook, when there is one.
+func (t *jobTree) observe() {
+	if t.exited != nil {
+		t.exited()
+	}
+}
+
 // runInJob starts c, which group made start suspended, assigns it to a fresh
 // job, and only then resumes it, so a grandchild it starts at once is created
 // inside the job. When c exits the job is terminated and closed, taking a
@@ -98,6 +105,9 @@ func (t *jobTree) cancel(kill func() error) error {
 // returned (ADR-120).
 func runInJob(c *exec.Cmd, t *jobTree) error {
 	if err := c.Start(); err != nil {
+		// A start that failed because the deadline was already past is read as
+		// that: the observer sees the context as it was (#734).
+		t.observe()
 		return err
 	}
 	job, err := t.api.create()
@@ -128,15 +138,14 @@ func runInJob(c *exec.Cmd, t *jobTree) error {
 		// A cancel or deadline that landed while the child was being contained
 		// is what stopped it: say so, so the check reports it as interrupted or
 		// timed out rather than as a child that could not start.
+		t.observe()
 		if t.ctx != nil && t.ctx.Err() != nil {
 			return fmt.Errorf("%w: %w", ErrNotContained, t.ctx.Err())
 		}
 		return fmt.Errorf("%w: %w", ErrNotContained, err)
 	}
 	waitErr := c.Wait()
-	if t.exited != nil {
-		t.exited()
-	}
+	t.observe()
 	t.mu.Lock()
 	_ = t.api.terminate(job)
 	_ = t.api.close(job)

@@ -52,8 +52,10 @@ func run(c *exec.Cmd) error {
 // runObserved is run with a call between the command's exit and the reap.
 func runObserved(c *exec.Cmd, exited func()) error {
 	err := c.Run()
+	trace("exited")
 	exited()
 	reap(c)
+	trace("reaped")
 	return err
 }
 

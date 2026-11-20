@@ -9,10 +9,12 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync/atomic"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/subproc"
 )
 
 // reapFixture is the check of #734's tests: a shell that exits 1 and leaves a
@@ -75,21 +77,30 @@ func TestARealExitStatusSurvivesAnInterruptThatLandsDuringTheReap(t *testing.T) 
 	command, gone := reapFixture(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	start := time.Now()
-	var cancelledAt atomic.Int64 // unix nanoseconds; zero until the cancel is sent
+	var mu sync.Mutex
+	var order []string
+	record := func(e string) {
+		mu.Lock()
+		defer mu.Unlock()
+		order = append(order, e)
+	}
+	subproc.Trace = record
+	t.Cleanup(func() { subproc.Trace = nil })
 	go func() {
 		gone()
 		time.Sleep(100 * time.Millisecond) // well inside the second the reap takes
-		cancelledAt.Store(time.Now().UnixNano())
+		record("cancel")
 		cancel()
 	}()
 	res, err := Run(ctx, t.TempDir(), Config{Check: command}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ranFor := time.Since(start)
-	if at := cancelledAt.Load(); at == 0 || at > start.Add(ranFor).UnixNano() {
-		t.Fatalf("the cancel did not land before the run ended: the fixture is not reaching the reap")
+	mu.Lock()
+	got := strings.Join(order, ",")
+	mu.Unlock()
+	if got != "exited,cancel,reaped" {
+		t.Fatalf("order of events %q, want exited,cancel,reaped: the cancel did not land during the reap, so the test proves nothing", got)
 	}
 	if !res.Ran || res.ExitCode != 1 || res.Skipped != "" {
 		t.Errorf("ran=%v exit=%d skipped=%q after %dms; want the command's own exit 1, not an interrupt", res.Ran, res.ExitCode, res.Skipped, res.DurationMS)

@@ -276,3 +276,50 @@ func TestEveryKeptIdIsListedWhileThereIsRoom(t *testing.T) {
 		t.Errorf("the note for a tight ceiling is not the cut one:\n%s", callAckNoteShort)
 	}
 }
+
+// Final review of #736. Holding a new checkpoint in the same call can evict the
+// oldest pending ones past maxPending, a kept id among them: the note must not tell
+// the caller to retry an id that is gone. At the boundary (one past the bound) the
+// kept id, the oldest, is evicted and not named; one below it stays and is named.
+func TestAKeptIdThatTheCallsOwnCheckpointsEvictedIsNotNamed(t *testing.T) {
+	if runtime.GOOS == "windows" || os.Getuid() == 0 {
+		t.Skip("a mode-000 file is still readable here")
+	}
+	for _, tc := range []struct {
+		others    int // pending entries besides the kept id; the read adds one more
+		wantNamed bool
+	}{
+		{maxPending - 2, true},  // kept + others + the read's own = maxPending: nothing evicted
+		{maxPending - 1, false}, // one past: the oldest, the kept id, goes
+	} {
+		root := licensed(t, map[string]string{"a.txt": "a\n", "b.txt": "b\n", "c.txt": "c\n"})
+		shaA, _ := currentSHA(root, "a.txt")
+		shaB, _ := currentSHA(root, "b.txt")
+		if err := hold(root, "a.txt", shaA, map[string][2]int{"ck-kept": {1, 1}}); err != nil {
+			t.Fatal(err)
+		}
+		fill := map[string][2]int{}
+		for i := 0; i < tc.others; i++ {
+			fill[fmt.Sprintf("ck-fill-%04d", i)] = [2]int{1, 1}
+		}
+		if err := hold(root, "b.txt", shaB, fill); err != nil {
+			t.Fatal(err)
+		}
+		f := filepath.Join(root, "a.txt")
+		if err := os.Chmod(f, 0o000); err != nil {
+			t.Fatal(err)
+		}
+		res := call(t, root, "mrw_read", map[string]any{"specs": []string{"c.txt"}, "ack": []string{"ck-kept"}})
+		_ = os.Chmod(f, 0o644)
+		content, _ := res["content"].([]any)
+		first, _ := content[0].(map[string]any)
+		text := asString(first["text"])
+		if named := strings.Contains(text, "ck-kept"); named != tc.wantNamed {
+			t.Errorf("%d other pending ids: the note names the kept id = %v, want %v:\n%.400s", tc.others, named, tc.wantNamed, text)
+		}
+		store, _ := readPending(root)
+		if _, held := store["ck-kept"]; held != tc.wantNamed {
+			t.Errorf("%d other pending ids: the kept id is pending = %v, want %v", tc.others, held, tc.wantNamed)
+		}
+	}
+}
