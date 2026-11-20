@@ -11886,6 +11886,24 @@ kill -TERM "$p369" 2>/dev/null || bad "mrw run had already ended when the TERM w
 wait "$p369"; rc369=$?
 want 130 "$rc369" "the pair: the same TERM while the command still runs is 130"
 
+# 365. #714: a file a plan creates is 0666 &^ umask, not 0644 whatever the
+# umask. Under umask 077 a create is 0600 and a replacement keeps its 0640 (not
+# the old fixed 0644, so a kept mode cannot pass as one), and the directory a
+# create makes is 0700, which holds only if reading the umask at start-up put it
+# back; the pair: under umask 022 a create is 0644.
+R=$(mktemp -d "$WORK/r-XXXXXX"); printf 'o\n' > "$R/old.txt"; chmod 640 "$R/old.txt"
+m read old.txt > "$WORK/served.out"
+( umask 077; printf '@@ n77.txt 0 create\nx\n@@ old.txt 1 replace\no2\n@@ nd/n.txt 0 create\nx\n' | m write - >/dev/null 2>&1 ); rc=$?
+want 0 "$rc" "a plan creating a file and replacing one under umask 077 -> exit 0"
+( umask 022; printf '@@ n22.txt 0 create\nx\n' | m write - >/dev/null 2>&1 ); rc=$?
+want 0 "$rc" "a create under umask 022 -> exit 0"
+modes=$(python3 - "$R" <<'PY'
+import os, sys
+print(*(oct(os.stat(os.path.join(sys.argv[1], n)).st_mode & 0o777) for n in ("n77.txt", "old.txt", "n22.txt", "nd")))
+PY
+)
+[ "$modes" = "0o600 0o640 0o644 0o700" ] && ok "the umask-077 create is 0600, the replacement keeps 0640, the umask-022 create is 0644, the umask-077 directory is 0700" || bad "modes: $modes"
+
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
 # killed process is a zombie until its adopter reaps it, and pgrep lists
