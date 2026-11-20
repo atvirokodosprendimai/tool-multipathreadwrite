@@ -121,8 +121,8 @@ func TestAnExtraNameForAReplacedSourceThatCannotBeTakenBackIsNamed(t *testing.T)
 	if err == nil || res.Applied {
 		t.Fatalf("a rename of a replaced source reported success: %v", err)
 	}
-	if !slices.Contains(res.LeftBehind, "d/b.txt") {
-		t.Errorf("left_behind = %v, want d/b.txt", res.LeftBehind)
+	if want := filepath.FromSlash("d/b.txt"); !slices.Contains(res.LeftBehind, want) {
+		t.Errorf("left_behind = %v, want %s", res.LeftBehind, want)
 	}
 }
 

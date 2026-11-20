@@ -102,7 +102,7 @@ func TestADestinationThatCannotBeLookedAtAfterTheLinkIsNamedAsLeftBehind(t *test
 	if err == nil || res.Applied {
 		t.Fatalf("a rename whose destination could not be looked at reported success: %v", err)
 	}
-	if !slices.Contains(res.LeftBehind, "d/b.txt") {
+	if !slices.Contains(res.LeftBehind, filepath.FromSlash("d/b.txt")) {
 		t.Errorf("left_behind = %v, want the name mrw made, d/b.txt", res.LeftBehind)
 	}
 	if err := os.Chmod(d, 0o755); err != nil {
