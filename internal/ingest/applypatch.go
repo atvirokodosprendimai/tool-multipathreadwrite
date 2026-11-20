@@ -187,7 +187,7 @@ func patchBody(s string) (string, error) {
 	if strings.TrimSpace(s[:begin]) != "" {
 		return "", fmt.Errorf("apply_patch: text before %s", beginPatch)
 	}
-	end := strings.Index(s, endPatch)
+	end := lineIndex(s, endPatch)
 	if end < 0 {
 		return "", fmt.Errorf("apply_patch: missing %s", endPatch)
 	}
@@ -199,6 +199,25 @@ func patchBody(s string) (string, error) {
 	}
 	rest := s[begin+len(beginPatch) : end]
 	return strings.TrimPrefix(rest, "\n"), nil
+}
+
+// lineIndex is the index of the first occurrence of marker that is a whole
+// line, or -1. A body line holding the marker as text (+literal *** End Patch)
+// was taken for the terminator: the patch was refused for text after it, or,
+// with no real terminator, compiled with its body cut there (Codex on #708).
+func lineIndex(s, marker string) int {
+	for off := 0; ; {
+		i := strings.Index(s[off:], marker)
+		if i < 0 {
+			return -1
+		}
+		at := off + i
+		after := at + len(marker)
+		if (at == 0 || s[at-1] == '\n') && (after == len(s) || s[after] == '\n' || s[after] == '\r') {
+			return at
+		}
+		off = after
+	}
 }
 
 func looksLikeGit(s string) bool {

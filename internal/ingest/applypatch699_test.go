@@ -39,4 +39,36 @@ func TestAFileMarkerWithNoPathIsRefused(t *testing.T) {
 	if _, err := CompileApplyPatch(root, []byte(move)); err != nil {
 		t.Fatalf("an Update File section that only moves was refused: %v", err)
 	}
+	// The section is closed by whatever marker follows it, not only by End
+	// Patch: each boundary refuses an empty Update File (Codex on #708).
+	for name, next := range map[string]string{
+		"Add File":    "*** Add File: ok.txt\n+ok\n",
+		"Update File": "*** Update File: demo.go\n*** Move to: moved.go\n",
+		"Delete File": "*** Delete File: demo.go\n",
+	} {
+		doc := "*** Begin Patch\n*** Update File: demo.go\n@@\n\n" + next + "*** End Patch\n"
+		if out, err := CompileApplyPatch(root, []byte(doc)); err == nil || !strings.Contains(err.Error(), "changes nothing") {
+			t.Errorf("an empty Update File closed by %s compiled: err=%v\n%s", name, err, out)
+		}
+	}
+}
+
+// TestAnEndPatchMarkerInsideABodyLineIsText: the envelope's terminator is a
+// line of its own. A body line holding it as text was taken for the end, so the
+// patch was refused for text after it, or with no real terminator compiled with
+// its body cut (Codex on #708).
+func TestAnEndPatchMarkerInsideABodyLineIsText(t *testing.T) {
+	root := writeTree(t, map[string]string{"demo.go": demo})
+	doc := "*** Begin Patch\n*** Add File: ok.txt\n+literal *** End Patch\n+after\n*** End Patch\n"
+	out, err := CompileApplyPatch(root, []byte(doc))
+	if err != nil {
+		t.Fatalf("a body line holding the terminator as text was refused: %v", err)
+	}
+	if !strings.Contains(string(out), "literal *** End Patch\nafter\n") {
+		t.Fatalf("the body was cut:\n%s", out)
+	}
+	cut := "*** Begin Patch\n*** Add File: ok.txt\n+literal *** End Patch\n+after\n"
+	if out, err := CompileApplyPatch(root, []byte(cut)); err == nil || !strings.Contains(err.Error(), "missing") {
+		t.Fatalf("a patch with no terminator line compiled: err=%v\n%s", err, out)
+	}
 }
