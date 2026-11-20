@@ -244,6 +244,39 @@ The cases each platform must pass are named in the fence: eight on Linux and on 
 - 2026-11-20 · 24beedfe* · mutant killed · exit 1 · `internal/apply/sync210.go` · syncChanged stops at the first failing directory · acceptance-sha256:d00cff50a0ce00350dc42ba04f47fae1e1f3fa917ac559e98e6b0b4a65b73f0c · covers:every changed directory is synced once after the last change
 - 2026-11-20 · 24beedfe* · mutant killed · exit 1 · `internal/apply/sync210.go` · one directory under two spellings recorded twice · acceptance-sha256:d00cff50a0ce00350dc42ba04f47fae1e1f3fa917ac559e98e6b0b4a65b73f0c · covers:every changed directory is synced once after the last change
 - 2026-11-20 · 24beedfe* · mutant killed · exit 1 · `README.md` · the README does not say where a no-barrier volume is reported · acceptance-sha256:d00cff50a0ce00350dc42ba04f47fae1e1f3fa917ac559e98e6b0b4a65b73f0c · covers:the new words are in the documents
+- 2026-11-20 · 4fa7e4bf · mutant killed · exit 1 · `internal/apply/sync210.go` · a directory with no recorded identity is opened and flushed (review 1) · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · covers:every changed directory is synced once after the last change
+- 2026-11-20 · 4fa7e4bf* · mutant killed · exit 1 · `internal/apply/apply.go` · sync_note set before the drains have all succeeded (review 3) · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · covers:a sync failure before the renames writes nothing
+- 2026-11-20 · 4fa7e4bf* · mutant killed · exit 1 · `internal/apply/sync210.go` · a pre-rename sync failure is not ErrStagingSync (review 4) · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · covers:a sync failure before the renames writes nothing
+- 2026-11-20 · 4fa7e4bf* · mutant killed · exit 1 · `cmd/mrw/sync210_test.go` · the CLI note subtest renamed so the fence cannot find it (review 5) · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · covers:the CLI and mrw_write report it
+- 2026-11-20 · 4fa7e4bf* · mutant killed · exit 1 · `internal/apply/apply.go` · no temp sync · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · covers:every temp is synced before the first rename
+- 2026-11-20 · 4fa7e4bf* · mutant killed · exit 1 · `internal/apply/sync210.go` · no directory sync · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · covers:every changed directory is synced once after the last change
+- 2026-11-20 · 4fa7e4bf* · mutant killed · exit 1 · `internal/apply/sync_darwin.go` · the drain dropped on macOS · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · covers:the drain runs once per device per phase on macOS
+- 2026-11-20 · 4fa7e4bf* · mutant killed · exit 1 · `internal/apply/sync210.go` · one drain for all devices · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · covers:the drain runs once per device per phase on macOS
+- 2026-11-20 · 4fa7e4bf* · mutant killed · exit 1 · `internal/apply/apply.go` · a failed temp sync ignored · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · covers:a sync failure before the renames writes nothing
+- 2026-11-20 · 4fa7e4bf* · mutant killed · exit 1 · `internal/apply/sync210.go` · a failed directory sync ignored · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · covers:a sync failure after the renames is a landed write with an error
+- 2026-11-20 · 4fa7e4bf* · mutant killed · exit 1 · `internal/writer/flow.go` · the sync error classified as refused_apply · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · covers:the check and steps do not run after a sync failure
+- 2026-11-20 · 4fa7e4bf* · mutant killed · exit 1 · `cmd/mrw/main.go` · the check run after a sync failure · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · covers:the check and steps do not run after a sync failure
+- 2026-11-20 · 4fa7e4bf* · mutant killed · exit 1 · `internal/writer/writer.go` · the ledger's error dropping the sync's · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · covers:a sync failure and a ledger failure keep both errors
+- 2026-11-20 · 4fa7e4bf* · mutant killed · exit 1 · `internal/apply/apply.go` · the dry run syncing · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · covers:a dry run syncs nothing
+- 2026-11-20 · 4fa7e4bf* · mutant killed · exit 1 · `internal/mcp/tools.go` · the terminal sentence drops the sync words · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · covers:the CLI and mrw_write report it
+- 2026-11-20 · 4fa7e4bf* · mutant killed · exit 1 · `README.md` · the README does not say where a no-barrier volume is reported · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · covers:the new words are in the documents
+- 2026-11-20 · 4fa7e4bf* · mutant killed · exit 1 · `scripts/contract.sh` · the row's strace command drops -y · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · covers:the contract row exists with its trace
+- 2026-11-20 · 4fa7e4bf* · mutant killed · exit 1 · `internal/apply/sync210.go` · a created directory's parent not synced · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · covers:every changed directory is synced once after the last change
+- 2026-11-20 · 4fa7e4bf* · mutant killed · exit 1 · `internal/apply/sync_darwin.go` · an interrupted fsync is not retried · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · covers:every temp is synced before the first rename
+- 2026-11-20 · 4fa7e4bf* · mutant killed · exit 1 · `internal/curve/score.go` · a landed sync failure scored as a refusal · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · covers:a sync failure after the renames is a landed write with an error
+- 2026-11-20 · 4fa7e4bf* · mutant killed · exit 1 · `internal/curve/score.go` · a staging sync failure scored as a refusal · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · covers:a sync failure before the renames writes nothing
+- 2026-11-20 · 4fa7e4bf* · mutant killed · exit 1 · `internal/apply/sync_darwin.go` · an unsupported drain is an error again, not a fallback · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · covers:the drain runs once per device per phase on macOS
+- 2026-11-20 · 4fa7e4bf* · mutant killed · exit 1 · `internal/apply/sync_darwin.go` · the fallback fsync failing is ignored · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · covers:the drain runs once per device per phase on macOS
+- 2026-11-20 · 4fa7e4bf* · mutant killed · exit 1 · `internal/apply/sync210.go` · a drain with no barrier is a failure again · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · covers:the drain runs once per device per phase on macOS
+- 2026-11-20 · 4fa7e4bf* · mutant killed · exit 1 · `internal/apply/sync210.go` · a directory flush the volume cannot do is a failure again · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · covers:a Windows directory is synced like any other and a flush the volume does not support is a note
+- 2026-11-20 · 4fa7e4bf* · mutant killed · exit 1 · `internal/apply/apply.go` · the receipt does not say the volume gives no barrier · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · covers:the CLI and mrw_write report it
+- 2026-11-20 · 4fa7e4bf* · mutant killed · exit 1 · `cmd/mrw/main.go` · the human form does not say it on stderr · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · covers:the CLI and mrw_write report it
+- 2026-11-20 · 4fa7e4bf* · mutant killed · exit 1 · `internal/apply/sync210.go` · the drain reopens each temp for reading · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · covers:every temp is synced before the first rename
+- 2026-11-20 · 4fa7e4bf* · mutant killed · exit 1 · `internal/apply/sync210.go` · a directory opened blocking · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · covers:every changed directory is synced once after the last change
+- 2026-11-20 · 4fa7e4bf* · mutant killed · exit 1 · `internal/apply/sync210.go` · the recorded identity is not checked · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · covers:every changed directory is synced once after the last change
+- 2026-11-20 · 4fa7e4bf* · mutant killed · exit 1 · `internal/apply/sync210.go` · the source directory is resolved again at sync time · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · covers:every changed directory is synced once after the last change
+- 2026-11-20 · 4fa7e4bf* · mutant killed · exit 1 · `internal/apply/sync210.go` · syncChanged stops at the first failing directory · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · covers:every changed directory is synced once after the last change
+- 2026-11-20 · 4fa7e4bf* · mutant killed · exit 1 · `internal/apply/sync210.go` · one directory under two spellings recorded twice · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · covers:every changed directory is synced once after the last change
 
 ## Verification Log
 - 2026-11-20 · 91a611c9* · exit 1 · `out="$(mktemp)" \ …` · acceptance-sha256:446b4d3d89fbedf4f08646e769d14fa4ffdabdfb40575d5e13ff28f952cb5bed · ms:1262 · test-lock-sha256:f9402ae33123588c1c5166b48985591e71f03f6d556a3b9a46caf07a78bd7268 · test-lock-file:docs/adr/locks/f9402ae33123588c1c5166b48985591e71f03f6d556a3b9a46caf07a78bd7268.lock
@@ -419,6 +452,39 @@ The cases each platform must pass are named in the fence: eight on Linux and on 
 - 2026-11-20 · 24beedfe* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:d00cff50a0ce00350dc42ba04f47fae1e1f3fa917ac559e98e6b0b4a65b73f0c · ms:7184
 - 2026-11-20 · b95b3ce1 · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:d00cff50a0ce00350dc42ba04f47fae1e1f3fa917ac559e98e6b0b4a65b73f0c · ms:3804
 - 2026-11-20 · d5eba789 · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · ms:3950
+- 2026-11-20 · 4fa7e4bf · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · ms:4122
+- 2026-11-20 · 4fa7e4bf* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · ms:3997
+- 2026-11-20 · 4fa7e4bf* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · ms:3951
+- 2026-11-20 · 4fa7e4bf* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · ms:4017
+- 2026-11-20 · 4fa7e4bf* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · ms:4350
+- 2026-11-20 · 4fa7e4bf* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · ms:5025
+- 2026-11-20 · 4fa7e4bf* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · ms:5324
+- 2026-11-20 · 4fa7e4bf* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · ms:4783
+- 2026-11-20 · 4fa7e4bf* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · ms:6258
+- 2026-11-20 · 4fa7e4bf* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · ms:4725
+- 2026-11-20 · 4fa7e4bf* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · ms:4610
+- 2026-11-20 · 4fa7e4bf* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · ms:4692
+- 2026-11-20 · 4fa7e4bf* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · ms:4732
+- 2026-11-20 · 4fa7e4bf* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · ms:4469
+- 2026-11-20 · 4fa7e4bf* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · ms:5135
+- 2026-11-20 · 4fa7e4bf* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · ms:4920
+- 2026-11-20 · 4fa7e4bf* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · ms:4836
+- 2026-11-20 · 4fa7e4bf* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · ms:4558
+- 2026-11-20 · 4fa7e4bf* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · ms:4512
+- 2026-11-20 · 4fa7e4bf* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · ms:4085
+- 2026-11-20 · 4fa7e4bf* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · ms:4194
+- 2026-11-20 · 4fa7e4bf* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · ms:4210
+- 2026-11-20 · 4fa7e4bf* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · ms:4047
+- 2026-11-20 · 4fa7e4bf* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · ms:4340
+- 2026-11-20 · 4fa7e4bf* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · ms:5061
+- 2026-11-20 · 4fa7e4bf* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · ms:4429
+- 2026-11-20 · 4fa7e4bf* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · ms:3949
+- 2026-11-20 · 4fa7e4bf* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · ms:4880
+- 2026-11-20 · 4fa7e4bf* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · ms:4783
+- 2026-11-20 · 4fa7e4bf* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · ms:4788
+- 2026-11-20 · 4fa7e4bf* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · ms:5042
+- 2026-11-20 · 4fa7e4bf* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · ms:3990
+- 2026-11-20 · 4fa7e4bf* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:d651985478f7f19eb3b1fc4a34fa8ceb6240e948a60182aa4339411b57743c7c · ms:5128
 
 ## Invariants
 
