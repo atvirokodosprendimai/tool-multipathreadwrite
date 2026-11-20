@@ -3273,24 +3273,25 @@ var psNumber = regexp.MustCompile(`^\.?[0-9][^/]*$`)
 // `.`, `_`, `-` and `/` are plain, and so is a `~` that is not the first character
 // (literal in all of them). On Windows a `\` is a separator, but Git Bash eats a
 // backslash, so a path is printed with slashes, which every one of them runs and Go
-// reads as the same directory. Git Bash also converts what looks like a POSIX path,
-// skipping some leading characters when it classifies an argument (`_/worktree` is
-// converted against its install root) and mapping a first directory that is anyone's,
-// so no list of names can say which are safe: on Windows only a drive path `X:/…` (a
-// Windows path already: left alone) or a path of one component, which has no slash to
-// convert, is commanded, and every other relative path (and a UNC one, or one rooted
-// without a drive) is described, the safe direction. A space and every other
-// metacharacter (`& | < > ^ % ! ' " ( ) ; , = $`, a backtick, `@`, `#`, `{`, `}`, `*`,
-// `?`, `[`), and a word PowerShell may read as a number, needs quoting.
+// reads as the same directory. Git Bash also converts what looks like a POSIX path
+// (find_path_start_and_type in msys2_path_conv.cc): it skips leading bytes that are
+// not alphanumeric and not one of `/ \ : - .` (in the plain set, only `_`), and
+// rewrites the rest if it begins with `/` (`_/worktree`, `__/x`, `_//x`, a UNC
+// path); `sub/r1`, `a//b`, `tmp/x` and `./x` it leaves alone, and a drive path
+// `X:/…` it copies verbatim when no further colon follows. So on Windows an argument
+// is commanded unless, with its leading `_`s stripped, it begins with a separator;
+// a `:` is outside the plain set but for the drive's, which also excludes the
+// path-list rule (a `:` followed by `/`, `:` or `.` after an earlier `/`). A space and
+// every other metacharacter (`& | < > ^ % ! ' " ( ) ; , = $`, a backtick, `@`, `#`,
+// `{`, `}`, `*`, `?`, `[`), and a word PowerShell may read as a number, needs quoting.
 func shellForm(windows bool, s string) (string, bool) {
 	drive := false
 	if windows {
-		drive = len(s) >= 3 && (s[0] >= 'a' && s[0] <= 'z' || s[0] >= 'A' && s[0] <= 'Z') && s[1] == ':' && (s[2] == '/' || s[2] == '\\')
-		if drive {
-			s = strings.ReplaceAll(s, `\`, "/")
-		} else if strings.ContainsAny(s, `/\`) {
+		if rest := strings.TrimLeft(s, "_"); rest != "" && (rest[0] == '/' || rest[0] == '\\') {
 			return s, false
 		}
+		s = strings.ReplaceAll(s, `\`, "/")
+		drive = len(s) >= 3 && (s[0] >= 'a' && s[0] <= 'z' || s[0] >= 'A' && s[0] <= 'Z') && s[1] == ':' && s[2] == '/'
 	}
 	i := 0
 	if drive {

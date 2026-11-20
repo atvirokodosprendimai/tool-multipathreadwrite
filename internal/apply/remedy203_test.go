@@ -84,15 +84,24 @@ func TestARootIsPrintedInTheCommandWheneverNoShellNeedsItQuoted(t *testing.T) {
 		{false, "v1.10", "v1.10"},
 		{false, "1.10/x", "1.10/x"},
 		{true, "r1", "r1"},
-		// Git Bash (MSYS) converts what looks like a POSIX path: it skips some leading characters when it
-		// classifies an argument (`_/worktree` is converted against its install root) and the first directory
-		// is anyone's, so a relative path with a slash is described on Windows; one component has no slash to convert.
-		{true, "sub/r1", ""},
-		{true, `sub\r1`, ""},
+		// Git Bash (MSYS), find_path_start_and_type in msys2_path_conv.cc: it skips leading bytes that are not
+		// alphanumeric and not one of / \ : - . (in the plain set, only `_`), then rewrites the rest if it begins
+		// with `/` (`_/worktree`, `__/x`, `_//x`, UNC); `sub/r1`, `a//b`, `tmp/x`, `sub/dev/null` and `./x` are left alone.
+		{true, "sub/r1", "sub/r1"},
+		{true, `sub\r1`, "sub/r1"},
 		{true, `_\worktree`, ""},
 		{true, "_/worktree", ""},
+		{true, "__/x", ""},
+		{true, "_//x", ""},
+		{true, "_worktree", "_worktree"},
+		{true, "_a/b", "_a/b"},
 		{true, "worktree", "worktree"},
-		{true, "tmp", "tmp"},
+		{true, "tmp/x", "tmp/x"},
+		{true, "sub/dev/null", "sub/dev/null"},
+		{true, "./x", "./x"},
+		{true, "../x", "../x"},
+		{true, "a/b:/c", ""}, // a `:` before a `/` after an earlier `/` is a path list: not in the plain set
+		{true, "sub/x:.y", ""},
 		{true, `C:\Users\x\r1`, "C:/Users/x/r1"},
 		{true, `c:\r1`, "c:/r1"},
 		{true, "C:/Users/x/r1", "C:/Users/x/r1"},
@@ -102,13 +111,10 @@ func TestARootIsPrintedInTheCommandWheneverNoShellNeedsItQuoted(t *testing.T) {
 		{true, "/Users/x/r1", ""},
 		{true, "~r1", ""},
 		{true, "_/dev/null", ""},
-		{true, "sub/tmp/r1", ""},
-		{true, "sub/Dev/r1", ""},
-		{true, "usr/x", ""},
-		{true, "a//b", ""},
-		{true, "sub/", ""},
+		{true, "a//b", "a//b"},
+		{true, "sub/", "sub/"},
 		{true, `C:\dev\x`, "C:/dev/x"}, // a drive path is a Windows path already: MSYS leaves it
-		{true, "tmpdir/r1", ""},
+		{true, "C:/x:y", ""},           // a drive path is copied verbatim only with no later colon
 		{true, `C:\Users\my dir\r1`, ""},
 		{true, `C:r1`, ""}, // drive-relative: not an absolute path, and `:` is not plain
 		{true, `C:`, ""},
@@ -152,12 +158,16 @@ func TestARootIsPrintedInTheCommandWheneverNoShellNeedsItQuoted(t *testing.T) {
 			}
 		}
 	}
-	// A path of the plan is judged the same way, and printed with slashes on Windows.
-	if got := remedyFor(true, "", `sub\F.go`, 1, 4); got != `a read that shows lines 1-4 of 'sub\F.go'` {
-		t.Errorf("a path with a directory on Windows is described, since MSYS may convert it: %q", got)
+	// A path of the plan is judged the same way, and printed with slashes on Windows; a path with a
+	// directory is commanded there, as a root with one is (the common case: internal/apply/x.go).
+	if got := remedyFor(true, "", `sub\F.go`, 1, 4); got != `mrw read --max-cols 0 sub/F.go:1-4` {
+		t.Errorf("a backslash path on Windows: %q", got)
 	}
-	if got := remedyFor(true, "", `F.go`, 1, 4); got != `mrw read --max-cols 0 F.go:1-4` {
-		t.Errorf("a one-component path on Windows: %q", got)
+	if got := remedyFor(true, "", `internal/apply/x.go`, 1, 4); got != `mrw read --max-cols 0 internal/apply/x.go:1-4` {
+		t.Errorf("a path with directories on Windows: %q", got)
+	}
+	if got := remedyFor(true, "", `_/x.go`, 1, 4); got != `a read that shows lines 1-4 of '_/x.go'` {
+		t.Errorf("a path that MSYS would convert on Windows: %q", got)
 	}
 	if got := remedyFor(false, "", `sub\F.go`, 1, 4); got != `a read that shows lines 1-4 of 'sub\F.go'` {
 		t.Errorf("a backslash path on POSIX: %q", got)
