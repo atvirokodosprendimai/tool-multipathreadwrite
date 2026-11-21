@@ -88,15 +88,17 @@ abort() {
   local pids
   [ "$ABORTING" -eq 0 ] || return 0
   ABORTING=1
-  # The watchdog is told to stop; if it had already fired it ignores that and
-  # finishes the KILL it owes, which is waited for (it holds the pids it found).
-  if [ -n "$CUR_WATCH" ]; then
-    kill -TERM "$CUR_WATCH" 2>/dev/null
-    { wait "$CUR_WATCH"; } 2>/dev/null
-  fi
+  # The step's tree is stopped first, which also lets the watchdog see it gone; a
+  # watchdog that had already fired is waited for, it owes a KILL (it holds the
+  # pids it found), and none of that needs a signal to it.
   if [ -n "$CUR_PID" ]; then
     pids=$(tree "$CUR_PID")
     stop_tree "$CUR_PID"
+  fi
+  if [ -n "$CUR_WATCH" ]; then
+    { wait "$CUR_WATCH"; } 2>/dev/null
+  fi
+  if [ -n "$CUR_PID" ]; then
     # shellcheck disable=SC2086 # a list of pids, split on purpose
     ! any_alive $pids || echo "static.sh: a process of the interrupted step is still running" >&2
   fi
@@ -106,34 +108,37 @@ trap 'abort 130' INT
 trap 'abort 143' TERM
 
 # deadline NAME SECS CMD...: CMD, a function or a program, in a background
-# subshell, with a watchdog that stops its tree when SECS pass. The verdict is
-# the WATCHDOG'S OWN EXIT STATUS: it exits 124 only after it fired and did the
-# stopping, and when CMD finishes first the wrapper sends it TERM, which it
-# answers with 3 and nothing else. So timed out is never a guess from a marker
-# file or from elapsed seconds. Then `static.sh: NAME did not finish in SECS s`
-# goes to stderr and the status is 124; otherwise CMD's own status. The one race:
-# CMD finishing in the instant SECS pass counts as finished unless the watchdog
-# had already left its sleep, in which case it counts as timed out. The wrapper
-# always waits for the watchdog, so its KILL is always sent. INT and TERM to this
-# script are handled by abort() above. bash only: macOS has no timeout(1) and a
-# perl alarm cannot run a function.
+# subshell, with a watchdog that stops its tree when SECS pass. The watchdog
+# polls every 0.2 s whether CMD is still there, so it needs no signal and
+# nothing to cancel: it exits 3 on seeing CMD gone, and 124 only after it fired
+# and did the stopping. The verdict is that exit status, so timed out is never a
+# guess from a marker file, from elapsed seconds or from CMD's own status. Then
+# `static.sh: NAME did not finish in SECS s` goes to stderr and the status is
+# 124; otherwise CMD's own status. The one race: CMD finishing in the instant
+# SECS pass counts as finished if the watchdog sees it gone on its last look,
+# and as timed out if it does not. The wrapper always waits for the watchdog, so
+# its KILL is always sent, and a step costs at most 0.2 s more than CMD. INT and
+# TERM to this script are handled by abort() above. bash only: macOS has no
+# timeout(1) and a perl alarm cannot run a function.
 deadline() {
   local name=$1 secs=$2 pid watcher rc wrc
   shift 2
   ( "$@" ) &
   pid=$!
   CUR_PID=$pid
-  ( trap 'kill "$sp" 2>/dev/null; exit 3' TERM
-    sleep "$secs" & sp=$!
-    wait "$sp"
-    trap '' TERM
+  ( n=$((secs * 5))
+    while [ "$n" -gt 0 ]; do
+      kill -0 "$pid" 2>/dev/null || exit 3
+      sleep 0.2
+      n=$((n - 1))
+    done
+    kill -0 "$pid" 2>/dev/null || exit 3
     stop_tree "$pid"
     exit 124 ) &
   watcher=$!
   CUR_WATCH=$watcher
   { wait "$pid"; } 2>/dev/null
   rc=$?
-  kill -TERM "$watcher" 2>/dev/null
   { wait "$watcher"; } 2>/dev/null
   wrc=$?
   CUR_PID=
