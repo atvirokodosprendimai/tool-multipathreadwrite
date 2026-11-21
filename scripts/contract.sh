@@ -12,6 +12,79 @@
 # and exit statuses are half of what is being asserted.
 set -uo pipefail
 
+# ⚠ THE SCRIPT'S OWN ERRORS ARE FAILURES (issue #763). The verdict at the end is
+# the count of `bad` rows, and a line that is not a row is invisible to it: a
+# plan header pasted into this file as content ran as a command, the shell
+# printed `12087: command not found` (127) and carried on, and the run exited 0
+# "contract holds". So this process is only a watcher: it checks that the file
+# parses (`bash -n`, with the bash that will run it), runs the script again as
+# the inner run with its stderr through a FIFO to a `tee` that writes both the
+# real stderr, live, and a log this watcher owns, and when the inner run ends,
+# whatever its exit status, scans the log for the shell's own diagnostics: a
+# line that begins with this script's path, then optionally `command
+# substitution: `, then `line N: ` (a command not found, a bad substitution, a
+# failed redirection, an unbound variable, a syntax error). The report of a
+# child a row killed on purpose (`line N:  1234 Killed`, the pid padded or not)
+# has the same prefix and is told apart by its shape, a pid and a signal's name.
+# The watcher exits non-zero if the inner run did, or the scan found a line, or
+# the log cannot be read. Nothing inside the rows touches a file descriptor.
+# Rejected: command_not_found_handle (bash 4; macOS runs 3.2), an ERR trap
+# (fires on every row that exits non-zero on purpose, `want 127` included),
+# shellcheck (it reads `12087 insert-before` as a call to a command of that
+# name at every severity and with every optional check on), and a capture of
+# stderr by the inner run itself (it can be bypassed by `exit 0`, by a line
+# before it starts, and by any row that rearranges descriptors).
+# NAMED LIMITS, not closed: a diagnostic a row captures itself
+# (`out=$(12087 insert-before 2>&1)`), and SIGKILL of this watcher. The inner run
+# is in a process group of its own, so its cleanup cannot reach the watcher or
+# the tee. CONTRACT_STOP_AT_SETUP=1 ends the inner run at the marker below, for
+# scripts/static.sh, which plants lines in a copy and runs it through this path.
+if [ -z "${CONTRACT_INNER:-}" ]; then
+  "$BASH" -n "$0" || { echo "contract.sh does not parse under $BASH" >&2; exit 2; }
+  c_dir=$(mktemp -d) || exit 2
+  trap 'rm -rf "$c_dir"' EXIT
+  mkfifo "$c_dir/fifo" || exit 2
+  # tee ignores the signals the terminal sends the group, so the runner's last
+  # words after a Ctrl-C still reach the log and the screen.
+  ( trap '' INT TERM HUP; exec tee "$c_dir/log" < "$c_dir/fifo" >&2 ) &
+  c_tee=$!
+  c_run=
+  trap '[ -z "$c_run" ] || kill -TERM "$c_run" 2>/dev/null' INT TERM HUP
+  CONTRACT_INNER=1 CONTRACT_STDERR_LOG="$c_dir/log" "$BASH" "$0" "$@" <&0 2> "$c_dir/fifo" &
+  c_run=$!
+  while :; do wait "$c_run"; c_rc=$?; kill -0 "$c_run" 2>/dev/null || break; done
+  # A leaked child that still holds the FIFO keeps the tee alive; what it has
+  # written so far is already in the log, so stop waiting and say so.
+  for _ in $(seq 1 50); do kill -0 "$c_tee" 2>/dev/null || break; sleep 0.1; done
+  if kill -0 "$c_tee" 2>/dev/null; then
+    echo "contract.sh: a process of the run still holds stderr open 5 s after it ended; the log is read as it stands" >&2
+    kill -KILL "$c_tee" 2>/dev/null
+  fi
+  c_bad=0
+  if c_seen=$(P="$0: " awk '
+    BEGIN { p = ENVIRON["P"]; n = length(p) }
+    substr($0, 1, n) == p {
+      r = substr($0, n + 1)
+      if (r !~ /^([^:]+: )?line [0-9]+: /) next
+      sub(/^([^:]+: )?line [0-9]+: /, "", r)
+      if (r ~ /^ *[0-9]+ +(Killed|Terminated|Alarm clock|Hangup|Interrupt|Aborted|Abort trap|Segmentation fault|Bus error|Broken pipe|Quit|Illegal instruction|Floating point exception|User defined signal [12])/) next
+      print
+      if (++k >= 5) exit
+    }' "$c_dir/log" 2> /dev/null) && [ -r "$c_dir/log" ]; then
+    if [ -n "$c_seen" ]; then
+      printf '  FAIL  the script itself reported an error outside any row:\n%s\n' "$c_seen"
+      c_bad=1
+    fi
+  else
+    echo "  FAIL  contract.sh could not read the log of its own stderr"
+    c_bad=1
+  fi
+  [ "$c_rc" -eq 0 ] || exit "$c_rc"
+  [ "$c_bad" -eq 0 ] && exit 0
+  echo "contract.sh: the run does not hold"
+  exit 1
+fi
+
 # The runner is a fresh process group of its own, always, so that
 # `pgrep -g $$` at the end names every process this run started and nothing
 # else: a descendant re-parented away from its spawner keeps its group, so
@@ -61,7 +134,7 @@ fi
 # Nothing accidental can match it after this — live pids are unique and this
 # is unset before anything is spawned; a caller that forges it to its own
 # pid on purpose is defeating the wrapper deliberately, and may.
-unset CONTRACT_GROUP
+unset CONTRACT_GROUP CONTRACT_INNER
 
 # The repository and this script, captured once and absolutely. Every later
 # path used to be rebuilt from "$0" after this cd, and from inside scripts/ that
@@ -109,41 +182,8 @@ mkdir -p "$TMPDIR"
 # without a guard, so a machine without jq failed those rows as if mrw were
 # wrong. Say so once, before anything runs (reported by the WSL peer).
 command -v jq >/dev/null 2>&1 || { echo "contract.sh needs jq on PATH (the --json rows parse receipts with it)" >&2; exit 2; }
-# bash -n before anything runs: a syntax error is otherwise found only when the
-# run reaches it, after every row above it has run, and a keep-both merge that
-# dropped a `fi` only at the end of the file (issue #763). "$BASH" is the bash
-# that runs the rows, so what is parsed is what runs.
-"$BASH" -n "$SELF" || { echo "contract.sh does not parse under $BASH" >&2; exit 2; }
-fails=0
-# ⚠ THE SCRIPT'S OWN ERRORS ARE FAILURES. The verdict below is the count of
-# `bad` rows, and a line that is not a row is invisible to it: a plan header
-# pasted into this file as content ran as a command, the shell printed
-# `12087: command not found` (127) and carried on, and the run exited 0
-# "contract holds" (issue #763). stderr is therefore kept in a file for the run
-# and replayed on exit; every row that expects a diagnostic captures it with
-# 2>&1, so what is left is the shell's own, which begins `$0: line N:` (bar the
-# report of a child a row killed on purpose, `line N: PID Killed`, dropped below):
-# a command not found, a bad substitution, a redirection that failed, an
-# unbound variable under set -u. Rejected: command_not_found_handle (bash 4,
-# and macOS runs 3.2 here), an ERR trap (fires on every row that exits
-# non-zero on purpose, `want 127` included), and shellcheck, which reads
-# `12087 insert-before` as a call to a command of that name at every severity
-# and with every optional check on. scripts/static.sh plants a stray line in a
-# copy that stops at the marker below and requires this to report it.
-exec 9>&2 2>>"$WORK/stderr"
-replay_stderr() { cat "$WORK/stderr" >&9; }
-trap 'replay_stderr; trap "" TERM; rm -rf "$WORK"; kill -- -$$ 2>/dev/null' EXIT
-stray_check() {
-  local seen
-  seen=$(grep -F -- "$0: line " "$WORK/stderr" | grep -vE ': line [0-9]+: [0-9]+ ' | head -n 5)
-  if [ -z "$seen" ]; then
-    printf '  PASS  %s\n' "the script reported no error of its own outside a row"
-  else
-    printf '  FAIL  the script itself reported an error outside any row:\n%s\n' "$seen"
-    fails=$((fails + 1))
-  fi
-}
-# --- end of the setup stray_check needs: scripts/static.sh cuts a copy here ---
+# --- end of the setup: scripts/static.sh plants a line just above this one ---
+if [ -n "${CONTRACT_STOP_AT_SETUP:-}" ]; then echo "contract.sh stops at the end of its setup"; exit 0; fi
 
 # Build our OWN binary inside WORK rather than sharing bin/mrw. Two fences ran
 # concurrently under `adr-verify --sweep` on 2026-08-31 — one starting with
@@ -153,6 +193,7 @@ stray_check() {
 # it is removed rather than retried. The build is cached, so this is cheap.
 MRW=${MRW:-$WORK/mrw}
 go build -o "$MRW" ./cmd/mrw
+fails=0
 
 ok()   { printf '  PASS  %s\n' "$1"; }
 # A skip is honest; a silent pass is not. Used where the trigger is a
@@ -3673,7 +3714,9 @@ kill "${orphan:-999999999}" 2>/dev/null
 # group kill, and deleting it leaves the orphan alive. Run hanging, an INT
 # to the wrapper must end the run 143 within seconds with the orphan gone:
 # that is the forwarding, and deleting the handler leaves the runner asleep.
-sed -n '1,/^trap .*EXIT$/p' "$SELF" > "$WORK/probe.sh"
+# The prologue without the watcher: the watcher would run the probe a second time
+# and these rows are about the runner's own wrapper and EXIT trap.
+{ sed -n '1,/^set -uo pipefail/p' "$SELF"; sed -n '/^# The runner is a fresh process group/,/^trap .*EXIT$/p' "$SELF"; } > "$WORK/probe.sh"
 # The cut is the first EXIT trap. Assert it is the prologue and nothing
 # more or less, so a moved trap cannot silently change what the probe proves.
 [ "$(grep -c '^trap ' "$WORK/probe.sh")" = 1 ] && grep -q 'CONTRACT_GROUP' "$WORK/probe.sh" && grep -q 'kill -- -\$\$' "$WORK/probe.sh" && ! grep -q '^ok()' "$WORK/probe.sh" \
@@ -12320,7 +12363,6 @@ done
 [ "$prc" -le 1 ] && [ -z "$left" ] && ok "no process of this run survives it" \
   || bad "survivors in the run's group after 3 s (pgrep exit $prc): $left$(ps -o pid,ppid,etime,comm -p "$(echo $left | tr ' ' ',')" 2>/dev/null | tail -n +2 | tr '\n' ';')"
 
-stray_check
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else
