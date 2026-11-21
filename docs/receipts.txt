@@ -7,6 +7,15 @@
 # One exception, ADR-212, from the first release that contains #725: on a written row that is not removed,
 # files[].lines_after is a measured count only when files[].sha_after is present. A moved symbolic link's row has
 # no sha_after, and its lines_after 0 is not a count: the receipt is built without reading what the link leads to.
+# Path values (#754, ADR-091, ADR-132): a root-relative path in a receipt is spelled with "/" on every platform
+# (left_behind, dirs_created, files[].path, hunks[].path, check.outside_scope, drift, observed keys); the paths
+# unchanged[].path and same_as_served[].path are the caller's own spelling of the spec, except an absolute spec
+# inside the root, which comes back root-relative in the platform's separator. Not converted, and not necessarily
+# absolute: root is the --root as the caller gave it (`./repo` stays `./repo`); output_file of a check or a step
+# lies in the platform's temporary directory (os.TempDir: TMPDIR on Unix, the Windows temp directory on Windows)
+# as the environment spells it, so it is relative when TMPDIR is; output_file of `mrw run` lies under
+# <state home>/mrw-runs/, and refused_plan under the state home, which mrw requires to be absolute. Each carries
+# the platform's separators.
 # mcp_read skipped.device_names is the device-name part of skipped.unkeepable, a subset: unkeepable keeps counting both kinds.
 # cmd/mrw's TestNoShippedReceiptFieldDisappears and internal/mcp's TestNoShippedMCPReceiptFieldDisappears
 # hold the receipt types to this file both ways.

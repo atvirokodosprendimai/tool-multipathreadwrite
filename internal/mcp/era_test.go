@@ -253,6 +253,7 @@ func jsonInner(s string) string {
 // and once by ADR-210, whose `error` and `check` key descriptions (the outputSchema in tools/list) name a sync that failed after the write landed, and whose receipt gained `sync_note`: those two descriptions and that property, nothing else;
 // and once by ADR-212, whose `files.sha_after` and `files.lines_after` descriptions in the outputSchema say a moved symbolic link carries no content: those two descriptions, nothing else;
 // and once by #752, whose `no_ignore` descriptions in tools/list say what the flag walks and that a name Windows will not keep stays skipped: those descriptions, nothing else;
+// and once by #754, whose `check.outside_scope` description in the outputSchema says the paths are spelled with `/` on every platform: that description, nothing else;
 // before that no answer to a call had changed: the transcript
 // held only initialize, tools/list and that read.
 func TestALegacyResultIsUnchangedByTheModernPath(t *testing.T) {

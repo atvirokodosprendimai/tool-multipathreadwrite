@@ -33,3 +33,66 @@ func TestACreateOfAnUnreadExistingPathSaysItExists(t *testing.T) {
 		t.Error("a refused create wrote the tree")
 	}
 }
+
+// #754. A create of a path the ledger holds a record for, at another version
+// than the file has now, said "changed since mrw last saw it ... pass --force to
+// overwrite blind": a create never overwrites, so --force cannot do what that
+// says. It says what ADR-142 says, on either surface.
+func TestACreateOfAPathChangedSinceItsRecordSaysItExistsAndOffersNoForce(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "a.txt", "now\n")
+	seen := map[string]Seen{"a.txt": {SHA: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}}
+	for _, noForce := range []bool{false, true} {
+		res, err := Apply(root, []Input{{Path: "a.txt", Op: "create", Body: []string{"x"}, Lines: -1, Index: 0}}, Options{Seen: seen, NoForce: noForce})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res.Applied || len(res.Hunks) != 1 {
+			t.Fatalf("noForce=%v: the create of an existing path applied or lost its verdict: %+v", noForce, res.Hunks)
+		}
+		r := res.Hunks[0].Reason
+		if !strings.Contains(r, "already exists") || !strings.Contains(r, "never overwrites") || strings.Contains(r, "--force") || strings.Contains(r, "changed since") {
+			t.Errorf("noForce=%v: reason = %q, want the path exists, a create never overwrites, and no --force", noForce, r)
+		}
+	}
+	if read(t, root, "a.txt") != "now\n" {
+		t.Error("a refused create wrote the tree")
+	}
+}
+
+// #754. The ADR-142 wording is for a create that is the file's only hunk. A
+// create beside another hunk on a changed path keeps the generic refusal, which
+// is the one a surface may need to adapt (a newer mrw's ledger, ADR-157): the
+// first hunk the quote does not license carries it, and its siblings skip.
+func TestACreateBesideAnotherHunkOnAChangedPathKeepsTheGenericReason(t *testing.T) {
+	stale := map[string]Seen{"a.txt": {SHA: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}}
+	for name, in := range map[string][]Input{
+		"two creates": {
+			{Path: "a.txt", Op: "create", Body: []string{"z"}, Lines: -1, Index: 0},
+			{Path: "a.txt", Op: "create", Body: []string{"y"}, Lines: -1, Index: 1},
+		},
+		"a replace, then a create": {
+			{Path: "a.txt", Op: "replace", Start: 1, End: 1, Body: []string{"u"}, Lines: -1, Index: 0},
+			{Path: "a.txt", Op: "create", Body: []string{"y"}, Lines: -1, Index: 1},
+		},
+	} {
+		root := t.TempDir()
+		write(t, root, "a.txt", "now\n")
+		res, err := Apply(root, in, Options{Seen: stale})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res.Applied || len(res.Hunks) != 2 {
+			t.Fatalf("%s: applied or lost a verdict: %+v", name, res.Hunks)
+		}
+		if h := res.Hunks[0]; h.Status != StatusFailed || !strings.Contains(h.Reason, "changed since mrw last saw it") {
+			t.Errorf("%s: hunk 0 = %s %q, want the generic refusal", name, h.Status, h.Reason)
+		}
+		if h := res.Hunks[1]; h.Status != StatusSkipped {
+			t.Errorf("%s: hunk 1 = %s %q, want it skipped", name, h.Status, h.Reason)
+		}
+		if read(t, root, "a.txt") != "now\n" {
+			t.Errorf("%s: a refused plan wrote the tree", name)
+		}
+	}
+}
