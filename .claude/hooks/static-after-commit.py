@@ -12,9 +12,14 @@ PostToolUse on Bash. It analyses HEAD when three things hold:
   exclusively, so two sessions never both analyse it and a command in another
   session never consumes it.
 
-The script runs in its own process group, and the whole group is killed at
-280 s — inside the 300 s the registration allows — or when this hook is
-signalled, so nothing it started outlives the hook.
+The script runs in its own process group. At 280 s — inside the 300 s the
+registration allows — or when this hook is signalled, the script's process
+TREE is stopped and killed as well as its group, because a descendant can have
+left the group: scripts/contract.sh puts its runner in a group of its own, and
+scripts/static.sh runs cut copies of it (#775). Once the script has exited and
+been reaped only the group is killed: its pid can name another process by then,
+so its tree is no longer looked at. What had left both the tree and the group
+before the kill (its parent gone, a group of its own) is not found.
 
 Exit 0 always, closed stdout included, which is why it ends in os._exit: a
 hook must never take the turn down.
@@ -197,16 +202,63 @@ def claim(root, sha):
     return True
 
 
+def descendants(pid):
+    """Every live descendant of pid as {pid: pgid}, from one ps listing."""
+    try:
+        out = subprocess.run(["ps", "-axo", "pid=,ppid=,pgid="], capture_output=True, text=True, timeout=5).stdout
+    except (OSError, subprocess.SubprocessError):
+        return {}
+    kids = {}
+    for line in out.splitlines():
+        f = line.split()
+        if len(f) == 3 and all(x.isdigit() for x in f):
+            kids.setdefault(int(f[1]), []).append((int(f[0]), int(f[2])))
+    found, todo = {}, [pid]
+    while todo:
+        for p, g in kids.get(todo.pop(), []):
+            if p not in found:
+                found[p] = g
+                todo.append(p)
+    return found
+
+
+def signal_quietly(send, target, sig):
+    try:
+        send(target, sig)
+    except OSError:
+        # Best effort: the target may be gone already, or the signal may be
+        # refused (EPERM). Either way the verdict does not depend on it.
+        pass
+
+
 def kill_group():
     """Kill everything the script started. The group outlives its leader: a
-    backgrounded grandchild keeps it, and its stdout, after the shell exits."""
-    if child is not None:
-        try:
-            os.killpg(child.pid, signal.SIGKILL)
-        except OSError:
-            # Best effort: the group may be gone already, or the kill may be
-            # refused (EPERM). Either way the verdict does not depend on it.
-            pass
+    backgrounded grandchild keeps it, and its stdout, after the shell exits.
+    And a descendant can have left the group (#775), so while the script is
+    still this hook's unreaped child its tree is killed too."""
+    if child is None:
+        return
+    tree = {}
+    if child.returncode is None:
+        # Unreaped, so child.pid still names the script, alive or a zombie, and
+        # no other process. Stop the tree before killing it: a stopped process
+        # starts nothing, so a second listing that finds nobody new has them
+        # all. Five rounds bound a tree that keeps growing.
+        signal_quietly(os.kill, child.pid, signal.SIGSTOP)
+        for _ in range(5):
+            new = {p: g for p, g in descendants(child.pid).items() if p not in tree}
+            if not new:
+                break
+            tree.update(new)
+            for p in new:
+                signal_quietly(os.kill, p, signal.SIGSTOP)
+    # Every process is a member of its own group, so killing each descendant's
+    # group kills each descendant, and whatever else is still in those groups.
+    # A descendant's group was made inside the script's session, so it is never
+    # this hook's own; the comparison is a guard, not a case.
+    own = os.getpgrp()
+    for g in {child.pid} | {g for g in tree.values() if g > 1 and g != own}:
+        signal_quietly(os.killpg, g, signal.SIGKILL)
 
 
 def on_signal(_signum, _frame):
