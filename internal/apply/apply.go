@@ -3235,6 +3235,24 @@ func addrString(start, end int) string {
 	return f(start) + "-" + f(end)
 }
 
+// PathOpAddr is the address a human row prints for a hunk of op whose address renders
+// as addr. An unlink or a rename has no line address: its row prints `-` whatever
+// the plan's placeholder was (`-`, or the `0` plan.go accepts), because the Addr a
+// failed or skipped row carries for one is the unresolved bound, `0` (#649), while
+// the row of one that applies already says `-`. The JSON receipt's "addr" keeps the
+// value it has (ADR-111): only the rows read by a person go through this.
+func PathOpAddr(op, addr string) string {
+	if op == "unlink" || op == "rename" {
+		return "-"
+	}
+	return addr
+}
+
+// PlanAddr is PathOpAddr for a result row.
+func (h HunkResult) PlanAddr() string {
+	return PathOpAddr(h.Op, h.Addr)
+}
+
 // srcAddrOf renders the address AS THE CALLER WROTE IT, which for a pattern is
 // the pattern and not the line it resolves to.
 //

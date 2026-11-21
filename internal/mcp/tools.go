@@ -1297,7 +1297,7 @@ func errText(err error) string {
 func writeReport(res apply.Result, hunks []apply.HunkResult, applyErr error, elided string) string {
 	var b bytes.Buffer
 	for _, h := range hunks {
-		fmt.Fprintf(&b, "%s %s %s %s\n", h.Status, h.Path, h.Addr, h.Reason)
+		fmt.Fprintf(&b, "%s %s %s %s\n", h.Status, h.Path, h.PlanAddr(), h.Reason)
 		// Same as CLI report: a pad describes an applied body. Skip and
 		// fail write nothing, so their Echo (if any) must not print.
 		if h.Status == apply.StatusOK {

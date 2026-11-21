@@ -2283,7 +2283,8 @@ held or went unchecked.`,
 					if h.BodyFrom != "" {
 						body = "from=" + h.BodyFrom + ":" + h.BodyFromAddr.String() // ADR-167
 					}
-					fmt.Fprintf(os.Stdout, "parsed: %s %s %s %s\n", h.Path, h.Addr.String(), h.Op, body)
+					addr := apply.PathOpAddr(string(h.Op), h.Addr.String()) // a path op's row says `-` (#649)
+					fmt.Fprintf(os.Stdout, "parsed: %s %s %s %s\n", h.Path, addr, h.Op, body)
 				}
 			}
 			set, err := iter.Load(root)
@@ -3235,10 +3236,10 @@ func reportMode(w io.Writer, res apply.Result, quiet, terse bool) error {
 	for _, h := range res.Hunks {
 		switch {
 		case h.Status == apply.StatusFailed:
-			fmt.Fprintf(out, "FAIL %s %s %s (plan line %d): %s\n", h.Path, h.Addr, h.Op, h.SrcLine, h.Reason)
+			fmt.Fprintf(out, "FAIL %s %s %s (plan line %d): %s\n", h.Path, h.PlanAddr(), h.Op, h.SrcLine, h.Reason)
 		case quiet:
 		case h.Status == apply.StatusSkipped:
-			fmt.Fprintf(out, "skip %s %s %s\n", h.Path, h.Addr, h.Op)
+			fmt.Fprintf(out, "skip %s %s %s\n", h.Path, h.PlanAddr(), h.Op)
 		default:
 			// ADR-179: --terse says its line per file below; a hunk keeps its own
 			// row for the advisory rows that sit under it, for what a delete removed
@@ -3279,7 +3280,7 @@ func reportMode(w io.Writer, res apply.Result, quiet, terse bool) error {
 			if h.BodyFrom != "" {
 				bounds += fmt.Sprintf(" copied %s from %q to %q", h.BodyFrom, h.CopiedFirst, h.CopiedLast)
 			}
-			fmt.Fprintf(out, "ok   %s %s %s  -%d +%d%s\n", h.Path, h.Addr, h.Op, h.Removed, h.Added, bounds)
+			fmt.Fprintf(out, "ok   %s %s %s  -%d +%d%s\n", h.Path, h.PlanAddr(), h.Op, h.Removed, h.Added, bounds)
 			if !terse {
 				for _, line := range preview.Lines(h.Before, h.After, h.Start) {
 					fmt.Fprintln(out, line)
