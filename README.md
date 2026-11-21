@@ -626,8 +626,8 @@ shell, and another native tool then gets POSIX paths MSYS no longer converts.
 Exit 1 on `read` means incomplete: `UNREADABLE`, `REFUSED`, `no match`, or a
 `WITHHELD` range you did not cap. The output always names which, and the last stderr line begins with the kind
 (ADR-146): `mrw: no match: …` when a search found no file and nothing it was asked for was
-refused, `mrw: incomplete: …` when a requested range or path was not served, a search that
-matched no file beside a refused path included. A range your own `--max-lines` or `--max-matches`
+refused or unreadable, `mrw: incomplete: …` when a requested range or path was not served, a search
+that matched no file beside a refused or unreadable path included. A range your own `--max-lines` or `--max-matches`
 withheld is not one (ADR-173): that read exits 0 and its last stderr line begins `mrw: capped: …`;
 beside a missed range, a refused path or `--max-chars` reached it still exits 1 `incomplete:`.
 

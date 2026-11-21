@@ -252,7 +252,7 @@ func RangeFreePaths(root string, posArgs []string, flag string) ([]string, error
 func NoMatchLine(pattern string, refused int, hint string) string {
 	found := fmt.Sprintf("no file matched /%s/", OneLine(pattern))
 	if refused > 0 {
-		return fmt.Sprintf("incomplete: %s, and %d path(s) were refused (see the REFUSED and UNREADABLE lines)%s", found, refused, hint)
+		return fmt.Sprintf("incomplete: %s, and %d path(s) were refused or could not be read (see the REFUSED and UNREADABLE lines)%s", found, refused, hint)
 	}
 	return "no match: " + found + hint
 }

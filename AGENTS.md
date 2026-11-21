@@ -113,8 +113,8 @@ A content `mrw read` whose state directory cannot be written or made (a read-onl
 read would, its last stderr line beginning `mrw: nothing was recorded` (on exit 1 the line above the kind, which stays last); `mrw_read` answers it without checkpoints. Reads that exist
 to license (`--quiet`, `--sub`, `--rewrite`, `ack`) and writes still exit 2 (ADR-166).
 A `mrw read` that exits `1` ends its stderr with the kind (ADR-146): `mrw: no match: …` when a search found no file and nothing it was
-asked for was refused, `mrw: incomplete: …` when a requested range or path was not served, a search that matched no file beside a refused
-path included. Read the first word after `mrw: `; every earlier phrase survives inside the line. A range the caller's own `--max-lines` or
+asked for was refused or unreadable, `mrw: incomplete: …` when a requested range or path was not served, a search that matched no file beside
+a refused or unreadable path included. Read the first word after `mrw: `; every earlier phrase survives inside the line. A range the caller's own `--max-lines` or
 `--max-matches` withheld is not one (ADR-173): that read exits `0` and ends `mrw: capped: …`; beside a missed range, a refused path or
 `--max-chars` reached it exits `1` `incomplete:`, and `receipt.capped` counts the caps' share of `problems`.
 

@@ -12309,6 +12309,10 @@ for finder377 in --grep --ast-grep; do
 done
 { grep -qxF "$RP377/a.txt" "$d377/argv377" && ! grep -q 'absent' "$d377/argv377"; } \
   && ok "and ast-grep was given a.txt, never absent.txt" || bad "argv: $(tr '\n' ' ' < "$d377/argv377" 2>/dev/null)"
+out=$("$MRW" -C "$R377" read --grep NOWHERE377 absent.txt 2>&1); rc=$?
+want 1 "$rc" "a search that matched no file beside a path that is not there -> exit 1"
+tail -1 <<<"$out" | grep -q '^mrw: incomplete: no file matched /NOWHERE377/, and 1 path(s) were refused or could not be read (see the REFUSED and UNREADABLE lines)$' \
+  && ok "and its last line keeps ADR-146's phrase and says the path may not have been read" || bad "tail: $(tail -c 300 <<<"$out")"
 out=$("$MRW" -C "$R377" read absent.txt 2>&1); rc=$?
 want 1 "$rc" "a direct read of the same path -> exit 1"
 grep -q '^==> absent.txt  UNREADABLE  ' <<<"$out" && ok "and it is UNREADABLE there too" || bad "direct: $(head -c 300 <<<"$out")"

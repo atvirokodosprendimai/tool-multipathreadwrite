@@ -122,4 +122,17 @@ func TestAFinderSaysUnreadableOfANamedPathThatIsNotThere(t *testing.T) {
 			t.Errorf("the control did not rewrite a.go: exit %d, a.go %q:\n%s", code, b, errOut)
 		}
 	})
+	// Codex on #772. A search that matched no file beside a path it could not use
+	// ends with a line true of both words: ADR-146's prefix and phrase ("were
+	// refused") survive, and the tail says a path may also not have been read.
+	t.Run("the_incomplete_line_is_true_of_both_words", func(t *testing.T) {
+		root, outside := setup(t)
+		const tail = "path(s) were refused or could not be read (see the REFUSED and UNREADABLE lines)"
+		for _, named := range []string{"absent.go", outside} {
+			out, code := runIn(t, root, "read", "--grep", "NOWHERE764", named)
+			if code != 1 || !strings.Contains(out, "incomplete: no file matched /NOWHERE764/, and 1 "+tail) {
+				t.Errorf("%s: exit %d, want 1 and a last line holding %q:\n%s", named, code, tail, out)
+			}
+		}
+	})
 }
