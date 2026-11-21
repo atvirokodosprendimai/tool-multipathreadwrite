@@ -42,7 +42,7 @@ ADR-213 Decisions 1 to 7.
 | `internal/apply/noreplace213_test.go` | new | the Goal's table |
 | `internal/apply/review744_test.go`, `review744b_test.go`, `move744_test.go`, `extraname744_darwin_test.go` | edit | forced onto the fallback; the Darwin sibling |
 | `go.mod`, `go.sum` | edit | `golang.org/x/sys` |
-| `.github/workflows/ci.yml` | edit | the release archives carry `x/sys`'s licence notice; the Linux contract job installs `strace` for §375 |
+| `.github/workflows/ci.yml`, `THIRD_PARTY_NOTICES` | edit | `x/sys`'s BSD-3-Clause notice goes in `THIRD_PARTY_NOTICES`, which the release archives carry and CI's notice check compares with the modules compiled in (#762); the Linux contract job installs `strace` for §375 |
 | `scripts/static.sh` | edit | `govulncheck` also with `GOOS=darwin` |
 | `CONTRIBUTING.md` | edit | Prerequisites: two dependencies, why the second |
 | `scripts/fence-prose.py` | edit | `EXEMPT`: ADR-010 T1's and T2's `grep -q '^require github.com/urfave/cli/v3 ' go.mod`, freed by ADR-213 |

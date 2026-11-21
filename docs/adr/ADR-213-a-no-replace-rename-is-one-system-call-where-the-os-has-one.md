@@ -1,7 +1,8 @@
 # ADR-213: A no-replace rename is one system call where the OS has one
 
-**Status:** Proposed
-**Drafted for:** Zy, 2026-11-20. Zy accepted drafting it (*"accept all"*, relayed by the session that commissioned it); acceptance of the new module requirement follows the Codex xhigh challenge, so this record is Proposed and nothing here merges before Zy reads it.
+**Status:** Accepted
+**Accepted by:** Zy, 2026-11-21: *"DO IT"*, to seven decisions put to them that day, of which this was the first, worded: "add `golang.org/x/sys` for a real no-replace rename." The question went on to say it "would also close ADR-209's named limit, and #728"; that overstated this record, which decides `renameNew` only (History, 2026-11-21).
+**Drafted for:** Zy, 2026-11-20. Zy accepted drafting it (*"accept all"*, relayed by the session that commissioned it); acceptance of the new module requirement follows the Codex xhigh challenge, so this record stayed Proposed until Zy read it.
 **Date:** 2026-11-20
 **Owner:** Zy
 **Spec:** None — no spec stage
@@ -116,6 +117,7 @@ Revert T1: `go.mod` loses the requirement, and #744's path is the only one again
 
 - 2026-11-20: drafted as Proposed.
 - 2026-11-20, Codex xhigh challenge at `bda4dda6`: AMEND, five points, each checked and applied. (1) The guarantee is narrowed to the source entry present at the call, with the fallback, `EXDEV` and the other systems outside it; `EINVAL` is a compatibility fallback, and the list applies to the rename call's errors only. (2) Parents open with `O_DIRECTORY|O_NONBLOCK` (`rooted/fdlimit_other.go:36`); a parent moved out after the open is followed, as `Root.Rename` does; respelling stays ADR-129's and outside the guarantee. (3) The reasons for `x/sys` are the challenge's, checked: Linux could use raw numbers, macOS needs libSystem; `x/sys` v0.49.0 declares Go 1.26 and requires nothing (its `go.mod`). (4) The dependency's cost is tabled (205 fences, 2 plain greps, 17 older counters and 25 baseline comparisons, the last two the challenge's counts); T1 checks the parsed requirements, ships the licence notice and runs `govulncheck` for darwin. (5) T1's seam delegates to the real call, §375 matches paths and results and is required on a Linux runner, a cross-directory case and a native macOS run are added, #744's tests are forced onto the fallback, and §370's Darwin expectation and the receipt promise are amended (the Served-path change no longer says receipts are unchanged).
+- 2026-11-21: accepted by Zy. Checked against `main` at `5a853823` first: `renameNew` (`tree.go:322`) and the `noReplace()` callers of the draft stand (`apply.go:1474`, `pathop.go:421`, `:442`, `:509`), and ADR-209's undo (#760) added two more (`tree.go:227`, `undo209.go:282`), which Decision 1 covers because they reach `renameNew`; `go.mod` holds one requirement; §375 is free. Two things changed since the draft, and neither changes a Decision. #762 added `THIRD_PARTY_NOTICES` and CI's notice check, so Decision 5's notice goes in that file (T1's Affected Files). ADR-209 names this record as the source of a file-only unlink (`unlinkat`, flags 0) for its undo: this record does not decide that use, which stays ADR-209's BACKLOG entry, and #728's remaining window (a check, then a removal by name) is not one a no-replace rename closes.
 
 ## Follow-ups
 
