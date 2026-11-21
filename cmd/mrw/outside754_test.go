@@ -30,15 +30,18 @@ func TestTheCLIReceiptSpellsOutsideScopeAndDriftWithSlash(t *testing.T) {
 	}
 }
 
-// outside754Root is a root whose file NAME holds a backslash, which stands for a
-// Windows path here so the run is real on unix, beside a Go file the
-// {packages}-only scoped check places; the shell file is left outside it.
+// outside754Root is a root with a shell file `d\x.sh`, beside a Go file the
+// {packages}-only scoped check places; the shell file is left outside it. On
+// unix the backslash is part of the file's NAME and stands for a Windows path so
+// the run is real there; on Windows it is the separator, `d` is a real directory
+// and the production separator is what the receipt is converted by. Only CI can
+// run the Windows branch.
 func outside754Root(t *testing.T, convert bool) string {
 	t.Helper()
-	if _, err := os.Stat("/bin/sh"); err != nil {
-		t.Skip("no sh: the check runs its command with sh -c")
-	}
-	if convert { // the Windows separator, on any platform; off, the production one
+	// On Windows the shell is Git's sh (ADR-082), found as the other check tests find it.
+	needShell(t)
+	// The Windows separator on a platform that has another; off, the production one.
+	if convert && filepath.Separator != '\\' {
 		prev := receiptSep
 		receiptSep = '\\'
 		t.Cleanup(func() { receiptSep = prev })
@@ -50,7 +53,11 @@ func outside754Root(t *testing.T, convert bool) string {
 		".quality-harness.json": `{"check":"echo WHOLE","scoped_check":"echo {packages}"}`,
 		"p.plan":                "@@ d\\x.sh 1 replace\nfalse\n@@ a.go 1 replace\npackage a // x\n",
 	} {
-		if err := os.WriteFile(filepath.Join(root, name), []byte(body), 0o644); err != nil {
+		p := filepath.Join(root, name)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}

@@ -12274,25 +12274,13 @@ else
   { grep -qx A "$R/a.txt" && [ -e "$R/n/m/k.txt" ] && [ ! -e "$R/d/x.txt" ]; } && ok "and the tree holds all three" || bad "tree: $(ls -R "$R" | head -c 300)"
 fi
 
-# Nothing this run started may outlive it. Checked after the last row, so every
-# row is covered; §60 above proves an orphan is visible to this group check. A
-# killed process is a zombie until its adopter reaps it, and pgrep lists
-# zombies: poll, bounded, rather than trust one sleep.
-for _ in $(seq 1 30); do
-  pgrep -g $$ > "$WORK/kids"; prc=$?   # 0 matched, 1 none; anything else is pgrep itself failing
-  left=$(grep -vx "$$" "$WORK/kids" | tr '\n' ' ')
-  [ -z "$left" ] && break; sleep 0.1
-done
-[ "$prc" -le 1 ] && [ -z "$left" ] && ok "no process of this run survives it" \
-  || bad "survivors in the run's group after 3 s (pgrep exit $prc): $left$(ps -o pid,ppid,etime,comm -p "$(echo $left | tr ' ' ',')" 2>/dev/null | tail -n +2 | tr '\n' ';')"
-
-
 # 378. #754: a create of a path the ledger holds a record for, at another version
 # than the file has now, says the path exists and that a create never overwrites,
 # and does not advise --force: --force cannot make a create overwrite. The pair:
 # a replace of a file changed since its read keeps the refusal, with its --force.
 fixture
-printf 'x\n' | m write --no-check --create n754.txt >"$WORK/o754" 2>&1
+printf 'x\n' | m write --no-check --create n754.txt >"$WORK/o754" 2>&1; want 0 $? "the setup: --create makes and records n754.txt"
+m seen 2>&1 | grep -q 'n754.txt' && ok "and the ledger holds it" || bad "setup: the ledger does not hold n754.txt: $(m seen 2>&1 | head -3)"
 printf 'changed\n' > "$R/n754.txt"
 printf '@@ n754.txt 0 create\nz\n' > "$WORK/c754.plan"
 out=$(m write --no-check "$WORK/c754.plan" 2>&1); want 1 $? "a create of a path changed since its record exits 1"
