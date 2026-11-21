@@ -201,11 +201,35 @@ self_test() (
   contract_copy bypass '12087 insert-before; exit 0'
   contract_copy nolog 'rm -f "$CONTRACT_STDERR_LOG"'
   contract_copy status 'echo inner-said-seven; exit 7'
+  contract_copy teekill 'for _ in $(seq 1 50); do pkill -KILL -f "tee -a $CONTRACT_STDERR_LOG" && break; sleep 0.1; done'
+  contract_copy jobreal ': < "12087 Killed"'
+  contract_copy jobok $'printf \'%s: line 5:  1234 Killed\\n%s: line 6: 77 Killed: 9   cmd\\n\' "$0" "$0" >&2'
   contract_copy clean ''
   planted 'contract.sh (a stray line)' '12087: command not found' env CONTRACT_STOP_AT_SETUP=1 bash "$d/stray/scripts/contract.sh" || ok=0
   planted 'contract.sh (a stray line, then exit 0)' '12087: command not found' env CONTRACT_STOP_AT_SETUP=1 bash "$d/bypass/scripts/contract.sh" || ok=0
   planted 'contract.sh (its stderr log gone)' 'could not read the log' env CONTRACT_STOP_AT_SETUP=1 bash "$d/nolog/scripts/contract.sh" || ok=0
-  planted 'contract.sh (the inner exit status)' 'inner-said-seven' env CONTRACT_STOP_AT_SETUP=1 bash "$d/status/scripts/contract.sh" || ok=0
+  planted 'contract.sh (its tee killed)' 'exited 137' env CONTRACT_STOP_AT_SETUP=1 bash "$d/teekill/scripts/contract.sh" || ok=0
+  planted 'contract.sh (a real error that begins like a job report)' '12087 Killed: No such file' env CONTRACT_STOP_AT_SETUP=1 bash "$d/jobreal/scripts/contract.sh" || ok=0
+  # The inner run's exit status comes back exactly, not as "non-zero".
+  CONTRACT_STOP_AT_SETUP=1 bash "$d/status/scripts/contract.sh" > "$d/status.out" 2>&1
+  rc=$?
+  if [ "$rc" -ne 7 ] || ! grep -q 'inner-said-seven' "$d/status.out"; then
+    echo "self-test: contract.sh did not repeat its inner run's exit 7 (got $rc):"
+    tail -5 "$d/status.out"
+    ok=0
+  fi
+  # A job report, in either spelling, is not an error.
+  if ! CONTRACT_STOP_AT_SETUP=1 bash "$d/jobok/scripts/contract.sh" > "$d/jobok.out" 2>&1 || ! grep -q 'stops at the end of its setup' "$d/jobok.out"; then
+    echo "self-test: contract.sh failed on job reports a row killed a child for:"
+    tail -5 "$d/jobok.out"
+    ok=0
+  fi
+  # The watcher is the first executable statement: nothing above its guard but comments.
+  g=$(grep -n '^if \[ -z "\${CONTRACT_INNER:-}" \]; then$' scripts/contract.sh | cut -d: -f1)
+  if [ -z "$g" ] || head -n $((g - 1)) scripts/contract.sh | grep -qvE '^(#|$)'; then
+    echo "self-test: contract.sh has code above its watcher guard (line ${g:-none})"
+    ok=0
+  fi
   if ! CONTRACT_STOP_AT_SETUP=1 bash "$d/clean/scripts/contract.sh" > "$d/clean.out" 2>&1 || ! grep -q 'stops at the end of its setup' "$d/clean.out"; then
     echo "self-test: contract.sh with nothing planted did not run to the end of its setup:"
     tail -5 "$d/clean.out"
