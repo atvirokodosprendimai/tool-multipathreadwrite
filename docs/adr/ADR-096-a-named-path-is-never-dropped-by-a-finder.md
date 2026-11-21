@@ -11,6 +11,19 @@
 **Invalidates:** none (amends ADR-007 rule 2) — checked. ADR-007 rule 3 is kept word for word: the walk descends no link to a directory. What changes is rule 2's named clause (ADR-007:84-86), which this record makes true for a link it was silently false for; T1 adds an `Amended by ADR-096` paragraph to ADR-007 in the shape of ADR-077's (ADR-007:124-127). ADR-064's named-path exclusion rules, ADR-058's "a `../` hit is a Problem", ADR-076's directory spelling and ADR-077's state refusal are consulted in the same order and are unchanged.
 **Served-path change:** `mrw read --grep P dlink`, where `dlink` is an in-root link to a directory named relative to the root (`dlink`, `dlink/`, `dlink/.`, a chain of links), answers `==> dlink  REFUSED  is a link to the directory d …: name d` on the CLI and over MCP `grep` — naming the path as the caller wrote it — where v1.31.0 answered "no file matched" with no line about `dlink`; the same link spelled absolutely (`$ROOT/dlink`, `$ROOT/dlink/`) still walks `d`, as v1.31.0 does; a call that names such a link relatively beside paths it serves — `--grep P d dlink`, or a shell glob `*` in a directory holding one — exits 1 where v1.31.0 exited 0, on both finders; a named path that resolves to the root walks the root however it is spelled; `--ast-grep` and MCP `ast_grep` judge every named path the same way before ast-grep starts, so a path outside the root, missing, a loop, a FIFO, inside mrw's state, a relative link to a directory, or one mrw cannot open is refused by name and never handed to the binary, and an accepted path reaches the binary as the absolute path mrw judged rather than as spelled; and `mrw iter add` names the error the OS gave for a path it cannot stat (a link loop, a denied directory) instead of "no such file".
 
+**Amended by #752 and #764** (2026-11-21): the word for a named path a finder could not serve for an
+I/O reason changed; the tables below keep what was measured on 2026-09-29. Since #762 (#752) a named
+path the finder cannot open or list is `UNREADABLE`, and since #764 a named path that is not there, a
+dangling link included (on Windows one that leads outside the root is still `REFUSED`, as mrw follows the
+link itself there), is `UNREADABLE` too, as a direct read says of either. So the Context table's
+`dangling` row now reads `UNREADABLE  stat …: no such file or directory`, and in the Wiring row for
+`--ast-grep` such a path is an UNREADABLE line that never reaches ast-grep, as a refused one is. A
+refusal by mrw's own rules (a path outside the root, a link to a directory named relative to the root)
+stays `REFUSED`. The word is prose, no receipt key moved (ADR-111), and the read still exits 1
+(`incomplete:`). The words are the CLI's, and MCP's where `grep` or `ast_grep` is given with `sub` or
+`rewrite`; a plain MCP `mrw_read` with `grep` or `ast_grep` lists such a path as `-- PATH: reason`
+with no kind word, for a refused path as for an unreadable one (issue #765).
+
 ## Context
 
 **What was observed.** The 2026-09-29 gap survey of v1.31.0 (agentsmemory drawer `349dbd2b`, item 7,

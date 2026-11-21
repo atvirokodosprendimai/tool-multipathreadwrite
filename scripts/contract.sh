@@ -1442,7 +1442,7 @@ grep -q 'no-such-needle-anywhere' <<<"$out" \
   || bad "silence, or a report that does not name the pattern: $(head -1 <<<"$out")"
 
 out=$(m read --grep NEEDLE pkg/e.go absent.go 2>&1); rc=$?
-want 1 "$rc" "a refused path during a walk exits 1"
+want 1 "$rc" "a named path that is not there, during a walk, exits 1"
 grep -q 'pkg/e.go' <<<"$out" && grep -q 'absent.go' <<<"$out" \
   && ok "and the good path is still served beside the refusal" \
   || bad "rule 5 broken — one bad path cost the good one: $(head -3 <<<"$out")"
@@ -12291,6 +12291,31 @@ else
   { grep -q '^==> ../outside376  REFUSED  ' <<<"$out" && ! grep -q '  UNREADABLE  ' <<<"$out"; } && ok "and it is still REFUSED, not UNREADABLE" || bad "outside: $(head -c 400 <<<"$out")"
   chmod 755 "$R376/locked"
 fi
+
+# 377. #764: a named path that is not there is UNREADABLE under a finder, under
+# --grep and under --ast-grep, as a direct read of it says; the read exits 1
+# (incomplete). The pair: a path outside the root is still REFUSED, mrw's own rule.
+# A fake ast-grep on PATH (§184's idiom) logs the paths it was given and answers no
+# hits, so the row needs no ast-grep and shows the binary saw a.txt and never
+# absent.txt.
+R377="$WORK/r377"; rm -rf "$R377"; mkdir -p "$R377"; printf 'needle\n' > "$R377/a.txt"; RP377=$(cd "$R377" && pwd -P)
+d377="$WORK/bin377"; rm -rf "$d377"; mkdir -p "$d377"
+printf '#!/bin/sh\nfor a in "$@"; do printf "%%s\\n" "$a" >> "%s/argv377"; done\nexit 0\n' "$d377" > "$d377/ast-grep"; chmod +x "$d377/ast-grep"
+for finder377 in --grep --ast-grep; do
+  out=$(PATH="$d377:$PATH" "$MRW" -C "$R377" read "$finder377" needle a.txt absent.txt ../outside377 2>&1); rc=$?
+  want 1 "$rc" "$finder377 beside a path that is not there and one outside the root -> exit 1"
+  { grep -q '^==> absent.txt  UNREADABLE  ' <<<"$out" && ! grep -q 'absent.txt  REFUSED' <<<"$out"; } && ok "$finder377 names the path that is not there UNREADABLE" || bad "$finder377 absent: $(head -c 400 <<<"$out")"
+  { grep -q '^==> \.\./outside377  REFUSED  ' <<<"$out" && ! grep -q 'outside377  UNREADABLE' <<<"$out"; } && ok "$finder377: the path outside the root is still REFUSED" || bad "$finder377 outside: $(head -c 400 <<<"$out")"
+done
+{ grep -qxF "$RP377/a.txt" "$d377/argv377" && ! grep -q 'absent' "$d377/argv377"; } \
+  && ok "and ast-grep was given a.txt, never absent.txt" || bad "argv: $(tr '\n' ' ' < "$d377/argv377" 2>/dev/null)"
+out=$("$MRW" -C "$R377" read --grep NOWHERE377 absent.txt 2>&1); rc=$?
+want 1 "$rc" "a search that matched no file beside a path that is not there -> exit 1"
+tail -1 <<<"$out" | grep -q '^mrw: incomplete: no file matched /NOWHERE377/, and 1 path(s) were refused or could not be read (see the REFUSED and UNREADABLE lines)$' \
+  && ok "and its last line keeps ADR-146's phrase and says the path may not have been read" || bad "tail: $(tail -c 300 <<<"$out")"
+out=$("$MRW" -C "$R377" read absent.txt 2>&1); rc=$?
+want 1 "$rc" "a direct read of the same path -> exit 1"
+grep -q '^==> absent.txt  UNREADABLE  ' <<<"$out" && ok "and it is UNREADABLE there too" || bad "direct: $(head -c 300 <<<"$out")"
 
 # 374. ADR-208 Decision 1a: the lines a search_replace write produced are licensed
 # and not shown, so a multi-line replace that ends above them is refused until the

@@ -299,9 +299,11 @@ func judgeNamed(root, absRoot, p string) (namedPath, *Problem) {
 	}
 	fi, err := os.Stat(full)
 	if err != nil {
-		// An absent path is still a path the walk refuses (it was named and is not
-		// there), as it was; a permission or other OS failure is UNREADABLE (#752).
-		return namedPath{}, &Problem{Path: p, Reason: err.Error(), Unreadable: ioFailure(err) && !errors.Is(err, fs.ErrNotExist)}
+		// The OS could not stat what the caller named: it is not there (a dangling
+		// link included) or it may not be looked at. That is an I/O failure, and
+		// UNREADABLE, as a direct read of the same name says (#752, #764); REFUSED
+		// is kept for mrw's own rules, such as a path outside the root, above.
+		return namedPath{}, &Problem{Path: p, Reason: err.Error(), Unreadable: ioFailure(err)}
 	}
 	if fi.IsDir() {
 		// ADR-096 decision 3: a path that resolves to the root IS the root,
