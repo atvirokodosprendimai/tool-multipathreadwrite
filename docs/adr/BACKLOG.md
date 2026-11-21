@@ -1815,3 +1815,8 @@ changed after the first counted attempt.
 ## From ADR-215
 
 - **Accept an absolute path to a file inside the root as that file in a plan (deferred from ADR-215)** (2026-11-21): the read side does, a plan refuses it. Arm when callers keep pasting an absolute path from a tool's output into a plan and the refusal's "write dd/zz.txt" sentence costs a visible share of retries.
+
+## From ADR-214
+
+- **An op that removes a file's leading byte order mark (deferred from ADR-214)** (2026-11-21): once a line edit keeps the mark, a plan that unlinks the marked path and renames a markless replacement onto it does it in one plan, with the replacement's own mode; a direct `unlink` then `create` of the same path needs two plans and gives a default mode. Arm when a caller needs to strip marks from files it edits and that route loses something (a link, a ledger record) or costs a visible share of retries.
+- **A `bom` key in the read or write receipt (deferred from ADR-214)** (2026-11-21): the read says it in one `-- ` line and the write says nothing. Arm when an adapter that parses receipts needs the file's encoding signature without parsing the read's text.
