@@ -378,6 +378,7 @@ out=$(printf '@@ a.go 3 insert-after lines=9\nx\n' | m write - 2>&1); rc=$?
 want 1 "$rc" "lines=9 on an insertion -> refused"
 out=$(printf '@@ a.go 3 replace body=5\nx\n' | m write - 2>&1); rc=$?
 want 2 "$rc" "body= asking for more lines than the plan holds -> parse error"
+grep -Fq 'body=5 declared, 1 body line(s) received before end of plan (4 missing)' <<<"$out" && ok "the short body reports both counts" || bad "short body count: $out"
 printf 'package demo\n\nvar S = "muted"\n' > "$R/q.go"
 m read q.go >"$WORK/served.out"
 out=$(printf '@@ q.go 3 replace anchor="= \\"muted\\""\nvar S = "MUTED"\n' | m write - 2>&1); rc=$?
@@ -445,6 +446,7 @@ want 0 "$rc" "reading it whole afterwards licenses the edit"
 fixture
 out=$(printf '@@ a.go 3 replace body=1\n@@ b.go 3 replace\n' | m write - 2>&1); rc=$?
 want 2 "$rc" "a valid header inside a counted body -> parse error"
+grep -Fq 'line 1 declared body=1, received 0 body line(s) before this header' <<<"$out" && ok "the next header shows where the counted body stopped" || bad "next header body count: $out"
 out=$(printf '@@ a.go 3 replace body=1 raw=true\n@@ b.go 3 replace\n' | m write --no-check - 2>&1); rc=$?
 want 0 "$rc" "raw=true writes that header as content"
 grep -q '@@ b.go 3 replace' "$R/a.go" && ok "the header landed as text" || bad "the body was not written"

@@ -1740,6 +1740,8 @@ func writeCmd() *cli.Command {
   @@ <path> <addr> <op> [sha=… lines=… anchor=… body=…]
   <body lines>
 
+For a two-file example you can copy into a plan file, run mrw instructions.
+
 Ops are replace, insert-after, insert-before, delete, create, unlink and rename.
 unlink and rename take address - (a hyphen, no line number). unlink's body is
 empty. rename's destination is the one-line body (not a to= key). Other

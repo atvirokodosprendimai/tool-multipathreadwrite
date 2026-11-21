@@ -111,6 +111,15 @@ MSYS rewrites a spec whose file part holds a / before mrw starts. Put the settin
 A shell glob and an address suffix do not mix.
 A value with spaces can be double-quoted (anchor="func openTestStore"), single-quoted (anchor='func openTestStore'), or — for anchor= only — left unquoted until the next key=. An unquoted anchor= that contains a double quote is refused; write it as anchor="…".
 body= is optional for an ordinary inline body, which runs to the next @@ header or the end of the plan. A count is needed in four cases: an empty create is body=0; a body holding a line that begins @@ needs body=N, and raw=true too when that line is a valid hunk header (below); a body whose first line begins body= needs its count. from= and body=@path take no inline count. Plans mrw compiles from foreign formats keep theirs.
+For ordinary edits, put the new lines directly under each header. For example,
+after reading settings.ini and notes.txt, this plan replaces one line and adds two:
+
+@@ settings.ini 1 replace anchor="mode=slow"
+mode=fast
+@@ notes.txt 1 insert-after
+Updated the default mode.
+Existing overrides still apply.
+
 When you write a count it is a line count, not a character count (Python str splits characters; do not use len(body) as body=), and it goes ON the header, never on a line of its own: @@ a.go 12-14 replace anchor="func A" body=3, then exactly 3 body lines. A count catches a body shorter than declared, lost in a channel or in the authoring; it cannot catch a hunk left out whole.
 body=@path loads the body from a root-relative file.
 A body line that is itself a valid hunk header (@@ b.txt 0 create) is not content: it starts a new hunk, silently. A body that holds one needs body=N and raw=true on its header: @@ a.md 0 create body=2 raw=true.
