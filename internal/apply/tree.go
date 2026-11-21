@@ -148,6 +148,108 @@ func (t *tree) rename(from, to string) error {
 	return t.r.Rename(rf, rt)
 }
 
+// link makes a hard link to from at to, beneath the root. It never replaces to.
+func (t *tree) link(from, to string) error {
+	rf, err := t.rel(from)
+	if err != nil {
+		return err
+	}
+	rt, err := t.rel(to)
+	if err != nil {
+		return err
+	}
+	return t.r.Link(rf, rt)
+}
+
+// errNotTheFile is vacate's answer when what stood at the path was not the file the
+// commit renamed there; it was put back where it was.
+var errNotTheFile = errors.New("the entry at the path is not the file mrw renamed there")
+
+// vacated is what vacate moved out of the way: a private directory made for it, and
+// the entry now in it.
+type vacated struct{ dir, entry string }
+
+// mkdir makes the directory p, beneath the root; it fails if p exists.
+func (t *tree) mkdir(p string, perm fs.FileMode) error {
+	r, err := t.rel(p)
+	if err != nil {
+		return err
+	}
+	return t.r.Mkdir(r, perm)
+}
+
+// vacate moves the entry at p, which should be the regular file that want describes
+// (the staged temp as it was when renamed in), into a private directory made for it,
+// so the path is vacant, and returns where it went when it is that file. The
+// stdlib's os.Root has no unlink that cannot take a directory, and its Remove falls
+// back to removing an empty one, so a look and then a Remove could delete a directory
+// swapped in between; and a move onto a private NAME could replace what had been
+// put there. The directory is made exclusively, so the move replaces nothing, and a
+// directory is moved whole. Anything that is not the file expected is put back where
+// it was, never over what has appeared since, and errNotTheFile is returned; if it
+// cannot be put back the error names the private directory it sits in.
+//
+// The caller restores the previous version into the vacant path first and discards
+// the private entry last: a deletion that fails then only leaves a named leftover.
+// What no call here closes: an entry another process swaps in at mrw's own private
+// name between the check and discardVacated's removal (ADR-209, a named limit).
+func (t *tree) vacate(p string, want fs.FileInfo) (*vacated, error) {
+	var dir string
+	for range 100 {
+		var b [8]byte
+		if _, err := rand.Read(b[:]); err != nil {
+			return nil, err
+		}
+		name := filepath.Join(filepath.Dir(p), ".mrw-undo-"+hex.EncodeToString(b[:]))
+		err := t.mkdir(name, 0o700)
+		if err == nil {
+			dir = name
+			break
+		}
+		if !errors.Is(err, fs.ErrExist) {
+			return nil, err
+		}
+	}
+	if dir == "" {
+		return nil, fmt.Errorf("could not make a private directory beside %s: every name tried exists", t.shown(p))
+	}
+	entry := filepath.Join(dir, "e")
+	if err := t.rename(p, entry); err != nil {
+		if rerr := t.remove(dir); rerr != nil {
+			return nil, &extraNameError{err: fmt.Errorf("%w; and the private directory could not be removed: %w", err, rerr), name: dir}
+		}
+		return nil, err
+	}
+	fi, err := t.lstat(entry)
+	if err == nil && fi.Mode().IsRegular() && want != nil && entryDrift(want, fi) == "" {
+		return &vacated{dir: dir, entry: entry}, nil
+	}
+	if rerr := t.noReplace().rename(entry, p); rerr != nil {
+		return nil, &extraNameError{err: fmt.Errorf("%w; and it could not be put back from %s: %w", errNotTheFile, t.shown(dir), rerr), name: dir}
+	}
+	if rerr := t.remove(dir); rerr != nil {
+		return nil, &extraNameError{err: fmt.Errorf("%w; and the private directory could not be removed: %w", errNotTheFile, rerr), name: dir}
+	}
+	return nil, errNotTheFile
+}
+
+// discardVacated removes what vacate moved: the entry, then its private directory.
+func (t *tree) discardVacated(v *vacated) error {
+	if err := t.remove(v.entry); err != nil {
+		return err
+	}
+	return t.remove(v.dir)
+}
+
+// asideLinkFn, removeContentFn and discardVacatedFn are the seams of the content
+// asides (ADR-209): the link that keeps a target's previous version and puts it back,
+// the move of a file the commit renamed in out of the way, and the deletion of it.
+var (
+	asideLinkFn      = (*tree).link
+	removeContentFn  = (*tree).vacate
+	discardVacatedFn = (*tree).discardVacated
+)
+
 // noReplace is this tree with a rename that refuses to replace.
 func (t *tree) noReplace() *tree {
 	c := *t

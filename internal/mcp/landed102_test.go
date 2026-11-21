@@ -40,8 +40,9 @@ func skipUnlessPermissionsBind(t *testing.T) {
 	}
 }
 
-// ADR-102 T1. The MCP twin of the CLI test: a commit that failed after a file
-// landed is one partially_applied, not a refusal.
+// ADR-102 T1, since ADR-209. The MCP twin of the CLI test: a commit that failed
+// after a file landed puts it back, so the tree is unchanged: one refused_apply,
+// and nothing landed.
 func TestAnMCPPartialCommitIsCountedAsPartiallyApplied(t *testing.T) {
 	skipUnlessPermissionsBind(t)
 	root := licensed(t, map[string]string{"a.go": "package a\n", "d/x.txt": "x\n"})
@@ -55,12 +56,11 @@ func TestAnMCPPartialCommitIsCountedAsPartiallyApplied(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if tally["partially_applied"] != 1 || tally["refused_apply"] != 0 || tally.Landed() != 1 {
-		t.Errorf("tally %v landed %d, want partially_applied 1, refused_apply 0, landed 1", tally, tally.Landed())
+	if tally["partially_applied"] != 0 || tally["refused_apply"] != 1 || tally.Landed() != 0 {
+		t.Errorf("tally %v landed %d, want partially_applied 0, refused_apply 1, landed 0", tally, tally.Landed())
 	}
-	// A landed write joins the ring and the pricing (the review of #293).
-	if n, p := len(authoring.Recent(root)), authoring.LoadPricing(root); n != 1 || p.Candidates != 1 {
-		t.Errorf("recent ring %d, strict_candidates %d; want 1 and 1", n, p.Candidates)
+	if b, _ := os.ReadFile(filepath.Join(root, "a.go")); string(b) != "package a\n" {
+		t.Errorf("a.go = %q, want it put back", b)
 	}
 }
 

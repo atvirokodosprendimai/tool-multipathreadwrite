@@ -64,10 +64,10 @@ func TestTheWriteReceiptSaysHowMuchOfThePlanReachedTheTree(t *testing.T) {
 			t.Errorf("mutation %q exit %d, want none and a refusal:\n%s", m, code, out)
 		}
 	})
-	t.Run("a commit that failed after a file landed is partial, exit 2", func(t *testing.T) {
+	t.Run("a commit that failed after a file landed and put it back is none, exit 2", func(t *testing.T) {
 		root := partialTree(t)
-		if m, code, out := mutationOf(t, root, planFile(t, partialPlan)); m != "partial" || code != exitUsage {
-			t.Errorf("mutation %q exit %d, want partial and %d:\n%s", m, code, exitUsage, out)
+		if m, code, out := mutationOf(t, root, planFile(t, partialPlan)); m != "none" || code != exitUsage {
+			t.Errorf("mutation %q exit %d, want none and %d:\n%s", m, code, exitUsage, out)
 		}
 	})
 	t.Run("a ledger that could not record a landing is complete, exit 2", func(t *testing.T) {

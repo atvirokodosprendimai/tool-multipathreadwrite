@@ -19,6 +19,7 @@ import (
 // the cases that expect one unshown line below expect that refusal, and every
 // other case lands with the status and bytes it had before the marks existed.
 func TestANumberedHunkAfterMrwsOwnWriteIsCountedNotRefused(t *testing.T) {
+	withoutAsides(t)
 	const body = "a\nb\nc\nd\ne\n"
 	sha := seen.SHA([]byte(body))
 	wrote := func(shown ...[2]int) *Seen { return &Seen{SHA: sha, Written: true, Shown: shown} }

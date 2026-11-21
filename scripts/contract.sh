@@ -6313,7 +6313,7 @@ want 1 $? "a rename whose leaf is rejected under a new parent exits 1 (ADR-132)"
 # its content edit lands, and the mixed plan below writes NOTHING. The
 # PARTIALLY APPLIED report for a commit failure no probe can foresee is driven
 # through the commitRenameFn seam by
-# TestAFailedContentCommitReportsWrittenHunksOkAndTheRestSkipped; its wording by
+# TestAContentCommitThatFailsPartwayUndoesTheFilesItRenamed (its edited_in_place and no_aside rows, since ADR-209); its wording by
 # TestAPartialCommitIsNotSummarisedAsApplied and
 # TestAPartialWriteNamesWhatWasAlreadyWritten.
 fixture
@@ -6750,17 +6750,18 @@ out=$(m write --no-check "$R/p141c.mrw" 2>&1); rc=$?
 want 1 "$rc" "one path created twice is refused"
 grep -q 'd.txt is created twice in this plan (plan lines 1 and 3)' <<<"$out" && ok "and the refusal names both plan lines" || bad "refusal: $out"
 [ ! -e "$R/d.txt" ] && ok "and nothing was written" || bad "a path created twice was written: $(cat "$R/d.txt")"
-# The folds no name comparison can see (ß and ss on APFS): the commit stops at
-# the second create instead of renaming over the first — PARTIALLY APPLIED,
-# exit 2, the first body kept. Skipped where the filesystem keeps them apart.
+# The folds no name comparison can see (ß and ss on APFS): the commit stops at the
+# second create instead of renaming over the first, and since ADR-209 the first
+# create is removed again — exit 2, neither name present. Skipped where the
+# filesystem keeps them apart.
 fixture
 printf 'x' > "$R/$(printf '\303\237').probe"
 if [ -e "$R/ss.probe" ]; then
   printf '@@ \303\237.txt - create\none\n@@ ss.txt - create\ntwo\n' > "$R/p141d.mrw"
   out=$(m write --no-check "$R/p141d.mrw" 2>&1); rc=$?
   want 2 "$rc" "a create the filesystem folds into an earlier one stops the commit"
-  grep -q 'appeared before commit' <<<"$out" && grep -q 'PARTIALLY APPLIED' <<<"$out" && ok "and says so, naming what landed" || bad "fold at commit: $out"
-  [ "$(cat "$R/ss.txt")" = "one" ] && ok "and the first body survives" || bad "the first body was lost: $(cat "$R/ss.txt")"
+  grep -q 'appeared before commit' <<<"$out" && grep -q 'NOTHING WRITTEN' <<<"$out" && ok "and says so, and that nothing was written" || bad "fold at commit: $out"
+  [ ! -e "$R/ss.txt" ] && [ ! -e "$R/$(printf '\303\237').txt" ] && ok "and neither name is there: the first create was removed" || bad "a create survived: $(ls "$R")"
 else
   skip "this filesystem keeps ß and ss apart"
 fi
@@ -8023,27 +8024,29 @@ m check --json --full > "$WORK/p195" 2> /dev/null; want 0 $? "the pair: a declar
 jq -se 'length == 1 and .[0].ran == true and .[0].exit_code == 0' "$WORK/p195" > /dev/null \
   && ok "and says ran true, exit_code 0" || bad "the pair: $(head -c 300 "$WORK/p195")"
 
-# 196. ADR-102: a commit that failed after a file landed is one partially_applied,
-# counted in landed, and the file it wrote takes the next write without a re-read.
-# No seam: content renames commit before path ops, and an unlink in a read-only
-# directory fails at commit. It was one refused_apply, and the next write to the
-# landed file was refused as changed since read. The pair: with the directory
-# writable the unlink applies. uid 0 ignores the permission bits, so it skips there.
+# 196. ADR-102, as ADR-209 changed it: a commit that failed after a file landed puts
+# it back. The write exits 2 and says NOTHING WRITTEN, the file is as it was, stats
+# counts it refused_apply and not landed, and the file takes the next write without
+# a re-read, since the read made before the write still licenses it. No seam:
+# content renames commit before path ops, and an unlink in a read-only directory
+# fails at commit. It was a partial commit, with a.txt changed. The pair: with the
+# directory writable the unlink applies. uid 0 ignores the permission bits, so it
+# skips there.
 fixture
 mkdir -p "$R/d"; printf 'x\n' > "$R/d/x.txt"; printf 'a\n' > "$R/a.txt"
 m read a.txt d/x.txt >"$WORK/served.out"
 chmod 555 "$R/d"
 if [ -w "$R/d" ]; then
   chmod 755 "$R/d"
-  skip "a partial commit is partially_applied (permission bits not enforced here — running as root?)"
+  skip "a failed commit puts the file back (permission bits not enforced here — running as root?)"
 else
   printf '@@ a.txt 1 replace\nA\n@@ d/x.txt - unlink\n' | m write --no-check - > "$WORK/o196" 2>&1; want 2 $? "a commit stopped by the read-only directory exits 2"
-  { grep -q 'PARTIALLY APPLIED' "$WORK/o196" && grep -qx A "$R/a.txt" && [ -e "$R/d/x.txt" ]; } \
-    && ok "and says PARTIALLY APPLIED, a.txt written and d/x.txt kept" || bad "partial: $(head -c 400 "$WORK/o196")"
+  { grep -q 'NOTHING WRITTEN' "$WORK/o196" && grep -qx a "$R/a.txt" && [ -e "$R/d/x.txt" ]; } \
+    && ok "and says NOTHING WRITTEN, a.txt as it was and d/x.txt kept" || bad "failed commit: $(head -c 400 "$WORK/o196")"
   m stats --json > "$WORK/s196" 2>/dev/null
-  jq -se 'length == 1 and (.[0] | .counts.partially_applied == 1 and .counts.refused_apply == 0 and .landed == 1)' "$WORK/s196" > /dev/null \
-    && ok "stats counts it partially_applied, and landed" || bad "stats: $(head -c 400 "$WORK/s196")"
-  printf '@@ a.txt 1 replace anchor="A"\nAA\n' | m write --no-check - > /dev/null 2>&1; want 0 $? "the file the partial commit wrote takes the next write without a re-read"
+  jq -se 'length == 1 and (.[0] | .counts.refused_apply == 1 and .counts.partially_applied == 0 and .landed == 0)' "$WORK/s196" > /dev/null \
+    && ok "stats counts it refused_apply, and not landed" || bad "stats: $(head -c 400 "$WORK/s196")"
+  printf '@@ a.txt 1 replace anchor="a"\nAA\n' | m write --no-check - > /dev/null 2>&1; want 0 $? "the file put back takes the next write without a re-read"
   chmod 755 "$R/d"
   printf '@@ d/x.txt - unlink\n' | m write --no-check - > /dev/null 2>&1; want 0 $? "the pair: with d writable the unlink applies"
 fi
@@ -11971,8 +11974,10 @@ want 1 "$?" "and on an insert-before"
 
 # 367. #735: every `mrw write --json` receipt says how much of the plan reached the
 # tree, so exit 2 can be told apart: a landed write is "complete", a dry run and a
-# refused plan are "none", and a commit that failed after a file landed is
-# "partial" (the write to d/ fails in a read-only directory after a.go landed).
+# refused plan are "none", and, since ADR-209, so is a commit that failed after a
+# file landed and put it back (the write to d/ fails in a read-only directory after
+# a.go landed); "partial" is left to an undo that could not finish, which the built
+# binary cannot be made to reach: the Go tests drive it.
 R367="$WORK/r367"; rm -rf "$R367"; mkdir -p "$R367/st" "$R367/d"; printf 'package a\n' > "$R367/a.go"; printf 'x\n' > "$R367/d/x.txt"
 mut367() { python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("mutation","ABSENT"))' "$1" 2>/dev/null; }
 XDG_STATE_HOME="$R367/st" "$MRW" -C "$R367" read a.go d/x.txt > "$R367/rd.out" 2>&1
@@ -11990,16 +11995,19 @@ if [ "$(id -u)" = 0 ]; then
   skip "a read-only directory does not stop root, so no commit fails after a.go lands"
 else
   want 2 "$prc" "a commit that fails after a file landed exits 2"
-  [ "$(mut367 "$R367/partial.json")" = partial ] && grep -q '^package b' "$R367/a.go" && ok "and its receipt says mutation partial, with a.go changed" || bad "partial mutation: $(mut367 "$R367/partial.json")"
+  [ "$(mut367 "$R367/partial.json")" = none ] && grep -q '^package a' "$R367/a.go" && ok "and its receipt says mutation none, with a.go put back" || bad "failed-commit mutation: $(mut367 "$R367/partial.json") a.go: $(cat "$R367/a.go")"
 fi
 XDG_STATE_HOME="$R367/st" "$MRW" -C "$R367" read a.go > "$R367/rd2.out" 2>&1
 printf '@@ a.go 1 replace\npackage c\n' | XDG_STATE_HOME="$R367/st" "$MRW" -C "$R367" write --json - > "$R367/ok.json" 2>/dev/null
 want 0 "$?" "a landed write exits 0"
 [ "$(mut367 "$R367/ok.json")" = complete ] && ok "and its receipt says mutation complete" || bad "complete mutation: $(mut367 "$R367/ok.json")"
 
-# 368. #732: under a ceiling too small for the receipt of a partial commit, the
-# answer names a file holding the whole receipt (kept in the state home, outside
-# the tree), and that file holds the commit's failure and the written name.
+# 368. #732, as ADR-209 changed it: under a ceiling too small for the receipt of a
+# commit that failed after a file landed and was put back, the answer names a file
+# holding the whole receipt (kept in the state home, outside the tree), and that
+# file holds the failure, mutation none, and a.go as it was. The "mutation": "partial"
+# receipt of a commit an undo could not finish is reached only through a fault the
+# built binary cannot be made to inject: the Go tests drive it.
 R368="$WORK/r368"; S368="$WORK/st368"; rm -rf "$R368" "$S368"; mkdir -p "$R368/d" "$S368"; printf 'package a\n' > "$R368/a.go"; printf 'x\n' > "$R368/d/x.txt"
 XDG_STATE_HOME="$S368" "$MRW" -C "$R368" read a.go d/x.txt > "$R368/rd.out" 2>&1
 chmod 555 "$R368/d"
@@ -12016,9 +12024,9 @@ t=r["content"][0]["text"]
 m=re.search(r"The full receipt is at (\S+?)\.?$", t.strip())
 print(m.group(1) if m else "")' "$R368/ans.json" 2>/dev/null)
   [ -n "$kept" ] && [ -f "$kept" ] && ok "the bounded answer names a kept whole receipt" || bad "no kept receipt named: $(head -c 600 "$R368/ans.json")"
-  grep -q '"mutation": "partial"' "$kept" 2>/dev/null && grep -q 'a.go' "$kept" 2>/dev/null && ok "and it holds the mutation and the written file" || bad "kept receipt: $(head -c 400 "$kept" 2>/dev/null)"
-  case $kept in "$R368"/*) bad "the kept receipt is inside the tree: $kept" ;; "$S368"/mrw-receipts/*) ok "and it is outside the tree, in the state home's mrw-receipts" ;; *) bad "kept receipt at an unexpected place: $kept" ;; esac
-  grep -q 'mutation: partial' "$R368/ans.json" && ok "and the sentence says the mutation in words, mutation: partial" || bad "no mutation token: $(head -c 700 "$R368/ans.json")"
+  grep -q '"mutation": "none"' "$kept" 2>/dev/null && grep -q 'nothing was written' "$kept" 2>/dev/null && ok "and it holds the failure and mutation none" || bad "kept receipt: $(head -c 400 "$kept" 2>/dev/null)"
+  case $kept in "$R368"/*) bad "the kept receipt is inside the tree: $kept" ;; "$S368"/mrw-receipts/*) ok "and it is outside the tree, in the state home's mrw-receipts" ;; *) bad "kept receipt at an unexpected path: $kept" ;; esac
+  grep -qx 'package a' "$R368/a.go" && ok "and a.go is as it was" || bad "a.go: $(cat "$R368/a.go")"
   # The pair, which must fail the other way: a receipt that fits keeps nothing and names nothing.
   before368=$(ls "$S368/mrw-receipts" 2>/dev/null | wc -l | tr -d ' ')
   mkdir -p "$R368/fit"; printf 'one\n' > "$R368/fit/f.txt"
@@ -12205,6 +12213,32 @@ want 1 "$rc" "a ranged --quiet read of 6-9 through g374.go shows nothing: the pl
   && ok "with the same reason, the file unchanged" || bad "alias refusal: $(head -c 400 <<<"$out")"
 m read --max-cols 0 g374.go:6-9 > "$WORK/served.out"
 printf '%s' "$rep374g" | m write --no-check - > /dev/null 2>&1; want 0 $? "the pair: a read under g374.go lands it"
+
+# 360. ADR-209: a commit that fails after content files were renamed in puts them
+# back. An edit to a.txt and a create of n/m/k.txt (new directories n and n/m) land,
+# then the unlink of d/x.txt in a read-only directory is refused: exit 2 and
+# NOTHING WRITTEN, a.txt holds its original bytes and is the same file (its inode
+# is the one `ls -i` named before the write), k.txt and both directories are gone,
+# and no .mrw-* entry is left. The pair: with d writable all three apply. uid 0
+# ignores the permission bits, so the failure case skips there.
+R=$(mktemp -d "$WORK/r-XXXXXX"); mkdir -p "$R/d"; printf 'x\n' > "$R/d/x.txt"; printf 'a\n' > "$R/a.txt"
+m read a.txt d/x.txt >"$WORK/served.out"
+ino360=$(ls -i "$R/a.txt" | awk '{print $1}')
+chmod 555 "$R/d"
+if [ -w "$R/d" ]; then
+  chmod 755 "$R/d"
+  skip "the content undo is driven through a read-only directory (permission bits not enforced here — running as root?)"
+else
+  printf '@@ a.txt 1 replace\nA\n@@ n/m/k.txt - create\nK\n@@ d/x.txt - unlink\n' | m write --no-check - > "$WORK/o360" 2>&1; want 2 $? "an edit, a nested create and an unlink the directory refuses exit 2"
+  grep -q 'NOTHING WRITTEN' "$WORK/o360" && ok "and say NOTHING WRITTEN" || bad "receipt: $(head -c 400 "$WORK/o360")"
+  { grep -qx a "$R/a.txt" && [ "$(ls -i "$R/a.txt" | awk '{print $1}')" = "$ino360" ]; } \
+    && ok "a.txt holds its original bytes and is the same file (inode $ino360)" || bad "a.txt: $(cat "$R/a.txt") inode $(ls -i "$R/a.txt")"
+  { [ ! -e "$R/n" ] && [ -e "$R/d/x.txt" ]; } && ok "the created file and its new directories are gone, d/x.txt is kept" || bad "tree: $(ls -R "$R" | head -c 300)"
+  [ -z "$(find "$R" -name '.mrw-*')" ] && ok "and no .mrw-* entry is left" || bad "left: $(find "$R" -name '.mrw-*' | head -3)"
+  chmod 755 "$R/d"
+  printf '@@ a.txt 1 replace anchor="a"\nA\n@@ n/m/k.txt - create\nK\n@@ d/x.txt - unlink\n' | m write --no-check - > /dev/null 2>&1; want 0 $? "the pair: with d writable all three apply"
+  { grep -qx A "$R/a.txt" && [ -e "$R/n/m/k.txt" ] && [ ! -e "$R/d/x.txt" ]; } && ok "and the tree holds all three" || bad "tree: $(ls -R "$R" | head -c 300)"
+fi
 
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A

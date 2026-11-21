@@ -1,0 +1,11 @@
+check@2	1bb497e3e13a1105cf24e3359fa3ef75de08b66ff8a2839cd7f9ea97824d9eb3
+body	internal/apply/chaos114_test.go	TestEditRenameChaos	5364bfa80f6cda3d09d9107ff6b50f85c9c82746798eb0c57e8e4bd079b27f03
+body	internal/apply/editrename114_test.go	TestAFileIsEditedAndRenamedInOnePlan	e55d737906981eef4c6cfd2aa8f4c90854fc606991b004a809326cfb21e663bb
+body	internal/apply/editrename114_test.go	a content commit that fails leaves its rename skipped, not failed	becdc176148ccad6a3bb1d49c1fc8b77c35605c8c4ae06b84a848ead0e0c8aaa
+body	internal/apply/editrename114_test.go	a dry run lists the source once and writes nothing	20a17d9c7140e9c5381fd0f56b13367a49334e028f2e06182e5fc85d27238952
+body	internal/apply/editrename114_test.go	a later failure undoes the rename and restores the edited record	bcb42c7010c8dc2d8fde849c23baa25778f3b79feb84c442bd8eadb4d0e0fa70
+body	internal/apply/editrename114_test.go	a link source is refused, nothing written	39f3d967ecebff83eec3449c1eb2e4aa4da3238d0a84d55662ade8ef54ce62ac
+body	internal/apply/editrename114_test.go	a partial read refuses the rename	18ea06f97c53107ebca861a2f848cedb46f4e85aab1a5d04b2d62d79eb018412
+body	internal/apply/editrename114_test.go	a rename that fails leaves the edit landed and named	c6f4cc0dc001a14603948d8d4d4838575fd3c3a8b64bb7c1f87416e12e1b1f9d
+body	internal/apply/editrename114_test.go	an unlink beside an edit, and two renames, stay refused	41db90c5ce6aaaf37b89d4085a85c0357a043c95ef846e70031777d9915c8e0e
+body	internal/apply/editrename114_test.go	the edit lands at the destination, each path named once	4e58a74878d204174a0bed8ed7fbb0bd116dc038792a9b6efb034c3a9c0e1512

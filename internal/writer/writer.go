@@ -124,12 +124,35 @@ func applyCounted(root string, in []apply.Input, opt apply.Options) (apply.Resul
 	if inside != nil {
 		inside()
 	}
-	res, err := apply.Apply(root, in, opt)
+	res, err := applyFn(root, in, opt)
 	m := MutationOf(res)
 	if m == None {
 		return res, 0, err
 	}
 	gen := bumpWrites(root)
+	wrote, gone := ledgerChanges(root, res, opt)
+	// Drop before Record: an unlink of c and a rename onto c in one plan leave
+	// two records for c, and the one that holds is the file on disk.
+	if lerr := seen.Drop(root, gone); lerr != nil {
+		return res, gen, ledgerFailed(m, err, lerr)
+	}
+	if lerr := seen.Record(root, wrote); lerr != nil {
+		return res, gen, ledgerFailed(m, err, lerr)
+	}
+	return res, gen, syncLanded(err)
+}
+
+// applyFn is apply.Apply, a seam for the tests of what a partial commit does to the
+// ledger, the tally, the pricing and the recent ring: since ADR-209 no filesystem
+// here makes a commit fail after a rename and leave a file written, so the tests hand
+// the writer the Result such a commit would give.
+var applyFn = apply.Apply
+
+// ledgerChanges is what a write that changed the tree says to the ledger: the
+// observations of the files whose path holds what mrw wrote, and the paths whose
+// records are dropped. A file whose path an undo left missing or holding another
+// process's file (NotHeld, ADR-209) is recorded as neither written nor known.
+func ledgerChanges(root string, res apply.Result, opt apply.Options) (map[string]seen.Observation, []string) {
 	wrote := map[string]seen.Observation{}
 	var gone []string
 	for _, f := range res.Files {
@@ -144,6 +167,9 @@ func applyCounted(root string, in []apply.Input, opt apply.Options) (apply.Resul
 			// #725: it could otherwise license an edit through the link).
 			gone = append(gone, f.Path)
 			gone = append(gone, entryAliases(root, f.Path, opt.Seen)...)
+			continue
+		}
+		if f.Written && f.NotHeld {
 			continue
 		}
 		if f.Written && f.QuotedOnly {
@@ -163,15 +189,7 @@ func applyCounted(root string, in []apply.Input, opt apply.Options) (apply.Resul
 	// as changed since mrw saw it. Dropped, its next lookup misses and finds
 	// this write's record by os.SameFile, as apply's alias lookup already does.
 	gone = append(gone, otherSpellings(root, res.Files, opt.Seen)...)
-	// Drop before Record: an unlink of c and a rename onto c in one plan leave
-	// two records for c, and the one that holds is the file on disk.
-	if lerr := seen.Drop(root, gone); lerr != nil {
-		return res, gen, ledgerFailed(m, err, lerr)
-	}
-	if lerr := seen.Record(root, wrote); lerr != nil {
-		return res, gen, ledgerFailed(m, err, lerr)
-	}
-	return res, gen, syncLanded(err)
+	return wrote, gone
 }
 
 // otherSpellings returns the ledger keys that name a file this write changed

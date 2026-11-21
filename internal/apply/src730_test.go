@@ -87,7 +87,7 @@ func TestAnUnlinkStopsTheCommitWhenItsSourceIsReplacedAfterTheFirstCheck(t *test
 		{Path: "a.txt", Start: 1, End: 1, Op: "replace", Body: []string{"EDITED"}, Lines: -1, Index: 0},
 		{Path: "z.txt", Op: "unlink", Lines: -1, Index: 1},
 	}, Options{})
-	if err == nil || res.Applied || !strings.Contains(err.Error(), "z.txt") || !strings.Contains(err.Error(), "ALREADY WRITTEN: a.txt") {
+	if err == nil || res.Applied || !strings.Contains(err.Error(), "z.txt") || !strings.Contains(err.Error(), "nothing was written") || read(t, root, "a.txt") != "A\n" {
 		t.Fatalf("the replaced source did not stop the commit by name: %v", err)
 	}
 	if got := read(t, root, "z.txt"); got != "NEVER-READ-FOREIGN, longer\n" {
@@ -139,7 +139,7 @@ func TestARenameStopsTheCommitWhenItsSourceIsReplacedAfterTheFirstCheck(t *testi
 		{Path: "a.txt", Start: 1, End: 1, Op: "replace", Body: []string{"EDITED"}, Lines: -1, Index: 0},
 		{Path: "z.txt", Op: "rename", Body: []string{"y.txt"}, Lines: -1, Index: 1},
 	}, Options{})
-	if err == nil || res.Applied || !strings.Contains(err.Error(), "z.txt") || !strings.Contains(err.Error(), "ALREADY WRITTEN: a.txt") {
+	if err == nil || res.Applied || !strings.Contains(err.Error(), "z.txt") || !strings.Contains(err.Error(), "nothing was written") || read(t, root, "a.txt") != "A\n" {
 		t.Fatalf("the replaced source did not stop the commit by name: %v", err)
 	}
 	if _, err := os.Lstat(filepath.Join(root, "y.txt")); !os.IsNotExist(err) {

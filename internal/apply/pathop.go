@@ -383,6 +383,18 @@ func spelledAs(tr *tree, p string) bool {
 	return false
 }
 
+// pathOpFailure is what commitPathOps returns when a step failed and its undo ran:
+// the step's error and what the undo could not put back. The caller builds the
+// text after the content files are put back too, so what it says of what was
+// written is what is on disk (ADR-209 Decision 6).
+type pathOpFailure struct {
+	cause  error
+	suffix string
+}
+
+func (e *pathOpFailure) Error() string { return e.cause.Error() + e.suffix }
+func (e *pathOpFailure) Unwrap() error { return e.cause }
+
 func commitPathOps(tr *tree, res *Result, pathOps []pending) (string, error) {
 	var asides []aside
 	var renames []moved
@@ -589,7 +601,7 @@ func commitPathOps(tr *tree, res *Result, pathOps []pending) (string, error) {
 				if left := undo(); left != "" {
 					suffix = "; UNDO INCOMPLETE: " + left
 				}
-				return w.file.Path, fmt.Errorf("%s: %w (%s)%s", w.file.Path, err, writtenSoFar(res.Files), suffix)
+				return w.file.Path, &pathOpFailure{cause: err, suffix: suffix}
 			}
 		}
 		return "", nil

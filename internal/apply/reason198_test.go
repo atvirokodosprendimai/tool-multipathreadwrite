@@ -17,6 +17,7 @@ import (
 // the expected text is d/f.txt, and the reason is read from the Result Apply
 // returned, before any receipt converts it.
 func TestAReasonSpellsAPlansPathAsItsRowDoes(t *testing.T) {
+	withoutAsides(t)
 	withSep := func(t *testing.T, r rune) {
 		t.Helper()
 		prev := reasonSep

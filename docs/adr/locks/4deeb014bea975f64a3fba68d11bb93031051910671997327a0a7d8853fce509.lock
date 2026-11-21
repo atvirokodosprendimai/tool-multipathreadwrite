@@ -1,0 +1,10 @@
+check@2	1bb497e3e13a1105cf24e3359fa3ef75de08b66ff8a2839cd7f9ea97824d9eb3
+body	internal/apply/below199_test.go	TestAPathBelowAFileIsRefusedOnItsHunk	0fecb274e33edef59d83c7fb72f66a9a895ad02fac63563b88d7e9177f979397
+body	internal/apply/below199_test.go	a file that reports as missing below a file	ac80c33a7577edf8bd026c1c68e738c87dd0036cb5d070f5a8523b3cd25a3733
+body	internal/apply/below199_test.go	kept: create below a link to a directory the same plan makes	32b0dba446f1b792a4032979c6d48779ea1398e84da28859f380a7300dae3360
+body	internal/apply/below199_test.go	kept: create below a link to a two-level directory the same plan makes	09ca2b133527602f603932e0fe25afc06100b7c3f6a65aa318a03039f2d17bd6
+body	internal/apply/below199_test.go	kept: two spellings of one file below a file	3315a46fa821da8a981cd4be44fedabaeb07c39c9eb80c373c175d9d7e98468f
+body	internal/apply/below199_test.go	left as before: a path that leaves the root and comes back	ed523d8ab70cb4e369ac8094c4d8176001d8fa1f005fa89c3037213c528886da
+body	internal/apply/reason198_test.go	TestAReasonSpellsAPlansPathAsItsRowDoes	d5f11238e79ae51f074b2cf1fea499ce51c5bc2a393c8fe72e0f5c7ef83f6ce1
+body	internal/apply/reason198_test.go	kept: a path as typed, absolute paths, from=X	9959e48e4191e19ae3cc21539226bfaa03538de9d7287d15be00a2b66b6b8524
+body	internal/apply/reason198_test.go	kept: with / as the separator a name holding a backslash is named as it is	ee8ca1f60570edf55a6ac12ecadd15d89afb5dfc3e327308a70f33ecb43f82d3

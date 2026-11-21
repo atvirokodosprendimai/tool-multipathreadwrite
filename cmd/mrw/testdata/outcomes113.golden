@@ -492,10 +492,10 @@ pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 st
 FAIL d 1 replace (plan line 1): d: read <ROOT>/d: is a directory
 1 hunk(s), 1 file(s), 1 failed, 0 advisories — NOTHING WRITTEN
 d: see its FAIL line
-== partial_commit json
+== failed_commit_undone json
 exit 2
-counts applied=0 check_not_run=0 failed_check=0 partially_applied=1 refused_apply=0 refused_parse=0 landed 1
-pricing strict_candidates=1 strict_would_refuse=0 strict_would_refuse_broke=0 strict_would_refuse_held=0 strict_would_refuse_unchecked=0
+counts applied=0 check_not_run=0 failed_check=0 partially_applied=0 refused_apply=1 refused_parse=0 landed 0
+pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 strict_would_refuse_held=0 strict_would_refuse_unchecked=0
 {
   "root": "<ROOT>"
   "dry_run": false
@@ -503,7 +503,7 @@ pricing strict_candidates=1 strict_would_refuse=0 strict_would_refuse_broke=0 st
   "files": [
     {
       "path": "a.go"
-      "written": true
+      "written": false
       "sha_before": "7b39baa38a2ec2b8d111bbbd8e448e80226477ab40105d9d2123d4dc18067438"
       "sha_after": "983aab874348ab0e62d9fa51e0719b12f570234284c1f21c740bb6d3ca7cf11d"
       "lines_before": 1
@@ -522,7 +522,7 @@ pricing strict_candidates=1 strict_would_refuse=0 strict_would_refuse_broke=0 st
       "path": "a.go"
       "addr": "1"
       "op": "replace"
-      "status": "ok"
+      "status": "skipped"
       "removed": 1
       "added": 1
       "plan_line": 1
@@ -532,7 +532,7 @@ pricing strict_candidates=1 strict_would_refuse=0 strict_would_refuse_broke=0 st
       "addr": "-"
       "op": "unlink"
       "status": "failed"
-      "reason": "d/x.txt: openat d/.mrw-aside-<X>: permission denied (ALREADY WRITTEN: a.go)"
+      "reason": "d/x.txt: openat d/.mrw-aside-<X>: permission denied (nothing was written)"
       "removed": 0
       "added": 0
       "plan_line": 3
@@ -542,21 +542,20 @@ pricing strict_candidates=1 strict_would_refuse=0 strict_would_refuse_broke=0 st
   "advisories": 0
   "pattern": {
     "advisory_writes": 0
-    "window": 1
+    "window": 0
     "fires": false
   }
-  "error": "d/x.txt: openat d/.mrw-aside-<X>: permission denied (ALREADY WRITTEN: a.go)"
-  "mutation": "partial"
+  "error": "d/x.txt: openat d/.mrw-aside-<X>: permission denied (nothing was written)"
+  "mutation": "none"
 }
-d/x.txt: openat d/.mrw-aside-<X>: permission denied (ALREADY WRITTEN: a.go)
-== partial_commit human
+d/x.txt: openat d/.mrw-aside-<X>: permission denied (nothing was written)
+== failed_commit_undone human
 exit 2
-counts applied=0 check_not_run=0 failed_check=0 partially_applied=1 refused_apply=0 refused_parse=0 landed 1
-pricing strict_candidates=1 strict_would_refuse=0 strict_would_refuse_broke=0 strict_would_refuse_held=0 strict_would_refuse_unchecked=0
-ok   a.go 1 replace  -1 +1
-FAIL d/x.txt - unlink (plan line 3): d/x.txt: openat d/.mrw-aside-<X>: permission denied (ALREADY WRITTEN: a.go)
-wrote a.go  1L -> 1L  sha 983aab87
-2 hunk(s), 2 file(s), 1 failed, 0 advisories — PARTIALLY APPLIED
+counts applied=0 check_not_run=0 failed_check=0 partially_applied=0 refused_apply=1 refused_parse=0 landed 0
+pricing strict_candidates=0 strict_would_refuse=0 strict_would_refuse_broke=0 strict_would_refuse_held=0 strict_would_refuse_unchecked=0
+skip a.go 1 replace
+FAIL d/x.txt - unlink (plan line 3): d/x.txt: openat d/.mrw-aside-<X>: permission denied (nothing was written)
+2 hunk(s), 2 file(s), 1 failed, 0 advisories — NOTHING WRITTEN
 d/x.txt: see its FAIL line
 == ledger_failed_no_check json
 exit 2

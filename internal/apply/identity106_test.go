@@ -101,8 +101,8 @@ func TestACommitRefusesATargetThatChangedAfterValidation(t *testing.T) {
 		if got := read(t, root, "a.txt"); got != "newcomer, a longer body\n" {
 			t.Errorf("the newcomer was overwritten: a.txt holds %q", got)
 		}
-		if got := read(t, root, "y.txt"); got != "Y\nb\nc\nd\ne\n" {
-			t.Errorf("y.txt, renamed before a.txt changed, should stay written (ADR-066): %q", got)
+		if got := read(t, root, "y.txt"); got != abcde {
+			t.Errorf("y.txt, renamed before a.txt changed, should be put back (ADR-209): %q", got)
 		}
 	})
 
