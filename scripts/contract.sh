@@ -7628,8 +7628,8 @@ if [ -r "$R/locked184.go" ]; then
   skip "--ast-grep refuses a named file it cannot open (permission bits not enforced here — running as root?)"
 else
   bounded 10 "$WORK/a184c" env PATH="$d184:$PATH" "$MRW" -C "$R" read --ast-grep N184 a.go locked184.go; want 1 $? "--ast-grep over a.go and a mode-000 file exits 1"
-  { grep -q '^==> locked184.go  REFUSED.*permission denied' "$WORK/a184c" && grep -qxF "$RP/a.go" "$d184/argv184" && ! grep -q 'locked184' "$d184/argv184"; } \
-    && ok "refusing the file with the OS's error, while ast-grep ran on a.go alone" || bad "mode 000: $(head -c 300 "$WORK/a184c") argv: $(tr '\n' ' ' < "$d184/argv184" 2>/dev/null)"
+  { grep -q '^==> locked184.go  UNREADABLE.*permission denied' "$WORK/a184c" && grep -qxF "$RP/a.go" "$d184/argv184" && ! grep -q 'locked184' "$d184/argv184"; } \
+    && ok "naming the file UNREADABLE with the OS's error (#752), while ast-grep ran on a.go alone" || bad "mode 000: $(head -c 300 "$WORK/a184c") argv: $(tr '\n' ' ' < "$d184/argv184" 2>/dev/null)"
 fi
 chmod 644 "$R/locked184.go"; rm -f "$d184/argv184"
 bounded 10 "$WORK/a184d" env PATH="$d184:$PATH" "$MRW" -C "$R" read --ast-grep N184 d; want 0 $? "the pair: --ast-grep over d exits 0"
@@ -8379,7 +8379,7 @@ out=$(req216 '{"grep":"NEEDLE216"}' | "$MRW" -C "$R" mcp --enable 2>/dev/null)
 python3 - "$out" <<'PY' && ok "mrw_read counts what its grep skipped" || bad "mrw_read skipped: $(head -c 400 <<<"$out")"
 import json, sys
 sc = json.loads(json.loads(sys.argv[1])["result"]["content"][-1]["text"])
-sys.exit(0 if sc.get("skipped") == {"ignored": 0, "ignored_dirs": 1, "binary": 1, "nested": 0, "unkeepable": 0, "linked_dirs": 0} else 1)
+sys.exit(0 if sc.get("skipped") == {"ignored": 0, "ignored_dirs": 1, "binary": 1, "nested": 0, "unkeepable": 0, "device_names": 0, "linked_dirs": 0} else 1)
 PY
 out=$(req216 '{"grep":"NEEDLE216","no_ignore":true}' | "$MRW" -C "$R" mcp --enable 2>/dev/null)
 python3 - "$out" <<'PY' && ok "the pair: no_ignore walks all and counts nothing" || bad "no_ignore: $(head -c 400 <<<"$out")"
@@ -8555,7 +8555,7 @@ printf 'package gen\n' > "$R/gen/a.go"; printf 'package b\n' > "$R/b221.go"
 printf '%s\n' '#!/bin/sh' 'printf "%s" "[{\"file\":\"gen/a.go\",\"range\":{\"start\":{\"line\":0},\"end\":{\"line\":0}}},{\"file\":\"b221.go\",\"range\":{\"start\":{\"line\":0},\"end\":{\"line\":0}}}]"' > "$d221/ast-grep"
 chmod +x "$d221/ast-grep"
 out=$(env PATH="$d221:$PATH" "$MRW" -C "$R" read --ast-grep 'package $A' 2>&1); want 0 $? "--ast-grep inside a checkout that ignores gen/ reads"
-grep -q '==> b221.go' <<<"$out" && ! grep -q '==> gen/a.go' <<<"$out" && grep -q -- '-- skipped: 1 director(ies) .gitignore ignores' <<<"$out" \
+grep -q '==> b221.go' <<<"$out" && ! grep -q '==> gen/a.go' <<<"$out" && grep -q -- '-- skipped: 1 director(ies) the ignore rules skip' <<<"$out" \
   && ok "and serves b221.go, not the ignored gen/a.go, counting gen/" || bad "ast-grep served: $out"
 out=$(env PATH="$d221:$PATH" "$MRW" -C "$R" read --ast-grep 'package $A' --no-ignore 2>&1); want 0 $? "the pair: --no-ignore reaches --ast-grep"
 grep -q '==> gen/a.go' <<<"$out" && ! grep -q -- '-- skipped:' <<<"$out" && ok "and serves both, counting nothing" || bad "--no-ignore ast-grep: $out"
@@ -12148,6 +12148,27 @@ if command -v strace >/dev/null 2>&1 && strace -o "$WORK/t361.probe" true >/dev/
   if grep -E 'fsync\(' "$s361/trace2" | grep -qF "<$r361/"; then bad "a dry run synced a tree path: $(grep -E 'fsync\(' "$s361/trace2" | head -3)"; else ok "and syncs nothing in the tree"; fi
 else
   skip "ADR-210's strace trace needs strace and ptrace; neither is usable here, so the order of the syncs is proved by the Go tests alone"
+
+fi
+
+# 376. #752: a walk beside a directory it cannot list says UNREADABLE of it, as a
+# directory named to read is, exits 1 (incomplete), and serves every sibling. The
+# pair: a path outside the root is still REFUSED, not UNREADABLE. (As root a mode-000
+# directory still lists, so the row says so and skips.)
+R376="$WORK/r376"; rm -rf "$R376"; mkdir -p "$R376/locked"
+printf 'needle\n' > "$R376/a.txt"; printf 'needle\n' > "$R376/locked/b.txt"; chmod 000 "$R376/locked"
+if [ "$(id -u)" = 0 ]; then
+  skip "§376 needs a user a mode-000 directory stops; this one is root"
+else
+  out=$("$MRW" -C "$R376" read --grep needle . 2>&1); rc=$?
+  want 1 "$rc" "a walk beside a directory it cannot list -> exit 1"
+  { grep -q '^==> locked  UNREADABLE  ' <<<"$out" && ! grep -q 'locked  REFUSED' <<<"$out"; } && ok "it names the directory UNREADABLE, not REFUSED" || bad "walk: $(head -c 400 <<<"$out")"
+  grep -q '^==> a.txt' <<<"$out" && ok "and still serves the sibling" || bad "sibling: $(head -c 400 <<<"$out")"
+  grep -q '^mrw: incomplete: ' <<<"$out" && ok "and the last line says incomplete" || bad "kind: $(tail -c 300 <<<"$out")"
+  out=$("$MRW" -C "$R376" read --grep needle ../outside376 2>&1); rc=$?
+  want 1 "$rc" "the pair: a path outside the root -> exit 1"
+  { grep -q '^==> ../outside376  REFUSED  ' <<<"$out" && ! grep -q '  UNREADABLE  ' <<<"$out"; } && ok "and it is still REFUSED, not UNREADABLE" || bad "outside: $(head -c 400 <<<"$out")"
+  chmod 755 "$R376/locked"
 fi
 
 # 374. ADR-208 Decision 1a: the lines a search_replace write produced are licensed

@@ -35,11 +35,11 @@ func TestAWalkCountsTheNamesWindowsWillNotKeep(t *testing.T) {
 	if len(specs) != 1 || filepath.ToSlash(specs[0].Path) != "a.txt" {
 		t.Errorf("the walk served %v, want a.txt alone", specs)
 	}
-	if sk.Unkeepable != 2 {
-		t.Errorf("Unkeepable = %d, want 2 (aux.txt, trail.)", sk.Unkeepable)
+	if sk.Unkeepable != 2 || sk.DeviceNames != 1 {
+		t.Errorf("Unkeepable = %d, DeviceNames = %d, want 2 (aux.txt and trail., as before) and 1 (aux.txt, the device-name part)", sk.Unkeepable, sk.DeviceNames)
 	}
 	note := SkipNote(sk, "--no-ignore")
-	if !strings.Contains(note, "2 file(s) with a name Windows will not keep") || strings.Contains(note, "--no-ignore walks them") {
-		t.Errorf("note = %q, want the count and no promise that --no-ignore walks them", note)
+	if !strings.Contains(note, "1 file(s) with a name Windows will not keep") || !strings.Contains(note, "1 file(s) named for a Windows device") || strings.Contains(note, "--no-ignore walks them") {
+		t.Errorf("note = %q, want both counts with their own words and no promise that --no-ignore walks them", note)
 	}
 }

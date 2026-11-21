@@ -604,7 +604,7 @@ func tools() []tool {
 					},
 					"no_ignore": map[string]any{
 						"type":        "boolean",
-						"description": "Walk every file. By default a grep or ast_grep walk inside a git checkout skips what .gitignore and .git/info/exclude ignore and does not enter a directory holding its own .git (a nested repository, as git does not), and any walk skips a binary file (a UTF-16/32 BOM, or a NUL in the first 8 KiB); the answer counts what mrw's rules skipped under `skipped` — under ast_grep, what ast-grep pruned itself is not counted. Refused without `grep` or `ast_grep`. A path you name is walked either way.",
+						"description": "Walk what the walk skips by default: the ignore rules, nested repositories and the binary check; a name Windows will not keep (`trail.`, `aux.txt`) stays skipped. By default a grep or ast_grep walk inside a git checkout skips what .gitignore and .git/info/exclude ignore and does not enter a directory holding its own .git (a nested repository, as git does not), and any walk skips a binary file (a UTF-16/32 BOM, or a NUL in the first 8 KiB); the answer counts what mrw's rules skipped under `skipped` — under ast_grep, what ast-grep pruned itself is not counted. Refused without `grep` or `ast_grep`. A path you name is walked either way.",
 					},
 					"max_lines": map[string]any{
 						"type":        "integer",
@@ -814,7 +814,7 @@ func tools() []tool {
 					},
 					"no_ignore": map[string]any{
 						"type":        "boolean",
-						"description": "Walk every file of the walk of `grep` or `ast_grep`: no .gitignore, no binary skip, nested repositories entered. Refused without one of them.",
+						"description": "In the walk of `grep` or `ast_grep`, walk what the ignore rules, the binary check and nested repositories skip; a name Windows will not keep stays skipped. Refused without one of them.",
 					},
 					"paths": map[string]any{
 						"type":        "array",

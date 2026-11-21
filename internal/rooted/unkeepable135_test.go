@@ -33,3 +33,23 @@ func TestOnlyANameRefusalIsUnkeepable(t *testing.T) {
 		t.Error("UnkeepableName(nil) = true")
 	}
 }
+
+// #752. A device name is told from the other names Windows will not keep, so a walk
+// can count the two apart; a device name reached through a link is neither.
+func TestADeviceNameIsToldFromAnAlias(t *testing.T) {
+	root := t.TempDir()
+	if err := deviceName("aux.txt", root, filepath.Join(root, "aux.txt")); !DeviceName(err) {
+		t.Errorf("deviceName(aux.txt) = %v, want a device name", err)
+	}
+	if DeviceName(aliasError("trail.: Windows does not keep it")) {
+		t.Error("an alias refusal is a device name")
+	}
+	// A device name reached through a link is the link's, not the file's own: not
+	// one for DeviceName either, whatever the caller (#762 review).
+	if err := deviceName("view.txt", root, filepath.Join(root, "sub", "aux.txt")); DeviceName(err) {
+		t.Errorf("a device name reached through a link was counted as a device name: %v", err)
+	}
+	if DeviceName(nil) {
+		t.Error("DeviceName(nil) = true")
+	}
+}

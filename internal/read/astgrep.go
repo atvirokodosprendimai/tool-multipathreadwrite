@@ -134,7 +134,7 @@ func AstGrep(root string, paths []string, pattern string, exclude []string, opt 
 			// regular.Open(n.full)), nothing is read, and the probe's answer only
 			// decides whether to start ast-grep, so this is not a regression.
 			if f, _, err := rooted.OpenRead(root, n.full); err != nil {
-				prob = &Problem{Path: n.rel, Reason: err.Error()}
+				prob = &Problem{Path: n.rel, Reason: err.Error(), Unreadable: ioFailure(err)}
 			} else {
 				_ = f.Close() // opened to learn it can be; nothing was read
 			}
@@ -164,6 +164,17 @@ func AstGrep(root string, paths []string, pattern string, exclude []string, opt 
 		args = append(args, "--rewrite="+opt.Rewrite, "--json=stream")
 	} else {
 		args = append(args, "--json")
+	}
+	// With no path named the search starts at the root, which ast-grep opens by
+	// itself; a root it cannot list would come back as no hits and a false "no
+	// match". The root is probed as a named path is (#762, #752): the failure is
+	// said, and ast-grep is not started.
+	if len(paths) == 0 {
+		f, _, err := rooted.OpenRead(root, absRoot)
+		if err != nil {
+			return nil, []Problem{{Path: ".", Reason: err.Error(), Unreadable: ioFailure(err)}}, nil
+		}
+		_ = f.Close() // opened to learn it can be; nothing was read
 	}
 	switch {
 	case len(paths) == 0:

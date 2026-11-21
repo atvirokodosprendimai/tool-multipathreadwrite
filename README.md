@@ -214,12 +214,13 @@ paths the walk starts at `--root`. `--exclude GLOB` is repeatable and matches
 both the root-relative path and the basename — that is what makes `'*_test.go'`
 work at any depth. Inside a git checkout it skips what `.gitignore` and
 `.git/info/exclude` ignore, and any walk skips a binary file; a `-- skipped:`
-line counts them, and `--no-ignore` walks every file. It does not enter a
+line counts them, and `--no-ignore` walks what they skip (a name Windows will not keep stays skipped). It does not enter a
 nested repository — a directory below the checkout holding its own `.git` — as
 git does not (ADR-130); a path you name inside one is walked. A `.git/` the walk meets
 is skipped; one you name is walked.
-On Windows, a file whose name Windows will not keep (`aux.txt`, `nul`, `trail.`) is not served by a walk and is
-counted on the `-- skipped:` line; name it to be told why (ADR-135).
+On Windows, a file whose name Windows will not keep (`trail.`) or that is named for a device (`aux.txt`, `nul`) is not
+served by a walk and is counted, each kind with its own words, on the `-- skipped:` line; name it to be told why
+(ADR-135, #752). A directory a walk cannot list, or a file it cannot open, is `UNREADABLE`, and the read exits 1 with the rest served.
 A link to a directory met inside the root is not followed and is counted on the `-- skipped:` line; name the directory
 it leads to (ADR-138).
 A link to a directory is not followed: one the walk meets is skipped, one you name is refused with

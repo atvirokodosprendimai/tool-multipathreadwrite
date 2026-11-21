@@ -92,7 +92,7 @@ func BuildSub(root string, posArgs []string, pattern, repl string, excludes []st
 		return nil, usageFrom(err)
 	}
 	for _, p := range refusals {
-		fmt.Fprintf(diag, "==> %s  REFUSED  %s\n", ShownPath(p.Path), OneLine(p.Reason))
+		fmt.Fprintf(diag, "==> %s  %s  %s\n", ShownPath(p.Path), p.Word(), OneLine(p.Reason))
 	}
 	skipNote := func() {
 		if note := SkipNote(skipped, "--no-ignore"); note != "" {
@@ -193,7 +193,7 @@ func BuildRewrite(root string, posArgs []string, pattern, repl string, excludes 
 		return nil, usageFrom(err)
 	}
 	for _, p := range refusals {
-		fmt.Fprintf(diag, "==> %s  REFUSED  %s\n", ShownPath(p.Path), OneLine(p.Reason))
+		fmt.Fprintf(diag, "==> %s  %s  %s\n", ShownPath(p.Path), p.Word(), OneLine(p.Reason))
 	}
 	if note := SkipNote(skipped, "--no-ignore"); note != "" {
 		fmt.Fprintln(diag, note)
@@ -252,7 +252,7 @@ func RangeFreePaths(root string, posArgs []string, flag string) ([]string, error
 func NoMatchLine(pattern string, refused int, hint string) string {
 	found := fmt.Sprintf("no file matched /%s/", OneLine(pattern))
 	if refused > 0 {
-		return fmt.Sprintf("incomplete: %s, and %d path(s) were refused (see the REFUSED lines)%s", found, refused, hint)
+		return fmt.Sprintf("incomplete: %s, and %d path(s) were refused (see the REFUSED and UNREADABLE lines)%s", found, refused, hint)
 	}
 	return "no match: " + found + hint
 }
