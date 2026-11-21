@@ -16,10 +16,18 @@ on:
 permissions:
   contents: read
 
-# Every job and every long step has a timeout-minutes (#773): a hung step used to
-# run until the runner was lost, ~46 minutes later with no log. Each is about twice
-# the longest the step or job took in the last 22 green runs of this workflow
-# (2026-11-21), rounded up, so a hang fails in minutes with its log.
+# Every job and every step that runs a tool or reaches the network has a
+# timeout-minutes (#773): a hung step used to run until the runner was lost, ~46
+# minutes later with no log. A step's limit is about twice the longest it took in
+# the last 22 green runs of this workflow (2026-11-21), rounded up (a step not
+# measured on its own is 2 or 3 minutes); no step is left without one. THE RULE: a job's
+# timeout-minutes is at least the SUM of its steps' limits plus the runner's set-up
+# and clean-up (about 2 minutes), so the job never cuts a step off before the
+# step's own limit and the step's log is the one that is kept. The Static
+# analysis step's limit is sized with scripts/static.sh's total budget, see there:
+# that budget (420 s) comes from a cold run of 70 s locally and 115 s as the
+# longest the whole step has taken in CI, and it can fail a healthy run of slow
+# tools (three 145 s tools would exceed it), which is the intended trade.
 jobs:
   # The tag filter on `push` is a GLOB, and GitHub Actions supports no regex
   # there. 'v*.*.*' already excludes v1 and v1.2 because it requires two dots,
@@ -33,6 +41,7 @@ jobs:
       release: ${{ steps.semver.outputs.release }}
     steps:
       - id: semver
+        timeout-minutes: 2
         run: |
           tag="${GITHUB_REF_NAME}"
           if [[ "${GITHUB_REF}" == refs/tags/* && "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
@@ -48,16 +57,19 @@ jobs:
   # safety net for branches, and `build` depends on it.
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 70
     steps:
       - uses: actions/checkout@v4
+        timeout-minutes: 3
       - uses: actions/setup-go@v5
+        timeout-minutes: 3
         with:
           go-version-file: go.mod
 
       # test -z rather than a bare `gofmt -l`: gofmt exits 0 even when it lists
       # unformatted files, so the naked command is a gate that cannot fail.
       - name: Format
+        timeout-minutes: 2
         run: |
           unformatted="$(gofmt -l .)"
           if [ -n "$unformatted" ]; then
@@ -96,6 +108,7 @@ jobs:
           python3 -B -m unittest discover -s scripts -p test_third_party_notices.py -v
 
       - name: Vet
+        timeout-minutes: 5
         run: go vet ./...
 
       # ADR-088: golangci-lint, deadcode, staticcheck U1000 with tests excluded,
@@ -125,6 +138,7 @@ jobs:
           echo "$RUNNER_TEMP/shellcheck-v0.11.0" >> "$GITHUB_PATH"
 
       - uses: actions/setup-node@v4
+        timeout-minutes: 3
         with:
           node-version: 24
 
@@ -175,10 +189,12 @@ jobs:
   # from concurrent tests via t.TempDir, so this is not ceremonial.
   race:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        timeout-minutes: 3
       - uses: actions/setup-go@v5
+        timeout-minutes: 3
         with:
           go-version-file: go.mod
       - name: Race
@@ -190,26 +206,33 @@ jobs:
   # plugin's tools the way opencode does.
   opencode:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 25
     defaults:
       run:
         working-directory: cmd/opencode/mrw-plugin
     steps:
       - uses: actions/checkout@v4
+        timeout-minutes: 3
       - uses: actions/setup-go@v5
+        timeout-minutes: 3
         with:
           go-version-file: go.mod
       - uses: actions/setup-node@v4
+        timeout-minutes: 3
         with:
           node-version: 24
       - name: Build mrw
+        timeout-minutes: 2
         run: go build -o bin/mrw ./cmd/mrw
         working-directory: .
       - name: Install
+        timeout-minutes: 3
         run: npm ci --no-audit --no-fund
       - name: Build the plugin
+        timeout-minutes: 3
         run: npm run build
       - name: Smoke test
+        timeout-minutes: 3
         run: npm test
 
   # Windows, running the same Go gates as `test`. It exists because this project
@@ -248,18 +271,20 @@ jobs:
   # below keeps that name.
   windows-shard:
     runs-on: windows-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     strategy:
       fail-fast: false
       matrix:
         shard: [0, 1, 2, 3, 4, 5]
     steps:
       - uses: actions/checkout@v4
+        timeout-minutes: 3
       # `.gitattributes` pins every file to LF, so Git for Windows does not
       # rewrite line endings on the way out. mrw is line-oriented and its tests
       # compare exact bytes; a CRLF checkout would fail for a reason that is not
       # mrw's, and the fix belongs in the repo rather than in this one job.
       - uses: actions/setup-go@v5
+        timeout-minutes: 3
         with:
           go-version-file: go.mod
       - name: Vet, test and race — shard ${{ matrix.shard }} of 6
@@ -304,6 +329,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Every Windows shard must have succeeded
+        timeout-minutes: 2
         run: |
           echo "windows-shard result: ${{ needs.windows-shard.result }}"
           [ "${{ needs.windows-shard.result }}" = "success" ] || exit 1
@@ -314,7 +340,7 @@ jobs:
     needs: [check, test, race, windows, opencode]
     if: needs.check.outputs.release == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     strategy:
       # fail-fast off: if darwin/arm64 breaks, still learn whether the others
       # do. A partial matrix result is more useful than a cancelled one.
@@ -330,7 +356,9 @@ jobs:
       CGO_ENABLED: '0'
     steps:
       - uses: actions/checkout@v4
+        timeout-minutes: 3
       - uses: actions/setup-go@v5
+        timeout-minutes: 3
         with:
           go-version-file: go.mod
 
@@ -401,7 +429,7 @@ jobs:
     needs: [check, build]
     if: needs.check.outputs.release == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 12
     permissions:
       contents: write # create/update the Release and upload assets
     steps:

@@ -38,8 +38,10 @@
 # script's group, so a hook or a terminal that kills the group still takes the
 # steps with it. Named limits of a tree walk: a descendant that detached and was
 # reparented to init before the walk, and a process forked between the walk and
-# the signal, are not found; a step that finishes within a second of its
-# deadline can be reported as timed out (elapsed time is compared in seconds).
+# the signal, are not found. And a SIGKILL of this script's group does not reach
+# the runner of a contract.sh copy the self-test started, because contract.sh
+# puts its runner in a group of its own (#766); this script's own deadline does,
+# by the tree walk.
 set -u
 cd "$(dirname "$0")/.." || exit 2
 T0=$SECONDS
@@ -75,39 +77,71 @@ stop_tree() {
   signal_all KILL $pids $(tree "$1")
 }
 
+# What the INT and TERM handler needs to know about the step being run, set by
+# deadline() while one is: the handler is installed once, here, so it is armed
+# for every step and for the toolchain lookups, and it stays armed until the
+# step's tree is confirmed gone (a second signal during the clean-up is ignored).
+CUR_PID=
+CUR_WATCH=
+ABORTING=0
+abort() {
+  local pids
+  [ "$ABORTING" -eq 0 ] || return 0
+  ABORTING=1
+  # The watchdog is told to stop; if it had already fired it ignores that and
+  # finishes the KILL it owes, which is waited for (it holds the pids it found).
+  if [ -n "$CUR_WATCH" ]; then
+    kill -TERM "$CUR_WATCH" 2>/dev/null
+    { wait "$CUR_WATCH"; } 2>/dev/null
+  fi
+  if [ -n "$CUR_PID" ]; then
+    pids=$(tree "$CUR_PID")
+    stop_tree "$CUR_PID"
+    # shellcheck disable=SC2086 # a list of pids, split on purpose
+    ! any_alive $pids || echo "static.sh: a process of the interrupted step is still running" >&2
+  fi
+  exit "$1"
+}
+trap 'abort 130' INT
+trap 'abort 143' TERM
+
 # deadline NAME SECS CMD...: CMD, a function or a program, in a background
-# subshell, with a watchdog that stops its tree when SECS pass. Then the line
-# `static.sh: NAME did not finish in SECS s` goes to stderr and the status is
-# 124; otherwise CMD's own status. Timed out is the watchdog's marker file OR
-# elapsed time at least SECS, so a marker that could not be written (temp
-# directory gone or full) cannot turn a timeout into a pass. DEADLINE_FLAG
-# names the marker (a test sets it to an unwritable path). The watchdog outlives
-# the command's subshell: the wrapper waits for it when the deadline fired, so
-# its KILL is always sent. INT and TERM stop the tree and exit 130 and 143.
-# bash only: macOS has no timeout(1) and a perl alarm cannot run a function.
+# subshell, with a watchdog that stops its tree when SECS pass. The verdict is
+# the WATCHDOG'S OWN EXIT STATUS: it exits 124 only after it fired and did the
+# stopping, and when CMD finishes first the wrapper sends it TERM, which it
+# answers with 3 and nothing else. So timed out is never a guess from a marker
+# file or from elapsed seconds. Then `static.sh: NAME did not finish in SECS s`
+# goes to stderr and the status is 124; otherwise CMD's own status. The one race:
+# CMD finishing in the instant SECS pass counts as finished unless the watchdog
+# had already left its sleep, in which case it counts as timed out. The wrapper
+# always waits for the watchdog, so its KILL is always sent. INT and TERM to this
+# script are handled by abort() above. bash only: macOS has no timeout(1) and a
+# perl alarm cannot run a function.
 deadline() {
-  local name=$1 secs=$2 flag pid watcher rc el t0=$SECONDS
+  local name=$1 secs=$2 pid watcher rc wrc
   shift 2
-  flag=${DEADLINE_FLAG:-$(mktemp -u)} || return 1
   ( "$@" ) &
   pid=$!
-  ( sleep "$secs"; { : > "$flag"; } 2>/dev/null; stop_tree "$pid" ) &
+  CUR_PID=$pid
+  ( trap 'kill "$sp" 2>/dev/null; exit 3' TERM
+    sleep "$secs" & sp=$!
+    wait "$sp"
+    trap '' TERM
+    stop_tree "$pid"
+    exit 124 ) &
   watcher=$!
-  trap 'signal_all KILL $(tree "$watcher"); stop_tree "$pid"; rm -f "$flag"; exit 130' INT
-  trap 'signal_all KILL $(tree "$watcher"); stop_tree "$pid"; rm -f "$flag"; exit 143' TERM
+  CUR_WATCH=$watcher
   { wait "$pid"; } 2>/dev/null
   rc=$?
-  el=$((SECONDS - t0))
-  trap - INT TERM
-  if [ -e "$flag" ] || [ "$el" -ge "$secs" ]; then
-    { wait "$watcher"; } 2>/dev/null
-    rm -f "$flag"
+  kill -TERM "$watcher" 2>/dev/null
+  { wait "$watcher"; } 2>/dev/null
+  wrc=$?
+  CUR_PID=
+  CUR_WATCH=
+  if [ "$wrc" -eq 124 ]; then
     echo "static.sh: $name did not finish in $secs s" >&2
     return 124
   fi
-  # shellcheck disable=SC2046 # a list of pids, split on purpose
-  signal_all KILL $(tree "$watcher")
-  { wait "$watcher"; } 2>/dev/null
   return "$rc"
 }
 
@@ -170,12 +204,15 @@ step() {
 # compiler judged it; the first run downloads it, later runs use the cache, so
 # both lookups run under a deadline and announce themselves.
 echo "== toolchain  [$(date +%H:%M:%S)]"
-toolchain=$(deadline 'toolchain (go list -m)' "$(limit "${STATIC_DEADLINE_SECS:-$DEADLINE_TOOL}")" go list -m -f '{{.GoVersion}}') \
-  || { echo "static.sh: no toolchain could be found for go.mod"; exit 2; }
+tcfile=$(mktemp) || exit 2
+deadline 'toolchain (go list -m)' "$(limit "${STATIC_DEADLINE_SECS:-$DEADLINE_TOOL}")" go list -m -f '{{.GoVersion}}' > "$tcfile" \
+  || { rm -f "$tcfile"; echo "static.sh: no toolchain could be found for go.mod"; exit 2; }
+toolchain=$(cat "$tcfile")
 GOTOOLCHAIN="go$toolchain"; export GOTOOLCHAIN
-goversion=$(deadline 'toolchain (go version)' "$(limit "${STATIC_DEADLINE_SECS:-$DEADLINE_TOOL}")" go version) \
-  || { echo "static.sh: the toolchain go.mod names did not start"; exit 2; }
-echo "toolchain: $goversion"
+deadline 'toolchain (go version)' "$(limit "${STATIC_DEADLINE_SECS:-$DEADLINE_TOOL}")" go version > "$tcfile" \
+  || { rm -f "$tcfile"; echo "static.sh: the toolchain go.mod names did not start"; exit 2; }
+echo "toolchain: $(cat "$tcfile")"
+rm -f "$tcfile"
 
 GOLANGCI_VERSION=2.14.0
 DEADCODE=golang.org/x/tools/cmd/deadcode@v0.50.0
@@ -408,24 +445,22 @@ step self-test self_test
 # command inside its deadline keeps its own status. Four planted tools against a
 # 2 s deadline, each with a sleeper whose argument carries this shell's pid so
 # that pgrep finds only it: a plain one, one that ignores TERM (stopped only by
-# the watchdog's KILL), a grandchild, and one that exits 0 on TERM with a marker
-# file that cannot be written (timed out must not rest on the marker alone). The
-# deadlines here are literal, so STATIC_DEADLINE_SECS cannot shorten the test.
+# the watchdog's KILL), a grandchild, and one that EXITS 0 on TERM (exec'd, so the
+# status the wrapper sees really is 0; timed out must come from the watchdog and
+# not from the command's status). A healthy command 0.64 s long under a 1 s
+# deadline must pass whichever second boundary it crosses. The deadlines here are
+# literal, so STATIC_DEADLINE_SECS cannot shorten the test.
 deadline_self_test() {
   local out rc t0 el c n u=$$ ok=1
   planted_plain() { sleep "30.$u"; }
   planted_term() { sh -c 'trap "" TERM; exec sleep 31.'"$u"; :; }
   planted_grand() { sh -c 'sleep 32.'"$u"' & wait'; :; }
-  planted_exit0() { sh -c 'trap "exit 0" TERM; sleep 33.'"$u"; exit 0; }
+  planted_exit0() { exec sh -c 'trap "exit 0" TERM; sleep 33.'"$u"; }
   for c in plain:30 term:31 grand:32 exit0:33; do
     n=${c##*:}
     c=${c%%:*}
     t0=$SECONDS
-    if [ "$c" = exit0 ]; then
-      out=$(DEADLINE_FLAG=/nonexistent-static-sh/marker deadline "planted $c" 2 "planted_$c" 2>&1)
-    else
-      out=$(deadline "planted $c" 2 "planted_$c" 2>&1)
-    fi
+    out=$(deadline "planted $c" 2 "planted_$c" 2>&1)
     rc=$?
     el=$((SECONDS - t0))
     sleep 0.3
@@ -450,6 +485,15 @@ deadline_self_test() {
     echo "self-test: a command inside its deadline lost its exit status (got $rc, want 3)"
     ok=0
   fi
+  for _ in 1 2 3 4 5; do
+    deadline 'planted near' 1 sh -c 'sleep 0.64'
+    rc=$?
+    if [ "$rc" -ne 0 ]; then
+      echo "self-test: a healthy command inside its deadline was reported as timed out (exit $rc)"
+      ok=0
+    fi
+    sleep 0.37
+  done
   [ "$ok" -eq 1 ] || return 1
   echo "self-test: a tool past its deadline is stopped with its tree and named; one inside it keeps its status"
 }
