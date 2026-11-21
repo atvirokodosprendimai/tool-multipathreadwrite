@@ -17,27 +17,31 @@ import (
 // does; the word follows it. Asked both where nothing matched and beside a
 // served file, under each finder.
 func TestAPlainMCPFinderNamesTheKindOfAPathItCouldNotUse(t *testing.T) {
-	if runtime.GOOS == "windows" || os.Getuid() == 0 {
-		t.Skip("a mode-000 directory is still listable here")
-	}
+	// The mode-000 case needs a user a mode-000 directory stops, and not Windows;
+	// the absent and outside-root cases run everywhere.
+	canLock := runtime.GOOS != "windows" && os.Getuid() != 0
 	root := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", filepath.Join(t.TempDir(), "state"))
 	if err := os.WriteFile(filepath.Join(root, "a.go"), []byte("package a\nvar WANTED = 1\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Mkdir(filepath.Join(root, "locked"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(root, "locked", "b.go"), []byte("package b\nvar WANTED = 2\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Chmod(filepath.Join(root, "locked"), 0o000); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.Chmod(filepath.Join(root, "locked"), 0o755) })
 	outside := "../outside-" + filepath.Base(root)
-	bad := []any{"absent.go", outside, "locked"}
-	want := map[string]string{"absent.go": "UNREADABLE", outside: "REFUSED", "locked": "UNREADABLE"}
+	bad := []any{"absent.go", outside}
+	want := map[string]string{"absent.go": "UNREADABLE", outside: "REFUSED"}
+	if canLock {
+		if err := os.Mkdir(filepath.Join(root, "locked"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(root, "locked", "b.go"), []byte("package b\nvar WANTED = 2\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chmod(filepath.Join(root, "locked"), 0o000); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = os.Chmod(filepath.Join(root, "locked"), 0o755) })
+		bad = append(bad, "locked")
+		want["locked"] = "UNREADABLE"
+	}
 	check := func(t *testing.T, text string) {
 		t.Helper()
 		for path, word := range want {
@@ -126,6 +130,21 @@ func TestAPlainMCPFinderQuotesAPathThatHoldsALineFeed(t *testing.T) {
 		text := fmt.Sprint(call(t, root, "mrw_read", map[string]any{"specs": []any{name}, "grep": "NOWHERE765"})["content"])
 		if !strings.Contains(text, quoted) {
 			t.Errorf("the name is not quoted on one line, want %q in:\n%s", quoted, text)
+		}
+		forged(t, text)
+	})
+	t.Run("served", func(t *testing.T) {
+		root := t.TempDir()
+		t.Setenv("XDG_STATE_HOME", filepath.Join(t.TempDir(), "state"))
+		if err := os.WriteFile(filepath.Join(root, "a.go"), []byte("package a\nvar WANTED = 1\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		text := fmt.Sprint(call(t, root, "mrw_read", map[string]any{"specs": []any{"a.go", name}, "grep": "WANTED"})["content"])
+		if !strings.Contains(text, "WANTED = 1") {
+			t.Fatalf("a.go was not served, so this is not the served branch:\n%s", text)
+		}
+		if !strings.Contains(text, quoted) {
+			t.Errorf("the served answer does not quote the name on one line, want %q in:\n%s", quoted, text)
 		}
 		forged(t, text)
 	})

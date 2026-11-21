@@ -298,7 +298,10 @@ func judgeNamed(root, absRoot, p string) (namedPath, *Problem) {
 		// A file spelled as a directory (a.txt/, a.txt/.) is UNREADABLE, as a
 		// direct read says of it (read.go, ADR-076 Decision 1): the OS refuses
 		// that open with ENOTDIR. Every other refusal here (outside the root, mrw's
-		// own state, a device name) is mrw's own rule, and REFUSED (#765).
+		// own state, an ADR-134 hard link to it, a device name) is mrw's own rule,
+		// and REFUSED (#765) — except that the resolver judges the spelling first,
+		// so a state file or such a hard link spelled with a trailing separator
+		// gets the spelling's UNREADABLE, as a direct read gives it.
 		return namedPath{}, &Problem{Path: p, Reason: err.Error(), Unreadable: errors.Is(err, rooted.ErrNotADirectory)}
 	}
 	fi, err := os.Stat(full)
