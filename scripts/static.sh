@@ -28,10 +28,12 @@
 # runs out the message names the step that was running. The arithmetic CI relies
 # on: the budget, plus the 5 s a stopped tree is given before KILL, plus the
 # shell and python start-up, stays under the Static analysis step's
-# timeout-minutes in .github/workflows/ci.yml (10, i.e. 600 s), so the log of a
-# hang is kept; raise that limit with this budget. STATIC_DEADLINE_SECS=N makes
-# every step's own deadline N seconds (a slow network, or a test); the budget
-# still applies.
+# timeout-minutes in .github/workflows/ci.yml, so the log of a hang is kept.
+# Those defaults are for a warm machine (the post-commit hook kills at 280 s
+# anyway); CI sets cold-safe values in the step's env, STATIC_TOTAL_SECS=900 and
+# STATIC_DEADLINE_SECS=400 with a step limit of 18 minutes, and the two files are
+# raised together. STATIC_DEADLINE_SECS=N makes every step's own deadline N
+# seconds (a slow network, or a test); the budget still applies.
 #
 # A step is stopped by walking its process TREE (pgrep -P), TERM first and KILL
 # 5 s later, and not by a process group of its own: everything stays in this
