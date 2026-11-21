@@ -25,15 +25,22 @@ import (
 // printed and counted. Each phase returns facts; the surfaces render them.
 
 // InputFromHunk carries a parsed edit into the engine after the caller has
-// resolved any working-set pointer in the target path.
+// resolved any working-set pointer in the target path. When path differs from
+// the hunk's own, the caller expanded a pointer (@N): Pointer keeps it as typed,
+// for a refusal of a rooted path to say which entry holds that spelling (ADR-215
+// Decision 5).
 func InputFromHunk(h plan.Hunk, path string) apply.Input {
-	return apply.Input{
+	in := apply.Input{
 		Path: path, Start: h.Addr.Start, End: h.Addr.End, Op: string(h.Op),
 		StartPat: h.Addr.StartPat, EndPat: h.Addr.EndPat, RelEnd: h.Addr.RelEnd,
 		Occurrence: h.Occurrence, CountedBody: h.CountedBody,
 		Body: h.Body, SHA: h.SHA, Lines: h.Lines, Anchor: h.Anchor, Quote: h.Quote, SrcLine: h.SrcLine,
 		From: h.BodyFrom, FromStart: h.BodyFromAddr.Start, FromEnd: h.BodyFromAddr.End, FromRelEnd: h.BodyFromAddr.RelEnd,
 	}
+	if path != h.Path {
+		in.Pointer = h.Path
+	}
+	return in
 }
 
 // CheckMode says whether a write's check runs (ADR-054, ADR-205).

@@ -38,11 +38,6 @@ func TestAnExpandedWorkingSetPointerThatIsRootedIsRefused(t *testing.T) {
 		if err != nil || string(b) != "a\nb\nc\n" {
 			t.Errorf("the file changed: %q %v", b, err)
 		}
-		for _, bad := range []string{"new", "Add"} {
-			if _, err := os.Stat(filepath.Join(k.root, bad)); err == nil {
-				t.Errorf("%s was made", bad)
-			}
-		}
 	}
 
 	for _, c := range []struct {

@@ -149,11 +149,11 @@ func TestAReasonSpellsAPlansPathAsItsRowDoes(t *testing.T) {
 		{name: "two names that differ only in case, one a rename's destination", files: one, plan: fixed(
 			op(f, "rename", nat("d/Q.txt")), op(nat("d/q.txt"), "create", "x")),
 			want: []string{"d/q.txt may name the same file as d/Q.txt"}, absent: []string{nat("d/")}},
-		// foldClashes runs before an absolute destination is refused, so it
-		// can hold a rooted name: that one stays as the caller typed it.
+		// ADR-215: an absolute destination is refused before foldClashes runs, so
+		// both are refused as typed and the case pair is never compared.
 		{name: "two rooted rename destinations that differ only in case", files: two, plan: fixed(
 			op(f, "rename", string(filepath.Separator)+nat("missing/Q.txt")), op(g, "rename", string(filepath.Separator)+nat("missing/q.txt"))),
-			want: []string{string(filepath.Separator) + nat("missing/q.txt") + " may name the same file as " + string(filepath.Separator) + nat("missing/Q.txt")}},
+			want: []string{string(filepath.Separator) + nat("missing/Q.txt") + " is absolute, and every path in a plan is relative to the root", string(filepath.Separator) + nat("missing/q.txt") + " is absolute, and every path in a plan is relative to the root"}},
 		{name: "a rename onto the source", files: one, plan: fixed(op(f, "rename", f)),
 			want: []string{"rename dest d/f.txt is the source"}, absent: []string{f}},
 		{name: "a rename dest named twice", files: two, plan: fixed(op(f, "rename", nat("d/t.txt")), op(g, "rename", nat("d/t.txt"))),
@@ -293,19 +293,15 @@ func TestAReasonSpellsAPlansPathAsItsRowDoes(t *testing.T) {
 		write(t, root, "f0.txt", body)
 		write(t, root, f, body)
 		abs := filepath.Join(root, "x.txt")
-		realRoot, err := filepath.EvalSymlinks(root)
-		if err != nil {
-			t.Fatal(err)
-		}
 		for _, c := range []struct {
 			name string
 			in   []Input
 			want []string
 		}{
 			{"an absolute rename destination", []Input{op("f0.txt", "rename", abs)},
-				[]string{abs + " is absolute", "mrw looked for " + abs}},
+				[]string{abs + " is absolute, and every path in a plan is relative to the root"}},
 			{"an absolute path that does not exist", []Input{op("/nothere.txt", "unlink")},
-				[]string{"mrw looked for " + realRoot}},
+				[]string{"/nothere.txt is absolute, and every path in a plan is relative to the root"}},
 			{"from=X echoed as the header spelled it", []Input{{Path: g, Op: "create", Body: []string{"x"}, From: f, FromStart: 1, FromEnd: 1, Lines: -1}},
 				[]string{"from=" + f + ":1 is the hunk's body"}},
 			{"a from= span that is no source address", []Input{{Path: g, Op: "create", From: f, FromStart: 0, FromEnd: 1, Lines: -1}},

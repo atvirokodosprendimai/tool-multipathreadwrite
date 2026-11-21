@@ -229,6 +229,20 @@ func TestEveryPlanOpRefusesARootedPath(t *testing.T) {
 			}
 		}
 	})
+
+	// A working-set pointer's sentence is added from the hunk's Pointer.
+	t.Run("a pointer is named", func(t *testing.T) {
+		root, _, seen := fixture(t)
+		in := edit("/dd/zz.txt", "replace")
+		in.Pointer = "@1"
+		res, err := Apply(root, []Input{in}, Options{Seen: seen})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if r := res.Hunks[0].Reason; !strings.Contains(r, "(the working-set entry @1 holds it: mrw iter lists it; add it again without the leading separator)") {
+			t.Errorf("reason %q does not name the entry", r)
+		}
+	})
 }
 
 func equalTrees215(a, b map[string]string) bool {

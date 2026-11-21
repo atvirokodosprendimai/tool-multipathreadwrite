@@ -1393,16 +1393,23 @@ want 1 "$rc" "an absolute path in a PLAN is still refused"
 grep -q 'is absolute, and every path in a plan is relative to the root' <<<"$out" \
   && ok "and still says why, by name" \
   || bad "lost the absolute-path diagnosis: $(head -1 <<<"$out")"
-# THE ROW: the path reported missing must be the JOINED one, which contains the
-# root twice. A message naming only the caller's path is the bug.
-if grep -qF "$R$R/sub/real.go" <<<"$out"; then
-  ok "and names the joined path it actually looked for"
+# ADR-215: the refusal comes before any lookup, so there is no joined path to
+# name. THE ROW: it says what to write instead, the remainder below the root,
+# and no line holds the root twice, which is what the old join produced.
+if grep -qF "for the file inside the root write sub/real.go" <<<"$out"; then
+  ok "and names the spelling to write instead (ADR-215)"
 else
-  bad "does not name the joined path: $(head -1 <<<"$out")"
+  bad "does not name the spelling to write: $(head -1 <<<"$out")"
 fi
-[ -f "$R/sub/real.go" ] \
-  && ok "and the file it called missing is still right there, untouched" \
-  || bad "the fixture file vanished"
+if grep -qF "$R$R" <<<"$out"; then
+  bad "still names a joined path: $(grep -oF "$R$R" <<<"$out" | head -1)"
+else
+  ok "and names no joined path, since nothing was looked up (ADR-215)"
+fi
+[ ! -e "$R$R" ] && ok "and no directory chain was made under the root" || bad "the absolute path was built under the root"
+[ "$(cat "$R/sub/real.go")" = "$(printf 'a\nb\nc')" ] \
+  && ok "and the file the plan named is right there, byte for byte untouched" \
+  || bad "the fixture file changed or vanished"
 
 # 28. ADR-007: mrw FINDS the files it serves. Every flag and every documented
 # usage error, driven through the real binary — because the precedence table is

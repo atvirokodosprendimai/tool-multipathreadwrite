@@ -222,11 +222,6 @@ func planPathOp(root, path, full string, h hunk, orig []string, existed bool, sh
 		}
 	}
 	if !existed {
-		if rooted.IsRooted(h.Path) {
-			fail(h, "%s is absolute, and every path in a plan is relative to the root: mrw looked for %s, "+
-				"which does not exist", h.Path, full)
-			return false
-		}
 		fail(h, "%s does not exist%s", path, miss)
 		return false
 	}
@@ -238,11 +233,6 @@ func planPathOp(root, path, full string, h hunk, orig []string, existed bool, sh
 	}
 	if h.Op == "rename" {
 		raw := h.Body[0] // the destination exactly as written (ADR-069)
-		if rooted.IsRooted(raw) {
-			fail(h, "%s is absolute, and every path in a plan is relative to the root: mrw looked for %s, "+
-				"which does not exist", raw, raw)
-			return false
-		}
 		// ADR-076: `d/` names a directory; cleaned, it made a FILE named d.
 		if rooted.SpelledAsDirectory(raw) {
 			fail(h, "rename dest %s %v; a rename names the file it makes, such as %s", raw, rooted.ErrNotADirectory, asPlan(filepath.Join(filepath.Clean(raw), filepath.Base(path))))
@@ -621,4 +611,78 @@ func commitPathOps(tr *tree, res *Result, pathOps []pending) (string, error) {
 		res.cleanUp(tr, a.tmp)
 	}
 	return "", nil
+}
+
+// rootedPlanPaths is ADR-215's preflight: the plan paths that are rooted,
+// as failed hunks by position. It tests each hunk's RAW path and each rename's
+// RAW destination with rooted.IsRooted, never filepath.IsAbs (on Windows `/x`,
+// `\x` and `c:x` carry no volume and IsAbs is false for all three), and it looks
+// nothing up, so a rooted spelling reaches no resolver, no stat and no file
+// load. Apply runs it before the ledger-backed copies, the directory-spelling
+// rule, the collision maps and a rename's source load; a plan that fails it
+// reports every other hunk skipped and writes nothing.
+func rootedPlanPaths(root string, in []Input) map[int]HunkResult {
+	var fails map[int]HunkResult
+	for n, i := range in {
+		raw, dest := i.Path, false
+		if !rooted.IsRooted(raw) {
+			if i.Op != "rename" || len(i.Body) != 1 || !rooted.IsRooted(i.Body[0]) {
+				continue
+			}
+			raw, dest = i.Body[0], true
+		}
+		if fails == nil {
+			fails = map[int]HunkResult{}
+		}
+		fails[n] = HunkResult{
+			Path: filepath.Clean(i.Path), Addr: srcAddrOf(i), Op: i.Op, SrcLine: i.SrcLine,
+			Status: StatusFailed, Reason: rootedReason(root, raw, dest, i.Pointer),
+		}
+	}
+	return fails
+}
+
+// rootedReason says why a rooted path is refused and, only where it is sure,
+// what to write instead: the lexical remainder of an absolute path that
+// rooted.Contains puts inside the root. It never strips a separator into a
+// suggestion (`/etc/hosts` would name an unrelated etc/hosts, `/../x` would
+// leave the root), and never follows a link: a symlink's entry is named, not
+// its target. A header spelling is written so it parses back as the same name
+// (`./@x` for a leading @, double quotes round a space); a rename destination
+// is the literal body line.
+func rootedReason(root, raw string, dest bool, pointer string) string {
+	s := raw + " is absolute, and every path in a plan is relative to the root"
+	if rel, ok := insideRoot(root, raw); ok {
+		switch {
+		case dest:
+		case strings.HasPrefix(rel, "@"):
+			rel = "./" + rel
+		case strings.ContainsAny(rel, " \t"):
+			rel = `"` + rel + `"`
+		}
+		s += ": for the file inside the root write " + rel
+	} else {
+		s += ": name the file relative to the root, without the leading separator or drive"
+	}
+	if pointer != "" {
+		s += " (the working-set entry " + pointer + " holds it: mrw iter lists it; add it again without the leading separator)"
+	}
+	return s
+}
+
+// insideRoot is the "/"-spelled remainder of raw below root, when raw names
+// something strictly inside it by its spelling alone, and not a directory.
+func insideRoot(root, raw string) (string, bool) {
+	if rooted.SpelledAsDirectory(raw) {
+		return "", false
+	}
+	c := filepath.Clean(raw)
+	if !rooted.Contains(filepath.Clean(root), c) {
+		return "", false
+	}
+	rel, err := filepath.Rel(filepath.Clean(root), c)
+	if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", false
+	}
+	return Slash(rel, reasonSep), true
 }
