@@ -55,7 +55,7 @@ through a new ADR that supersedes the old one and updates its contract rows in t
 3. **A check's verdict comes from the process, never its output.** A check that
    prints `PASS` and exits 1 is a failure. — ADR-003
 4. **Nothing is left in the working tree** by a failed run — except, when an
-   undo step itself fails, the named `.mrw-aside-*` recovery file. — ADR-004, ADR-066
+   undo step itself fails, the named `.mrw-aside-*` recovery file or `.mrw-undo-*` directory. — ADR-004, ADR-066, ADR-209
 5. **mrw finds the files it serves**, and says which path it looked for when it
    cannot. — ADR-007
 6. **A delete says what it removed.** — ADR-008

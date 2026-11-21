@@ -243,6 +243,12 @@ type FileResult struct {
 	// mrw did not write: its target is not read, the record carries no
 	// content fields, and it licenses nothing (#712). Not a receipt field.
 	NotProduced bool `json:"-"`
+	// NotHeld and NotHeldWhy are set on a file whose path, after a failed commit's
+	// undo, is missing or holds something other than the bytes mrw wrote
+	// (ADR-209 Decision 6): its record stays written, its hunks are failed with the
+	// reason, and the ledger does not record it. Not receipt fields.
+	NotHeld    bool   `json:"-"`
+	NotHeldWhy string `json:"-"`
 }
 
 // Result is the whole run's receipt.
@@ -1074,11 +1080,15 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 		nameDirs()
 		written := map[string]bool{}
 		removed := map[string]bool{}
+		notHeld := map[string]string{}
 		have := map[string]bool{}
 		for _, f := range res.Files {
 			have[f.Path] = true
 			if f.Written {
 				written[f.Path] = true
+			}
+			if f.NotHeld {
+				notHeld[f.Path] = f.NotHeldWhy
 			}
 			if f.Removed {
 				removed[f.Path] = true
@@ -1102,9 +1112,19 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 				}
 			// An edit whose file's content landed stays ok even when a
 			// later step on the same path failed: it is on disk.
+			// ADR-209: the edit of a file whose rename failed was put back with it: the
+			// rename is the hunk that failed, and the edit did not land.
+			case fromPathOps && h.Path == path && h.Op != "unlink" && !written[h.Path]:
+				h.Status = StatusSkipped
 			case h.Path == path && !written[h.Path]:
 				h.Status = StatusFailed
 				h.Reason = cause.Error()
+				res.Failed++
+			// ADR-209: a file whose path no longer holds what the hunk wrote, after an undo
+			// that could not put it back, is written and its hunks failed.
+			case written[h.Path] && notHeld[h.Path] != "":
+				h.Status = StatusFailed
+				h.Reason = notHeld[h.Path]
 				res.Failed++
 			case written[h.Path]:
 			default:
@@ -1366,25 +1386,86 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			return abortStage(who, &tempSyncError{Err: fmt.Errorf("the drain of the device holding %s: %w", tr.shown(p), err)})
 		}
 	}
+	// ADR-209: every existing content target is hard-linked under a fresh aside
+	// name before the first rename, so a commit that fails partway can put the
+	// files it renamed back. A link that cannot be made does not stop the write:
+	// that file commits as before and, if the commit later fails, is named as one
+	// the undo could not put back.
+	asideOf := make([]string, len(content))
+	asideErr := make([]error, len(content))
+	listedOf := make([]string, len(content))
+	listing := map[string][]fs.DirEntry{}
+	for i, w := range content {
+		if !w.file.Created {
+			var listedOK bool
+			if listedOf[i], listedOK = listedName(tr, staged[i].target, listing); !listedOK {
+				asideErr[i] = errors.New("its directory lists it under more than one name and none is the plan's spelling, so the aside could not be linked back by name")
+				continue
+			}
+			asideOf[i], asideErr[i] = makeAside(tr, staged[i].target)
+			// The aside is the file the link reached at that instant. It is checked here,
+			// under its own stable name, against what the plan loaded: if another file stood
+			// at the path for that instant and the original came back before the commit's
+			// own check, a failed commit would otherwise put the stranger back.
+			if a := asideOf[i]; a != "" && w.seen != nil {
+				ai, aerr := lstatFn(tr, a)
+				if aerr != nil || !sameFileFn(w.seen, ai) {
+					for _, made := range asideOf { // names mrw just made itself, so it removes them whatever they link to
+						res.cleanUp(tr, made)
+					}
+					discard(0)
+					if aerr != nil {
+						// The look failed: that is the environment's, not a stranger at the path.
+						return refuseStage(w.file.Path, fmt.Errorf("%s: its aside could not be looked at: %w", w.file.Path, aerr), targetCause(aerr))
+					}
+					return refuseStage(w.file.Path, fmt.Errorf("%s changed after mrw read it: another file stood at its path when its aside was made; read it again and send the plan again", w.file.Path), true)
+				}
+			}
+		}
+	}
+	var done []contentFile
+	// failCommit ends a commit that failed after its checks: the asides of the
+	// files not yet renamed are removed, the files renamed in are put back, and
+	// the error is built after both, so what it says of what was written is what
+	// is on disk (ADR-209 Decision 6). A nil cause is the error built.
+	failCommit := func(unrenamed int, path string, fromPathOps bool, cause error, text func() error) (Result, error) {
+		for j := unrenamed; j < len(content); j++ {
+			removeAside(tr, &res, asideOf[j], content[j].seen)
+		}
+		left := undoContent(tr, &res, done)
+		ret := text()
+		if left != "" {
+			if strings.Contains(ret.Error(), "UNDO INCOMPLETE: ") { // the path ops' undo already said so: one list
+				ret = fmt.Errorf("%w; %s", ret, left)
+			} else {
+				ret = fmt.Errorf("%w; UNDO INCOMPLETE: %s", ret, left)
+			}
+		}
+		if cause == nil {
+			cause = ret
+		}
+		return commitFailed(path, fromPathOps, cause, ret)
+	}
 	for i, w := range content {
 		// ADR-071: a create whose target exists by now was made by an earlier
 		// rename in this commit under a name the filesystem folds into this one
 		// — ß.txt and ss.txt on APFS, the NFC and NFD spellings of one name —
 		// or by another process. Renaming over it would lose that body at exit
-		// 0, so the commit stops and says what already landed. foldClashes
-		// refuses the case pairs before anything is written; this catches the
-		// folds no name comparison can see (review of #228).
+		// 0, so the commit stops, and the files renamed before it are put back
+		// (ADR-209). foldClashes refuses the case pairs before anything is
+		// written; this catches the folds no name comparison can see (review of
+		// #228).
 		if w.file.Created {
 			if _, err := tr.stat(staged[i].target); err == nil {
 				discard(i)
 				err := fmt.Errorf("%s appeared before commit: another name in this plan reaches the same file, or another process created it", w.file.Path)
-				return commitFailed(w.file.Path, false, err, fmt.Errorf("%w (%s)", err, writtenSoFar(res.Files)))
+				return failCommit(i, w.file.Path, false, err, func() error { return fmt.Errorf("%w (%s)", err, writtenSoFar(res.Files)) })
 			}
 		}
 		if why, _ := changedSince(tr, staged[i].target, w.seen); why != "" {
 			discard(i)
 			err := fmt.Errorf("%s changed after mrw read it: %s; read it again and send the plan again", w.file.Path, why)
-			return commitFailed(w.file.Path, false, err, fmt.Errorf("%w (%s)", err, writtenSoFar(res.Files)))
+			return failCommit(i, w.file.Path, false, err, func() error { return fmt.Errorf("%w (%s)", err, writtenSoFar(res.Files)) })
 		}
 		// A create's install must not replace a file that appeared (#731); an edit
 		// of a file that exists replaces it, guarded by changedSince above.
@@ -1392,15 +1473,22 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 		if w.file.Created {
 			itr = tr.noReplace()
 		}
+		// What the temp is, with its file ID loaded now: the undo removes the path
+		// only while it is still this file (ADR-209 Decision 3).
+		tmpInfo, tmpErr := lstatFn(tr, staged[i].tmp)
+		if tmpInfo != nil {
+			_ = sameFileFn(tmpInfo, tmpInfo)
+		}
 		if err := commitRenameFn(itr, staged[i].tmp, staged[i].target); err != nil {
 			res.noteExtraName(tr, err)
 			discard(i)
 			if w.file.Created && errors.Is(err, fs.ErrExist) {
 				err = fmt.Errorf("%s appeared before commit: another name in this plan reaches the same file, or another process created it", w.file.Path)
-				return commitFailed(w.file.Path, false, err, fmt.Errorf("%w (%s)", err, writtenSoFar(res.Files)))
+				return failCommit(i, w.file.Path, false, err, func() error { return fmt.Errorf("%w (%s)", err, writtenSoFar(res.Files)) })
 			}
-			return commitFailed(w.file.Path, false, err, fmt.Errorf("%s: %w (%s)", w.file.Path, err, writtenSoFar(res.Files)))
+			return failCommit(i, w.file.Path, false, err, func() error { return fmt.Errorf("%s: %w (%s)", w.file.Path, err, writtenSoFar(res.Files)) })
 		}
+		done = append(done, contentFile{path: w.file.Path, target: staged[i].target, created: w.file.Created, aside: asideOf[i], asideErr: asideErr[i], tmp: tmpInfo, tmpErr: tmpErr, dirs: staged[i].dirs, listed: listedOf[i], seen: w.seen})
 		w.file.Written = true
 		if rel, err := filepath.Rel(absRoot, staged[i].target); absErr == nil && err == nil && !sameSpelling(rel, w.file.Path) {
 			w.file.Target = rel
@@ -1412,7 +1500,17 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 		// (ADR-066 T1) are taken back; one a completed rename still uses is
 		// not empty, and os.Remove leaves it.
 		discard(len(content))
-		return commitFailed(path, true, err, err)
+		var f *pathOpFailure
+		if !errors.As(err, &f) {
+			return failCommit(len(content), path, true, nil, func() error { return err })
+		}
+		return failCommit(len(content), path, true, nil, func() error {
+			return fmt.Errorf("%s: %w (%s)%s", path, f.cause, writtenSoFar(res.Files), f.suffix)
+		})
+	}
+	// ADR-209 Decision 7: the commit landed, so every aside goes; one that cannot is named.
+	for j, a := range asideOf {
+		removeAside(tr, &res, a, content[j].seen)
 	}
 	nameDirs()
 	res.Applied = true
@@ -2803,13 +2901,24 @@ func (res *Result) noteIfLeft(tr *tree, p string) {
 	res.LeftBehind = append(res.LeftBehind, res.rel(p))
 }
 
+// leave names p in LeftBehind whatever it is and whatever it holds, unless it is gone:
+// a directory mrw displaced and could not put back may hold the only copy of what
+// another process put at the path, and noteIfLeft, which passes over a directory that
+// still holds something, would hide it (ADR-209).
+func (res *Result) leave(tr *tree, p string) {
+	if _, err := lstatFn(tr, p); errors.Is(err, fs.ErrNotExist) {
+		return
+	}
+	res.LeftBehind = append(res.LeftBehind, res.rel(p))
+}
+
 // noteExtraName names the second name a move left when it could not take it
 // back (extraNameError): the receipt then says so in left_behind, though the move
 // itself failed and nothing is reported written.
 func (res *Result) noteExtraName(tr *tree, err error) {
 	var e *extraNameError
 	if errors.As(err, &e) {
-		res.noteIfLeft(tr, e.name)
+		res.leave(tr, e.name)
 	}
 }
 

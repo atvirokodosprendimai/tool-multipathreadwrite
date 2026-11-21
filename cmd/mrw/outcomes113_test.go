@@ -68,7 +68,7 @@ var outcomeRows = []outcomeRow{
 	{name: "dry_run_refused", harness: `{"check":"exit 0"}`, noRead: true, args: []string{"--dry-run"}, plan: goPlan},
 	{name: "names_a_directory", harness: `{"check":"exit 0"}`, dir: "d", plan: "@@ d 1 replace\nx\n"},
 	// Landed, and what followed.
-	{name: "partial_commit", partial: true, args: []string{"--no-check"}, plan: partialPlan},
+	{name: "failed_commit_undone", partial: true, args: []string{"--no-check"}, plan: partialPlan},
 	{name: "ledger_failed_no_check", ledger: true, harness: `{"check":"exit 0"}`, args: []string{"--no-check"}, plan: goPlan},
 	{name: "ledger_failed_check_due", ledger: true, harness: `{"check":"exit 0"}`, args: []string{"--check"}, plan: goPlan},
 	{name: "ledger_failed_with_step", ledger: true, harness: `{"check":"exit 0"}`, args: []string{"--check", "--then-sh", "exit 0"}, plan: goPlan},

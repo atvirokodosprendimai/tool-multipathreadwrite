@@ -189,9 +189,10 @@ func TestAnUnlinkOfALinkToAReadOnlyFileRemovesTheLink(t *testing.T) {
 	}
 }
 
-// Codex review of #237. A commit that failed after an earlier file landed left
-// that file's new directories on disk, and dirs_created was set only on success,
-// so the receipt of a PARTIALLY APPLIED plan hid them.
+// Codex review of #237, since ADR-209. A commit that failed after an earlier file
+// landed once left that file's new directories on disk, and the receipt hid them;
+// the undo now removes the created file and the directories staging made for it,
+// and the receipt names none.
 func TestAPartialCommitNamesTheDirectoriesItLeft(t *testing.T) {
 	root := t.TempDir()
 	write(t, root, "b.txt", "b\n")
@@ -203,11 +204,11 @@ func TestAPartialCommitNamesTheDirectoriesItLeft(t *testing.T) {
 	if err == nil || res.Applied {
 		t.Fatalf("the injected commit failure did not fail the plan: %v", err)
 	}
-	if !exists(t, root, "n/deep/a.txt") {
-		t.Fatal("the fixture needs a.txt to have landed before b.txt failed")
+	if exists(t, root, "n") {
+		t.Fatal("the created file's directories are still on disk after the undo")
 	}
-	if want := []string{"n", filepath.Join("n", "deep")}; !reflect.DeepEqual(res.DirsCreated, want) {
-		t.Errorf("dirs_created = %q, want %q: directories on disk left out of the receipt", res.DirsCreated, want)
+	if len(res.DirsCreated) != 0 {
+		t.Errorf("dirs_created = %q, want none: the undo took them back", res.DirsCreated)
 	}
 }
 

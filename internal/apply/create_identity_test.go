@@ -218,7 +218,8 @@ func TestACollisionTheNamesCannotShowIsCaughtAtCommit(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "appeared before commit") {
 		t.Fatalf("the second create renamed over the first: err %v, hunks %+v", err, res.Hunks)
 	}
-	if got := read(t, root, "ß.txt"); got != "one\n" {
-		t.Fatalf("the first body was lost: %q", got)
+	// ADR-209: the first create is put back, and nothing is written.
+	if _, err := os.Stat(filepath.Join(root, "ß.txt")); !os.IsNotExist(err) {
+		t.Fatalf("the first create was left behind by a commit that stopped: %v", err)
 	}
 }

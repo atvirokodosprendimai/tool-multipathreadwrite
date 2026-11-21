@@ -1807,3 +1807,7 @@ changed after the first counted attempt.
   caller names the file and can inspect it, which is why it was left out twice. Owner: unassigned. Trigger: an
   adopter report of an empty file created from a failed producer, or a measurement of how often a caller writes
   one on purpose.
+
+## From ADR-209
+
+- **A file-only unlink and a no-replace rename for the undo's private entry:** the undo of a failed content commit moves the file it renamed into a private `.mrw-undo-*` directory and deletes it there. An entry another process swaps in at that private name between mrw's check and its deletion can still be removed (`os.Root.Remove` falls back to removing an empty directory, and the standard library exports no `unlinkat` with flags 0 for `os.Root`). ADR-213 (Proposed, `golang.org/x/sys`) would supply both the file-only unlink and a no-replace rename (`renameat2` `RENAME_NOREPLACE`, `renamex_np` `RENAME_EXCL`), which would also close #744's destination window. Owner: Zy. Trigger: ADR-213 accepted, or a report of a private entry swapped.

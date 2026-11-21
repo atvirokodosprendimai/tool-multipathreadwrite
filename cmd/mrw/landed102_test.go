@@ -9,8 +9,9 @@ import (
 	"testing"
 )
 
-// partialTree returns a checkout whose plan partialPlan commits partially:
-// a.go's single-line replace lands, then the unlink in the read-only d/ fails.
+// partialTree returns a checkout whose plan partialPlan fails at commit: a.go's
+// single-line replace lands, then the unlink in the read-only d/ fails and, since
+// ADR-209, a.go is put back.
 func partialTree(t *testing.T) string {
 	t.Helper()
 	if runtime.GOOS == "windows" || os.Geteuid() == 0 {
@@ -35,34 +36,26 @@ func partialTree(t *testing.T) string {
 
 const partialPlan = "@@ a.go 1 replace\npackage b\n@@ d/x.txt - unlink\n"
 
-// ADR-102 T1. A commit that failed after a file landed was counted
-// refused_apply, so `landed writes` missed a tree that had changed. It is one
-// partially_applied, counted in landed, and stats prints the name.
+// ADR-102 T1, since ADR-209. A commit that failed after a file landed was counted
+// refused_apply, then partially_applied; it puts the file back now, so the tree is
+// unchanged and stats counts it refused_apply and not landed. (partially_applied is
+// left to an undo that could not finish, which the built binary cannot be made to
+// reach: TestTheCLIPutsTheContentFilesBackWhenACommitFails drives the whole CLI case.)
 func TestAPartialCommitIsCountedAsPartiallyApplied(t *testing.T) {
 	root := partialTree(t)
 	out, code := writeIn(t, root, "--no-check", planFile(t, partialPlan))
-	if code != exitUsage || !strings.Contains(out, "PARTIALLY APPLIED") {
-		t.Fatalf("exit %d, want %d and a PARTIALLY APPLIED receipt:\n%s", code, exitUsage, out)
-	}
-	if b, _ := os.ReadFile(filepath.Join(root, "a.go")); string(b) != "package b\n" {
-		t.Fatalf("a.go did not land: %q", b)
+	if code != exitUsage || !strings.Contains(out, "NOTHING WRITTEN") {
+		t.Fatalf("exit %d, want %d and a NOTHING WRITTEN receipt:\n%s", code, exitUsage, out)
 	}
 	js, code := runIn(t, root, "stats", "--json")
 	var s struct {
 		Counts map[string]int `json:"counts"`
 		Landed int            `json:"landed"`
-		// ADR-056: a partial commit is a landed write, so it is priced (the review of #293).
-		Pricing struct {
-			Candidates int `json:"strict_candidates"`
-		} `json:"pricing"`
 	}
 	if err := json.Unmarshal([]byte(js), &s); code != 0 || err != nil {
 		t.Fatalf("stats --json: exit %d, %v:\n%s", code, err, js)
 	}
-	if s.Counts["partially_applied"] != 1 || s.Counts["refused_apply"] != 0 || s.Landed != 1 || s.Pricing.Candidates != 1 {
-		t.Errorf("counts %v landed %d candidates %d, want partially_applied 1, refused_apply 0, landed 1, strict_candidates 1", s.Counts, s.Landed, s.Pricing.Candidates)
-	}
-	if txt, _ := runIn(t, root, "stats"); !strings.Contains(txt, "partially_applied") {
-		t.Errorf("stats does not print partially_applied:\n%s", txt)
+	if s.Counts["refused_apply"] != 1 || s.Counts["partially_applied"] != 0 || s.Landed != 0 {
+		t.Errorf("counts %v landed %d, want refused_apply 1, partially_applied 0, landed 0", s.Counts, s.Landed)
 	}
 }

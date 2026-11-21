@@ -131,14 +131,14 @@ func TestAFileIsEditedAndRenamedInOnePlan(t *testing.T) {
 		if err == nil {
 			t.Fatal("the failed rename returned no error")
 		}
-		if read(t, root, "a.go") != edited {
-			t.Fatalf("a.go holds %q, want the edit that landed", read(t, root, "a.go"))
+		if read(t, root, "a.go") != abcde {
+			t.Fatalf("a.go holds %q, want the original put back", read(t, root, "a.go"))
 		}
-		if n, src := recordsFor(res, "a.go"); n != 1 || !src.Written || src.Removed || src.SHAAfter != shaOfFile(t, root, "a.go") {
-			t.Errorf("a.go: %d record(s), last %+v; want one, written with the edited sha, not removed", n, src)
+		if _, src := recordsFor(res, "a.go"); src.Written {
+			t.Errorf("a.go is written: %+v; want it unwritten, holding its original", src)
 		}
-		if res.Hunks[0].Status != StatusOK || res.Hunks[1].Status != StatusFailed {
-			t.Errorf("verdicts %s/%s, want the edit ok and the rename failed", res.Hunks[0].Status, res.Hunks[1].Status)
+		if res.Hunks[0].Status != StatusSkipped || res.Hunks[1].Status != StatusFailed {
+			t.Errorf("verdicts %s/%s, want the edit skipped and the rename failed", res.Hunks[0].Status, res.Hunks[1].Status)
 		}
 	})
 
@@ -161,17 +161,17 @@ func TestAFileIsEditedAndRenamedInOnePlan(t *testing.T) {
 		if err == nil {
 			t.Fatal("the failed rename returned no error")
 		}
-		if read(t, root, "a.go") != edited || exists114(t, root, "m/b.go") {
-			t.Fatalf("a.go %q, m/b.go there %v; want the edit back at a.go", read(t, root, "a.go"), exists114(t, root, "m/b.go"))
+		if read(t, root, "a.go") != abcde || exists114(t, root, "m/b.go") {
+			t.Fatalf("a.go %q, m/b.go there %v; want the original back at a.go", read(t, root, "a.go"), exists114(t, root, "m/b.go"))
 		}
-		if n, src := recordsFor(res, "a.go"); n != 1 || !src.Written || src.Removed || src.SHAAfter != shaOfFile(t, root, "a.go") {
-			t.Errorf("a.go: %d record(s), last %+v; want one, written with the edited sha", n, src)
+		if _, src := recordsFor(res, "a.go"); src.Written {
+			t.Errorf("a.go is written: %+v; want it unwritten, holding its original", src)
 		}
 		if n, _ := recordsFor(res, "m/b.go"); n != 0 {
 			t.Errorf("m/b.go still has %d record(s) after the undo", n)
 		}
-		if res.Hunks[0].Status != StatusOK || res.Hunks[1].Status != StatusSkipped || res.Hunks[2].Status != StatusFailed {
-			t.Errorf("verdicts %s/%s/%s, want ok/skipped/failed", res.Hunks[0].Status, res.Hunks[1].Status, res.Hunks[2].Status)
+		if res.Hunks[0].Status != StatusSkipped || res.Hunks[1].Status != StatusSkipped || res.Hunks[2].Status != StatusFailed {
+			t.Errorf("verdicts %s/%s/%s, want skipped/skipped/failed", res.Hunks[0].Status, res.Hunks[1].Status, res.Hunks[2].Status)
 		}
 	})
 

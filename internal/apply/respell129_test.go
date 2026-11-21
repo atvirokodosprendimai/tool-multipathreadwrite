@@ -172,10 +172,10 @@ func TestASourceNamedInAnotherSpellingIsRefused(t *testing.T) {
 	}
 }
 
-// The Codex review of ADR-129, finding 3. Content commits before path ops, so
-// a respelling found kept after a content edit landed leaves that edit
-// written: the receipt says so (PARTIALLY APPLIED), and the respelling itself
-// is undone.
+// The Codex review of ADR-129, finding 3, since ADR-209. Content commits before
+// path ops, so a respelling found kept after a content edit landed once left that
+// edit written (PARTIALLY APPLIED); the edit is now put back, and the respelling,
+// which moved nothing, has nothing to undo.
 func TestAKeptRespellingAfterAContentEditIsReportedPartial(t *testing.T) {
 	root := t.TempDir()
 	if !caseInsensitiveFS(t, root) {
@@ -204,18 +204,12 @@ func TestAKeptRespellingAfterAContentEditIsReportedPartial(t *testing.T) {
 		t.Errorf("a no-op respelling is reported as an undo that could not finish: %v", err)
 	}
 	for _, f := range res.Files {
-		if f.Written && (f.Path == "a.txt" || f.Path == "A.txt") {
-			t.Errorf("a written record of the rename survives although the filesystem moved nothing: %+v", f)
+		if f.Written {
+			t.Errorf("%s is written after the undo: %+v", f.Path, f)
 		}
 	}
-	wrote := false
-	for _, f := range res.Files {
-		if f.Path == "c.txt" && f.Written {
-			wrote = true
-		}
-	}
-	if !wrote || read(t, root, "c.txt") != "C\n" {
-		t.Fatalf("the landed content edit is not reported written: files=%+v", res.Files)
+	if read(t, root, "c.txt") != "c\n" {
+		t.Fatalf("the content edit was not put back: %q", read(t, root, "c.txt"))
 	}
 	if got := names(t, root); !slices.Equal(got, []string{"a.txt", "c.txt"}) {
 		t.Fatalf("the directory holds %v", got)

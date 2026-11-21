@@ -263,56 +263,40 @@ func contentCommitPlan(t *testing.T) (string, []Input) {
 	}
 }
 
-// ADR-066 T3. A content rename that fails at commit leaves a receipt that says
-// what reached disk: the file already renamed into place is ok and written,
-// the one that failed is failed, the rest are skipped and carry no write
-// detail (Echo, Balance), Advisories counts only ok hunks, and the directory
-// staged for the rename that never ran is taken back.
+// ADR-066 T3, since ADR-209. A content rename that fails at commit puts the files
+// already renamed back: the one that failed is failed, every other hunk is skipped
+// and carries no write detail (Echo, Balance), Advisories counts only ok hunks,
+// no file is written, and the directory staged for the rename that never ran is
+// taken back.
 func TestAFailedContentCommitReportsWrittenHunksOkAndTheRestSkipped(t *testing.T) {
-	control, in := contentCommitPlan(t)
-	ctl, err := Apply(control, in, Options{EchoPad: 1})
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, n := range []string{"a.go", "b.go", "c.go"} {
-		if h := hunkFor(t, ctl, n); h.Balance == "" || len(h.Echo) == 0 {
-			t.Fatalf("control: %s carries no Balance/Echo, so this fixture proves nothing: %+v", n, h)
-		}
-	}
-
 	root, in := contentCommitPlan(t)
 	failRenames(t, func(_, newpath string) bool { return filepath.Base(newpath) == "b.go" })
 	res, err := Apply(root, in, Options{EchoPad: 1})
 	if err == nil {
 		t.Fatal("a failed commit was not reported")
 	}
-	if h := hunkFor(t, res, "a.go"); h.Status != StatusOK || h.Balance == "" {
-		t.Errorf("a.go: status %s balance %q, want ok with its Balance", h.Status, h.Balance)
-	}
 	if h := hunkFor(t, res, "b.go"); h.Status != StatusFailed || h.Reason == "" {
 		t.Errorf("b.go: status %s reason %q, want failed with the error", h.Status, h.Reason)
 	}
-	for _, n := range []string{"b.go", "c.go", "s.txt"} {
+	for _, n := range []string{"a.go", "c.go", "s.txt"} {
 		h := hunkFor(t, res, n)
-		if n != "b.go" && h.Status != StatusSkipped {
+		if h.Status != StatusSkipped {
 			t.Errorf("%s: status %s, want skipped", n, h.Status)
 		}
 		if h.Balance != "" || len(h.Echo) != 0 {
 			t.Errorf("%s is not ok but still carries write detail: balance %q echo %v", n, h.Balance, h.Echo)
 		}
 	}
-	if res.Failed != 1 || res.Applied || res.Advisories != 1 {
-		t.Errorf("Failed=%d Applied=%v Advisories=%d, want 1, false, 1", res.Failed, res.Applied, res.Advisories)
+	if res.Failed != 1 || res.Applied || res.Advisories != 0 {
+		t.Errorf("Failed=%d Applied=%v Advisories=%d, want 1, false, 0", res.Failed, res.Applied, res.Advisories)
 	}
-	written := map[string]bool{}
 	for _, f := range res.Files {
-		written[f.Path] = f.Written
+		if f.Written {
+			t.Errorf("%s is written after the undo", f.Path)
+		}
 	}
-	if !written["a.go"] || written["b.go"] || written["c.go"] {
-		t.Errorf("files written = %v, want only a.go", written)
-	}
-	if _, ok := written["c.go"]; !ok {
-		t.Errorf("c.go, addressed but unwritten, is missing from files: %+v", res.Files)
+	if len(res.Files) != 4 {
+		t.Errorf("files = %+v, want the four addressed files, each unwritten", res.Files)
 	}
 	if _, err := os.Stat(filepath.Join(root, "new")); !os.IsNotExist(err) {
 		t.Errorf("the rename directory staged for a rename that never ran is still there: %v", err)

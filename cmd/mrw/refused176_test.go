@@ -532,10 +532,18 @@ func TestAWriteThatLandedKeepsNoPlan(t *testing.T) {
 		}
 		defer func() { _ = os.Chmod(filepath.Join(k.root, "d"), 0o755) }()
 		out, _, c := k.run("@@ f.txt 1 replace\nZ\n@@ d/x.txt - unlink\n", nil, "write", "--no-check", "-")
-		if c != exitUsage || !strings.Contains(out, "PARTIALLY APPLIED") {
-			t.Fatalf("exit %d, want %d and PARTIALLY APPLIED:\n%s", c, exitUsage, out)
+		if c != exitUsage || !strings.Contains(out, "NOTHING WRITTEN") {
+			t.Fatalf("exit %d, want %d and NOTHING WRITTEN:\n%s", c, exitUsage, out)
 		}
-		none("a partial commit")
+		// Since ADR-209 the failed commit put f.txt back: nothing is in the tree, so
+		// the plan is kept (ADR-176), and the kept plan is taken away for what follows.
+		names := k.kept()
+		if len(names) != 1 {
+			t.Fatalf("a commit that wrote nothing kept %v, want its plan", names)
+		}
+		for _, n := range names {
+			_ = os.Remove(n)
+		}
 	}
 
 	// a plan from a file, --create, --sub and --rewrite are not standard-input plans

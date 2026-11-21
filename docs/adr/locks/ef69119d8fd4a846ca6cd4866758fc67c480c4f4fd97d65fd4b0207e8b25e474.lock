@@ -1,0 +1,5 @@
+check@2	1bb497e3e13a1105cf24e3359fa3ef75de08b66ff8a2839cd7f9ea97824d9eb3
+body	internal/apply/anchor197_test.go	TestAnAnchorMissNamesTheLinesThatHoldIt	0fcd89ce6e3c786e217688cb4b560829efb8c138d2e59fe5738fbb568ad3c836
+body	internal/apply/reason198_test.go	TestAReasonSpellsAPlansPathAsItsRowDoes	d5f11238e79ae51f074b2cf1fea499ce51c5bc2a393c8fe72e0f5c7ef83f6ce1
+body	internal/apply/reason198_test.go	kept: a path as typed, absolute paths, from=X	9959e48e4191e19ae3cc21539226bfaa03538de9d7287d15be00a2b66b6b8524
+body	internal/apply/reason198_test.go	kept: with / as the separator a name holding a backslash is named as it is	ee8ca1f60570edf55a6ac12ecadd15d89afb5dfc3e327308a70f33ecb43f82d3
