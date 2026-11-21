@@ -207,8 +207,8 @@ func Parse(r io.Reader) ([]Hunk, error) {
 		// caller's picture of their own plan is wrong — the same class of
 		// mistake as a drifted line number, which this format refuses.
 		if fixed && want > 0 {
-			errs = append(errs, fmt.Sprintf("line %d: body= asked for %d more line(s) than the plan contains",
-				cur.SrcLine, want))
+			errs = append(errs, fmt.Sprintf("line %d: body=%d declared, %d body line(s) received before end of plan "+
+				"(%d missing). Check for missing lines before changing the count", cur.SrcLine, len(body)+want, len(body), want))
 		}
 		if strayN > 0 {
 			errs = append(errs, fmt.Sprintf("line %d: body=%d is satisfied; %d extra line(s) before the next @@; %q is not part of any hunk — recount, omit body=, or body=@path",
@@ -269,9 +269,10 @@ func Parse(r io.Reader) ([]Hunk, error) {
 			// exactly on a header boundary and the plan parsed clean.
 			if strings.HasPrefix(hdr, "@@ ") && !cur.Raw {
 				if _, _, err := parseHeader(hdr, n); err == nil {
-					errs = append(errs, fmt.Sprintf("line %d: body= still owes %d line(s), but %q is a "+
-						"valid header — an overcounted body= would swallow that hunk. If the body really "+
-						"contains a header, say raw=true", n, want, line))
+					errs = append(errs, fmt.Sprintf("line %d: %q is a valid header. The hunk on line %d declared body=%d, "+
+						"received %d body line(s) before this header, and still owes %d. "+
+						"If this starts the next hunk, check the preceding body and its count. "+
+						"If the body really contains a header, say raw=true", n, line, cur.SrcLine, len(body)+want, len(body), want))
 				}
 			}
 			body = append(body, line)

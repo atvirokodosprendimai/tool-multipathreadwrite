@@ -783,3 +783,20 @@ func TestUnquotedAnchorWithEmbeddedQuotesIsRefused(t *testing.T) {
 		}
 	})
 }
+
+func TestBodyOvercountReportsDeclaredAndObservedLines(t *testing.T) {
+	const prefix = "@@ first 0 create\nfirst\n@@ second 0 create body=4\nalpha\n\n"
+	for _, tc := range []struct {
+		name, suffix, want string
+	}{
+		{"end of plan", "", "line 3: body=4 declared, 2 body line(s) received before end of plan (2 missing)"},
+		{"next header", "@@ third 0 create\nomega\n", "line 3 declared body=4, received 2 body line(s) before this header"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			hunks, err := Parse(strings.NewReader(prefix + tc.suffix))
+			if len(hunks) != 0 || err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("Parse returned %d hunks and error %v, want refusal containing %q", len(hunks), err, tc.want)
+			}
+		})
+	}
+}
