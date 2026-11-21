@@ -59,3 +59,43 @@ func TestACreateOfAPathChangedSinceItsRecordSaysItExistsAndOffersNoForce(t *test
 		t.Error("a refused create wrote the tree")
 	}
 }
+
+// #754. A create beside another hunk on the same changed path is still a create
+// of a path that exists: the refusal says that, and offers no --force, which
+// cannot make it overwrite. Both a second create and a replace beside it.
+func TestACreateBesideAnotherHunkOnAChangedPathOffersNoForce(t *testing.T) {
+	stale := map[string]Seen{"a.txt": {SHA: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}}
+	for name, in := range map[string][]Input{
+		"two creates": {
+			{Path: "a.txt", Op: "create", Body: []string{"z"}, Lines: -1, Index: 0},
+			{Path: "a.txt", Op: "create", Body: []string{"y"}, Lines: -1, Index: 1},
+		},
+		"a replace, then a create": {
+			{Path: "a.txt", Op: "replace", Start: 1, End: 1, Body: []string{"u"}, Lines: -1, Index: 0},
+			{Path: "a.txt", Op: "create", Body: []string{"y"}, Lines: -1, Index: 1},
+		},
+	} {
+		root := t.TempDir()
+		write(t, root, "a.txt", "now\n")
+		res, err := Apply(root, in, Options{Seen: stale})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res.Applied {
+			t.Fatalf("%s: applied", name)
+		}
+		said := false
+		for _, h := range res.Hunks {
+			if strings.Contains(h.Reason, "--force") {
+				t.Errorf("%s: a hunk offers --force: %q", name, h.Reason)
+			}
+			said = said || strings.Contains(h.Reason, "never overwrites")
+		}
+		if !said {
+			t.Errorf("%s: no hunk says a create never overwrites: %+v", name, res.Hunks)
+		}
+		if read(t, root, "a.txt") != "now\n" {
+			t.Errorf("%s: a refused plan wrote the tree", name)
+		}
+	}
+}

@@ -30,10 +30,11 @@ func TestTheCLIReceiptSpellsOutsideScopeAndDriftWithSlash(t *testing.T) {
 	}
 }
 
-// The wiring, which the helper test cannot see: a write's --json receipt carries
-// check.outside_scope through the same conversion. A file whose NAME holds a
-// backslash stands for a Windows path here, so the run is real on unix.
-func TestTheCLIWriteReceiptSpellsOutsideScopeWithSlash(t *testing.T) {
+// outside754Root is a root whose file NAME holds a backslash, which stands for a
+// Windows path here so the run is real on unix, beside a Go file the
+// {packages}-only scoped check places; the shell file is left outside it.
+func outside754Root(t *testing.T) string {
+	t.Helper()
 	if _, err := os.Stat("/bin/sh"); err != nil {
 		t.Skip("no sh: the check runs its command with sh -c")
 	}
@@ -54,19 +55,87 @@ func TestTheCLIWriteReceiptSpellsOutsideScopeWithSlash(t *testing.T) {
 	if out, code := runIn(t, root, "read", `d\x.sh`, "a.go", ".quality-harness.json"); code != 0 {
 		t.Fatalf("read exit %d: %s", code, out)
 	}
-	out, code := runIn(t, root, "write", "--check", "--json", filepath.Join(root, "p.plan"))
-	if code != 0 {
-		t.Fatalf("write --json exit %d: %s", code, out)
+	return root
+}
+
+// outsideLine754 is the human `outside the scoped check:` line of out, or fails.
+func outsideLine754(t *testing.T, out string) string {
+	t.Helper()
+	for _, l := range strings.Split(out, "\n") {
+		if strings.Contains(l, "outside the scoped check:") {
+			return l
+		}
 	}
+	t.Fatalf("no outside line in:\n%s", out)
+	return ""
+}
+
+// outsideScope754 is the check.outside_scope of the --json document in out.
+func outsideScope754(t *testing.T, out string) []string {
+	t.Helper()
 	var r struct {
 		Check struct {
 			OutsideScope []string `json:"outside_scope"`
 		} `json:"check"`
+		OutsideScope []string `json:"outside_scope"`
 	}
 	if err := json.Unmarshal([]byte(out[strings.Index(out, "{"):]), &r); err != nil {
 		t.Fatalf("receipt: %v\n%s", err, out)
 	}
-	if want := []string{"d/x.sh"}; !slices.Equal(r.Check.OutsideScope, want) {
-		t.Errorf("outside_scope = %q, want %q\n%s", r.Check.OutsideScope, want, out)
+	return append(r.Check.OutsideScope, r.OutsideScope...)
+}
+
+// The wiring, which the helper test cannot see: a write's receipt carries
+// check.outside_scope, in --json and in its human line, through the same
+// conversion.
+func TestTheCLIWriteReceiptSpellsOutsideScopeWithSlash(t *testing.T) {
+	for _, mode := range []string{"json", "human"} {
+		t.Run(mode, func(t *testing.T) {
+			root := outside754Root(t)
+			args := []string{"write", "--check", filepath.Join(root, "p.plan")}
+			if mode == "json" {
+				args = []string{"write", "--check", "--json", filepath.Join(root, "p.plan")}
+			}
+			out, code := runIn(t, root, args...)
+			if code != 0 {
+				t.Fatalf("write exit %d: %s", code, out)
+			}
+			if mode == "json" {
+				if got := outsideScope754(t, out); !slices.Equal(got, []string{"d/x.sh"}) {
+					t.Errorf("outside_scope = %q, want [d/x.sh]\n%s", got, out)
+				}
+				return
+			}
+			if line := outsideLine754(t, out); strings.Contains(line, `\`) || !strings.Contains(line, "d/x.sh") {
+				t.Errorf("the outside line: %s", line)
+			}
+		})
+	}
+}
+
+// #754. `mrw check` names its paths in the same receipt, so it spells them the
+// same way: the engine keeps the caller's path, which the platform separates.
+func TestTheCLICheckReceiptSpellsOutsideScopeWithSlash(t *testing.T) {
+	for _, mode := range []string{"json", "human"} {
+		t.Run(mode, func(t *testing.T) {
+			root := outside754Root(t)
+			args := []string{"check", "a.go", `d\x.sh`}
+			if mode == "json" {
+				args = []string{"check", "--json", "a.go", `d\x.sh`}
+			}
+			out, code := runIn(t, root, args...)
+			if code != 0 {
+				t.Fatalf("check exit %d: %s", code, out)
+			}
+			if mode == "json" {
+				if got := outsideScope754(t, out); !slices.Equal(got, []string{"d/x.sh"}) {
+					t.Errorf("outside_scope = %q, want [d/x.sh]\n%s", got, out)
+				}
+				return
+			}
+			if line := outsideLine754(t, out); strings.Contains(line, `\`) || !strings.Contains(line, "d/x.sh") {
+				t.Errorf("the outside line: %s", line)
+			}
+		})
 	}
 }

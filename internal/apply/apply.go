@@ -1726,6 +1726,15 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 	// whole-file licence through a quoted write (ADR-190).
 	quotedOnly := unquoted == 0
 
+	// createAt is the first create among the file's hunks: on a path that exists
+	// it can never apply, whatever its siblings are (#754).
+	createAt := -1
+	for i, h := range hs {
+		if h.Op == "create" {
+			createAt = i
+			break
+		}
+	}
 	// READ BEFORE MODIFY. An existing file may only be edited if mrw has seen
 	// what it currently holds. Checked once per file, before any hunk, because
 	// it is a fact about the file rather than about a hunk — but reported
@@ -1733,11 +1742,11 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 	// verdict, and still aborts the whole run.
 	if existed && opt.Seen != nil && !opt.Force && unquoted > 0 {
 		switch {
-		case len(hs) == 1 && hs[0].Op == "create" && (!known || recorded.SHA != shaBefore):
+		case createAt >= 0 && (!known || recorded.SHA != shaBefore):
 			// A create never overwrites, so neither the read the generic refusal asks
 			// for nor --force would let it apply, whether the ledger has no record of
 			// the path or holds one at another version (#754): say what is true (ADR-142).
-			fail(hs[0], "create: %s already exists — a create never overwrites; read it and use replace or delete, or unlink it first", asPlan(path))
+			fail(hs[createAt], "create: %s already exists — a create never overwrites; read it and use replace or delete, or unlink it first", asPlan(path))
 		case !known:
 			if pathLevel && !lineLevel {
 				failK(lead, refusal.NotRead, "%s has not been read: mrw does not know what it currently holds. %s "+

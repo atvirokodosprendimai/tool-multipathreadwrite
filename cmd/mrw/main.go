@@ -3066,6 +3066,9 @@ touched, which is a finding about the machine and not about your change.`,
 			if len(asked) > 0 {
 				then = writer.RunSteps(ctx, root, cfg, asked, res.OK())
 			}
+			// The paths a receipt names are spelled with "/" (#754); Run keeps the
+			// caller's own, and the command it ran is not touched.
+			res = *res.Slashed(receiptSep)
 			if cmd.Bool("json") {
 				enc := json.NewEncoder(os.Stdout)
 				enc.SetIndent("", "  ")
