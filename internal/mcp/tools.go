@@ -527,7 +527,7 @@ func serveRead(root string, args json.RawMessage) (callToolResult, *rpcError) {
 				report += "\n" + note
 			}
 			for _, p := range walkProblems {
-				report += fmt.Sprintf("\n-- %s: %s", p.Path, p.Reason)
+				report += "\n" + problemLine(p)
 			}
 			if _, _, err := read.ResolveGuards(root, guards, nil, true); err != nil {
 				return errorResult("if_changed: " + err.Error()), nil
@@ -553,7 +553,7 @@ func serveRead(root string, args json.RawMessage) (callToolResult, *rpcError) {
 				report += "\n" + note
 			}
 			for _, p := range walkProblems {
-				report += fmt.Sprintf("\n-- %s: %s", p.Path, p.Reason)
+				report += "\n" + problemLine(p)
 			}
 			if _, _, err := read.ResolveGuards(root, guards, nil, true); err != nil {
 				return errorResult("if_changed: " + err.Error()), nil
@@ -687,7 +687,7 @@ func serveRead(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// Found by review of #80.
 	report := capWords(cw.buf.String())
 	for _, p := range walkProblems {
-		report += fmt.Sprintf("\n-- %s: %s", p.Path, p.Reason)
+		report += "\n" + problemLine(p)
 	}
 	if note := read.SkipNote(skipped, "no_ignore"); note != "" {
 		report += "\n" + note
@@ -2664,6 +2664,15 @@ func astGrepSpecs(root string, paths []string, pattern string, exclude []string,
 	return afterCursor(specs, after), problems, sk, nil
 }
 
+// problemLine names a path a finder's walk could not use, as `-- PATH: WORD
+// reason`. The word is the CLI's (read.Problem.Word: UNREADABLE for an I/O
+// failure, REFUSED for mrw's own rule), so both surfaces say the same thing of
+// one path (#765). It follows the `-- PATH: ` lead this line has always had,
+// so a reader that matches that lead still finds the path.
+func problemLine(p read.Problem) string {
+	return fmt.Sprintf("-- %s: %s %s", p.Path, p.Word(), p.Reason)
+}
+
 // matchIndex is the answer to a grep whose CONTENT will not fit: the addresses,
 // with no content at all.
 //
@@ -2745,7 +2754,7 @@ func matchIndex(finder string, specs []read.Spec, walkProblems []read.Problem, o
 		// saying the same thing.
 		fmt.Fprintf(&b, "-- The matching files are listed in this result's index field. Send any of them back as specs WITH the same %s to read its matches, or on its own to read the file.\n", finder)
 		for _, p := range walkProblems {
-			fmt.Fprintf(&b, "-- %s: %s\n", p.Path, p.Reason)
+			b.WriteString(problemLine(p) + "\n")
 		}
 		if others > 0 {
 			fmt.Fprintf(&b, "-- %d further problem(s) in files whose content was not served; read them by name to see why.\n", others)

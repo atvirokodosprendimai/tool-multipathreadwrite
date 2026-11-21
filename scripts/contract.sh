@@ -12317,6 +12317,20 @@ out=$("$MRW" -C "$R377" read absent.txt 2>&1); rc=$?
 want 1 "$rc" "a direct read of the same path -> exit 1"
 grep -q '^==> absent.txt  UNREADABLE  ' <<<"$out" && ok "and it is UNREADABLE there too" || bad "direct: $(head -c 300 <<<"$out")"
 
+# 382. #765: mrw_read with grep names a path its walk could not use with the CLI's
+# word, after the `-- PATH: ` lead it always had: UNREADABLE for a path that is not
+# there, REFUSED for one outside the root. The pair: the CLI says the same words.
+R382="$WORK/r382"; rm -rf "$R382"; mkdir -p "$R382"; printf 'needle\n' > "$R382/a.txt"
+req382='{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.txt","absent.txt","../outside382"],"grep":"needle"}}}'
+out=$(printf '%s\n' "$req382" | XDG_STATE_HOME="$R382.state" "$MRW" -C "$R382" mcp --enable 2>"$WORK/mcp382.err" \
+  | python3 -c 'import json,sys; print(json.loads(sys.stdin.readline())["result"]["content"][0]["text"])'); rc=$?
+want 0 "$rc" "mrw_read with grep beside a path that is not there and one outside the root answers"
+grep -q '^-- absent.txt: UNREADABLE ' <<<"$out" && ok "it names the path that is not there UNREADABLE" || bad "mcp absent: $(head -c 400 <<<"$out")"
+grep -q '^-- \.\./outside382: REFUSED ' <<<"$out" && ok "and the path outside the root REFUSED" || bad "mcp outside: $(head -c 400 <<<"$out")"
+out=$(XDG_STATE_HOME="$R382.state" "$MRW" -C "$R382" read --grep needle a.txt absent.txt ../outside382 2>&1)
+{ grep -q '^==> absent.txt  UNREADABLE  ' <<<"$out" && grep -q '^==> \.\./outside382  REFUSED  ' <<<"$out"; } \
+  && ok "the pair: the CLI gives each the same word" || bad "cli: $(head -c 400 <<<"$out")"
+
 # 374. ADR-208 Decision 1a: the lines a search_replace write produced are licensed
 # and not shown, so a multi-line replace that ends above them is refused until the
 # line after is read. The repro: f374.go of five lines, a search_replace block that
