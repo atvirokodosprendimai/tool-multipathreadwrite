@@ -20,7 +20,9 @@ link itself there), is `UNREADABLE` too, as a direct read says of either. So the
 `--ast-grep` such a path is an UNREADABLE line that never reaches ast-grep, as a refused one is. A
 refusal by mrw's own rules (a path outside the root, a link to a directory named relative to the root)
 stays `REFUSED`. The word is prose, no receipt key moved (ADR-111), and the read still exits 1
-(`incomplete:`).
+(`incomplete:`). The words are the CLI's, and MCP's where `grep` or `ast_grep` is given with `sub` or
+`rewrite`; a plain MCP `mrw_read` with `grep` or `ast_grep` lists such a path as `-- PATH: reason`
+with no kind word, for a refused path as for an unreadable one (issue #765).
 
 ## Context
 
