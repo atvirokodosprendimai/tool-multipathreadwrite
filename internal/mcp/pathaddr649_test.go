@@ -36,3 +36,21 @@ func TestAPathOpRowOfTheMCPAnswerPrintsTheAddressThePlanWrote(t *testing.T) {
 		})
 	}
 }
+
+// ADR-111: the text row says `-`, and the structured hunk keeps the "addr" it has:
+// "0" on a failed path op. A change that normalised it would be a changed value.
+func TestTheStructuredAddrOfAFailedPathOpIsStillZero(t *testing.T) {
+	root := licensed(t, map[string]string{"a.txt": "a\n"})
+	res := call(t, root, "mrw_write", map[string]any{"plan": "@@ nope.txt - unlink\n"})
+	if text := resultText(res); !strings.Contains(text, "failed nope.txt - ") {
+		t.Fatalf("the text row does not say -:\n%s", text)
+	}
+	hunks, _ := structured(t, res)["hunks"].([]any)
+	if len(hunks) != 1 {
+		t.Fatalf("want one hunk, got %v", hunks)
+	}
+	h, _ := hunks[0].(map[string]any)
+	if h["addr"] != "0" || h["op"] != "unlink" || h["status"] != "failed" {
+		t.Errorf(`want a failed unlink with addr "0", got %v`, h)
+	}
+}

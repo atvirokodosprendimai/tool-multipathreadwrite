@@ -12215,29 +12215,36 @@ m read --max-cols 0 g374.go:6-9 > "$WORK/served.out"
 printf '%s' "$rep374g" | m write --no-check - > /dev/null 2>&1; want 0 $? "the pair: a read under g374.go lands it"
 
 # 379. #649: a failed or skipped row of an unlink or a rename prints `-`, not the
-# unresolved bound 0. The repro: an unlink of a file that is not there and a rename
-# of one, in the default, --quiet and --terse forms; and a rename and an unlink
-# SKIPPED after validation (beside a replace that names a.txt/, a directory spelling),
-# which carry the address their input did, and print it. No row says `0 unlink` or
-# `0 rename`, and a dry run's parsed: line says `-`. The JSON receipt keeps its
-# "addr" (ADR-111). The pair: an unlink that applies prints `-` as it did before.
+# unresolved bound 0. The repro: an unlink of one missing file and a rename of
+# another, in the default, --quiet and --terse forms, each saying `does not exist`;
+# and an unlink and a rename SKIPPED after validation (beside a replace that names
+# a379.txt/, a directory spelling), which carry the address their input did, and
+# print it. No row says `0 unlink` or `0 rename`, and a dry run's parsed: line says
+# `-`. The JSON receipt keeps its "addr", "0" on a failed path op (ADR-111). The pair:
+# an unlink that applies prints `-` as it did before. MRW_RECEIPT=full on every
+# write, so a receipt the environment chose cannot hide a row (§364).
 fixture
 printf 'a\n' > "$R/a379.txt"; printf 'b\n' > "$R/b379.txt"
 m read a379.txt b379.txt > "$WORK/served.out"
 for form in "" --quiet --terse; do
-  out=$(printf '@@ nope379.txt - unlink\n@@ nope379.txt - rename\nz\n' | m write --no-check $form - 2>&1); rc=$?
-  want 1 "$rc" "a failed unlink and rename (${form:-default}) -> exit 1"
-  { grep -q 'FAIL nope379.txt - unlink' <<<"$out" && grep -q 'FAIL nope379.txt - rename' <<<"$out" && ! grep -Eq ' 0 (unlink|rename)' <<<"$out"; } \
-    && ok "the FAIL rows name address -, not 0 (${form:-default})" || bad "rows: $(head -c 400 <<<"$out")"
+  out=$(printf '@@ nope379a.txt - unlink\n@@ nope379b.txt - rename\nz\n' | MRW_RECEIPT=full m write --no-check $form - 2>&1); rc=$?
+  want 1 "$rc" "a failed unlink and rename of two missing files (${form:-default}) -> exit 1"
+  { grep -q 'FAIL nope379a.txt - unlink.*nope379a.txt does not exist' <<<"$out" && grep -q 'FAIL nope379b.txt - rename.*nope379b.txt does not exist' <<<"$out" && ! grep -Eq ' 0 (unlink|rename)' <<<"$out"; } \
+    && ok "the FAIL rows name address - and say does not exist (${form:-default})" || bad "rows: $(head -c 400 <<<"$out")"
 done
-out=$(printf '@@ a379.txt/ 1 replace\nx\n@@ a379.txt - rename\nz.txt\n@@ b379.txt - unlink\n' | m write --no-check - 2>&1); rc=$?
-want 1 "$rc" "a rename and an unlink skipped beside a directory spelling -> exit 1"
-{ grep -q 'skip a379.txt - rename' <<<"$out" && grep -q 'skip b379.txt - unlink' <<<"$out" && ! grep -Eq ' 0 (unlink|rename)' <<<"$out"; } \
-  && ok "the skipped rows name address -" || bad "skip rows: $(head -c 400 <<<"$out")"
-out=$(printf '@@ a379.txt - unlink\n' | m write --no-check --dry-run - 2>&1)
+out=$(printf '@@ nope379a.txt - unlink\n' | MRW_RECEIPT=full m write --no-check --json - 2>&1)
+grep -Eq '"addr": ?"0"' <<<"$out" && ok "the JSON addr of that failed unlink is still 0" || bad "json: $(head -c 300 <<<"$out")"
+for op in rename unlink; do
+  tail379=''; [ "$op" = rename ] && tail379='\nz.txt'
+  out=$(printf "@@ a379.txt/ 1 replace\nx\n@@ a379.txt - $op$tail379\n" | MRW_RECEIPT=full m write --no-check - 2>&1); rc=$?
+  want 1 "$rc" "a $op skipped beside a directory spelling -> exit 1"
+  { grep -q "skip a379.txt - $op" <<<"$out" && ! grep -Eq ' 0 (unlink|rename)' <<<"$out"; } \
+    && ok "the skipped $op row names address -" || bad "skip row: $(head -c 400 <<<"$out")"
+done
+out=$(printf '@@ a379.txt - unlink\n' | MRW_RECEIPT=full m write --no-check --dry-run - 2>&1)
 grep -q 'parsed: a379.txt - unlink' <<<"$out" && ! grep -Eq ' 0 unlink' <<<"$out" \
   && ok "a dry run's parsed: line says -" || bad "parsed: $(head -c 300 <<<"$out")"
-out=$(printf '@@ a379.txt - unlink\n' | m write --no-check - 2>&1); rc=$?
+out=$(printf '@@ a379.txt - unlink\n' | MRW_RECEIPT=full m write --no-check - 2>&1); rc=$?
 want 0 "$rc" "the pair: an unlink that applies exits 0"
 grep -q 'ok   a379.txt - unlink' <<<"$out" && ok "and prints - too" || bad "ok row: $(head -c 300 <<<"$out")"
 
