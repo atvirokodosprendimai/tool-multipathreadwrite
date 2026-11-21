@@ -52,7 +52,9 @@
 # before it starts, and by any row that rearranges descriptors).
 # NAMED LIMITS, not closed: a diagnostic a row captures itself
 # (`out=$(12087 insert-before 2>&1)`); SIGKILL of the watcher, which leaves its
-# directory in the temp directory and lets the inner run finish unwatched; a stray
+# directory in the temp directory and lets the inner run finish unwatched (and, if
+# it lands before the inner run has opened the FIFO, leaves the tee waiting for a
+# writer); a stray
 # line inside the watcher's own branch (55 lines, from the guard to its `fi`);
 # stderr that reaches the screen through the tee and so can be reordered against
 # stdout. The inner run is in a process group of its own, so its cleanup cannot
