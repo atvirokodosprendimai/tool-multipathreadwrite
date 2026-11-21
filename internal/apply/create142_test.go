@@ -33,3 +33,29 @@ func TestACreateOfAnUnreadExistingPathSaysItExists(t *testing.T) {
 		t.Error("a refused create wrote the tree")
 	}
 }
+
+// #754. A create of a path the ledger holds a record for, at another version
+// than the file has now, said "changed since mrw last saw it ... pass --force to
+// overwrite blind": a create never overwrites, so --force cannot do what that
+// says. It says what ADR-142 says, on either surface.
+func TestACreateOfAPathChangedSinceItsRecordSaysItExistsAndOffersNoForce(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, "a.txt", "now\n")
+	seen := map[string]Seen{"a.txt": {SHA: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}}
+	for _, noForce := range []bool{false, true} {
+		res, err := Apply(root, []Input{{Path: "a.txt", Op: "create", Body: []string{"x"}, Lines: -1, Index: 0}}, Options{Seen: seen, NoForce: noForce})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res.Applied || len(res.Hunks) != 1 {
+			t.Fatalf("noForce=%v: the create of an existing path applied or lost its verdict: %+v", noForce, res.Hunks)
+		}
+		r := res.Hunks[0].Reason
+		if !strings.Contains(r, "already exists") || !strings.Contains(r, "never overwrites") || strings.Contains(r, "--force") || strings.Contains(r, "changed since") {
+			t.Errorf("noForce=%v: reason = %q, want the path exists, a create never overwrites, and no --force", noForce, r)
+		}
+	}
+	if read(t, root, "a.txt") != "now\n" {
+		t.Error("a refused create wrote the tree")
+	}
+}
