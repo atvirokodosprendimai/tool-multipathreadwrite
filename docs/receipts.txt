@@ -10,8 +10,10 @@
 # Path values (#754, ADR-091, ADR-132): a root-relative path in a receipt is spelled with "/" on every platform
 # (left_behind, dirs_created, files[].path, hunks[].path, check.outside_scope, drift, observed keys); the paths
 # unchanged[].path and same_as_served[].path are the caller's own spelling of the spec, except an absolute spec
-# inside the root, which comes back root-relative in the platform's separator; an absolute path
-# (root, refused_plan, output_file) is the platform's, as the system prints it.
+# inside the root, which comes back root-relative in the platform's separator. Not converted, and not necessarily
+# absolute: root is the --root as the caller gave it (`./repo` stays `./repo`), output_file lies under TMPDIR as the
+# environment spells it (relative when TMPDIR is), and refused_plan lies under the state home, which mrw requires
+# to be absolute; each carries the platform's separators.
 # mcp_read skipped.device_names is the device-name part of skipped.unkeepable, a subset: unkeepable keeps counting both kinds.
 # cmd/mrw's TestNoShippedReceiptFieldDisappears and internal/mcp's TestNoShippedMCPReceiptFieldDisappears
 # hold the receipt types to this file both ways.

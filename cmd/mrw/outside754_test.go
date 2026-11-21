@@ -33,14 +33,16 @@ func TestTheCLIReceiptSpellsOutsideScopeAndDriftWithSlash(t *testing.T) {
 // outside754Root is a root whose file NAME holds a backslash, which stands for a
 // Windows path here so the run is real on unix, beside a Go file the
 // {packages}-only scoped check places; the shell file is left outside it.
-func outside754Root(t *testing.T) string {
+func outside754Root(t *testing.T, convert bool) string {
 	t.Helper()
 	if _, err := os.Stat("/bin/sh"); err != nil {
 		t.Skip("no sh: the check runs its command with sh -c")
 	}
-	prev := receiptSep
-	receiptSep = '\\'
-	t.Cleanup(func() { receiptSep = prev })
+	if convert { // the Windows separator, on any platform; off, the production one
+		prev := receiptSep
+		receiptSep = '\\'
+		t.Cleanup(func() { receiptSep = prev })
+	}
 	root := t.TempDir()
 	for name, body := range map[string]string{
 		`d\x.sh`:                "true\n",
@@ -91,7 +93,7 @@ func outsideScope754(t *testing.T, out string) []string {
 func TestTheCLIWriteReceiptSpellsOutsideScopeWithSlash(t *testing.T) {
 	for _, mode := range []string{"json", "human"} {
 		t.Run(mode, func(t *testing.T) {
-			root := outside754Root(t)
+			root := outside754Root(t, true)
 			args := []string{"write", "--check", filepath.Join(root, "p.plan")}
 			if mode == "json" {
 				args = []string{"write", "--check", "--json", filepath.Join(root, "p.plan")}
@@ -118,7 +120,7 @@ func TestTheCLIWriteReceiptSpellsOutsideScopeWithSlash(t *testing.T) {
 func TestTheCLICheckReceiptSpellsOutsideScopeWithSlash(t *testing.T) {
 	for _, mode := range []string{"json", "human"} {
 		t.Run(mode, func(t *testing.T) {
-			root := outside754Root(t)
+			root := outside754Root(t, true)
 			args := []string{"check", "a.go", `d\x.sh`}
 			if mode == "json" {
 				args = []string{"check", "--json", "a.go", `d\x.sh`}
@@ -137,5 +139,43 @@ func TestTheCLICheckReceiptSpellsOutsideScopeWithSlash(t *testing.T) {
 				t.Errorf("the outside line: %s", line)
 			}
 		})
+	}
+}
+
+// #754. The conversion is by the platform's separator, not by every backslash:
+// on a build whose separator is "/" a file really named `d\x.sh` is that name,
+// and a receipt must give it back as it is. Driven with the production
+// separator, so a Slashed that replaced backslashes whatever the platform goes
+// red here and not in the tests above, which force `\`.
+func TestTheCLIReceiptKeepsABackslashInAUnixFileName(t *testing.T) {
+	if filepath.Separator == '\\' {
+		t.Skip("on Windows a backslash is the separator, which the tests above cover")
+	}
+	for _, cmd := range []string{"write", "check"} {
+		for _, mode := range []string{"json", "human"} {
+			t.Run(cmd+"/"+mode, func(t *testing.T) {
+				root := outside754Root(t, false)
+				args := []string{"write", "--check", filepath.Join(root, "p.plan")}
+				if cmd == "check" {
+					args = []string{"check", "a.go", `d\x.sh`}
+				}
+				if mode == "json" {
+					args = slices.Insert(args, 1, "--json")
+				}
+				out, code := runIn(t, root, args...)
+				if code != 0 {
+					t.Fatalf("%s exit %d: %s", cmd, code, out)
+				}
+				if mode == "json" {
+					if got := outsideScope754(t, out); !slices.Equal(got, []string{`d\x.sh`}) {
+						t.Errorf("outside_scope = %q, want [d\\x.sh]\n%s", got, out)
+					}
+					return
+				}
+				if line := outsideLine754(t, out); !strings.Contains(line, `d\x.sh`) || strings.Contains(line, "d/x.sh") {
+					t.Errorf("the outside line changed the file's name: %s", line)
+				}
+			})
+		}
 	}
 }

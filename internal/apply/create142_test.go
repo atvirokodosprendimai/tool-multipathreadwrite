@@ -60,10 +60,11 @@ func TestACreateOfAPathChangedSinceItsRecordSaysItExistsAndOffersNoForce(t *test
 	}
 }
 
-// #754. A create beside another hunk on the same changed path is still a create
-// of a path that exists: the refusal says that, and offers no --force, which
-// cannot make it overwrite. Both a second create and a replace beside it.
-func TestACreateBesideAnotherHunkOnAChangedPathOffersNoForce(t *testing.T) {
+// #754. The ADR-142 wording is for a create that is the file's only hunk. A
+// create beside another hunk on a changed path keeps the generic refusal, which
+// is the one a surface may need to adapt (a newer mrw's ledger, ADR-157): the
+// first hunk the quote does not license carries it, and its siblings skip.
+func TestACreateBesideAnotherHunkOnAChangedPathKeepsTheGenericReason(t *testing.T) {
 	stale := map[string]Seen{"a.txt": {SHA: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}}
 	for name, in := range map[string][]Input{
 		"two creates": {
@@ -81,18 +82,14 @@ func TestACreateBesideAnotherHunkOnAChangedPathOffersNoForce(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if res.Applied {
-			t.Fatalf("%s: applied", name)
+		if res.Applied || len(res.Hunks) != 2 {
+			t.Fatalf("%s: applied or lost a verdict: %+v", name, res.Hunks)
 		}
-		said := false
-		for _, h := range res.Hunks {
-			if strings.Contains(h.Reason, "--force") {
-				t.Errorf("%s: a hunk offers --force: %q", name, h.Reason)
-			}
-			said = said || strings.Contains(h.Reason, "never overwrites")
+		if h := res.Hunks[0]; h.Status != StatusFailed || !strings.Contains(h.Reason, "changed since mrw last saw it") {
+			t.Errorf("%s: hunk 0 = %s %q, want the generic refusal", name, h.Status, h.Reason)
 		}
-		if !said {
-			t.Errorf("%s: no hunk says a create never overwrites: %+v", name, res.Hunks)
+		if h := res.Hunks[1]; h.Status != StatusSkipped {
+			t.Errorf("%s: hunk 1 = %s %q, want it skipped", name, h.Status, h.Reason)
 		}
 		if read(t, root, "a.txt") != "now\n" {
 			t.Errorf("%s: a refused plan wrote the tree", name)
