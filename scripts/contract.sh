@@ -12286,6 +12286,7 @@ done
 [ "$prc" -le 1 ] && [ -z "$left" ] && ok "no process of this run survives it" \
   || bad "survivors in the run's group after 3 s (pgrep exit $prc): $left$(ps -o pid,ppid,etime,comm -p "$(echo $left | tr ' ' ',')" 2>/dev/null | tail -n +2 | tr '\n' ';')"
 
+
 # 378. #754: a create of a path the ledger holds a record for, at another version
 # than the file has now, says the path exists and that a create never overwrites,
 # and does not advise --force: --force cannot make a create overwrite. The pair:
@@ -12303,6 +12304,18 @@ printf '@@ r754.txt 1 replace\nuno\n' > "$WORK/e754.plan"
 out=$(m write --no-check "$WORK/e754.plan" 2>&1); want 1 $? "the pair: a replace of a file changed since its read exits 1"
 { grep -q 'changed since mrw last saw it' <<<"$out" && grep -q -- '--force' <<<"$out"; } && ok "with the refusal that advises --force" || bad "replace-stale: $out"
 rm -f "$R/n754.txt" "$R/r754.txt" "$WORK/c754.plan" "$WORK/e754.plan" "$WORK/o754"
+
+# Nothing this run started may outlive it. Checked after the last row, so every
+# row is covered; §60 above proves an orphan is visible to this group check. A
+# killed process is a zombie until its adopter reaps it, and pgrep lists
+# zombies: poll, bounded, rather than trust one sleep.
+for _ in $(seq 1 30); do
+  pgrep -g $$ > "$WORK/kids"; prc=$?   # 0 matched, 1 none; anything else is pgrep itself failing
+  left=$(grep -vx "$$" "$WORK/kids" | tr '\n' ' ')
+  [ -z "$left" ] && break; sleep 0.1
+done
+[ "$prc" -le 1 ] && [ -z "$left" ] && ok "no process of this run survives it" \
+  || bad "survivors in the run's group after 3 s (pgrep exit $prc): $left$(ps -o pid,ppid,etime,comm -p "$(echo $left | tr ' ' ',')" 2>/dev/null | tail -n +2 | tr '\n' ';')"
 
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
