@@ -77,6 +77,7 @@ p=$(python3 -m unittest -v scripts.test_bench_stage9 2>&1) && grep -qE '^test_th
 ```
 
 ## Mutation Log
+- 2026-11-21 · cd646822* · mutant killed · exit 1 · `docs/bench/stage-9/rehearsal.md` · The record says the deliberately shortened plan was accepted. T2 must refuse a successful negative control. · acceptance-sha256:10e067b309fc772e30f8b2423a5a504aeb1072819201f9641211cc90d9d075d2 · covers:the rehearsal's negatives failed
 
 ## Verification Log
 - 2026-11-20 · 751edd9b* · exit 1 · `set -o pipefail …` · acceptance-sha256:99feeb10ac9a59ddcc568f89bac971c10554f29929fb2009378e9e64b6819c54 · ms:87234 · test-lock-sha256:cd8d3106982901184cd9985d751d2771072ed2ef4a16cc36af00b2a038f67748 · test-lock-file:docs/adr/locks/cd8d3106982901184cd9985d751d2771072ed2ef4a16cc36af00b2a038f67748.lock
@@ -85,6 +86,10 @@ p=$(python3 -m unittest -v scripts.test_bench_stage9 2>&1) && grep -qE '^test_th
 - 2026-11-20 · 751edd9b* · exit 1 · `set -o pipefail …` · acceptance-sha256:edbfaffc09ce799683e0a9ed894176ec62e02818e4b449bdab30256cfc9cc39c · ms:53602
   ```
   ```
+- 2026-11-21 · 2125b715* · exit 0 · `set -o pipefail …` · acceptance-sha256:10e067b309fc772e30f8b2423a5a504aeb1072819201f9641211cc90d9d075d2 · ms:60199
+- 2026-11-21 · human-observed · S4: Zy read docs/bench/stage-9/rehearsal.md for revision 47564433 and confirmed the review on 2026-11-21. · acceptance-sha256:10e067b309fc772e30f8b2423a5a504aeb1072819201f9641211cc90d9d075d2
+- 2026-11-21 · cd646822* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:10e067b309fc772e30f8b2423a5a504aeb1072819201f9641211cc90d9d075d2 · ms:0 · test-lock-sha256:8971458df87729582319a76e376ed44206e06cd48358a1dec1dfed1166f112fa · test-lock-file:docs/adr/locks/8971458df87729582319a76e376ed44206e06cd48358a1dec1dfed1166f112fa.lock · test-lock-kind:replace
+- 2026-11-21 · cd646822* · exit 0 · `set -o pipefail …` · acceptance-sha256:10e067b309fc772e30f8b2423a5a504aeb1072819201f9641211cc90d9d075d2 · ms:74172
 
 ## Invariants
 
