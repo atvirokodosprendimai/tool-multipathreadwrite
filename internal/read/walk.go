@@ -295,7 +295,11 @@ func judgeNamed(root, absRoot, p string) (namedPath, *Problem) {
 	}
 	full, err := rooted.Resolve(root, p)
 	if err != nil {
-		return namedPath{}, &Problem{Path: p, Reason: err.Error()}
+		// A file spelled as a directory (a.txt/, a.txt/.) is UNREADABLE, as a
+		// direct read says of it (read.go, ADR-076 Decision 1): the OS refuses
+		// that open with ENOTDIR. Every other refusal here (outside the root, mrw's
+		// own state, a device name) is mrw's own rule, and REFUSED (#765).
+		return namedPath{}, &Problem{Path: p, Reason: err.Error(), Unreadable: errors.Is(err, rooted.ErrNotADirectory)}
 	}
 	fi, err := os.Stat(full)
 	if err != nil {

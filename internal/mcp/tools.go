@@ -2668,9 +2668,11 @@ func astGrepSpecs(root string, paths []string, pattern string, exclude []string,
 // reason`. The word is the CLI's (read.Problem.Word: UNREADABLE for an I/O
 // failure, REFUSED for mrw's own rule), so both surfaces say the same thing of
 // one path (#765). It follows the `-- PATH: ` lead this line has always had,
-// so a reader that matches that lead still finds the path.
+// so a reader that matches that lead still finds the path. The path and the
+// reason go through read.ShownPath and read.OneLine, as the CLI's do (#740):
+// raw, a name holding a line feed forged a second `-- ` line.
 func problemLine(p read.Problem) string {
-	return fmt.Sprintf("-- %s: %s %s", p.Path, p.Word(), p.Reason)
+	return fmt.Sprintf("-- %s: %s %s", read.ShownPath(p.Path), p.Word(), read.OneLine(p.Reason))
 }
 
 // matchIndex is the answer to a grep whose CONTENT will not fit: the addresses,

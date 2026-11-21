@@ -23,7 +23,10 @@ stays `REFUSED`. The word is prose, no receipt key moved (ADR-111), and the read
 (`incomplete:`). The words are the CLI's, and MCP's where `grep` or `ast_grep` is given with `sub` or
 `rewrite`; a plain MCP `mrw_read` with `grep` or `ast_grep` lists such a path as `-- PATH: WORD reason`,
 the same word from the same flag, since #765 (2026-11-21; before it the line was `-- PATH: reason`, with
-no word).
+no word). A named link to a directory keeps two words on purpose: a direct read answers "read this file",
+and the OS says it is a directory, the word for any directory named to read (`UNREADABLE  is a
+directory`, contract §326); a finder refuses it by its own rule that a walk does not follow a link
+(`REFUSED`, this record). Both name `d` as the fix (#765, 2026-11-21).
 
 ## Context
 

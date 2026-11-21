@@ -12330,6 +12330,17 @@ grep -q '^-- \.\./outside382: REFUSED ' <<<"$out" && ok "and the path outside th
 out=$(XDG_STATE_HOME="$R382.state" "$MRW" -C "$R382" read --grep needle a.txt absent.txt ../outside382 2>&1)
 { grep -q '^==> absent.txt  UNREADABLE  ' <<<"$out" && grep -q '^==> \.\./outside382  REFUSED  ' <<<"$out"; } \
   && ok "the pair: the CLI gives each the same word" || bad "cli: $(head -c 400 <<<"$out")"
+# And a file spelled as a directory (a.txt/, ADR-076) is UNREADABLE under a finder,
+# CLI and MCP, as a direct read of it says; before #765 a finder said REFUSED.
+out=$(XDG_STATE_HOME="$R382.state" "$MRW" -C "$R382" read a.txt/ 2>&1)
+grep -q '^==> a.txt/  UNREADABLE  ' <<<"$out" && ok "a direct read of a.txt/ says UNREADABLE" || bad "direct a.txt/: $(head -c 300 <<<"$out")"
+out=$(XDG_STATE_HOME="$R382.state" "$MRW" -C "$R382" read --grep needle a.txt/ 2>&1); rc=$?
+want 1 "$rc" "--grep over a.txt/ -> exit 1"
+{ grep -q '^==> a.txt/  UNREADABLE  ' <<<"$out" && ! grep -q 'a.txt/  REFUSED' <<<"$out"; } && ok "and --grep says UNREADABLE of it too" || bad "grep a.txt/: $(head -c 300 <<<"$out")"
+out=$(printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mrw_read","arguments":{"specs":["a.txt/"],"grep":"needle"}}}' \
+  | XDG_STATE_HOME="$R382.state" "$MRW" -C "$R382" mcp --enable 2>"$WORK/mcp382b.err" \
+  | python3 -c 'import json,sys; print(json.loads(sys.stdin.readline())["result"]["content"][0]["text"])')
+grep -q '^-- a.txt/: UNREADABLE ' <<<"$out" && ok "and so does mrw_read with grep" || bad "mcp a.txt/: $(head -c 300 <<<"$out")"
 
 # 374. ADR-208 Decision 1a: the lines a search_replace write produced are licensed
 # and not shown, so a multi-line replace that ends above them is refused until the
