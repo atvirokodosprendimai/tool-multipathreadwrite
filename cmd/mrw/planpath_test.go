@@ -245,15 +245,21 @@ func TestGrepReportsAPatternThatMatchedNoFile(t *testing.T) {
 }
 
 // Rule 5: one bad path never costs the caller the answers about the good ones,
-// and is never silent about itself either.
+// and is never silent about itself either. Two bad paths, two words (#764): a
+// named path that is not there is UNREADABLE, as a direct read says of it; one
+// outside the root is REFUSED, a refusal by mrw's own rules.
 func TestGrepReportsARefusedPathAndServesTheRest(t *testing.T) {
 	root := grepTree(t, map[string]string{"good.go": "package good\nWANTED\n"})
-	out, _ := readIn(t, root, "--grep", "WANTED", "good.go", "absent.go")
+	outside := "../outside-" + filepath.Base(root)
+	out, _ := readIn(t, root, "--grep", "WANTED", "good.go", "absent.go", outside)
 	if !strings.Contains(out, "good.go") {
 		t.Errorf("the good path was not served:\n%s", out)
 	}
-	if !strings.Contains(out, "absent.go") || !strings.Contains(out, "REFUSED") {
-		t.Errorf("the refused path was not reported:\n%s", out)
+	if !strings.Contains(out, "==> absent.go  UNREADABLE  ") || strings.Contains(out, "absent.go  REFUSED") {
+		t.Errorf("the absent path is not reported UNREADABLE:\n%s", out)
+	}
+	if !strings.Contains(out, outside+"  REFUSED  ") || strings.Contains(out, outside+"  UNREADABLE") {
+		t.Errorf("the path outside the root is not reported REFUSED:\n%s", out)
 	}
 }
 

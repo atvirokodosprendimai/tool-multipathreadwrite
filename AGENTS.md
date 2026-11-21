@@ -347,7 +347,7 @@ A path you name is walked even if it matches, and `--ast-grep` runs the binary o
 the named paths and drops excluded hits afterwards, so it does not save that traversal.
 A path named to `--ast-grep` is judged as `--grep` judges it before the binary runs: one mrw refuses
 is a REFUSED line and never reaches the binary, and one it accepts reaches the binary as the absolute
-path mrw judged (`.` for the root).
+path mrw judged (`.` for the root). One that is not there is an UNREADABLE line (#764), and does not reach it either.
 
 Inside a git checkout (a `.git` at or above the root) it skips what `.gitignore` and `.git/info/exclude`
 ignore — `core.excludesFile` is not read — and any walk skips a binary file (a UTF-16/32 BOM, or a NUL in
@@ -363,7 +363,10 @@ line says the first as `file(s) with a name Windows will not keep` and the secon
 `file(s) named for a Windows device`; over MCP `skipped.unkeepable` counts both kinds and `skipped.device_names` is the device-name part of it; no flag walks either: name one to be told why
 (ADR-135, #752). The count says a name exists, never what the file held. A directory a walk cannot list, or a file it cannot open, is `UNREADABLE`,
 as one you name is, not `REFUSED`: it is an I/O failure, so it counts as a problem and the read exits 1 (`incomplete:`),
-and every sibling is still served (ADR-007 rule 5).
+and every sibling is still served (ADR-007 rule 5). A path you name that is not there is `UNREADABLE` too, as a direct read
+says, while one outside the root stays `REFUSED` (#764). A dangling link is `UNREADABLE` where the platform does not follow it
+out of the root (macOS, Linux); on Windows, where mrw follows each link itself, a link that leads outside the root is `REFUSED`,
+dangling or not.
 A link to a directory met inside the root is not followed (ADR-096) and is counted as `link(s) to a directory, not
 followed` (`skipped.linked_dirs` over MCP, ADR-138); name the directory it leads to. A link that leaves the root is
 refused by `Resolve` first and stays uncounted.

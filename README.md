@@ -221,6 +221,8 @@ is skipped; one you name is walked.
 On Windows, a file whose name Windows will not keep (`trail.`) or that is named for a device (`aux.txt`, `nul`) is not
 served by a walk and is counted, each kind with its own words, on the `-- skipped:` line; name it to be told why
 (ADR-135, #752). A directory a walk cannot list, or a file it cannot open, is `UNREADABLE`, and the read exits 1 with the rest served.
+A path you name that is not there is `UNREADABLE` too, as a direct read says; one outside the root stays `REFUSED` (#764), and on
+Windows so does a link that leads outside the root, dangling or not.
 A link to a directory met inside the root is not followed and is counted on the `-- skipped:` line; name the directory
 it leads to (ADR-138).
 A link to a directory is not followed: one the walk meets is skipped, one you name is refused with
