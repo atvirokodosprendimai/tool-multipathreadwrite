@@ -1,21 +1,36 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
 
-// #649. A path op has no line address: the plan writes `-`. Its FAIL and skip rows
-// printed the unresolved bound, `0`, which no plan header says, though the row of a
-// path op that applies already printed `-`. The JSON receipt's "addr" keeps the value
-// it has (ADR-111).
+// #649. A path op has no line address: its row prints `-`, whatever the plan wrote
+// and whichever way the hunk ended. The FAIL and skip rows printed the unresolved
+// bound, `0`, though the row of a path op that applies already printed `-`. The
+// JSON receipt's "addr" keeps the value it has (ADR-111).
+//
+// The skip cases are the ones that reach the old `0`: a hunk refused by refuseFile,
+// clashAt or sameFileAs is skipped with the Addr its input carried, where a hunk
+// that merely sat beside a failing one was validated first and already said `-`.
 func TestAPathOpRowPrintsTheAddressThePlanWrote(t *testing.T) {
 	tree := func(t *testing.T) string {
 		t.Helper()
 		root := t.TempDir()
 		t.Setenv("XDG_STATE_HOME", t.TempDir())
 		writeFiles(t, root, map[string]string{"a.txt": "a\n", "b.txt": "b\n", "g.txt": "g\n"})
-		if out, code := runIn(t, root, "read", "a.txt", "b.txt"); code != 0 {
+		if err := os.Chmod(filepath.Join(root, "b.txt"), 0o444); err != nil {
+			t.Fatal(err)
+		}
+		if runtime.GOOS != "windows" {
+			if err := os.Symlink("a.txt", filepath.Join(root, "l.txt")); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if out, code := runIn(t, root, "read", "a.txt", "b.txt", "l.txt"); code != 0 && runtime.GOOS != "windows" {
 			t.Fatalf("read: exit %d:\n%s", code, out)
 		}
 		return root
@@ -23,28 +38,40 @@ func TestAPathOpRowPrintsTheAddressThePlanWrote(t *testing.T) {
 	cases := []struct {
 		name, plan string
 		flags      []string
-		want       string
-		notWant    string
+		want       []string
+		unixOnly   bool
 	}{
-		{"an unlink of a missing file", "@@ nope.txt - unlink\n", nil, "FAIL nope.txt - unlink (plan line 1): nope.txt does not exist", "nope.txt 0 unlink"},
-		{"a rename of a missing file", "@@ nope.txt - rename\nz.txt\n", nil, "FAIL nope.txt - rename (plan line 1): nope.txt does not exist", "nope.txt 0 rename"},
-		{"a rename of a file never read", "@@ g.txt - rename\nz.txt\n", nil, "FAIL g.txt - rename (plan line 1): g.txt has not been read", "g.txt 0 rename"},
-		{"an unlink beside a failing hunk is skipped", "@@ a.txt - unlink\n@@ b.txt 9 replace\nx\n", nil, "skip a.txt - unlink", "a.txt 0 unlink"},
-		{"a rename beside a failing hunk is skipped", "@@ a.txt - rename\nz.txt\n@@ b.txt 9 replace\nx\n", nil, "skip a.txt - rename", "a.txt 0 rename"},
-		{"--quiet keeps the failing row", "@@ nope.txt - unlink\n", []string{"--quiet"}, "FAIL nope.txt - unlink", "nope.txt 0 unlink"},
-		{"--terse keeps the failing row", "@@ nope.txt - unlink\n", []string{"--terse"}, "FAIL nope.txt - unlink", "nope.txt 0 unlink"},
-		{"a dry run of an unlink", "@@ a.txt - unlink\n", []string{"--dry-run"}, "ok   a.txt - unlink", "a.txt 0 unlink"},
+		{"an unlink of a missing file", "@@ nope.txt - unlink\n", nil, []string{"FAIL nope.txt - unlink (plan line 1): nope.txt does not exist"}, false},
+		{"a rename of a missing file", "@@ nope.txt - rename\nz.txt\n", nil, []string{"FAIL nope.txt - rename (plan line 1): nope.txt does not exist"}, false},
+		{"a rename of a file never read", "@@ g.txt - rename\nz.txt\n", nil, []string{"FAIL g.txt - rename (plan line 1): g.txt has not been read"}, false},
+		{"a placeholder of 0 is printed as -", "@@ nope.txt 0 unlink\n", nil, []string{"FAIL nope.txt - unlink"}, false},
+		{"--quiet keeps the failing row", "@@ nope.txt - unlink\n", []string{"--quiet"}, []string{"FAIL nope.txt - unlink"}, false},
+		{"--terse keeps the failing row", "@@ nope.txt - unlink\n", []string{"--terse"}, []string{"FAIL nope.txt - unlink"}, false},
+		{"an unlink skipped beside a directory spelling", "@@ a.txt/ 1 replace\nx\n@@ a.txt - unlink\n", nil, []string{"FAIL a.txt 1 replace", "skip a.txt - unlink"}, false},
+		{"a rename skipped beside a directory spelling", "@@ a.txt/ 1 replace\nx\n@@ a.txt - rename\nz.txt\n", nil, []string{"FAIL a.txt 1 replace", "skip a.txt - rename"}, false},
+		{"a rename skipped beside a read-only file", "@@ b.txt 1 replace\nx\n@@ b.txt - rename\nz.txt\n", nil, []string{"skip b.txt - rename"}, true},
+		{"a rename skipped through a link to a file edited under its other name", "@@ a.txt 1 replace\nx\n@@ l.txt 1 replace\ny\n@@ l.txt - rename\nz.txt\n", nil, []string{"skip l.txt - rename"}, true},
+		{"the skip row is dropped by --quiet", "@@ a.txt/ 1 replace\nx\n@@ a.txt - unlink\n", []string{"--quiet"}, []string{"FAIL a.txt 1 replace"}, false},
+		{"a dry run of an unlink", "@@ a.txt - unlink\n", []string{"--dry-run"}, []string{"parsed: a.txt - unlink body=0", "ok   a.txt - unlink"}, false},
+		{"a dry run of a rename", "@@ a.txt 0 rename\nz.txt\n", []string{"--dry-run"}, []string{"parsed: a.txt - rename body=1", "ok   a.txt - rename"}, false},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
+			if c.unixOnly && runtime.GOOS == "windows" {
+				t.Skip("a read-only mode bit and a symlink are unix fixtures")
+			}
 			root := tree(t)
 			args := append([]string{"--no-check"}, c.flags...)
 			out, _ := writeIn(t, root, append(args, planFile(t, c.plan))...)
-			if !strings.Contains(out, c.want) {
-				t.Errorf("want a row %q:\n%s", c.want, out)
+			for _, want := range c.want {
+				if !strings.Contains(out, want) {
+					t.Errorf("want a row %q:\n%s", want, out)
+				}
 			}
-			if strings.Contains(out, c.notWant) {
-				t.Errorf("the row names address 0 the plan never wrote (%q):\n%s", c.notWant, out)
+			for _, row := range strings.Split(out, "\n") {
+				if strings.Contains(row, " 0 unlink") || strings.Contains(row, " 0 rename") {
+					t.Errorf("a row names address 0 the plan never wrote: %q", row)
+				}
 			}
 		})
 	}
