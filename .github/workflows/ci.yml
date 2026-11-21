@@ -16,6 +16,23 @@ on:
 permissions:
   contents: read
 
+# Every job and every step that runs a tool or reaches the network has a
+# timeout-minutes (#773): a hung step used to run until the runner was lost, ~46
+# minutes later with no log. THE RULE: a job's timeout-minutes is at least the SUM of
+# its steps' limits plus the runner's set-up and clean-up (about 2 minutes), so the
+# job never cuts a step off before the step's own limit and the step's log is the
+# one that is kept; no step is left without a limit.
+# SIZING, for a COLD cache: a first version took twice the longest step in the last
+# 22 green runs and cut "Install golangci-lint" off at 3 minutes in a run whose
+# caches were cold (run 44866981098). Cold figures measured on a 10-core Mac with
+# empty GOMODCACHE and GOCACHE (golangci-lint install 22 s, go vet 6 s, test
+# compile 9 s, race compile 14 s, the four go-run tools 12 s) are scaled by 8, the
+# ratio of that failed run (180 s or more) to the 22 s, and added to the longest
+# warm run time seen in CI (Race 296 s, Test 121 s, Contract 97 s, Static analysis
+# 133 s, a Windows shard 835 s); a limit is three times that sum, rounded up, and
+# never less than before. Network-only steps (installs, checkouts, setup-*, the
+# artifact steps) are 3 to 10 minutes. 20 to 45 minutes is fine: the point is that
+# a hang ends with its log, not that a slow cold run fails.
 jobs:
   # The tag filter on `push` is a GLOB, and GitHub Actions supports no regex
   # there. 'v*.*.*' already excludes v1 and v1.2 because it requires two dots,
@@ -24,10 +41,12 @@ jobs:
   # match and every publishing job gates on its output.
   check:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       release: ${{ steps.semver.outputs.release }}
     steps:
       - id: semver
+        timeout-minutes: 2
         run: |
           tag="${GITHUB_REF_NAME}"
           if [[ "${GITHUB_REF}" == refs/tags/* && "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
@@ -43,15 +62,19 @@ jobs:
   # safety net for branches, and `build` depends on it.
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 110
     steps:
       - uses: actions/checkout@v4
+        timeout-minutes: 5
       - uses: actions/setup-go@v5
+        timeout-minutes: 5
         with:
           go-version-file: go.mod
 
       # test -z rather than a bare `gofmt -l`: gofmt exits 0 even when it lists
       # unformatted files, so the naked command is a gate that cannot fail.
       - name: Format
+        timeout-minutes: 2
         run: |
           unformatted="$(gofmt -l .)"
           if [ -n "$unformatted" ]; then
@@ -61,12 +84,15 @@ jobs:
           fi
 
       - name: Local parallel test runner checks
+        timeout-minutes: 2
         run: python3 -m unittest discover -s scripts -p test_test_fast.py -v
 
       - name: Homebrew publisher checks
+        timeout-minutes: 2
         run: python3 -m unittest discover -s scripts -p test_brew_tap.py -v
 
       - name: Measurement and warning report checks
+        timeout-minutes: 3
         run: |
           go build -o "$RUNNER_TEMP/mrw" ./cmd/mrw
           PATH="$RUNNER_TEMP:$PATH" python3 -m unittest discover -s scripts -p test_mrw_observe.py -v
@@ -74,17 +100,20 @@ jobs:
           PATH="$RUNNER_TEMP:$PATH" python3 -m unittest discover -s scripts -p test_grouped_pilot.py -v
 
       - name: Stage 9 counting script checks
+        timeout-minutes: 3
         run: python3 -B -m unittest discover -s scripts -p test_bench_stage9.py -v
 
       # #757: THIRD_PARTY_NOTICES carries the licence of every module compiled into
       # mrw, and this fails when it is missing, stale against go.mod, or a module
       # has no licence file to put in it.
       - name: Third-party notices
+        timeout-minutes: 5
         run: |
           python3 scripts/third_party_notices.py --check
           python3 -B -m unittest discover -s scripts -p test_third_party_notices.py -v
 
       - name: Vet
+        timeout-minutes: 5
         run: go vet ./...
 
       # ADR-088: golangci-lint, deadcode, staticcheck U1000 with tests excluded,
@@ -92,6 +121,7 @@ jobs:
       # hook run. golangci-lint is installed at the version scripts/static.sh
       # pins; the other tools run pinned through `go run`.
       - name: Install golangci-lint
+        timeout-minutes: 10
         run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0
 
       # ADR-147: what scripts/static.sh needs for what is not Go — ruff,
@@ -100,9 +130,11 @@ jobs:
       # and put ahead of the runner's own; actionlint runs pinned through
       # `go run`.
       - name: Install ruff
+        timeout-minutes: 5
         run: pipx install ruff==0.15.6
 
       - name: Install shellcheck
+        timeout-minutes: 5
         working-directory: ${{ runner.temp }}
         run: |
           curl -fsSLO https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.linux.x86_64.tar.xz
@@ -111,22 +143,38 @@ jobs:
           echo "$RUNNER_TEMP/shellcheck-v0.11.0" >> "$GITHUB_PATH"
 
       - uses: actions/setup-node@v4
+        timeout-minutes: 5
         with:
           node-version: 24
 
       - name: Install the plugin's dependencies for knip
+        timeout-minutes: 5
         run: npm ci --no-audit --no-fund
         working-directory: cmd/opencode/mrw-plugin
 
+      # scripts/static.sh has its own per-step deadlines and a total budget, which
+      # keep it under this step's limit so a hang is named, with its log, before
+      # GitHub cuts the step off. Its local defaults (420 s total, 240 s per tool)
+      # are for a warm machine; here they are cold-safe: four `go run` tools that
+      # compile and download from empty caches on a hosted runner, at 8 times the
+      # 12 s measured locally and three times that, fit a 400 s step deadline
+      # and 900 s of total. 900 s + the 5 s a stopped tree gets before KILL +
+      # start-up is inside 18 minutes (1080 s). Raise both together.
       - name: Static analysis
+        timeout-minutes: 18
+        env:
+          STATIC_TOTAL_SECS: '900'
+          STATIC_DEADLINE_SECS: '400'
         run: ./scripts/static.sh
 
       - name: Test
+        timeout-minutes: 10
         run: go test ./...
 
       # ADR-210's contract row 361 traces the syncs of a write under strace; without
       # it the row prints a skip and proves nothing.
       - name: Install strace for contract 361
+        timeout-minutes: 5
         run: sudo apt-get update -qq && sudo apt-get install -y -qq strace
 
       # The contract script drives the real binary through a real shell and
@@ -134,6 +182,7 @@ jobs:
       # purpose. It is not a go test because exit statuses are half of what it
       # checks, and a caller meets this tool through a shell.
       - name: Contract
+        timeout-minutes: 8
         run: ./scripts/contract.sh
 
       # scripts/measure.sh is what the README and docs/measure.md tell a reader to
@@ -143,6 +192,7 @@ jobs:
       # only that it runs to the end; the script stops itself when a spec serves
       # a different number of spans than the sites it counts.
       - name: Measurement script runs
+        timeout-minutes: 5
         run: ./scripts/measure.sh
 
   # The race detector is its own job, running BESIDE `test` rather than after
@@ -151,12 +201,16 @@ jobs:
   # from concurrent tests via t.TempDir, so this is not ceremonial.
   race:
     runs-on: ubuntu-latest
+    timeout-minutes: 34
     steps:
       - uses: actions/checkout@v4
+        timeout-minutes: 5
       - uses: actions/setup-go@v5
+        timeout-minutes: 5
         with:
           go-version-file: go.mod
       - name: Race
+        timeout-minutes: 22
         run: go test -race ./...
 
   # ADR-089: the opencode plugin, built and driven against the binary this
@@ -164,25 +218,33 @@ jobs:
   # plugin's tools the way opencode does.
   opencode:
     runs-on: ubuntu-latest
+    timeout-minutes: 32
     defaults:
       run:
         working-directory: cmd/opencode/mrw-plugin
     steps:
       - uses: actions/checkout@v4
+        timeout-minutes: 5
       - uses: actions/setup-go@v5
+        timeout-minutes: 5
         with:
           go-version-file: go.mod
       - uses: actions/setup-node@v4
+        timeout-minutes: 5
         with:
           node-version: 24
       - name: Build mrw
+        timeout-minutes: 3
         run: go build -o bin/mrw ./cmd/mrw
         working-directory: .
       - name: Install
+        timeout-minutes: 5
         run: npm ci --no-audit --no-fund
       - name: Build the plugin
+        timeout-minutes: 3
         run: npm run build
       - name: Smoke test
+        timeout-minutes: 3
         run: npm test
 
   # Windows, running the same Go gates as `test`. It exists because this project
@@ -221,20 +283,24 @@ jobs:
   # below keeps that name.
   windows-shard:
     runs-on: windows-latest
+    timeout-minutes: 58
     strategy:
       fail-fast: false
       matrix:
         shard: [0, 1, 2, 3, 4, 5]
     steps:
       - uses: actions/checkout@v4
+        timeout-minutes: 5
       # `.gitattributes` pins every file to LF, so Git for Windows does not
       # rewrite line endings on the way out. mrw is line-oriented and its tests
       # compare exact bytes; a CRLF checkout would fail for a reason that is not
       # mrw's, and the fix belongs in the repo rather than in this one job.
       - uses: actions/setup-go@v5
+        timeout-minutes: 5
         with:
           go-version-file: go.mod
       - name: Vet, test and race — shard ${{ matrix.shard }} of 6
+        timeout-minutes: 45
         shell: bash
         run: |
           set -euo pipefail
@@ -272,8 +338,10 @@ jobs:
     needs: [windows-shard]
     if: always()
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Every Windows shard must have succeeded
+        timeout-minutes: 2
         run: |
           echo "windows-shard result: ${{ needs.windows-shard.result }}"
           [ "${{ needs.windows-shard.result }}" = "success" ] || exit 1
@@ -284,6 +352,7 @@ jobs:
     needs: [check, test, race, windows, opencode]
     if: needs.check.outputs.release == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       # fail-fast off: if darwin/arm64 breaks, still learn whether the others
       # do. A partial matrix result is more useful than a cancelled one.
@@ -299,7 +368,9 @@ jobs:
       CGO_ENABLED: '0'
     steps:
       - uses: actions/checkout@v4
+        timeout-minutes: 5
       - uses: actions/setup-go@v5
+        timeout-minutes: 5
         with:
           go-version-file: go.mod
 
@@ -325,6 +396,7 @@ jobs:
       # guidance, and someone who downloads a release has neither this repository
       # nor the centralised skill — they are the case both of those structurally miss.
       - name: Build
+        timeout-minutes: 5
         id: build
         run: |
           python3 scripts/third_party_notices.py --check
@@ -354,6 +426,7 @@ jobs:
       # regather them. The whole job is tag-gated, so these exist only for
       # version tags.
       - uses: actions/upload-artifact@v4
+        timeout-minutes: 3
         with:
           name: mrw_${{ matrix.goos }}_${{ matrix.goarch }}
           path: |
@@ -368,11 +441,13 @@ jobs:
     needs: [check, build]
     if: needs.check.outputs.release == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 12
     permissions:
       contents: write # create/update the Release and upload assets
     steps:
       # merge-multiple flattens every per-target artifact into one dist/.
       - uses: actions/download-artifact@v4
+        timeout-minutes: 3
         with:
           path: dist
           merge-multiple: true
@@ -380,6 +455,7 @@ jobs:
       # One checksum file over every asset, so a downloader can verify what
       # they fetched. Generated before the upload and shipped alongside.
       - name: Checksums
+        timeout-minutes: 2
         run: |
           cd dist
           sha256sum -- * > SHA256SUMS.txt
@@ -391,6 +467,7 @@ jobs:
       # failure that matters once anything points at fixed asset names.
       - name: Publish
         uses: softprops/action-gh-release@v2
+        timeout-minutes: 5
         with:
           fail_on_unmatched_files: true
           generate_release_notes: true
