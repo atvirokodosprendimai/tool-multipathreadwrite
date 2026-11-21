@@ -185,8 +185,22 @@ self_test() (
   planted 'actionlint (run: scripts)' 'SC2034' env SHELLCHECK_OPTS='-S warning' go run "$ACTIONLINT" "$d/.github/workflows/planted.yml" || ok=0
   planted 'actionlint (expressions)' 'nosuch' go run "$ACTIONLINT" "$d/.github/workflows/planted.yml" || ok=0
   planted knip 'dead\.ts' sh -c 'cd "$1" && "$2" --no-progress' _ "$d/knip" "$PWD/$PLUGIN/node_modules/.bin/knip" || ok=0
+  # contract.sh must fail on a line of its own that is not a row (issue #763):
+  # the setup up to its marker, a stray line, the check and the verdict, with no
+  # row between, so this costs the parse and no mrw build. The clean copy pairs
+  # it: without the stray line the same cut must hold.
+  mkdir -p "$d/stray/scripts" "$d/clean/scripts"
+  sed -n '1,/^# --- end of the setup stray_check needs/p' scripts/contract.sh > "$d/head.sh"
+  sed -n '/^if \[ "\$fails" -eq 0 \]/,$p' scripts/contract.sh > "$d/tail.sh"
+  { cat "$d/head.sh"; printf '12087 insert-before\nstray_check\n'; cat "$d/tail.sh"; } > "$d/stray/scripts/contract.sh"
+  { cat "$d/head.sh"; printf 'stray_check\n'; cat "$d/tail.sh"; } > "$d/clean/scripts/contract.sh"
+  planted 'contract.sh (a stray line)' '12087: command not found' bash "$d/stray/scripts/contract.sh" || ok=0
+  if ! bash "$d/clean/scripts/contract.sh" 2>&1 | grep -q 'contract holds'; then
+    echo "self-test: contract.sh without the stray line did not hold"
+    ok=0
+  fi
   [ "$ok" -eq 1 ] || exit 1
-  echo "self-test: ruff, shellcheck, actionlint and knip each reported its planted defect"
+  echo "self-test: ruff, shellcheck, actionlint, knip and contract.sh each reported their planted defect"
 )
 
 step gofmt empty gofmt_seen

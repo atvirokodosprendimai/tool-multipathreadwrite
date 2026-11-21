@@ -109,6 +109,41 @@ mkdir -p "$TMPDIR"
 # without a guard, so a machine without jq failed those rows as if mrw were
 # wrong. Say so once, before anything runs (reported by the WSL peer).
 command -v jq >/dev/null 2>&1 || { echo "contract.sh needs jq on PATH (the --json rows parse receipts with it)" >&2; exit 2; }
+# bash -n before anything runs: a syntax error is otherwise found only when the
+# run reaches it, after every row above it has run, and a keep-both merge that
+# dropped a `fi` only at the end of the file (issue #763). "$BASH" is the bash
+# that runs the rows, so what is parsed is what runs.
+"$BASH" -n "$SELF" || { echo "contract.sh does not parse under $BASH" >&2; exit 2; }
+fails=0
+# ⚠ THE SCRIPT'S OWN ERRORS ARE FAILURES. The verdict below is the count of
+# `bad` rows, and a line that is not a row is invisible to it: a plan header
+# pasted into this file as content ran as a command, the shell printed
+# `12087: command not found` (127) and carried on, and the run exited 0
+# "contract holds" (issue #763). stderr is therefore kept in a file for the run
+# and replayed on exit; every row that expects a diagnostic captures it with
+# 2>&1, so what is left is the shell's own, which begins `$0: line N:` (bar the
+# report of a child a row killed on purpose, `line N: PID Killed`, dropped below):
+# a command not found, a bad substitution, a redirection that failed, an
+# unbound variable under set -u. Rejected: command_not_found_handle (bash 4,
+# and macOS runs 3.2 here), an ERR trap (fires on every row that exits
+# non-zero on purpose, `want 127` included), and shellcheck, which reads
+# `12087 insert-before` as a call to a command of that name at every severity
+# and with every optional check on. scripts/static.sh plants a stray line in a
+# copy that stops at the marker below and requires this to report it.
+exec 9>&2 2>>"$WORK/stderr"
+replay_stderr() { cat "$WORK/stderr" >&9; }
+trap 'replay_stderr; trap "" TERM; rm -rf "$WORK"; kill -- -$$ 2>/dev/null' EXIT
+stray_check() {
+  local seen
+  seen=$(grep -F -- "$0: line " "$WORK/stderr" | grep -vE ': line [0-9]+: [0-9]+ ' | head -n 5)
+  if [ -z "$seen" ]; then
+    printf '  PASS  %s\n' "the script reported no error of its own outside a row"
+  else
+    printf '  FAIL  the script itself reported an error outside any row:\n%s\n' "$seen"
+    fails=$((fails + 1))
+  fi
+}
+# --- end of the setup stray_check needs: scripts/static.sh cuts a copy here ---
 
 # Build our OWN binary inside WORK rather than sharing bin/mrw. Two fences ran
 # concurrently under `adr-verify --sweep` on 2026-08-31 — one starting with
@@ -118,7 +153,6 @@ command -v jq >/dev/null 2>&1 || { echo "contract.sh needs jq on PATH (the --jso
 # it is removed rather than retried. The build is cached, so this is cheap.
 MRW=${MRW:-$WORK/mrw}
 go build -o "$MRW" ./cmd/mrw
-fails=0
 
 ok()   { printf '  PASS  %s\n' "$1"; }
 # A skip is honest; a silent pass is not. Used where the trigger is a
@@ -12286,6 +12320,7 @@ done
 [ "$prc" -le 1 ] && [ -z "$left" ] && ok "no process of this run survives it" \
   || bad "survivors in the run's group after 3 s (pgrep exit $prc): $left$(ps -o pid,ppid,etime,comm -p "$(echo $left | tr ' ' ',')" 2>/dev/null | tail -n +2 | tr '\n' ';')"
 
+stray_check
 if [ "$fails" -eq 0 ]; then
   echo "contract holds"
 else
