@@ -1404,9 +1404,9 @@ func checkedReceipt(root string, res apply.Result, v *writer.Verified, applyErr 
 	var others int
 	var then *check.StepsResult
 	if v != nil {
-		chk, checkErr, then, others = v.Check, v.CheckErr, v.Then, v.DriftWriters
+		chk, checkErr, then, others = v.Check.Slashed(receiptSep), v.CheckErr, v.Then, v.DriftWriters
 		for _, p := range v.Drift {
-			drift = append(drift, filepath.ToSlash(p))
+			drift = append(drift, apply.Slash(p, receiptSep))
 		}
 	}
 	// fullPath is where the whole receipt was kept once an elision could drop
