@@ -67,12 +67,15 @@ jobs:
           fi
 
       - name: Local parallel test runner checks
+        timeout-minutes: 2
         run: python3 -m unittest discover -s scripts -p test_test_fast.py -v
 
       - name: Homebrew publisher checks
+        timeout-minutes: 2
         run: python3 -m unittest discover -s scripts -p test_brew_tap.py -v
 
       - name: Measurement and warning report checks
+        timeout-minutes: 3
         run: |
           go build -o "$RUNNER_TEMP/mrw" ./cmd/mrw
           PATH="$RUNNER_TEMP:$PATH" python3 -m unittest discover -s scripts -p test_mrw_observe.py -v
@@ -80,12 +83,14 @@ jobs:
           PATH="$RUNNER_TEMP:$PATH" python3 -m unittest discover -s scripts -p test_grouped_pilot.py -v
 
       - name: Stage 9 counting script checks
+        timeout-minutes: 3
         run: python3 -B -m unittest discover -s scripts -p test_bench_stage9.py -v
 
       # #757: THIRD_PARTY_NOTICES carries the licence of every module compiled into
       # mrw, and this fails when it is missing, stale against go.mod, or a module
       # has no licence file to put in it.
       - name: Third-party notices
+        timeout-minutes: 2
         run: |
           python3 scripts/third_party_notices.py --check
           python3 -B -m unittest discover -s scripts -p test_third_party_notices.py -v
@@ -128,8 +133,12 @@ jobs:
         run: npm ci --no-audit --no-fund
         working-directory: cmd/opencode/mrw-plugin
 
+      # scripts/static.sh has its own deadlines and a total budget, STATIC_TOTAL_SECS
+      # (420 s), that it keeps under this limit: 420 s + the 5 s a stopped tree gets
+      # before KILL + start-up is well inside 10 minutes (600 s), so a hang is named
+      # by static.sh, with its log, before GitHub cuts the step off. Raise both together.
       - name: Static analysis
-        timeout-minutes: 5
+        timeout-minutes: 10
         run: ./scripts/static.sh
 
       - name: Test
@@ -347,6 +356,7 @@ jobs:
       # guidance, and someone who downloads a release has neither this repository
       # nor the centralised skill — they are the case both of those structurally miss.
       - name: Build
+        timeout-minutes: 4
         id: build
         run: |
           python3 scripts/third_party_notices.py --check
@@ -376,6 +386,7 @@ jobs:
       # regather them. The whole job is tag-gated, so these exist only for
       # version tags.
       - uses: actions/upload-artifact@v4
+        timeout-minutes: 2
         with:
           name: mrw_${{ matrix.goos }}_${{ matrix.goarch }}
           path: |
@@ -396,6 +407,7 @@ jobs:
     steps:
       # merge-multiple flattens every per-target artifact into one dist/.
       - uses: actions/download-artifact@v4
+        timeout-minutes: 2
         with:
           path: dist
           merge-multiple: true
@@ -403,6 +415,7 @@ jobs:
       # One checksum file over every asset, so a downloader can verify what
       # they fetched. Generated before the upload and shipped alongside.
       - name: Checksums
+        timeout-minutes: 2
         run: |
           cd dist
           sha256sum -- * > SHA256SUMS.txt
@@ -414,6 +427,7 @@ jobs:
       # failure that matters once anything points at fixed asset names.
       - name: Publish
         uses: softprops/action-gh-release@v2
+        timeout-minutes: 5
         with:
           fail_on_unmatched_files: true
           generate_release_notes: true
