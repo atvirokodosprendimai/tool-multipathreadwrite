@@ -58,7 +58,7 @@ deadline() {
   shift 2
   flag=$(mktemp -u) || return 1
   set -m
-  "$@" &
+  ( "$@" ) &
   pid=$!
   ( sleep "$secs"; : > "$flag"; kill -TERM -- "-$pid" 2>/dev/null; sleep 5; kill -KILL -- "-$pid" 2>/dev/null ) &
   watcher=$!
