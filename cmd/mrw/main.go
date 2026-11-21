@@ -2463,7 +2463,7 @@ held or went unchecked.`,
 				stepsNotRun = v.Then
 				return refuseWith(res, v.CheckErr)
 			}
-			receipt.Check, receipt.Drift, receipt.DriftWriters, receipt.Then = v.Check, shownPaths(v.Drift), v.DriftWriters, v.Then
+			receipt.Check, receipt.Drift, receipt.DriftWriters, receipt.Then = shownCheck(v.Check), shownPaths(v.Drift), v.DriftWriters, v.Then
 
 			if cmd.Bool("json") {
 				enc := json.NewEncoder(os.Stdout)
@@ -3066,6 +3066,9 @@ touched, which is a finding about the machine and not about your change.`,
 			if len(asked) > 0 {
 				then = writer.RunSteps(ctx, root, cfg, asked, res.OK())
 			}
+			// The paths a receipt names are spelled with "/" (#754); Run keeps the
+			// caller's own, and the command it ran is not touched.
+			res = *res.Slashed(receiptSep)
 			if cmd.Bool("json") {
 				enc := json.NewEncoder(os.Stdout)
 				enc.SetIndent("", "  ")
@@ -3716,6 +3719,11 @@ var receiptSep = filepath.Separator
 
 // shown is res as a receipt shows it: every root-relative path with "/".
 func shown(res apply.Result) apply.Result { return apply.Slashed(res, receiptSep) }
+
+// shownCheck is a check's result as a receipt shows it: the edited files it
+// names with "/". The command that ran was built from the engine's paths and is
+// kept as it ran (#754).
+func shownCheck(c *check.Result) *check.Result { return c.Slashed(receiptSep) }
 
 // shownPaths is paths as a receipt shows them, with "/".
 func shownPaths(paths []string) []string {

@@ -225,6 +225,24 @@ func (r Result) OutsideLine() string {
 		shellArgs(r.OutsideScope), r.outsideTemplate)
 }
 
+// Slashed is r as a receipt shows it. The engine's paths are the platform's; a
+// receipt spells a root-relative path with "/" (ADR-091, ADR-132), so
+// OutsideScope is converted where sep separated it. Only the copy a receipt is
+// built from changes: the paths handed to the check command ({files}, {dirs})
+// are made before this, from the engine's own, and are never touched. A nil r
+// stays nil; the slice is cloned.
+func (r *Result) Slashed(sep rune) *Result {
+	if r == nil || len(r.OutsideScope) == 0 {
+		return r
+	}
+	c := *r
+	c.OutsideScope = append([]string(nil), r.OutsideScope...)
+	for i, p := range c.OutsideScope {
+		c.OutsideScope[i] = strings.ReplaceAll(p, string(sep), "/")
+	}
+	return &c
+}
+
 // OK reports whether the check ran and passed. A check that did not run is not
 // a pass — the caller has no evidence either way, and saying so is the whole
 // job of this type.

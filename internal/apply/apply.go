@@ -1733,9 +1733,10 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 	// verdict, and still aborts the whole run.
 	if existed && opt.Seen != nil && !opt.Force && unquoted > 0 {
 		switch {
-		case !known && len(hs) == 1 && hs[0].Op == "create":
-			// A create never overwrites, so the read the generic refusal asks for
-			// would not let it apply: say what is true (ADR-142).
+		case len(hs) == 1 && hs[0].Op == "create" && (!known || recorded.SHA != shaBefore):
+			// A create never overwrites, so neither the read the generic refusal asks
+			// for nor --force would let it apply, whether the ledger has no record of
+			// the path or holds one at another version (#754): say what is true (ADR-142).
 			fail(hs[0], "create: %s already exists — a create never overwrites; read it and use replace or delete, or unlink it first", asPlan(path))
 		case !known:
 			if pathLevel && !lineLevel {
