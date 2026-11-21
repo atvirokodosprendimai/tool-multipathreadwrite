@@ -85,6 +85,7 @@ p=$(python3 -m unittest -v scripts.test_bench_stage9 2>&1) && grep -qE '^test_th
 - 2026-11-20 · 751edd9b* · exit 1 · `set -o pipefail …` · acceptance-sha256:edbfaffc09ce799683e0a9ed894176ec62e02818e4b449bdab30256cfc9cc39c · ms:53602
   ```
   ```
+- 2026-11-21 · 2125b715* · exit 0 · `set -o pipefail …` · acceptance-sha256:10e067b309fc772e30f8b2423a5a504aeb1072819201f9641211cc90d9d075d2 · ms:60199
 
 ## Invariants
 
