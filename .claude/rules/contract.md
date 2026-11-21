@@ -26,15 +26,17 @@ paths:
   mrw itself is Go, and Go ignores SIGALRM: a row that must bound `$MRW` uses `bounded SECS OUT
   CMD…`, which polls and kills with SIGKILL — the alarm could never stop it (BACKLOG.md, the ADR-072
   hang-guard entry).
-- **The runner is a fresh process group, and the last rows prove nothing survived it.** The top of
+- **The full contract suite runs in a fresh process group, and its last rows check for survivors.** The top of
   the file is a thin wrapper that forks the runner into a new group (handlers before the fork, the
   group set from both sides), forwards INT/TERM/HUP to it, and repeats its exit status; the runner
   consumes the `CONTRACT_GROUP` marker so nothing inherits it. §60 plants a deliberate orphan,
   asserts `pgrep -g $$` sees it and kills only that pid, and runs a nested probe built from the
   file's own prologue to prove the exit status comes back, the EXIT trap's group kill reaps a
   re-parented orphan, and an INT to the wrapper ends the run 143; after the last row the group must
-  be empty, so a process any row left behind is named. Always a new group, never "if not
-  already a leader": as the first command of `… | tee` the script leads a group `tee` shares, and
+  be empty, so a process any row left behind is named. A full run needs a new group even if its
+  caller leads one. As the first command of `… | tee` the script leads a group `tee` shares, and
   the kill took `tee` (found by both reviews). `pgrep -P $$` was the first form and misses an orphan
   already re-parented — a peer session named the group form on 2026-09-05. Write `pgrep` to a
   file, not a `$( )`: the substitution's own subshell is a group member and lists itself.
+  Setup-only copies (`CONTRACT_STOP_AT_SETUP=1`) stay in the static check's group so the hook
+  can stop them with the check. Their EXIT trap removes their temporary directory.

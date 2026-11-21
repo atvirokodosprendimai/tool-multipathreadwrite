@@ -62,7 +62,7 @@
 # writer); a stray
 # line inside the watcher's own branch (55 lines, from the guard to its `fi`);
 # stderr that reaches the screen through the tee and so can be reordered against
-# stdout. The inner run is in a process group of its own, so its cleanup cannot
+# stdout. A full run uses its own process group, so its cleanup cannot
 # reach the watcher or the tee. CONTRACT_STOP_AT_SETUP=1 ends the inner run at
 # the marker below, for scripts/static.sh, which plants lines in a copy and runs
 # it through this path.
@@ -121,7 +121,7 @@ if [ -z "${CONTRACT_INNER:-}" ]; then
 fi
 set -uo pipefail
 
-# The runner is a fresh process group of its own, always, so that
+# The runner is a fresh process group of its own for the full suite, so that
 # `pgrep -g $$` at the end names every process this run started and nothing
 # else: a descendant re-parented away from its spawner keeps its group, so
 # #101's two orphans would have been named the day they were made rather
@@ -142,7 +142,9 @@ set -uo pipefail
 # session on 2026-09-05. One consequence: with `stty tostop` set, a write to
 # the terminal from this background group stops it — off by default, and
 # nothing here reads the terminal.
-if [ "${CONTRACT_GROUP:-}" != "$$" ]; then
+# The setup-only copies run inside the static check. Its hook owns that group
+# and must be able to stop the copy, including its runner, with one signal.
+if [ -z "${CONTRACT_STOP_AT_SETUP:-}" ] && [ "${CONTRACT_GROUP:-}" != "$$" ]; then
   exec perl -e '
     my ($pid, $pending);
     # Handlers before the fork, and the group set from BOTH sides: a signal
@@ -188,7 +190,7 @@ WORK=$(mktemp -d)
 # second forwarded signal cannot cut the trap short — measured unnecessary
 # on darwin, where bash carried exit status through it; kept as a guard for
 # the Linux runner.
-trap 'trap "" TERM; rm -rf "$WORK"; kill -- -$$ 2>/dev/null' EXIT
+trap 'trap "" TERM; rm -rf "$WORK"; if [ -z "${CONTRACT_STOP_AT_SETUP:-}" ]; then kill -- -$$ 2>/dev/null; fi' EXIT
 
 # ⚠ AND PIN mrw's OWN STATE INTO $WORK. Every `fixture` gets a fresh root, which
 # is a fresh state KEY, so an unpinned run converted one temporary directory
