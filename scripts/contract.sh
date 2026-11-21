@@ -30,7 +30,7 @@ set -uo pipefail
 # the log cannot be read. Nothing inside the rows touches a file descriptor.
 # Rejected: command_not_found_handle (bash 4; macOS runs 3.2), an ERR trap
 # (fires on every row that exits non-zero on purpose, `want 127` included),
-# shellcheck (it reads `12087 insert-before` as a call to a command of that
+# the linter (it reads `12087 insert-before` as a call to a command of that
 # name at every severity and with every optional check on), and a capture of
 # stderr by the inner run itself (it can be bypassed by `exit 0`, by a line
 # before it starts, and by any row that rearranges descriptors).
