@@ -3,6 +3,7 @@ package writer
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"testing"
 
@@ -145,5 +146,39 @@ func TestAWriteKeepsTheEntryOfADifferentFileWhoseNameDiffersOnlyInCase(t *testin
 	}
 	if o, ok := l["A.TXT"]; !ok || o.SHA != seen.SHA([]byte(lines597)) {
 		t.Fatalf("a write to a.txt changed the entry of the distinct file A.TXT: %+v", l)
+	}
+}
+
+func TestLargeLedgerFindsEveryAlternateSpelling(t *testing.T) {
+	root := checkout(t)
+	ledger := seen.Ledger{}
+	var files []apply.FileResult
+	for _, name := range []string{"first", "second", "unchanged"} {
+		if err := os.WriteFile(filepath.Join(root, name), []byte(lines597), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		ledger[name] = seen.Observation{}
+		if name != "unchanged" {
+			files = append(files, apply.FileResult{Path: name, Written: true})
+		}
+	}
+
+	var want []string
+	for i := range 160 {
+		key := "alias-" + strconv.Itoa(i)
+		target := []string{"first", "second", "unchanged", "missing"}[i%4]
+		if err := os.Symlink(target, filepath.Join(root, key)); err != nil {
+			t.Skipf("symlinks unavailable: %v", err)
+		}
+		ledger[key] = seen.Observation{}
+		if target == "first" || target == "second" {
+			want = append(want, key)
+		}
+	}
+	got := otherSpellings(root, files, ledger)
+	slices.Sort(got)
+	slices.Sort(want)
+	if !slices.Equal(got, want) {
+		t.Fatalf("aliases to drop = %v, want %v", got, want)
 	}
 }
