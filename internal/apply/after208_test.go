@@ -73,7 +73,7 @@ func TestAMultiLineReplaceOnAWrittenFileNeedsTheLineAfterShown(t *testing.T) {
 		{name: "forced_stale_showing", obs: &Seen{SHA: seen.SHA([]byte("older\n")), Written: true, Shown: [][2]int{{4, 4}}}, opt: Options{Force: true}, want: "needs a served line after 3"},
 		{name: "forced_fresh_showing", obs: written([2]int{4, 4}), opt: Options{Force: true}, want: "ok"},
 		{name: "forced_nothing_shown", obs: written(), opt: Options{Force: true}, want: "needs a served line after 3"},
-		{name: "partial_written_licence", obs: &Seen{SHA: sha, Written: true, Spans: [][2]int{{1, 4}}}, want: "ok"},
+		{name: "partial_written_licence", obs: &Seen{SHA: sha, Written: true, Spans: [][2]int{{1, 4}}}, want: "needs a served line after 3"}, // ADR-208 Decision 1a: a licence is not a showing
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

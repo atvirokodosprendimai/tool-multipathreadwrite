@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
@@ -87,13 +88,40 @@ func TestAnAliasRecordOfAnotherVersionIsIgnoredByTheLineAfterRule(t *testing.T) 
 	sha := seen.SHA([]byte(body))
 	in := []Input{{Path: "link.go", Op: "replace", Start: 1, End: 3, Anchor: "func A", Lines: -1, Body: []string{"func A() {", "}"}}}
 	res, err := Apply(root, in, Options{Seen: map[string]Seen{
-		"link.go": {SHA: sha, Written: true, Spans: [][2]int{{1, 4}}}, // a quiet read of the current version
-		"f.go":    {SHA: seen.SHA([]byte("older\n")), Written: true},  // whole and written, of an older one
+		"link.go": {SHA: sha, Spans: [][2]int{{1, 4}}},               // a read of the current version
+		"f.go":    {SHA: seen.SHA([]byte("older\n")), Written: true}, // whole and written, of an older one
 	}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !res.Applied || res.Failed != 0 {
 		t.Errorf("an older version's record made the current one whole: %+v", res.Hunks)
+	}
+}
+
+// The other direction: the plan's own record is whole and written, nothing shown,
+// and another spelling holds a read of line 4 from an older version of the file. A
+// showing of another version shows nothing of this one, so the line after is still
+// unread and the plan is refused.
+func TestAnAliasShowingOfAnotherVersionDoesNotMeetTheLineAfter(t *testing.T) {
+	const body = "func A() {\n\tif x {\n\t}\n}\n"
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "f.go"), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("f.go", filepath.Join(root, "link.go")); err != nil {
+		t.Skipf("no symlinks: %v", err)
+	}
+	sha := seen.SHA([]byte(body))
+	in := []Input{{Path: "link.go", Op: "replace", Start: 1, End: 3, Anchor: "func A", Lines: -1, Body: []string{"func A() {", "}"}}}
+	res, err := Apply(root, in, Options{Seen: map[string]Seen{
+		"link.go": {SHA: sha, Written: true},
+		"f.go":    {SHA: seen.SHA([]byte("older\n")), Spans: [][2]int{{1, 4}}},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Applied || res.Failed != 1 || !strings.Contains(res.Hunks[0].Reason, "needs a served line after 3") {
+		t.Errorf("an older version's showing met the line after: %+v", res.Hunks)
 	}
 }

@@ -361,7 +361,7 @@ These are gates, not a tour of the records behind them.
   when the undo put everything back.
 - **Per-line licence.** Being served lines 1–5 does not license line 40.
   `--stat` and a match that printed nothing observe nothing.
-  A file mrw just wrote is wholly known, but a number alone is refused on a line no read has shown since the write (the reason says `has no recorded showing in this version`): read the line (a whole-file `--quiet` read shows nothing), address it by pattern, or give `anchor=`. A file whose every hunk in the write was a SEARCH/REPLACE block gains the lines written, not the whole file.
+  A file mrw just wrote is wholly known, but a number alone is refused on a line no read has shown since the write (the reason says `has no recorded showing in this version`): read the line (a whole-file `--quiet` read shows nothing), address it by pattern, or give `anchor=`. A file whose every hunk in the write was a SEARCH/REPLACE block gains the lines written, not the whole file, unless it leaves the file byte-identical (the earlier licence stays under the same spelling).
 - **One writer at a time.** Writers on one checkout take turns (ADR-075). A writer waits up to 120 s for the
   one before it, then is refused, exit 2, nothing applied, naming the holder's pid; `MRW_WRITE_LOCK_TIMEOUT`
   sets the wait in seconds, `0` for one try (ADR-110).
@@ -370,9 +370,11 @@ These are gates, not a tour of the records behind them.
   A checkpoint brackets consecutive lines only, and served lines holding bytes that are not valid UTF-8 get none:
   the JSON answer replaces those bytes, so edit such a file with the CLI (ADR-108).
 - **Neighbour licence.** A multi-line `replace` is refused unless a prior read
-  already covered a line after End. Last line of the file is exempt. On a file mrw
-  wrote, or one read whole with `--quiet`, a multi-line replace that ends before the
-  last line also needs the line after it shown since the write (ADR-208); the refusal names the read to make.
+  already covered a line after End. Last line of the file is exempt. Where the line
+  after is licensed and not shown (the lines a write produced, a `search_replace`
+  write's included, a `--quiet` read's lines whole or ranged, a `read --rewrite`
+  plan written by a later call), a multi-line replace that ends before the last
+  line also needs the line after it shown since the write (ADR-208); the refusal names the read to make.
   `--echo-pad N` (MCP `echo_pad`, default 0) prints N lines after an applied
   body so a surviving closer is visible; the hunk stays `ok`. The pad is not a
   checker.

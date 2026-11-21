@@ -263,8 +263,12 @@ func TestAnMCPQuietReadLicensesAndReturnsNoLine(t *testing.T) {
 	if !strings.Contains(text, "-- licensed 3 line(s) in 1 file(s)") {
 		t.Errorf("a quiet read does not count what it licensed (2-3 and the line after):\n%s", text)
 	}
-	// licensed with no ack: a multi-line replace of the lines it was told, line 4 as its next line
-	if w := call(t, root, "mrw_write", map[string]any{"plan": "@@ a.txt 2-3 replace anchor=\"l2\"\nTWO\nTHREE\n", "check": false}); w["isError"] == true || structured(t, w)["applied"] != true {
+	// licensed with no ack: a replace of a line it was told. A multi-line replace ending above line 4,
+	// which the read licensed and did not show, needs that line read first (ADR-208 Decision 1a).
+	if w := call(t, root, "mrw_write", map[string]any{"plan": "@@ a.txt 2-3 replace anchor=\"l2\"\nTWO\nTHREE\n", "check": false}); w["isError"] != true || !strings.Contains(fmt.Sprint(structured(t, w)["hunks"]), "needs a served line after 3") {
+		t.Errorf("a quiet read showed the line after its range, or the refusal is another: %v", w)
+	}
+	if w := call(t, root, "mrw_write", map[string]any{"plan": "@@ a.txt 2 replace anchor=\"l2\"\nTWO\n", "check": false}); w["isError"] == true || structured(t, w)["applied"] != true {
 		t.Errorf("a quiet read did not license its range: %v", w)
 	}
 	// and nothing it did not serve

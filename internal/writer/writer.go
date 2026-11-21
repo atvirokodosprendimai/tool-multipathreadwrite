@@ -148,8 +148,11 @@ func applyCounted(root string, in []apply.Input, opt apply.Options) (apply.Resul
 		}
 		if f.Written && f.QuotedOnly {
 			// ADR-190: a quote licensed these lines and the caller read nothing
-			// else, so the file is known only where it was written.
-			wrote[f.Path] = seen.Observation{SHA: f.SHAAfter, Spans: append([][2]int{}, f.Spans...)}
+			// else, so the file is known only where it was written. ADR-208
+			// Decision 1a: those lines are licensed and not shown, as a plan's
+			// and a --quiet read's are, so a later multi-line replace needs the
+			// line after them read before it leans on them.
+			wrote[f.Path] = seen.Observation{SHA: f.SHAAfter, Written: true, Spans: append([][2]int{}, f.Spans...)}
 		} else if f.Written {
 			wrote[f.Path] = seen.Observation{SHA: f.SHAAfter, Written: true}
 		}

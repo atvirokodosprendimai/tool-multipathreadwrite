@@ -35,10 +35,10 @@ func TestTheInstructionsDoNotInviteAStaleNumber(t *testing.T) {
 	if strings.Contains(seven, "needs no re-read") || !strings.Contains(seven, "until a read has shown a line a number alone is refused") {
 		t.Errorf("recipe 7 still says a written file needs no re-read, or does not point at recipe 21:\n%s", seven)
 	}
-	if !strings.Contains(seven, "keeps a whole-file licence, unless every hunk on it was a search_replace block (the write then adds the lines it wrote to the licence it had)") {
+	if !strings.Contains(seven, "keeps a whole-file licence, unless every hunk on it was a search_replace block (the write then licenses only the lines it wrote, and a second such write at a new version only its own, and a number alone is accepted on those lines; one that leaves the file byte-identical keeps the earlier licence, under the same spelling)") {
 		t.Errorf("recipe 7 does not say what licence a written file keeps:\n%s", seven)
 	}
-	if !strings.Contains(twentyOne, "a file you just wrote") || !strings.Contains(twentyOne, "a number alone is refused, unless a read has shown that line since the write, so name the line by a pattern") || !strings.Contains(twentyOne, "or read the line first") || strings.Contains(twentyOne, "only after") {
+	if !strings.Contains(twentyOne, "a file you just wrote, on its whole-file licence") || !strings.Contains(twentyOne, "a number alone is refused, unless a read has shown that line since the write, so name the line by a pattern") || !strings.Contains(twentyOne, "or read the line first") || strings.Contains(twentyOne, "only after") {
 		t.Errorf("there is no recipe 21 for a second edit to a file just written:\n%s", twentyOne)
 	}
 	// The command names its line by content twice: a pattern address, and an
