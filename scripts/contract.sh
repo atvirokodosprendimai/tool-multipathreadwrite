@@ -12286,7 +12286,7 @@ done
 [ "$prc" -le 1 ] && [ -z "$left" ] && ok "no process of this run survives it" \
   || bad "survivors in the run's group after 3 s (pgrep exit $prc): $left$(ps -o pid,ppid,etime,comm -p "$(echo $left | tr ' ' ',')" 2>/dev/null | tail -n +2 | tr '\n' ';')"
 
-# 377. #754: a create of a path the ledger holds a record for, at another version
+# 378. #754: a create of a path the ledger holds a record for, at another version
 # than the file has now, says the path exists and that a create never overwrites,
 # and does not advise --force: --force cannot make a create overwrite. The pair:
 # a replace of a file changed since its read keeps the refusal, with its --force.
