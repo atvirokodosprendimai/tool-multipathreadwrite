@@ -205,6 +205,8 @@ self_test() (
   contract_copy jobreal ': < "12087 Killed"'
   contract_copy jobok $'printf \'%s: line 5:  1234 Killed\\n%s: line 6: 77 Killed: 9   cmd\\n\' "$0" "$0" >&2'
   contract_copy clean ''
+  contract_copy nul 'x=$(printf "a\000b")'
+  contract_copy nulok 'x=$(printf "a\000b" | LC_ALL=C tr -d "\000")'
   planted 'contract.sh (a stray line)' '12087: command not found' env CONTRACT_STOP_AT_SETUP=1 bash "$d/stray/scripts/contract.sh" || ok=0
   planted 'contract.sh (a stray line, then exit 0)' '12087: command not found' env CONTRACT_STOP_AT_SETUP=1 bash "$d/bypass/scripts/contract.sh" || ok=0
   planted 'contract.sh (its stderr log gone)' 'could not read the log' env CONTRACT_STOP_AT_SETUP=1 bash "$d/nolog/scripts/contract.sh" || ok=0
@@ -222,6 +224,20 @@ self_test() (
   if ! CONTRACT_STOP_AT_SETUP=1 bash "$d/jobok/scripts/contract.sh" > "$d/jobok.out" 2>&1 || ! grep -q 'stops at the end of its setup' "$d/jobok.out"; then
     echo "self-test: contract.sh failed on job reports a row killed a child for:"
     tail -5 "$d/jobok.out"
+    ok=0
+  fi
+  # A NUL a substitution drops is reported by bash 4.4 and later, which fails the
+  # run, and by no earlier bash; stripped explicitly it is silent in every one.
+  if bash -c '[ "${BASH_VERSINFO[0]}" -gt 4 ] || { [ "${BASH_VERSINFO[0]}" -eq 4 ] && [ "${BASH_VERSINFO[1]}" -ge 4 ]; }'; then
+    planted 'contract.sh (a dropped NUL byte)' 'ignored null byte' env CONTRACT_STOP_AT_SETUP=1 bash "$d/nul/scripts/contract.sh" || ok=0
+  elif ! CONTRACT_STOP_AT_SETUP=1 bash "$d/nul/scripts/contract.sh" > "$d/nul.out" 2>&1; then
+    echo "self-test: contract.sh failed on a dropped NUL byte under a bash that does not report it:"
+    tail -5 "$d/nul.out"
+    ok=0
+  fi
+  if ! CONTRACT_STOP_AT_SETUP=1 bash "$d/nulok/scripts/contract.sh" > "$d/nulok.out" 2>&1; then
+    echo "self-test: contract.sh failed on a NUL byte stripped explicitly:"
+    tail -5 "$d/nulok.out"
     ok=0
   fi
   # The watcher is the first executable statement: nothing above its guard but comments.

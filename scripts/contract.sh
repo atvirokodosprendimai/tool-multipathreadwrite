@@ -50,6 +50,11 @@
 # name at every severity and with every optional check on), and a capture of
 # stderr by the inner run itself (it can be bypassed by `exit 0`, by a line
 # before it starts, and by any row that rearranges descriptors).
+# bash 4.4 and later also report a NUL byte a `$(...)` drops (`warning: command
+# substitution: ignored null byte in input`), and this scan counts it like any
+# other diagnostic of the script; 3.2 drops it silently. A row whose capture can
+# hold a NUL strips it explicitly, `| LC_ALL=C tr -d '\000'` inside the substitution
+# (LC_ALL=C: macOS tr exits 1 on bytes that are not UTF-8), so the captured text is the same under every bash and the warning has no cause.
 # NAMED LIMITS, not closed: a diagnostic a row captures itself
 # (`out=$(12087 insert-before 2>&1)`); SIGKILL of the watcher, which leaves its
 # directory in the temp directory and lets the inner run finish unwatched (and, if
@@ -6961,7 +6966,7 @@ kill -9 "$(cat "$R/gc.pid")" 2>/dev/null; wait "$pid"
 # an unlink of the UTF-16 file applies.
 fixture
 printf '\xff\xfea\x00\n\x00b\x00\n\x00' > "$R/u16.txt"; cp "$R/u16.txt" "$R/u16.bak"
-out=$(m read u16.txt 2>&1); rc=$?
+out=$(m read u16.txt 2>&1 | LC_ALL=C tr -d '\000'); rc=$?
 want 0 "$rc" "a UTF-16 file is read"
 grep -q -- '-- note: u16.txt is UTF-16 (BOM FF FE)' <<<"$out" && ok "with a note naming its encoding" || bad "read: $out"
 printf '@@ u16.txt 1 replace\nX\n' > "$R/p146.mrw"
@@ -8478,7 +8483,7 @@ if grep -q 's216.txt' <<<"$out" && ! grep -q 'gen216/x.txt' <<<"$out" && ! grep 
    && tail -n 1 <<<"$out" | grep -q -- '^-- skipped:.*--no-ignore'; then
   ok "--grep skips an ignored directory and a binary file, and says so as its last line"
 else bad "--grep served what .gitignore ignores, or skipped it silently: $(head -c 400 <<<"$out")"; fi
-out=$(m read --grep NEEDLE216 --no-ignore 2>&1)
+out=$(m read --grep NEEDLE216 --no-ignore 2>&1 | LC_ALL=C tr -d '\000')
 grep -q 'gen216/x.txt' <<<"$out" && grep -q 'b216.dat' <<<"$out" && ! grep -q -- '-- skipped:' <<<"$out" \
   && ok "the pair: --no-ignore serves both" || bad "--no-ignore still skipped: $(head -c 400 <<<"$out")"
 out=$(m read --grep NEEDLE216 gen216/x.txt 2>&1)
@@ -10934,7 +10939,7 @@ g313=$(cd "$R" && "$MRW" read --grep absent "${args313[@]}" . 2>&1); grc313=$?
 { [ "$grc313" = 1 ] && grep -qF 'a1.txt, a2.txt, a3.txt, a4.txt, a5.txt and 2 more' <<<"$g313" && ! grep -qF 'a6.txt' <<<"$g313"; } \
   && ok "an unused-guard notice names five files and counts the rest" || bad "guard names: exit $grc313 [$g313]"
 for n313 in $(seq 1 7); do printf '\377\376h\000i\000\n\000' > "$R/u$n313.txt"; done
-u313=$(cd "$R" && "$MRW" read u1.txt u2.txt u3.txt u4.txt u5.txt u6.txt u7.txt 2>&1); urc313=$?
+u313=$(cd "$R" && "$MRW" read u1.txt u2.txt u3.txt u4.txt u5.txt u6.txt u7.txt 2>&1 | LC_ALL=C tr -d '\000'); urc313=$?
 n313=$(grep '^-- note:' <<<"$u313")
 { [ "$urc313" = 0 ] && grep -qF 'u5.txt is UTF-16 (BOM FF FE) and 2 more' <<<"$n313" && ! grep -qF 'u6.txt' <<<"$n313"; } \
   && ok "a served-as-bytes notice names five files and counts the rest" || bad "byte names: exit $urc313 [$n313]"
