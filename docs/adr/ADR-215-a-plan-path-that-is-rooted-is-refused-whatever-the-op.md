@@ -1,13 +1,14 @@
 # ADR-215: A plan path that is rooted is refused, whatever the op
 
-**Status:** Proposed
+**Status:** Accepted
+**Accepted by:** Zy, 2026-11-21: *"DO IT"*, to seven decisions put to them that day, of which this was the third, worded: "refuse rooted plan paths for every op. Breaking by behaviour: `@@ /sub/y.txt 0 create` goes from exit 0 to exit 1." Accepted as the Decision is recorded (not 1b, 2 or 3), after its Codex xhigh challenge.
 **Date:** 2026-11-21
 **Owner:** Zy
 **Spec:** None — no spec stage
 **Cross-references:** ADR-006, ADR-007, ADR-029, ADR-051, ADR-071, ADR-076, ADR-111, ADR-132, ADR-176, issue #648
 **Governs:** `internal/apply/apply.go`, `internal/apply/pathop.go`, `internal/plan/plan.go`, `internal/guide/guide.go`, `scripts/contract.sh`
 **Enforced-by:** `internal/apply/rooted215_test.go::TestEveryPlanOpRefusesARootedPath`
-**Served-path change:** (if the Decision is accepted as written) a plan path that is rooted (`/dd/zz.txt`, `\dd\zz.txt`, `C:x`, `c:/x`, `//server/share/x`, or an absolute path inside or outside the root) is refused for every op, as a failed hunk before any file is looked up: exit 1, siblings skipped, nothing written. Today it joins to the root and applies for replace, insert, delete, unlink, rename source and create, and an absolute path to a file inside the root creates a copy of its directory chain under the root. A plan that applied yesterday is refused tomorrow; the release note and the tag message carry the cases in Decision 9. A header whose first token begins with `/` and has no second `/` keeps exit 2 and gains a sentence.
+**Served-path change:** a plan path that is rooted (`/dd/zz.txt`, `\dd\zz.txt`, `C:x`, `c:/x`, `//server/share/x`, or an absolute path inside or outside the root) is refused for every op, as a failed hunk before any file is looked up: exit 1, siblings skipped, nothing written. Today it joins to the root and applies for replace, insert, delete, unlink, rename source and create, and an absolute path to a file inside the root creates a copy of its directory chain under the root. A plan that applied yesterday is refused tomorrow; the release note and the tag message carry the cases in Decision 9. A header whose first token begins with `/` and has no second `/` keeps exit 2 and gains a sentence.
 
 ## Context
 
@@ -131,7 +132,8 @@ Revert T1 and T2: a rooted path is joined to the root again, as on `main` at `55
 
 - 2026-11-21: drafted for the owner's choice, from fix-740's matrix and a re-run of its key rows.
 - 2026-11-21, Codex xhigh challenge at `bc3d465e`: AMEND, nine points, each checked against the code (the re-run rows above) and applied; the direction stands. (1) The `check` row and the blanket claim about absolute paths were wrong: a non-create op at an absolute path depends on whether the nested file exists, and `mrw check` refuses an inside-root argument too. (2) `resolve` cannot carry the verdict or the order: the check moved to a preflight on the raw path and raw rename destination, with the precedence stated. (3) Working-set pointers widen the break: Decision 5, a disposition for `iter add`. (4) The suggested spelling could point at an unrelated file: Decision 3. (5) The compatibility set is stated by platform and by what parses, and the `C:x` explanation withdrawn. (6) The first draft's splitter change broke three forms: Decision 4 now only adds a sentence, and the old design is a costed alternative. (7) Mixed failures, MCP, the kept plan and legacy ledger keys are decided (Decisions 2, 6, 8). (8) The fences execute the positive case and reach the branches (T1, T2). (9) T1 owns the assertions it breaks, and the breaking-change note is Decision 9.
+- 2026-11-21: accepted by Zy. Before the status changed, the create (`/sub/y.txt`), replace (`/dd/zz.txt`), absolute-path create and splitter rows were re-run on a `mrw` built from `main` at `5a853823` and behave as tabled; the fences' test names and §381 are free. The task index's T1 row, which still described the first draft's splitter change, now says what Decision 4 decides.
 
 ## Follow-ups
 
-- [ ] The owner chooses before T1 starts: the Decision as recorded, (1b), (2) or (3).
+- [x] The owner chooses before T1 starts: the Decision as recorded, (1b), (2) or (3). Zy, 2026-11-21: the Decision as recorded.
