@@ -40,10 +40,8 @@
 # script's group, so a hook or a terminal that kills the group still takes the
 # steps with it. Named limits of a tree walk: a descendant that detached and was
 # reparented to init before the walk, and a process forked between the walk and
-# the signal, are not found. And a SIGKILL of this script's group does not reach
-# the runner of a contract.sh copy the self-test started, because contract.sh
-# puts its runner in a group of its own (#766); this script's own deadline does,
-# by the tree walk.
+# the signal, are not found. Setup-only contract.sh copies inherit this
+# script's process group so that the hook's group kill reaches them too.
 set -u
 cd "$(dirname "$0")/.." || exit 2
 T0=$SECONDS
@@ -384,6 +382,7 @@ self_test() (
   contract_copy jobreal ': < "12087 Killed"'
   contract_copy jobok $'printf \'%s: line 5:  1234 Killed\\n%s: line 6: 77 Killed: 9   cmd\\n\' "$0" "$0" >&2'
   contract_copy clean ''
+  contract_copy group 'perl -e '\''exit(getpgrp(0) == $ENV{STATIC_TEST_PGID} ? 0 : 1)'\'' || exit 1'
   contract_copy nul 'x=$(printf "a\000b")'
   contract_copy nulok 'x=$(printf "a\000b" | LC_ALL=C tr -d "\000")'
   planted 'contract.sh (a stray line)' '12087: command not found' env CONTRACT_STOP_AT_SETUP=1 bash "$d/stray/scripts/contract.sh" || ok=0
@@ -391,6 +390,11 @@ self_test() (
   planted 'contract.sh (its stderr log gone)' 'could not read the log' env CONTRACT_STOP_AT_SETUP=1 bash "$d/nolog/scripts/contract.sh" || ok=0
   planted 'contract.sh (its tee killed)' 'exited 137' env CONTRACT_STOP_AT_SETUP=1 bash "$d/teekill/scripts/contract.sh" || ok=0
   planted 'contract.sh (a real error that begins like a job report)' '12087 Killed: No such file' env CONTRACT_STOP_AT_SETUP=1 bash "$d/jobreal/scripts/contract.sh" || ok=0
+  if ! STATIC_TEST_PGID=$(perl -e 'print getpgrp(0)') CONTRACT_STOP_AT_SETUP=1 bash "$d/group/scripts/contract.sh" > "$d/group.out" 2>&1; then
+    echo "self-test: the setup-only contract runner left the static check's process group"
+    cat "$d/group.out"
+    ok=0
+  fi
   # The inner run's exit status comes back exactly, not as "non-zero".
   CONTRACT_STOP_AT_SETUP=1 bash "$d/status/scripts/contract.sh" > "$d/status.out" 2>&1
   rc=$?
