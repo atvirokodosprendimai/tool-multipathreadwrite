@@ -81,14 +81,14 @@ deadline() {
 # its modules and the vulnerability database, golangci-lint with a cold build
 # cache) get the longer one. Measured cold (empty GOMODCACHE, GOCACHE and
 # golangci-lint cache, macOS, 2026-11-21): 70 s for the whole script, the slowest
-# step 37 s (shellcheck over contract.sh); CI's whole Static analysis step has
+# step 37 s (shellcheck over contract.sh, 51 s on a later run, so it has the tool deadline); CI's whole Static analysis step has
 # taken at most 115 s. The tool deadline sits under that step's 5-minute limit in
 # ci.yml, so a hang is named here before the runner's own limit stops the step.
 DEADLINE_TOOL=240
 DEADLINE_LOCAL=120
 step_deadline() {
   case $1 in
-    golangci-lint | deadcode* | staticcheck* | govulncheck* | actionlint | self-test) echo "$DEADLINE_TOOL" ;;
+    golangci-lint | deadcode* | staticcheck* | govulncheck* | shellcheck | actionlint | self-test) echo "$DEADLINE_TOOL" ;;
     *) echo "$DEADLINE_LOCAL" ;;
   esac
 }
