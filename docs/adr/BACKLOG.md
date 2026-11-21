@@ -1811,3 +1811,7 @@ changed after the first counted attempt.
 ## From ADR-209
 
 - **A file-only unlink and a no-replace rename for the undo's private entry:** the undo of a failed content commit moves the file it renamed into a private `.mrw-undo-*` directory and deletes it there. An entry another process swaps in at that private name between mrw's check and its deletion can still be removed (`os.Root.Remove` falls back to removing an empty directory, and the standard library exports no `unlinkat` with flags 0 for `os.Root`). ADR-213 (Proposed, `golang.org/x/sys`) would supply both the file-only unlink and a no-replace rename (`renameat2` `RENAME_NOREPLACE`, `renamex_np` `RENAME_EXCL`), which would also close #744's destination window. Owner: Zy. Trigger: ADR-213 accepted, or a report of a private entry swapped.
+
+## From ADR-215
+
+- **Accept an absolute path to a file inside the root as that file in a plan (deferred from ADR-215)** (2026-11-21): the read side does, a plan refuses it. Arm when callers keep pasting an absolute path from a tool's output into a plan and the refusal's "write dd/zz.txt" sentence costs a visible share of retries.
