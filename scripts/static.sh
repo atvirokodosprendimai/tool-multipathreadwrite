@@ -185,8 +185,74 @@ self_test() (
   planted 'actionlint (run: scripts)' 'SC2034' env SHELLCHECK_OPTS='-S warning' go run "$ACTIONLINT" "$d/.github/workflows/planted.yml" || ok=0
   planted 'actionlint (expressions)' 'nosuch' go run "$ACTIONLINT" "$d/.github/workflows/planted.yml" || ok=0
   planted knip 'dead\.ts' sh -c 'cd "$1" && "$2" --no-progress' _ "$d/knip" "$PWD/$PLUGIN/node_modules/.bin/knip" || ok=0
+  # contract.sh must fail on an error of its own that is not a row (issue #763).
+  # Each copy is the real file with one line planted above the marker where its
+  # setup ends, run through its real watcher with CONTRACT_STOP_AT_SETUP=1 so no
+  # row runs and nothing is built. Four plants must fail and say why, and the
+  # copy with nothing planted must pass, so a watcher that fails everything, or
+  # one deleted, is caught as well.
+  n=$(grep -n '^# --- end of the setup' scripts/contract.sh | cut -d: -f1)
+  case $n in '' | *[!0-9]*) echo "self-test: contract.sh has no single end-of-setup marker"; exit 1 ;; esac
+  contract_copy() {
+    mkdir -p "$d/$1/scripts"
+    { head -n $((n - 1)) scripts/contract.sh; [ -z "$2" ] || printf '%s\n' "$2"; tail -n +"$n" scripts/contract.sh; } > "$d/$1/scripts/contract.sh"
+  }
+  contract_copy stray '12087 insert-before'
+  contract_copy bypass '12087 insert-before; exit 0'
+  contract_copy nolog 'rm -f "$CONTRACT_STDERR_LOG"'
+  contract_copy status 'echo inner-said-seven; exit 7'
+  contract_copy teekill 'for _ in $(seq 1 50); do pkill -KILL -f "tee -a $CONTRACT_STDERR_LOG" && break; sleep 0.1; done'
+  contract_copy jobreal ': < "12087 Killed"'
+  contract_copy jobok $'printf \'%s: line 5:  1234 Killed\\n%s: line 6: 77 Killed: 9   cmd\\n\' "$0" "$0" >&2'
+  contract_copy clean ''
+  contract_copy nul 'x=$(printf "a\000b")'
+  contract_copy nulok 'x=$(printf "a\000b" | LC_ALL=C tr -d "\000")'
+  planted 'contract.sh (a stray line)' '12087: command not found' env CONTRACT_STOP_AT_SETUP=1 bash "$d/stray/scripts/contract.sh" || ok=0
+  planted 'contract.sh (a stray line, then exit 0)' '12087: command not found' env CONTRACT_STOP_AT_SETUP=1 bash "$d/bypass/scripts/contract.sh" || ok=0
+  planted 'contract.sh (its stderr log gone)' 'could not read the log' env CONTRACT_STOP_AT_SETUP=1 bash "$d/nolog/scripts/contract.sh" || ok=0
+  planted 'contract.sh (its tee killed)' 'exited 137' env CONTRACT_STOP_AT_SETUP=1 bash "$d/teekill/scripts/contract.sh" || ok=0
+  planted 'contract.sh (a real error that begins like a job report)' '12087 Killed: No such file' env CONTRACT_STOP_AT_SETUP=1 bash "$d/jobreal/scripts/contract.sh" || ok=0
+  # The inner run's exit status comes back exactly, not as "non-zero".
+  CONTRACT_STOP_AT_SETUP=1 bash "$d/status/scripts/contract.sh" > "$d/status.out" 2>&1
+  rc=$?
+  if [ "$rc" -ne 7 ] || ! grep -q 'inner-said-seven' "$d/status.out"; then
+    echo "self-test: contract.sh did not repeat its inner run's exit 7 (got $rc):"
+    tail -5 "$d/status.out"
+    ok=0
+  fi
+  # A job report, in either spelling, is not an error.
+  if ! CONTRACT_STOP_AT_SETUP=1 bash "$d/jobok/scripts/contract.sh" > "$d/jobok.out" 2>&1 || ! grep -q 'stops at the end of its setup' "$d/jobok.out"; then
+    echo "self-test: contract.sh failed on job reports a row killed a child for:"
+    tail -5 "$d/jobok.out"
+    ok=0
+  fi
+  # A NUL a substitution drops is reported by bash 4.4 and later, which fails the
+  # run, and by no earlier bash; stripped explicitly it is silent in every one.
+  if bash -c '[ "${BASH_VERSINFO[0]}" -gt 4 ] || { [ "${BASH_VERSINFO[0]}" -eq 4 ] && [ "${BASH_VERSINFO[1]}" -ge 4 ]; }'; then
+    planted 'contract.sh (a dropped NUL byte)' 'ignored null byte' env CONTRACT_STOP_AT_SETUP=1 bash "$d/nul/scripts/contract.sh" || ok=0
+  elif ! CONTRACT_STOP_AT_SETUP=1 bash "$d/nul/scripts/contract.sh" > "$d/nul.out" 2>&1; then
+    echo "self-test: contract.sh failed on a dropped NUL byte under a bash that does not report it:"
+    tail -5 "$d/nul.out"
+    ok=0
+  fi
+  if ! CONTRACT_STOP_AT_SETUP=1 bash "$d/nulok/scripts/contract.sh" > "$d/nulok.out" 2>&1; then
+    echo "self-test: contract.sh failed on a NUL byte stripped explicitly:"
+    tail -5 "$d/nulok.out"
+    ok=0
+  fi
+  # The watcher is the first executable statement: nothing above its guard but comments.
+  g=$(grep -n '^if \[ -z "\${CONTRACT_INNER:-}" \]; then$' scripts/contract.sh | cut -d: -f1)
+  if [ -z "$g" ] || head -n $((g - 1)) scripts/contract.sh | grep -qvE '^(#|$)'; then
+    echo "self-test: contract.sh has code above its watcher guard (line ${g:-none})"
+    ok=0
+  fi
+  if ! CONTRACT_STOP_AT_SETUP=1 bash "$d/clean/scripts/contract.sh" > "$d/clean.out" 2>&1 || ! grep -q 'stops at the end of its setup' "$d/clean.out"; then
+    echo "self-test: contract.sh with nothing planted did not run to the end of its setup:"
+    tail -5 "$d/clean.out"
+    ok=0
+  fi
   [ "$ok" -eq 1 ] || exit 1
-  echo "self-test: ruff, shellcheck, actionlint and knip each reported its planted defect"
+  echo "self-test: ruff, shellcheck, actionlint, knip and contract.sh each reported their planted defect"
 )
 
 step gofmt empty gofmt_seen

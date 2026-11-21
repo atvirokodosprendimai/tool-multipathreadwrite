@@ -10,6 +10,115 @@
 # Exit 0 only if every row holds. Deliberately NOT a go test: it drives the real
 # binary through a real shell, which is how a caller actually meets the tool —
 # and exit statuses are half of what is being asserted.
+# ⚠ THE SCRIPT'S OWN ERRORS ARE FAILURES (issue #763). The verdict at the end is
+# the count of `bad` rows, and a line that is not a row is invisible to it: a
+# plan header pasted into this file as content ran as a command, the shell
+# printed `12087: command not found` (127) and carried on, and the run exited 0
+# "contract holds". So the first process is only a watcher, and the guard below
+# is the FIRST executable statement of the file (nothing above it but comments),
+# so a stray line cannot run before the watcher is in place. The watcher checks
+# that the file parses (`bash -n`, with the bash that will run it), runs the
+# script again as the inner run, in the foreground, with its stderr through a
+# FIFO to a `tee` that writes both the real stderr, live, and a log the watcher
+# owns, and when the inner run ends, whatever its exit status, scans the log for
+# the shell's own diagnostics: a line that begins with this script's path, then
+# optionally `command substitution: `, then `line N: ` (a command not found, a
+# bad substitution, a failed redirection, an unbound variable, a syntax error).
+# The report of a child a row killed on purpose (`line N:  1234 Killed` on
+# bash 5, `line N: 1234 Killed: 9` on macOS: a pid, a signal's name, an optional
+# `: signal number`, then blanks or the end, and never a `:` and a message) has
+# the same prefix and is told apart by that shape. The watcher exits non-zero if
+# the inner run did, the scan found a line, the log cannot be read, or the tee
+# that wrote it failed. Nothing inside the rows touches a file descriptor.
+# The inner run is in the foreground because a background job of a
+# non-interactive shell inherits SIGINT and SIGQUIT ignored, which would change
+# the dispositions every row runs under. Only the tee is in the background, with
+# INT, TERM and HUP ignored; it ends when the inner run, the FIFO's only writer,
+# ends, even if the watcher was killed meanwhile. (A spare read-write descriptor
+# to keep the FIFO open was measured on macOS and rejected: a reader that opens
+# a FIFO with a writer already present never sees end-of-file there.) A
+# terminal's Ctrl-C reaches the whole group as it always did. A TERM, INT or HUP
+# sent to the watcher's own pid alone is held by its trap until the inner run
+# returns (bash runs a trap after a foreground child), then the watcher cleans up
+# and exits 143 if the inner run had passed. The tee gets 5 s to drain after the
+# inner run ends and that is a warning, not a failure: the diagnostics the scan
+# looks for are written by the inner shell itself, which has exited by then, and
+# what can still hold the FIFO is a row's deliberately detached child.
+# Rejected: command_not_found_handle (bash 4; macOS runs 3.2), an ERR trap
+# (fires on every row that exits non-zero on purpose, `want 127` included),
+# the linter (it reads `12087 insert-before` as a call to a command of that
+# name at every severity and with every optional check on), and a capture of
+# stderr by the inner run itself (it can be bypassed by `exit 0`, by a line
+# before it starts, and by any row that rearranges descriptors).
+# bash 4.4 and later also report a NUL byte a `$(...)` drops (`warning: command
+# substitution: ignored null byte in input`), and this scan counts it like any
+# other diagnostic of the script; 3.2 drops it silently. A row whose capture can
+# hold a NUL strips it explicitly, `| LC_ALL=C tr -d '\000'` inside the substitution
+# (LC_ALL=C: macOS tr exits 1 on bytes that are not UTF-8), so the captured text is the same under every bash and the warning has no cause.
+# NAMED LIMITS, not closed: a diagnostic a row captures itself
+# (`out=$(12087 insert-before 2>&1)`); SIGKILL of the watcher, which leaves its
+# directory in the temp directory and lets the inner run finish unwatched (and, if
+# it lands before the inner run has opened the FIFO, leaves the tee waiting for a
+# writer); a stray
+# line inside the watcher's own branch (55 lines, from the guard to its `fi`);
+# stderr that reaches the screen through the tee and so can be reordered against
+# stdout. The inner run is in a process group of its own, so its cleanup cannot
+# reach the watcher or the tee. CONTRACT_STOP_AT_SETUP=1 ends the inner run at
+# the marker below, for scripts/static.sh, which plants lines in a copy and runs
+# it through this path.
+if [ -z "${CONTRACT_INNER:-}" ]; then
+  set -uo pipefail
+  "$BASH" -n "$0" || { echo "contract.sh does not parse under $BASH" >&2; exit 2; }
+  c_dir=$(mktemp -d) || exit 2
+  c_tee=
+  c_sig=
+  trap '[ -z "$c_tee" ] || kill -KILL "$c_tee" 2>/dev/null; rm -rf "$c_dir"' EXIT
+  trap 'c_sig=1' INT TERM HUP
+  mkfifo "$c_dir/fifo" || exit 2
+  : > "$c_dir/log" || exit 2
+  ( trap '' INT TERM HUP; exec tee -a "$c_dir/log" < "$c_dir/fifo" >&2 ) &
+  c_tee=$!
+  CONTRACT_INNER=1 CONTRACT_STDERR_LOG="$c_dir/log" "$BASH" "$0" "$@" 2> "$c_dir/fifo"
+  c_rc=$?
+  [ "$c_rc" -ne 0 ] || [ -z "$c_sig" ] || c_rc=143
+  c_bad=0
+  for _ in $(seq 1 50); do kill -0 "$c_tee" 2>/dev/null || break; sleep 0.1; done
+  if kill -0 "$c_tee" 2>/dev/null; then
+    echo "contract.sh: a process of the run still holds stderr open 5 s after it ended; the log is read as it stands" >&2
+    kill -KILL "$c_tee" 2>/dev/null
+    wait "$c_tee" 2>/dev/null
+  else
+    wait "$c_tee"
+    c_trc=$?
+    if [ "$c_trc" -ne 0 ]; then
+      echo "  FAIL  the tee that keeps the log of stderr exited $c_trc"
+      c_bad=1
+    fi
+  fi
+  c_tee=
+  if c_seen=$(P="$0: " awk '
+    BEGIN { p = ENVIRON["P"]; n = length(p) }
+    substr($0, 1, n) == p {
+      r = substr($0, n + 1)
+      if (r !~ /^([^:]+: )?line [0-9]+: /) next
+      sub(/^([^:]+: )?line [0-9]+: /, "", r)
+      if (r ~ /^ *[0-9]+ +(Killed|Terminated|Alarm clock|Hangup|Interrupt|Aborted|Abort trap|Segmentation fault|Bus error|Broken pipe|Quit|Illegal instruction|Floating point exception|User defined signal [12])(: [0-9]+)?([ \t]|$)/) next
+      print
+      if (++k >= 5) exit
+    }' "$c_dir/log" 2> /dev/null) && [ -r "$c_dir/log" ]; then
+    if [ -n "$c_seen" ]; then
+      printf '  FAIL  the script itself reported an error outside any row:\n%s\n' "$c_seen"
+      c_bad=1
+    fi
+  else
+    echo "  FAIL  contract.sh could not read the log of its own stderr"
+    c_bad=1
+  fi
+  [ "$c_rc" -eq 0 ] || exit "$c_rc"
+  [ "$c_bad" -eq 0 ] && exit 0
+  echo "contract.sh: the run does not hold"
+  exit 1
+fi
 set -uo pipefail
 
 # The runner is a fresh process group of its own, always, so that
@@ -61,7 +170,7 @@ fi
 # Nothing accidental can match it after this — live pids are unique and this
 # is unset before anything is spawned; a caller that forges it to its own
 # pid on purpose is defeating the wrapper deliberately, and may.
-unset CONTRACT_GROUP
+unset CONTRACT_GROUP CONTRACT_INNER
 
 # The repository and this script, captured once and absolutely. Every later
 # path used to be rebuilt from "$0" after this cd, and from inside scripts/ that
@@ -109,6 +218,8 @@ mkdir -p "$TMPDIR"
 # without a guard, so a machine without jq failed those rows as if mrw were
 # wrong. Say so once, before anything runs (reported by the WSL peer).
 command -v jq >/dev/null 2>&1 || { echo "contract.sh needs jq on PATH (the --json rows parse receipts with it)" >&2; exit 2; }
+# --- end of the setup: scripts/static.sh plants a line just above this one ---
+if [ -n "${CONTRACT_STOP_AT_SETUP:-}" ]; then echo "contract.sh stops at the end of its setup"; exit 0; fi
 
 # Build our OWN binary inside WORK rather than sharing bin/mrw. Two fences ran
 # concurrently under `adr-verify --sweep` on 2026-08-31 — one starting with
@@ -3639,7 +3750,9 @@ kill "${orphan:-999999999}" 2>/dev/null
 # group kill, and deleting it leaves the orphan alive. Run hanging, an INT
 # to the wrapper must end the run 143 within seconds with the orphan gone:
 # that is the forwarding, and deleting the handler leaves the runner asleep.
-sed -n '1,/^trap .*EXIT$/p' "$SELF" > "$WORK/probe.sh"
+# The prologue without the watcher: the watcher would run the probe a second time
+# and these rows are about the runner's own wrapper and EXIT trap.
+{ sed -n 1p "$SELF"; echo 'set -uo pipefail'; sed -n '/^# The runner is a fresh process group/,/^trap .*EXIT$/p' "$SELF"; } > "$WORK/probe.sh"
 # The cut is the first EXIT trap. Assert it is the prologue and nothing
 # more or less, so a moved trap cannot silently change what the probe proves.
 [ "$(grep -c '^trap ' "$WORK/probe.sh")" = 1 ] && grep -q 'CONTRACT_GROUP' "$WORK/probe.sh" && grep -q 'kill -- -\$\$' "$WORK/probe.sh" && ! grep -q '^ok()' "$WORK/probe.sh" \
@@ -6853,7 +6966,7 @@ kill -9 "$(cat "$R/gc.pid")" 2>/dev/null; wait "$pid"
 # an unlink of the UTF-16 file applies.
 fixture
 printf '\xff\xfea\x00\n\x00b\x00\n\x00' > "$R/u16.txt"; cp "$R/u16.txt" "$R/u16.bak"
-out=$(m read u16.txt 2>&1); rc=$?
+out=$(m read u16.txt 2>&1 | LC_ALL=C tr -d '\000'); rc=$?
 want 0 "$rc" "a UTF-16 file is read"
 grep -q -- '-- note: u16.txt is UTF-16 (BOM FF FE)' <<<"$out" && ok "with a note naming its encoding" || bad "read: $out"
 printf '@@ u16.txt 1 replace\nX\n' > "$R/p146.mrw"
@@ -8370,7 +8483,7 @@ if grep -q 's216.txt' <<<"$out" && ! grep -q 'gen216/x.txt' <<<"$out" && ! grep 
    && tail -n 1 <<<"$out" | grep -q -- '^-- skipped:.*--no-ignore'; then
   ok "--grep skips an ignored directory and a binary file, and says so as its last line"
 else bad "--grep served what .gitignore ignores, or skipped it silently: $(head -c 400 <<<"$out")"; fi
-out=$(m read --grep NEEDLE216 --no-ignore 2>&1)
+out=$(m read --grep NEEDLE216 --no-ignore 2>&1 | LC_ALL=C tr -d '\000')
 grep -q 'gen216/x.txt' <<<"$out" && grep -q 'b216.dat' <<<"$out" && ! grep -q -- '-- skipped:' <<<"$out" \
   && ok "the pair: --no-ignore serves both" || bad "--no-ignore still skipped: $(head -c 400 <<<"$out")"
 out=$(m read --grep NEEDLE216 gen216/x.txt 2>&1)
@@ -10826,7 +10939,7 @@ g313=$(cd "$R" && "$MRW" read --grep absent "${args313[@]}" . 2>&1); grc313=$?
 { [ "$grc313" = 1 ] && grep -qF 'a1.txt, a2.txt, a3.txt, a4.txt, a5.txt and 2 more' <<<"$g313" && ! grep -qF 'a6.txt' <<<"$g313"; } \
   && ok "an unused-guard notice names five files and counts the rest" || bad "guard names: exit $grc313 [$g313]"
 for n313 in $(seq 1 7); do printf '\377\376h\000i\000\n\000' > "$R/u$n313.txt"; done
-u313=$(cd "$R" && "$MRW" read u1.txt u2.txt u3.txt u4.txt u5.txt u6.txt u7.txt 2>&1); urc313=$?
+u313=$(cd "$R" && "$MRW" read u1.txt u2.txt u3.txt u4.txt u5.txt u6.txt u7.txt 2>&1 | LC_ALL=C tr -d '\000'); urc313=$?
 n313=$(grep '^-- note:' <<<"$u313")
 { [ "$urc313" = 0 ] && grep -qF 'u5.txt is UTF-16 (BOM FF FE) and 2 more' <<<"$n313" && ! grep -qF 'u6.txt' <<<"$n313"; } \
   && ok "a served-as-bytes notice names five files and counts the rest" || bad "byte names: exit $urc313 [$n313]"
