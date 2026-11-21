@@ -14,6 +14,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
+	"sync"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/apply"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
@@ -192,11 +194,6 @@ func ledgerChanges(root string, res apply.Result, opt apply.Options) (map[string
 	return wrote, gone
 }
 
-// otherSpellings returns the ledger keys that name a file this write changed
-// under a spelling the plan did not use: a case variant on a case-insensitive
-// filesystem, or an in-root symlink (issue #597). Identity is os.SameFile, the
-// filesystem's own answer, so on a case-sensitive filesystem a.txt and A.TXT
-// stay two files with two entries. Each ledger key is stat'ed once.
 // entryAliases returns the ledger keys, other than p, that name the same
 // directory entry as p: os.SameFile on Lstat, so a directory alias reaches
 // the moved link itself and not the file it points at (#712).
@@ -217,6 +214,8 @@ func entryAliases(root, p string, ledger map[string]apply.Seen) []string {
 	return out
 }
 
+// otherSpellings finds the ledger keys that still name a written file after
+// landing (#597). A symlink anywhere in the checkout can point to the file.
 func otherSpellings(root string, files []apply.FileResult, ledger map[string]apply.Seen) []string {
 	named := map[string]bool{}
 	var written []os.FileInfo
@@ -232,23 +231,51 @@ func otherSpellings(root string, files []apply.FileResult, ledger map[string]app
 	if len(written) == 0 {
 		return nil
 	}
-	var out []string
-	for key := range ledger {
-		if named[key] {
-			continue
-		}
-		fi, err := os.Stat(filepath.Join(root, filepath.FromSlash(key)))
-		if err != nil {
-			continue
-		}
-		for _, w := range written {
-			if os.SameFile(w, fi) {
-				out = append(out, key)
-				break
+	if len(ledger) < 128 {
+		var aliases []string
+		for key := range ledger {
+			if !named[key] && namesWrittenFile(root, key, written) {
+				aliases = append(aliases, key)
 			}
 		}
+		return aliases
 	}
-	return out
+
+	// A large ledger keeps the write lock held through many independent stats.
+	// Bound the filesystem concurrency and collect all matches before returning.
+	keys := make([]string, 0, len(ledger))
+	for key := range ledger {
+		if !named[key] {
+			keys = append(keys, key)
+		}
+	}
+	var matches [4][]string
+	var wg sync.WaitGroup
+	for i := range matches {
+		batch := keys[i*len(keys)/len(matches) : (i+1)*len(keys)/len(matches)]
+		wg.Go(func() {
+			for _, key := range batch {
+				if namesWrittenFile(root, key, written) {
+					matches[i] = append(matches[i], key)
+				}
+			}
+		})
+	}
+	wg.Wait()
+	return slices.Concat(matches[:]...)
+}
+
+func namesWrittenFile(root, key string, written []os.FileInfo) bool {
+	fi, err := os.Stat(filepath.Join(root, filepath.FromSlash(key)))
+	if err != nil {
+		return false
+	}
+	for _, w := range written {
+		if os.SameFile(w, fi) {
+			return true
+		}
+	}
+	return false
 }
 
 // ledgerFailed is what applyCounted returns when the ledger could not record what
