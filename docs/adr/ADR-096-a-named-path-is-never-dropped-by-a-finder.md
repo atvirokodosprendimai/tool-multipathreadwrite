@@ -21,8 +21,14 @@ link itself there), is `UNREADABLE` too, as a direct read says of either. So the
 refusal by mrw's own rules (a path outside the root, a link to a directory named relative to the root)
 stays `REFUSED`. The word is prose, no receipt key moved (ADR-111), and the read still exits 1
 (`incomplete:`). The words are the CLI's, and MCP's where `grep` or `ast_grep` is given with `sub` or
-`rewrite`; a plain MCP `mrw_read` with `grep` or `ast_grep` lists such a path as `-- PATH: reason`
-with no kind word, for a refused path as for an unreadable one (issue #765).
+`rewrite`; a plain MCP `mrw_read` with `grep` or `ast_grep` lists such a path as `-- PATH: WORD reason`,
+the same word from the same flag, since #765 (2026-11-21; before it the line was `-- PATH: reason`, with
+no word). A link to a directory below the root, named relative to the root, keeps two words on purpose:
+a direct read answers "read this file", and the OS says it is a directory, the word for any directory
+named to read (`UNREADABLE  is a directory`, contract §326); a finder refuses it by its own rule that a
+walk does not follow a link (`REFUSED`, this record). Both name `d` as the fix (#765, 2026-11-21). As
+this record's Served-path change says, the same link spelled absolutely is walked, and a link that
+resolves to the root walks the root: neither is refused, so neither has two words.
 
 ## Context
 
