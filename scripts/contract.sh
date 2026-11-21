@@ -12214,6 +12214,29 @@ want 1 "$rc" "a ranged --quiet read of 6-9 through g374.go shows nothing: the pl
 m read --max-cols 0 g374.go:6-9 > "$WORK/served.out"
 printf '%s' "$rep374g" | m write --no-check - > /dev/null 2>&1; want 0 $? "the pair: a read under g374.go lands it"
 
+# 379. #649: a failed or skipped row of an unlink or a rename prints the address the
+# plan wrote, `-`, not the unresolved bound 0. The repro: an unlink of a file that is
+# not there, a rename of one, and an unlink skipped beside a replace that fails, each
+# in the default, --quiet and --terse forms: no row says `0 unlink` or `0 rename`.
+# The JSON receipt keeps its "addr" (ADR-111). The pair: an unlink that applies prints
+# `-` as it did before.
+fixture
+printf 'a\n' > "$R/a379.txt"; printf 'b\n' > "$R/b379.txt"
+m read a379.txt b379.txt > "$WORK/served.out"
+for form in "" --quiet --terse; do
+  out=$(printf '@@ nope379.txt - unlink\n@@ nope379.txt - rename\nz\n' | m write --no-check $form - 2>&1); rc=$?
+  want 1 "$rc" "a failed unlink and rename (${form:-default}) -> exit 1"
+  { grep -q 'FAIL nope379.txt - unlink' <<<"$out" && grep -q 'FAIL nope379.txt - rename' <<<"$out" && ! grep -Eq ' 0 (unlink|rename)' <<<"$out"; } \
+    && ok "the FAIL rows name address -, not 0 (${form:-default})" || bad "rows: $(head -c 400 <<<"$out")"
+done
+out=$(printf '@@ a379.txt - unlink\n@@ b379.txt 9 replace\nx\n' | m write --no-check - 2>&1); rc=$?
+want 1 "$rc" "an unlink beside a failing replace -> exit 1"
+{ grep -q 'skip a379.txt - unlink' <<<"$out" && ! grep -Eq ' 0 unlink' <<<"$out"; } \
+  && ok "the skipped unlink names address -" || bad "skip row: $(head -c 400 <<<"$out")"
+out=$(printf '@@ a379.txt - unlink\n' | m write --no-check - 2>&1); rc=$?
+want 0 "$rc" "the pair: an unlink that applies exits 0"
+grep -q 'ok   a379.txt - unlink' <<<"$out" && ok "and prints - too" || bad "ok row: $(head -c 300 <<<"$out")"
+
 # 360. ADR-209: a commit that fails after content files were renamed in puts them
 # back. An edit to a.txt and a create of n/m/k.txt (new directories n and n/m) land,
 # then the unlink of d/x.txt in a read-only directory is refused: exit 2 and

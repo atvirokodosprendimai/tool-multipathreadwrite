@@ -2283,7 +2283,11 @@ held or went unchecked.`,
 					if h.BodyFrom != "" {
 						body = "from=" + h.BodyFrom + ":" + h.BodyFromAddr.String() // ADR-167
 					}
-					fmt.Fprintf(os.Stdout, "parsed: %s %s %s %s\n", h.Path, h.Addr.String(), h.Op, body)
+					addr := h.Addr.String()
+					if h.Op == "unlink" || h.Op == "rename" { // a path op's plan writes `-` (#649)
+						addr = "-"
+					}
+					fmt.Fprintf(os.Stdout, "parsed: %s %s %s %s\n", h.Path, addr, h.Op, body)
 				}
 			}
 			set, err := iter.Load(root)
@@ -3235,7 +3239,7 @@ func reportMode(w io.Writer, res apply.Result, quiet, terse bool) error {
 	for _, h := range res.Hunks {
 		switch {
 		case h.Status == apply.StatusFailed:
-			fmt.Fprintf(out, "FAIL %s %s %s (plan line %d): %s\n", h.Path, h.Addr, h.Op, h.SrcLine, h.Reason)
+			fmt.Fprintf(out, "FAIL %s %s %s (plan line %d): %s\n", h.Path, h.PlanAddr(), h.Op, h.SrcLine, h.Reason)
 		case quiet:
 		case h.Status == apply.StatusSkipped:
 			fmt.Fprintf(out, "skip %s %s %s\n", h.Path, h.Addr, h.Op)
