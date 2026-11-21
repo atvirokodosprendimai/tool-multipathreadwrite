@@ -18,6 +18,13 @@
 # because its authors advise against building it with go run — and CI installs
 # the same versions. knip is the plugin's exact devDependency, so `npm ci` in
 # cmd/opencode/mrw-plugin installs it with its whole tree pinned by the lock.
+#
+# A step that has not finished by its deadline is stopped and named
+# ("static.sh: NAME did not finish in N s"), and every step prints its name and
+# the time before it starts, so the last line of a hung run's log names the tool
+# even when the deadline itself failed (#773: a step hung on a runner for 46
+# minutes and no log was kept). STATIC_DEADLINE_SECS=N in the environment makes
+# every deadline N seconds, longer for a slow network or shorter for a test.
 set -u
 cd "$(dirname "$0")/.." || exit 2
 
@@ -41,14 +48,60 @@ ACTIONLINT=github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
 PLUGIN=cmd/opencode/mrw-plugin
 
 fail=0
+# deadline NAME SECS CMD...: CMD, a function or a program, in a process group of
+# its own (job control), stopped with TERM and, 5 s later, KILL when SECS pass;
+# then the line above is printed and the status is 124. Otherwise CMD's own
+# status. bash only: macOS has no timeout(1) and a function cannot be exec'd by
+# a perl alarm.
+deadline() {
+  local name=$1 secs=${STATIC_DEADLINE_SECS:-$2} flag pid watcher rc
+  shift 2
+  flag=$(mktemp -u) || return 1
+  set -m
+  "$@" &
+  pid=$!
+  ( sleep "$secs"; : > "$flag"; kill -TERM -- "-$pid" 2>/dev/null; sleep 5; kill -KILL -- "-$pid" 2>/dev/null ) &
+  watcher=$!
+  set +m
+  trap 'kill -TERM -- "-$pid" 2>/dev/null; kill -KILL -- "-$watcher" 2>/dev/null; rm -f "$flag"; exit 130' INT TERM
+  wait "$pid"
+  rc=$?
+  trap - INT TERM
+  kill -KILL -- "-$watcher" 2>/dev/null
+  { wait "$watcher"; } 2>/dev/null
+  if [ -e "$flag" ]; then
+    rm -f "$flag"
+    echo "static.sh: $name did not finish in $secs s"
+    return 124
+  fi
+  return "$rc"
+}
+
+# The deadline of a step: the tools that fetch (a Go tool through `go run`, with
+# its modules and the vulnerability database, golangci-lint with a cold build
+# cache) get the longer one. Measured cold (empty GOMODCACHE, GOCACHE and
+# golangci-lint cache, macOS, 2026-11-21): 70 s for the whole script, the slowest
+# step 37 s (shellcheck over contract.sh); CI's whole Static analysis step has
+# taken at most 115 s. The tool deadline sits under that step's 5-minute limit in
+# ci.yml, so a hang is named here before the runner's own limit stops the step.
+DEADLINE_TOOL=240
+DEADLINE_LOCAL=120
+step_deadline() {
+  case $1 in
+    golangci-lint | deadcode* | staticcheck* | govulncheck* | actionlint | self-test) echo "$DEADLINE_TOOL" ;;
+    *) echo "$DEADLINE_LOCAL" ;;
+  esac
+}
+
 step() {
-  local name=$1
+  local name=$1 t0=$SECONDS
   shift
-  echo "== $name"
-  if ! "$@"; then
+  echo "== $name  [$(date +%H:%M:%S)]"
+  if ! deadline "$name" "$(step_deadline "$name")" "$@"; then
     echo "FAIL $name"
     fail=1
   fi
+  echo "-- $name: $((SECONDS - t0)) s"
 }
 
 # gofmt -l and deadcode exit 0 while printing findings, so their output is the
@@ -268,6 +321,25 @@ step shellcheck shellcheck_check
 step actionlint actionlint_check
 step knip knip_check
 step self-test self_test
+
+# #773: a tool past its deadline is stopped and named, and a command inside it
+# keeps its own status. The planted tool sleeps 30 s against a 2 s deadline.
+deadline_self_test() {
+  local out rc
+  planted_sleeper() { sleep 30; }
+  out=$(STATIC_DEADLINE_SECS=2 deadline 'planted sleeper' 600 planted_sleeper 2>&1)
+  rc=$?
+  if [ "$rc" -ne 124 ] || ! grep -q 'static.sh: planted sleeper did not finish in 2 s' <<<"$out"; then
+    echo "self-test: a tool past its deadline was not stopped and named (exit $rc):"
+    printf '%s\n' "$out" | tail -5
+    return 1
+  fi
+  deadline 'planted quick' 600 sh -c 'exit 3'
+  rc=$?
+  [ "$rc" -eq 3 ] || { echo "self-test: a command inside its deadline lost its exit status (got $rc, want 3)"; return 1; }
+  echo "self-test: a tool past its deadline is stopped and named; one inside it keeps its status"
+}
+step "deadline self-test" deadline_self_test
 
 if [ "$fail" -eq 0 ]; then
   echo "static analysis clean"

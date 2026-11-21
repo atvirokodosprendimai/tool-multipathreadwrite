@@ -16,6 +16,10 @@ on:
 permissions:
   contents: read
 
+# Every job and every long step has a timeout-minutes (#773): a hung step used to
+# run until the runner was lost, ~46 minutes later with no log. Each is about twice
+# the longest the step or job took in the last 22 green runs of this workflow
+# (2026-11-21), rounded up, so a hang fails in minutes with its log.
 jobs:
   # The tag filter on `push` is a GLOB, and GitHub Actions supports no regex
   # there. 'v*.*.*' already excludes v1 and v1.2 because it requires two dots,
@@ -24,6 +28,7 @@ jobs:
   # match and every publishing job gates on its output.
   check:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       release: ${{ steps.semver.outputs.release }}
     steps:
@@ -43,6 +48,7 @@ jobs:
   # safety net for branches, and `build` depends on it.
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -92,6 +98,7 @@ jobs:
       # hook run. golangci-lint is installed at the version scripts/static.sh
       # pins; the other tools run pinned through `go run`.
       - name: Install golangci-lint
+        timeout-minutes: 3
         run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0
 
       # ADR-147: what scripts/static.sh needs for what is not Go — ruff,
@@ -100,9 +107,11 @@ jobs:
       # and put ahead of the runner's own; actionlint runs pinned through
       # `go run`.
       - name: Install ruff
+        timeout-minutes: 3
         run: pipx install ruff==0.15.6
 
       - name: Install shellcheck
+        timeout-minutes: 2
         working-directory: ${{ runner.temp }}
         run: |
           curl -fsSLO https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.linux.x86_64.tar.xz
@@ -115,18 +124,22 @@ jobs:
           node-version: 24
 
       - name: Install the plugin's dependencies for knip
+        timeout-minutes: 3
         run: npm ci --no-audit --no-fund
         working-directory: cmd/opencode/mrw-plugin
 
       - name: Static analysis
+        timeout-minutes: 5
         run: ./scripts/static.sh
 
       - name: Test
+        timeout-minutes: 5
         run: go test ./...
 
       # ADR-210's contract row 361 traces the syncs of a write under strace; without
       # it the row prints a skip and proves nothing.
       - name: Install strace for contract 361
+        timeout-minutes: 3
         run: sudo apt-get update -qq && sudo apt-get install -y -qq strace
 
       # The contract script drives the real binary through a real shell and
@@ -134,6 +147,7 @@ jobs:
       # purpose. It is not a go test because exit statuses are half of what it
       # checks, and a caller meets this tool through a shell.
       - name: Contract
+        timeout-minutes: 5
         run: ./scripts/contract.sh
 
       # scripts/measure.sh is what the README and docs/measure.md tell a reader to
@@ -143,6 +157,7 @@ jobs:
       # only that it runs to the end; the script stops itself when a spec serves
       # a different number of spans than the sites it counts.
       - name: Measurement script runs
+        timeout-minutes: 3
         run: ./scripts/measure.sh
 
   # The race detector is its own job, running BESIDE `test` rather than after
@@ -151,12 +166,14 @@ jobs:
   # from concurrent tests via t.TempDir, so this is not ceremonial.
   race:
     runs-on: ubuntu-latest
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
       - name: Race
+        timeout-minutes: 10
         run: go test -race ./...
 
   # ADR-089: the opencode plugin, built and driven against the binary this
@@ -164,6 +181,7 @@ jobs:
   # plugin's tools the way opencode does.
   opencode:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     defaults:
       run:
         working-directory: cmd/opencode/mrw-plugin
@@ -221,6 +239,7 @@ jobs:
   # below keeps that name.
   windows-shard:
     runs-on: windows-latest
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
@@ -235,6 +254,7 @@ jobs:
         with:
           go-version-file: go.mod
       - name: Vet, test and race — shard ${{ matrix.shard }} of 6
+        timeout-minutes: 22
         shell: bash
         run: |
           set -euo pipefail
@@ -272,6 +292,7 @@ jobs:
     needs: [windows-shard]
     if: always()
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Every Windows shard must have succeeded
         run: |
@@ -284,6 +305,7 @@ jobs:
     needs: [check, test, race, windows, opencode]
     if: needs.check.outputs.release == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     strategy:
       # fail-fast off: if darwin/arm64 breaks, still learn whether the others
       # do. A partial matrix result is more useful than a cancelled one.
@@ -368,6 +390,7 @@ jobs:
     needs: [check, build]
     if: needs.check.outputs.release == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: write # create/update the Release and upload assets
     steps:
