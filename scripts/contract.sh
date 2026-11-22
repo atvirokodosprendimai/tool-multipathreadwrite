@@ -12464,6 +12464,24 @@ out=$(m write --no-check "$WORK/e754.plan" 2>&1); want 1 $? "the pair: a replace
 { grep -q 'changed since mrw last saw it' <<<"$out" && grep -q -- '--force' <<<"$out"; } && ok "with the refusal that advises --force" || bad "replace-stale: $out"
 rm -f "$R/n754.txt" "$R/r754.txt" "$WORK/c754.plan" "$WORK/e754.plan" "$WORK/o754"
 
+# 383. ADR-217: the benchmark editor reports every failed match before any write.
+fixture
+printf 'one\ntwo\ntwo\n' > "$R/edit383"
+(cd "$SRC" && go build -o "$WORK/content-edit" ./bench/content-edit) || exit 2
+(cd "$R" && "$WORK/content-edit" <<'EDITS383'
+[{"target":"edit383","old":["one"],"replacement":[]},{"target":"edit383","old":["two"],"replacement":[]},{"target":"edit383","old":["missing"],"replacement":[]}]
+EDITS383
+) >"$WORK/out383" 2>"$WORK/err383"
+want 1 "$?" "conflicted benchmark edits fail"
+{ grep -q 'edit 2 .*ambiguous' "$WORK/err383" && grep -q 'edit 3 .*no match' "$WORK/err383" && cmp -s "$R/edit383" <(printf 'one\ntwo\ntwo\n'); } \
+  && ok "both conflicts are named and the valid deletion stays unapplied" || bad "content-edit conflicts"
+(cd "$R" && "$WORK/content-edit" <<'EDITS383'
+[{"target":"edit383","old":["one"],"replacement":[]}]
+EDITS383
+) >"$WORK/out383"
+want 0 "$?" "an explicit empty replacement deletes the unique match"
+cmp -s "$R/edit383" <(printf 'two\ntwo\n') && ok "only the two retained lines remain" || bad "content-edit deletion"
+
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
 # killed process is a zombie until its adopter reaps it, and pgrep lists

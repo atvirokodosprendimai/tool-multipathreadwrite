@@ -1777,6 +1777,7 @@ changed after the first counted attempt.
 - **Arm X and the content-first prototype:** needs a record that specifies the form (target, old text,
   replacement, direct deletion, every failed match in one answer). Owner: Zy. Trigger: the pilot's RESULTS,
   or Zy asking sooner. When X runs, M runs again beside it.
+  [ADR-217](ADR-217-content-first-benchmark-editor.md) specifies the standalone prototype. Its paired model trial remains open.
 - **A powered stage:** registered only by the gate in the Stage 9 entry above; its own entry sets its size.
   Owner: Zy. Trigger: the pilot's RESULTS.
 - **A second turn in the bench:** a follow-on task as two prompts, so the second change cannot be batched
