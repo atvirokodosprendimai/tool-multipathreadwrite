@@ -47,6 +47,7 @@ The engine is the six packages AGENTS.md's drill names (`read`, `apply`, `plan`,
 | `internal/speclist` | adapter | `--files-from` and `files_from` lists | ADR-117 |
 | `internal/adversarial` | test | tests that hold the promises, not the code | ADR-015 |
 | `cmd/bench`, `internal/bench` | tooling | the agent benchmark | ADR-156, ADR-162 |
+| `bench/content-edit` | tooling | the experimental editor for benchmark arm X | ADR-217 |
 | `cmd/curve`, `internal/curve` | tooling | the read/write curve harness | ADR-020 |
 | `cmd/nativebench` | tooling | the native performance baseline driver, run as `docs/bench/native-baseline/PREREGISTRATION.md` registers | #558, #565 |
 | `cmd/opencode/mrw-plugin` | adapter | the opencode plugin, which spawns the `mrw` binary | ADR-089 |
@@ -80,6 +81,7 @@ The engine is the six packages AGENTS.md's drill names (`read`, `apply`, `plan`,
 |------|------------|-------|
 | `cmd/mrw/main.go` `main` | the CLI command tree; the MCP server (`mcp.Serve`, with the `MaxResultChars` and `Version` globals set first) | `go test ./internal/adversarial/ -run 'TestEachSurfaceHasOneRoot$'` in `internal/adversarial/architecture_test.go` |
 | `cmd/bench/main.go` | the agent benchmark | `go test ./internal/adversarial/ -run 'TestEachSurfaceHasOneRoot$'` in `internal/adversarial/architecture_test.go` |
+| `bench/content-edit/main.go` | the standalone content-first edit experiment | §383 in `scripts/contract.sh` |
 | `cmd/curve/main.go` | the curve harness | `go test ./internal/adversarial/ -run 'TestEachSurfaceHasOneRoot$'` in `internal/adversarial/architecture_test.go` |
 | `cmd/nativebench/main.go` | the native baseline driver, which runs the two `mrw` binaries it is handed | `go test ./internal/adversarial/ -run 'TestEveryModulePackageIsInTheModuleMap$'` in `internal/adversarial/architecture_test.go` (D6: its Module Map row; it imports no surface package, so D2 has nothing to say about it) |
 
