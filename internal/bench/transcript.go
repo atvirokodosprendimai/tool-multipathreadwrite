@@ -1,9 +1,10 @@
 package bench
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/json"
+	"errors"
+	"fmt"
 )
 
 // Usage is the token counts a CLI result reports.
@@ -45,73 +46,117 @@ type transcript struct {
 	Usage       Usage
 }
 
-func parseTranscript(b []byte) transcript {
+// Keep reading after a damaged event: a later result can still report real spend.
+func parseTranscript(b []byte) (transcript, error) {
 	var t transcript
-	sc := bufio.NewScanner(bytes.NewReader(b))
-	sc.Buffer(make([]byte, 1<<20), 1<<26)
-	for sc.Scan() {
+	var firstErr error
+	line := 0
+	for raw := range bytes.Lines(b) {
+		line++
+		if err := t.readEvent(raw); err != nil && firstErr == nil {
+			firstErr = fmt.Errorf("transcript line %d: %w", line, err)
+		}
+	}
+	return t, firstErr
+}
+
+func (t *transcript) readEvent(raw []byte) error {
+	if len(raw) > 1<<26 {
+		return errors.New("event exceeds 64 MiB")
+	}
+	if len(bytes.TrimSpace(raw)) == 0 {
+		return nil
+	}
+	var event struct {
+		Type, Subtype string
+		Cost          json.RawMessage `json:"total_cost_usd"`
+	}
+	if err := json.Unmarshal(raw, &event); err != nil {
+		return err
+	}
+	switch event.Type {
+	case "":
+		return errors.New("expected an event with a type")
+	case "system":
+		switch event.Subtype {
+		case "init":
+			var m struct {
+				Model      string   `json:"model"`
+				Tools      []string `json:"tools"`
+				MCPServers []struct {
+					Name string `json:"name"`
+				} `json:"mcp_servers"`
+				Skills  []string     `json:"skills"`
+				Plugins []initPlugin `json:"plugins"`
+			}
+			if err := json.Unmarshal(raw, &m); err != nil {
+				return err
+			}
+			t.InitSeen, t.Model, t.Tools, t.InitSkills = true, m.Model, m.Tools, m.Skills
+			for _, s := range m.MCPServers {
+				t.MCPServers = append(t.MCPServers, s.Name)
+			}
+			t.InitPlugins = append(t.InitPlugins, m.Plugins...)
+		case "hook_started":
+			var m struct {
+				Event string `json:"hook_event"`
+				Name  string `json:"hook_name"`
+			}
+			if err := json.Unmarshal(raw, &m); err != nil {
+				return err
+			}
+			t.HookEvents, t.HookNames = append(t.HookEvents, m.Event), append(t.HookNames, m.Name)
+		}
+	case "assistant":
 		var m struct {
-			Type       string   `json:"type"`
-			Subtype    string   `json:"subtype"`
-			Model      string   `json:"model"`
-			Tools      []string `json:"tools"`
-			MCPServers []struct {
-				Name string `json:"name"`
-			} `json:"mcp_servers"`
-			Skills    []string     `json:"skills"`
-			Plugins   []initPlugin `json:"plugins"`
-			HookEvent string       `json:"hook_event"`
-			HookName  string       `json:"hook_name"`
-			Message   struct {
+			Message struct {
 				Content []struct {
 					Type  string          `json:"type"`
 					Name  string          `json:"name"`
 					Input json.RawMessage `json:"input"`
 				} `json:"content"`
 			} `json:"message"`
-			IsError  bool     `json:"is_error"`
-			NumTurns int      `json:"num_turns"`
-			Text     string   `json:"result"`
-			Cost     *float64 `json:"total_cost_usd"`
-			Usage    Usage    `json:"usage"`
 		}
-		if json.Unmarshal(sc.Bytes(), &m) != nil {
-			continue
+		if err := json.Unmarshal(raw, &m); err != nil {
+			return err
 		}
-		switch m.Type {
-		case "system":
-			switch m.Subtype {
-			case "init":
-				t.InitSeen, t.Model, t.Tools, t.InitSkills = true, m.Model, m.Tools, m.Skills
-				for _, s := range m.MCPServers {
-					t.MCPServers = append(t.MCPServers, s.Name)
+		for _, c := range m.Message.Content {
+			if c.Type == "tool_use" {
+				t.ToolCalls++
+				if c.Name == "Read" {
+					t.HostReads++
 				}
-				t.InitPlugins = append(t.InitPlugins, m.Plugins...)
-			case "hook_started":
-				t.HookEvents, t.HookNames = append(t.HookEvents, m.HookEvent), append(t.HookNames, m.HookName)
-			}
-		case "assistant":
-			for _, c := range m.Message.Content {
-				if c.Type == "tool_use" {
-					t.ToolCalls++
-					if c.Name == "Read" {
-						t.HostReads++
+				if c.Name == "Bash" {
+					var in struct {
+						Command string `json:"command"`
 					}
-					if c.Name == "Bash" {
-						var in struct {
-							Command string `json:"command"`
-						}
-						if json.Unmarshal(c.Input, &in) == nil && in.Command != "" {
-							t.Commands = append(t.Commands, in.Command)
-						}
+					if json.Unmarshal(c.Input, &in) == nil && in.Command != "" {
+						t.Commands = append(t.Commands, in.Command)
 					}
 				}
 			}
-		case "result":
-			t.Result, t.IsError, t.Subtype, t.NumTurns, t.CostUSD, t.Usage, t.ResultText = true, m.IsError, m.Subtype, m.NumTurns, m.Cost, m.Usage, m.Text
 		}
+	case "result":
+		// Spend is a budget input even if another result field cannot be read.
+		var cost *float64
+		if event.Cost != nil {
+			if err := json.Unmarshal(event.Cost, &cost); err != nil {
+				return err
+			}
+		}
+		t.CostUSD = cost
+		var m struct {
+			IsError  bool   `json:"is_error"`
+			NumTurns int    `json:"num_turns"`
+			Text     string `json:"result"`
+			Usage    Usage  `json:"usage"`
+		}
+		if err := json.Unmarshal(raw, &m); err != nil {
+			return err
+		}
+		t.Result, t.IsError, t.Subtype, t.NumTurns, t.Usage, t.ResultText = true, m.IsError, event.Subtype, m.NumTurns, m.Usage, m.Text
 	}
-	return t
+	return nil
 }
 
 // initPlugin is a plugin the init line lists: its name, where it was loaded

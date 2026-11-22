@@ -149,6 +149,18 @@ type Receipt struct {
 	interrupted bool // stopped by a signal to bench: no receipt is written for it
 }
 
+// diagnose preserves the first exclusion (which decides retries) and each
+// independent reason the attempt could not supply the requested evidence.
+func (r *Receipt) diagnose(exclusion, note string) {
+	if r.Exclusion == "" {
+		r.Exclusion = exclusion
+	}
+	if r.Note != "" {
+		r.Note += "; "
+	}
+	r.Note += note
+}
+
 // DiffStat is what the attempt changed, counted against its base.
 type DiffStat struct {
 	Files      int `json:"files"`
@@ -488,7 +500,11 @@ func Run(o RunOptions) (err error) {
 				}
 				r = runAttempt(o, at, i, cli, mrwVersion)
 				if r.interrupted {
-					return fmt.Errorf("interrupted during %s: no receipt is written, the attempt stays started and is not repeated, and the stage stops here%s", at.ID, r.Note)
+					why := fmt.Sprintf("interrupted during %s: no receipt is written, the attempt stays started and is not repeated, and the stage stops here", at.ID)
+					if r.Note != "" {
+						why += ": " + strings.TrimSpace(r.Note)
+					}
+					return errors.New(why)
 				}
 				b, err := json.MarshalIndent(r, "", "  ")
 				if err != nil {
@@ -1062,6 +1078,28 @@ func runAttempt(o RunOptions, a attempt, order int, cli, mrwVersion string) (r R
 		r.Exclusion, r.Note = ExclusionSetup, err.Error()
 		return r
 	}
+	// A recording error must survive a subsequently readable or empty hook log.
+	// Keep its marker outside the scratch without revealing the receipt directory.
+	if a.Config.Mrw {
+		ready, err := os.MkdirTemp("", hookReadyPrefix)
+		if err != nil {
+			r.diagnose(ExclusionSetup, "hook log marker: "+err.Error())
+			return r
+		}
+		defer func() {
+			if err := os.Remove(ready); errors.Is(err, os.ErrNotExist) {
+				r.diagnose(ExclusionSetup, "hook log: a Bash hook could not record its events")
+			} else if err != nil {
+				r.diagnose(ExclusionSetup, "hook log recording could not be confirmed: "+err.Error())
+			}
+		}()
+		absolute, err := filepath.Abs(ready)
+		if err != nil {
+			r.diagnose(ExclusionSetup, "hook log marker: "+err.Error())
+			return r
+		}
+		env = append(env, hookReadyEnv+"="+absolute)
+	}
 	stdout, err := os.OpenFile(base+".transcript.jsonl", os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
 	if err != nil {
 		r.Exclusion, r.Note = ExclusionSetup, err.Error()
@@ -1088,8 +1126,9 @@ func runAttempt(o RunOptions, a attempt, order int, cli, mrwVersion string) (r R
 	r.interrupted = ictx.Err() != nil && ctx.Err() == nil // a signal, not the budget
 	stopSignals()
 	cancel()
-	_ = stdout.Close()
-	_ = stderr.Close()
+	if err := errors.Join(stdout.Close(), stderr.Close()); err != nil {
+		r.diagnose(ExclusionSetup, "closing attempt output: "+err.Error())
+	}
 	// An interrupted attempt is neither graded nor recorded: Run stops the
 	// stage on it, and a harness run would hold that stop for minutes (the
 	// review of #422).
@@ -1113,10 +1152,13 @@ func runAttempt(o RunOptions, a attempt, order int, cli, mrwVersion string) (r R
 	// closed, so a transcript swapped for another with the same stem is told from it.
 	r.TranscriptSHA256 = hashHex(b)
 	if err != nil {
-		r.Exclusion, r.Note = ExclusionSetup, err.Error()
+		r.diagnose(ExclusionSetup, err.Error())
 		return r
 	}
-	t := parseTranscript(b)
+	t, transcriptErr := parseTranscript(b)
+	if transcriptErr != nil {
+		r.diagnose(ExclusionSetup, transcriptErr.Error())
+	}
 	// A result that says success from a CLI that then exited non-zero is an
 	// error all the same (the re-review of #411).
 	r.IsError, r.NumTurns, r.ToolCalls, r.CostUSD, r.Usage = t.IsError || !t.Result || r.ExitCode != 0, t.NumTurns, t.ToolCalls, t.CostUSD, t.Usage
@@ -1126,13 +1168,15 @@ func runAttempt(o RunOptions, a attempt, order int, cli, mrwVersion string) (r R
 		var note string
 		r.ShimCounts, note = shimCounts(a.shim.logPath(), t.Commands, imageFor(o, a.Task), a.shim.Container, filepath.Join(scratch, "tools"))
 		if note != "" {
-			r.Note += " (shim log: " + note + ")"
+			r.diagnose("", "shim log: "+note)
 		}
 	}
 	if o.StatusLine {
 		r.Status = claimStatus(t.ResultText)
 	}
-	if errText, _ := os.ReadFile(base + ".stderr"); startFailed(t, r, string(errText)) && r.Exclusion == "" {
+	if errText, err := os.ReadFile(base + ".stderr"); err != nil {
+		r.diagnose(ExclusionSetup, "attempt stderr: "+err.Error())
+	} else if startFailed(t, r, string(errText)) && r.Exclusion == "" {
 		r.Exclusion = ExclusionStart
 	}
 	// H's evidence is taken before grading, which can end the attempt early:
@@ -1140,7 +1184,7 @@ func runAttempt(o RunOptions, a attempt, order int, cli, mrwVersion string) (r R
 	if a.Config.ReadHook {
 		r.HostReads = t.HostReads
 		if r.HookRuns, r.HookStderrBytes, err = keepHookFiles(scratch, base); err != nil {
-			r.Exclusion, r.Note = ExclusionSetup, "hook files: "+err.Error()
+			r.diagnose(ExclusionSetup, "hook files: "+err.Error())
 		}
 	}
 	// ADR-211 Decision 11 (#710): what the agent changed is read before the grader
@@ -1149,9 +1193,17 @@ func runAttempt(o RunOptions, a attempt, order int, cli, mrwVersion string) (r R
 	// once grading succeeds, as they did.
 	diff, diffErr := diffStat(scratch, tree, baseSHA)
 	var slipped []string
-	var slippedErr error
+	if diffErr != nil {
+		r.diagnose("", "diffstat: "+diffErr.Error())
+	}
 	if a.Config.Mrw {
-		slipped, slippedErr = SlippedWrites(tree, filepath.Join(scratch, "state"), baseSHA)
+		var slippedErr error
+		if slipped, slippedErr = SlippedWrites(tree, filepath.Join(scratch, "state"), baseSHA); slippedErr != nil {
+			r.diagnose(ExclusionSetup, "slipped writes: "+slippedErr.Error())
+		}
+		if r.HookRefused, r.HookReads, err = hookCounts(filepath.Join(scratch, "hook.log")); err != nil {
+			r.diagnose(ExclusionSetup, "hook log: "+err.Error())
+		}
 	}
 	var v Verdict
 	if a.Task.swe != nil {
@@ -1163,30 +1215,19 @@ func runAttempt(o RunOptions, a attempt, order int, cli, mrwVersion string) (r R
 		r.interrupted = true
 		if err.Error() != errGradingInterrupted.Error() {
 			// what the harness or its cleanup said, a container left included
-			r.Note = " (" + err.Error() + ")"
+			r.diagnose("", err.Error())
 		}
 		return r
 	}
 	if err != nil {
-		r.Exclusion, r.Note = ExclusionSetup, "oracle: "+err.Error()
+		r.diagnose(ExclusionSetup, "oracle: "+err.Error())
 		return r
 	}
 	v = settle(v, r.OverBudget, a.Task.swe != nil)
 	r.Oracle = v
 	r.SilentMisEdit = !r.IsError && (len(v.Outside) > 0 || len(v.Structure) > 0)
 	r.Diff = diff
-	if diffErr != nil {
-		r.Note = "diffstat: " + diffErr.Error()
-	}
-	if a.Config.Mrw {
-		r.HookRefused, r.HookReads = hookCounts(filepath.Join(scratch, "hook.log"))
-		// A backstop that could not run is not a count of zero: the
-		// attempt is a setup exclusion (the final review of #411).
-		r.SlippedWrites = slipped
-		if slippedErr != nil {
-			r.Exclusion, r.Note = ExclusionSetup, "slipped writes: "+slippedErr.Error()
-		}
-	}
+	r.SlippedWrites = slipped
 	return r
 }
 
@@ -1370,6 +1411,9 @@ func invocation(o RunOptions, a attempt, scratch string) ([]string, []string, er
 			return nil, nil, err
 		}
 		args = append(args, "--append-system-prompt-file", prompt)
+		if err := os.WriteFile(filepath.Join(scratch, "hook.log"), nil, 0o600); err != nil {
+			return nil, nil, fmt.Errorf("hook log: %w", err)
+		}
 		readTool := ""
 		if a.Config.ReadHook {
 			readTool = " --read-tool"
