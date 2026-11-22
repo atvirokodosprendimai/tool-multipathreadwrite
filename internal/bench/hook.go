@@ -15,6 +15,11 @@ import (
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
 )
 
+// hookReadyEnv names the runner's empty marker directory. A failed append
+// invalidates it even if a later hook successfully logs another command.
+const hookReadyEnv = "MRW_BENCH_HOOK_READY"
+const hookReadyPrefix = ".bench-hook-ready-"
+
 // Hook is configuration B's PreToolUse hook (ADR-156 Decision 1). It reads the
 // event Claude Code sends on stdin. A Bash command that writes a file by any
 // means but mrw is refused: exit 2, the reason on stderr, which Claude Code
@@ -52,14 +57,28 @@ func runHook(stdin io.Reader, stderr io.Writer, log, tree, readWith string) int 
 	for _, r := range reads {
 		lines = append(lines, "read\t"+r)
 	}
+	var logErr error
 	if len(lines) > 0 {
-		if f, err := os.OpenFile(log, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644); err == nil {
-			_, _ = fmt.Fprintln(f, strings.Join(lines, "\n"))
-			_ = f.Close()
+		ready := os.Getenv(hookReadyEnv)
+		create := os.O_CREATE // standalone hooks start their own log
+		if ready != "" {
+			create = 0 // losing the runner’s precreated log invalidates the counts
+		}
+		logErr = appendLine(log, []byte(strings.Join(lines, "\n")+"\n"), create)
+		if logErr != nil {
+			if strings.HasPrefix(filepath.Base(ready), hookReadyPrefix) {
+				if err := os.Remove(ready); err != nil && !errors.Is(err, os.ErrNotExist) {
+					logErr = errors.Join(logErr, err)
+				}
+			}
+			fmt.Fprintf(stderr, "hook log: %v\n", logErr)
 		}
 	}
 	if refusal != "" {
 		_, _ = fmt.Fprintf(stderr, "refused: %s. In this run files are changed only with mrw (mrw write); read them with %s.\n", refusal, readWith)
+		return 2
+	}
+	if logErr != nil {
 		return 2
 	}
 	return 0
@@ -715,20 +734,25 @@ func hasFlag(args []string, f string) bool {
 
 // hookCounts reads a hook log: how many commands were refused, how many reads
 // were counted.
-func hookCounts(log string) (refused, reads int) {
+func hookCounts(log string) (refused, reads int, err error) {
 	b, err := os.ReadFile(log)
 	if err != nil {
-		return 0, 0
+		return 0, 0, err
 	}
-	for _, l := range strings.Split(string(b), "\n") {
+	for l := range strings.Lines(string(b)) {
+		if !strings.HasSuffix(l, "\n") {
+			return refused, reads, errors.New("incomplete final row")
+		}
 		switch {
 		case strings.HasPrefix(l, "refused\t"):
 			refused++
 		case strings.HasPrefix(l, "read\t"):
 			reads++
+		default:
+			return refused, reads, errors.New("unexpected hook log row")
 		}
 	}
-	return refused, reads
+	return refused, reads, nil
 }
 
 // SlippedWrites names the files the tree shows changed whose content the

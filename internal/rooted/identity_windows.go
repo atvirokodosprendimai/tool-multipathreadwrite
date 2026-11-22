@@ -46,3 +46,9 @@ func extendedForOpen(p string) string {
 	}
 	return `\\?\` + p
 }
+
+// SnapshotID reports no key because the public FileInfo does not expose its
+// captured file index. Reopening a name would identify the file at a later time.
+func SnapshotID(os.FileInfo) ([2]uint64, bool) {
+	return [2]uint64{}, false
+}

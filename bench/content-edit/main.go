@@ -219,10 +219,10 @@ func execute(root string, r io.Reader) (int, error) {
 			// The engine orders an insertion at its start before consuming that block.
 			h := apply.Input{Path: path, Start: start, End: start, SHA: sha, Lines: -1, SrcLine: i + 1}
 			if len(e.Replacement) > 0 {
-				h.Op, h.Body, h.Index = "insert-before", e.Replacement, len(inputs)
+				h.Op, h.Body = "insert-before", e.Replacement
 				inputs = append(inputs, h)
 			}
-			h.Op, h.Body, h.End, h.Index = "delete", e.Old, end, len(inputs)
+			h.Op, h.Body, h.End = "delete", e.Old, end
 			inputs = append(inputs, h)
 		}
 		observations[path] = obs

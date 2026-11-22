@@ -167,6 +167,7 @@ What each clause holds. The four `go test` runs each pass in their own package; 
 - 2026-11-21 · 95b3955f* · exit 0 · `m=github.com/atvirokodosprendimai/tool-multipathreadwrite …` · acceptance-sha256:4d99c9364ecccd74b24038d32d8eb0e8e0275ab011148b52bded22436d58425b · ms:12438
 - 2026-11-21 · 891ae7d5* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:4d99c9364ecccd74b24038d32d8eb0e8e0275ab011148b52bded22436d58425b · ms:0 · test-lock-sha256:10c8566b07b609a57804f5ed54e96ba492a2e963ea370e7ecd386acf65e5d27d · test-lock-file:docs/adr/locks/10c8566b07b609a57804f5ed54e96ba492a2e963ea370e7ecd386acf65e5d27d.lock · test-lock-kind:replace
 - 2026-11-21 · a345d53f* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:4d99c9364ecccd74b24038d32d8eb0e8e0275ab011148b52bded22436d58425b · ms:0 · test-lock-sha256:a7ec56a4d0442a49bb47658b66b9564f7a5ede5b02535652655ebad1094f9577 · test-lock-file:docs/adr/locks/a7ec56a4d0442a49bb47658b66b9564f7a5ede5b02535652655ebad1094f9577.lock · test-lock-kind:replace
+- 2026-11-22 · 724d564e* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:4d99c9364ecccd74b24038d32d8eb0e8e0275ab011148b52bded22436d58425b · ms:0 · test-lock-sha256:ca7d46d42e90033248b3c8d971f7d434e349d9a01b96cb4b647d4273e6357ff8 · test-lock-file:docs/adr/locks/ca7d46d42e90033248b3c8d971f7d434e349d9a01b96cb4b647d4273e6357ff8.lock · test-lock-kind:replace
 
 ## Invariants
 

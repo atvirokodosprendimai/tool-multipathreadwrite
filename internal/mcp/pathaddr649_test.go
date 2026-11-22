@@ -8,7 +8,7 @@ import (
 
 // #649, the MCP twin of the CLI test: the text rows of a failed and a skipped path op
 // name `-`, not the unresolved bound. The skipped rows are the ones a hunk refused
-// after validation gets (refuseFile, clashAt, sameFileAs), which carry the Addr of
+// after validation gets (a file refusal, a name clash or a duplicate target), which carry the Addr of
 // their input; a hunk that merely sat beside a failing one was validated first.
 func TestAPathOpRowOfTheMCPAnswerPrintsTheAddressThePlanWrote(t *testing.T) {
 	zero := regexp.MustCompile(` 0 (unlink|rename)|^(failed|skipped) \S+ 0 `)

@@ -432,7 +432,7 @@ func (o RunOptions) keep(r *Receipt, scratch, tree, baseSHA, base string) {
 		}
 		if err != nil {
 			notes = append(notes, "state: failed: "+err.Error())
-			r.Exclusion, r.Note = ExclusionSetup, "kept state file: "+err.Error()
+			r.diagnose(ExclusionSetup, "kept state file: "+err.Error())
 		}
 	}
 	if o.KeepScratchFile != "" {
@@ -443,7 +443,7 @@ func (o RunOptions) keep(r *Receipt, scratch, tree, baseSHA, base string) {
 		}
 		if err != nil {
 			notes = append(notes, "scratch: failed: "+err.Error())
-			r.Exclusion, r.Note = ExclusionSetup, "kept scratch file: "+err.Error()
+			r.diagnose(ExclusionSetup, "kept scratch file: "+err.Error())
 		}
 	}
 	if o.KeepDiff {
@@ -454,7 +454,7 @@ func (o RunOptions) keep(r *Receipt, scratch, tree, baseSHA, base string) {
 		}
 		if err != nil {
 			notes = append(notes, "diff: failed: "+err.Error())
-			r.Exclusion, r.Note = ExclusionSetup, "kept diff: "+err.Error()
+			r.diagnose(ExclusionSetup, "kept diff: "+err.Error())
 		}
 	}
 	r.KeptNote = strings.Join(notes, "; ")

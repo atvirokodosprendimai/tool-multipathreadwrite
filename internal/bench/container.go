@@ -604,7 +604,7 @@ func (c shimConfig) writeBack(s synced) (written int, conflicts []string, err er
 func appendShimLog(path string, call shimCall) {
 	b, err := json.Marshal(call)
 	if err == nil {
-		err = appendLine(path, append(b, 10))
+		err = appendLine(path, append(b, 10), os.O_CREATE)
 	}
 	if err != nil {
 		if f, ferr := os.OpenFile(path+".errors", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644); ferr == nil {
@@ -615,8 +615,8 @@ func appendShimLog(path string, call shimCall) {
 }
 
 // appendLine appends one line to a file, and says whether all of it was kept.
-func appendLine(path string, line []byte) error {
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+func appendLine(path string, line []byte, createFlag int) error {
+	f, err := os.OpenFile(path, os.O_APPEND|createFlag|os.O_WRONLY, 0o644)
 	if err != nil {
 		return err
 	}

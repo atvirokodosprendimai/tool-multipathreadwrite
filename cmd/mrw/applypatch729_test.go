@@ -24,12 +24,7 @@ func landCompiled(t *testing.T, root string, compiled []byte) *writer.Landed {
 	}
 	var in []apply.Input
 	for _, h := range hunks {
-		in = append(in, apply.Input{
-			Path: h.Path, Start: h.Addr.Start, End: h.Addr.End, Op: string(h.Op),
-			StartPat: h.Addr.StartPat, EndPat: h.Addr.EndPat, RelEnd: h.Addr.RelEnd, Occurrence: h.Occurrence,
-			Body: h.Body, SHA: h.SHA, Lines: h.Lines, Anchor: h.Anchor, Quote: h.Quote,
-			SrcLine: h.SrcLine, Index: h.Index,
-		})
+		in = append(in, writer.InputFromHunk(h, h.Path))
 	}
 	prep, err := writer.Prepare(writer.Request{Root: root, In: in, Check: writer.CheckOff, Opts: apply.Options{Computed: true}})
 	if err != nil {

@@ -1457,7 +1457,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			// ADR-179 Decision (d): the sha the caller quotes, and the ledger's word
 			// on which lines it was shown. A ledger that cannot be read answers nothing.
 			var ifServed map[string]string
-			var servedEntry func(string) seen.Observation
+			var servedEntry *seen.AliasIndex
 			var referred []read.SameAsServed
 			if len(servedGuards) > 0 {
 				var unused []string
@@ -1466,7 +1466,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				}
 				unusedGuards = append(unusedGuards, unused...)
 				if ledger, lerr := seen.Snapshot(root); lerr == nil {
-					servedEntry = entryFinder(root, ledger)
+					servedEntry = seen.NewAliasIndex(root, ledger, os.Stat)
 				}
 			}
 			if len(unusedGuards) > 0 { // one line for the invocation, naming every file (ADR-179 Decision e)
@@ -2316,13 +2316,7 @@ held or went unchecked.`,
 						return refuse(fmt.Sprintf("%s line %d: %s names %q, which is not valid UTF-8, and a --json receipt cannot name it as written; drop --json to write it", name, h.SrcLine, h.Path, path))
 					}
 				}
-				in = append(in, apply.Input{
-					Path: path, Start: h.Addr.Start, End: h.Addr.End, Op: string(h.Op),
-					StartPat: h.Addr.StartPat, EndPat: h.Addr.EndPat, RelEnd: h.Addr.RelEnd, Occurrence: h.Occurrence, CountedBody: h.CountedBody,
-					Body: h.Body, SHA: h.SHA, Lines: h.Lines, Anchor: h.Anchor, Quote: h.Quote,
-					SrcLine: h.SrcLine, Index: h.Index,
-					From: h.BodyFrom, FromStart: h.BodyFromAddr.Start, FromEnd: h.BodyFromAddr.End, FromRelEnd: h.BodyFromAddr.RelEnd,
-				})
+				in = append(in, writer.InputFromHunk(h, path))
 			}
 
 			// ADR-113: the gates, the landing's count, the check, the drift,

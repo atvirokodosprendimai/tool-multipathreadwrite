@@ -1053,13 +1053,7 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 			}
 			path = iter.Path(got[0])
 		}
-		in = append(in, apply.Input{
-			Path: path, Start: h.Addr.Start, End: h.Addr.End, Op: string(h.Op),
-			StartPat: h.Addr.StartPat, EndPat: h.Addr.EndPat, RelEnd: h.Addr.RelEnd, Occurrence: h.Occurrence, CountedBody: h.CountedBody,
-			Body: h.Body, SHA: h.SHA, Lines: h.Lines, Anchor: h.Anchor, Quote: h.Quote,
-			SrcLine: h.SrcLine, Index: h.Index,
-			From: h.BodyFrom, FromStart: h.BodyFromAddr.Start, FromEnd: h.BodyFromAddr.End, FromRelEnd: h.BodyFromAddr.RelEnd,
-		})
+		in = append(in, writer.InputFromHunk(h, path))
 	}
 
 	// ⚠ REFUSE BEFORE APPLYING WHEN THE VERDICT COULD NOT BE REPORTED.

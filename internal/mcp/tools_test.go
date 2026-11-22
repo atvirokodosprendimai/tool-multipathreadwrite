@@ -18,6 +18,7 @@ import (
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/plan"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/read"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/writer"
 )
 
 // checkout makes a throwaway root with one file and returns the root and path.
@@ -75,12 +76,7 @@ func cliWrite(t *testing.T, root, planText string) apply.Result {
 	}
 	in := make([]apply.Input, 0, len(hunks))
 	for _, h := range hunks {
-		in = append(in, apply.Input{
-			Path: h.Path, Start: h.Addr.Start, End: h.Addr.End, Op: string(h.Op),
-			StartPat: h.Addr.StartPat, EndPat: h.Addr.EndPat, RelEnd: h.Addr.RelEnd, Occurrence: h.Occurrence, CountedBody: h.CountedBody,
-			Body: h.Body, SHA: h.SHA, Lines: h.Lines, Anchor: h.Anchor,
-			SrcLine: h.SrcLine, Index: h.Index,
-		})
+		in = append(in, writer.InputFromHunk(h, h.Path))
 	}
 	ledger, err := seen.Load(root)
 	if err != nil {

@@ -28,8 +28,15 @@ var hookMarkers = []string{"<<<memoryd data", "memoryd ·", "agentsmemory", "qua
 // it is taken out of the text the mrw and hook checks read; the CLAUDE.md
 // check reads the text whole, so a sentence naming that directory still counts.
 func CheckCanary(transcript []byte, c Config, claudeMD, configDir string) []string {
+	t, err := parseTranscript(transcript)
+	if err != nil {
+		return []string{err.Error()}
+	}
+	return canaryProblems(t, transcript, c, claudeMD, configDir)
+}
+
+func canaryProblems(t transcript, raw []byte, c Config, claudeMD, configDir string) []string {
 	var problems []string
-	t := parseTranscript(transcript)
 	if !t.InitSeen {
 		problems = append(problems, "no system/init line: the tools and MCP servers cannot be checked")
 	} else {
@@ -43,7 +50,7 @@ func CheckCanary(transcript []byte, c Config, claudeMD, configDir string) []stri
 	// The raw lines and every JSON string in them, decoded: a sentence with a
 	// quote in it, or a marker sent as \u escapes, is in the transcript only
 	// escaped (the review of #411).
-	text := string(transcript) + "\n" + decodedStrings(transcript)
+	text := string(raw) + "\n" + decodedStrings(raw)
 	named := text
 	if configDir != "" {
 		named = strings.ReplaceAll(text, configDir, "<config-dir>")
@@ -335,12 +342,15 @@ func readHookProblems(c Config, r Receipt) []string {
 // checks read it, since the plugin itself names mrw and the markers; the
 // agent's own text is read as in A.
 func CheckProfileCanary(transcript []byte, c Config, claudeMD, configDir, pluginDir string) []string {
+	t, err := parseTranscript(transcript)
+	if err != nil {
+		return []string{err.Error()}
+	}
 	text := transcript
 	if c.Plugin {
 		text = withoutPluginText(transcript, pluginDir)
 	}
-	problems := CheckCanary(text, profiled(c), claudeMD, configDir)
-	t := parseTranscript(transcript)
+	problems := canaryProblems(t, text, profiled(c), claudeMD, configDir)
 	if !t.InitSeen {
 		return problems
 	}

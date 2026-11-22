@@ -12,6 +12,7 @@ import (
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/apply"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/authoring"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/check"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/plan"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/refusal"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
 )
@@ -22,6 +23,18 @@ import (
 // is three phases because the CLI prints its receipt and counts the landing
 // BEFORE the check (ADR-072), so a write killed during its check is still
 // printed and counted. Each phase returns facts; the surfaces render them.
+
+// InputFromHunk carries a parsed edit into the engine after the caller has
+// resolved any working-set pointer in the target path.
+func InputFromHunk(h plan.Hunk, path string) apply.Input {
+	return apply.Input{
+		Path: path, Start: h.Addr.Start, End: h.Addr.End, Op: string(h.Op),
+		StartPat: h.Addr.StartPat, EndPat: h.Addr.EndPat, RelEnd: h.Addr.RelEnd,
+		Occurrence: h.Occurrence, CountedBody: h.CountedBody,
+		Body: h.Body, SHA: h.SHA, Lines: h.Lines, Anchor: h.Anchor, Quote: h.Quote, SrcLine: h.SrcLine,
+		From: h.BodyFrom, FromStart: h.BodyFromAddr.Start, FromEnd: h.BodyFromAddr.End, FromRelEnd: h.BodyFromAddr.RelEnd,
+	}
+}
 
 // CheckMode says whether a write's check runs (ADR-054, ADR-205).
 type CheckMode int

@@ -4,7 +4,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"testing"
 
@@ -64,29 +63,22 @@ func TestAnOccurrenceOnALineAddressIsRefusedByParserAndEngine(t *testing.T) {
 	}
 }
 
-// TestEveryBuilderCarriesOccurrence: each place that turns a plan.Hunk into an
-// apply.Input copies the address field by field, so a new field is dropped
-// silently by any builder that forgets it. Every line that copies RelEnd must
-// copy Occurrence too.
+// TestEveryBuilderCarriesOccurrence guards the route from each surface through
+// the shared conversion and into the engine's resolved hunk.
 func TestEveryBuilderCarriesOccurrence(t *testing.T) {
-	copies := regexp.MustCompile(`RelEnd: *(h\.Addr|i)\.RelEnd`)
-	for _, f := range []string{"cmd/mrw/main.go", "internal/mcp/tools.go", "internal/curve/score.go", "internal/apply/apply.go"} {
-		b, err := os.ReadFile(filepath.Join("..", "..", f))
+	for _, step := range []struct{ path, want string }{
+		{"cmd/mrw/main.go", "in = append(in, writer.InputFromHunk(h, path))"},
+		{"internal/mcp/tools.go", "in = append(in, writer.InputFromHunk(h, path))"},
+		{"internal/curve/score.go", "in = append(in, writer.InputFromHunk(h, h.Path))"},
+		{"internal/writer/flow.go", "Occurrence: h.Occurrence"},
+		{"internal/apply/apply.go", "Occurrence: i.Occurrence"},
+	} {
+		b, err := os.ReadFile(filepath.Join("..", "..", step.path))
 		if err != nil {
 			t.Fatal(err)
 		}
-		n := 0
-		for _, line := range strings.Split(string(b), "\n") {
-			if !copies.MatchString(line) {
-				continue
-			}
-			n++
-			if !strings.Contains(line, "Occurrence: h.Occurrence") && !strings.Contains(line, "Occurrence: i.Occurrence") {
-				t.Errorf("%s: a builder copies RelEnd and not Occurrence: %s", f, strings.TrimSpace(line))
-			}
-		}
-		if n == 0 {
-			t.Errorf("%s: no builder line found; the scan would hold nothing", f)
+		if !strings.Contains(string(b), step.want) {
+			t.Errorf("%s: occurrence route missing %q", step.path, step.want)
 		}
 	}
 }

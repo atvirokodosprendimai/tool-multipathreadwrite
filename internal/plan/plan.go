@@ -168,9 +168,6 @@ type Hunk struct {
 
 	// SrcLine is the plan's own line number, for diagnostics.
 	SrcLine int
-	// Index is the hunk's position in the plan, used to order edits that begin
-	// at the same line.
-	Index int
 }
 
 // bodyCountLine is a body= option written on a line of its own. In blind
@@ -349,7 +346,6 @@ func Parse(r io.Reader) ([]Hunk, error) {
 			broken = true
 			continue
 		}
-		h.Index = len(hunks)
 		cur, body, want, fixed, strayN, strayFirst, strayAt, broken = &h, nil, explicit, explicit >= 0, 0, "", 0, false
 	}
 	if err := sc.Err(); err != nil {

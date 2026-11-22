@@ -12445,6 +12445,21 @@ else
   { grep -qx A "$R/a.txt" && [ -e "$R/n/m/k.txt" ] && [ ! -e "$R/d/x.txt" ]; } && ok "and the tree holds all three" || bad "tree: $(ls -R "$R" | head -c 300)"
 fi
 
+# 384. ADR-029 and ADR-167: a copy can use lines shown under different names
+# of one file. An adjacent line that none of the reads showed stays refused.
+fixture
+printf 'one\ntwo\nthree\nfour\nfive\n' > "$R/source384"
+ln "$R/source384" "$R/alias384" && ln "$R/source384" "$R/another384" || bad "set up two file aliases"
+m read source384:1 alias384:3 > "$WORK/served.out"
+want 0 $? "two spellings serve lines 1–2 and 3–4"
+printf '@@ copy384 0 create from=another384:1-4\n' | m write --no-check - > "$WORK/o384" 2>&1
+want 0 $? "copy the joined range through a third spelling"
+printf 'one\ntwo\nthree\nfour\n' > "$WORK/want384"
+cmp -s "$WORK/want384" "$R/copy384" && ok "the copy contains precisely the four shown lines" || bad "alias copy: $(cat "$WORK/o384")"
+printf '@@ denied384 0 create from=another384:5\n' | m write --no-check - > "$WORK/o384" 2>&1
+want 1 $? "line 5 was shown under no spelling"
+[ ! -e "$R/denied384" ] && ok "the refused copy created no file" || bad "the unshown line was copied"
+
 # 378. #754: a create of a path the ledger holds a record for, at another version
 # than the file has now, says the path exists and that a create never overwrites,
 # and does not advise --force: --force cannot make a create overwrite. The pair:
