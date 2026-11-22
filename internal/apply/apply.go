@@ -26,7 +26,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"unicode"
 	"unicode/utf8"
 
@@ -477,7 +476,7 @@ type Options struct {
 	RemedyRoot string
 
 	// aliases is the ledger's spellings, found once per apply: set by apply.
-	aliases *aliasIndex
+	aliases *seen.AliasIndex
 }
 
 // Apply validates every hunk against the working tree rooted at root and, if
@@ -521,7 +520,7 @@ func Apply(root string, in []Input, opt Options) (Result, error) {
 
 func apply(root string, in []Input, opt Options) (Result, error) {
 	if opt.Seen != nil {
-		opt.aliases = newAliasIndex(root, opt.Seen)
+		opt.aliases = seen.NewAliasIndex(root, opt.Seen, aliasStatFn)
 	}
 	dryRun := opt.DryRun
 	res := Result{Root: root, DryRun: dryRun}
@@ -643,7 +642,7 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 	var loadErr error
 	nest := newNesting(root, in)
 	clash := foldClashes(in, existsUnder(root))
-	var seenFiles []groupedFile
+	seenFiles := groupedFiles{planned: len(order)}
 	for _, path := range loopOrder {
 		hs := byPath[path]
 		// ADR-076: a trailing separator names a directory, and the clean above
@@ -728,7 +727,7 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 				failed = append(failed, FileResult{Path: path})
 				continue
 			}
-			if prior, dup := sameFileAs(info, seenFiles); dup {
+			if prior, dup := seenFiles.add(groupedFile{path: path, info: info, line: hs[0].SrcLine}); dup {
 				// One refusal per file, carried by its FIRST hunk (ADR-021
 				// Decision 3); the file's other hunks are skipped, which is
 				// how ADR-001 rule 3 has every sibling of a failure report.
@@ -746,7 +745,6 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 				failed = append(failed, FileResult{Path: path})
 				continue
 			}
-			seenFiles = append(seenFiles, groupedFile{path: path, info: info, line: hs[0].SrcLine})
 		}
 		// #744 review: the entry's identity is taken before the bytes are read and
 		// compared with the one taken after, so a file replaced in between is not
@@ -1632,25 +1630,8 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 	// caller who has read nothing, which the file-level check has already
 	// refused, and let every line through. A write to lines the caller was
 	// never served APPLIED, at exit 0.
-	recorded, known := opt.Seen[path]
-	if !known && opt.Seen != nil {
-		// On a case-insensitive filesystem — NTFS, and APFS by default —
-		// two spellings name ONE file, and the ledger keyed on the string.
-		// So a file that HAD been read was refused as unread, the refusal
-		// asserted something false, and the remedy it suggested added a
-		// third spelling rather than resolving the mismatch (issue #47).
-		//
-		// Resolved with os.SameFile rather than by folding case or asking
-		// what kind of filesystem this is: SameFile is the filesystem's
-		// OWN answer, so on Linux — where a.txt and A.TXT really are two
-		// files — it says no and nothing changes. Separator normalisation
-		// already worked; this is the other axis of the same equivalence.
-		//
-		// Only on the miss, so the ordinary case pays nothing.
-		if alias, found := sameFileEntry(full, path, opt.Seen); found {
-			recorded, known = alias, true
-		}
-	}
+	evidence := opt.aliases.File(full, path, shaBefore)
+	recorded, known := evidence.Primary()
 
 	var pathLevel, lineLevel bool
 	for _, h := range hs {
@@ -1769,57 +1750,23 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 	// stale picture ADR-002 exists to refuse — the same failure as an edited
 	// file, one level finer.
 	obs, haveObs := recorded, known
-	// ONE FILE IS ONE OBSERVATION (ADR-029) for the judgments that ask what was
-	// SHOWN: the records of every spelling of the file, the plan's own among them.
-	// The exact-path record used to hide the others: a quiet read through an alias
-	// recorded a partial record there that covered the line after and hid the
-	// whole written record under the real name, and a read the remedy asked for
-	// under an alias hid the showings of the other spelling (review of #745). A
-	// record of another version shows nothing of this one, and the spellings are
-	// consulted only when the plan's own record does not decide (the ledger's
-	// stats are paid once per apply, by opt.aliases).
-	var aliasRecs []Seen
-	aliased := false
-	aliasRecords := func() []Seen {
-		if !aliased {
-			aliased = true
-			if haveObs {
-				idx := opt.aliases
-				if idx == nil {
-					idx = newAliasIndex(root, opt.Seen)
-				}
-				aliasRecs = idx.records(full, path, shaBefore)
-			}
+	covered := func(h hunk, from, to int) (Seen, bool) {
+		if !haveObs || opt.Force {
+			return Seen{}, true
 		}
-		return aliasRecs
-	}
-	servedAnywhere := func(line int) bool {
-		if obs.ServedLine(line) {
-			return true
-		}
-		for _, r := range aliasRecords() {
-			if r.ServedLine(line) {
-				return true
-			}
-		}
-		return false
-	}
-	covered := func(h hunk, from, to int) bool {
-		if !haveObs || opt.Force || obs.Whole() {
-			return true
-		}
-		if obs.Covers(from, to) {
-			return true
+		licence, ok := evidence.Licence(from, to)
+		if ok {
+			return licence, true
 		}
 		if isPathOp(h.Op) {
 			fail(h, "%s has not been fully read: mrw served %s. %s takes no line address — read "+
-				"the whole path, or pass --force", path, obs.Served(), h.Op)
-			return false
+				"the whole path, or pass --force", path, licence.Served(), h.Op)
+		} else {
+			failK(h, refusal.NotRead, "%s of %s has not been read: mrw served %s. A line address means nothing in lines "+
+				"you have not seen — read them, or pass --force (a line --max-cols served cut is not read: read it whole, or --quiet)",
+				addrString(from, to), asPlan(path), licence.Served())
 		}
-		failK(h, refusal.NotRead, "%s of %s has not been read: mrw served %s. A line address means nothing in lines "+
-			"you have not seen — read them, or pass --force (a line --max-cols served cut is not read: read it whole, or --quiet)",
-			addrString(from, to), asPlan(path), obs.Served())
-		return false
+		return licence, false
 	}
 
 	if pathLevel && !lineLevel {
@@ -2022,14 +1969,15 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 					if haveObs && !opt.Force {
 						var unread []int
 						for _, l := range at[:n-1] {
-							if !servedAnywhere(l) {
+							if !evidence.Shows(l, l) {
 								unread = append(unread, l)
 							}
 						}
 						if len(unread) > 0 {
+							all, _ := evidence.All()
 							fail(h, "%s also matches %s of %s before occurrence %d, and they have not been read: "+
 								"mrw served %s — read them, or pass --force",
-								re, joinInts(unread), asPlan(path), n, obs.Served())
+								re, joinInts(unread), asPlan(path), n, all.Served())
 							return 0, false
 						}
 					}
@@ -2166,22 +2114,26 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 			// evaluated. The two insertion ops had this order the wrong way
 			// round after the replace/delete fix, which is how the first cut of
 			// ADR-028 could claim "every guard" while two still leaked.
-			if !covered(h, min(max(start, 1), total), min(max(start, 1), total)) || !guard(start) {
+			at := min(max(start, 1), total)
+			licence, ok := covered(h, at, at)
+			if !ok || !guard(start) {
 				continue
 			}
 			rh := h.resolveTo(start+1, start, "insert")
-			rh.staleNumbered, rh.staleLine = staleMarks(h, obs, haveObs, opt, quoted, total, start, start)
+			rh.staleNumbered, rh.staleLine = staleMarks(h, licence, opt, quoted, total, start, start)
 			resolved = append(resolved, rh)
 		case "insert-before":
 			if start < 1 || start > total+1 {
 				fail(h, "line %d is out of range (file has %d lines)", start, total)
 				continue
 			}
-			if !covered(h, min(max(start, 1), total), min(max(start, 1), total)) || !guard(start) {
+			at := min(max(start, 1), total)
+			licence, ok := covered(h, at, at)
+			if !ok || !guard(start) {
 				continue
 			}
 			rh := h.resolveTo(start, start-1, "insert")
-			rh.staleNumbered, rh.staleLine = staleMarks(h, obs, haveObs, opt, quoted, total, start, start)
+			rh.staleNumbered, rh.staleLine = staleMarks(h, licence, opt, quoted, total, start, start)
 			resolved = append(resolved, rh)
 		case "replace", "delete":
 			// A reversed range is caught at PARSE time when both ends are
@@ -2201,8 +2153,13 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 				continue
 			}
 			tail, isQuoted := quoted[h.Index]
-			if !isQuoted && !covered(h, start, end) {
-				continue
+			var licence Seen
+			if !isQuoted {
+				var ok bool
+				licence, ok = covered(h, start, end)
+				if !ok {
+					continue
+				}
 			}
 			// Checked BELOW covered() for the reason ADR-008 gives three lines
 			// down about its own guard: the mismatch message quotes the line
@@ -2271,36 +2228,18 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 			// tail. Any other quoted hunk needs that line from a ledger entry that
 			// still describes this file, and a file with none is refused, where
 			// covered() would wave it through.
-			needAfter := haveObs && !obs.Covers(end+1, end+1)
-			// ADR-208: on a written-shaped record, whole (Decision 1) or partial (Decision 1a:
-			// the lines a search_replace write produced, a plan's, a --quiet read's),
-			// the lines are LICENSED, which Covers answers for every one of them, and
-			// that is what hid the closer. There the line after must have been SHOWN
-			// since the write, in this version of the file (a showing bound to the
-			// sha: under --force the record kept can describe another version). A
-			// same-call --rewrite is not judged: its spans are the matches mrw found,
-			// and its plan maker licensed the line after each.
-			writtenRec := haveObs && obs.Written && !opt.SameCallRewrite
-			shown := haveObs && recorded.SHA == shaBefore && obs.ServedLine(end+1)
-			if haveObs && !shown && h.Op == "replace" && end > start && end < total {
-				for _, r := range aliasRecords() {
-					if r.Written && !opt.SameCallRewrite {
-						writtenRec = true
-					}
-					if r.ServedLine(end + 1) {
-						shown = true
-					}
-				}
+			after := obs
+			if haveObs && h.Op == "replace" && end > start && end < total &&
+				(obs.SHA != shaBefore || !obs.ServedLine(end+1)) {
+				after, _ = evidence.All()
 			}
+			needAfter := haveObs && !after.Covers(end+1, end+1)
+			writtenRec := haveObs && after.Written && !opt.SameCallRewrite
 			if writtenRec {
-				needAfter = !shown
+				needAfter = after.SHA != shaBefore || !after.ServedLine(end+1)
 			}
 			if isQuoted {
-				met := haveObs && recorded.SHA == shaBefore && obs.Covers(end+1, end+1)
-				if writtenRec {
-					met = shown
-				}
-				needAfter = tail == 0 && opt.Seen != nil && !met
+				needAfter = tail == 0 && opt.Seen != nil && (!haveObs || after.SHA != shaBefore || needAfter)
 			}
 			if h.Op == "replace" && end > start && end < total && needAfter {
 				hint := ""
@@ -2383,7 +2322,7 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 				}
 			}
 			rh := h.resolveTo(start, end, h.Op)
-			rh.staleNumbered, rh.staleLine = staleMarks(h, obs, haveObs, opt, quoted, total, start, end)
+			rh.staleNumbered, rh.staleLine = staleMarks(h, licence, opt, quoted, total, start, end)
 			resolved = append(resolved, rh)
 		default:
 			fail(h, "unsupported op %q", h.Op)
@@ -3295,8 +3234,8 @@ func srcAddrOf(i Input) string {
 // name another line in it. The second result is the first line it addresses
 // that is not shown in that record (every line of a range; the line an insert
 // names), or 0: the line the refusal names.
-func staleMarks(h hunk, obs Seen, haveObs bool, opt Options, quoted map[int]int, total, start, end int) (bool, int) {
-	if !haveObs || opt.Force || opt.Computed || !obs.Written || !obs.Whole() {
+func staleMarks(h hunk, licence Seen, opt Options, quoted map[int]int, total, start, end int) (bool, int) {
+	if opt.Force || opt.Computed || !licence.Written || !licence.Whole() {
 		return false, 0
 	}
 	// A start of `$` names the last line wherever it is: `$` alone and `$-N`.
@@ -3318,7 +3257,7 @@ func staleMarks(h hunk, obs Seen, haveObs bool, opt Options, quoted map[int]int,
 	default:
 		return false, 0
 	}
-	return true, unshown(obs, start, end)
+	return true, licence.FirstUnshown(start, end)
 }
 
 // staleRemedy is the read the stale-number refusal names: a command the caller
@@ -3596,85 +3535,9 @@ func servedAs(root, path string, ledger map[string]Seen) string {
 	return "; you were served " + strings.Join(found, ", ") + " — every path in a plan is relative to the root"
 }
 
-// sameFileEntry finds a ledger entry that names the SAME FILE as full under a
-// different spelling, which happens on any case-insensitive filesystem.
-//
-// The ledger is keyed by root-relative path, and root is recovered from full by
-// removing the relative part — full is built by joining the two, so this is
-// exact rather than a guess.
-//
-// os.SameFile is deliberate: it asks the filesystem instead of encoding a
-// belief about it. A caller on ext4 who genuinely has both a.txt and A.TXT gets
-// false and keeps two independent entries, which is correct there and would not
-// be if this folded case.
-func sameFileEntry(full, path string, ledger map[string]Seen) (Seen, bool) {
-	want, err := os.Stat(full)
-	if err != nil {
-		return Seen{}, false
-	}
-	root := strings.TrimSuffix(full, filepath.FromSlash(path))
-	for key, obs := range ledger {
-		if key == path {
-			continue
-		}
-		got, err := os.Stat(filepath.Join(root, filepath.FromSlash(key)))
-		if err != nil {
-			continue
-		}
-		if os.SameFile(want, got) {
-			return obs, true
-		}
-	}
-	return Seen{}, false
-}
-
 // aliasStatFn stats a ledger key's file. A seam, so a test can count the stats a
 // batch pays for.
 var aliasStatFn = os.Stat
-
-// aliasIndex is the ledger's keys with their files' identities, built on first
-// use and once per apply: a stat of each key, not of each key for each file. The
-// filesystem's answer to "one file or two" is os.SameFile, so a symlink and a case
-// variant name one file and two files on a case-sensitive filesystem do not.
-type aliasIndex struct {
-	root   string
-	ledger map[string]Seen
-	once   sync.Once
-	keys   []aliasKey
-}
-
-type aliasKey struct {
-	key  string
-	info os.FileInfo
-}
-
-func newAliasIndex(root string, ledger map[string]Seen) *aliasIndex {
-	return &aliasIndex{root: root, ledger: ledger}
-}
-
-// records returns the records of every spelling but path's own that names the
-// same file as full and describes the version sha: a record of another version
-// is no showing of this one.
-func (a *aliasIndex) records(full, path, sha string) []Seen {
-	want, err := os.Stat(full)
-	if err != nil {
-		return nil
-	}
-	a.once.Do(func() {
-		for key := range a.ledger {
-			if info, err := aliasStatFn(filepath.Join(a.root, filepath.FromSlash(key))); err == nil {
-				a.keys = append(a.keys, aliasKey{key, info})
-			}
-		}
-	})
-	var recs []Seen
-	for _, k := range a.keys {
-		if k.key != path && a.ledger[k.key].SHA == sha && os.SameFile(want, k.info) {
-			recs = append(recs, a.ledger[k.key])
-		}
-	}
-	return recs
-}
 
 // groupedFile is a plan path that resolved to an existing file, with the stat
 // that identifies it and the plan line of its first hunk — what a later
@@ -3685,15 +3548,54 @@ type groupedFile struct {
 	line int
 }
 
-// sameFileAs reports whether info names a file already in grouped, and which.
-// os.SameFile is the filesystem's answer to "one file or two": true for two
-// spellings on a case-insensitive filesystem and for a symlink and its target,
-// false for a.txt and A.txt on ext4, where they really are two files.
-func sameFileAs(info os.FileInfo, grouped []groupedFile) (groupedFile, bool) {
-	for _, g := range grouped {
-		if os.SameFile(info, g.info) {
-			return g, true
+// groupedFiles indexes an identity only when it comes from the captured stat.
+// On Windows a second lookup by path could name a different file, so the
+// original FileInfo values are compared with os.SameFile instead.
+type groupedFiles struct {
+	planned int
+	// Most plans edit a handful of files. Their comparisons fit here without
+	// allocating or hashing, and checking these slots costs at most eight
+	// comparisons per file in a large plan.
+	small   [8]groupedFile
+	used    int
+	byID    map[[2]uint64]groupedFile
+	unkeyed []groupedFile
+}
+
+// add returns the first spelling when f duplicates a target already in the plan.
+func (g *groupedFiles) add(f groupedFile) (groupedFile, bool) {
+	for _, prior := range g.small[:g.used] {
+		if os.SameFile(f.info, prior.info) {
+			return prior, true
 		}
+	}
+	if g.used < len(g.small) {
+		g.small[g.used] = f
+		g.used++
+		return groupedFile{}, false
+	}
+	for _, prior := range g.unkeyed {
+		if os.SameFile(f.info, prior.info) {
+			return prior, true
+		}
+	}
+	if id, ok := rooted.SnapshotID(f.info); ok {
+		if prior, found := g.byID[id]; found {
+			return prior, true
+		}
+		if g.byID == nil {
+			// Creates have no captured identity. Cap the initial reservation so a
+			// mixed plan with very few existing files does not reserve for all paths.
+			g.byID = make(map[[2]uint64]groupedFile, min(g.planned, 512))
+		}
+		g.byID[id] = f
+	} else {
+		for _, prior := range g.byID {
+			if os.SameFile(f.info, prior.info) {
+				return prior, true
+			}
+		}
+		g.unkeyed = append(g.unkeyed, f)
 	}
 	return groupedFile{}, false
 }

@@ -18,3 +18,9 @@ func identity(fi os.FileInfo, _ string) (fileKey, uint64, error) {
 	//nolint:unconvert // Dev and Nlink are narrower than uint64 on darwin
 	return fileKey{uint64(st.Dev), uint64(st.Ino)}, uint64(st.Nlink), nil
 }
+
+// SnapshotID returns the os.SameFile identity contained in fi itself.
+func SnapshotID(fi os.FileInfo) ([2]uint64, bool) {
+	key, _, err := identity(fi, "")
+	return [2]uint64{key.vol, key.idx}, err == nil
+}

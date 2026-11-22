@@ -11,6 +11,7 @@ import (
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/refusal"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/regular"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
 )
 
 // copied is one from= hunk's source as the pre-pass resolved it (ADR-167).
@@ -24,11 +25,12 @@ type copied struct {
 
 // sourceFile is a source read once, however many hunks copy from it.
 type sourceFile struct {
-	full string
-	text text
-	sha  string
-	why  string // the refusal, when the source cannot be copied at all
-	kind refusal.Kind
+	evidence seen.FileEvidence
+	full     string
+	text     text
+	sha      string
+	why      string // the refusal, when the source cannot be copied at all
+	kind     refusal.Kind
 }
 
 // resolveSources fills each from= hunk's body from the file as it is on disk
@@ -86,6 +88,7 @@ func resolveSources(root string, in []Input, opt Options) (map[int]copied, map[i
 		f, seenIt := files[p]
 		if !seenIt {
 			f = loadSource(root, p)
+			f.evidence = opt.aliases.File(f.full, p, f.sha)
 			files[p] = f
 		}
 		if f.why != "" {
@@ -229,10 +232,7 @@ func sourceGate(opt Options, p string, f *sourceFile, start, end int) string {
 	if opt.Seen == nil {
 		return fmt.Sprintf("%s cannot be copied from: there is no read ledger, and a copy is licensed only by lines mrw served", p)
 	}
-	obs, known := opt.Seen[p]
-	if !known {
-		obs, known = sameFileEntry(f.full, p, opt.Seen)
-	}
+	obs, known := f.evidence.Primary()
 	switch {
 	case !known:
 		return fmt.Sprintf("%s has not been read: lines %s cannot be copied from a file mrw has not served. Run `mrw read %s:%d-%d` first",
@@ -240,7 +240,7 @@ func sourceGate(opt Options, p string, f *sourceFile, start, end int) string {
 	case obs.SHA != f.sha:
 		return fmt.Sprintf("%s changed since mrw last saw it (recorded %s, now %s): re-read lines %s before copying them",
 			p, short(obs.SHA), short(f.sha), addrString(start, end))
-	case unshown(obs, start, end) > 0:
+	case !f.evidence.Shows(start, end):
 		// Zy, 2026-10-22: only lines SHOWN count (ADR-118's rule). A file mrw
 		// wrote, a --sub plan and a --quiet read license an edit and show nothing.
 		// No provenance in the text: after a --quiet read mrw wrote nothing and no
@@ -249,14 +249,4 @@ func sourceGate(opt Options, p string, f *sourceFile, start, end int) string {
 			addrString(start, end), asPlan(p))
 	}
 	return ""
-}
-
-// unshown is the first line of start-end the caller was not shown in obs, or 0.
-func unshown(obs Seen, start, end int) int {
-	for l := start; l <= end; l++ {
-		if !obs.ServedLine(l) {
-			return l
-		}
-	}
-	return 0
 }

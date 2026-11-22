@@ -270,11 +270,11 @@ type Options struct {
 	Unoutlined *[]string
 	// IfServed answers a spec by reference, `-- same as served: lines A-B at sha
 	// X`, instead of its text when the file still has the sha the caller holds
-	// (keyed like IfChanged) and Served, the ledger's entry for a cleaned path,
+	// (keyed like IfChanged) and Served, the index of the checkout's read ledger,
 	// reports every line of the spec shown in that version (ADR-179 Decision d).
 	// It records nothing. SameAsServed receives each reference that reached the caller.
 	IfServed     map[string]string
-	Served       func(path string) seen.Observation
+	Served       *seen.AliasIndex
 	SameAsServed *[]SameAsServed
 	// NoComments serves a run of two or more whole-line comment lines of a .go
 	// file as `-- … N comment line(s), A-B` and does not record them as read
@@ -309,15 +309,12 @@ type SameAsServed struct {
 	Spans [][2]int `json:"spans"`
 }
 
-// allShown reports whether the ledger's entry for the file reports every line of
-// every span shown to the caller in this version: seen.Observation.ServedLine
-// judges each, so a file mrw wrote counts only the lines read since (ADR-118).
-func allShown(rec seen.Observation, spans []span) bool {
+// allShown reports whether the current version of each span was shown under
+// this path or an alias. Written and quiet-read licences alone do not count.
+func allShown(evidence *seen.FileEvidence, spans []span) bool {
 	for _, s := range spans {
-		for l := s.start; l <= s.end; l++ {
-			if !rec.ServedLine(l) {
-				return false
-			}
+		if !evidence.Shows(s.start, s.end) {
+			return false
 		}
 	}
 	return true
@@ -894,7 +891,9 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 			if opt.NextLine && len(sp.Ranges) > 0 {
 				spans = withNextLine(spans, len(lines))
 			}
-			if rec := opt.Served(filepath.Clean(sp.Path)); rec.SHA == sha && len(spans) > 0 && allShown(rec, spans) {
+			path := filepath.Clean(sp.Path)
+			evidence := opt.Served.File(filepath.Join(root, path), path, sha)
+			if len(spans) > 0 && allShown(&evidence, spans) {
 				fmt.Fprintf(w, "==> %s  %dL  %dB  sha %s\n", ShownPath(sp.Path), len(lines), len(b), sha[:8])
 				listed := make([][2]int, len(spans))
 				parts := make([]string, len(spans))

@@ -27,7 +27,7 @@ func stillLicensed(root string, observed map[string]seen.Observation) string {
 	if err != nil {
 		return ""
 	}
-	entries := entryFinder(root, ledger)
+	entries := seen.NewAliasIndex(root, ledger, os.Stat)
 	var named []string
 	served := 0
 	for path, o := range observed {
@@ -35,7 +35,7 @@ func stillLicensed(root string, observed map[string]seen.Observation) string {
 			continue // served no line, so nothing to license
 		}
 		served++
-		if licensedBy(root, path, entries(path), o) {
+		if licensedBy(root, path, entries, o) {
 			named = append(named, path)
 		}
 	}
@@ -53,61 +53,35 @@ func stillLicensed(root string, observed map[string]seen.Observation) string {
 		strings.Join(named, ", "), more, count, served)
 }
 
-// entryFinder looks a path up in the ledger as a write does (ADR-029): by the
-// spelling given, and on a miss by another spelling of the same file — an
-// in-root link, or a case variant where the filesystem folds case — asking
-// os.SameFile, as sameFileEntry in internal/apply does. Each ledger key is
-// stat'ed at most once, on the first miss, so a read of many unread files does
-// not stat the ledger once per file.
-func entryFinder(root string, ledger seen.Ledger) func(string) seen.Observation {
-	var infos map[string]os.FileInfo
-	return func(path string) seen.Observation {
-		if rec, ok := ledger[path]; ok {
-			return rec
-		}
-		want, err := os.Stat(filepath.Join(root, filepath.FromSlash(path)))
-		if err != nil {
-			return seen.Observation{}
-		}
-		if infos == nil {
-			infos = map[string]os.FileInfo{}
-			for key := range ledger {
-				if fi, err := os.Stat(filepath.Join(root, filepath.FromSlash(key))); err == nil {
-					infos[key] = fi
-				}
-			}
-		}
-		for key, fi := range infos {
-			if os.SameFile(want, fi) {
-				return ledger[key]
-			}
-		}
-		return seen.Observation{}
-	}
-}
-
-// licensedBy reports whether rec, the ledger's entry for a file, licenses every
-// line o served, by the rule a write applies: the same version, and a whole
-// entry or one covering each served span. An entry mrw wrote is whole (ADR-118).
-// A whole-file read is licensed by spans that reach its last line too, so for
-// that one case the file is counted again (the Codex review of #397).
-func licensedBy(root, path string, rec, o seen.Observation) bool {
-	if rec.SHA == "" || rec.SHA != o.SHA {
+// licensedBy asks whether every line observed by this read is licensed in the
+// current version, including a licence split across several names. For a
+// whole-file observation with partial licences, count the file once before
+// judging whether the spans reach the end (ADR-148).
+func licensedBy(root, path string, entries *seen.AliasIndex, o seen.Observation) bool {
+	full := filepath.Join(root, filepath.FromSlash(path))
+	evidence := entries.File(full, path, o.SHA)
+	rec, ok := evidence.Primary()
+	if !ok || rec.SHA != o.SHA {
 		return false
 	}
 	if rec.Whole() {
 		return true
 	}
-	if !o.Whole() {
-		for _, s := range o.Spans {
-			if !rec.Covers(s[0], s[1]) {
-				return false
-			}
+	if o.Whole() {
+		n, counted := lineCount(root, full, o.SHA)
+		if counted && n > 0 {
+			_, licensed := evidence.Licence(1, n)
+			return licensed
 		}
-		return true
+		rec, ok = evidence.All()
+		return ok && rec.SHA == o.SHA && rec.Whole()
 	}
-	n, ok := lineCount(root, filepath.Join(root, filepath.FromSlash(path)), o.SHA)
-	return ok && n > 0 && rec.Covers(1, n)
+	for _, span := range o.Spans {
+		if _, licensed := evidence.Licence(span[0], span[1]); !licensed {
+			return false
+		}
+	}
+	return true
 }
 
 // recountCap bounds lineCount's second read of a file, as ADR-104 bounds the

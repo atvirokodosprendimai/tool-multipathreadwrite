@@ -38,7 +38,7 @@ func ifServed179(t *testing.T, held seen.Observation, quoted string, ranges ...R
 	observed, problems := Run(&out, root, []Spec{{Path: "a.txt", Raw: "a.txt", Ranges: ranges}}, Options{
 		Numbers:      true,
 		IfServed:     map[string]string{"a.txt": quoted},
-		Served:       func(string) seen.Observation { return held },
+		Served:       seen.NewAliasIndex(root, seen.Ledger{"a.txt": held}, os.Stat),
 		SameAsServed: &refs,
 	})
 	return out.String(), refs, observed, problems

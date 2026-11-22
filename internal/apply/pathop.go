@@ -194,7 +194,7 @@ func respelling(src, dst string) int {
 
 // planPathOp validates a single unlink or rename hunk. The caller has already
 // refused mixing those ops with line-edits on the same path.
-func planPathOp(root, path, full string, h hunk, orig []string, existed bool, shaBefore, miss string, unlinked, produced map[string]bool, destCount map[string]int, nest *nesting, covered func(hunk, int, int) bool, fail func(hunk, string, ...any), out map[int]HunkResult) bool {
+func planPathOp(root, path, full string, h hunk, orig []string, existed bool, shaBefore, miss string, unlinked, produced map[string]bool, destCount map[string]int, nest *nesting, covered func(hunk, int, int) (Seen, bool), fail func(hunk, string, ...any), out map[int]HunkResult) bool {
 	if h.StartPat != nil || h.Start != 0 || h.End != 0 || h.RelEnd > 0 {
 		fail(h, "%s takes no address, use %q", h.Op, "-")
 		return false
@@ -231,8 +231,10 @@ func planPathOp(root, path, full string, h hunk, orig []string, existed bool, sh
 		return false
 	}
 	total := len(orig)
-	if total > 0 && !covered(h, 1, total) {
-		return false
+	if total > 0 {
+		if _, ok := covered(h, 1, total); !ok {
+			return false
+		}
 	}
 	if h.Op == "rename" {
 		raw := h.Body[0] // the destination exactly as written (ADR-069)

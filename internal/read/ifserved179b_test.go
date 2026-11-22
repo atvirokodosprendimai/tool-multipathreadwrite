@@ -27,7 +27,7 @@ func TestIfServedKeepsADeliveredReferenceWhenADiagnosticOverrunsTheBudget(t *tes
 	opt := func(refs *[]SameAsServed, withheld *bytes.Buffer) Options {
 		return Options{
 			Numbers: true, IfServed: map[string]string{"a.txt": full[:8]},
-			Served:       func(string) seen.Observation { return seen.Observation{SHA: full, Spans: [][2]int{{1, 6}}} },
+			Served:       seen.NewAliasIndex(root, seen.Ledger{"a.txt": {SHA: full, Spans: [][2]int{{1, 6}}}}, os.Stat),
 			SameAsServed: refs, Withheld: withheld,
 		}
 	}
@@ -61,7 +61,7 @@ func TestIfServedJudgesTheContextAWidenedMatchServes(t *testing.T) {
 	var refs []SameAsServed
 	Run(&out, root, []Spec{{Path: "a.txt", Raw: "a.txt", Ranges: []Range{{Re: regexp.MustCompile("l3"), Text: "/l3/"}}}}, Options{
 		Numbers: true, Context: 1, IfServed: map[string]string{"a.txt": full[:8]},
-		Served: func(string) seen.Observation { return held }, SameAsServed: &refs,
+		Served: seen.NewAliasIndex(root, seen.Ledger{"a.txt": held}, os.Stat), SameAsServed: &refs,
 	})
 	if strings.Contains(out.String(), "same as served") || !strings.Contains(out.String(), "l4") || len(refs) != 0 {
 		t.Errorf("a widened match reaching an unshown line was answered by reference:\n%s", out.String())
@@ -80,7 +80,7 @@ func TestIfServedNamesAReferenceTheBudgetWithholds(t *testing.T) {
 	opt := func(refs *[]SameAsServed, withheld *bytes.Buffer) Options {
 		return Options{
 			Numbers: true, IfServed: map[string]string{"a.txt": full[:8]}, Withheld: withheld, SameAsServed: refs,
-			Served: func(string) seen.Observation { return seen.Observation{SHA: full, Spans: [][2]int{{1, 6}}} },
+			Served: seen.NewAliasIndex(root, seen.Ledger{"a.txt": {SHA: full, Spans: [][2]int{{1, 6}}}}, os.Stat),
 		}
 	}
 	spec := []Spec{{Path: "a.txt", Raw: "a.txt"}}

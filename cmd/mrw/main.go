@@ -1457,7 +1457,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			// ADR-179 Decision (d): the sha the caller quotes, and the ledger's word
 			// on which lines it was shown. A ledger that cannot be read answers nothing.
 			var ifServed map[string]string
-			var servedEntry func(string) seen.Observation
+			var servedEntry *seen.AliasIndex
 			var referred []read.SameAsServed
 			if len(servedGuards) > 0 {
 				var unused []string
@@ -1466,7 +1466,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				}
 				unusedGuards = append(unusedGuards, unused...)
 				if ledger, lerr := seen.Snapshot(root); lerr == nil {
-					servedEntry = entryFinder(root, ledger)
+					servedEntry = seen.NewAliasIndex(root, ledger, os.Stat)
 				}
 			}
 			if len(unusedGuards) > 0 { // one line for the invocation, naming every file (ADR-179 Decision e)

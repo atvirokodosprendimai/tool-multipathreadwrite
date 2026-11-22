@@ -85,6 +85,16 @@ func (o Observation) ServedLine(line int) bool {
 	return o.Covers(line, line)
 }
 
+// FirstUnshown is the first line of start-end the caller was not shown in this observation, or 0.
+func (obs Observation) FirstUnshown(start, end int) int {
+	for l := start; l <= end; l++ {
+		if !obs.ServedLine(l) {
+			return l
+		}
+	}
+	return 0
+}
+
 // Covers reports whether every line in [start,end] was served. A whole-file
 // observation covers everything, and an empty span set covers nothing.
 func (o Observation) Covers(start, end int) bool {
@@ -883,6 +893,47 @@ func merge(old, new Observation) Observation {
 		return old
 	}
 	return Observation{SHA: new.SHA, Spans: mergeSpans(append(append([][2]int{}, old.Spans...), new.Spans...))}
+}
+
+// unionVersion combines what was licensed and what was shown under different
+// names of one file. Only observations of sha can contribute either kind of
+// evidence. A whole-file read shows everything; a whole-file write does not.
+func unionVersion(records []Observation, sha string) (Observation, bool) {
+	var matched []Observation
+	for _, r := range records {
+		if r.SHA == sha {
+			if r.Whole() && !r.Written {
+				return r, true
+			}
+			matched = append(matched, r)
+		}
+	}
+	if len(matched) == 0 {
+		return Observation{}, false
+	}
+	if len(matched) == 1 {
+		return matched[0], true
+	}
+	var licensed, shown [][2]int
+	var written, whole bool
+	for _, r := range matched {
+		whole = whole || r.Whole()
+		written = written || r.Written
+		licensed = append(licensed, r.Spans...)
+		if r.Written {
+			shown = append(shown, r.Shown...)
+		} else {
+			shown = append(shown, r.Spans...)
+		}
+	}
+	combined := Observation{SHA: sha, Written: written}
+	if !whole {
+		combined.Spans = mergeSpans(licensed)
+	}
+	if written {
+		combined.Shown = mergeSpans(shown)
+	}
+	return combined, true
 }
 
 // mergeSpans sorts and coalesces overlapping or touching spans, so a ledger

@@ -15,7 +15,7 @@ import (
 // JSON receipt's "addr" keeps the value it has (ADR-111).
 //
 // The skip cases are the ones that reach the old `0`: a hunk refused by refuseFile,
-// clashAt or sameFileAs is skipped with the Addr its input carried, where a hunk
+// a name clash or a duplicate target is skipped with the Addr its input carried, where a hunk
 // that merely sat beside a failing one was validated first and already said `-`.
 func TestAPathOpRowPrintsTheAddressThePlanWrote(t *testing.T) {
 	tree := func(t *testing.T) string {
