@@ -86,4 +86,4 @@ The fence exits 0; `./scripts/contract.sh` exits 0 on Linux CI with §381 passin
 
 ## Out of Scope
 
-- A release note (external: the release owner writes it from the record's Decision 9)
+- A release note (external: release owner: ADR-215 Decision 9)
