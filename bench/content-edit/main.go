@@ -4,6 +4,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"encoding/json/jsontext"
 	"errors"
 	"fmt"
 	"io"
@@ -84,7 +85,7 @@ func readEdits(r io.Reader) ([]edit, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !utf8.Valid(b) || !json.Valid(b) {
+	if !jsontext.Value(b).IsValid(jsontext.AllowDuplicateNames(true)) {
 		return nil, errors.New("expected one UTF-8 JSON document")
 	}
 	var edits []edit
