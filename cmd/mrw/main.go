@@ -2316,13 +2316,7 @@ held or went unchecked.`,
 						return refuse(fmt.Sprintf("%s line %d: %s names %q, which is not valid UTF-8, and a --json receipt cannot name it as written; drop --json to write it", name, h.SrcLine, h.Path, path))
 					}
 				}
-				in = append(in, apply.Input{
-					Path: path, Start: h.Addr.Start, End: h.Addr.End, Op: string(h.Op),
-					StartPat: h.Addr.StartPat, EndPat: h.Addr.EndPat, RelEnd: h.Addr.RelEnd, Occurrence: h.Occurrence, CountedBody: h.CountedBody,
-					Body: h.Body, SHA: h.SHA, Lines: h.Lines, Anchor: h.Anchor, Quote: h.Quote,
-					SrcLine: h.SrcLine, Index: h.Index,
-					From: h.BodyFrom, FromStart: h.BodyFromAddr.Start, FromEnd: h.BodyFromAddr.End, FromRelEnd: h.BodyFromAddr.RelEnd,
-				})
+				in = append(in, writer.InputFromHunk(h, path))
 			}
 
 			// ADR-113: the gates, the landing's count, the check, the drift,

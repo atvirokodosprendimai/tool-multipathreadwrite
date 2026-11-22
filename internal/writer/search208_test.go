@@ -35,11 +35,7 @@ func TestASearchReplaceOnlyWriteIsRecordedLicensedNotShown(t *testing.T) {
 		}
 		var in []apply.Input
 		for _, h := range hunks {
-			in = append(in, apply.Input{
-				Path: h.Path, Start: h.Addr.Start, End: h.Addr.End, Op: string(h.Op),
-				StartPat: h.Addr.StartPat, EndPat: h.Addr.EndPat, RelEnd: h.Addr.RelEnd, Occurrence: h.Occurrence, CountedBody: h.CountedBody,
-				Body: h.Body, SHA: h.SHA, Lines: h.Lines, Anchor: h.Anchor, Quote: h.Quote, SrcLine: h.SrcLine, Index: h.Index,
-			})
+			in = append(in, InputFromHunk(h, h.Path))
 		}
 		return in
 	}
@@ -135,10 +131,7 @@ func TestASearchReplaceOnlyWriteIsRecordedLicensedNotShown(t *testing.T) {
 		}
 		var in []apply.Input
 		for _, h := range hunks {
-			in = append(in, apply.Input{
-				Path: h.Path, Start: h.Addr.Start, End: h.Addr.End, Op: string(h.Op), Occurrence: h.Occurrence, CountedBody: h.CountedBody,
-				Body: h.Body, SHA: h.SHA, Lines: h.Lines, Anchor: h.Anchor, Quote: h.Quote, SrcLine: h.SrcLine, Index: h.Index,
-			})
+			in = append(in, InputFromHunk(h, h.Path))
 		}
 		land(t, root, in)
 		got := record(t, root, "f.go")

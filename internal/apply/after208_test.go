@@ -41,7 +41,7 @@ func TestAMultiLineReplaceOnAWrittenFileNeedsTheLineAfterShown(t *testing.T) {
 			in = append(in, Input{
 				Path: h.Path, Start: h.Addr.Start, End: h.Addr.End, Op: string(h.Op),
 				StartPat: h.Addr.StartPat, EndPat: h.Addr.EndPat, RelEnd: h.Addr.RelEnd, Occurrence: h.Occurrence, CountedBody: h.CountedBody,
-				Body: h.Body, SHA: h.SHA, Lines: h.Lines, Anchor: h.Anchor, Quote: h.Quote, SrcLine: h.SrcLine, Index: h.Index,
+				Body: h.Body, SHA: h.SHA, Lines: h.Lines, Anchor: h.Anchor, Quote: h.Quote, SrcLine: h.SrcLine,
 			})
 		}
 		return in

@@ -396,7 +396,9 @@ type Input struct {
 	Occurrence  int
 	Quote       string
 	SrcLine     int
-	Index       int
+	// Index is retained for historical test fixtures. Apply assigns positions
+	// from the input slice so each verdict has a distinct slot.
+	Index int
 	// From, if set, makes the body the lines FromStart..FromEnd of that file as
 	// it is on disk before the plan (ADR-167), in place of Body. The span is
 	// numeric: FromEnd may be EOF, FromStart may be EOF for the last line, and
