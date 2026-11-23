@@ -78,7 +78,7 @@ func instructionsText() string {
 1. the same change at many sites, none in context: mrw_write with grep and sub (grep \bOld\b, sub New)
 2. see each change: the same with dry_run true
 3. a change by syntax: mrw_write with ast_grep and rewrite
-4. look first: mrw_read with grep and count, then specs f.go:/P/
+4. mrw_read with grep and count (omit max_cols), then specs f.go:/P/
 5. different changes: one mrw_read of the sites, one mrw_write plan
 6. a step after the write: mrw_write with then [NAME]
 7. license known lines unseen: mrw_read with quiet true

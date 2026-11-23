@@ -11,9 +11,9 @@ description: >-
   heredocs. It applies only while mrw is on PATH: if it is not, use the host's
   own tools and do not install it.
 metadata:
-  mrw-version: "v1.94.0 (9375b2b)"
+  mrw-version: "v1.94.1"
   generated-by: "mrw skill"
-  content-sha256: "a43d4e532f476f0576248773ab7c3fb68aaa60ba3a21bf3eb11b69b062019bc2"
+  content-sha256: "5d9a1b3432af6041958ed5d497415b559ee8fd7a6c0c9d4261b518780d79bd56"
 ---
 
 # mrw
@@ -35,7 +35,7 @@ Recipes:
   mrw write --grep '\bOld\b' --sub 'New' --dry-run .
 3. a change by syntax, not text:
   mrw write --ast-grep 'foo($A, $B)' --rewrite 'bar($B, $A)' .
-4. look before you change, only at what you will use (count first, then read the matches you need):
+4. look before you change, only at what you will use (omit --max-cols on the count, even when the width is zero):
   mrw read --grep P --count . && mrw read 'f.go:/P/' -C 3 --max-lines 40
 5. different changes at several sites: one read of all of them, then the plan in a file — written with the host's file tool, in a temporary directory you may write — so no shell parser sees its text:
   mrw read 'a.go:/func A/,+12' b.go:40-60 && mrw write "$TMPDIR/plan.txt"
@@ -72,6 +72,6 @@ Recipes:
 21. a second edit to a file you just wrote, on its whole-file licence: a number alone is refused, unless a read has shown that line since the write, so name the line by a pattern and say what it holds (anchor=), or read the line first (mrw read f.go:40):
   printf '%s\n' '@@ f.go /^func B\(/ replace anchor="func B("' 'func B(x int) {' | mrw write -
 
-`mrw instructions` prints the whole contract. This file was printed by `mrw skill` from mrw v1.94.0 (9375b2b); when `mrw version` prints another version, `mrw skill --dir <the directory holding this mrw folder>` replaces it.
+`mrw instructions` prints the whole contract. This file was printed by `mrw skill` from mrw v1.94.1; when `mrw version` prints another version, `mrw skill --dir <the directory holding this mrw folder>` replaces it.
 
 A host's per-path rules for its Edit and Write tools do not reach mrw, which writes wherever its user can: their absence is not permission, and mrw is not a way to reach a path the host refused you.

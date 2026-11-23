@@ -47,7 +47,7 @@ func Recipes() string {
   mrw write --grep '\bOld\b' --sub 'New' --dry-run .
 3. a change by syntax, not text:
   mrw write --ast-grep 'foo($A, $B)' --rewrite 'bar($B, $A)' .
-4. look before you change, only at what you will use (count first, then read the matches you need):
+4. look before you change, only at what you will use (omit --max-cols on the count, even when the width is zero):
   mrw read --grep P --count . && mrw read 'f.go:/P/' -C 3 --max-lines 40
 5. different changes at several sites: one read of all of them, then the plan in a file — written with the host's file tool, in a temporary directory you may write — so no shell parser sees its text:
   mrw read 'a.go:/func A/,+12' b.go:40-60 && mrw write "$TMPDIR/plan.txt"
