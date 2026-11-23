@@ -255,7 +255,7 @@ protocol); `--max-lines` onto `max_lines` and `--stat` onto `stat`, each licensi
 that line as NOT read: a plan that replaces it is refused until it is read whole; `mrw_read` takes it as `max_cols`,
 and a line it served cut is in no checkpoint, named on a `-- not licensed:` line (ADR-154). `--stat` lists the files with their
 length and sha and `-N` drops the line numbers. `--grep P --count` prints each matching file's header with how many of
-its lines match, then a total, and serves no line, so it licenses none (ADR-153; `count` on `mrw_read`, with `grep`).
+its lines match, then a total, and serves no line, so it licenses none (ADR-153; `count` on `mrw_read`, with `grep`). Omit `--max-cols` on a count, or `max_cols` on MCP, even for width zero.
 The plan makers are on MCP too (ADR-161): `mrw_write` takes `grep` with `sub`, or `ast_grep` with `rewrite`, in place of
 `plan` (and `exclude`, `no_ignore` shape the walk of the whole root), builds the plan with the functions the CLI calls, and
 applies it as one plan with the write's check, `then` and `dry_run`; a file the walk could not read applies nothing.

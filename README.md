@@ -238,7 +238,7 @@ rg -l 'func Handle' . | sed 's|$|:/func Handle/|' | mrw read -C 3 --files-from -
 | flag | effect |
 |---|---|
 | `--stat` | length, bytes and sha only — no content, so it licenses nothing |
-| `--count` | with `--grep`: each matching file's header and how many of its lines match, then a total — no content, so it licenses nothing (ADR-153) |
+| `--count` | with `--grep`: each matching file's header and how many of its lines match, then a total — no content, so it licenses nothing (ADR-153). Omit `--max-cols` on a count, even when the width is zero. On MCP, send `grep` and `count: true` and omit `max_cols`. |
 | `--if-changed PATH=SHA` | repeatable, one per file: each spec of PATH whose whole content still has that sha (a prefix of 8 to 64 hex digits; the 8 a header prints suffice) is answered with one line, `==> PATH  unchanged since sha SHA — N lines, B bytes not served`, instead of its text, and a changed file is served as ever. An unchanged answer records nothing, so it licenses no write, and exits 0. A guard on a file the read names but does not serve is refused, exit 2; a guard on a file a `--grep` or `--ast-grep` walk did not reach is named on `-- guard not used:` and does nothing. Not with `--count`, `--stat`, `--quiet`, `--sub` or `--rewrite`. `if_changed` on `mrw_read` does the same (ADR-169) |
 | `-C N` | context around a single-pattern match |
 | `--max-lines N` | cap per spec, where zero means zero: `0` serves nothing. Omit the flag for no cap. Use it instead of `\| head`, which loses mrw's exit code: what it withholds is named, and the read exits 0 with `mrw: capped: …` last on stderr: a range your own cap withheld is not one mrw could not serve (beside a missed range, a refused path or `--max-chars` reached it exits 1 `incomplete:`) |
