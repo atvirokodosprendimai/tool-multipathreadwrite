@@ -66,7 +66,7 @@ func splitLines(s string) []string {
 // checkDeltaProperties asserts every Decision property of one call.
 func checkDeltaProperties(t testing.TB, consumed, body []string) {
 	t.Helper()
-	got := balanceDelta(consumed, body)
+	got, _ := balanceDelta(consumed, body, false)
 	before, after := refNets(consumed), refNets(body)
 	want := before != after
 	if (got != "") != want {
@@ -102,7 +102,8 @@ func checkDeltaProperties(t testing.TB, consumed, body []string) {
 		pos++
 	}
 	// Swapping the sides reverses every arrow.
-	rev := parseDelta(t, balanceDelta(body, consumed))
+	reverse, _ := balanceDelta(body, consumed, false)
+	rev := parseDelta(t, reverse)
 	if len(rev) != len(parsed) {
 		t.Fatalf("swap reported %d families, forward reported %d", len(rev), len(parsed))
 	}
@@ -138,7 +139,7 @@ func FuzzBalanceDelta(f *testing.F) {
 // are ASCII, and a delta on `｛` would be a report about nothing a compiler
 // sees. Pinned so a "helpful" widening of the set has to change this test.
 func TestBalanceCountsOnlyASCIIBrackets(t *testing.T) {
-	if got := balanceDelta([]string{"｛ （ ［ 「 «"}, []string{"｝ ） ］ 」 »"}); got != "" {
+	if got, _ := balanceDelta([]string{"｛ （ ［ 「 «"}, []string{"｝ ） ］ 」 »"}, false); got != "" {
 		t.Errorf("look-alike brackets produced a delta: %q", got)
 	}
 }
@@ -147,7 +148,7 @@ func TestBalanceCountsOnlyASCIIBrackets(t *testing.T) {
 // positive (ADR-048: no lexer), and the test exists so nobody "fixes" it into
 // a parser without retiring the record.
 func TestBalanceCountsBracesInsideStrings(t *testing.T) {
-	if got := balanceDelta([]string{`s := "{"`}, []string{`s := ""`}); got == "" {
+	if got, _ := balanceDelta([]string{`s := "{"`}, []string{`s := ""`}, false); got == "" {
 		t.Error("a brace inside a string literal was not counted; the arm has grown a lexer")
 	}
 }
@@ -351,6 +352,20 @@ func TestIsProseIsTheClosedListOnTheFinalExtensionOnly(t *testing.T) {
 	for p, want := range cases {
 		if got := IsProse(p); got != want {
 			t.Errorf("IsProse(%q) = %v, want %v", p, got, want)
+		}
+	}
+}
+
+func TestStrictBalanceReportsOnlyChangedFamiliesThatStartedUnbalanced(t *testing.T) {
+	consumed, body := []string{"{()"}, []string{"[["}
+	for _, tc := range []struct {
+		strict bool
+		want   string
+	}{
+		{false, "{ +1 → +0; [ +0 → +2"}, {true, "{ +1 → +0"},
+	} {
+		if got, wrap := balanceDelta(consumed, body, tc.strict); got != tc.want || !wrap {
+			t.Errorf("strict=%v: got %q, wrap=%v; want %q, wrap=true", tc.strict, got, wrap, tc.want)
 		}
 	}
 }
