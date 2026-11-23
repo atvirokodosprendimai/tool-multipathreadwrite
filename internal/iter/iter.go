@@ -349,6 +349,22 @@ func (s Set) pointerRange(tok, body string) (lo, hi int, err error) {
 	return lo, hi, nil
 }
 
+// HunkPath resolves a single write target. Only a working-set entry has
+// a read range to strip; a literal hunk path is already a filename.
+func (s Set) HunkPath(target string) (string, error) {
+	if !IsPointer(target) {
+		return target, nil
+	}
+	entries, err := s.Resolve(target)
+	if err != nil {
+		return "", err
+	}
+	if len(entries) != 1 {
+		return "", fmt.Errorf("%s names %d entries; a hunk needs exactly one", target, len(entries))
+	}
+	return Path(entries[0]), nil
+}
+
 // ResolveAll expands every token, flattening pointer ranges in place.
 func (s Set) ResolveAll(tokens []string) ([]string, error) {
 	out := make([]string, 0, len(tokens))

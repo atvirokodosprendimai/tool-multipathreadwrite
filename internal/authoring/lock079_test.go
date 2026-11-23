@@ -22,7 +22,7 @@ func TestConcurrentRecordsCountEveryOutcome(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			for j := 0; j < each; j++ {
-				_ = Record(root, Applied)
+				Record(root, Applied)
 			}
 		}()
 	}
@@ -39,12 +39,12 @@ func TestConcurrentRecordsCountEveryOutcome(t *testing.T) {
 func TestATallyReadNeverSeesAHalfSavedTally(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	root := t.TempDir()
-	_ = Record(root, Applied)
+	Record(root, Applied)
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
 		for i := 0; i < 1500; i++ {
-			_ = Record(root, Applied)
+			Record(root, Applied)
 		}
 	}()
 	last := 1
@@ -71,7 +71,7 @@ func TestATallyReadNeverSeesAHalfSavedTally(t *testing.T) {
 func TestAWriterThatCannotLockWritesNothing(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	root := t.TempDir()
-	_ = Record(root, Applied)
+	Record(root, Applied)
 	p, err := state.Path(root, lockName)
 	if err != nil {
 		t.Fatal(err)
@@ -84,9 +84,9 @@ func TestAWriterThatCannotLockWritesNothing(t *testing.T) {
 	if err := os.Mkdir(p, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	_ = Record(root, Applied)
-	_ = RecordRecent(root, 1)
-	_ = RecordPricing(root, true, true, PricedBroke)
+	Record(root, Applied)
+	RecordRecent(root, 1)
+	RecordPricing(root, true, true, PricedBroke)
 	if tally, _ := Load(root); tally[Applied.name()] != 1 {
 		t.Errorf("applied = %d: a writer that could not lock wrote", tally[Applied.name()])
 	}
@@ -108,13 +108,13 @@ func TestEveryTallyCallWaitsForTheLock(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	root := t.TempDir()
 	for name, call := range map[string]func(){
-		"Record":        func() { _ = Record(root, Applied) },
-		"Reclassify":    func() { _ = Reclassify(root, Applied, FailedCheck) },
+		"Record":        func() { Record(root, Applied) },
+		"Reclassify":    func() { Reclassify(root, Applied, FailedCheck) },
 		"Load":          func() { _, _ = Load(root) },
 		"Reset":         func() { _, _ = Reset(root) },
-		"RecordRecent":  func() { _ = RecordRecent(root, 0) },
+		"RecordRecent":  func() { RecordRecent(root, 0) },
 		"Recent":        func() { _ = Recent(root) },
-		"RecordPricing": func() { _ = RecordPricing(root, false, false, PricedHeld) },
+		"RecordPricing": func() { RecordPricing(root, false, false, PricedHeld) },
 		"LoadPricing":   func() { _ = LoadPricing(root) },
 	} {
 		release, err := state.Hold(root, lockName)

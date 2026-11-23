@@ -2027,11 +2027,11 @@ held or went unchecked.`,
 					emitNotes()
 				}
 				if landed && !tallied {
-					_ = authoring.Record(cmd.Root().String("root"), authoring.Applied)
+					authoring.Record(cmd.Root().String("root"), authoring.Applied)
 					tallied = true
 				}
 				if !landed && parsed && !tallied {
-					_ = authoring.Record(cmd.Root().String("root"), authoring.RefusedApply)
+					authoring.Record(cmd.Root().String("root"), authoring.RefusedApply)
 					tallied = true
 				}
 				if !cmd.Bool("json") && landed && !printed && lost == nil {
@@ -2172,7 +2172,7 @@ held or went unchecked.`,
 					// stream that never ends is still refused. Counted as any plan
 					// that did not parse.
 					_, _ = io.CopyN(io.Discard, br, keptPlanCap+1)
-					_ = authoring.Record(cmd.Root().String("root"), authoring.RefusedParse)
+					authoring.Record(cmd.Root().String("root"), authoring.RefusedParse)
 					return refuse(utf16Refusal(name))
 				}
 				if n, more := ingest.LeadingMarks(br); n > 1 || more {
@@ -2185,7 +2185,7 @@ held or went unchecked.`,
 					return refuse(fmt.Sprintf("%s: %v", name, rerr))
 				}
 				if utf16Mark(raw) {
-					_ = authoring.Record(cmd.Root().String("root"), authoring.RefusedParse)
+					authoring.Record(cmd.Root().String("root"), authoring.RefusedParse)
 					return refuse(utf16Refusal(name))
 				}
 				raw, marks := ingest.DropLeadingMarks(raw)
@@ -2196,7 +2196,7 @@ held or went unchecked.`,
 				if cerr != nil {
 					// The document did not become a plan. Same bucket as a
 					// native parse refusal: the FORMAT was the problem.
-					_ = authoring.Record(cmd.Root().String("root"), authoring.RefusedParse)
+					authoring.Record(cmd.Root().String("root"), authoring.RefusedParse)
 					return refuse(fmt.Sprintf("%s: %v", name, cerr))
 				}
 				hunks, err = plan.Parse(bytes.NewReader(compiled))
@@ -2206,7 +2206,7 @@ held or went unchecked.`,
 					return refuse(fmt.Sprintf("%s: %v", name, rerr))
 				}
 				if utf16Mark(raw) {
-					_ = authoring.Record(cmd.Root().String("root"), authoring.RefusedParse)
+					authoring.Record(cmd.Root().String("root"), authoring.RefusedParse)
 					return refuse(utf16Refusal(name))
 				}
 				raw, marks := ingest.DropLeadingMarks(raw)
@@ -2215,7 +2215,7 @@ held or went unchecked.`,
 				}
 				compiled, cerr := ingest.CompileSearchReplace(cmd.Root().String("root"), raw)
 				if cerr != nil {
-					_ = authoring.Record(cmd.Root().String("root"), authoring.RefusedParse)
+					authoring.Record(cmd.Root().String("root"), authoring.RefusedParse)
 					return refuse(fmt.Sprintf("%s: %v", name, cerr))
 				}
 				hunks, err = plan.Parse(bytes.NewReader(compiled))
@@ -2250,13 +2250,13 @@ held or went unchecked.`,
 				// rather than the caller's picture of a file. Recorded here,
 				// at the site that already decided it, so the tally is a
 				// projection of that decision and never a second opinion.
-				_ = authoring.Record(cmd.Root().String("root"), authoring.RefusedParse)
+				authoring.Record(cmd.Root().String("root"), authoring.RefusedParse)
 				return refuse(fmt.Sprintf("%s: %v", name, err))
 			}
 
 			root := cmd.Root().String("root")
 			if err := plan.LoadBodyFiles(root, hunks); err != nil {
-				_ = authoring.Record(root, authoring.RefusedParse)
+				authoring.Record(root, authoring.RefusedParse)
 				return refuse(fmt.Sprintf("%s: %v", name, err))
 			}
 			parsed = true
@@ -2296,25 +2296,13 @@ held or went unchecked.`,
 
 			in := make([]apply.Input, 0, len(hunks))
 			for _, h := range hunks {
-				// A hunk's path may be a pointer into the working set. It must
-				// resolve to exactly one file: "@1-3 replace" would apply the
-				// same body to three files, which is never what was meant.
-				path := h.Path
-				if iter.IsPointer(path) {
-					got, err := set.Resolve(path)
-					if err != nil {
-						return refuse(fmt.Sprintf("%s line %d: %v", name, h.SrcLine, err))
-					}
-					if len(got) != 1 {
-						return refuse(fmt.Sprintf("%s line %d: %s names %d entries; a hunk needs exactly one",
-							name, h.SrcLine, path, len(got)))
-					}
-					path = iter.Path(got[0])
-					// ADR-086: the --json check above saw the pointer, not the
-					// name it expands to (Codex review of #254).
-					if cmd.Bool("json") && !utf8.ValidString(path) {
-						return refuse(fmt.Sprintf("%s line %d: %s names %q, which is not valid UTF-8, and a --json receipt cannot name it as written; drop --json to write it", name, h.SrcLine, h.Path, path))
-					}
+				path, err := set.HunkPath(h.Path)
+				if err != nil {
+					return refuse(fmt.Sprintf("%s line %d: %v", name, h.SrcLine, err))
+				}
+				// ADR-086: the earlier JSON check saw the pointer before expansion.
+				if cmd.Bool("json") && !utf8.ValidString(path) {
+					return refuse(fmt.Sprintf("%s line %d: %s names %q, which is not valid UTF-8, and a --json receipt cannot name it as written; drop --json to write it", name, h.SrcLine, h.Path, path))
 				}
 				in = append(in, writer.InputFromHunk(h, path))
 			}

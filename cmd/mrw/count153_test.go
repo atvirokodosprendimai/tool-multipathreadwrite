@@ -112,3 +112,11 @@ func TestACountThatMatchesNothingExitsAsAGrep(t *testing.T) {
 		t.Errorf("a count that matched nothing: %q, want it to begin `no match: no file matched /ABSENT/`", got)
 	}
 }
+
+func TestCountRefusesEvenAnExplicitZeroWidth(t *testing.T) {
+	root := grepTree(t, map[string]string{"a.txt": "needle\n"})
+	out, err := readIn(t, root, "--grep", "needle", "--count", "--max-cols", "0")
+	if err == nil || exitCode(err) != 2 || !strings.Contains(errString(err), "--max-cols has nothing to cut") || out != "" {
+		t.Fatalf("count with --max-cols 0: %q, %v", out, err)
+	}
+}

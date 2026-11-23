@@ -123,3 +123,29 @@ func TestAPageCutByMaxColsLeavesTheCutLinesOut(t *testing.T) {
 		t.Errorf("the page's cut line 10 is bracketed, or its neighbours are not: %q", txt)
 	}
 }
+
+func TestCountDistinguishesAnExplicitWidthFromAnOmittedWidth(t *testing.T) {
+	root, path := checkout(t, "a.txt", "needle\n")
+	for _, tc := range []struct {
+		name   string
+		width  any
+		refuse bool
+	}{
+		{"omitted", nil, false}, {"null", nil, false}, {"zero", 0, true}, {"positive", 5, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			args := map[string]any{"specs": []string{path}, "grep": "needle", "count": true}
+			if tc.name != "omitted" {
+				args["max_cols"] = tc.width
+			}
+			res := call(t, root, "mrw_read", args)
+			want := "1 matching line(s)"
+			if tc.refuse {
+				want = "max_cols has nothing to cut"
+			}
+			if (res["isError"] == true) != tc.refuse || !strings.Contains(firstText(t, res), want) {
+				t.Fatalf("count with width %s: %v", tc.name, res)
+			}
+		})
+	}
+}

@@ -35,9 +35,7 @@ func newRoot(t *testing.T) string {
 
 func TestTallyRoundTripsThroughLoad(t *testing.T) {
 	root := newRoot(t)
-	if err := Record(root, Applied); err != nil {
-		t.Fatal(err)
-	}
+	Record(root, Applied)
 	got, err := Load(root)
 	if err != nil {
 		t.Fatal(err)
@@ -55,7 +53,7 @@ func TestTallyRoundTripsThroughLoad(t *testing.T) {
 func TestTallyCountsEachOutcomeSeparately(t *testing.T) {
 	root := newRoot(t)
 	for _, o := range []Outcome{Applied, Applied, RefusedApply, CheckNotRun, FailedCheck, RefusedParse} {
-		_ = Record(root, o)
+		Record(root, o)
 	}
 
 	got, _ := Load(root)
@@ -77,9 +75,7 @@ func TestTallyCountsEachOutcomeSeparately(t *testing.T) {
 // "there is no tally yet".
 func TestAnUnreadableTallyFailsOpen(t *testing.T) {
 	root := newRoot(t)
-	if err := Record(root, Applied); err != nil {
-		t.Fatal(err)
-	}
+	Record(root, Applied)
 	p := tallyPath(t, root)
 	if p == "" {
 		t.Fatal("no tally was written, so this test would pass without exercising anything")
@@ -95,9 +91,11 @@ func TestAnUnreadableTallyFailsOpen(t *testing.T) {
 	if len(got) != 0 {
 		t.Errorf("garbage was parsed into %v, want an empty tally", got)
 	}
-	// And recording after corruption still works, rather than propagating it.
-	if err := Record(root, Applied); err != nil {
-		t.Errorf("Record after a corrupt tally returned %v, want nil", err)
+	// The next record starts a fresh tally from the discarded contents.
+	Record(root, Applied)
+	got, err = Load(root)
+	if err != nil || got.Plans() != 1 || got[Applied.name()] != 1 {
+		t.Fatalf("after recording over corruption: %v, %v", got, err)
 	}
 }
 
@@ -113,8 +111,9 @@ func TestRecordNeverFailsAWrite(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("XDG_STATE_HOME", blocker)
-	if err := Record(root, Applied); err != nil {
-		t.Errorf("Record returned %v with an unusable state home; it must never fail a write", err)
+	Record(root, Applied)
+	if _, err := Reset(root); err == nil {
+		t.Fatal("an explicit reset must report the unusable state directory")
 	}
 }
 
@@ -129,7 +128,7 @@ func TestTheTallyNeverRecordsPlanContentOrPaths(t *testing.T) {
 	root := newRoot(t)
 	// Everything the vocabulary can produce, so the file is as full as it gets.
 	for _, o := range []Outcome{Applied, RefusedParse, RefusedApply, CheckNotRun, FailedCheck} {
-		_ = Record(root, o)
+		Record(root, o)
 	}
 
 	p := tallyPath(t, root)
@@ -174,9 +173,7 @@ func TestRecentKeepsTheLastTenWritesAndNoPaths(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	for i := 0; i < RecentWindow+3; i++ {
-		if err := RecordRecent(root, i%2); err != nil {
-			t.Fatal(err)
-		}
+		RecordRecent(root, i%2)
 	}
 	got := Recent(root)
 	if len(got) != RecentWindow {
@@ -218,16 +215,12 @@ func TestPatternFiresAtThreeOfTenAndNotAtTwo(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	for _, n := range []int{0, 1, 0, 1} {
-		if err := RecordRecent(root, n); err != nil {
-			t.Fatal(err)
-		}
+		RecordRecent(root, n)
 	}
 	if k, n, fires := Pattern(Recent(root)); fires || k != 2 || n != 4 {
 		t.Errorf("two advisories in four: fires=%v k=%d n=%d, want no fire, 2 of 4", fires, k, n)
 	}
-	if err := RecordRecent(root, 2); err != nil {
-		t.Fatal(err)
-	}
+	RecordRecent(root, 2)
 	if k, n, fires := Pattern(Recent(root)); !fires || k != 3 || n != 5 {
 		t.Errorf("three advisories in five: fires=%v k=%d n=%d, want fire, 3 of 5", fires, k, n)
 	}
@@ -264,9 +257,7 @@ func TestPricingCountsCandidatesRefusalsAndOutcomes(t *testing.T) {
 		{true, true, PricedHeld},
 	}
 	for _, s := range seq {
-		if err := RecordPricing(root, s.candidate, s.would, s.outcome); err != nil {
-			t.Fatal(err)
-		}
+		RecordPricing(root, s.candidate, s.would, s.outcome)
 	}
 	got := LoadPricing(root)
 	want := Pricing{Candidates: 4, WouldRefuse: 3, Broke: 1, Held: 1, Unchecked: 1}

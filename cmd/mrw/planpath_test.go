@@ -614,9 +614,7 @@ func TestStatsLandedLineUsesAppliedPlusFailedCheckPlusCheckNotRun(t *testing.T) 
 	// A written tree whose check could not run (exit 2). Recorded directly:
 	// the fixture declares a check, so no write here can reach that exit,
 	// and without this row a denominator that drops check_not_run passes.
-	if err := authoring.Record(root, authoring.CheckNotRun); err != nil {
-		t.Fatal(err)
-	}
+	authoring.Record(root, authoring.CheckNotRun)
 
 	out, err := statsIn(t, root)
 	if err != nil {

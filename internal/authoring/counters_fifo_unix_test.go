@@ -21,9 +21,9 @@ func TestAFifoAtACountersPathDoesNotHoldAWrite(t *testing.T) {
 		name   string
 		record func(root string)
 	}{
-		{file, func(root string) { _ = Record(root, Applied); _, _ = Load(root) }},
-		{recentFile, func(root string) { _ = RecordRecent(root, 1); _ = Recent(root) }},
-		{pricingFile, func(root string) { _ = RecordPricing(root, true, true, PricedHeld); _ = LoadPricing(root) }},
+		{file, func(root string) { Record(root, Applied); _, _ = Load(root) }},
+		{recentFile, func(root string) { RecordRecent(root, 1); _ = Recent(root) }},
+		{pricingFile, func(root string) { RecordPricing(root, true, true, PricedHeld); _ = LoadPricing(root) }},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

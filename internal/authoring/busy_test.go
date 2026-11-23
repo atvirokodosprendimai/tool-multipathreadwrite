@@ -17,10 +17,10 @@ func TestACountersFileThatStaysBusyIsNotOverwritten(t *testing.T) {
 	t.Setenv("XDG_STATE_HOME", t.TempDir())
 	root := t.TempDir()
 	record := func() {
-		_ = Record(root, Applied)
-		_ = RecordRecent(root, 1)
-		_ = RecordPricing(root, true, true, PricedHeld)
-		_ = RecordNumbering(root, 1, 1)
+		Record(root, Applied)
+		RecordRecent(root, 1)
+		RecordPricing(root, true, true, PricedHeld)
+		RecordNumbering(root, 1, 1)
 	}
 	type all struct {
 		t Tally

@@ -2271,7 +2271,7 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 			// "refuse on any delta" was rejected in ADR-054 (strings, generated
 			// code). Prose is exempt as in ADR-054; multi-line is the licence's.
 			if opt.StrictBalance && h.Op == "replace" && end == start && !IsProse(path) {
-				if d := wrapTailDelta(orig[start-1], h.Body); d != "" {
+				if d, refuse := balanceDelta(orig[start-1:end], h.Body, true); refuse {
 					fail(h, "replace of %s under --strict-balance: %s — the replaced line's delimiters do not balance and the body does not match them (the wrap-tail shape); drop the flag for this plan if the brace is inside a string",
 						addrString(start, end), d)
 					continue
@@ -2430,13 +2430,14 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 		// body to be compared against — a row there would be about nothing
 		// (ADR-054 §2; found in review after 3b9f772).
 		if !IsProse(path) && h.SrcOp != "create" {
-			r.Balance = balanceDelta(consumed, written)
+			var wrapTail bool
+			r.Balance, wrapTail = balanceDelta(consumed, written, false)
 			// ADR-056: price --strict-balance with the flag's own predicate.
 			// With the flag ON this hunk was already refused above if it
 			// matched, so an ok hunk here never counts as would-refuse.
 			if h.SrcOp == "replace" && h.End == h.Start {
 				r.singleLineCode = true
-				r.wrapTail = wrapTailDelta(orig[h.Start-1], h.Body) != ""
+				r.wrapTail = wrapTail
 			}
 		}
 		if h.SrcOp == "replace" {
@@ -2511,70 +2512,47 @@ func echoPad(written, after []string, n int) []string {
 	return out
 }
 
-// balanceDelta renders ADR-054's delimiter-balance delta between the lines a
-// hunk consumed and the body it wrote: for each of `{}` `()` `[]`, the net
-// (opens minus closes) in each, and a `{ +1 → 0}` entry for every family
-// whose nets differ. Empty when they all match. Rune counting only — no
-// lexer, so a brace inside a string literal counts (ADR-048). A family
-// with matching nets says nothing; a mismatch says the file's closer count
-// moved, which is the wrap-tail shape, and the hunk stays ok regardless.
-func balanceDelta(consumed, body []string) string {
-	type family struct{ open, close rune }
-	families := []family{{'{', '}'}, {'(', ')'}, {'[', ']'}}
-	net := func(lines []string, f family) int {
-		n := 0
-		for _, l := range lines {
-			for _, c := range l {
-				switch c {
-				case f.open:
-					n++
-				case f.close:
-					n--
-				}
+// delimiterNets counts ASCII opens minus closes in brace, paren, bracket order.
+// Delimiters in string literals count too (ADR-054).
+func delimiterNets(lines []string) (nets [3]int) {
+	for _, line := range lines {
+		for _, c := range line {
+			switch c {
+			case '{':
+				nets[0]++
+			case '}':
+				nets[0]--
+			case '(':
+				nets[1]++
+			case ')':
+				nets[1]--
+			case '[':
+				nets[2]++
+			case ']':
+				nets[2]--
 			}
 		}
-		return n
 	}
-	var parts []string
-	for _, f := range families {
-		before, after := net(consumed, f), net(body, f)
-		if before != after {
-			parts = append(parts, fmt.Sprintf("%c %+d → %+d", f.open, before, after))
-		}
-	}
-	return strings.Join(parts, "; ")
+	return nets
 }
 
-// wrapTailDelta is balanceDelta narrowed to the signature --strict-balance
-// refuses: it reports only families whose net in the ONE consumed line is
-// non-zero and differs from the body's. A consumed line that is itself
-// balanced (net 0) is never the wrap-tail shape, whatever the body does, so
-// a delta there is left to the advisory row (ADR-055).
-func wrapTailDelta(consumed string, body []string) string {
-	type family struct{ open, close rune }
-	families := []family{{'{', '}'}, {'(', ')'}, {'[', ']'}}
-	net := func(lines []string, f family) int {
-		n := 0
-		for _, l := range lines {
-			for _, c := range l {
-				switch c {
-				case f.open:
-					n++
-				case f.close:
-					n--
-				}
-			}
-		}
-		return n
-	}
+// balanceDelta describes the changed nets and reports whether any changed
+// family started unbalanced. Strict refusals name only those families (ADR-055).
+func balanceDelta(consumed, body []string, strictOnly bool) (description string, wrapTail bool) {
+	before, after := delimiterNets(consumed), delimiterNets(body)
 	var parts []string
-	for _, f := range families {
-		before, after := net([]string{consumed}, f), net(body, f)
-		if before != 0 && before != after {
-			parts = append(parts, fmt.Sprintf("%c %+d → %+d", f.open, before, after))
+	for i, open := range "{([" {
+		if before[i] == after[i] {
+			continue
 		}
+		if before[i] != 0 {
+			wrapTail = true
+		} else if strictOnly {
+			continue
+		}
+		parts = append(parts, fmt.Sprintf("%c %+d → %+d", open, before[i], after[i]))
 	}
-	return strings.Join(parts, "; ")
+	return strings.Join(parts, "; "), wrapTail
 }
 
 // joinInts renders line numbers for a refusal message.

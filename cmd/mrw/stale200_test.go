@@ -55,9 +55,7 @@ func TestStatsPrintsTheStaleNumberPricing(t *testing.T) {
 	}
 	// One landing an older mrw counted as would-refuse, seeded, then three landings
 	// of this one: two without a candidate, one with a candidate whose line was shown.
-	if err := authoring.RecordNumbering(root, 1, 1); err != nil {
-		t.Fatal(err)
-	}
+	authoring.RecordNumbering(root, 1, 1)
 	if z := stats(t); z != (numbering{Landed: 1, Candidates: 1, WouldRefuse: 1}) {
 		t.Fatalf("a seeded root: %+v, want the one landing, its key present", z)
 	}
