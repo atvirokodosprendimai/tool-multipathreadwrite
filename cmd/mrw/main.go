@@ -2296,25 +2296,13 @@ held or went unchecked.`,
 
 			in := make([]apply.Input, 0, len(hunks))
 			for _, h := range hunks {
-				// A hunk's path may be a pointer into the working set. It must
-				// resolve to exactly one file: "@1-3 replace" would apply the
-				// same body to three files, which is never what was meant.
-				path := h.Path
-				if iter.IsPointer(path) {
-					got, err := set.Resolve(path)
-					if err != nil {
-						return refuse(fmt.Sprintf("%s line %d: %v", name, h.SrcLine, err))
-					}
-					if len(got) != 1 {
-						return refuse(fmt.Sprintf("%s line %d: %s names %d entries; a hunk needs exactly one",
-							name, h.SrcLine, path, len(got)))
-					}
-					path = iter.Path(got[0])
-					// ADR-086: the --json check above saw the pointer, not the
-					// name it expands to (Codex review of #254).
-					if cmd.Bool("json") && !utf8.ValidString(path) {
-						return refuse(fmt.Sprintf("%s line %d: %s names %q, which is not valid UTF-8, and a --json receipt cannot name it as written; drop --json to write it", name, h.SrcLine, h.Path, path))
-					}
+				path, err := set.HunkPath(h.Path)
+				if err != nil {
+					return refuse(fmt.Sprintf("%s line %d: %v", name, h.SrcLine, err))
+				}
+				// ADR-086: the earlier JSON check saw the pointer before expansion.
+				if cmd.Bool("json") && !utf8.ValidString(path) {
+					return refuse(fmt.Sprintf("%s line %d: %s names %q, which is not valid UTF-8, and a --json receipt cannot name it as written; drop --json to write it", name, h.SrcLine, h.Path, path))
 				}
 				in = append(in, writer.InputFromHunk(h, path))
 			}

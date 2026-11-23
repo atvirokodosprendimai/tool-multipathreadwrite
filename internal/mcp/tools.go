@@ -1039,19 +1039,10 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 
 	in := make([]apply.Input, 0, len(hunks))
 	for _, h := range hunks {
-		path := h.Path
-		if iter.IsPointer(path) {
-			got, err := set.Resolve(path)
-			if err != nil {
-				_ = authoring.Record(root, authoring.RefusedApply)
-				return errorResult(fmt.Sprintf("line %d: %v", h.SrcLine, err)), nil
-			}
-			if len(got) != 1 {
-				_ = authoring.Record(root, authoring.RefusedApply)
-				return errorResult(fmt.Sprintf("line %d: %s names %d entries; a hunk needs exactly one",
-					h.SrcLine, path, len(got))), nil
-			}
-			path = iter.Path(got[0])
+		path, err := set.HunkPath(h.Path)
+		if err != nil {
+			_ = authoring.Record(root, authoring.RefusedApply)
+			return errorResult(fmt.Sprintf("line %d: %v", h.SrcLine, err)), nil
 		}
 		in = append(in, writer.InputFromHunk(h, path))
 	}
