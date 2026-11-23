@@ -446,7 +446,7 @@ func serveRead(root string, args json.RawMessage) (callToolResult, *rpcError) {
 			return errorResult("count and stat: a count's header already carries what stat prints; drop stat"), nil
 		case a.MaxLines != nil:
 			return errorResult("count serves no line, so max_lines has nothing to cap; drop max_lines"), nil
-		case a.MaxCols > 0:
+		case a.has["max_cols"]:
 			return errorResult("count serves no line, so max_cols has nothing to cut; drop max_cols"), nil
 		}
 	}
