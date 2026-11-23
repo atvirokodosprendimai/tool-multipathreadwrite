@@ -105,6 +105,7 @@ go test ./cmd/mrw/ ./internal/authoring/ -count=1 -timeout 180s -run 'TestTheRec
 - 2026-09-26 · 31fe531* · exit 0 · `set -o pipefail …` · acceptance-sha256:9695f68a52f5f80f26cf68c6310f6806267e2d26d3373fc164a7892fa349884a · ms:987
 - 2026-09-26 · 31fe531* · exit 0 · `set -o pipefail …` · acceptance-sha256:9695f68a52f5f80f26cf68c6310f6806267e2d26d3373fc164a7892fa349884a · ms:1274
 - 2026-11-01 · 5baa630e* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:9695f68a52f5f80f26cf68c6310f6806267e2d26d3373fc164a7892fa349884a · ms:0 · test-lock-sha256:88a7adff07f13af9116b6e5cf405aff299bbd7b51b5611251e27f5a5d40f3318 · test-lock-file:docs/adr/locks/88a7adff07f13af9116b6e5cf405aff299bbd7b51b5611251e27f5a5d40f3318.lock · test-lock-kind:replace
+- 2026-11-23 · 31d2cca1* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:9695f68a52f5f80f26cf68c6310f6806267e2d26d3373fc164a7892fa349884a · ms:0 · test-lock-sha256:c08d0bd359f38d3bf281bb48fb8d43e835fa1e790c609cb7023cbd32de13d420 · test-lock-file:docs/adr/locks/c08d0bd359f38d3bf281bb48fb8d43e835fa1e790c609cb7023cbd32de13d420.lock · test-lock-kind:replace
 
 ## Mutation Log
 (empty until execute)

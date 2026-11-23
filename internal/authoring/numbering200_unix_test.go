@@ -26,7 +26,7 @@ func TestAFifoAtTheNumberingPathDoesNotHoldALanding(t *testing.T) {
 	}
 	done := make(chan Numbering, 1)
 	go func() {
-		_ = RecordNumbering(root, 1, 1)
+		RecordNumbering(root, 1, 1)
 		done <- LoadNumbering(root)
 	}()
 	select {

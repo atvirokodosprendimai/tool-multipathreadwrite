@@ -124,7 +124,7 @@ func Prepare(req Request) (*Prepared, error) {
 }
 
 func (p *Prepared) refuse(s Stage, err error) error {
-	_ = authoring.Record(p.req.Root, authoring.RefusedApply)
+	authoring.Record(p.req.Root, authoring.RefusedApply)
 	return &Refusal{Stage: s, Err: err}
 }
 
@@ -182,48 +182,48 @@ func (p *Prepared) Land() (*Landed, error) {
 	switch {
 	case landed != nil:
 		l.LedgerErr = landed
-		_ = authoring.RecordRecent(root, res.Advisories)
+		authoring.RecordRecent(root, res.Advisories)
 		if !strict {
-			_ = authoring.RecordPricing(root, res.StrictSingleLine > 0, res.StrictWouldRefuse > 0, authoring.PricedUnchecked)
+			authoring.RecordPricing(root, res.StrictSingleLine > 0, res.StrictWouldRefuse > 0, authoring.PricedUnchecked)
 		}
 		if len(p.req.Steps) > 0 {
 			l.Then = notRun(p.req.Steps)
 		}
 		switch {
 		case l.CheckDue():
-			_ = authoring.Record(root, authoring.CheckNotRun)
+			authoring.Record(root, authoring.CheckNotRun)
 		case res.Applied && !res.DryRun:
-			_ = authoring.Record(root, authoring.Applied)
+			authoring.Record(root, authoring.Applied)
 		}
 	case err != nil:
 		l.Err = err
 		if MutationOf(res) == Partial {
-			_ = authoring.Record(root, authoring.PartiallyApplied)
-			_ = authoring.RecordRecent(root, res.Advisories)
+			authoring.Record(root, authoring.PartiallyApplied)
+			authoring.RecordRecent(root, res.Advisories)
 			if !strict {
-				_ = authoring.RecordPricing(root, res.StrictSingleLine > 0, res.StrictWouldRefuse > 0, authoring.PricedUnchecked)
+				authoring.RecordPricing(root, res.StrictSingleLine > 0, res.StrictWouldRefuse > 0, authoring.PricedUnchecked)
 			}
 		} else {
-			_ = authoring.Record(root, authoring.RefusedApply)
+			authoring.Record(root, authoring.RefusedApply)
 		}
 	default:
 		if res.Applied && !res.DryRun {
-			_ = authoring.RecordRecent(root, res.Advisories)
+			authoring.RecordRecent(root, res.Advisories)
 		}
 		switch {
 		case res.Failed > 0:
-			_ = authoring.Record(root, authoring.RefusedApply)
+			authoring.Record(root, authoring.RefusedApply)
 		case res.DryRun:
 			// ADR-079: a clean dry run landed nothing.
 		default:
-			_ = authoring.Record(root, authoring.Applied)
+			authoring.Record(root, authoring.Applied)
 		}
 	}
 	// ADR-200: every call that left anything on disk is counted here, once,
 	// before a check runs and by no other phase: a clean commit, a commit whose
 	// ledger update failed, and a partial commit alike.
 	if MutationOf(res) != None {
-		_ = authoring.RecordNumbering(root, res.StaleNumbered, 0) // ADR-203: no landing has an unshown candidate
+		authoring.RecordNumbering(root, res.StaleNumbered, 0) // ADR-203: no landing has an unshown candidate
 	}
 	return l, nil
 }
@@ -312,7 +312,7 @@ func (l *Landed) Verify(ctx context.Context) Verified {
 		}
 		cr, err := check.Run(ctx, root, cfg, written, opts...)
 		if err != nil {
-			_ = authoring.Reclassify(root, authoring.Applied, authoring.CheckNotRun)
+			authoring.Reclassify(root, authoring.Applied, authoring.CheckNotRun)
 			if len(steps) > 0 {
 				v.Then = notRun(steps)
 			}
@@ -350,15 +350,15 @@ func (l *Landed) Settle(v Verified) {
 	root, res := l.p.req.Root, l.Res
 	switch {
 	case v.Check != nil && !v.Check.Ran:
-		_ = authoring.Reclassify(root, authoring.Applied, authoring.CheckNotRun)
+		authoring.Reclassify(root, authoring.Applied, authoring.CheckNotRun)
 	case v.Check != nil && !v.Check.OK():
-		_ = authoring.Reclassify(root, authoring.Applied, authoring.FailedCheck)
+		authoring.Reclassify(root, authoring.Applied, authoring.FailedCheck)
 	}
 	if s, _, ok := StepStop(v.Then); ok && res.Applied && (v.Check == nil || v.Check.OK()) {
 		if s.Ran {
-			_ = authoring.Reclassify(root, authoring.Applied, authoring.FailedCheck)
+			authoring.Reclassify(root, authoring.Applied, authoring.FailedCheck)
 		} else {
-			_ = authoring.Reclassify(root, authoring.Applied, authoring.CheckNotRun)
+			authoring.Reclassify(root, authoring.Applied, authoring.CheckNotRun)
 		}
 	}
 	// ADR-056: a flag-on write is not priced — the question is what the flag
@@ -371,7 +371,7 @@ func (l *Landed) Settle(v Verified) {
 				outcome = authoring.PricedHeld
 			}
 		}
-		_ = authoring.RecordPricing(root, res.StrictSingleLine > 0, res.StrictWouldRefuse > 0, outcome)
+		authoring.RecordPricing(root, res.StrictSingleLine > 0, res.StrictWouldRefuse > 0, outcome)
 	}
 }
 

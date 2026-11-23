@@ -999,14 +999,14 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	case "apply_patch":
 		compiled, cerr := ingest.CompileApplyPatch(root, doc)
 		if cerr != nil {
-			_ = authoring.Record(root, authoring.RefusedParse)
+			authoring.Record(root, authoring.RefusedParse)
 			return errorResult(cerr.Error()), nil
 		}
 		doc = compiled
 	case "search_replace":
 		compiled, cerr := ingest.CompileSearchReplace(root, doc)
 		if cerr != nil {
-			_ = authoring.Record(root, authoring.RefusedParse)
+			authoring.Record(root, authoring.RefusedParse)
 			return errorResult(cerr.Error()), nil
 		}
 		doc = compiled
@@ -1021,11 +1021,11 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 		// A plan that did not PARSE is the outcome ADR-009 counts as the one
 		// saying the FORMAT was the problem. Recorded at the site that decided
 		// it, on this transport as on the other.
-		_ = authoring.Record(root, authoring.RefusedParse)
+		authoring.Record(root, authoring.RefusedParse)
 		return errorResult(err.Error()), nil
 	}
 	if err := plan.LoadBodyFiles(root, hunks); err != nil {
-		_ = authoring.Record(root, authoring.RefusedParse)
+		authoring.Record(root, authoring.RefusedParse)
 		return errorResult(err.Error()), nil
 	}
 
@@ -1033,7 +1033,7 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	if err != nil {
 		// ADR-083: from here, a plan refused before it fully landed is one
 		// refused_apply, as the CLI counts it, whatever the reason.
-		_ = authoring.Record(root, authoring.RefusedApply)
+		authoring.Record(root, authoring.RefusedApply)
 		return callToolResult{}, &rpcError{Code: codeInternal, Message: statehint.Hint(err).Error()}
 	}
 
@@ -1041,7 +1041,7 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	for _, h := range hunks {
 		path, err := set.HunkPath(h.Path)
 		if err != nil {
-			_ = authoring.Record(root, authoring.RefusedApply)
+			authoring.Record(root, authoring.RefusedApply)
 			return errorResult(fmt.Sprintf("line %d: %v", h.SrcLine, err)), nil
 		}
 		in = append(in, writer.InputFromHunk(h, path))
@@ -1062,7 +1062,7 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 	// tool exists to refuse. Found by the Codex review of #135. Since ADR-113
 	// the sentence also names the check's verdict, and the floor carries it.
 	if !writeFloorFits() {
-		_ = authoring.Record(root, authoring.RefusedApply)
+		authoring.Record(root, authoring.RefusedApply)
 		return callToolResult{}, &rpcError{Code: codeInvalidParams, Message: fmt.Sprintf(
 			"--max-result-chars %d is too small to report what a write did, so nothing was "+
 				"applied and the tree is unchanged. Raise the ceiling to at least %d.",

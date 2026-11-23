@@ -25,9 +25,7 @@ func TestNumberingCountsALandedWriteOnce(t *testing.T) {
 		{0, 0, Numbering{Landed: 3, Candidates: 2, WouldRefuse: 1}},
 	}
 	for _, s := range steps {
-		if err := RecordNumbering(root, s.candidates, s.unshown); err != nil {
-			t.Fatal(err)
-		}
+		RecordNumbering(root, s.candidates, s.unshown)
 		if got := LoadNumbering(root); got != s.want {
 			t.Errorf("after (%d, %d): %+v, want %+v", s.candidates, s.unshown, got, s.want)
 		}
@@ -47,9 +45,7 @@ func TestNumberingCountsALandedWriteOnce(t *testing.T) {
 	if n := LoadNumbering(root); n != (Numbering{}) {
 		t.Errorf("a garbage file reads %+v, want zeros", n)
 	}
-	if err := RecordNumbering(root, 1, 0); err != nil {
-		t.Fatal(err)
-	}
+	RecordNumbering(root, 1, 0)
 	if n := LoadNumbering(root); n != (Numbering{Landed: 1, Candidates: 1}) {
 		t.Errorf("after garbage: %+v, want one landing and one candidate", n)
 	}

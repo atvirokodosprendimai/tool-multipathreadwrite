@@ -152,24 +152,24 @@ func (t Tally) Names() []string {
 
 // record adds one plan's outcome to the tally.
 //
-// ⚠ IT NEVER FAILS A WRITE. Every error path returns nil: an unwritable state
+// ⚠ IT NEVER FAILS A WRITE. Recording is best effort on an unwritable state
 // directory, a corrupt tally, a full disk. Measurement that can break the tool
 // it measures is worse than no measurement, and this is the rule that keeps a
 // counter from becoming load-bearing. The cost of being wrong is a lost count.
-func record(root string, o Outcome) error {
+func record(root string, o Outcome) {
 	name := o.name()
 	if name == "" {
-		return nil // an Outcome outside the vocabulary is not persisted
+		return // an Outcome outside the vocabulary is not persisted
 	}
 	t, err := load(root) // a corrupt tally is discarded, not repaired
 	if errors.Is(err, errBusy) {
-		return nil
+		return
 	}
 	if t == nil {
 		t = Tally{}
 	}
 	t[name]++
-	return save(root, t)
+	save(root, t)
 }
 
 // reclassify moves one plan from outcome from to outcome to (ADR-072). The
@@ -177,14 +177,14 @@ func record(root string, o Outcome) error {
 // killed during the check is still counted as landed; the check's verdict then
 // moves that one count. It never adds a plan: from is decremented, at a floor
 // of zero, as to is incremented.
-func reclassify(root string, from, to Outcome) error {
+func reclassify(root string, from, to Outcome) {
 	a, b := from.name(), to.name()
 	if a == "" || b == "" {
-		return nil
+		return
 	}
 	t, err := load(root)
 	if errors.Is(err, errBusy) {
-		return nil
+		return
 	}
 	if t == nil {
 		t = Tally{}
@@ -193,15 +193,15 @@ func reclassify(root string, from, to Outcome) error {
 		t[a]--
 	}
 	t[b]++
-	return save(root, t)
+	save(root, t)
 }
 
 // save writes the tally, vocabulary names only, and swallows every error:
 // measurement that can break the tool it measures is worse than none.
-func save(root string, t Tally) error {
+func save(root string, t Tally) {
 	p, err := state.Path(root, file)
 	if err != nil {
-		return nil //nolint:nilerr // measurement never breaks the tool it measures (above)
+		return
 	}
 	var b strings.Builder
 	for _, k := range t.Names() {
@@ -211,7 +211,6 @@ func save(root string, t Tally) error {
 		fmt.Fprintf(&b, "%s %d\n", k, t[k])
 	}
 	_ = state.Write(p, []byte(b.String()), 0o600)
-	return nil
 }
 
 // errBusy is openCounters' answer for a file that exists and could not be
@@ -557,16 +556,14 @@ func lockedRead(root string, fn func()) {
 // Record adds one plan's outcome to the tally, under its lock. It never fails a
 // write: every error is swallowed, a lock it cannot take included, and the cost
 // of being wrong is a lost count.
-func Record(root string, o Outcome) error {
-	_ = locked(root, func() { _ = record(root, o) })
-	return nil
+func Record(root string, o Outcome) {
+	_ = locked(root, func() { record(root, o) })
 }
 
 // Reclassify moves one plan from outcome from to outcome to (ADR-072), under
 // the tally's lock. It never adds a plan and never fails a write.
-func Reclassify(root string, from, to Outcome) error {
-	_ = locked(root, func() { _ = reclassify(root, from, to) })
-	return nil
+func Reclassify(root string, from, to Outcome) {
+	_ = locked(root, func() { reclassify(root, from, to) })
 }
 
 // Load reads the tally under its lock, or past a lock it cannot take. It fails
@@ -596,9 +593,8 @@ func Reset(root string) (discarded Tally, err error) {
 
 // RecordRecent appends one landed write to the ring (ADR-055), under the
 // tally's lock. It never fails a write.
-func RecordRecent(root string, advisories int) error {
+func RecordRecent(root string, advisories int) {
 	_ = locked(root, func() { recordRecent(root, advisories) })
-	return nil
 }
 
 // Recent reads the ring under the tally's lock, oldest first; it fails open.
@@ -609,9 +605,8 @@ func Recent(root string) (entries []RecentEntry) {
 
 // RecordPricing counts one landed flag-off write (ADR-056), under the tally's
 // lock. It never fails a write.
-func RecordPricing(root string, candidate, wouldRefuse bool, outcome PricingOutcome) error {
+func RecordPricing(root string, candidate, wouldRefuse bool, outcome PricingOutcome) {
 	_ = locked(root, func() { recordPricing(root, candidate, wouldRefuse, outcome) })
-	return nil
 }
 
 // LoadPricing reads the counters under the tally's lock; it fails open.
@@ -694,9 +689,8 @@ func loadNumbering(root string) (n Numbering, busy bool) {
 // RecordNumbering counts one landed write (ADR-200) with the number of numbered
 // candidate hunks it carried and how many of them addressed an unshown line,
 // under the tally's lock. It never fails a write.
-func RecordNumbering(root string, candidates, unshown int) error {
+func RecordNumbering(root string, candidates, unshown int) {
 	_ = locked(root, func() { recordNumbering(root, candidates, unshown) })
-	return nil
 }
 
 // LoadNumbering reads the counters under the tally's lock; it fails open.

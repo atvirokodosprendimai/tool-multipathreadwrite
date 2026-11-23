@@ -2027,11 +2027,11 @@ held or went unchecked.`,
 					emitNotes()
 				}
 				if landed && !tallied {
-					_ = authoring.Record(cmd.Root().String("root"), authoring.Applied)
+					authoring.Record(cmd.Root().String("root"), authoring.Applied)
 					tallied = true
 				}
 				if !landed && parsed && !tallied {
-					_ = authoring.Record(cmd.Root().String("root"), authoring.RefusedApply)
+					authoring.Record(cmd.Root().String("root"), authoring.RefusedApply)
 					tallied = true
 				}
 				if !cmd.Bool("json") && landed && !printed && lost == nil {
@@ -2172,7 +2172,7 @@ held or went unchecked.`,
 					// stream that never ends is still refused. Counted as any plan
 					// that did not parse.
 					_, _ = io.CopyN(io.Discard, br, keptPlanCap+1)
-					_ = authoring.Record(cmd.Root().String("root"), authoring.RefusedParse)
+					authoring.Record(cmd.Root().String("root"), authoring.RefusedParse)
 					return refuse(utf16Refusal(name))
 				}
 				if n, more := ingest.LeadingMarks(br); n > 1 || more {
@@ -2185,7 +2185,7 @@ held or went unchecked.`,
 					return refuse(fmt.Sprintf("%s: %v", name, rerr))
 				}
 				if utf16Mark(raw) {
-					_ = authoring.Record(cmd.Root().String("root"), authoring.RefusedParse)
+					authoring.Record(cmd.Root().String("root"), authoring.RefusedParse)
 					return refuse(utf16Refusal(name))
 				}
 				raw, marks := ingest.DropLeadingMarks(raw)
@@ -2196,7 +2196,7 @@ held or went unchecked.`,
 				if cerr != nil {
 					// The document did not become a plan. Same bucket as a
 					// native parse refusal: the FORMAT was the problem.
-					_ = authoring.Record(cmd.Root().String("root"), authoring.RefusedParse)
+					authoring.Record(cmd.Root().String("root"), authoring.RefusedParse)
 					return refuse(fmt.Sprintf("%s: %v", name, cerr))
 				}
 				hunks, err = plan.Parse(bytes.NewReader(compiled))
@@ -2206,7 +2206,7 @@ held or went unchecked.`,
 					return refuse(fmt.Sprintf("%s: %v", name, rerr))
 				}
 				if utf16Mark(raw) {
-					_ = authoring.Record(cmd.Root().String("root"), authoring.RefusedParse)
+					authoring.Record(cmd.Root().String("root"), authoring.RefusedParse)
 					return refuse(utf16Refusal(name))
 				}
 				raw, marks := ingest.DropLeadingMarks(raw)
@@ -2215,7 +2215,7 @@ held or went unchecked.`,
 				}
 				compiled, cerr := ingest.CompileSearchReplace(cmd.Root().String("root"), raw)
 				if cerr != nil {
-					_ = authoring.Record(cmd.Root().String("root"), authoring.RefusedParse)
+					authoring.Record(cmd.Root().String("root"), authoring.RefusedParse)
 					return refuse(fmt.Sprintf("%s: %v", name, cerr))
 				}
 				hunks, err = plan.Parse(bytes.NewReader(compiled))
@@ -2250,13 +2250,13 @@ held or went unchecked.`,
 				// rather than the caller's picture of a file. Recorded here,
 				// at the site that already decided it, so the tally is a
 				// projection of that decision and never a second opinion.
-				_ = authoring.Record(cmd.Root().String("root"), authoring.RefusedParse)
+				authoring.Record(cmd.Root().String("root"), authoring.RefusedParse)
 				return refuse(fmt.Sprintf("%s: %v", name, err))
 			}
 
 			root := cmd.Root().String("root")
 			if err := plan.LoadBodyFiles(root, hunks); err != nil {
-				_ = authoring.Record(root, authoring.RefusedParse)
+				authoring.Record(root, authoring.RefusedParse)
 				return refuse(fmt.Sprintf("%s: %v", name, err))
 			}
 			parsed = true
