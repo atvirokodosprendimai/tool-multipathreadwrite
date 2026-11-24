@@ -133,7 +133,8 @@ class TrialVerification(unittest.TestCase):
         self.temp = self.enterContext(tempfile.TemporaryDirectory(prefix="mrw-evidence-test-"))
         self.root = Path(self.temp) / "repo"
         subprocess.run(["git", "init", "-q", str(self.root)], check=True, capture_output=True, timeout=5)
-        self.enterContext(mock.patch.dict(os.environ, {"XDG_STATE_HOME": str(Path(self.temp) / "state")}))
+        # MRW_SHOWN is pinned: a caller's own "off" would make the fixture's reads licence-only (ADR-218).
+        self.enterContext(mock.patch.dict(os.environ, {"XDG_STATE_HOME": str(Path(self.temp) / "state"), "MRW_SHOWN": "on"}))
         self.git("config", "user.name", "Fixture")
         self.git("config", "user.email", "fixture@example.invalid")
         # Fixture source bytes are authored through mrw too.

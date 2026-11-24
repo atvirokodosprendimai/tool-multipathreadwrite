@@ -540,12 +540,12 @@ whole list arrives as one argument and the regex swallows the rest of the line.
   write is judged on that licence (ADR-133, ADR-148); PowerShell's `> $null` and `| Out-Null` are
   pipes and still record (so is PowerShell 7's `> NUL`; in 5.1 it fails before mrw starts).
   `MRW_SHOWN=off` in mrw's environment is for a host where a script runs the commands and the model sees only
-  what the script returns (Claude Code's Code Mode): `mrw read` and `mrw hook read` then record their lines as
-  licensed and not shown, for each file a whole line of which was printed, a read of named files saying so on stderr once the ledger has kept the licence, and `mrw write` refuses a number alone on any line with no
+  what the script returns (Claude Code's Code Mode): `mrw read` then records, for each file it printed a whole line of, its lines as
+  licensed and not shown, saying so on stderr once the ledger has kept the licence; `mrw hook read` records the lines a host Read returned the same way and says nothing; and `mrw write` refuses a number alone on any line with no
   recorded showing, on a partial licence too; name the line by pattern or `anchor=`, and send a multi-line replace
   that ends above the last line as a `search_replace` block whose SEARCH and REPLACE end in the same line. It stops
   new showings only: one already in the ledger for that version still counts (`mrw seen --forget` drops them), and
-  the number rule does not judge `--force`, a `$` start, a position-only insert, `unlink`, `rename` or a computed plan, as without it; the line-after rule (below, "AFTER ANY MULTI-LINE BODY") is not changed by the variable: a switched read licenses the line after its range and shows it to nobody, as a `--quiet` read does, and the refusal names the block form in place of a read. mrw
+  the number rule does not judge `--force`, a `$` start, a position-only insert, `unlink`, `rename` or a computed plan, as without it; the line-after rule (below, "AFTER ANY MULTI-LINE BODY") is not changed by the variable: a switched read shows nobody the line after its range, which it licenses when it serves that line whole, as a `--quiet` read does, and the refusal names the block form in place of a read. mrw
   detects no host, and `mrw_read`/`mrw_write` do not read the variable (ADR-218).
   Read what you mean to edit: the licence stands for lines you saw, and
   a file you never open licenses all the same — mrw cannot tell, so redirecting a read to satisfy
@@ -578,7 +578,7 @@ whole list arrives as one argument and the regex swallows the rest of the line.
   after each range that ends before the file does, numbered and licensed (on `mrw_read`
   inside the checkpoint that brackets the range, counted in its `N lines follow`), so a
   replace of exactly the lines read is not refused for it (ADR-161), unless the read was
-  `--quiet` or made under `MRW_SHOWN=off` (below). A page of `mrw_read` adds none, since its continuation serves the
+  `--quiet` (below) or made under `MRW_SHOWN=off` (above). A page of `mrw_read` adds none, since its continuation serves the
   line a page ends on.
   A line mrw LICENSED and no read SHOWED does not meet that rule (ADR-208): the lines a
   write produced (a native write's, and a `search_replace` write's), a `--quiet` read's

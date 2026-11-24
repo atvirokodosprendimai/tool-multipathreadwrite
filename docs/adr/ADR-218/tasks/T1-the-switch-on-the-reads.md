@@ -127,6 +127,7 @@ What each clause holds. Both tests pass, each of the fifteen named cases passes,
 - 2026-11-24 · c64de773* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:06b1adb98f52ec9d98c4f06cac94ecfef93988e3840bf876dee91faf29a4c4ba · ms:2273
 - 2026-11-24 · c64de773* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:06b1adb98f52ec9d98c4f06cac94ecfef93988e3840bf876dee91faf29a4c4ba · ms:1162
 - 2026-11-24 · 11ee2a9f* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:06b1adb98f52ec9d98c4f06cac94ecfef93988e3840bf876dee91faf29a4c4ba · ms:1156
+- 2026-11-24 · 985131f7* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:06b1adb98f52ec9d98c4f06cac94ecfef93988e3840bf876dee91faf29a4c4ba · ms:1100
 
 ## Invariants
 
