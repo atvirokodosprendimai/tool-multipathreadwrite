@@ -5,6 +5,8 @@
 # ARM is switched or control; PROJ the trusted scratch folder; OUT a directory
 # for this run's log, screen and state; MRWBIN the directory holding the build.
 set -u
+# A caller's own MRW_SHOWN must reach neither arm: the switched arm gets it from the folder's settings.
+unset MRW_SHOWN
 arm=$1 task=$2 run=$3 proj=$4 out=$5 bin=$6
 here=$(cd "$(dirname "$0")" && pwd)
 name="p${arm:0:1}${task}${run}"
@@ -32,7 +34,7 @@ cat > "$proj/.claude/settings.json" <<JSON
 }
 JSON
 
-hc run --bg --name "$name" --cwd "$proj" --no-notify -- env "PATH=$bin:$PATH" "CM_HOOK_LOG=$out/hooks.jsonl" \
+hc run --bg --name "$name" --cwd "$proj" --no-notify -- env -u MRW_SHOWN "PATH=$bin:$PATH" "CM_HOOK_LOG=$out/hooks.jsonl" \
   CLAUDE_CODE_EXPERIMENTAL_CODE_MODE=1 "XDG_STATE_HOME=$out/state" "$claude" --model claude-fable-5-2 > "$out/start.json" 2>&1
 hc wait "$name" --timeout 60 > "$out/wait0.json" 2>&1
 started=$(date +%s)

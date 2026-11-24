@@ -304,7 +304,8 @@ def through_binary(mrw, path, orig, start, end, body):
         name = "f" + os.path.splitext(path)[1] if not path.endswith(".blade.php") else "f.blade.php"
         with open(os.path.join(root, name), "w", newline="") as f:
             f.write("\n".join(orig) + "\n")
-        env = dict(os.environ, XDG_STATE_HOME=os.path.join(root, ".state"))
+        # MRW_SHOWN is pinned: a caller's own "off" would refuse the replayed numbered plans (ADR-218).
+        env = dict(os.environ, XDG_STATE_HOME=os.path.join(root, ".state"), MRW_SHOWN="on")
         subprocess.run([mrw, "--root", root, "read", name], capture_output=True, env=env, timeout=60)
         addr = str(start) if start == end else "%d-%d" % (start, end)
         # anchor= is required only on a multi-line replace (ADR-035). Its text is taken raw — mrw does not

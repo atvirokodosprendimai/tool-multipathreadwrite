@@ -57,6 +57,8 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 export XDG_STATE_HOME="$SCRATCH/state"
+# ADR-218: a caller's own MRW_SHOWN=off would change what the measured writes do.
+export MRW_SHOWN=on
 mkdir -p "$XDG_STATE_HOME"
 if [ -n "${MRW:-}" ]; then
   MRW=$(cd "$(dirname "$MRW")" && pwd)/$(basename "$MRW")

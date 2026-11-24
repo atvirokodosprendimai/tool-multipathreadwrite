@@ -29,6 +29,8 @@ permissions:
 
 env:
   TAG: ${{ inputs.tag || 'v1.78.0' }}
+  # ADR-218: the smoke plans name lines by number; a runner that set "off" would refuse them.
+  MRW_SHOWN: "on"
 
 jobs:
   smoke:

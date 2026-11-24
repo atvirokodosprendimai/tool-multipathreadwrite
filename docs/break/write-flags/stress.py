@@ -140,7 +140,7 @@ def one(i, rng):
     with open(pf, "w") as fh:
         fh.write(text)
     env = {k: v for k, v in os.environ.items() if k != "MRW_STEP_DEPTH"}
-    env.update(XDG_STATE_HOME=state, TMPDIR=TMP)
+    env.update(XDG_STATE_HOME=state, TMPDIR=TMP, MRW_SHOWN="on")  # ADR-218: a caller's own "off" would refuse the numbered plans
     env["MRW_SHELL"] = "on"  # ADR-174: --then-sh runs only with this set
     if shape != "unread":
         subprocess.run([MRW, "-C", d, "read", target], env=env, capture_output=True, timeout=20)

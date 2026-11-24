@@ -117,7 +117,8 @@ class Calls:
     """Own bounded subprocesses and an isolated ledger for one disposable fixture."""
     def __init__(self, binary, root, deadline, timeout):
         self.binary, self.root, self.deadline, self.timeout = binary, root, deadline, timeout
-        self.environment = dict(os.environ, XDG_STATE_HOME=str(root / "state"), MRW_STEP_DEPTH="0", MRW_WRITE_LOCK_TIMEOUT="0")
+        # MRW_SHOWN is pinned: a caller's own "off" would make these reads licence-only (ADR-218).
+        self.environment = dict(os.environ, XDG_STATE_HOME=str(root / "state"), MRW_STEP_DEPTH="0", MRW_WRITE_LOCK_TIMEOUT="0", MRW_SHOWN="on")
 
     def call(self, args, data=None):
         import resource  # Collection is POSIX-only; offline native analysis is portable.
