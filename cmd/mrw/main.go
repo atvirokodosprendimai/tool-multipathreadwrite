@@ -1709,10 +1709,10 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 					fmt.Fprintln(os.Stderr, shownOffNote)
 				} else if errors.As(err, &omitted) {
 					fmt.Fprintln(os.Stderr, "mrw:", err)
-					if omitted.Size {
+					if omitted.Size || omitted.MergeSize {
 						// The error advises reading again, and a switched read would
 						// meet the same record: say what does fit.
-						fmt.Fprintln(os.Stderr, "mrw: under MRW_SHOWN=off the same read meets the same record; a read without the variable records the file whole, as shown")
+						fmt.Fprintln(os.Stderr, "mrw: under MRW_SHOWN=off the same read meets the same record; a read of the whole file made without the variable, with no range, cut or cap, records it in one whole-file entry")
 					}
 				}
 			}

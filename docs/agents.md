@@ -317,7 +317,7 @@ Set `MRW_SHOWN=off` for the session. In the project's `.claude/settings.json` (o
 
 Measured: that setting reaches both an inner `Bash` call and the hook process of §9. With it:
 
-- **`mrw read` prints what it prints and records its lines as licensed, not shown**, and a read of named files says so on standard error once the ledger has kept the licence.
+- **`mrw read` prints what it prints and records its lines as licensed, not shown**, for each file it printed a whole line of (an empty file, a `--stat` and a line `--max-cols` cut are left as they are), and a read of named files that printed one says so on standard error once the ledger has kept the licence.
   `mrw hook read` records a host Read's lines the same way, whatever id the payload carries.
 - **`mrw write` refuses a line number alone on any line with no recorded showing**, on a partial licence too. The
   reasons name what works: a pattern, `anchor=`, or the edit as a `search_replace` block. A multi-line replace that

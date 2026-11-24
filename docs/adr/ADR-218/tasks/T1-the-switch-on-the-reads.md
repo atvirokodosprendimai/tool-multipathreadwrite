@@ -126,6 +126,7 @@ What each clause holds. Both tests pass, each of the fifteen named cases passes,
 - 2026-11-24 · c64de773* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:06b1adb98f52ec9d98c4f06cac94ecfef93988e3840bf876dee91faf29a4c4ba · ms:14 · test-lock-sha256:054d2d1518891aec2c48cb11d6dea484f1276d34d92113356fb1ee440d3e8b3f · test-lock-file:docs/adr/locks/054d2d1518891aec2c48cb11d6dea484f1276d34d92113356fb1ee440d3e8b3f.lock · test-lock-kind:replace
 - 2026-11-24 · c64de773* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:06b1adb98f52ec9d98c4f06cac94ecfef93988e3840bf876dee91faf29a4c4ba · ms:2273
 - 2026-11-24 · c64de773* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:06b1adb98f52ec9d98c4f06cac94ecfef93988e3840bf876dee91faf29a4c4ba · ms:1162
+- 2026-11-24 · 11ee2a9f* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:06b1adb98f52ec9d98c4f06cac94ecfef93988e3840bf876dee91faf29a4c4ba · ms:1156
 
 ## Invariants
 
