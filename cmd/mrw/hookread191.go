@@ -13,6 +13,7 @@ import (
 	"github.com/urfave/cli/v3"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/lines"
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/mcp"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/rooted"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
 )
@@ -126,6 +127,13 @@ func hookRead(in io.Reader, rootFlag string, rootSet bool) {
 	key, obs, ok := hookLicensed(root, path, content, start)
 	if !ok {
 		return
+	}
+	// ADR-218 Decision 3: under MRW_SHOWN=off a script may stand between the
+	// host's Read and the model, so the lines are licensed and shown to nobody,
+	// whatever id the payload carries. An unknown value is not named here: the
+	// hook prints only what ADR-191 lets it.
+	if off, _ := shownSwitch(); off {
+		obs = mcp.LicensedNotShown(map[string]seen.Observation{key: obs})[key]
 	}
 	// ADR-150: a newer mrw's ledger is left alone, and the person is told.
 	if writer, newer, err := seen.Newer(root); err == nil && newer {

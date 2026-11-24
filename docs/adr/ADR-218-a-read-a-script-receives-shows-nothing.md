@@ -1,0 +1,144 @@
+# ADR-218: A read whose answer a script receives shows nothing
+
+**Status:** Accepted
+**Accepted by:** Zy, 2026-11-24: *"address all of them, implement, verify, benchamrk"*, to the eight findings of the second Codex challenge and the narrower design put beside them that day (no detection of Code Mode, the hook honours the switch, a `search_replace` block is the multi-line remedy, no `after=` guard, the guarantee stated for a configured session). Read as acceptance of that design; the reading is the author's and is said so in the reply that reports the work.
+**Date:** 2026-11-24
+**Owner:** Zy
+**Spec:** None — no spec stage
+**Cross-references:** ADR-002, ADR-005, ADR-035, ADR-052, ADR-108, ADR-111, ADR-118, ADR-133, ADR-148, ADR-167, ADR-175, ADR-190, ADR-191, ADR-200, ADR-203, ADR-208, issue #790
+**Amends:** under `MRW_SHOWN=off` only: ADR-203 Decision 2 and Decision 7 and its Out of Scope item on a partial licence (a number alone is refused there too: that item's reason, that the per-line licence already refuses a line the caller was not served, does not hold for a ranged read that licenses and shows nothing), and ADR-208 Decision 5 (the line-after refusal names the block form, not the read). Without the switch both stand as written.
+**Governs:** `cmd/mrw/shown218.go`, `cmd/mrw/hookread191.go`, `cmd/mrw/main.go`, `internal/apply/apply.go`, `internal/apply/fromcopy.go`, `internal/guide/guide.go`, `docs/agents.md`, `scripts/contract.sh`
+**Enforced-by:** `cmd/mrw/shown218_test.go::TestAReadUnderShownOffLicensesAndShowsNothing`
+**Served-path change:** with `MRW_SHOWN=off` in mrw's environment a `mrw read` and a `mrw hook read` record their lines as licensed and not shown, as a `--quiet` read does, the read printing what it prints today plus one stderr line; and a `mrw write` refuses a line number alone on any line with no recorded showing, whatever the licence's shape, the refusals that rest on a showing naming remedies that need no read. A caller that does not set the variable sees no change.
+
+## Context
+
+**What #790 found.** Under Claude Code's Code Mode the model does not call tools one at a time: it calls a `REPL` tool with JavaScript, and the code calls `tools.Bash({command})`. The output of each inner call goes to the script, and the model receives what the script returns. A script ran `mrw read a.txt:1` and `mrw read b.txt:1` and returned the word `ok` for each. The model answered that the text of line 1 had not reached it. `mrw seen` then listed lines 1-3 of both files as shown. The ledger recorded a showing nobody received.
+
+**Why that matters here.** Two refusals rest on a showing and nothing else. ADR-203 refuses a line number alone on a line no read has shown since mrw wrote the file. ADR-052 and ADR-208 refuse a multi-line replace that ends before the last line unless the line after it has been shown, because the closer the file already had sits below the body. Both exist to check the caller's picture of the file against the file. A showing recorded for a reader that never read makes both pass on nothing.
+
+**Measured** 2026-11-24 on macOS, Claude Code 2.1.331, mrw v1.94.1 (`c0563ea`), a scratch git checkout whose project hooks logged every `PreToolUse` and `PostToolUse` payload. The logs and the hooks are in `docs/break/code-mode-790/`.
+
+| Question | Result |
+|---|---|
+| Does the variable turn Code Mode on? | Not in `claude -p`: the tool list is the same 25 names with `CLAUDE_CODE_EXPERIMENTAL_CODE_MODE=1` and without. Interactively it asks once, restarts, and remembers the answer. |
+| Which tools does the model call directly there? | `REPL` and `Poll`, by the model's own answer from its tool definitions (reported, not kept). In the sessions whose payloads are kept every `Bash` and `Read` carries a `repl_` id. |
+| Can a hook tell a script's call from a direct one? | In the kept payloads the `tool_use_id` begins `repl_` for an inner `Bash` or `Read` and `toolu_` for `REPL` and `Poll`. No direct `Bash` or `Read` was captured in Code Mode to compare, and the prefix is documented nowhere. |
+| Do hooks reach an inner call? | Yes: `PreToolUse` and `PostToolUse` fire with tool name `Bash` and the ordinary input; an exit 2 denies that one call. |
+| What does a host `Read` made by a script send `PostToolUse`? | The payload `mrw hook read` records from (`type: text`, `file.content`, `startLine`). By its code (`hookread191.go:106-140`) it records those lines as shown. |
+| Does a variable set for the session reach mrw and the hook? | Yes, for `"env": {"MRW_SHOWN": "off"}` in the project's `.claude/settings.json`: the inner `Bash` call printed it and the hook process held it on all six events of one session (`env1.jsonl`). |
+| With a read recorded as licensed and not shown, what can still be edited? | On v1.94.1, after a whole-file `--quiet` read: a single line by `anchor=` or by pattern applies; a number alone is refused (ADR-203); a native multi-line replace ending above the last line is refused, and the only remedy its reason gives is a read that shows the line; the same edit sent as a `search_replace` block whose SEARCH and REPLACE end in the same line APPLIES, and one that does not end so is refused. After a RANGED `--quiet` read (`mrw read --quiet t.txt:2`, ledger `no lines, and licensed lines 2-3`): `@@ t.txt 2 replace` with a number alone APPLIES, because ADR-203's check is skipped on a partial licence (ADR-190 lets a number stand on the lines a `search_replace` write produced, and the ledger cannot tell the two apart). |
+
+The last row is what shapes the design. Recording such reads as not shown, alone, does not close the hole for a ranged read, where a number alone still applies: the write has to know the switch too (Decision 4). And the multi-line replace keeps a remedy that needs no showing and no new guard: a block that quotes what it replaces and the line below (Decision 5).
+
+**What the kept files support, and what they do not.** `docs/break/code-mode-790/` holds 21 hook events from two sessions and six from a third: inner `Bash` and `Read` calls with `repl_` ids, outer `REPL` and `Poll` calls with `toolu_` ids, an exit-2 denial of one inner call, the `Read` payload, and the environment the hook process held. Observed and not kept: the write probes of the table's last row, run by hand on v1.94.1 (contract §386 now repeats the number and the block cases on every run); the model's answer that the read text did not reach it, the `mrw seen` listing afterwards, and the `claude -p` tool lists. Not established by anything: how a host cuts a script's result, how often a script returns the text it read, or what the `repl_` prefix will be in another release.
+
+**The class.** Every site that records an observation, found with `git grep -n -E 'seen\.(Record|RecordWithin)\(' -- cmd internal ':(exclude)*_test.go'` on `c0e9f381`: 10 sites. Those that can record a SHOWING for a reader mrw cannot see: the CLI read (`cmd/mrw/main.go:1681`), `mrw hook read` (`cmd/mrw/hookread191.go:140`) and the MCP acknowledgement (`internal/mcp/ack.go:724`, and `:736`). Those that record a licence and no showing: the acknowledgement's quiet half (`internal/mcp/ack.go:727`), the plan makers (`cmd/mrw/main.go:2109`, `cmd/mrw/sub.go:58`, `internal/mcp/sub161.go:225`, `:264`) and the writer (`internal/writer/writer.go:141`). A read of standard input records nothing (`cmd/mrw/stdin.go:151`); `--if-changed` on a matching sha and `--if-served` answered by reference record nothing new; `mrw run` records nothing itself, and a read its command makes is a CLI read with the environment it inherited. This record governs the CLI read and `mrw hook read`. The MCP acknowledgement is left out on purpose (Out of Scope).
+
+**Who asks whether a line was shown**, found with `git grep -n -E 'FirstUnshown\(|ServedLine\(|\.Shows\(' -- cmd internal ':(exclude)*_test.go'` on `c0e9f381`: 10 lines, seven of them callers. The line-after rule (`internal/apply/apply.go:2233`, `:2239`); ADR-203's stale number (`:3238`), asked only on a whole-file licence; `occurrence=N` (`:1972`), which asks about the matches BEFORE the Nth unless the write is forced, so `occurrence=1` asks nothing; a `from=` copy (`internal/apply/fromcopy.go:243`), which needs every source line shown, `--force` or not; `--if-served` (`internal/read/read.go:316`), which answers by reference when the showing is there and otherwise serves the text, with no refusal; and the alias index's own query (`internal/seen/alias.go:74`), through which the last three ask. Decision 4 gives each one its answer.
+
+## Existing Primitives Audit
+
+- **`mcp.LicensedNotShown`** (used by `recordedAs`, `cmd/mrw/quiet167.go:10`) already turns a read's observations into a licence with no showing: it is what `--quiet` records. The switch reuses it for the read and for the hook; no new ledger field and no format change.
+- **A `search_replace` block** (ADR-190) already checks the caller's picture of every line it replaces against the file, and a block whose SEARCH and REPLACE end in the same line keeps that line and meets the line-after rule by quoting it (`internal/ingest/searchreplace.go:119-132`, `internal/apply/apply.go:2241-2242`). A quoted hunk needs no licence for its target (`apply.go:2155-2163`). It is the remedy; nothing new is built for it.
+- **`anchor=`** (ADR-035) and a pattern address already check the first line of a range against the file.
+- **`mrw seen --forget`** (ADR-175, ADR-180; `docs/agents.md` §8) already empties a checkout's ledger from a host hook. It is how a session drops showings recorded before it.
+- **ADR-108's checkpoints and `ack`** answer "served is not received" on MCP. The server receives ids; it has no evidence of who held them. They are not on the CLI. See Alternatives.
+- **ADR-133's null-device rule** is the one discard the CLI can see, and it records nothing at all. A script is not that case: the licence should stand.
+
+## Decision
+
+1. **Under `MRW_SHOWN=off` mrw records no NEW showing from the CLI read or from `mrw hook read`, and that is the whole guarantee.** The ledger belongs to the checkout and the state home, not to a session: a showing recorded before the switch was set, by another session, by an `mrw_read` acknowledgement for the version on disk, still serves a write. One under another name of the file serves the line-after rule, `occurrence=` and `from=`, which ask across spellings, and not the number rule, which judges the record of the spelling the plan uses when that record covers the range (`internal/seen/alias.go:68-82`): that errs toward refusing. A host that wants a session to start with none runs `mrw seen --forget` at session start, as §8 of `docs/agents.md` already has it do after a compaction, or gives the session its own `XDG_STATE_HOME`.
+2. **`MRW_SHOWN=off` makes every content read of the CLI record what a `--quiet` read records** (`mcp.LicensedNotShown`: the same spans, marked written-shaped, with no showing). The read prints the same bytes and exits as it would. A ranged read licenses its range and the neighbour lines it served, as today, and shows none; caps and cuts license what they license today; a showing already recorded for the same version is kept, since the ledger merges by sha (`internal/seen/seen.go:852`); a later read made without the switch adds its showing. When the ledger was written and a line was served, the read's stderr holds `mrw: recorded as licensed, not shown (MRW_SHOWN=off): name a line by pattern or anchor=, and send a multi-line replace as a search_replace block whose SEARCH and REPLACE end in the same line`, before any `mrw: capped:` or kind line; a read that recorded nothing (ADR-166) says that instead, as today. `on`, or unset, is today's behaviour; any other value is ignored with a note, as `MRW_RECEIPT` is (ADR-188). `--quiet`, `--sub`, `--rewrite` and a read sent to the null device are unchanged; `--if-changed` and `--if-served` are unchanged when they answer by reference, and the text they serve otherwise is recorded as any switched read records it. `mrw_read` is unchanged: its showing comes from an acknowledgement.
+3. **`mrw hook read` honours the same switch**, whatever the payload's `tool_use_id`: under it the lines a host Read returned are recorded as licensed and not shown. Without it the hook behaves as today. Nothing is keyed on the `repl_` prefix: it is an undocumented identifier of an experiment, and a rule keyed on it reopens #790 the day it is renamed, with no test able to notice.
+4. **Under the switch the write knows it too.** `mrw write` reads the same variable.
+   - **A number alone.** A hunk that addresses its lines by number alone is refused when any of them has no recorded showing in this version, on a whole-file licence AND on a partial one. This widens ADR-203 under the switch only: there a ranged read is a licence with no showing, and the ledger cannot tell it from the lines a `search_replace` write produced (ADR-190), which keep taking a number alone when the switch is off. The reason keeps ADR-203's sentence and ends `address it by pattern, give anchor=, or send the edit as a search_replace block (reads here record no showing: MRW_SHOWN=off)`, without the read it names today.
+   - **What ADR-203 already exempts stays exempt, and this record says what that leaves.** A pattern start, `anchor=` and a quoted hunk check text against the file. `--force`, a start of `$`, the position-only inserts, a plan mrw computed in the call (`--sub`, `--rewrite`, a foreign format), `unlink`, `rename`, a single-line edit by anchor or pattern, and a multi-line replace through the last line land on a licence with no showing, as today: for those the licence is the caller's word. ADR-200's count is not moved: `staleMarks` returns the line to refuse on a partial licence under the switch with its numbered mark false, so `numbered_candidates` in `mrw stats` is, for one ledger record, what it was.
+   - **The line-after rule** is unchanged, and so is its remedy by quote. Its reason under the switch ends `send the edit as a search_replace block (mrw write --format=search_replace) whose SEARCH and REPLACE end in the same line, which keeps that line and quotes it; to only remove lines, a delete with anchor= (reads here record no showing: MRW_SHOWN=off)`, without the read. An `apply_patch` hunk has no such form: its caller is told the same thing.
+   - **`occurrence=N` above 1 and a `from=` copy** are refused where they are today (an unforced `occurrence=`, any `from=`), and under the switch each reason drops the read it advises and ends `(reads here record no showing: MRW_SHOWN=off)`: an edit names its line by number with `anchor=`, a copy types its lines. A showing already in the ledger still serves both. `occurrence=1` asks for no showing. `--if-served` has no refusal.
+   - `mrw_write` does not read the switch: a host that reaches mrw over MCP has acknowledgements (Out of Scope).
+5. **A multi-line replace under the switch is sent as a `search_replace` block.** Its REPLACE needs at least one line above the kept one, its SEARCH must match the file once, and a block that replaces through the last line needs no kept line. A block whose REPLACE is the kept line alone, a pure deletion, keeps nothing and is refused: a `delete` with `anchor=` does that. No plan option is added (Alternatives).
+6. **Nothing is detected.** mrw does not read `CLAUDE_CODE_EXPERIMENTAL_CODE_MODE` or any other host's variable. ADR-133 Decision 3 refuses to guess what happens downstream of mrw's output, and both challenges of this record recommended the same. `docs/agents.md` tells a Code Mode host to set `MRW_SHOWN=off` for the session, and a host that does not keeps #790: the release that carries this record says so.
+7. **The words.** `mrw instructions` (the full text) gains a short section for a caller whose commands a script runs: what reaches the model is what the script returns, so return the lines to be edited; under the switch name lines by `anchor=` or pattern and send a multi-line replace as a block. `docs/agents.md` gains the host section: the Claude Code setting, the forget hook at session start, and that §9's hook honours the switch. README and `AGENTS.md` name the variable. `mrw instructions --core` stays under 300 words (ADR-141) and is not changed.
+8. **What stays the caller's, outside the switch.** `out=$(mrw read ...)`, a pipe into another program, and a subagent that reads and reports back are the caller choosing where one answer goes; mrw sees a pipe in each and records a showing, as today (Out of Scope).
+
+## Alternatives Considered
+
+- **A plan guard `after="TEXT"` quoting the line below a multi-line replace** (this record's first draft). Rejected after the second challenge: it needed a parser option, a conversion, an MCP description and an amendment to ADR-052 and ADR-208, and the block form, which quotes every line it replaces and the one below, already does more with no new surface.
+- **A rule in `mrw hook read` keyed on a `repl_` id** (the first draft). Rejected: Decision 3.
+- **Turning the switch on when `CLAUDE_CODE_EXPERIMENTAL_CODE_MODE` is set** (the first draft's 4a). Rejected: a heuristic wrong in both directions. It is stricter than needed where the variable is set and Code Mode is off (reported for `claude -p`), and silent where a session does not pass the variable down or a release renames it.
+- **Checkpoints and `ack` on the CLI, as ADR-108 has on MCP.** It keeps every consumer of a showing working, `from=` and `occurrence=` included. Not taken: it adds a protocol and a command and a round trip per read, and it proves possession of ids, not who held them; a script can acknowledge for the model. The right choice if `from=` and `occurrence=` turn out to matter in such hosts (BACKLOG).
+- **A `PreToolUse` hook that rewrites an inner `Bash` command** to carry the switch. Rejected: it rests on the same undocumented id, and a session variable asks less of a host.
+- **A `PostToolUse` hook on `REPL` or `Poll` that promotes the lines found in what the script returned.** Rejected: the result is a JavaScript-inspect rendering of whatever the script built, cut at a length, and both payloads belong to an experiment that says it may change in any release.
+- **Record nothing at all under the switch**, as the null device does. Rejected: with no licence a numbered or anchored edit is impossible, and a licence is what `--quiet` already grants on the caller's word.
+- **Leave it and document it.** Rejected by the owner, 2026-11-24: *"Fix it then.. it is us here responsible"*.
+
+## Component / Boundary Impact
+
+`cmd/mrw` (the switch's one reader in `shown218.go`, the read's recording choice and stderr line, the hook's recording choice, passing the switch to a write), `internal/apply` (one option, the refusal under it, the remedy words in `apply.go` and `fromcopy.go`), `internal/guide`, `docs/agents.md`, README, `AGENTS.md`, `scripts/contract.sh`. Not touched: `internal/seen` (no field, no format), `internal/read`, `internal/plan`, `internal/check`, `internal/state`, `internal/mcp`, `internal/writer`, `internal/ingest`. `internal/apply` is an engine package: the diff names this record as owner and gets a `go-reviewer` pass (`.claude/rules/lifecycle.md` §6).
+
+## Wiring & Contract Changes
+
+| Surface | Change | Producer | Consumer(s) |
+|---------|--------|----------|-------------|
+| `MRW_SHOWN` | new environment switch, `off` or `on`, read by `mrw read`, `mrw hook read` and `mrw write` | T1, T2 | callers, hosts |
+| the read's stderr | one line when the switch is on, a line was served and the ledger was written | T1 | callers |
+| `mrw hook read` under the switch | records a licence with no showing | T1 | a host's `PostToolUse` hook |
+| contract §385 | new: the read and the hook, switch off and on | T1 | the contract gate |
+| a number alone on a partial licence, under the switch | refused where it applies today | T2 | callers |
+| the reasons of the number rule, the line-after rule, `occurrence=` and `from=`, under the switch | name what works there and no read | T2 | callers |
+| `mrw instructions`, `docs/agents.md`, README, `AGENTS.md` | the section for a caller a script runs | T2 | agents, hosts |
+| contract §386 | new: the write, switch off and on | T2 | the contract gate |
+
+No receipt key is added (ADR-111). No exit code changes: a refused hunk is exit 1 as it is today. No plan syntax changes.
+
+## Inter-task Contracts
+
+T2 consumes T1's `shownOff` (the one place the variable is read) and its recording: §386 and T2's tests make their licences with a switched read.
+
+## Implementation
+
+`tasks/README.md`: T1, T2.
+
+## Consequences
+
+- **Positive:** in a session that sets the switch, a number alone is again checked against a showing that was really recorded for a reader, and the remedies offered are ones that check text the plan itself carries against the file, whoever saw what; a host Read stops showing there, whatever id the host gives it; nothing new is added to the plan format.
+- **Negative:** under the switch `occurrence=N` above 1 and `from=` copies have no remedy but typing, a number alone stops working on the lines a `search_replace` write produced, numbered hunks carry `anchor=`, and a multi-line replace is a block that quotes its old lines, which is more text per edit; the refusal of a line never read still says to read it, and under the switch that read licenses, after which the line is named by pattern or `anchor=`: two steps; a host nobody configured keeps #790; a showing already in the ledger is believed.
+- **Neutral:** without the switch nothing changes; the ledger format is the same.
+- **Not measured before the build:** how often a model in Code Mode meets these refusals and whether it recovers. The pilot is frozen in `docs/break/code-mode-790/pilot/README.md` before any code, and its results go beside it.
+
+## Out of Scope
+
+- A showing proved for a `from=` copy, or for `occurrence=N`, without a recorded read (deferred: docs/adr/BACKLOG.md "From ADR-218")
+- Checkpoints and `ack` on the CLI (deferred: docs/adr/BACKLOG.md "From ADR-218")
+- The switch on `mrw_read` and `mrw_write`, and a script that acknowledges `mrw_read` checkpoints for the model (permanent: boundary: MCP's showing is an acknowledgement, ADR-108 says to send an id only for lines received, and mrw cannot see who holds an id)
+- A showing recorded before the switch, by another session or by an acknowledgement in the same state home (permanent: boundary: Decision 1; the ledger is the checkout's, and `mrw seen --forget` or a state home of its own is the host's lever)
+- `--force`, a `$` start, the position-only inserts, computed plans, `unlink` and `rename` landing on a licence with no showing (permanent: boundary: Decision 4; ADR-203's exemptions, unchanged)
+- `out=$(mrw read ...)`, a pipe into another program, a subagent that reads and reports (permanent: boundary: the caller chose where one answer goes; Decision 8)
+- Detecting any host (permanent: boundary: Decision 6; ADR-133 Decision 3)
+
+## Risks
+
+| Risk | Likelihood | Impact | Mitigation |
+|------|------------|--------|------------|
+| A host sets the switch for mrw and not for its hook, or the reverse | Low | Med | measured for Claude Code's `env` setting, which reaches both; `docs/agents.md` gives that one setting |
+| A model in such a host loops on the refusals | Med | Med | each reason names what works there; the pilot's bar decides before release |
+| A read and a write run under different environments | Low | Low | the instructions say to set it for the session, not for a command; a write without it behaves as today |
+| A caller reads the switch as proof that nothing unseen can be edited | Med | Med | Decision 1 and Decision 4 say what it leaves; `docs/agents.md` repeats it |
+
+## Rollback
+
+Revert T2, then T1. No state is migrated, the ledger format does not change, and a build without the switch ignores the variable.
+
+## History
+
+- 2026-11-24: drafted from #790 and the measurements above, for the owner's choice.
+- 2026-11-24, first Codex xhigh challenge (gpt-6.2-sol, read-only) of the uncommitted draft on `c0e9f381`: AMEND, ten points, applied to the draft of that hour. The two that outlived it: after a RANGED `--quiet` read a number alone applies, so the write must know the switch; and the consumer audit gained `FileEvidence.Shows` and its three callers.
+- 2026-11-24, second Codex xhigh challenge of the amended draft: AMEND, eight findings, each checked against the code. (1) The ledger is the checkout's, so an earlier or foreign showing still serves a switched write: Decision 1 states the guarantee as no new showing and names the forget hook; a test pins the boundary. (2) `after=` compares one guessable line: cut, for the block form the engine already has (probed on v1.94.1). (3) A rule keyed on `repl_` fails open when the id changes: the hook honours the switch instead. (4) The exemptions ADR-203 keeps were not stated, the pricing predicate must not move, and the reasons advised reads that cannot help: Decision 4. (5) Parser and conversion coverage for `after=`: gone with it. (6) The plain control could not kill the widening mutant: T2 pairs a ranged `--quiet` read with the switch off and on. (7) The pilot could be tuned after the build: its prompts, fixture, digests, counting and bar were frozen before any code, with a rule that the refusals must have been met. (8) Two frequency claims outran the captures: removed. Both challenges recommended no detection: Decision 6.
+- 2026-11-24: accepted by the owner in the narrower form, as the header quotes.
+- 2026-11-24, `adr-challenger` (read-only) of the accepted record while the code was being written: twelve findings, applied. The three that blocked: both fences carried `\&\&`, which made their engine clause arguments of `bash -n` and unable to fail (fixed, and every run and mutant recorded again against the new fences); the record changed ADR-203 and ADR-208 without an Amends line (added, with a line in each, and a note in BACKLOG that ADR-203's friction reading leaves switched refusals out); and the pilot's bar could be met without the refusals being met (the median and the exercise clause now read tasks 3-5 only, and the counting rules are closed), amended before any session ran a task, with the new digests filed.
+
+## Follow-ups
+
+- [ ] The pilot's results, in `docs/break/code-mode-790/pilot/results.md`, before the release that carries T2.
+- [ ] The release note says that a Code Mode host must set `MRW_SHOWN=off`, and what the switch leaves (Decisions 1 and 4).

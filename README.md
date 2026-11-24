@@ -306,6 +306,7 @@ mrw write --dry-run plan.mrw
 mrw write --no-check plan.mrw
 mrw write --terse plan.mrw
 MRW_RECEIPT=quiet mrw write plan.mrw   # every write prints as --quiet; terse, or full (the default) (ADR-188)
+MRW_SHOWN=off mrw write plan.mrw       # a script stands between mrw and the model: reads record no showing, a number alone needs one (ADR-218)
 mrw write --json plan.mrw
 mrw write -
 ```

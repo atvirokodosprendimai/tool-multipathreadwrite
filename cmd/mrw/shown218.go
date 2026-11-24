@@ -1,0 +1,51 @@
+package main
+
+import (
+	"fmt"
+	"os"
+
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
+)
+
+// shownOffNote is what a read says, once, when MRW_SHOWN=off made it record its
+// lines as licensed and not shown (ADR-218 Decision 2).
+const shownOffNote = "mrw: recorded as licensed, not shown (MRW_SHOWN=off): name a line by pattern or anchor=, and send a multi-line replace as a search_replace block whose SEARCH and REPLACE end in the same line"
+
+// shownSwitch reads MRW_SHOWN, the one place it is read (ADR-218). off is true
+// for `off`: a program stands between mrw's output and the reader who writes the
+// plan, so a read records no showing and a write asks for none it cannot have.
+// `on` and unset are false. Any other value is false too and is returned as
+// unknown, for the caller to name. No host's own variable is consulted
+// (Decision 6).
+func shownSwitch() (off bool, unknown string) {
+	switch v := os.Getenv("MRW_SHOWN"); v {
+	case "off":
+		return true, ""
+	case "", "on":
+		return false, ""
+	default:
+		return false, v
+	}
+}
+
+// shownOff is shownSwitch for a command a person reads the standard error of: an
+// unknown value is named there and ignored, as MRW_RECEIPT's is (ADR-188).
+func shownOff() bool {
+	off, unknown := shownSwitch()
+	if unknown != "" {
+		fmt.Fprintf(os.Stderr, "mrw: MRW_SHOWN=%s is not off or on; ignored\n", unknown)
+	}
+	return off
+}
+
+// servedALine reports whether a read served any line of any file: a --stat or
+// --max-lines 0 serves none. Nil Spans is a whole-file read, every line served
+// (seen.Observation).
+func servedALine(observed map[string]seen.Observation) bool {
+	for _, o := range observed {
+		if o.Spans == nil || len(o.Spans) > 0 {
+			return true
+		}
+	}
+	return false
+}

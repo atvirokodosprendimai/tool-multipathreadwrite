@@ -1,0 +1,6 @@
+{"event": "PreToolUse", "tool": "REPL", "id": "toolu_01LQWYAWdxTsQcQ6tVLpfyK4", "MRW_SHOWN": "off", "CODE_MODE": "1", "command": null}
+{"event": "PreToolUse", "tool": "Bash", "id": "repl_a0fed6c2-63c9-4bde-a14b-489a8412c5b3", "MRW_SHOWN": "off", "CODE_MODE": "1", "command": "echo SHOWN=$MRW_SHOWN"}
+{"event": "PostToolUse", "tool": "Bash", "id": "repl_a0fed6c2-63c9-4bde-a14b-489a8412c5b3", "MRW_SHOWN": "off", "CODE_MODE": "1", "command": "echo SHOWN=$MRW_SHOWN"}
+{"event": "PreToolUse", "tool": "Read", "id": "repl_4cb0deb8-b78a-4363-8fad-730511849d79", "MRW_SHOWN": "off", "CODE_MODE": "1", "command": null}
+{"event": "PostToolUse", "tool": "Read", "id": "repl_4cb0deb8-b78a-4363-8fad-730511849d79", "MRW_SHOWN": "off", "CODE_MODE": "1", "command": null}
+{"event": "PostToolUse", "tool": "REPL", "id": "toolu_01LQWYAWdxTsQcQ6tVLpfyK4", "MRW_SHOWN": "off", "CODE_MODE": "1", "command": null}

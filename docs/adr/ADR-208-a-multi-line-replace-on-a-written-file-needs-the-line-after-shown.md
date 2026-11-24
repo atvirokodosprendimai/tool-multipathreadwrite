@@ -9,6 +9,7 @@
 **Owner:** Zy
 **Spec:** None — no spec stage
 **Cross-references:** ADR-002, ADR-005, ADR-052, ADR-118, ADR-161, ADR-190, ADR-193, ADR-200, ADR-203
+**Amended by ADR-218** (2026-11-24): under `MRW_SHOWN=off` only, the refusal of Decision 5 names the `search_replace` block form and no read, since a read there records no showing. Without that variable this record stands as written.
 **Supersedes:** in part, and only for a record that is whole and written-shaped:
 - ADR-052 Decision 2's "unless that observation already covers End+1": such a record covers every line, so the line after must have been shown since the write, in the file's current version;
 - ADR-005's whole-file licence of a written file, for the line after a multi-line replace only (every line stays licensed for every other purpose);

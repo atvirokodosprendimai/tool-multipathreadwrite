@@ -539,6 +539,14 @@ whole list arrives as one argument and the regex swallows the rest of the line.
   stderr, and names each file whose served lines an earlier read or write still licenses, where a
   write is judged on that licence (ADR-133, ADR-148); PowerShell's `> $null` and `| Out-Null` are
   pipes and still record (so is PowerShell 7's `> NUL`; in 5.1 it fails before mrw starts).
+  `MRW_SHOWN=off` in mrw's environment is for a host where a script runs the commands and the model sees only
+  what the script returns (Claude Code's Code Mode): `mrw read` and `mrw hook read` then record their lines as
+  licensed and not shown, the read saying so on stderr, and `mrw write` refuses a number alone on any line with no
+  recorded showing, on a partial licence too; name the line by pattern or `anchor=`, and send a multi-line replace
+  that ends above the last line as a `search_replace` block whose SEARCH and REPLACE end in the same line. It stops
+  new showings only: one already in the ledger for that version still counts (`mrw seen --forget` drops them), and
+  `--force`, a `$` start, a position-only insert, `unlink`, `rename` and a computed plan land as without it. mrw
+  detects no host, and `mrw_read`/`mrw_write` do not read the variable (ADR-218).
   Read what you mean to edit: the licence stands for lines you saw, and
   a file you never open licenses all the same — mrw cannot tell, so redirecting a read to satisfy
   the guard defeats it.

@@ -224,6 +224,10 @@ func loadSource(root, p string) *sourceFile {
 	return f
 }
 
+// noShowingNote ends each refusal that rests on a showing when the caller's
+// reads record none (ADR-218): it says why the reason names no read.
+const noShowingNote = "(reads here record no showing: MRW_SHOWN=off)"
+
 // sourceGate is ADR-167 Decision 3. It is not the target's `covered`, which
 // passes a missing observation, Force and a nil ledger; and its refusals never
 // advise --force. It returns the refusal, or "" when the caller was served
@@ -233,6 +237,12 @@ func sourceGate(opt Options, p string, f *sourceFile, start, end int) string {
 		return fmt.Sprintf("%s cannot be copied from: there is no read ledger, and a copy is licensed only by lines mrw served", p)
 	}
 	obs, known := f.evidence.Primary()
+	if opt.NoShowing && (!known || obs.SHA != f.sha || !f.evidence.Shows(start, end)) {
+		// ADR-218 Decision 4: every branch below advises a read, and a read
+		// here shows nothing.
+		return fmt.Sprintf("lines %s of %s cannot be copied: a copy needs them shown to you in this version, and they are not; type the lines in the plan %s",
+			addrString(start, end), asPlan(p), noShowingNote)
+	}
 	switch {
 	case !known:
 		return fmt.Sprintf("%s has not been read: lines %s cannot be copied from a file mrw has not served. Run `mrw read %s:%d-%d` first",

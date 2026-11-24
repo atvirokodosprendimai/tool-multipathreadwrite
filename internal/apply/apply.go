@@ -475,6 +475,13 @@ type Options struct {
 	// command line (MCP).
 	RemedyRoot string
 
+	// NoShowing says reads in this caller's session record no showing (ADR-218,
+	// MRW_SHOWN=off): a program stands between mrw's output and the reader who
+	// writes the plan. A number alone is then refused on any line with no
+	// recorded showing, on a partial licence too, and a refusal that rests on a
+	// showing names a remedy that needs no read. The CLI sets it; MCP does not.
+	NoShowing bool
+
 	// aliases is the ledger's spellings, found once per apply: set by apply.
 	aliases *seen.AliasIndex
 }
@@ -1602,6 +1609,13 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 	// failStale is ADR-203's refusal: a number alone on a line no read has shown
 	// in this version of a file mrw wrote.
 	failStale := func(h hunk, line int) {
+		if opt.NoShowing {
+			// ADR-218 Decision 4: a read here records no showing, so the reason
+			// names what checks text against the file, and no read.
+			failK(h, refusal.StaleNumber, "line %d of %s has no recorded showing in this version, and a line number alone cannot say which line you mean. "+
+				"Address it by pattern, give anchor=, or send the edit as a search_replace block %s", line, asPlan(path), noShowingNote)
+			return
+		}
 		failK(h, refusal.StaleNumber, "line %d of %s has no recorded showing in this version, and a line number alone cannot say which line you mean. "+
 			"Read it whole (%s; a --quiet read, or a line --max-cols cut, shows nothing), address it by pattern, or give anchor=", line, asPlan(path), staleRemedy(opt.RemedyRoot, asPlan(path), line))
 	}
@@ -1973,6 +1987,14 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 								unread = append(unread, l)
 							}
 						}
+						if len(unread) > 0 && opt.NoShowing {
+							// ADR-218 Decision 4: the read this reason advises
+							// would show nothing here.
+							fail(h, "%s also matches %s of %s before occurrence %d, and they have not been shown: "+
+								"name the line by number with anchor=, or pass --force %s",
+								re, joinInts(unread), asPlan(path), n, noShowingNote)
+							return 0, false
+						}
 						if len(unread) > 0 {
 							all, _ := evidence.All()
 							fail(h, "%s also matches %s of %s before occurrence %d, and they have not been read: "+
@@ -2254,8 +2276,16 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 					kind = refusal.LineAfter
 					hint += "; the read to make is " + staleRemedySpan(opt.RemedyRoot, asPlan(path), start, end+1)
 				}
-				failK(h, kind, "replace of %s needs a served line after %d: read line %d (the closer sits below the body)%s",
-					addrString(start, end), end, end+1, hint)
+				if opt.NoShowing {
+					// ADR-218 Decision 4: no read here can show the line; the
+					// block form quotes it, whatever the plan's format was.
+					failK(h, kind, "replace of %s needs a served line after %d (the closer sits below the body): "+
+						"send the edit as a search_replace block (mrw write --format=search_replace) whose SEARCH and REPLACE end in the same line, which keeps that line and quotes it; to only remove lines, a delete with anchor= %s",
+						addrString(start, end), end, noShowingNote)
+				} else {
+					failK(h, kind, "replace of %s needs a served line after %d: read line %d (the closer sits below the body)%s",
+						addrString(start, end), end, end+1, hint)
+				}
 				if kind == refusal.LineAfter {
 					r := out[h.Index]
 					r.Span = [2]int{start, end}
@@ -3212,8 +3242,14 @@ func srcAddrOf(i Input) string {
 // name another line in it. The second result is the first line it addresses
 // that is not shown in that record (every line of a range; the line an insert
 // names), or 0: the line the refusal names.
+//
+// ADR-218 Decision 4 adds a refusal that is not a mark: under Options.NoShowing
+// the same hunk on a PARTIAL written-shaped record returns its first unshown
+// line too, with numbered false, so ADR-200's count is what it was. There a
+// ranged read is a licence with no showing, which the ledger cannot tell from
+// the lines a search_replace write produced.
 func staleMarks(h hunk, licence Seen, opt Options, quoted map[int]int, total, start, end int) (bool, int) {
-	if opt.Force || opt.Computed || !licence.Written || !licence.Whole() {
+	if opt.Force || opt.Computed || !licence.Written || (!licence.Whole() && !opt.NoShowing) {
 		return false, 0
 	}
 	// A start of `$` names the last line wherever it is: `$` alone and `$-N`.
@@ -3235,7 +3271,7 @@ func staleMarks(h hunk, licence Seen, opt Options, quoted map[int]int, total, st
 	default:
 		return false, 0
 	}
-	return true, licence.FirstUnshown(start, end)
+	return licence.Whole(), licence.FirstUnshown(start, end)
 }
 
 // staleRemedy is the read the stale-number refusal names: a command the caller
