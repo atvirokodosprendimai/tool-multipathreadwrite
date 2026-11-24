@@ -179,15 +179,27 @@ func TestAReadUnderShownOffLicensesAndShowsNothing(t *testing.T) {
 		if err := os.WriteFile(filepath.Join(root, "empty.txt"), nil, 0o644); err != nil {
 			t.Fatal(err)
 		}
+		plainWhole := func(label string) {
+			t.Helper()
+			if o, ok := servedOf(t, root, "empty.txt"); !ok || o.Written || !o.Whole() {
+				t.Errorf("%s: an empty file's record is %+v (held %v), want the plain whole record", label, o, ok)
+			}
+		}
 		for _, value := range []string{"off", "maybe"} {
 			_, errOut, code = runShown(t, root, value, "read", "empty.txt")
 			if code != 0 || strings.Contains(errOut, shownVar) {
 				t.Errorf("MRW_SHOWN=%s, an empty file: exit %d, stderr %q; want no word of the switch", value, code, errOut)
 			}
+			plainWhole("after MRW_SHOWN=" + value)
 		}
-		if o, ok := servedOf(t, root, "empty.txt"); !ok || o.Written || !o.Whole() {
-			t.Errorf("a switched read of an empty file recorded %+v (held %v), want the plain whole record", o, ok)
+		// Beside a file the read printed a line of, the empty one still keeps
+		// its shape, and the other is licensed and shown to nobody.
+		if out, _, code := runShown(t, root, "off", "seen", "--forget"); code != 0 {
+			t.Fatalf("seen --forget exited %d: %s", code, out)
 		}
+		runShown(t, root, "off", "read", "f.txt:2", "empty.txt")
+		plainWhole("beside a served file")
+		wantShowing(t, "beside an empty file", root, "f.txt", 2, false)
 	})
 	t.Run("if_changed_text_shows_nothing", func(t *testing.T) {
 		// --if-changed answers by reference when the sha matches; with another

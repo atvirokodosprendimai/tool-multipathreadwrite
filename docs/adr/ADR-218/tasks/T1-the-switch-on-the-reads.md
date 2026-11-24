@@ -90,6 +90,7 @@ What each clause holds. Both tests pass, each of the fifteen named cases passes,
 - 2026-11-24 · b54ff01f* · mutant killed · exit 1 · `cmd/mrw/shown218.go` · S2: an empty file taken for a read that printed a line (stat_says_nothing, an empty file) · acceptance-sha256:06b1adb98f52ec9d98c4f06cac94ecfef93988e3840bf876dee91faf29a4c4ba
 - 2026-11-24 · b54ff01f* · mutant killed · exit 1 · `cmd/mrw/main.go` · S2: a name the ledger cannot hold skipped without a word (stderr_line, a line feed in a name) · acceptance-sha256:06b1adb98f52ec9d98c4f06cac94ecfef93988e3840bf876dee91faf29a4c4ba
 - 2026-11-24 · b54ff01f* · mutant killed · exit 1 · `cmd/mrw/main.go` · S2: the note printed though the ledger kept nothing (stderr_line, a newer ledger) · acceptance-sha256:06b1adb98f52ec9d98c4f06cac94ecfef93988e3840bf876dee91faf29a4c4ba
+- 2026-11-24 · c64de773* · mutant killed · exit 1 · `cmd/mrw/shown218.go` · S2: an empty file taken for a read that printed a line (stat_says_nothing, read after each switched read and beside a served file) · acceptance-sha256:06b1adb98f52ec9d98c4f06cac94ecfef93988e3840bf876dee91faf29a4c4ba
 
 ## Verification Log
 - 2026-11-24 · c0e9f381* · exit 1 · `out="$(mktemp)" \ …` · acceptance-sha256:7f7288d05a08d3c27dc683a3d75598f7ba925e0d88515439564ff3fa43e18b55 · ms:586 · test-lock-sha256:929195a2296ffa053ed5d46fbfc0c716ea70fe88568eb134974832f0bf756fa5 · test-lock-file:docs/adr/locks/929195a2296ffa053ed5d46fbfc0c716ea70fe88568eb134974832f0bf756fa5.lock
@@ -122,6 +123,9 @@ What each clause holds. Both tests pass, each of the fifteen named cases passes,
 - 2026-11-24 · b54ff01f* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:06b1adb98f52ec9d98c4f06cac94ecfef93988e3840bf876dee91faf29a4c4ba · ms:2181
 - 2026-11-24 · b54ff01f* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:06b1adb98f52ec9d98c4f06cac94ecfef93988e3840bf876dee91faf29a4c4ba · ms:2210
 - 2026-11-24 · b54ff01f* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:06b1adb98f52ec9d98c4f06cac94ecfef93988e3840bf876dee91faf29a4c4ba · ms:1171
+- 2026-11-24 · c64de773* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:06b1adb98f52ec9d98c4f06cac94ecfef93988e3840bf876dee91faf29a4c4ba · ms:14 · test-lock-sha256:054d2d1518891aec2c48cb11d6dea484f1276d34d92113356fb1ee440d3e8b3f · test-lock-file:docs/adr/locks/054d2d1518891aec2c48cb11d6dea484f1276d34d92113356fb1ee440d3e8b3f.lock · test-lock-kind:replace
+- 2026-11-24 · c64de773* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:06b1adb98f52ec9d98c4f06cac94ecfef93988e3840bf876dee91faf29a4c4ba · ms:2273
+- 2026-11-24 · c64de773* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:06b1adb98f52ec9d98c4f06cac94ecfef93988e3840bf876dee91faf29a4c4ba · ms:1162
 
 ## Invariants
 
