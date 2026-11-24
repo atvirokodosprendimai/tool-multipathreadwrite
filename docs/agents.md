@@ -322,7 +322,7 @@ Measured: that setting reaches both an inner `Bash` call and the hook process of
 - **`mrw write` refuses a line number alone on any line with no recorded showing**, on a partial licence too. The
   reasons name what works: a pattern, `anchor=`, or the edit as a `search_replace` block. A multi-line replace that
   ends above the last line goes as a block whose SEARCH and REPLACE end in the same line.
-- **`occurrence=N` above 1 and `from=` copies have no remedy** but `anchor=` and typing the lines.
+- **`occurrence=N` above 1 needs the earlier matches shown**: name the line by number with `anchor=`, or pass `--force`. **A `from=` copy needs its lines shown**: type them. A showing recorded before the switch serves both.
 
 What it does not do, so that nobody reads it as more:
 
@@ -331,8 +331,8 @@ What it does not do, so that nobody reads it as more:
   Run `mrw seen --forget` from a `SessionStart` hook, as §8 does after a compaction, or give the session its own
   `XDG_STATE_HOME`.
 - **A licence is still the caller's word** for `--force`, a `$` start, a position-only insert, `unlink`, `rename`, a
-  single line named by pattern or `anchor=`, and a plan mrw computes (`--sub`, `--rewrite`): those land as they do
-  without the switch. A pattern, an anchor and a block check text against the file; nothing checks who read it.
+  single line named by pattern or `anchor=`, and a plan mrw computes (`--sub`, `--rewrite`): the number rule does not judge those, and they land as they do
+  without the switch. The line-after rule judges every multi-line replace that ends above the last line, forced or computed. A pattern, an anchor and a block check text against the file; nothing checks who read it.
 - **mrw detects no host.** A Code Mode session that does not set the variable behaves as before. `mrw_read` and
   `mrw_write` do not read it: over MCP a showing is an acknowledgement (§4).
 - **The model still has to see the lines.** Have the script return what it read; the switch makes mrw stop claiming

@@ -82,6 +82,12 @@ func TestAReadUnderShownOffLicensesAndShowsNothing(t *testing.T) {
 		if strings.Count(errOut, shownLine) != 1 || !strings.Contains(errOut, "search_replace") {
 			t.Errorf("stderr %q, want the one line naming the switch and the block form", errOut)
 		}
+		// A ledger a newer mrw wrote is left alone: nothing was recorded, so
+		// the read does not say that something was.
+		_, errOut, _ = runShown(t, newerRoot(t), "off", "read", "f.txt:2")
+		if strings.Contains(errOut, shownLine) || !strings.Contains(errOut, newerKey) {
+			t.Errorf("under a newer ledger stderr is %q, want its notice and no claim of a record", errOut)
+		}
 	})
 	for name, value := range map[string]string{"on_is_plain": "on", "unset_is_plain": ""} {
 		t.Run(name, func(t *testing.T) {
@@ -124,6 +130,29 @@ func TestAReadUnderShownOffLicensesAndShowsNothing(t *testing.T) {
 		_, errOut, code := runShown(t, shownRoot(t), "off", "read", "--stat", "f.txt")
 		if code != 0 || strings.Contains(errOut, "licensed, not shown") {
 			t.Errorf("exit %d, stderr %q; want no note for a read that served no line", code, errOut)
+		}
+		// And it has no showing to withhold: its record keeps its shape, and a
+		// read that projects values does not consult the switch at all.
+		root := shownRoot(t)
+		runShown(t, root, "off", "read", "--stat", "f.txt")
+		if o, ok := servedOf(t, root, "f.txt"); !ok || o.Written {
+			t.Errorf("a switched --stat recorded %+v (held %v), want the plain read-shaped record", o, ok)
+		}
+		// Beside a file it served a line of, a file whose range it missed keeps
+		// its record's shape too.
+		if err := os.WriteFile(filepath.Join(root, "g.txt"), []byte(shownFixture), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		runShown(t, root, "off", "read", "f.txt:2", "g.txt:99")
+		wantShowing(t, "the file it served", root, "f.txt", 2, false)
+		if o, ok := servedOf(t, root, "g.txt"); !ok || o.Written {
+			t.Errorf("a missed range beside a served one recorded %+v (held %v), want a read-shaped record", o, ok)
+		}
+		if err := os.WriteFile(filepath.Join(root, "j.json"), []byte("{\"a\":1}\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, errOut, _ := runShown(t, root, "maybe", "read", "--json-path", "$.a", "j.json"); strings.Contains(errOut, shownVar) {
+			t.Errorf("a --json-path read named the switch: %q", errOut)
 		}
 	})
 	t.Run("if_changed_text_shows_nothing", func(t *testing.T) {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/mcp"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/seen"
 )
 
@@ -48,4 +49,19 @@ func servedALine(observed map[string]seen.Observation) bool {
 		}
 	}
 	return false
+}
+
+// shownOffRecord is what a switched read records: each file it served a line of
+// licensed and not shown, as a --quiet read's is; a file it served no line of
+// (a --stat or a withheld range beside a served one) as the read observed it,
+// so that record keeps its shape.
+func shownOffRecord(observed map[string]seen.Observation) map[string]seen.Observation {
+	out := make(map[string]seen.Observation, len(observed))
+	for path, o := range observed {
+		if o.Spans == nil || len(o.Spans) > 0 {
+			o = mcp.LicensedNotShown(map[string]seen.Observation{path: o})[path]
+		}
+		out[path] = o
+	}
+	return out
 }

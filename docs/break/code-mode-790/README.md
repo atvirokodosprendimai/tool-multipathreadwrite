@@ -30,3 +30,5 @@ hook process held it on all six events, `REPL` and inner calls alike: a session 
 hook. `pilot/` holds the pilot that decides whether the refusals under that variable are affordable: its protocol
 (`README.md`, frozen before the build and amended once before any run), its fixture, runner, logging hook and
 summariser, and `results.md` once it has run.
+Identifiers in the `.jsonl` captures (session, prompt, tool-use ids, delivery nonces) are placeholders; the
+`repl_` and `toolu_` prefixes, which the record reads, are as captured.

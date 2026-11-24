@@ -7,6 +7,7 @@
 **Owner:** Zy
 **Spec:** None — no spec stage
 **Cross-references:** ADR-002, ADR-133, ADR-161, ADR-175, ADR-190, docs/agents.md
+**Amended by ADR-218** (2026-11-24): under `MRW_SHOWN=off` only, the hook records the lines a host Read returned as licensed and not shown (Decision 1). Without that variable this record stands as written.
 **Governs:** `cmd/mrw/main.go`, `internal/seen/seen.go`, `docs/agents.md`, `scripts/contract.sh`
 **Enforced-by:** `cmd/mrw/hookread191_test.go::TestAHostReadLicensesOnlyTheLinesItShowedAsTheyAre`
 **Invalidates:** None — opt-in. Nothing changes until a host runs the new command from its PostToolUse hook.

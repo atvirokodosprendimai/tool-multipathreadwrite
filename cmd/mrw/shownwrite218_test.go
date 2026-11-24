@@ -166,6 +166,18 @@ func TestAWriteUnderShownOffWantsTheTextQuoted(t *testing.T) {
 		out, code := writeShown(t, root, "off", "@@ g.txt /^x$/ replace occurrence=2\nX\n")
 		refusedWith(t, "occurrence", out, code, []string{"before occurrence 2", "name the line by number with anchor=, or pass --force " + shownNote}, []string{"read them", "mrw read"})
 		bytesAre(t, "occurrence", root, "g.txt", dup)
+		// The pair: with the earlier match shown before the switch, the same
+		// plan lands (Decision 1: a showing already recorded is believed).
+		shown := shownRoot(t)
+		if err := os.WriteFile(filepath.Join(shown, "g.txt"), []byte(dup), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		runShown(t, shown, "", "read", "g.txt:1")
+		runShown(t, shown, "off", "read", "g.txt")
+		if out, code := writeShown(t, shown, "off", "@@ g.txt /^x$/ replace occurrence=2\nX\n"); code != 0 {
+			t.Errorf("with the earlier match shown, occurrence=2 exited %d:\n%s", code, out)
+		}
+		bytesAre(t, "occurrence, shown", shown, "g.txt", "x\ny\nX\ny\n")
 	})
 	t.Run("from_reason", func(t *testing.T) {
 		root := shownRoot(t)
@@ -175,5 +187,13 @@ func TestAWriteUnderShownOffWantsTheTextQuoted(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(root, "new.txt")); err == nil {
 			t.Error("the refused copy made new.txt")
 		}
+		// The pair: lines shown before the switch are copied under it.
+		shown := shownRoot(t)
+		runShown(t, shown, "", "read", "f.txt:1-2")
+		runShown(t, shown, "off", "read", "f.txt")
+		if out, code := writeShown(t, shown, "off", "@@ new.txt 0 create from=f.txt:1-2\n"); code != 0 {
+			t.Errorf("with the source shown, the copy exited %d:\n%s", code, out)
+		}
+		bytesAre(t, "from, shown", shown, "new.txt", "one\ntwo\n")
 	})
 }

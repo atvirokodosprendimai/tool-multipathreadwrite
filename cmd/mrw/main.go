@@ -1665,9 +1665,15 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			// ADR-133: an answer sent to the null device reached nobody, so it
 			// licenses nothing — the one discard on the CLI that mrw can see.
 			// ADR-218 Decision 2: under MRW_SHOWN=off a content read records what
-			// a --quiet read records. A read to the null device records nothing
-			// either way, so the switch is not consulted for one.
-			shownIsOff := !toNullDevice(os.Stdout) && !cmd.Bool("quiet") && shownOff()
+			// a --quiet read records, for the files it served a line of. A read to
+			// the null device records nothing either way, and a read that served
+			// no line (--stat, a count, a projection) has no showing to withhold,
+			// so the switch is not consulted for either.
+			shownIsOff := !toNullDevice(os.Stdout) && !cmd.Bool("quiet") && servedALine(observed) && shownOff()
+			recording := recordedAs(cmd.Bool("quiet"), observed)
+			if shownIsOff {
+				recording = shownOffRecord(observed)
+			}
 			if toNullDevice(os.Stdout) {
 				// Only a read that served lines has lines to name: a --stat or
 				// --max-lines 0 serves none (the stress runs of 25f4f04). Nil
@@ -1678,7 +1684,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 						fmt.Fprintln(os.Stderr, line)
 					}
 				}
-			} else if err := seen.Record(root, recordedAs(cmd.Bool("quiet") || shownIsOff, observed)); err != nil {
+			} else if err := seen.Record(root, recording); err != nil {
 				// ADR-166: a content read whose ledger cannot be written has
 				// served its answer; it records nothing new and says so, last,
 				// with the read's own exit. A --quiet read exists to record, so
@@ -1693,7 +1699,9 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				if err := seen.Unrecorded(root, recordedAs(true, observed)); err != nil {
 					return exitWith(err)
 				}
-			} else if shownIsOff && servedALine(observed) {
+			} else if shownIsOff && seen.Unrecorded(root, recording) == nil {
+				// Said only for a licence the ledger kept: a newer mrw's ledger,
+				// or a name it cannot hold, is left alone and has said so.
 				fmt.Fprintln(os.Stderr, shownOffNote)
 			}
 			problems += len(refusals)

@@ -12516,6 +12516,22 @@ out=$(printf '@@ c.txt 2-3 replace anchor="two"\nTWO\nTHREE\n' | s386 write --no
   && ok "is refused naming the block form and no read, the file untouched" || bad "multi-line under the switch: $out"
 out=$(printf 'c.txt\n<<<<<<< SEARCH\ntwo\nthree\nfour\n=======\nTWO\nTHREE\nfour\n>>>>>>> REPLACE\n' | s386 write --no-check --format=search_replace - 2>&1); want 0 $? "the same edit as a block that ends SEARCH and REPLACE in the same line"
 cmp -s "$R386/c.txt" <(printf 'one\nTWO\nTHREE\nfour\nfive\n') && ok "applies, the kept line untouched" || bad "block under the switch: $out"
+# occurrence= and from= under the switch: each is refused where its lines were shown
+# to nobody, naming no read, and each lands on a showing recorded before the switch.
+for f in d e; do printf 'x\ny\nx\ny\n' > "$R386/$f.txt"; done
+s386 read d.txt > "$WORK/r386.out" 2>&1; want 0 $? "a switched read of a file with two matching lines"
+out=$(printf '@@ d.txt /^x$/ replace occurrence=2\nX\n' | s386 write --no-check - 2>&1); want 1 $? "occurrence=2 with the earlier match shown to nobody"
+{ grep -q 'name the line by number with anchor=, or pass --force (reads here record no showing: MRW_SHOWN=off)' <<<"$out" && ! grep -Eq 'read them|mrw read' <<<"$out"; } \
+  && ok "is refused naming anchor= and --force and no read" || bad "occurrence under the switch: $out"
+e386 read e.txt:1 > "$WORK/r386.out" 2>&1; s386 read e.txt > "$WORK/r386.out" 2>&1
+out=$(printf '@@ e.txt /^x$/ replace occurrence=2\nX\n' | s386 write --no-check - 2>&1); want 0 $? "the pair: the earlier match shown before the switch"
+[ "$(sed -n 3p "$R386/e.txt")" = X ] && ok "and occurrence=2 lands on the second match" || bad "occurrence with a showing: $out"
+out=$(printf '@@ copy1.txt 0 create from=d.txt:1-2\n' | s386 write --no-check - 2>&1); want 1 $? "a from= copy of lines shown to nobody"
+{ grep -q 'type the lines in the plan (reads here record no showing: MRW_SHOWN=off)' <<<"$out" && ! grep -Eq 'Read them first|mrw read' <<<"$out" && [ ! -e "$R386/copy1.txt" ]; } \
+  && ok "is refused naming no read, and makes no file" || bad "from under the switch: $out"
+e386 read b.txt:4-5 > "$WORK/r386.out" 2>&1
+out=$(printf '@@ copy2.txt 0 create from=b.txt:4-5\n' | s386 write --no-check - 2>&1); want 0 $? "the pair: a copy of lines shown before the switch"
+cmp -s "$R386/copy2.txt" <(printf 'four\nfive\n') && ok "copies them" || bad "from with a showing: $out"
 rm -rf "$R386" "$WORK/r386.out"
 
 # 378. #754: a create of a path the ledger holds a record for, at another version
