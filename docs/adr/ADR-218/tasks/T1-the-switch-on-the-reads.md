@@ -63,7 +63,7 @@ What each clause holds. Both tests pass, each of the fifteen named cases passes,
 |------|------------------------|
 | 1 — exists | the tests and §385 |
 | 2 — something selects it | the `read` action and `hookRead` |
-| 3 — the caller can discover it | the stderr line on every switched read; T2's words |
+| 3 — the caller can discover it | the stderr line on a switched read that printed a line and whose licence the ledger kept; T2's words |
 | 4 — it is used | telemetry is refused by ADR-009; the evidence is #790 and the pilot |
 
 ## Mutation Log
@@ -87,6 +87,9 @@ What each clause holds. Both tests pass, each of the fifteen named cases passes,
   ```
 - 2026-11-24 · 65764867* · mutant killed · exit 1 · `cmd/mrw/main.go` · S2: the switch consulted by a read that served no line (stat_says_nothing, --json-path) · acceptance-sha256:06b1adb98f52ec9d98c4f06cac94ecfef93988e3840bf876dee91faf29a4c4ba
 - 2026-11-24 · 65764867* · mutant killed · exit 1 · `cmd/mrw/shown218.go` · S2: a file served no line recorded licence-only (stat_says_nothing, a missed range beside a served one) · acceptance-sha256:06b1adb98f52ec9d98c4f06cac94ecfef93988e3840bf876dee91faf29a4c4ba
+- 2026-11-24 · b54ff01f* · mutant killed · exit 1 · `cmd/mrw/shown218.go` · S2: an empty file taken for a read that printed a line (stat_says_nothing, an empty file) · acceptance-sha256:06b1adb98f52ec9d98c4f06cac94ecfef93988e3840bf876dee91faf29a4c4ba
+- 2026-11-24 · b54ff01f* · mutant killed · exit 1 · `cmd/mrw/main.go` · S2: a name the ledger cannot hold skipped without a word (stderr_line, a line feed in a name) · acceptance-sha256:06b1adb98f52ec9d98c4f06cac94ecfef93988e3840bf876dee91faf29a4c4ba
+- 2026-11-24 · b54ff01f* · mutant killed · exit 1 · `cmd/mrw/main.go` · S2: the note printed though the ledger kept nothing (stderr_line, a newer ledger) · acceptance-sha256:06b1adb98f52ec9d98c4f06cac94ecfef93988e3840bf876dee91faf29a4c4ba
 
 ## Verification Log
 - 2026-11-24 · c0e9f381* · exit 1 · `out="$(mktemp)" \ …` · acceptance-sha256:7f7288d05a08d3c27dc683a3d75598f7ba925e0d88515439564ff3fa43e18b55 · ms:586 · test-lock-sha256:929195a2296ffa053ed5d46fbfc0c716ea70fe88568eb134974832f0bf756fa5 · test-lock-file:docs/adr/locks/929195a2296ffa053ed5d46fbfc0c716ea70fe88568eb134974832f0bf756fa5.lock
@@ -114,6 +117,11 @@ What each clause holds. Both tests pass, each of the fifteen named cases passes,
 - 2026-11-24 · 65764867* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:06b1adb98f52ec9d98c4f06cac94ecfef93988e3840bf876dee91faf29a4c4ba · ms:2181
 - 2026-11-24 · 65764867* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:06b1adb98f52ec9d98c4f06cac94ecfef93988e3840bf876dee91faf29a4c4ba · ms:10 · test-lock-sha256:4b0366f2b66cdffa88d49e023b1eac4c7bff3302feceb7ebd9a2285b5e53944b · test-lock-file:docs/adr/locks/4b0366f2b66cdffa88d49e023b1eac4c7bff3302feceb7ebd9a2285b5e53944b.lock · test-lock-kind:replace
 - 2026-11-24 · 65764867* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:06b1adb98f52ec9d98c4f06cac94ecfef93988e3840bf876dee91faf29a4c4ba · ms:2220
+- 2026-11-24 · b54ff01f* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:06b1adb98f52ec9d98c4f06cac94ecfef93988e3840bf876dee91faf29a4c4ba · ms:11 · test-lock-sha256:16c9944b0382ebf04cfaa9c83cc2ad68472f6520f9978f2df892a1cc58b3f238 · test-lock-file:docs/adr/locks/16c9944b0382ebf04cfaa9c83cc2ad68472f6520f9978f2df892a1cc58b3f238.lock · test-lock-kind:replace
+- 2026-11-24 · b54ff01f* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:06b1adb98f52ec9d98c4f06cac94ecfef93988e3840bf876dee91faf29a4c4ba · ms:2165
+- 2026-11-24 · b54ff01f* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:06b1adb98f52ec9d98c4f06cac94ecfef93988e3840bf876dee91faf29a4c4ba · ms:2181
+- 2026-11-24 · b54ff01f* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:06b1adb98f52ec9d98c4f06cac94ecfef93988e3840bf876dee91faf29a4c4ba · ms:2210
+- 2026-11-24 · b54ff01f* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:06b1adb98f52ec9d98c4f06cac94ecfef93988e3840bf876dee91faf29a4c4ba · ms:1171
 
 ## Invariants
 

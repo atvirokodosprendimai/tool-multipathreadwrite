@@ -545,7 +545,7 @@ whole list arrives as one argument and the regex swallows the rest of the line.
   recorded showing, on a partial licence too; name the line by pattern or `anchor=`, and send a multi-line replace
   that ends above the last line as a `search_replace` block whose SEARCH and REPLACE end in the same line. It stops
   new showings only: one already in the ledger for that version still counts (`mrw seen --forget` drops them), and
-  the number rule does not judge `--force`, a `$` start, a position-only insert, `unlink`, `rename` or a computed plan, as without it, and the line-after rule judges every multi-line replace that ends above the last line, forced or computed. mrw
+  the number rule does not judge `--force`, a `$` start, a position-only insert, `unlink`, `rename` or a computed plan, as without it, and the line-after rule is what it is without it: a multi-line replace that ends above the last line needs the line after it shown, forced or not, except in a plan `--ast-grep ... --rewrite` makes in the same call. mrw
   detects no host, and `mrw_read`/`mrw_write` do not read the variable (ADR-218).
   Read what you mean to edit: the licence stands for lines you saw, and
   a file you never open licenses all the same — mrw cannot tell, so redirecting a read to satisfy

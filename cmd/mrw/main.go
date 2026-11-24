@@ -1669,7 +1669,7 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			// the null device records nothing either way, and a read that served
 			// no line (--stat, a count, a projection) has no showing to withhold,
 			// so the switch is not consulted for either.
-			shownIsOff := !toNullDevice(os.Stdout) && !cmd.Bool("quiet") && servedALine(observed) && shownOff()
+			shownIsOff := !toNullDevice(os.Stdout) && !cmd.Bool("quiet") && showedALine(observed) && shownOff()
 			recording := recordedAs(cmd.Bool("quiet"), observed)
 			if shownIsOff {
 				recording = shownOffRecord(observed)
@@ -1699,10 +1699,17 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				if err := seen.Unrecorded(root, recordedAs(true, observed)); err != nil {
 					return exitWith(err)
 				}
-			} else if shownIsOff && seen.Unrecorded(root, recording) == nil {
-				// Said only for a licence the ledger kept: a newer mrw's ledger,
-				// or a name it cannot hold, is left alone and has said so.
-				fmt.Fprintln(os.Stderr, shownOffNote)
+			} else if shownIsOff {
+				// Said only for a licence the ledger kept. A newer mrw's ledger is
+				// left alone and has said so at startup; a name or a record the
+				// ledger cannot hold is named here, before any kind line, and the
+				// read's own exit stands.
+				var omitted *seen.OmittedError
+				if err := seen.Unrecorded(root, recording); err == nil {
+					fmt.Fprintln(os.Stderr, shownOffNote)
+				} else if errors.As(err, &omitted) {
+					fmt.Fprintln(os.Stderr, "mrw:", err)
+				}
 			}
 			problems += len(refusals)
 			// A budget that dropped anything — a served line, or only the walk's

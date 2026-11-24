@@ -51,6 +51,28 @@ func servedALine(observed map[string]seen.Observation) bool {
 	return false
 }
 
+// emptySHA is the sha of a file of no bytes.
+var emptySHA = seen.SHA(nil)
+
+// showedLines reports whether an observation holds a line a read printed: a
+// span, or a whole file that has lines. A whole read of an empty file printed a
+// header and no line, and its observation still licenses the first insert.
+func showedLines(o seen.Observation) bool {
+	return len(o.Spans) > 0 || (o.Spans == nil && o.SHA != emptySHA)
+}
+
+// showedALine reports whether a read printed a line of any file: what the
+// switch needs to know, since a read that printed none has no showing to
+// withhold.
+func showedALine(observed map[string]seen.Observation) bool {
+	for _, o := range observed {
+		if showedLines(o) {
+			return true
+		}
+	}
+	return false
+}
+
 // shownOffRecord is what a switched read records: each file it served a line of
 // licensed and not shown, as a --quiet read's is; a file it served no line of
 // (a --stat or a withheld range beside a served one) as the read observed it,
@@ -58,7 +80,7 @@ func servedALine(observed map[string]seen.Observation) bool {
 func shownOffRecord(observed map[string]seen.Observation) map[string]seen.Observation {
 	out := make(map[string]seen.Observation, len(observed))
 	for path, o := range observed {
-		if o.Spans == nil || len(o.Spans) > 0 {
+		if showedLines(o) {
 			o = mcp.LicensedNotShown(map[string]seen.Observation{path: o})[path]
 		}
 		out[path] = o

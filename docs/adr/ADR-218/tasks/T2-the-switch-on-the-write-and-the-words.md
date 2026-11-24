@@ -105,6 +105,7 @@ What each clause holds. The three tests pass, each of the thirteen named cases p
 - 2026-11-24 · human-observed · Claude (session of 2026-11-24) observed S5: 30 runs, all ending with the task's digest; the switched arm had no refused write and landed a search_replace block in every run of tasks 3-5. Blocked for the owner: bar clause 1 is not met as written, 13 of 15 switched runs being void under two void rules the protocol worded badly (a host Write outside pkg/, and a note cut from the log); docs/break/code-mode-790/pilot/results.md holds both readings. · acceptance-sha256:9a9ef67a3e92e0e602118302d09fc201082c081eea9bb1fd6d0c462210bb4c3b
 - 2026-11-24 · 65764867* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:9a9ef67a3e92e0e602118302d09fc201082c081eea9bb1fd6d0c462210bb4c3b · ms:13 · test-lock-sha256:1b71cd18c808996ecf2767a99b50fecbb29988aa73f2f1a2ff8cc760c0b40faa · test-lock-file:docs/adr/locks/1b71cd18c808996ecf2767a99b50fecbb29988aa73f2f1a2ff8cc760c0b40faa.lock · test-lock-kind:replace
 - 2026-11-24 · 65764867* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:9a9ef67a3e92e0e602118302d09fc201082c081eea9bb1fd6d0c462210bb4c3b · ms:1649
+- 2026-11-24 · b54ff01f* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:9a9ef67a3e92e0e602118302d09fc201082c081eea9bb1fd6d0c462210bb4c3b · ms:993
 
 ## Invariants
 

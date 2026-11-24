@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -84,9 +85,21 @@ func TestAReadUnderShownOffLicensesAndShowsNothing(t *testing.T) {
 		}
 		// A ledger a newer mrw wrote is left alone: nothing was recorded, so
 		// the read does not say that something was.
-		_, errOut, _ = runShown(t, newerRoot(t), "off", "read", "f.txt:2")
-		if strings.Contains(errOut, shownLine) || !strings.Contains(errOut, newerKey) {
-			t.Errorf("under a newer ledger stderr is %q, want its notice and no claim of a record", errOut)
+		out, errOut, code := runShown(t, newerRoot(t), "off", "read", "f.txt:2")
+		if code != 0 || !strings.Contains(out, "| two") || strings.Contains(errOut, shownLine) || !strings.Contains(errOut, newerKey) {
+			t.Errorf("under a newer ledger: exit %d, stdout %q, stderr %q; want the line served, the ledger's notice and no claim of a record", code, out, errOut)
+		}
+		// A name the ledger cannot hold is skipped by it: the read says so
+		// and does not say it recorded a licence. Windows keeps no such name.
+		if runtime.GOOS != "windows" {
+			root := shownRoot(t)
+			if err := os.WriteFile(filepath.Join(root, "a\nb.txt"), []byte(shownFixture), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			out, errOut, code := runShown(t, root, "off", "read", "a\nb.txt")
+			if code != 0 || !strings.Contains(out, "| two") || strings.Contains(errOut, shownLine) || !strings.Contains(errOut, "the read ledger cannot hold a record for") {
+				t.Errorf("a name with a line feed: exit %d, stdout %q, stderr %q; want it served and the omission named", code, out, errOut)
+			}
 		}
 	})
 	for name, value := range map[string]string{"on_is_plain": "on", "unset_is_plain": ""} {
@@ -143,7 +156,13 @@ func TestAReadUnderShownOffLicensesAndShowsNothing(t *testing.T) {
 		if err := os.WriteFile(filepath.Join(root, "g.txt"), []byte(shownFixture), 0o644); err != nil {
 			t.Fatal(err)
 		}
-		runShown(t, root, "off", "read", "f.txt:2", "g.txt:99")
+		// In this harness the kind line is the command's returned error, which
+		// runIn appends after everything printed: it is last.
+		out, errOut, code := runShown(t, root, "off", "read", "f.txt:2", "g.txt:99")
+		last := out[strings.LastIndex(strings.TrimRight(out, "\n"), "\n")+1:]
+		if code != 1 || !strings.Contains(out, "| two") || !strings.Contains(last, "incomplete:") || !strings.Contains(errOut, shownLine) {
+			t.Errorf("a missed range beside a served one: exit %d, last line %q, stderr %q; want exit 1, the note, and the kind line last", code, last, errOut)
+		}
 		wantShowing(t, "the file it served", root, "f.txt", 2, false)
 		if o, ok := servedOf(t, root, "g.txt"); !ok || o.Written {
 			t.Errorf("a missed range beside a served one recorded %+v (held %v), want a read-shaped record", o, ok)
@@ -151,8 +170,23 @@ func TestAReadUnderShownOffLicensesAndShowsNothing(t *testing.T) {
 		if err := os.WriteFile(filepath.Join(root, "j.json"), []byte("{\"a\":1}\n"), 0o644); err != nil {
 			t.Fatal(err)
 		}
-		if _, errOut, _ := runShown(t, root, "maybe", "read", "--json-path", "$.a", "j.json"); strings.Contains(errOut, shownVar) {
-			t.Errorf("a --json-path read named the switch: %q", errOut)
+		out, errOut, code = runShown(t, root, "maybe", "read", "--json-path", "$.a", "j.json")
+		if code != 0 || !strings.Contains(out, "$.a = 1") || strings.Contains(errOut, shownVar) {
+			t.Errorf("a --json-path read: exit %d, stdout %q, stderr %q; want the value and no word of the switch", code, out, errOut)
+		}
+		// A whole read of an empty file prints a header and no line: its
+		// record keeps its shape, which still licenses the first insert.
+		if err := os.WriteFile(filepath.Join(root, "empty.txt"), nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		for _, value := range []string{"off", "maybe"} {
+			_, errOut, code = runShown(t, root, value, "read", "empty.txt")
+			if code != 0 || strings.Contains(errOut, shownVar) {
+				t.Errorf("MRW_SHOWN=%s, an empty file: exit %d, stderr %q; want no word of the switch", value, code, errOut)
+			}
+		}
+		if o, ok := servedOf(t, root, "empty.txt"); !ok || o.Written || !o.Whole() {
+			t.Errorf("a switched read of an empty file recorded %+v (held %v), want the plain whole record", o, ok)
 		}
 	})
 	t.Run("if_changed_text_shows_nothing", func(t *testing.T) {
