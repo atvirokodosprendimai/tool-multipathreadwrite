@@ -49,18 +49,23 @@ frozen; each was then looked for by hand in all 162 `Bash` rows and 16 `Write` r
 command was split at `;`, `&` and `|` outside quotes, heredoc bodies set aside, and the program of each part
 listed. The whole list: `mrw` 131 (`instructions` 40, `read` 45, `write` 46: the 36 counted, nine `--help`,
 one `--dry-run`), `git` 48 (`diff` 43, `status` 5), `echo` 14, `grep` 10, `printf` 10, `cat` 5, `head` 1,
-`mkdir` 1. No row runs `cp`, `mv`, `tee`, `sed`, `perl`, Python or any other program.
+`mkdir` 1. No row runs `cp`, `mv`, `tee`, `sed`, `perl`, Python or any other program. With plan text and
+scratch paths set aside, every argument those programs were given: `git diff` alone (22), with `--stat` (14),
+with `-U0` (5), with one fixture path (2), and `git status --short` (5); `grep` with a pattern, and twice with
+`-n scale` and four fixture paths; `head -60`; `echo` of `----`, `exit=…` or `exit …`; `printf %s` of plan
+text, to a pipe into `mrw write` (6) or redirected to a scratch file (4); `cat >` a scratch file from a
+heredoc (5); `mkdir -p` a scratch folder. No `--output`, `-o` or other option that names a file to write.
 
 | The counter's defect | In the 30 logs |
 |---|---|
-| a non-mrw writer chained after a counted write is not checked (`mrw write p; cp /tmp/n pkg/n.txt`), and the digest reads only `pkg/*.go` | none: of the programs listed above only `cat`, `printf` and `echo` with a redirect, and `mkdir`, can write, and every redirect, `mkdir` and `Write` target is in the session's own scratch folder, outside the fixture folder |
+| a non-mrw writer chained after a counted write is not checked (`mrw write p; cp /tmp/n pkg/n.txt`, `git diff --output=pkg/n.txt`), and the digest reads only `pkg/*.go` | none: by the argument list above, the only writes outside mrw are the redirects of `cat` and `printf` and the one `mkdir`, and every such target, like every host `Write` target, is in the session's own scratch folder, outside the fixture folder |
 | `python3 --version` alone would void a run | no row runs Python |
 | `mrw --root=. write` is not counted; a quoted `'--help'` is counted | neither spelling occurs |
 | a quoted `|`, `;` or `&` before `--dry-run` splits the command | does not occur; the one dry run is excluded |
 | the form is read from the whole row, so a help row chained with a write could mislabel it | no row holds two `mrw write` |
 | a command cut at 4,000 characters could lose a flag | no command was cut |
 | `PKG/` passes the `pkg/` test on a case-folding volume | no target path holds `pkg` in any case |
-| `"mutation": "complete"` from another command, or a refusal phrase from `mrw instructions` in the same row as a write | no row holds `--json`, so no landing was read from that key: all 36 are the receipt's last line; no row holds both `instructions` and a write |
+| a landing line or `"mutation": "complete"` printed by another command in the row (`mrw write --bogus; echo '… — applied'`), or a refusal phrase from `mrw instructions` in the same row as a write | none: no row holds `--json` or the word `mutation`; in each of the 36 counted rows the kept output holds exactly one landing line, the line above it is mrw's own `wrote` or `created` line, no output was cut, and no `echo`, `printf`, `cat`, `git`, `grep` or `head` argument in the row holds `applied`; no row holds both `instructions` and a write |
 
 Two sentences of the frozen `README.md` are loose and are corrected here, not there: the first pilot missed
 on clause 1 alone, by its two void rules, not by a counting rule; and "`mrw write --help` is not a write"
