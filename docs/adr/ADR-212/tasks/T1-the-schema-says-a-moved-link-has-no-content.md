@@ -114,6 +114,7 @@ What each clause holds. The runs are made with `MRW_UPDATE_LEGACY_GOLDEN` unset,
 - 2026-11-20 · c1d88518* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:ec5622f860d7e148dcade99685bec5cc56b6b1522ed347a42b3774b13bcd68fe · ms:4253
 - 2026-11-20 · c1d88518* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:ec5622f860d7e148dcade99685bec5cc56b6b1522ed347a42b3774b13bcd68fe · ms:4066
 - 2026-11-21 · 67333fac · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:ec5622f860d7e148dcade99685bec5cc56b6b1522ed347a42b3774b13bcd68fe · ms:1092
+- 2026-11-25 · 1e55658d* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:ec5622f860d7e148dcade99685bec5cc56b6b1522ed347a42b3774b13bcd68fe · ms:6 · test-lock-sha256:238344ed63e71507940a246094993ffd9537da2fe2ede73972e1413307e01b96 · test-lock-file:docs/adr/locks/238344ed63e71507940a246094993ffd9537da2fe2ede73972e1413307e01b96.lock · test-lock-kind:replace
 
 ## Invariants
 
