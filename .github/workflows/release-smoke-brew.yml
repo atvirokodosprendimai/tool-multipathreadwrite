@@ -27,7 +27,7 @@ env:
   TAG: ${{ inputs.tag || 'v1.94.1' }}
   HOMEBREW_NO_AUTO_UPDATE: "1"
   HOMEBREW_NO_INSTALL_CLEANUP: "1"
-  # ADR-218: the smoke plans name lines by number; a runner that set "off" would refuse them.
+  # ADR-218: the smoke plans name lines by number, which a release that reads MRW_SHOWN refuses under "off"; pinned so a runner's own value cannot reach one.
   MRW_SHOWN: "on"
 
 jobs:

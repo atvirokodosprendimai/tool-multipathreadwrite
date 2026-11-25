@@ -34,11 +34,33 @@ native plans.
 ## What this does and does not support
 
 - It supports: with `MRW_SHOWN=off`, one model in one host version did five ordinary edits, three times
-  each, with no refused write, taking the block form for every multi-line edit after reading the note.
+  each, with no refused write, and every multi-line edit landed as a block. The logs show the note in the
+  output of a `Bash` call and the block landing after it; they do not show what the script returned to the
+  model, so "the note steers" is an inference from the control arm landing native plans for the same tasks.
 - It does not support: that a model recovers from the refusals, since again none occurred; anything about
   a script that hides mrw's output from the model, where the note would not arrive either; any other
   model, host or version; that no read text reached the model, which no pilot here measured.
 - The first pilot ran Claude Code 2.1.331 and this one 2.1.332, on consecutive days; the two are not one sample.
+
+## Found by review after the run: where the counter is wrong, and that no such input occurred
+
+A review of the frozen files (Codex, 2026-11-25) showed inputs the counter gets wrong. The files stay as
+frozen; each was then looked for by hand in all 162 `Bash` rows and 16 `Write` rows of the 30 logs.
+
+| The counter's defect | In the 30 logs |
+|---|---|
+| a non-mrw writer chained after a counted write is not checked (`mrw write p; printf x > pkg/n`), and the digest reads only `pkg/*.go` | none: every redirect, `mkdir` and `Write` target is in the session's own scratch folder, outside the fixture folder |
+| `python3 --version` alone would void a run | no row runs Python |
+| `mrw --root=. write` is not counted; a quoted `'--help'` is counted | neither spelling occurs |
+| a quoted `|`, `;` or `&` before `--dry-run` splits the command | does not occur; the one dry run is excluded |
+| the form is read from the whole row, so a help row chained with a write could mislabel it | no row holds two `mrw write` |
+| a command cut at 4,000 characters could lose a flag | no command was cut |
+| `PKG/` passes the `pkg/` test on a case-folding volume | no target path holds `pkg` in any case |
+| `"mutation": "complete"` from another command, or a refusal phrase from `mrw instructions` in the same row as a write | no row without `--json` holds the key; no row holds both `instructions` and a write |
+
+Two sentences of the frozen `README.md` are loose and are corrected here, not there: the first pilot missed
+on clause 1 alone, by its two void rules, not by a counting rule; and "`mrw write --help` is not a write"
+changes which rows are writes, not only how a count is taken.
 
 ## The summariser's lines, as printed
 
