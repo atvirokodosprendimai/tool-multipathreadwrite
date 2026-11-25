@@ -12540,7 +12540,11 @@ rm -rf "$R386" "$WORK/r386.out"
 # a replace of a file changed since its read keeps the refusal, with its --force.
 fixture
 printf 'x\n' | m write --no-check --create n754.txt >"$WORK/o754" 2>&1; want 0 $? "the setup: --create makes and records n754.txt"
-m seen 2>&1 | grep -q 'n754.txt' && ok "and the ledger holds it" || bad "setup: the ledger does not hold n754.txt: $(m seen 2>&1 | head -3)"
+# Capture, then grep (the trap named at "CAPTURE FIRST, THEN GREP" above): grep -q leaves at its
+# first match, and an mrw seen that writes after that dies of SIGPIPE, 141 under pipefail. That
+# can fail this row with the name in the ledger; whether it is what failed it in CI is not known.
+# The capture is a condition too: an mrw seen that exits non-zero fails the row.
+seen754=$(m seen 2>&1) && grep -q 'n754.txt' <<<"$seen754" && ok "and the ledger holds it" || bad "setup: the ledger does not hold n754.txt, or mrw seen failed: $seen754"
 printf 'changed\n' > "$R/n754.txt"
 printf '@@ n754.txt 0 create\nz\n' > "$WORK/c754.plan"
 out=$(m write --no-check "$WORK/c754.plan" 2>&1); want 1 $? "a create of a path changed since its record exits 1"
