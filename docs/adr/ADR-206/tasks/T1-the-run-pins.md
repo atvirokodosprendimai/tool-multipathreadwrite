@@ -27,7 +27,7 @@ ADR-206 Decisions 2, 3, 5 and 6. The rows drive `Run` with the runner tests' fix
 | `--keep-diff` | `<attempt id>.diff` beside the receipt holds the attempt's diff against its base, its hash in the receipt |
 | configuration H with `--mrw-sha256` | the Read hook's `bin/mrw` is the pinned bytes |
 | a canary recorded with another mrw or instruction hash | the run refuses it |
-| none of the flags | `run.json` and the receipts hold what the same run holds today, plus `bench_revision` and `init_model` (compared without start and wall times) |
+| none of the flags | `run.json` and the receipts hold what the same run holds today, plus `bench_revision` and `init_model` (compared without start and wall times), and since ADR-211 `transcript_sha256` on a receipt that has a transcript; the canary rules ADR-211 Decision 8 gives every run apply (Invariants) |
 
 ## Affected Files
 
@@ -109,7 +109,7 @@ go test -count=1 -v ./internal/bench -run '^TestARunPinsItsMrwItsInstructionsAnd
 
 ## Invariants
 
-- A run that passes none of the flags behaves as before, with two recorded keys more. As ADR-211 amends it: such a run is still refused on a canary of another model or of none, and every receipt that has a transcript also carries `transcript_sha256`.
+- A run that passes none of the flags behaves as before, with two recorded keys more. As ADR-211 amends it (Decision 8): every run, pinned or not, needs a canary of each model it runs and of its own profile, so such a run is refused on a canary of another model, of no model or of another profile; and every receipt that has a transcript also carries `transcript_sha256`.
 - No package of `mrw` changes.
 
 ## Risks
