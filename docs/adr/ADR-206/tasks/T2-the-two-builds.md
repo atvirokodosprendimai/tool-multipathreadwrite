@@ -8,7 +8,7 @@
 **Consumes:** ADR-203's refusal (`internal/apply`), `writer.Land`
 **Data dependency:** needs the pinned tag in the local clone and the module cache; builds two binaries in a temporary directory (about a minute cold, an estimate). CI's shallow checkout has no tag, so the test is skipped there with its reason and the operator fence forbids the skip
 **Proof map:** v1
-**Rests-on:** `N lands the hunk M refuses`, `N logs one object per exposed landed hunk`, `a dry run and a refused plan log nothing`, `N still refuses an unread line`, `N says what M says`, `the log's failure changes nothing an agent sees`, `no tracked Go file holds the patch`
+**Rests-on:** `N lands the hunk M refuses`, `N logs one object per exposed landed hunk`, `a dry run and a refused plan log nothing`, `N still refuses an unread line`, `N says what M says`, `the log's failure changes nothing an agent sees but one stderr line`, `no tracked Go file holds the patch`
 
 ## Goal
 
@@ -101,6 +101,7 @@ go test -count=1 -v ./internal/bench -run '^TestArmNDiffersFromMInOneRefusal$' >
 - 2026-11-19 · 0da8265e · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:90b8e67864f72d49cf57e2a9b9973c7f4d01f37159b0418ba60c1ad1d74ba094 · ms:0 · test-lock-sha256:60aa3a98558132f91610e3e1b325ed8e3797ea62dec7a7037b1c88f951602a32 · test-lock-file:docs/adr/locks/60aa3a98558132f91610e3e1b325ed8e3797ea62dec7a7037b1c88f951602a32.lock · test-lock-kind:replace
 - 2026-11-19 · 0da8265e* · exit 0 · `set -o pipefail …` · acceptance-sha256:90b8e67864f72d49cf57e2a9b9973c7f4d01f37159b0418ba60c1ad1d74ba094 · ms:3796
 - 2026-11-25 · 1e55658d* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:90b8e67864f72d49cf57e2a9b9973c7f4d01f37159b0418ba60c1ad1d74ba094 · ms:14 · test-lock-sha256:d3ddea24e3d73733eeccdf64fefc9d28ceb68baeace5cf63660d72d254331512 · test-lock-file:docs/adr/locks/d3ddea24e3d73733eeccdf64fefc9d28ceb68baeace5cf63660d72d254331512.lock · test-lock-kind:replace
+- 2026-11-25 · 222928de* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:90b8e67864f72d49cf57e2a9b9973c7f4d01f37159b0418ba60c1ad1d74ba094 · ms:18 · test-lock-sha256:8a9c19d35bc25a4b938896e90deba0cc6cd36b2ace484692d442a9f99df9e5fd · test-lock-file:docs/adr/locks/8a9c19d35bc25a4b938896e90deba0cc6cd36b2ace484692d442a9f99df9e5fd.lock · test-lock-kind:replace
 
 ## Invariants
 

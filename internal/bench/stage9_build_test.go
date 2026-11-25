@@ -385,10 +385,13 @@ func TestArmNDiffersFromMInOneRefusal(t *testing.T) {
 	})
 
 	t.Run("a log path that is a directory, or a FIFO with no reader, changes nothing an agent sees but one stderr line", func(t *testing.T) {
-		if _, err := exec.LookPath("mkfifo"); err != nil {
-			t.Skip("mkfifo is not on PATH")
-		}
 		for _, kind := range []string{"directory", "FIFO"} {
+			// The directory case needs no tool: only the FIFO case is skipped without mkfifo.
+			if kind == "FIFO" {
+				if _, err := exec.LookPath("mkfifo"); err != nil {
+					t.Skip("mkfifo is not on PATH: the directory case ran, the FIFO case did not")
+				}
+			}
 			var runs [2]s9Run
 			for i := range runs {
 				root, state := s9Sandbox(t, filepath.Join(work, "badlog"))

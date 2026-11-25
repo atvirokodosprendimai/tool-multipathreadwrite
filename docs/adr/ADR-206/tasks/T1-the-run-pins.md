@@ -109,7 +109,7 @@ go test -count=1 -v ./internal/bench -run '^TestARunPinsItsMrwItsInstructionsAnd
 
 ## Invariants
 
-- A run that passes none of the flags behaves as before, with two recorded keys more.
+- A run that passes none of the flags behaves as before, with two recorded keys more. As ADR-211 amends it: such a run is still refused on a canary of another model or of none, and every receipt that has a transcript also carries `transcript_sha256`.
 - No package of `mrw` changes.
 
 ## Risks
