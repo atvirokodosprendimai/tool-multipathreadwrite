@@ -153,4 +153,4 @@ Revert T2, then T1. No state is migrated, the ledger format does not change, and
 ## Follow-ups
 
 - [x] The pilot's results, before the release that carries T2: `docs/break/code-mode-790/pilot/results.md` (2026-11-24, a miss by the letter) and `docs/break/code-mode-790/pilot2/results.md` (2026-11-25, the bar met).
-- [ ] The release note says that a Code Mode host must set `MRW_SHOWN=off`, and what the switch leaves (Decisions 1 and 4).
+- [x] The release note says that a Code Mode host must set `MRW_SHOWN=off`, and what the switch leaves (Decisions 1 and 4): the notes of the `v1.95.0` release, "Changes for callers", and its tag message.

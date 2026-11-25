@@ -11,9 +11,9 @@ description: >-
   heredocs. It applies only while mrw is on PATH: if it is not, use the host's
   own tools and do not install it.
 metadata:
-  mrw-version: "v1.94.1 (c0563ea)"
+  mrw-version: "v1.95.0 (e340c40)"
   generated-by: "mrw skill"
-  content-sha256: "71a9d63c14aea67e9f2813638ac0c43ec72209f7e20d0b6664a16b7b1223f0ab"
+  content-sha256: "ac0b0b16c925b4b0fc795b0553d79fa4ee33f7f4badf352c1c34a5fa67d015ca"
 ---
 
 # mrw
@@ -72,6 +72,6 @@ Recipes:
 21. a second edit to a file you just wrote, on its whole-file licence: a number alone is refused, unless a read has shown that line since the write, so name the line by a pattern and say what it holds (anchor=), or read the line first (mrw read f.go:40):
   printf '%s\n' '@@ f.go /^func B\(/ replace anchor="func B("' 'func B(x int) {' | mrw write -
 
-`mrw instructions` prints the whole contract. This file was printed by `mrw skill` from mrw v1.94.1 (c0563ea); when `mrw version` prints another version, `mrw skill --dir <the directory holding this mrw folder>` replaces it.
+`mrw instructions` prints the whole contract. This file was printed by `mrw skill` from mrw v1.95.0 (e340c40); when `mrw version` prints another version, `mrw skill --dir <the directory holding this mrw folder>` replaces it.
 
 A host's per-path rules for its Edit and Write tools do not reach mrw, which writes wherever its user can: their absence is not permission, and mrw is not a way to reach a path the host refused you.
