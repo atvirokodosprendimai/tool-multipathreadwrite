@@ -27,7 +27,7 @@ ADR-206 Decisions 2, 3, 5 and 6. The rows drive `Run` with the runner tests' fix
 | `--keep-diff` | `<attempt id>.diff` beside the receipt holds the attempt's diff against its base, its hash in the receipt |
 | configuration H with `--mrw-sha256` | the Read hook's `bin/mrw` is the pinned bytes |
 | a canary recorded with another mrw or instruction hash | the run refuses it |
-| none of the flags | `run.json` and the receipts hold what the same run holds today, plus `bench_revision` and `init_model` (compared without start and wall times), and since ADR-211 `transcript_sha256` on a receipt that has a transcript; the canary rules ADR-211 Decision 8 gives every run apply (Invariants) |
+| none of the flags | `run.json` and the receipts hold what the same run holds today, plus `bench_revision` and `init_model` (compared without start and wall times), and since ADR-211 `transcript_sha256` on a receipt that has a transcript |
 
 ## Affected Files
 
