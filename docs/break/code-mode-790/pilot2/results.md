@@ -45,18 +45,22 @@ native plans.
 ## Found by review after the run: where the counter is wrong, and that no such input occurred
 
 A review of the frozen files (Codex, 2026-11-25) showed inputs the counter gets wrong. The files stay as
-frozen; each was then looked for by hand in all 162 `Bash` rows and 16 `Write` rows of the 30 logs.
+frozen; each was then looked for by hand in all 162 `Bash` rows and 16 `Write` rows of the 30 logs. Every
+command was split at `;`, `&` and `|` outside quotes, heredoc bodies set aside, and the program of each part
+listed. The whole list: `mrw` 131 (`instructions` 40, `read` 45, `write` 46: the 36 counted, nine `--help`,
+one `--dry-run`), `git` 48 (`diff` 43, `status` 5), `echo` 14, `grep` 10, `printf` 10, `cat` 5, `head` 1,
+`mkdir` 1. No row runs `cp`, `mv`, `tee`, `sed`, `perl`, Python or any other program.
 
 | The counter's defect | In the 30 logs |
 |---|---|
-| a non-mrw writer chained after a counted write is not checked (`mrw write p; printf x > pkg/n`), and the digest reads only `pkg/*.go` | none: every redirect, `mkdir` and `Write` target is in the session's own scratch folder, outside the fixture folder |
+| a non-mrw writer chained after a counted write is not checked (`mrw write p; cp /tmp/n pkg/n.txt`), and the digest reads only `pkg/*.go` | none: of the programs listed above only `cat`, `printf` and `echo` with a redirect, and `mkdir`, can write, and every redirect, `mkdir` and `Write` target is in the session's own scratch folder, outside the fixture folder |
 | `python3 --version` alone would void a run | no row runs Python |
 | `mrw --root=. write` is not counted; a quoted `'--help'` is counted | neither spelling occurs |
 | a quoted `|`, `;` or `&` before `--dry-run` splits the command | does not occur; the one dry run is excluded |
 | the form is read from the whole row, so a help row chained with a write could mislabel it | no row holds two `mrw write` |
 | a command cut at 4,000 characters could lose a flag | no command was cut |
 | `PKG/` passes the `pkg/` test on a case-folding volume | no target path holds `pkg` in any case |
-| `"mutation": "complete"` from another command, or a refusal phrase from `mrw instructions` in the same row as a write | no row without `--json` holds the key; no row holds both `instructions` and a write |
+| `"mutation": "complete"` from another command, or a refusal phrase from `mrw instructions` in the same row as a write | no row holds `--json`, so no landing was read from that key: all 36 are the receipt's last line; no row holds both `instructions` and a write |
 
 Two sentences of the frozen `README.md` are loose and are corrected here, not there: the first pilot missed
 on clause 1 alone, by its two void rules, not by a counting rule; and "`mrw write --help` is not a write"

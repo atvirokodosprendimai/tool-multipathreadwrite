@@ -576,7 +576,7 @@ whole list arrives as one argument and the regex swallows the rest of the line.
   `End` (ADR-052). Single-line replace is unchanged. When `End` is the last line
   the licence is skipped. A ranged read, on the CLI and on `mrw_read`, serves the line
   after each range that ends before the file does, numbered and, when it is served whole and not cut by `--max-cols`, licensed (on `mrw_read` once the checkpoint
-  that holds it is acknowledged: the one that brackets the range, or the next one when the range fills a checkpoint's 200 lines; it is counted in that checkpoint's `N lines follow`), so a
+  that holds that line is acknowledged, which is not always the one that holds the range's last line; it is counted in its own checkpoint's `N lines follow`), so a
   replace of exactly the lines read is not refused for it (ADR-161), unless the read was
   `--quiet` (below) or a CLI read made under `MRW_SHOWN=off` (above). A page of `mrw_read` adds none, since its continuation serves the
   line a page ends on.
