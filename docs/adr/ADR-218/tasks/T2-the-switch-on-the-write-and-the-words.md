@@ -110,6 +110,7 @@ What each clause holds. The three tests pass, each of the thirteen named cases p
 - 2026-11-24 · 11ee2a9f* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:9a9ef67a3e92e0e602118302d09fc201082c081eea9bb1fd6d0c462210bb4c3b · ms:955
 - 2026-11-24 · 985131f7* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:9a9ef67a3e92e0e602118302d09fc201082c081eea9bb1fd6d0c462210bb4c3b · ms:888
 - 2026-11-24 · 6b14338a* · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:9a9ef67a3e92e0e602118302d09fc201082c081eea9bb1fd6d0c462210bb4c3b · ms:980
+- 2026-11-25 · human-observed · Claude (session of 2026-11-25) observed S5 run again on the owner's word (Zy: fix red, run pilot) under docs/break/code-mode-790/pilot2/README.md, frozen at 148a1d64 before any session: 30 runs on Claude Code 2.1.332 with mrw dev (148a1d6), all valid and ending with the task's digest; the switched arm had no refused write and landed a search_replace block in every run of tasks 3-5; the bar's four clauses are met. The rerun relaxed one void rule after data was seen (a host Write voids a run only under pkg/); docs/break/code-mode-790/pilot2/results.md says so and holds the lines. · acceptance-sha256:9a9ef67a3e92e0e602118302d09fc201082c081eea9bb1fd6d0c462210bb4c3b
 
 ## Invariants
 
