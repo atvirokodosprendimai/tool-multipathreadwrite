@@ -85,6 +85,7 @@ cmp a "$trial/expected"
   bench/content-edit/main_test.go:157:12: undefined: execute
   ```
 - 2026-11-22 · 724d564e* · exit 0 · `set -eu …` · acceptance-sha256:bb126c65793c5e229744964c199247a9180cb9fdba53c5460f73ae3e8a8376f8 · ms:1519
+- 2026-11-25 · 1e55658d* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:bb126c65793c5e229744964c199247a9180cb9fdba53c5460f73ae3e8a8376f8 · ms:58 · test-lock-sha256:13cd68078427b7237e2b92de1ccf480f19d1c706f108a1679851e4d63b218af7 · test-lock-file:docs/adr/locks/13cd68078427b7237e2b92de1ccf480f19d1c706f108a1679851e4d63b218af7.lock · test-lock-kind:replace
 
 ## Mutation Log
 - 2026-11-22 · 724d564e* · mutant killed · exit 1 · `bench/content-edit/main.go` · Choosing the last repeated block instead of returning an ambiguous-match error must fail the batch-refusal test. · acceptance-sha256:43d37e791348c9a963857caceacc07a793c1e232ff8fdda297fa3484c8de8624

@@ -72,6 +72,7 @@ python3 -B -m unittest discover -s scripts -p 'test_bench_stage9.py' 2> "${TMPDI
 - 2026-11-20 · 89ae41a5* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:d4165a7078b709ce8ecf35441edbc3b8fd71bec6cea7fd605430a27c6f375351 · ms:0 · test-lock-sha256:ae614c9174bf4665f30170d92aac1514b00796e865f4c8e348b2a40cedc9d2a6 · test-lock-file:docs/adr/locks/ae614c9174bf4665f30170d92aac1514b00796e865f4c8e348b2a40cedc9d2a6.lock · test-lock-kind:replace
 - 2026-11-20 · 89ae41a5* · exit 0 · `set -o pipefail …` · acceptance-sha256:d4165a7078b709ce8ecf35441edbc3b8fd71bec6cea7fd605430a27c6f375351 · ms:588
 - 2026-11-20 · 89ae41a5* · exit 0 · `set -o pipefail …` · acceptance-sha256:d4165a7078b709ce8ecf35441edbc3b8fd71bec6cea7fd605430a27c6f375351 · ms:736
+- 2026-11-25 · 1e55658d* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:d4165a7078b709ce8ecf35441edbc3b8fd71bec6cea7fd605430a27c6f375351 · ms:35 · test-lock-sha256:37093683b8ec0c14ac28623e306b9f4f148f7c5da2f8db1fcbecba297e89f414 · test-lock-file:docs/adr/locks/37093683b8ec0c14ac28623e306b9f4f148f7c5da2f8db1fcbecba297e89f414.lock · test-lock-kind:replace
 
 ## Invariants
 

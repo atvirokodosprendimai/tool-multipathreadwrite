@@ -141,6 +141,7 @@ out="$(mktemp)" \
 - 2026-11-21 · human-observed · the final table of one-file writes, which supersedes the two rows above on the lookup (the figures 14.2 to 16.7 ms and 12.6 to 22.2 ms): main `10b83cc2` against the branch `6584d9e1`, 9 rotating runs each and a second copy of main as a control, the owner's Mac, load 3.2 to 6.2: (a) 20 entries main 18.6 ms, branch 17.7 ms, control 17.8 ms; (b) 100,000 entries, one name 21.3, 21.1 and 20.5 ms; (c) two names 21.2, 21.0 and 20.7 ms. The +9.6 ms of the row before came from comparing a main built before ADR-210 with a branch that holds ADR-210's directory and temp syncs: ADR-210's cost, not this record's. The earlier 14.2 to 16.7 ms row compared two builds without ADR-210 and is consistent with this one inside noise. Linux and Windows are not measured.
 - 2026-11-21 · cb028dcb · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:6a24744ed070c38f252d0bbaacded5e8df65ce9ee5137547e629796a8fe282c8 · ms:982
 - 2026-11-21 · 6463edea · exit 0 · `out="$(mktemp)" \ …` · acceptance-sha256:6a24744ed070c38f252d0bbaacded5e8df65ce9ee5137547e629796a8fe282c8 · ms:5007
+- 2026-11-25 · 1e55658d* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:6a24744ed070c38f252d0bbaacded5e8df65ce9ee5137547e629796a8fe282c8 · ms:15 · test-lock-sha256:5e8265c8f9398bc97bbfcc8efe92d7882ac27096410e79c2e8c90599ac29c639 · test-lock-file:docs/adr/locks/5e8265c8f9398bc97bbfcc8efe92d7882ac27096410e79c2e8c90599ac29c639.lock · test-lock-kind:replace
 
 ## Invariants
 
