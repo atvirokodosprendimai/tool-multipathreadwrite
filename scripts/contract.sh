@@ -173,6 +173,9 @@ fi
 # is unset before anything is spawned; a caller that forges it to its own
 # pid on purpose is defeating the wrapper deliberately, and may.
 unset CONTRACT_GROUP CONTRACT_INNER
+# ADR-218: a caller's own MRW_SHOWN would make every read here licence-only;
+# the rows that mean it set it themselves (§385, §386).
+unset MRW_SHOWN
 
 # The repository and this script, captured once and absolutely. Every later
 # path used to be rebuilt from "$0" after this cd, and from inside scripts/ that
@@ -12459,6 +12462,77 @@ cmp -s "$WORK/want384" "$R/copy384" && ok "the copy contains precisely the four 
 printf '@@ denied384 0 create from=another384:5\n' | m write --no-check - > "$WORK/o384" 2>&1
 want 1 $? "line 5 was shown under no spelling"
 [ ! -e "$R/denied384" ] && ok "the refused copy created no file" || bad "the unshown line was copied"
+
+# 385. ADR-218: with MRW_SHOWN=off in mrw's environment a read prints what it
+# prints without it and records its lines as licensed and not shown, saying so on
+# standard error, and `mrw hook read` records a host Read's lines the same way,
+# whatever id the payload carries. The pairs: without the switch both record a
+# showing and the read says nothing of it; and Claude Code's Code Mode variable
+# alone changes nothing, since mrw detects no host.
+R385=$(mktemp -d "$WORK/r385-XXXXXX"); r385=$(cd "$R385" && pwd -P)
+for f in plain off hplain hoff cm; do printf 'one\ntwo\nthree\nfour\nfive\n' > "$R385/$f.txt"; done
+e385() { env -u CLAUDE_CODE_EXPERIMENTAL_CODE_MODE XDG_STATE_HOME="$R385/state" "$@"; }
+p385() { printf '{"hook_event_name":"PostToolUse","tool_name":"Read","tool_use_id":"repl_385","tool_input":{"file_path":"%s/%s","offset":2,"limit":2},"tool_response":{"type":"text","file":{"filePath":"%s/%s","content":"two\\nthree","numLines":2,"startLine":2,"totalLines":6}},"cwd":"%s"}' "$r385" "$1" "$r385" "$1" "$r385"; }
+e385 "$MRW" -C "$R385" read plain.txt:2 > "$WORK/p385.out" 2> "$WORK/p385.err"; want 0 $? "a plain ranged read"
+e385 env MRW_SHOWN=off "$MRW" -C "$R385" read off.txt:2 > "$WORK/s385.out" 2> "$WORK/s385.err"; want 0 $? "the same read under MRW_SHOWN=off"
+cmp -s <(sed 's/plain\.txt/X/' "$WORK/p385.out") <(sed 's/off\.txt/X/' "$WORK/s385.out") && ok "prints the same lines" || bad "switched read output: $(cat "$WORK/s385.out")"
+{ grep -q '^mrw: recorded as licensed, not shown (MRW_SHOWN=off)' "$WORK/s385.err" && ! grep -q 'MRW_SHOWN' "$WORK/p385.err"; } \
+  && ok "and says on standard error that it recorded no showing, which the plain read does not" || bad "stderr: [$(cat "$WORK/s385.err")] plain [$(cat "$WORK/p385.err")]"
+p385 hplain.txt | e385 "$MRW" hook read > "$WORK/h385" 2>&1; want 0 $? "mrw hook read, no switch"
+p385 hoff.txt | e385 env MRW_SHOWN=off "$MRW" hook read >> "$WORK/h385" 2>&1; want 0 $? "mrw hook read under MRW_SHOWN=off"
+[ ! -s "$WORK/h385" ] && ok "the hook prints nothing either way" || bad "hook output: $(cat "$WORK/h385")"
+e385 env CLAUDE_CODE_EXPERIMENTAL_CODE_MODE=1 "$MRW" -C "$R385" read cm.txt:2 > "$WORK/c385.out" 2> "$WORK/c385.err"; want 0 $? "a read with only Code Mode's variable set"
+l385=$(e385 "$MRW" -C "$R385" seen 2>&1)
+{ grep -Eq '  no lines, and licensed lines 2-3  off\.txt$' <<<"$l385" && grep -Eq '  no lines, and licensed lines 2-3  hoff\.txt$' <<<"$l385"; } \
+  && ok "the ledger holds the switched read's and the switched hook's lines as licensed, shown to nobody" || bad "switched ledger: $l385"
+{ grep -Eq '  lines 2-3 +plain\.txt$' <<<"$l385" && grep -Eq '  lines 2-3 +hplain\.txt$' <<<"$l385" && grep -Eq '  lines 2-3 +cm\.txt$' <<<"$l385" && ! grep -q 'MRW_SHOWN' "$WORK/c385.err"; } \
+  && ok "the pairs: without the switch the read, the hook with a repl_ id, and a read under Code Mode's variable each record a showing" || bad "plain ledger: $l385"
+rm -rf "$R385" "$WORK"/?385.* "$WORK/h385"
+
+# 386. ADR-218: with MRW_SHOWN=off a write refuses a line number alone on a line
+# with no recorded showing, on a partial licence too, and the reason names a
+# pattern, anchor= and the block form and no read; anchor= then applies. A native
+# multi-line replace that ends above the last line is refused naming the block
+# form, and the block applies. The pair: without the switch the same partial
+# licence takes a number alone, as it did before this record.
+R386=$(mktemp -d "$WORK/r386-XXXXXX")
+for f in a b c; do printf 'one\ntwo\nthree\nfour\nfive\n' > "$R386/$f.txt"; done
+e386() { env XDG_STATE_HOME="$R386/state" "$MRW" -C "$R386" "$@"; }
+s386() { env XDG_STATE_HOME="$R386/state" MRW_SHOWN=off "$MRW" -C "$R386" "$@"; }
+s386 read a.txt:2 > "$WORK/r386.out" 2>&1; want 0 $? "a ranged read under MRW_SHOWN=off"
+out=$(printf '@@ a.txt 2 replace\nTWO\n' | s386 write --no-check - 2>&1); want 1 $? "a number alone on the line it licensed and showed to nobody"
+{ grep -q 'line 2 of a.txt has no recorded showing in this version' <<<"$out" && grep -q 'give anchor=, or send the edit as a search_replace block (reads here record no showing: MRW_SHOWN=off)' <<<"$out" \
+  && ! grep -Eq 'mrw read|Read it whole' <<<"$out" && [ "$(sed -n 2p "$R386/a.txt")" = two ]; } \
+  && ok "is refused, naming anchor=, a pattern and the block form and no read, the file untouched" || bad "number alone under the switch: $out"
+out=$(printf '@@ a.txt 2 replace anchor="two"\nTWO\n' | s386 write --no-check - 2>&1); want 0 $? "the same edit with anchor="
+[ "$(sed -n 2p "$R386/a.txt")" = TWO ] && ok "applies" || bad "anchor under the switch: $out"
+e386 read --quiet b.txt:2 > "$WORK/r386.out" 2>&1; want 0 $? "the pair: the same licence from a ranged --quiet read, no switch"
+out=$(printf '@@ b.txt 2 replace\nTWO\n' | e386 write --no-check - 2>&1); want 0 $? "takes a number alone"
+[ "$(sed -n 2p "$R386/b.txt")" = TWO ] && ok "and the line is written, as before this record" || bad "number alone without the switch: $out"
+s386 read c.txt > "$WORK/r386.out" 2>&1; want 0 $? "a whole read under the switch"
+out=$(printf '@@ c.txt 2-3 replace anchor="two"\nTWO\nTHREE\n' | s386 write --no-check - 2>&1); want 1 $? "a native multi-line replace ending above the last line"
+{ grep -q 'needs a served line after 3' <<<"$out" && grep -q 'mrw write --format=search_replace' <<<"$out" && grep -q 'MRW_SHOWN=off' <<<"$out" \
+  && ! grep -Eq 'mrw read|the read to make' <<<"$out" && cmp -s "$R386/c.txt" <(printf 'one\ntwo\nthree\nfour\nfive\n'); } \
+  && ok "is refused naming the block form and no read, the file untouched" || bad "multi-line under the switch: $out"
+out=$(printf 'c.txt\n<<<<<<< SEARCH\ntwo\nthree\nfour\n=======\nTWO\nTHREE\nfour\n>>>>>>> REPLACE\n' | s386 write --no-check --format=search_replace - 2>&1); want 0 $? "the same edit as a block that ends SEARCH and REPLACE in the same line"
+cmp -s "$R386/c.txt" <(printf 'one\nTWO\nTHREE\nfour\nfive\n') && ok "applies, the kept line untouched" || bad "block under the switch: $out"
+# occurrence= and from= under the switch: each is refused where its lines were shown
+# to nobody, naming no read, and each lands on a showing recorded before the switch.
+for f in d e; do printf 'x\ny\nx\ny\n' > "$R386/$f.txt"; done
+s386 read d.txt > "$WORK/r386.out" 2>&1; want 0 $? "a switched read of a file with two matching lines"
+out=$(printf '@@ d.txt /^x$/ replace occurrence=2\nX\n' | s386 write --no-check - 2>&1); want 1 $? "occurrence=2 with the earlier match shown to nobody"
+{ grep -q 'name the line by number with anchor=, or pass --force (reads here record no showing: MRW_SHOWN=off)' <<<"$out" && ! grep -Eq 'read them|mrw read' <<<"$out"; } \
+  && ok "is refused naming anchor= and --force and no read" || bad "occurrence under the switch: $out"
+e386 read e.txt:1 > "$WORK/r386.out" 2>&1; s386 read e.txt > "$WORK/r386.out" 2>&1
+out=$(printf '@@ e.txt /^x$/ replace occurrence=2\nX\n' | s386 write --no-check - 2>&1); want 0 $? "the pair: the earlier match shown before the switch"
+[ "$(sed -n 3p "$R386/e.txt")" = X ] && ok "and occurrence=2 lands on the second match" || bad "occurrence with a showing: $out"
+out=$(printf '@@ copy1.txt 0 create from=d.txt:1-2\n' | s386 write --no-check - 2>&1); want 1 $? "a from= copy of lines shown to nobody"
+{ grep -q 'type the lines in the plan (reads here record no showing: MRW_SHOWN=off)' <<<"$out" && ! grep -Eq 'Read them first|mrw read' <<<"$out" && [ ! -e "$R386/copy1.txt" ]; } \
+  && ok "is refused naming no read, and makes no file" || bad "from under the switch: $out"
+e386 read b.txt:4-5 > "$WORK/r386.out" 2>&1
+out=$(printf '@@ copy2.txt 0 create from=b.txt:4-5\n' | s386 write --no-check - 2>&1); want 0 $? "the pair: a copy of lines shown before the switch"
+cmp -s "$R386/copy2.txt" <(printf 'four\nfive\n') && ok "copies them" || bad "from with a showing: $out"
+rm -rf "$R386" "$WORK/r386.out"
 
 # 378. #754: a create of a path the ledger holds a record for, at another version
 # than the file has now, says the path exists and that a create never overwrites,

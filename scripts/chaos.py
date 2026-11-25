@@ -62,7 +62,8 @@ while True:
 SEED = int(sys.argv[sys.argv.index("--seed") + 1]) if "--seed" in sys.argv else int(time.time())
 SCALE = float(sys.argv[sys.argv.index("--scale") + 1]) if "--scale" in sys.argv else 1.0
 rng = random.Random(SEED)
-ENV = dict(os.environ, XDG_STATE_HOME=os.path.join(WORK, "state"))
+# MRW_SHOWN is pinned: a caller's own "off" would refuse the numbered plans the suites submit (ADR-218).
+ENV = dict(os.environ, XDG_STATE_HOME=os.path.join(WORK, "state"), MRW_SHOWN="on")
 FAILS, STATS = [], {}
 os.makedirs(os.path.join(WORK, "fail"), exist_ok=True)
 

@@ -4,6 +4,7 @@
 # and never aborts the script. A hang is caught by a 5s alarm (exit 142).
 MRW=${MRW:?}
 W=$(mktemp -d); export XDG_STATE_HOME="$W/state"; mkdir -p "$XDG_STATE_HOME"
+export MRW_SHOWN=on   # ADR-218: a caller's own "off" would refuse the numbered plans the probes submit
 t() { perl -e 'alarm shift; exec @ARGV' 5 "$@"; }
 fresh() { R="$W/r$RANDOM$RANDOM"; mkdir -p "$R"; cd "$R" || exit 9; }
 say() { printf '[%s] exit=%s  %s\n' "$1" "$2" "$(printf '%s' "$3" | tr '\n' ' ' | tr -s ' ')"; }  # one line per probe, whatever the tool printed

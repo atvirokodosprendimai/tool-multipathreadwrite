@@ -1664,21 +1664,27 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 			// what lets a later write know whether its picture is still current.
 			// ADR-133: an answer sent to the null device reached nobody, so it
 			// licenses nothing — the one discard on the CLI that mrw can see.
+			// ADR-218 Decision 2: under MRW_SHOWN=off a content read records what
+			// a --quiet read records, for the files it served a line of. A read to
+			// the null device records nothing either way, and a read that served
+			// no line (--stat, a count, a projection) has no showing to withhold,
+			// so the switch is not consulted for either.
+			shownIsOff := !toNullDevice(os.Stdout) && !cmd.Bool("quiet") && showedALine(observed) && shownOff()
+			recording := recordedAs(cmd.Bool("quiet"), observed)
+			if shownIsOff {
+				recording = shownOffRecord(observed)
+			}
 			if toNullDevice(os.Stdout) {
 				// Only a read that served lines has lines to name: a --stat or
 				// --max-lines 0 serves none (the stress runs of 25f4f04). Nil
 				// Spans is a whole-file read, every line served (seen.Observation).
-				served := false
-				for _, o := range observed {
-					served = served || o.Spans == nil || len(o.Spans) > 0
-				}
-				if served {
+				if servedALine(observed) {
 					fmt.Fprintln(os.Stderr, "mrw: the answer went to the null device, so nothing was recorded: a write to these lines needs a read whose answer you see; on unix a stdout closed when mrw starts is the null device too (ADR-133); read again without redirecting, or license lines you already know with `mrw read --quiet SPEC`; in a file mrw wrote, or read whole with --quiet, a plan then names them by pattern or anchor=, since a number alone needs the line shown (ADR-203)")
 					if line := stillLicensed(root, observed); line != "" {
 						fmt.Fprintln(os.Stderr, line)
 					}
 				}
-			} else if err := seen.Record(root, recordedAs(cmd.Bool("quiet"), observed)); err != nil {
+			} else if err := seen.Record(root, recording); err != nil {
 				// ADR-166: a content read whose ledger cannot be written has
 				// served its answer; it records nothing new and says so, last,
 				// with the read's own exit. A --quiet read exists to record, so
@@ -1692,6 +1698,22 @@ Ranges print as "@@ 3-6", which is exactly the address a write plan takes.`,
 				// could not keep is refused, not reported (ADR-166 Decision 3).
 				if err := seen.Unrecorded(root, recordedAs(true, observed)); err != nil {
 					return exitWith(err)
+				}
+			} else if shownIsOff {
+				// Said only for a licence the ledger kept. A newer mrw's ledger is
+				// left alone and has said so at startup; a name or a record the
+				// ledger cannot hold is named here, before any kind line, and the
+				// read's own exit stands.
+				var omitted *seen.OmittedError
+				if err := seen.Unrecorded(root, recording); err == nil {
+					fmt.Fprintln(os.Stderr, shownOffNote)
+				} else if errors.As(err, &omitted) {
+					fmt.Fprintln(os.Stderr, "mrw:", err)
+					if omitted.Size || omitted.MergeSize {
+						// The error advises reading again, and a switched read would
+						// meet the same record: say what does fit.
+						fmt.Fprintln(os.Stderr, "mrw: under MRW_SHOWN=off the same read meets the same record; a read of the whole file made without the variable, with no range, cut or cap, records it in one whole-file entry")
+					}
 				}
 			}
 			problems += len(refusals)
@@ -2337,6 +2359,9 @@ held or went unchecked.`,
 					SameCallRewrite: cmd.IsSet("rewrite"),
 					// The read a refusal names is pasted where the caller is.
 					RemedyRoot: remedyRoot(cmd),
+					// ADR-218: under MRW_SHOWN=off the write asks for no showing
+					// a read here could not have recorded.
+					NoShowing: shownOff(),
 				},
 			})
 			if err != nil {

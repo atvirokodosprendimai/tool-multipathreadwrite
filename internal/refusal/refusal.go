@@ -33,7 +33,8 @@ const (
 	OccurrenceAddress Kind = "occurrence-address"
 	// StaleNumber is a hunk that names a line by number alone, in a file mrw
 	// wrote, on a line no read has shown in that version (ADR-203): an earlier
-	// write may have moved the line the number meant.
+	// write may have moved the line the number meant. Under MRW_SHOWN=off it is
+	// also such a hunk on a line a read licensed and showed to nobody (ADR-218).
 	StaleNumber Kind = "stale-number"
 	// LineAfter is a multi-line replace on a file mrw wrote whose line after the
 	// range no read has shown since the write (ADR-208). The MCP surface answers

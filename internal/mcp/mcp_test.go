@@ -30,6 +30,9 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 	os.Setenv("XDG_STATE_HOME", base)
+	// ADR-218: the CLI these tests run inherits this process's environment, and
+	// a developer's own MRW_SHOWN=off would make its reads licence-only.
+	os.Unsetenv("MRW_SHOWN")
 	code := m.Run()
 	if cliOnce.dir != "" {
 		os.RemoveAll(cliOnce.dir)

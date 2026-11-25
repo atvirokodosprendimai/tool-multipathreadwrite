@@ -297,3 +297,43 @@ a Read that fails sends no payload. A host that sends a different shape records 
 - **The ledger holds what another tool showed.** Its truth rests on the host's payload. Run `mrw seen --forget` after a
   compaction, as §8 says: a licence the hook recorded is forgotten with the rest.
 - **Only Read.** Grep output and shell `cat` are not licensed: what reached the model is not in the payload.
+
+## 10. A host where a script runs the commands
+
+In Claude Code's Code Mode the model calls one tool with code, the code calls `Bash` and `Read`, and the model
+receives what the code returns. A `mrw read` made that way prints its lines to the script, and mrw, seeing a pipe as
+it always does, used to record them as shown to a reader who may have received the word `ok` (issue #790,
+measured on Claude Code 2.1.331). Two of mrw's refusals rest on a showing: a line number alone in a file mrw wrote,
+and the line below a multi-line replace.
+
+Set `MRW_SHOWN=off` for the session. In the project's `.claude/settings.json` (or the user's):
+
+<!-- ADR-218 switch -->
+```json
+{
+  "env": { "MRW_SHOWN": "off" }
+}
+```
+
+Measured: that setting reaches both an inner `Bash` call and the hook process of §9. With it:
+
+- **`mrw read` prints what it prints and records its lines as licensed, not shown**, for each file it printed a whole line of (an empty file, a `--stat` and a line `--max-cols` cut are left as they are), and a read of named files that printed one says so on standard error once the ledger has kept the licence.
+  `mrw hook read` records a host Read's lines the same way, whatever id the payload carries.
+- **`mrw write` refuses a line number alone on any line with no recorded showing**, on a partial licence too. The
+  reasons name what works: a pattern, `anchor=`, or the edit as a `search_replace` block. A multi-line replace that
+  ends above the last line goes as a block whose SEARCH and REPLACE end in the same line.
+- **`occurrence=N` above 1 needs the earlier matches shown**: name the line by number with `anchor=`, or pass `--force`. **A `from=` copy needs its lines shown**: type them. A showing recorded before the switch serves both.
+
+What it does not do, so that nobody reads it as more:
+
+- **It stops new showings; it does not remove old ones.** The ledger belongs to the checkout and the state home. A
+  showing recorded before the session, by another session, or by an `mrw_read` acknowledgement still serves a write.
+  Run `mrw seen --forget` from a `SessionStart` hook, as §8 does after a compaction, or give the session its own
+  `XDG_STATE_HOME`.
+- **A licence is still the caller's word** for `--force`, a `$` start, a position-only insert, `unlink`, `rename`, a
+  single line named by pattern or `anchor=`, and a plan mrw computes (`--sub`, `--rewrite`): the number rule does not judge those, as
+  without the switch. The line-after rule is not changed by the switch, only the remedy its refusal names. A pattern, an anchor and a block check text against the file; nothing checks who read it.
+- **mrw detects no host.** A Code Mode session that does not set the variable behaves as before. `mrw_read` and
+  `mrw_write` do not read it: over MCP a showing is an acknowledgement (§4).
+- **The model still has to see the lines.** Have the script return what it read; the switch makes mrw stop claiming
+  it did.

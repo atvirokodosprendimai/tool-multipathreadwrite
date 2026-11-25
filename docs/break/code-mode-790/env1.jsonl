@@ -1,0 +1,6 @@
+{"event": "PreToolUse", "tool": "REPL", "id": "toolu_id-0001", "MRW_SHOWN": "off", "CODE_MODE": "1", "command": null}
+{"event": "PreToolUse", "tool": "Bash", "id": "repl_id-0002", "MRW_SHOWN": "off", "CODE_MODE": "1", "command": "echo SHOWN=$MRW_SHOWN"}
+{"event": "PostToolUse", "tool": "Bash", "id": "repl_id-0002", "MRW_SHOWN": "off", "CODE_MODE": "1", "command": "echo SHOWN=$MRW_SHOWN"}
+{"event": "PreToolUse", "tool": "Read", "id": "repl_id-0003", "MRW_SHOWN": "off", "CODE_MODE": "1", "command": null}
+{"event": "PostToolUse", "tool": "Read", "id": "repl_id-0003", "MRW_SHOWN": "off", "CODE_MODE": "1", "command": null}
+{"event": "PostToolUse", "tool": "REPL", "id": "toolu_id-0001", "MRW_SHOWN": "off", "CODE_MODE": "1", "command": null}

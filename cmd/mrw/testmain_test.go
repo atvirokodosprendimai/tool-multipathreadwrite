@@ -17,6 +17,9 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 	os.Setenv("XDG_STATE_HOME", base)
+	// ADR-218: a developer's own MRW_SHOWN=off, which a host sets for a session,
+	// would make every read here licence-only. The tests that mean it set it.
+	os.Unsetenv("MRW_SHOWN")
 	code := m.Run()
 	os.RemoveAll(base)
 	os.Exit(code)

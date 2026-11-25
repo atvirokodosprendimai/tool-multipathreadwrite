@@ -8,7 +8,8 @@ name: release-smoke-brew
 # entry for the archive's binary, and a small read, write and refused write.
 # Formula inspection is not installation evidence; this is. It gates nothing.
 # After merge: `gh workflow run release-smoke-brew.yml -f tag=vX.Y.Z`; it also
-# runs on a pull request that changes this file.
+# runs on a pull request that changes this file, against the default tag below,
+# which must then be the release the tap serves now: raise it in that change.
 on:
   workflow_dispatch:
     inputs:
@@ -23,9 +24,11 @@ permissions:
   contents: read
 
 env:
-  TAG: ${{ inputs.tag || 'v1.77.1' }}
+  TAG: ${{ inputs.tag || 'v1.94.1' }}
   HOMEBREW_NO_AUTO_UPDATE: "1"
   HOMEBREW_NO_INSTALL_CLEANUP: "1"
+  # ADR-218: the smoke plans name lines by number, which a release that reads MRW_SHOWN refuses under "off"; pinned so a runner's own value cannot reach one.
+  MRW_SHOWN: "on"
 
 jobs:
   install:
