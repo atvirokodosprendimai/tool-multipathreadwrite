@@ -122,6 +122,7 @@ What each clause holds. The four named tests exist, pass and none is skipped; th
 - 2026-11-26 · 4f4b18e7* · mutant killed · exit 1 · `internal/apply/apply.go` · a skipped sibling reports its numeric bounds, not the address written · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · covers:a refused plan writes nothing and its siblings skip
 - 2026-11-26 · f4b15769* · mutant killed · exit 1 · `internal/apply/pathop.go` · an @ anywhere is offered, so a rename destination @@ x is read as a header · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · covers:a message names a spelling only when it is clear
 - 2026-11-26 · f4b15769* · mutant killed · exit 1 · `internal/apply/pathop.go` · a name with = and single quotes is offered, and the header parser reads it as another name · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · covers:a message names a spelling only when it is clear
+- 2026-11-26 · b2c852f0* · mutant killed · exit 1 · `internal/apply/pathop.go` · a remainder of spaces is offered as a rename body line the parser refuses · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · covers:a message names a spelling only when it is clear
 
 ## Verification Log
 - 2026-11-21 · 13b61937 · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:8556
@@ -173,6 +174,9 @@ What each clause holds. The four named tests exist, pass and none is skipped; th
 - 2026-11-26 · f4b15769* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:7354
 - 2026-11-26 · 7d7aa370* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:23 · test-lock-sha256:723ab1bd67b1469c1dc528a9d83cedd5fe8132be0e70eeb8e12910869495b2f2 · test-lock-file:docs/adr/locks/723ab1bd67b1469c1dc528a9d83cedd5fe8132be0e70eeb8e12910869495b2f2.lock · test-lock-kind:replace
 - 2026-11-26 · 7d7aa370* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:5535
+- 2026-11-26 · b2c852f0* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:20 · test-lock-sha256:b61e8a1884e3ebec7cb0e3c1de8c5a38429e712d6e03666e702d3a73af59874c · test-lock-file:docs/adr/locks/b61e8a1884e3ebec7cb0e3c1de8c5a38429e712d6e03666e702d3a73af59874c.lock · test-lock-kind:replace
+- 2026-11-26 · b2c852f0* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:8240
+- 2026-11-26 · b2c852f0* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:6971
 
 ## Invariants
 
