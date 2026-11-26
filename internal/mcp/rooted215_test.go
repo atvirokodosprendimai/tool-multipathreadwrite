@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/iter"
 )
 
 // ADR-215 Decision 6. mrw_write and the CLI are one engine: a rooted plan path
@@ -12,14 +14,17 @@ import (
 // the sentence and the valid sibling skipped, and nothing is written.
 func TestMrwWriteRefusesARootedPathLikeTheCLI(t *testing.T) {
 	for _, c := range []struct {
-		name string
-		plan func(root string) string
+		name    string
+		plan    func(root string) string
+		pointer bool // the working set holds /dd/zz.txt and the plan names it as @1
 	}{
-		{"a replace", func(string) string { return "@@ /dd/zz.txt 1 replace\nX\n@@ fresh.txt 0 create\nY\n" }},
+		{"a replace", func(string) string { return "@@ /dd/zz.txt 1 replace\nX\n@@ fresh.txt 0 create\nY\n" }, false},
 		{"a replace of an absolute path inside the root", func(root string) string {
 			return "@@ \"" + filepath.Join(root, "dd", "zz.txt") + "\" 1 replace\nX\n@@ fresh.txt 0 create\nY\n"
-		}},
-		{"a create", func(string) string { return "@@ /new/x 0 create\nX\n@@ fresh.txt 0 create\nY\n" }},
+		}, false},
+		{"a create", func(string) string { return "@@ /new/x 0 create\nX\n@@ fresh.txt 0 create\nY\n" }, false},
+		// ADR-215 Decision 5: mrw_write expands @N as the CLI does, and the refusal says which entry holds the spelling.
+		{"an expanded working-set pointer", func(string) string { return "@@ @1 1 replace\nX\n@@ fresh.txt 0 create\nY\n" }, true},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			root, _ := checkout(t, "ok.txt", "a\nb\nc\n")
@@ -29,6 +34,13 @@ func TestMrwWriteRefusesARootedPathLikeTheCLI(t *testing.T) {
 			}
 			if err := os.WriteFile(zz, []byte("a\nb\nc\n"), 0o644); err != nil {
 				t.Fatal(err)
+			}
+			if c.pointer {
+				var set iter.Set
+				set.Add("/dd/zz.txt")
+				if err := iter.Save(root, set); err != nil {
+					t.Fatal(err)
+				}
 			}
 
 			res := call(t, root, "mrw_write", map[string]any{"plan": c.plan(root), "check": false})
@@ -45,6 +57,9 @@ func TestMrwWriteRefusesARootedPathLikeTheCLI(t *testing.T) {
 			reason, _ := first["reason"].(string)
 			if first["status"] != "failed" || !strings.Contains(reason, "is absolute, and every path in a plan is relative to the root") {
 				t.Errorf("the rooted row: %v", first)
+			}
+			if c.pointer && !strings.Contains(reason, "the working-set entry @1 holds it") {
+				t.Errorf("the rooted row does not name the entry that holds it: %q", reason)
 			}
 			if second["status"] != "skipped" {
 				t.Errorf("the sibling: %v", second)

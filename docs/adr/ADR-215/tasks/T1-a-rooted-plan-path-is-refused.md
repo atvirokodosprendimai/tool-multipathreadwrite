@@ -89,6 +89,15 @@ What each clause holds. The four named tests exist, pass and none is skipped; th
 - 2026-11-21 · 13b61937* · mutant killed · exit 1 · `internal/apply/pathop.go` · the message suggests a stripped spelling for /etc/hosts · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · covers:a message names a spelling only when it is clear
 - 2026-11-21 · 13b61937* · mutant killed · exit 1 · `internal/apply/apply.go` · a sibling of a refused hunk reports ok instead of skipped · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · covers:a refused plan writes nothing and its siblings skip
 - 2026-11-21 · 13b61937* · mutant killed · exit 1 · `cmd/mrw/main.go` · the pointer expands to a relative spelling: it is not refused · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · covers:an expanded working-set pointer is refused
+- 2026-11-26 · 1afc083f* · mutant killed · exit 1 · `internal/apply/pathop.go` · the preflight skips create · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · covers:every op and a rename destination refuse a rooted path before any lookup
+- 2026-11-26 · 1afc083f* · mutant killed · exit 1 · `internal/apply/pathop.go` · the preflight skips the rename destination · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · covers:every op and a rename destination refuse a rooted path before any lookup
+- 2026-11-26 · 1afc083f* · mutant killed · exit 1 · `internal/apply/apply.go` · the preflight does not run, so the directory rule, the rename source and the collision maps meet the rooted path first · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · covers:the preflight orders before the directory rule, the rename source and the collision maps
+- 2026-11-26 · 1afc083f* · mutant killed · exit 1 · `cmd/mrw/main.go` · the CLI does not carry the expanded pointer, so the refusal does not name the entry · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · covers:an expanded working-set pointer is refused
+- 2026-11-26 · 1afc083f* · mutant survived · exit 0 · `internal/mcp/tools.go` · mrw_write does not carry the expanded pointer · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · covers:an expanded working-set pointer is refused
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
+- 2026-11-26 · 1afc083f* · mutant killed · exit 1 · `internal/mcp/tools.go` · mrw_write does not carry the expanded pointer, so the refusal does not name the entry · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · covers:an expanded working-set pointer is refused
 
 ## Verification Log
 - 2026-11-21 · 13b61937 · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:8556
@@ -96,6 +105,18 @@ What each clause holds. The four named tests exist, pass and none is skipped; th
 - 2026-11-21 · 13b61937* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:10072
 - 2026-11-21 · 13b61937* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:12350
 - 2026-11-26 · eed9ef1f · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:9562
+- 2026-11-26 · 1afc083f* · exit 1 · `d="$(mktemp -d)" \ …` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:1097 · test-lock-sha256:efdeb01b53825fa1bb1396882d81ec734729f0ce864db3eaebae7b32c12c6f8f · test-lock-file:docs/adr/locks/efdeb01b53825fa1bb1396882d81ec734729f0ce864db3eaebae7b32c12c6f8f.lock
+  ```
+  ```
+- 2026-11-26 · 1afc083f* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:4979
+- 2026-11-26 · 1afc083f* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:8772
+- 2026-11-26 · 1afc083f* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:8520
+- 2026-11-26 · 1afc083f* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:8556
+- 2026-11-26 · 1afc083f* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:8532
+- 2026-11-26 · 1afc083f* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:8555
+- 2026-11-26 · 1afc083f* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:15 · test-lock-sha256:76b0b11edc6252e469d103deecda4789a6e33fe0a974bf672de4a080fddc238e · test-lock-file:docs/adr/locks/76b0b11edc6252e469d103deecda4789a6e33fe0a974bf672de4a080fddc238e.lock · test-lock-kind:replace
+- 2026-11-26 · 1afc083f* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:8520
+- 2026-11-26 · 1afc083f* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:4809
 
 ## Invariants
 
