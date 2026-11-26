@@ -647,15 +647,13 @@ func rootedPlanPaths(root string, in []Input) map[int]HunkResult {
 // rooted.Contains puts inside the root. It never strips a separator into a
 // suggestion (`/etc/hosts` would name an unrelated etc/hosts, `/../x` would
 // leave the root), and never follows a link: a symlink's entry is named, not
-// its target. A header spelling is written so it parses back as the same name
-// (`./@x` for a leading @, double quotes round a space); a rename destination
-// is the literal body line.
+// its target. A spelling is offered only when it is sure to parse back as the
+// same name (hintable); otherwise the refusal explains and suggests nothing.
 func rootedReason(root, raw string, dest bool, pointer string) string {
 	s := raw + " is absolute, and every path in a plan is relative to the root"
-	if rel, ok := insideRoot(root, raw); ok && (dest || !strings.Contains(rel, `"`)) {
-		// A header spelling: ./ before a leading @ (which would read as a pointer),
-		// then double quotes round a space or a tab. A name holding a double quote
-		// has no header spelling that names it, so none is offered. A rename
+	if rel, ok := insideRoot(root, raw); ok && hintable(rel, dest) {
+		// A header spelling: ./ before a leading @ (which would read as a
+		// pointer), then double quotes round a space or a tab. A rename
 		// destination is a body line, taken literally.
 		if !dest {
 			if strings.HasPrefix(rel, "@") {
@@ -676,11 +674,42 @@ func rootedReason(root, raw string, dest bool, pointer string) string {
 	return s
 }
 
+// hintable reports whether rel, "/"-separated, can be offered as a spelling
+// the plan parser reads back as exactly rel. The header tokenizer and the body
+// parser give meaning to quotes, backslashes, `=` and a leading `@@`, so only
+// a conservative set is offered: letters, digits, `.`, `_`, `+`, `-` and `/`,
+// and in a header a space or a tab (quoted) and a leading `@` (spelled `./@`).
+// A rename destination may hold a space but not begin with `@`.
+func hintable(rel string, dest bool) bool {
+	for i, c := range rel {
+		switch {
+		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c >= '0' && c <= '9',
+			c == '.', c == '_', c == '+', c == '-', c == '/':
+		case c == ' ' || c == '\t':
+			if dest && c == '\t' {
+				return false
+			}
+		case c == '@' && i == 0 && !dest:
+		default:
+			return false
+		}
+	}
+	return rel != ""
+}
+
 // insideRoot is the "/"-spelled remainder of raw below root, when raw names
 // something strictly inside it by its spelling alone, and not a directory.
+// A raw path with a `..` component names none: through a symbolic link the
+// system resolves `link/../x` beside the link's target, which the lexical
+// clean would not (the Codex review of #800).
 func insideRoot(root, raw string) (string, bool) {
 	if rooted.SpelledAsDirectory(raw) {
 		return "", false
+	}
+	for _, part := range strings.FieldsFunc(raw, func(r rune) bool { return r == '/' || r == filepath.Separator }) {
+		if part == ".." {
+			return "", false
+		}
 	}
 	c := filepath.Clean(raw)
 	// The root as the CLI passes it is often ".", which no absolute path is

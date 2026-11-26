@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"testing"
@@ -212,6 +213,14 @@ func TestEveryPlanOpRefusesARootedPath(t *testing.T) {
 			{"the root itself names none", func() Input { return edit(root, "replace") }, ""},
 			{"a leading @ and a space are both spelled", func() Input { return edit(filepath.Join(root, "@a b.txt"), "replace") }, inside + `"./@a b.txt"`},
 			{"a directory spelling names none", func() Input { return edit(filepath.Join(root, "dd")+string(filepath.Separator), "replace") }, ""},
+			// The parser reads quotes, = and a leading @@ in its own way, so a
+			// name holding them gets no spelling (the Codex review of #800).
+			{"a name with = and single quotes names none", func() Input { return edit(filepath.Join(root, "a=b'c'd.txt"), "replace") }, ""},
+			{"a rename destination beginning @@ names none", func() Input { return pathOp("src.txt", "rename", filepath.Join(root, "@@ x")) }, ""},
+			// Through a symbolic link, link/../x is beside the link's target, not x.
+			{"a path with a .. component names none", func() Input {
+				return edit(filepath.Join(root, "dd")+string(filepath.Separator)+".."+string(filepath.Separator)+"zz.txt", "replace")
+			}, ""},
 		} {
 			in := m.in()
 			in.Index, in.SrcLine = 0, 1
@@ -312,6 +321,27 @@ func TestEveryPlanOpRefusesARootedPath(t *testing.T) {
 			if !strings.Contains(string(b), `"body_from":"src.txt:1"`) {
 				t.Errorf("row %d lacks body_from: %s", k, b)
 			}
+		}
+	})
+
+	// A sibling no validation reached echoes its address as written.
+	t.Run("a skipped sibling keeps its written address", func(t *testing.T) {
+		root, _, seen := fixture(t)
+		pat := Input{Path: "ok.txt", StartPat: regexp.MustCompile("^a$"), Op: "replace", Body: []string{"S"}, Lines: -1}
+		rel := Input{Path: "ok.txt", Start: 1, End: 1, RelEnd: 1, Op: "delete", Lines: -1}
+		in := []Input{create("/x.txt"), pat, rel}
+		for k := range in {
+			in[k].Index, in[k].SrcLine = k, k+1
+		}
+		res, err := Apply(root, in, Options{Seen: seen})
+		if err != nil || len(res.Hunks) != 3 {
+			t.Fatalf("%v %+v", err, res.Hunks)
+		}
+		if h := res.Hunks[1]; h.Status != StatusSkipped || h.Addr != "/^a$/" {
+			t.Errorf("pattern sibling: %+v, want skipped at /^a$/", h)
+		}
+		if h := res.Hunks[2]; h.Status != StatusSkipped || h.Addr != "1,+1" {
+			t.Errorf("relative-end sibling: %+v, want skipped at 1,+1", h)
 		}
 	})
 }

@@ -949,7 +949,10 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 		r, ok := results[n]
 		if !ok {
 			r = HunkResult{Path: filepath.Clean(i.Path), Op: i.Op, SrcLine: i.SrcLine, Status: StatusOK}
-			r.Addr = addrString(i.Start, i.End)
+			// A row no validation reached (a run the preflight or a source
+			// refused first) echoes the address as written, as its failed
+			// sibling does: /needle/ and 3,+1 are not their numeric bounds.
+			r.Addr = srcAddrOf(i)
 		}
 		if c, has := copies[n]; has {
 			r.fromForm, r.BodyFrom = true, c.span
