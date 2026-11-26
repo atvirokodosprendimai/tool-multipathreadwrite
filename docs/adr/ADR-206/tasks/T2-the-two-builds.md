@@ -102,6 +102,7 @@ go test -count=1 -v ./internal/bench -run '^TestArmNDiffersFromMInOneRefusal$' >
 - 2026-11-19 · 0da8265e* · exit 0 · `set -o pipefail …` · acceptance-sha256:90b8e67864f72d49cf57e2a9b9973c7f4d01f37159b0418ba60c1ad1d74ba094 · ms:3796
 - 2026-11-25 · 1e55658d* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:90b8e67864f72d49cf57e2a9b9973c7f4d01f37159b0418ba60c1ad1d74ba094 · ms:14 · test-lock-sha256:d3ddea24e3d73733eeccdf64fefc9d28ceb68baeace5cf63660d72d254331512 · test-lock-file:docs/adr/locks/d3ddea24e3d73733eeccdf64fefc9d28ceb68baeace5cf63660d72d254331512.lock · test-lock-kind:replace
 - 2026-11-25 · 222928de* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:90b8e67864f72d49cf57e2a9b9973c7f4d01f37159b0418ba60c1ad1d74ba094 · ms:18 · test-lock-sha256:8a9c19d35bc25a4b938896e90deba0cc6cd36b2ace484692d442a9f99df9e5fd · test-lock-file:docs/adr/locks/8a9c19d35bc25a4b938896e90deba0cc6cd36b2ace484692d442a9f99df9e5fd.lock · test-lock-kind:replace
+- 2026-11-26 · 3657eb95* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:90b8e67864f72d49cf57e2a9b9973c7f4d01f37159b0418ba60c1ad1d74ba094 · ms:21 · test-lock-sha256:314198c1f88224cf56c4bfb5a5a051079392d5efa89e08e7ed996f8c8300f886 · test-lock-file:docs/adr/locks/314198c1f88224cf56c4bfb5a5a051079392d5efa89e08e7ed996f8c8300f886.lock · test-lock-kind:replace
 
 ## Invariants
 
