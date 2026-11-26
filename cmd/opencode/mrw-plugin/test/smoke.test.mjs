@@ -77,6 +77,38 @@ test("a read carries checkpoints, and a write that acknowledges them lands", asy
   assert.equal(fs.readFileSync(path.join(dir, "f.txt"), "utf8"), "one\nTWO\n");
 });
 
+test("grep can count matching lines without serving or licensing them", async (t) => {
+  const content = "one hit hit\ntwo\nthree hit\n";
+  const dir = worktree(t, { content });
+  const tl = await tools(dir);
+  assert.ok(tl.mrw_read.args.count, "count must be visible in the host tool schema");
+  const result = await tl.mrw_read.execute({ specs: ["f.txt"], grep: "hit", count: true }, ctx(dir));
+  assert.equal(result.metadata.isError, false, result.output);
+  assert.match(result.output, /2 matching line\(s\) in 1 file\(s\)/);
+  assert.doesNotMatch(result.output, /one hit hit|three hit|-- ck /);
+  const write = await tl.mrw_write.execute({ plan: "@@ f.txt 1 replace\nchanged\n" }, ctx(dir));
+  assert.equal(write.metadata.isError, true, write.output);
+  assert.equal(fs.readFileSync(path.join(dir, "f.txt"), "utf8"), content);
+  const invalid = await tl.mrw_read.execute({ specs: ["f.txt"], grep: "hit", count: true, maxCols: 0 }, ctx(dir));
+  assert.equal(invalid.metadata.isError, true, invalid.output);
+  assert.match(invalid.output, /drop max_cols/);
+});
+
+test("grep returns a window around a match on a line larger than the plugin limit", async (t) => {
+  const content = "ab".repeat(18000) + " NEEDLE " + "yz".repeat(18000) + "\n";
+  const dir = worktree(t, { content });
+  const tl = await tools(dir);
+  assert.ok(tl.mrw_read.args.maxCols, "maxCols must be visible in the host tool schema");
+  const result = await tl.mrw_read.execute({ specs: ["f.txt"], grep: "NEEDLE", maxCols: 100 }, ctx(dir));
+  assert.equal(result.metadata.isError, false, result.output);
+  assert.match(result.output, /ab NEEDLE yz/);
+  assert.match(result.output, /\[cols \d+-\d+ of 72008\]/);
+  assert.doesNotMatch(result.output, /-- ck /);
+  const write = await tl.mrw_write.execute({ plan: "@@ f.txt 1 replace\nchanged\n" }, ctx(dir));
+  assert.equal(write.metadata.isError, true, write.output);
+  assert.equal(fs.readFileSync(path.join(dir, "f.txt"), "utf8"), content);
+});
+
 test("a write without the acknowledgement, or to a file never read, is refused", async (t) => {
   const dir = worktree(t);
   const tl = await tools(dir);
