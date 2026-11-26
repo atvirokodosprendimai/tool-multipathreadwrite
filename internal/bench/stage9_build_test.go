@@ -201,8 +201,10 @@ func s9Env(key, def string) string {
 var s9Sha = regexp.MustCompile(`(?m)^([mn]) sha256: ([0-9a-f]{64})$`)
 
 // s9Kept hides the name of the plan file a refusal keeps, which holds a clock
-// reading and a pid: the one thing two runs of one refusal do not share.
-var s9Kept = regexp.MustCompile(`\S*mrw-refused[/\\]\S+\.plan`)
+// reading and a pid: the one thing two runs of one refusal do not share. It
+// matches the platform's own separator only: on Unix a backslash is part of a
+// name, and accepting it would hide a real difference between M and N (#802).
+var s9Kept = regexp.MustCompile(`\S*mrw-refused` + regexp.QuoteMeta(string(filepath.Separator)) + `\S+\.plan`)
 
 func s9Same(r s9Run) s9Run {
 	r.stdout, r.err = s9Kept.ReplaceAllString(r.stdout, "KEPT"), s9Kept.ReplaceAllString(r.err, "KEPT")
