@@ -201,8 +201,10 @@ func s9Env(key, def string) string {
 var s9Sha = regexp.MustCompile(`(?m)^([mn]) sha256: ([0-9a-f]{64})$`)
 
 // s9KeptMsg is the message a refusal of a piped plan prints (cmd/mrw/refused176.go):
-// the kept path twice, once to name it and once in the command to rerun.
-var s9KeptMsg = regexp.MustCompile(`is kept at (\S+) \(([0-9]+) bytes, sha ([0-9a-f]+)\): fix it there and run the same command with (\S+) in place of -`)
+// the kept path twice, once to name it and once in the command to rerun. The
+// paths are matched between the message's fixed words, so one holding a space
+// (a temp directory under "Jane Doe") is still a path.
+var s9KeptMsg = regexp.MustCompile(`is kept at (.+?) \(([0-9]+) bytes, sha ([0-9a-f]+)\): fix it there and run the same command with (.+?) in place of -`)
 
 // s9KeptName is the whole generated name of a kept plan, as refused176.go makes
 // it: a UTC clock reading, a pid and four bytes of salt in hex.
@@ -210,21 +212,28 @@ var s9KeptName = regexp.MustCompile(`^[0-9]{8}T[0-9]{6}\.[0-9]{9}Z-[0-9]+-[0-9a-
 
 // s9Same hides the one thing two runs of one refusal do not share: the
 // generated name of the plan file each keeps. Only a message whose two paths
-// are the same, whose directory is mrw-refused and whose whole name is a
-// generated one is touched, and only that name is replaced, by a NUL, which no
-// file name holds; the directory, the size, the sha and the rest of the text
-// are compared as they are. Any other shape is left alone, so the M/N
+// are the same bytes, whose last directory is mrw-refused and whose whole name
+// after the platform's last separator is a generated one is touched, and only
+// that name's bytes are replaced, by a NUL, which no file name holds. The
+// directory is kept exactly as printed (no cleaning, so `./` or another
+// separator spelling still differs), and the size, the sha and the rest of the
+// text are compared as they are. Any other shape is left alone, so the M/N
 // comparison fails on it (#802).
 func s9Same(r s9Run) s9Run {
+	sep := string(filepath.Separator)
 	norm := func(s string) string {
 		return s9KeptMsg.ReplaceAllStringFunc(s, func(m string) string {
 			g := s9KeptMsg.FindStringSubmatch(m)
 			p := g[1]
-			if g[4] != p || filepath.Base(filepath.Dir(p)) != "mrw-refused" || !s9KeptName.MatchString(filepath.Base(p)) {
+			i := strings.LastIndex(p, sep)
+			if g[4] != p || i < 0 {
 				return m
 			}
-			hidden := filepath.Join(filepath.Dir(p), "\x00")
-			return strings.ReplaceAll(m, p, hidden)
+			dir, name := p[:i+1], p[i+1:]
+			if !strings.HasSuffix(dir, sep+"mrw-refused"+sep) || !s9KeptName.MatchString(name) {
+				return m
+			}
+			return strings.ReplaceAll(m, p, dir+"\x00")
 		})
 	}
 	r.stdout, r.err = norm(r.stdout), norm(r.err)
@@ -247,14 +256,21 @@ func TestS9SameHidesOnlyTheGeneratedPlanName(t *testing.T) {
 	if at(a, a) != at(b, b) {
 		t.Errorf("two generated names in one directory differ: %q vs %q", at(a, a), at(b, b))
 	}
+	// A temp directory with a space in it is still one path.
+	spaced := filepath.Join("x", "my temp", "mrw-refused") + sep
+	if sa, sb := at(spaced+"20261126T210433.541366300Z-30728-e42fa677.plan", spaced+"20261126T210433.541366300Z-30728-e42fa677.plan"),
+		at(spaced+"20261126T210433.594949900Z-48412-41d0db8a.plan", spaced+"20261126T210433.594949900Z-48412-41d0db8a.plan"); sa != sb || !strings.Contains(sa, "my temp") {
+		t.Errorf("two generated names under a directory with a space differ: %q vs %q", sa, sb)
+	}
 	for name, other := range map[string][2]string{
-		"another directory":            {filepath.Join("x", "other", "mrw-refused") + sep + "20261126T210433.594949900Z-48412-41d0db8a.plan", ""},
-		"a further component":          {dir + "sub" + sep + "20261126T210433.594949900Z-48412-41d0db8a.plan", ""},
-		"a further component with /":   {dir + "sub/20261126T210433.594949900Z-48412-41d0db8a.plan", ""},
-		"an unrelated name":            {dir + "NOTICE.plan", ""},
-		"the literal placeholder name": {dir + "KEPT.plan", ""},
-		"a suffix after .plan":         {dir + "20261126T210433.594949900Z-48412-41d0db8a.plan.bak", ""},
-		"a rerun path that differs":    {b, a},
+		"another directory":                  {filepath.Join("x", "other", "mrw-refused") + sep + "20261126T210433.594949900Z-48412-41d0db8a.plan", ""},
+		"a further component":                {dir + "sub" + sep + "20261126T210433.594949900Z-48412-41d0db8a.plan", ""},
+		"a further component with /":         {dir + "sub/20261126T210433.594949900Z-48412-41d0db8a.plan", ""},
+		"an unrelated name":                  {dir + "NOTICE.plan", ""},
+		"the literal placeholder name":       {dir + "KEPT.plan", ""},
+		"a suffix after .plan":               {dir + "20261126T210433.594949900Z-48412-41d0db8a.plan.bak", ""},
+		"a rerun path that differs":          {b, a},
+		"the same directory spelled with ./": {"x" + sep + "state" + sep + "." + sep + "mrw-refused" + sep + "20261126T210433.594949900Z-48412-41d0db8a.plan", ""},
 	} {
 		named, rerun := other[0], other[1]
 		if rerun == "" {
