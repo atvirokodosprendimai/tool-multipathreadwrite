@@ -183,8 +183,8 @@ const toolWrite = tool({
     "writes nothing. Addresses resolve against the ORIGINAL file. Ops: replace, insert-after, " +
     "insert-before, delete, create, unlink, rename. A new file is '@@ path 0 create'. A " +
     "multi-line replace needs anchor= AND, unless its range ends at the last line, a served line " +
-    "after it: read past the end first. A plan you author needs a ledger licence for each existing line it " +
-    "changes: pass in ack the ck ids of the complete checkpointed runs you received from mrw_read. A write runs no check unless check: true " +
+    "after it: read past the end first. mrw refuses to change an existing line it cannot license (mrw_instructions " +
+    "says how a line is licensed); acknowledging the complete checkpointed runs you received from mrw_read licenses their lines. A write runs no check unless check: true " +
     "asks for it (ADR-187): with it, after any write that lands, prose-only included, the project's check runs and is reported in the receipt's check; a failed " +
     "check leaves the write applied, and one that could not run is an error with the applied receipt (ADR-205). " +
     "The same change at many sites needs no plan: give grep with sub, and neither plan nor format, and mrw builds " +
@@ -205,7 +205,7 @@ const toolWrite = tool({
     ack: z
       .array(z.string())
       .optional()
-      .describe("The ck ids from the mrw_read this plan was written against. A hunk on lines you have not acknowledged is refused."),
+      .describe("The ck ids of the complete checkpointed mrw_read runs you received; acknowledging them licenses the lines they served."),
     dryRun: z.boolean().optional().describe("Validate and report without writing: the same receipt, with dry_run true."),
     check: z
       .boolean()
