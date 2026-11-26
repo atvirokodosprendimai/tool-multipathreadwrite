@@ -645,7 +645,7 @@ mrw supports [opencode](https://opencode.ai) through a plugin in this repository
 | tool | runs | arguments |
 |---|---|---|
 | `mrw_read` | `mrw mcp`'s `mrw_read` | `specs`, `grep`, `astGrep`, `exclude`, `after`, `ack`, `maxLines`, `maxCols`, `count`, `stat`, `ifChanged`, `filesFrom`, `root` |
-| `mrw_write` | `mrw mcp`'s `mrw_write` | `plan`, `ack`, `dryRun`, `check`, `then`, `format`, `echoPad`, `strictBalance` |
+| `mrw_write` | `mrw mcp`'s `mrw_write` | `plan`, `ack`, `dryRun`, `check`, `then`, `format`, `echoPad`, `strictBalance`; or, in place of `plan`, `grep` with `sub` or `astGrep` with `rewrite`, shaped by `paths`, `exclude` and `noIgnore` |
 | `mrw_check` | `mrw check` | `paths` |
 | `mrw_stats` | `mrw stats` | `json` |
 | `mrw_seen` | `mrw seen` | `prune`, `dryRun` |
