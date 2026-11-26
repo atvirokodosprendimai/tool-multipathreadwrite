@@ -638,12 +638,6 @@ func rootedPlanPaths(root string, in []Input) map[int]HunkResult {
 			Path: filepath.Clean(i.Path), Addr: srcAddrOf(i), Op: i.Op, SrcLine: i.SrcLine,
 			Status: StatusFailed, Reason: rootedReason(root, raw, dest, i.Pointer),
 		}
-		if i.From != "" {
-			// ADR-167: every from= row carries body_from, refused or not.
-			r := fails[n]
-			r.fromForm, r.BodyFrom = true, filepath.Clean(i.From)+":"+fromAddrString(i)
-			fails[n] = r
-		}
 	}
 	return fails
 }
