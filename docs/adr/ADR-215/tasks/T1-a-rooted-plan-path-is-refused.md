@@ -86,8 +86,15 @@ What each clause holds. The four named tests exist, pass and none is skipped; th
 | 4 — it is used | telemetry is refused by ADR-009; the evidence is #648 and the counts in the record |
 
 ## Mutation Log
+- 2026-11-21 · 13b61937* · mutant killed · exit 1 · `internal/apply/pathop.go` · the message suggests a stripped spelling for /etc/hosts · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · covers:a message names a spelling only when it is clear
+- 2026-11-21 · 13b61937* · mutant killed · exit 1 · `internal/apply/apply.go` · a sibling of a refused hunk reports ok instead of skipped · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · covers:a refused plan writes nothing and its siblings skip
+- 2026-11-21 · 13b61937* · mutant killed · exit 1 · `cmd/mrw/main.go` · the pointer expands to a relative spelling: it is not refused · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · covers:an expanded working-set pointer is refused
 
 ## Verification Log
+- 2026-11-21 · 13b61937 · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:8556
+- 2026-11-21 · 13b61937* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:11664
+- 2026-11-21 · 13b61937* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:10072
+- 2026-11-21 · 13b61937* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:12350
 
 ## Invariants
 
