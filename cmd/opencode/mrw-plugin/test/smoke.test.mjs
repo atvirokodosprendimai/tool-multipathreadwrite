@@ -207,15 +207,20 @@ test("grep with sub renames in one call, scoped by paths, as a hand-written plan
 test("a generator given with a plan, or half a generator, is refused and writes nothing", async (t) => {
   const dir = worktree(t, { content: "old\n" });
   const tl = await tools(dir);
-  for (const args of [
-    { plan: "@@ f.txt 1 replace\nX\n", grep: "old", sub: "new" },
-    { sub: "new" },
-    { grep: "old" },
-    { plan: "@@ f.txt 1 replace\nX\n", paths: ["f.txt"] },
-    {},
+  // Each case is refused for its own reason, as the server words it, so an
+  // argument the plugin dropped would show as another reason.
+  for (const [args, reason] of [
+    [{ plan: "@@ f.txt 1 replace\nX\n", grep: "old", sub: "new" }, "makes its own plan: drop plan and format"],
+    [{ grep: "old", sub: "new", format: "plan" }, "makes its own plan: drop plan and format"],
+    [{ sub: "new" }, "grep and sub go together"],
+    [{ grep: "old" }, "grep and sub go together"],
+    [{ plan: "@@ f.txt 1 replace\nX\n", paths: ["f.txt"] }, "paths shape the walk of grep with sub"],
+    [{}, "mrw_write needs a plan"],
   ]) {
     const r = await tl.mrw_write.execute(args, ctx(dir));
     assert.equal(r.metadata.isError, true, `${JSON.stringify(args)}: ${r.output}`);
+    assert.ok(r.output.includes(reason), `${JSON.stringify(args)}: want ${JSON.stringify(reason)} in ${r.output}`);
+    assert.equal(fs.readFileSync(path.join(dir, "f.txt"), "utf8"), "old\n", JSON.stringify(args));
   }
   const dry = await tl.mrw_write.execute({ grep: "old", sub: "new", dryRun: true }, ctx(dir));
   assert.equal(dry.metadata.isError, false, dry.output);
