@@ -98,6 +98,9 @@ What each clause holds. The named tests exist, pass and none is skipped; both co
 ## Mutation Log
 
 ## Verification Log
+- 2026-11-26 · b787541e · exit 1 · `d="$(mktemp -d)" \ …` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:1699 · test-lock-sha256:065704c4b78c31bd1e0fd789c3334c188f7a3433053554d54e1761cf45a21887 · test-lock-file:docs/adr/locks/065704c4b78c31bd1e0fd789c3334c188f7a3433053554d54e1761cf45a21887.lock
+  ```
+  ```
 
 ## Invariants
 
