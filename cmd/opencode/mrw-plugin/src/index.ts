@@ -183,12 +183,12 @@ const toolWrite = tool({
     "writes nothing. Addresses resolve against the ORIGINAL file. Ops: replace, insert-after, " +
     "insert-before, delete, create, unlink, rename. A new file is '@@ path 0 create'. A " +
     "multi-line replace needs anchor= AND, unless its range ends at the last line, a served line " +
-    "after it: read past the end first. mrw will not edit a line it has not served to you: a line an mrw_read " +
-    "served in a checkpointed run is licensed once you pass that run's ck id in ack. A write runs no check unless check: true " +
+    "after it: read past the end first. mrw edits only lines its ledger licenses: lines an mrw_read served in a " +
+    "checkpointed run are licensed once you pass that run's ck id in ack, and a file mrw itself wrote stays licensed (name a line there by pattern or anchor=). A write runs no check unless check: true " +
     "asks for it (ADR-187): with it, after any write that lands, prose-only included, the project's check runs and is reported in the receipt's check; a failed " +
     "check leaves the write applied, and one that could not run is an error with the applied receipt (ADR-205). " +
     "The same change at many sites needs no plan: give grep with sub, and neither plan nor format, and mrw builds " +
-    "the plan from the files as they are, one hunk per matching line; no read and no ack come first, because " +
+    "the plan from the files as they are, one hunk per line the replacement changes (a match it leaves as it was makes none, and a plan that changes nothing is refused); no read and no ack come first, because " +
     "nothing is shown and mrw made the plan itself (ADR-161). It walks the whole checkout unless paths names where " +
     "to start, and an empty paths walks the whole checkout too; a match you must keep needs paths that leave it " +
     "out, or a plan of your own.",
@@ -236,7 +236,7 @@ const toolWrite = tool({
     grep: z
       .string()
       .optional()
-      .describe("A regular expression (Go RE2). With sub, the plan is every matching line with each match replaced. Not together with plan or format."),
+      .describe("A regular expression (Go RE2). With sub, the plan replaces each match, one hunk per line it changes. Not together with plan or format."),
     sub: z
       .string()
       .optional()
