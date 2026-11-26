@@ -651,7 +651,7 @@ func rootedPlanPaths(root string, in []Input) map[int]HunkResult {
 // same name (hintable); otherwise the refusal explains and suggests nothing.
 func rootedReason(root, raw string, dest bool, pointer string) string {
 	s := raw + " is absolute, and every path in a plan is relative to the root"
-	if rel, ok := insideRoot(root, raw); ok && hintable(rel, dest) {
+	if rel, ok := insideRoot(root, raw); ok && hintable(rel) {
 		// A header spelling: ./ before a leading @ (which would read as a
 		// pointer), then double quotes round a space or a tab. A rename
 		// destination is a body line, taken literally.
@@ -659,7 +659,7 @@ func rootedReason(root, raw string, dest bool, pointer string) string {
 			if strings.HasPrefix(rel, "@") {
 				rel = "./" + rel
 			}
-			if strings.ContainsAny(rel, " \t") {
+			if strings.Contains(rel, " ") {
 				rel = `"` + rel + `"`
 			}
 		}
@@ -677,19 +677,15 @@ func rootedReason(root, raw string, dest bool, pointer string) string {
 // hintable reports whether rel, "/"-separated, can be offered as a spelling
 // the plan parser reads back as exactly rel. The header tokenizer and the body
 // parser give meaning to quotes, backslashes, `=` and a leading `@@`, so only
-// a conservative set is offered: letters, digits, `.`, `_`, `+`, `-` and `/`,
-// and in a header a space or a tab (quoted) and a leading `@` (spelled `./@`).
-// A rename destination may hold a space but not begin with `@`.
-func hintable(rel string, dest bool) bool {
+// a conservative set is offered: letters, digits, `.`, `_`, `+`, `-`, `/`, a
+// space (double-quoted in a header) and a leading `@` (spelled `./@` in a
+// header; a body line that begins with one `@` is read as written).
+func hintable(rel string) bool {
 	for i, c := range rel {
 		switch {
 		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c >= '0' && c <= '9',
-			c == '.', c == '_', c == '+', c == '-', c == '/':
-		case c == ' ' || c == '\t':
-			if dest && c == '\t' {
-				return false
-			}
-		case c == '@' && i == 0 && !dest:
+			c == '.', c == '_', c == '+', c == '-', c == '/', c == ' ':
+		case c == '@' && i == 0:
 		default:
 			return false
 		}

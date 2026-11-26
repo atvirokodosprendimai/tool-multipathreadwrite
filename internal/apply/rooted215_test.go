@@ -217,6 +217,7 @@ func TestEveryPlanOpRefusesARootedPath(t *testing.T) {
 			// name holding them gets no spelling (the Codex review of #800).
 			{"a name with = and single quotes names none", func() Input { return edit(filepath.Join(root, "a=b'c'd.txt"), "replace") }, ""},
 			{"a rename destination beginning @@ names none", func() Input { return pathOp("src.txt", "rename", filepath.Join(root, "@@ x")) }, ""},
+			{"a rename destination beginning @ is the literal line", func() Input { return pathOp("src.txt", "rename", filepath.Join(root, "@x")) }, inside + "@x"},
 			// Through a symbolic link, link/../x is beside the link's target, not x.
 			{"a path with a .. component names none", func() Input {
 				return edit(filepath.Join(root, "dd")+string(filepath.Separator)+".."+string(filepath.Separator)+"zz.txt", "replace")
