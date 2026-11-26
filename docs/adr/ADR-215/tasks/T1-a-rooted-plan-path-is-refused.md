@@ -102,6 +102,15 @@ What each clause holds. The four named tests exist, pass and none is skipped; th
 - 2026-11-26 · a92f3800* · mutant killed · exit 1 · `internal/apply/pathop.go` · the preflight judges what the path resolves to instead of the raw spelling: a rooted path whose nested target exists under the root is let through (the nested-target-exists fixture) · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · covers:every op and a rename destination refuse a rooted path before any lookup
 - 2026-11-26 · a92f3800* · mutant killed · exit 1 · `cmd/mrw/main.go` · the CLI does not carry the expanded pointer, so the refusal does not name the entry · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · covers:an expanded working-set pointer is refused
 - 2026-11-26 · a92f3800* · mutant killed · exit 1 · `internal/mcp/tools.go` · mrw_write does not carry the expanded pointer, so the refusal does not name the entry · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · covers:an expanded working-set pointer is refused
+- 2026-11-26 · 37049ccc* · mutant killed · exit 1 · `internal/apply/apply.go` · a from= sibling of a rooted hunk loses body_from · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · covers:a refused plan writes nothing and its siblings skip
+- 2026-11-26 · 37049ccc* · mutant survived · exit 0 · `internal/apply/pathop.go` · a rooted from= hunk loses body_from · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · covers:a refused plan writes nothing and its siblings skip
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
+- 2026-11-26 · 37049ccc* · mutant killed · exit 1 · `internal/apply/pathop.go` · a rooted rename destination blames the working-set entry that holds the source · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · covers:an expanded working-set pointer is refused
+- 2026-11-26 · 37049ccc* · mutant killed · exit 1 · `internal/apply/pathop.go` · a name holding a double quote gets a spelling that names another file · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · covers:a message names a spelling only when it is clear
+- 2026-11-26 · 37049ccc* · mutant killed · exit 1 · `internal/apply/pathop.go` · a leading @ with a space is spelled ./@a b.txt, which does not parse · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · covers:a message names a spelling only when it is clear
+- 2026-11-26 · 37049ccc* · mutant killed · exit 1 · `internal/apply/pathop.go` · the CLI default root . offers no spelling · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · covers:a message names a spelling only when it is clear
 
 ## Verification Log
 - 2026-11-21 · 13b61937 · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:8556
@@ -126,6 +135,14 @@ What each clause holds. The four named tests exist, pass and none is skipped; th
 - 2026-11-26 · a92f3800* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:8861
 - 2026-11-26 · a92f3800* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:8675
 - 2026-11-26 · ae294931 · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:5092
+- 2026-11-26 · 37049ccc* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:18 · test-lock-sha256:929ab074831de5e84a00c33a9153cd265800bb7871a5e8aea0122500b8ca5b04 · test-lock-file:docs/adr/locks/929ab074831de5e84a00c33a9153cd265800bb7871a5e8aea0122500b8ca5b04.lock · test-lock-kind:replace
+- 2026-11-26 · 37049ccc* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:8871
+- 2026-11-26 · 37049ccc* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:9326
+- 2026-11-26 · 37049ccc* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:8961
+- 2026-11-26 · 37049ccc* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:9332
+- 2026-11-26 · 37049ccc* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:8713
+- 2026-11-26 · 37049ccc* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:9086
+- 2026-11-26 · 37049ccc* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:7574
 
 ## Invariants
 
