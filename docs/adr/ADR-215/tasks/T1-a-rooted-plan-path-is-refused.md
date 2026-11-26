@@ -113,6 +113,13 @@ What each clause holds. The four named tests exist, pass and none is skipped; th
 - 2026-11-26 · 37049ccc* · mutant killed · exit 1 · `internal/apply/pathop.go` · the CLI default root . offers no spelling · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · covers:a message names a spelling only when it is clear
 - 2026-11-26 · b4fda723 · mutant killed · exit 1 · `internal/apply/pathop.go` · a directory spelling inside the root gets a file spelling · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · covers:a message names a spelling only when it is clear
 - 2026-11-26 · b4fda723* · mutant killed · exit 1 · `internal/apply/apply.go` · a from= row, the rooted one and its sibling, loses body_from when the preflight refuses the run · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · covers:a refused plan writes nothing and its siblings skip
+- 2026-11-26 · 4f4b18e7* · mutant killed · exit 1 · `internal/apply/pathop.go` · any character is offered as a spelling, so a=b'c'd.txt names another file · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · covers:a message names a spelling only when it is clear
+- 2026-11-26 · 4f4b18e7* · mutant killed · exit 1 · `internal/apply/pathop.go` · a path with a .. component gets a lexical spelling that names another file through a link · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · covers:a message names a spelling only when it is clear
+- 2026-11-26 · 4f4b18e7* · mutant survived · exit 0 · `internal/apply/pathop.go` · a rename destination beginning @@ is offered, which the body parser reads as a header · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · covers:a message names a spelling only when it is clear
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
+- 2026-11-26 · 4f4b18e7* · mutant killed · exit 1 · `internal/apply/apply.go` · a skipped sibling reports its numeric bounds, not the address written · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · covers:a refused plan writes nothing and its siblings skip
 
 ## Verification Log
 - 2026-11-21 · 13b61937 · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:8556
@@ -152,6 +159,12 @@ What each clause holds. The four named tests exist, pass and none is skipped; th
 - 2026-11-26 · 1b2b5d91* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:5238
 - 2026-11-26 · 368c5065* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:18 · test-lock-sha256:f742a3aa88b0ccb153110976e18feebb9098ec7ba9b109c1b7ce8ec145990434 · test-lock-file:docs/adr/locks/f742a3aa88b0ccb153110976e18feebb9098ec7ba9b109c1b7ce8ec145990434.lock · test-lock-kind:replace
 - 2026-11-26 · 368c5065* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:5965
+- 2026-11-26 · 4f4b18e7* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:22 · test-lock-sha256:1429245b86e7456a1c30364ac2591d042406c25c8278a2d273be0cb0edab3688 · test-lock-file:docs/adr/locks/1429245b86e7456a1c30364ac2591d042406c25c8278a2d273be0cb0edab3688.lock · test-lock-kind:replace
+- 2026-11-26 · 4f4b18e7* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:9834
+- 2026-11-26 · 4f4b18e7* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:9681
+- 2026-11-26 · 4f4b18e7* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:9251
+- 2026-11-26 · 4f4b18e7* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:9329
+- 2026-11-26 · 4f4b18e7* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:6724
 
 ## Invariants
 
