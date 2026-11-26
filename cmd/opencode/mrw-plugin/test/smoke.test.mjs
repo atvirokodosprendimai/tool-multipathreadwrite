@@ -153,6 +153,84 @@ test("a write without the acknowledgement, or to a file never read, is refused",
   assert.equal(fs.readFileSync(path.join(dir, "g.txt"), "utf8"), "never\nread\n");
 });
 
+// ADR-161 through the plugin: grep with sub builds the plan, so a rename lands in
+// one call with no read or ack, and it lands exactly what the hand-written plan
+// lands. paths scopes the walk: a match outside it is kept; without paths it is
+// changed too.
+test("grep with sub renames in one call, scoped by paths, as a hand-written plan does", async (t) => {
+  const files = {
+    "a/def.py": "def _old_name(x):\n    return x\n",
+    "a/use.py": "from a.def import _old_name\n\nprint(_old_name(1))\n",
+    "outside.py": "# keeps _old_name\n",
+  };
+  const make = () => {
+    const dir = worktree(t);
+    for (const [name, text] of Object.entries(files)) {
+      fs.mkdirSync(path.dirname(path.join(dir, name)), { recursive: true });
+      fs.writeFileSync(path.join(dir, name), text);
+    }
+    return dir;
+  };
+  const snapshot = (dir) => Object.fromEntries(Object.keys(files).map((n) => [n, fs.readFileSync(path.join(dir, n), "utf8")]));
+  const args = { grep: "\\b_old_name\\b", sub: "_new_name" };
+
+  // Scoped: the two files under a/ change; outside.py keeps its match.
+  const scoped = make();
+  let tl = await tools(scoped);
+  const w = await tl.mrw_write.execute({ ...args, paths: ["a"] }, ctx(scoped));
+  assert.equal(w.metadata.isError, false, w.output);
+  assert.match(w.output, /3 hunk\(s\), 2 file\(s\), 0 failed/);
+  const got = snapshot(scoped);
+  assert.equal(got["outside.py"], files["outside.py"]);
+
+  // The same change by a hand-written plan, after a read and its acks.
+  const manual = make();
+  tl = await tools(manual);
+  const read = await tl.mrw_read.execute({ specs: ["a/def.py", "a/use.py"] }, ctx(manual));
+  const plan =
+    "@@ a/def.py 1 replace\ndef _new_name(x):\n" +
+    "@@ a/use.py 1 replace\nfrom a.def import _new_name\n" +
+    "@@ a/use.py 3 replace\nprint(_new_name(1))\n";
+  const mw = await tl.mrw_write.execute({ plan, ack: acks(read.output) }, ctx(manual));
+  assert.equal(mw.metadata.isError, false, mw.output);
+  assert.deepEqual(got, snapshot(manual));
+
+  // Unscoped: the walk covers the whole checkout, so outside.py changes too.
+  const whole = make();
+  tl = await tools(whole);
+  const ww = await tl.mrw_write.execute(args, ctx(whole));
+  assert.equal(ww.metadata.isError, false, ww.output);
+  assert.equal(fs.readFileSync(path.join(whole, "outside.py"), "utf8"), "# keeps _new_name\n");
+});
+
+// The server's refusals reach the caller unchanged, and nothing is written.
+test("a generator given with a plan, or half a generator, is refused and writes nothing", async (t) => {
+  const dir = worktree(t, { content: "old\n" });
+  const tl = await tools(dir);
+  // Each case is refused for its own reason, as the server words it, so an
+  // argument the plugin dropped would show as another reason.
+  for (const [args, reason] of [
+    [{ plan: "@@ f.txt 1 replace\nX\n", grep: "old", sub: "new" }, "makes its own plan: drop plan and format"],
+    [{ grep: "old", sub: "new", format: "plan" }, "makes its own plan: drop plan and format"],
+    [{ sub: "new" }, "grep and sub go together"],
+    [{ grep: "old" }, "grep and sub go together"],
+    [{ plan: "@@ f.txt 1 replace\nX\n", paths: ["f.txt"] }, "paths shape the walk of grep with sub"],
+    [{}, "mrw_write needs a plan"],
+  ]) {
+    const r = await tl.mrw_write.execute(args, ctx(dir));
+    assert.equal(r.metadata.isError, true, `${JSON.stringify(args)}: ${r.output}`);
+    assert.ok(r.output.includes(reason), `${JSON.stringify(args)}: want ${JSON.stringify(reason)} in ${r.output}`);
+    assert.equal(fs.readFileSync(path.join(dir, "f.txt"), "utf8"), "old\n", JSON.stringify(args));
+  }
+  const dry = await tl.mrw_write.execute({ grep: "old", sub: "new", dryRun: true }, ctx(dir));
+  assert.equal(dry.metadata.isError, false, dry.output);
+  assert.equal(fs.readFileSync(path.join(dir, "f.txt"), "utf8"), "old\n");
+  // An empty sub is a replacement too: it deletes each match, as the CLI's --sub '' does.
+  const del = await tl.mrw_write.execute({ grep: "ol", sub: "" }, ctx(dir));
+  assert.equal(del.metadata.isError, false, del.output);
+  assert.equal(fs.readFileSync(path.join(dir, "f.txt"), "utf8"), "d\n");
+});
+
 test("a page the host cuts licenses only the runs that arrived whole", async (t) => {
   const lines = Array.from({ length: 1000 }, (_, i) => `line ${i + 1}`).join("\n") + "\n";
   const dir = worktree(t, { content: lines });
