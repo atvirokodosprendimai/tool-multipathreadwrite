@@ -200,43 +200,68 @@ func s9Env(key, def string) string {
 
 var s9Sha = regexp.MustCompile(`(?m)^([mn]) sha256: ([0-9a-f]{64})$`)
 
-// s9Kept is the generated name of the plan file a refusal keeps, exactly as
-// cmd/mrw/refused176.go makes it: a UTC clock reading, a pid and four bytes of
-// salt in hex, `20060102T150405.000000000Z-PID-SALT.plan`, the one thing two
-// runs of one refusal do not share. Only that whole last component, right
-// after `mrw-refused` and the platform's own separator, is hidden: the
-// directory before it stays in the comparison (the same for both arms, which
-// each reuse one sandbox path), and an unrelated name or a further component is
-// left as it is (#802).
-var s9Kept = regexp.MustCompile(`mrw-refused` + regexp.QuoteMeta(string(filepath.Separator)) +
-	`[0-9]{8}T[0-9]{6}\.[0-9]{9}Z-[0-9]+-[0-9a-f]{8}\.plan`)
+// s9KeptMsg is the message a refusal of a piped plan prints (cmd/mrw/refused176.go):
+// the kept path twice, once to name it and once in the command to rerun.
+var s9KeptMsg = regexp.MustCompile(`is kept at (\S+) \(([0-9]+) bytes, sha ([0-9a-f]+)\): fix it there and run the same command with (\S+) in place of -`)
 
+// s9KeptName is the whole generated name of a kept plan, as refused176.go makes
+// it: a UTC clock reading, a pid and four bytes of salt in hex.
+var s9KeptName = regexp.MustCompile(`^[0-9]{8}T[0-9]{6}\.[0-9]{9}Z-[0-9]+-[0-9a-f]{8}\.plan$`)
+
+// s9Same hides the one thing two runs of one refusal do not share: the
+// generated name of the plan file each keeps. Only a message whose two paths
+// are the same, whose directory is mrw-refused and whose whole name is a
+// generated one is touched, and only that name is replaced, by a NUL, which no
+// file name holds; the directory, the size, the sha and the rest of the text
+// are compared as they are. Any other shape is left alone, so the M/N
+// comparison fails on it (#802).
 func s9Same(r s9Run) s9Run {
-	kept := "mrw-refused" + string(filepath.Separator) + "KEPT.plan"
-	r.stdout, r.err = s9Kept.ReplaceAllLiteralString(r.stdout, kept), s9Kept.ReplaceAllLiteralString(r.err, kept)
+	norm := func(s string) string {
+		return s9KeptMsg.ReplaceAllStringFunc(s, func(m string) string {
+			g := s9KeptMsg.FindStringSubmatch(m)
+			p := g[1]
+			if g[4] != p || filepath.Base(filepath.Dir(p)) != "mrw-refused" || !s9KeptName.MatchString(filepath.Base(p)) {
+				return m
+			}
+			hidden := filepath.Join(filepath.Dir(p), "\x00")
+			return strings.ReplaceAll(m, p, hidden)
+		})
+	}
+	r.stdout, r.err = norm(r.stdout), norm(r.err)
 	return r
 }
 
 // TestS9SameHidesOnlyTheGeneratedPlanName holds the normalisation the M/N
-// comparison rests on: two kept-plan names in one directory compare equal, and
-// a different directory, a further component or an unrelated name does not.
+// comparison rests on: two kept-plan messages in one directory compare equal,
+// and any other directory, component, name, suffix or a mismatched rerun path
+// does not.
 func TestS9SameHidesOnlyTheGeneratedPlanName(t *testing.T) {
 	sep := string(filepath.Separator)
 	dir := filepath.Join("x", "state", "mrw-refused") + sep
-	at := func(s string) string { return s9Same(s9Run{err: "kept at " + s + " (21 bytes)"}).err }
+	msg := func(named, rerun string) string {
+		return "mrw: the plan from standard input is kept at " + named + " (21 bytes, sha 2cac8d7e): fix it there and run the same command with " + rerun + " in place of -"
+	}
+	at := func(named, rerun string) string { return s9Same(s9Run{err: msg(named, rerun)}).err }
 	a := dir + "20261126T210433.541366300Z-30728-e42fa677.plan"
 	b := dir + "20261126T210433.594949900Z-48412-41d0db8a.plan"
-	if at(a) != at(b) {
-		t.Errorf("two generated names in one directory differ: %q vs %q", at(a), at(b))
+	if at(a, a) != at(b, b) {
+		t.Errorf("two generated names in one directory differ: %q vs %q", at(a, a), at(b, b))
 	}
-	for _, other := range []string{
-		filepath.Join("x", "other", "mrw-refused") + sep + "20261126T210433.594949900Z-48412-41d0db8a.plan",
-		dir + "sub" + sep + "20261126T210433.594949900Z-48412-41d0db8a.plan",
-		dir + "sub/20261126T210433.594949900Z-48412-41d0db8a.plan",
-		dir + "NOTICE.plan",
+	for name, other := range map[string][2]string{
+		"another directory":            {filepath.Join("x", "other", "mrw-refused") + sep + "20261126T210433.594949900Z-48412-41d0db8a.plan", ""},
+		"a further component":          {dir + "sub" + sep + "20261126T210433.594949900Z-48412-41d0db8a.plan", ""},
+		"a further component with /":   {dir + "sub/20261126T210433.594949900Z-48412-41d0db8a.plan", ""},
+		"an unrelated name":            {dir + "NOTICE.plan", ""},
+		"the literal placeholder name": {dir + "KEPT.plan", ""},
+		"a suffix after .plan":         {dir + "20261126T210433.594949900Z-48412-41d0db8a.plan.bak", ""},
+		"a rerun path that differs":    {b, a},
 	} {
-		if at(a) == at(other) {
-			t.Errorf("%q compares equal to %q after normalising", other, a)
+		named, rerun := other[0], other[1]
+		if rerun == "" {
+			rerun = named
+		}
+		if at(a, a) == at(named, rerun) {
+			t.Errorf("%s: %q compares equal to %q after normalising", name, at(named, rerun), at(a, a))
 		}
 	}
 }
