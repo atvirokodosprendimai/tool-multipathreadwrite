@@ -224,6 +224,12 @@ func s9Kept(state, plan string, r s9Run) (s9Run, error) {
 		return r, fmt.Errorf("%s holds %d kept plans, want exactly one: %v", dir, len(kept), kept)
 	}
 	p := kept[0]
+	// ADR-176 names a kept plan by its UTC time, the pid and a salt, so two
+	// refusals in one state home never collide: a fixed name is a regression
+	// this comparison must not hide.
+	if !s9KeptName.MatchString(filepath.Base(p)) {
+		return r, fmt.Errorf("%s is not named as ADR-176 names a kept plan (20060102T150405.000000000Z-PID-SALT.plan)", p)
+	}
 	if b, err := os.ReadFile(p); err != nil || string(b) != plan {
 		return r, fmt.Errorf("%s holds %q (%v), want the plan sent, %q", p, b, err, plan)
 	}
@@ -233,6 +239,10 @@ func s9Kept(state, plan string, r s9Run) (s9Run, error) {
 	r.stdout, r.err = strings.ReplaceAll(r.stdout, p, "<kept plan>"), strings.ReplaceAll(r.err, p, "<kept plan>")
 	return r, nil
 }
+
+// s9KeptName is the whole name ADR-176 gives a kept plan, as cmd/mrw/refused176.go
+// makes it: a UTC clock reading, a pid and four bytes of salt in hex.
+var s9KeptName = regexp.MustCompile(`^[0-9]{8}T[0-9]{6}\.[0-9]{9}Z-[0-9]+-[0-9a-f]{8}\.plan$`)
 
 // TestS9KeptHidesOnlyTheKeptPlanPath holds what the M/N comparison rests on:
 // only the one kept path is hidden, and a state home that does not hold exactly
@@ -289,13 +299,18 @@ func TestS9KeptHidesOnlyTheKeptPlanPath(t *testing.T) {
 			t.Errorf("%s: accepted", name)
 		}
 	}
-	stateC, pc := mk(t, "one.plan", "two.plan")
+	stateC, pc := mk(t, "20261126T210433.541366300Z-30728-e42fa677.plan", "20261126T210433.594949900Z-48412-41d0db8a.plan")
 	if _, err := s9Kept(stateC, plan, s9Run{err: msg(pc[0], pc[0])}); err == nil {
 		t.Error("two kept plans: accepted")
 	}
-	stateD, pd := mk(t, "one.plan")
+	stateD, pd := mk(t, "20261126T210433.541366300Z-30728-e42fa677.plan")
 	if _, err := s9Kept(stateD, "@@ other 1 replace\nY\n", s9Run{err: msg(pd[0], pd[0])}); err == nil {
 		t.Error("a kept plan that is not the plan sent: accepted")
+	}
+	// A fixed name with the right bytes, named twice, is still a naming regression.
+	stateE, pe := mk(t, "retry.plan")
+	if _, err := s9Kept(stateE, plan, s9Run{err: msg(pe[0], pe[0])}); err == nil {
+		t.Error("a kept plan not named as ADR-176 names one: accepted")
 	}
 }
 func TestArmNDiffersFromMInOneRefusal(t *testing.T) {
