@@ -4035,10 +4035,10 @@ bar='|'
   && ok "the pipe-into-quiet-grep pattern finds a piped row, however the option is spelled, and passes a captured one" \
   || bad "the pipe-into-quiet-grep pattern does not tell a piped row from a captured one"
 piped_rows=$(grep -nE "$piped_q" "$SRC/scripts/contract.sh"); piped_rc=$?
-piped_rows=$(grep -vE '^[0-9]+:[[:space:]]*#' <<<"$piped_rows")
-{ [ "$piped_rc" -le 1 ] && [ -z "$piped_rows" ]; } \
+piped_left=$(sed -E '/^[0-9]+:[[:space:]]*#/d' <<<"$piped_rows"); piped_frc=$?
+{ [ "$piped_rc" -le 1 ] && [ "$piped_frc" -eq 0 ] && [ -z "$piped_left" ]; } \
   && ok "no row of this script pipes into a quiet grep" \
-  || bad "the scan failed (status $piped_rc), or these rows pipe into a quiet grep; capture first: $piped_rows"
+  || bad "the scan failed (grep $piped_rc, sed $piped_frc), or these rows pipe into a quiet grep; capture first: $piped_left"
 # README CLAMPS / false-clamp greps retired — ADR-053.
 # AGENTS.md is the plan grammar every non-Claude agent reads, and it said a
 # relative end "clamps at the last line" after the write path started refusing
@@ -7842,7 +7842,7 @@ m write --no-check --then-sh 'echo LASTLINE; false || true' "$R/p179.mrw" > "$WO
 [ "$(grep -A1 -- '— PASS' "$WORK/o179a" | sed -n 2p)" = "  | LASTLINE" ] \
   && ok "and the line under its PASS head is its last line" || bad "the pass: $(head -c 300 "$WORK/o179a")"
 m write --no-check --then-sh true "$R/p179.mrw" > "$WORK/o179b" 2>&1; want 0 $? "a silent pass exits 0"
-{ grep -q -- '— PASS' "$WORK/o179b" && ! { cap=$(grep -A1 -- '— PASS' "$WORK/o179b") && grep -q '^  | ' <<<"$cap"; }; } \
+{ grep -q -- '— PASS' "$WORK/o179b" && cap=$(grep -A1 -- '— PASS' "$WORK/o179b") && ! grep -q '^  | ' <<<"$cap"; } \
   && ok "and prints no tail line under its head" || bad "the silent pass: $(head -c 300 "$WORK/o179b")"
 m write --no-check --then-sh 'echo X; false' "$R/p179.mrw" > "$WORK/o179c" 2>&1; want 3 $? "a failing step still exits 3"
 grep -q '^then last: X$' "$WORK/o179c" && ok "with then last: X" || bad "the failing step: $(head -c 300 "$WORK/o179c")"
@@ -12292,7 +12292,10 @@ if command -v strace >/dev/null 2>&1 && strace -o "$WORK/t361.probe" true >/dev/
   printf '@@ d1/c.txt 2 replace\nX\n' > "$s361/plan2"
   $st361 -o "$s361/trace2" "$MRW" -C "$r361" write --dry-run --no-check "$s361/plan2" > "$WORK/served.out" 2>&1
   want 0 $? "the pair: the strace'd dry run exits 0"
-  if cap=$(grep -E 'fsync\(' "$s361/trace2") && grep -qF "<$r361/" <<<"$cap"; then bad "a dry run synced a tree path: $(grep -E 'fsync\(' "$s361/trace2" | head -3)"; else ok "and syncs nothing in the tree"; fi
+  cap=$(grep -E 'fsync\(' "$s361/trace2"); rc361=$?
+  # grep's 1 is no fsync line at all, which is an empty result; above 1 the trace was not read.
+  if [ "$rc361" -gt 1 ]; then bad "the dry run's trace could not be read (grep exit $rc361)"
+  elif grep -qF "<$r361/" <<<"$cap"; then bad "a dry run synced a tree path: $(head -3 <<<"$cap")"; else ok "and syncs nothing in the tree"; fi
 else
   skip "ADR-210's strace trace needs strace and ptrace; neither is usable here, so the order of the syncs is proved by the Go tests alone"
 
