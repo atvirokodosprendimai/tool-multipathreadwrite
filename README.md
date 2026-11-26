@@ -644,7 +644,7 @@ mrw supports [opencode](https://opencode.ai) through a plugin in this repository
 
 | tool | runs | arguments |
 |---|---|---|
-| `mrw_read` | `mrw mcp`'s `mrw_read` | `specs`, `grep`, `astGrep`, `exclude`, `after`, `ack`, `maxLines`, `stat`, `filesFrom`, `root` |
+| `mrw_read` | `mrw mcp`'s `mrw_read` | `specs`, `grep`, `astGrep`, `exclude`, `after`, `ack`, `maxLines`, `maxCols`, `count`, `stat`, `filesFrom`, `root` |
 | `mrw_write` | `mrw mcp`'s `mrw_write` | `plan`, `ack`, `dryRun`, `check`, `then`, `format`, `echoPad`, `strictBalance` |
 | `mrw_check` | `mrw check` | `paths` |
 | `mrw_stats` | `mrw stats` | `json` |
@@ -652,6 +652,8 @@ mrw supports [opencode](https://opencode.ai) through a plugin in this repository
 | `mrw_iter` | `mrw iter` | `args`: a verb and its specs, e.g. `["add", "a.go:10-20"]` |
 | `mrw_version` | `mrw version` | none |
 | `mrw_instructions` | `mrw instructions` | none |
+
+For a grep inventory, `count: true` returns the matching line count per file and the total. To see a match on a long line, use `maxCols` instead. Counted and shortened lines carry no edit checkpoint. [Examples and measured response sizes](docs/bench/opencode-grep.md)
 
 **Read and write go through the MCP engine, because opencode cuts long output.** It
 truncates a tool's result at 2,000 lines or 50 KiB, and a CLI read has licensed
