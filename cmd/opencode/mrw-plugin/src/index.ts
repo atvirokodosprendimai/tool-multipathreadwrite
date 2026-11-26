@@ -183,8 +183,8 @@ const toolWrite = tool({
     "writes nothing. Addresses resolve against the ORIGINAL file. Ops: replace, insert-after, " +
     "insert-before, delete, create, unlink, rename. A new file is '@@ path 0 create'. A " +
     "multi-line replace needs anchor= AND, unless its range ends at the last line, a served line " +
-    "after it: read past the end first. mrw edits only lines its ledger licenses: lines an mrw_read served in a " +
-    "checkpointed run are licensed once you pass that run's ck id in ack, and a file mrw itself wrote stays licensed (name a line there by pattern or anchor=). A write runs no check unless check: true " +
+    "after it: read past the end first. A plan you author needs a ledger licence for each existing line it " +
+    "changes: pass in ack the ck ids of the complete checkpointed runs you received from mrw_read. A write runs no check unless check: true " +
     "asks for it (ADR-187): with it, after any write that lands, prose-only included, the project's check runs and is reported in the receipt's check; a failed " +
     "check leaves the write applied, and one that could not run is an error with the applied receipt (ADR-205). " +
     "The same change at many sites needs no plan: give grep with sub, and neither plan nor format, and mrw builds " +
