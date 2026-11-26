@@ -1,6 +1,7 @@
 package apply
 
 import (
+	"encoding/json"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -210,6 +211,8 @@ func TestEveryPlanOpRefusesARootedPath(t *testing.T) {
 			{"/../x names none", func() Input { return edit("/../x", "replace") }, ""},
 			{"/ names none", func() Input { return edit("/", "replace") }, ""},
 			{"the root itself names none", func() Input { return edit(root, "replace") }, ""},
+			{"a leading @ and a space are both spelled", func() Input { return edit(filepath.Join(root, "@a b.txt"), "replace") }, inside + `"./@a b.txt"`},
+			{"a directory spelling names none", func() Input { return edit(filepath.Join(root, "dd")+string(filepath.Separator), "replace") }, ""},
 		} {
 			in := m.in()
 			in.Index, in.SrcLine = 0, 1
@@ -241,6 +244,75 @@ func TestEveryPlanOpRefusesARootedPath(t *testing.T) {
 		}
 		if r := res.Hunks[0].Reason; !strings.Contains(r, "(the working-set entry @1 holds it: mrw iter lists it; add it again without the leading separator)") {
 			t.Errorf("reason %q does not name the entry", r)
+		}
+	})
+	t.Run("a pointer is not named for a rooted rename destination", func(t *testing.T) {
+		root, _, seen := fixture(t)
+		in := pathOp("src.txt", "rename", "/elsewhere.txt")
+		in.Pointer = "@1"
+		res, err := Apply(root, []Input{in}, Options{Seen: seen})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if r := res.Hunks[0].Reason; !strings.Contains(r, rootedSentence) || strings.Contains(r, "working-set entry") {
+			t.Errorf("reason %q blames the entry, which holds the source", r)
+		}
+	})
+
+	// A double quote has no header spelling, so no spelling is offered.
+	t.Run("a name holding a double quote names none", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("Windows keeps no name holding a double quote")
+		}
+		root, _, seen := fixture(t)
+		res, err := Apply(root, []Input{edit(filepath.Join(root, `a"b".txt`), "replace")}, Options{Seen: seen})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if r := res.Hunks[0].Reason; strings.Contains(r, "write ") {
+			t.Errorf("reason %q offers a spelling that names another file", r)
+		}
+	})
+
+	// The CLI's default root is ".", and the spelling is offered all the same.
+	t.Run("a root of . still offers the spelling", func(t *testing.T) {
+		root, _, seen := fixture(t)
+		t.Chdir(root)
+		cwd, err := os.Getwd()
+		if err != nil {
+			t.Fatal(err)
+		}
+		res, err := Apply(".", []Input{edit(filepath.Join(cwd, "dd", "zz.txt"), "replace")}, Options{Seen: seen})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if r := res.Hunks[0].Reason; !strings.Contains(r, "for the file inside the root write dd/zz.txt") {
+			t.Errorf("reason %q offers no spelling under root .", r)
+		}
+	})
+
+	// ADR-167: a from= row names its copy even when a rooted hunk refused the run first.
+	t.Run("a from= row keeps body_from", func(t *testing.T) {
+		root, _, seen := fixture(t)
+		copyIn := func(p string) Input {
+			return Input{Path: p, Op: "create", From: "src.txt", FromStart: 1, FromEnd: 1, Lines: -1}
+		}
+		in := []Input{create("/x.txt"), copyIn("new.txt"), copyIn("/y.txt")}
+		for k := range in {
+			in[k].Index, in[k].SrcLine = k, k+1
+		}
+		res, err := Apply(root, in, Options{Seen: seen})
+		if err != nil || len(res.Hunks) != 3 {
+			t.Fatalf("%v %+v", err, res.Hunks)
+		}
+		for _, k := range []int{1, 2} {
+			b, err := json.Marshal(res.Hunks[k])
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(string(b), `"body_from":"src.txt:1"`) {
+				t.Errorf("row %d lacks body_from: %s", k, b)
+			}
 		}
 	})
 }

@@ -638,6 +638,12 @@ func rootedPlanPaths(root string, in []Input) map[int]HunkResult {
 			Path: filepath.Clean(i.Path), Addr: srcAddrOf(i), Op: i.Op, SrcLine: i.SrcLine,
 			Status: StatusFailed, Reason: rootedReason(root, raw, dest, i.Pointer),
 		}
+		if i.From != "" {
+			// ADR-167: every from= row carries body_from, refused or not.
+			r := fails[n]
+			r.fromForm, r.BodyFrom = true, filepath.Clean(i.From)+":"+fromAddrString(i)
+			fails[n] = r
+		}
 	}
 	return fails
 }
@@ -652,19 +658,25 @@ func rootedPlanPaths(root string, in []Input) map[int]HunkResult {
 // is the literal body line.
 func rootedReason(root, raw string, dest bool, pointer string) string {
 	s := raw + " is absolute, and every path in a plan is relative to the root"
-	if rel, ok := insideRoot(root, raw); ok {
-		switch {
-		case dest:
-		case strings.HasPrefix(rel, "@"):
-			rel = "./" + rel
-		case strings.ContainsAny(rel, " \t"):
-			rel = `"` + rel + `"`
+	if rel, ok := insideRoot(root, raw); ok && (dest || !strings.Contains(rel, `"`)) {
+		// A header spelling: ./ before a leading @ (which would read as a pointer),
+		// then double quotes round a space or a tab. A name holding a double quote
+		// has no header spelling that names it, so none is offered. A rename
+		// destination is a body line, taken literally.
+		if !dest {
+			if strings.HasPrefix(rel, "@") {
+				rel = "./" + rel
+			}
+			if strings.ContainsAny(rel, " \t") {
+				rel = `"` + rel + `"`
+			}
 		}
 		s += ": for the file inside the root write " + rel
 	} else {
 		s += ": name the file relative to the root, without the leading separator or drive"
 	}
-	if pointer != "" {
+	// The pointer expanded into the hunk's path, never into a rename's destination.
+	if pointer != "" && !dest {
 		s += " (the working-set entry " + pointer + " holds it: mrw iter lists it; add it again without the leading separator)"
 	}
 	return s
@@ -677,10 +689,13 @@ func insideRoot(root, raw string) (string, bool) {
 		return "", false
 	}
 	c := filepath.Clean(raw)
-	if !rooted.Contains(filepath.Clean(root), c) {
+	// The root as the CLI passes it is often ".", which no absolute path is
+	// lexically inside: compare against its absolute form.
+	r, err := filepath.Abs(root)
+	if err != nil || !rooted.Contains(r, c) {
 		return "", false
 	}
-	rel, err := filepath.Rel(filepath.Clean(root), c)
+	rel, err := filepath.Rel(r, c)
 	if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 		return "", false
 	}

@@ -958,6 +958,10 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			if r.Status == StatusOK {
 				r.CopiedFirst, r.CopiedLast = c.first, c.last
 			}
+		} else if i.From != "" && !r.fromForm {
+			// A run another hunk refused before the sources were resolved
+			// (ADR-215's preflight): the row still names its copy (ADR-167).
+			r.fromForm, r.BodyFrom = true, filepath.Clean(i.From)+":"+fromAddrString(i)
 		}
 		if r.Status == StatusFailed {
 			res.Failed++
