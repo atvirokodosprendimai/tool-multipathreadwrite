@@ -1012,7 +1012,7 @@ grep -q 'written by an older mrw' <<<"$out" && ok "and the caller is told why, n
 # saves, so a stale ledger that returned an error would stop the header ever
 # being written.
 m read stale.txt:2 >"$WORK/served.out" 2>&1
-head -1 "$SD/seen" | grep -q '^#mrw-seen' && ok "and the next read rewrites the ledger with a header" || bad "the ledger never heals: $(head -1 "$SD/seen")"
+grep -q '^#mrw-seen' <<<"$(head -1 "$SD/seen")" && ok "and the next read rewrites the ledger with a header" || bad "the ledger never heals: $(head -1 "$SD/seen")"
 out=$(m read stale.txt:2 2>&1 >/dev/null)
 grep -q 'written by an older mrw' <<<"$out" && bad "the notice repeats after healing" || ok "and the notice does not repeat once healed"
 printf '@@ stale.txt 2 replace\nBBB\n' | m write - >/dev/null 2>&1; rc=$?
@@ -1063,7 +1063,7 @@ fixture
 printf 'a\nb\nc\nd\ne\n' > "$R/led.txt"
 m read 'led.txt:$' >"$WORK/served.out"
 out=$(m seen 2>&1)
-grep -E 'led\.txt' <<<"$out" | grep -qE 'lines 5( |$)' \
+grep -qE 'lines 5( |$)' <<<"$(grep -E 'led\.txt' <<<"$out")" \
   && ok "and the ledger records only the line that was served" \
   || bad "ledger over-records: $(grep led.txt <<<"$out")"
 
@@ -1627,7 +1627,7 @@ m write --no-check "$WORK/inner.mrw" >/dev/null 2>&1
 want 0 $? "a BOM inside a body is accepted"
 # tr -s: od on macOS separates bytes with TWO spaces and on GNU with one, so a
 # literal 'ef bb bf' matches on Linux and silently never matches here.
-if sed -n 3p "$R/a.go" | od -An -tx1 | tr -s ' ' | head -1 | grep -q 'ef bb bf'; then
+if grep -q 'ef bb bf' <<<"$(sed -n 3p "$R/a.go" | od -An -tx1 | tr -s ' ' | head -1)"; then
   ok "and preserved as content rather than stripped"
 else
   bad "a BOM in the body was eaten — that is a silent edit to the caller's text"
@@ -2129,7 +2129,7 @@ fixture
 rule='Use mrw always: plan the activity as one read of every site, then one plan, then one write.'
 # AGENTS.md may wrap the sentence across two lines, so compare on a whitespace-
 # folded copy: the rule is the words, not where the paragraph happened to break.
-tr -s '[:space:]' ' ' < "$SRC/AGENTS.md" | grep -qF "$rule" \
+grep -qF "$rule" <<<"$(tr -s '[:space:]' ' ' < "$SRC/AGENTS.md")" \
   && ok "AGENTS.md still states the always + plan sentence this row holds the wire against" \
   || bad "the always + plan sentence moved in AGENTS.md; the wire and the repository now teach different rules"
 
@@ -4020,6 +4020,18 @@ help=$("$MRW" read --help 2>&1)
 grep -q 'A,+N' <<<"$help" \
   && ok "mrw read --help names the relative end" \
   || bad "mrw read --help does not name the relative end"
+# No row pipes into `grep -q`, whatever feeds it. A red row from that pipe says nothing about mrw,
+# and under `!` or an `if …; then bad` the 141 reads as a pass. The first row shows the pattern
+# finds a piped line and passes a captured one; lines naming piped_q are this guard's own.
+piped_q='(^|[^|])\|[[:space:]]*grep[[:space:]]+(-[a-zA-Z]*q|--quiet)'
+{ grep -qE "$piped_q" <<<'m seen | grep -qF x' && ! grep -qE "$piped_q" <<<'grep -q x <<<"$out" || grep -q y <<<"$out"'; } # piped_q
+[ $? -eq 0 ] \
+  && ok "the pipe-into-grep-q pattern finds a piped row and passes a captured one" \
+  || bad "the pipe-into-grep-q pattern does not tell a piped row from a captured one"
+piped_rows=$(grep -nE "$piped_q" "$SRC/scripts/contract.sh" | grep -vE '^[0-9]+:[[:space:]]*#|piped_q')
+[ -z "$piped_rows" ] \
+  && ok "no row of this script pipes into grep -q" \
+  || bad "these rows pipe into grep -q; capture first: $piped_rows"
 # README CLAMPS / false-clamp greps retired — ADR-053.
 # AGENTS.md is the plan grammar every non-Claude agent reads, and it said a
 # relative end "clamps at the last line" after the write path started refusing
@@ -5092,10 +5104,10 @@ want 0 $? "A's ack licenses a write under A"
 # flag is usage (exit 2), so a binary that always exits 0 cannot pass.
 help79=$(m write --help)
 want 0 $? "write --help exits 0"
-printf '%s' "$help79" | grep -q 'anchor="' && ok "write --help names double-quoted anchor=" || bad "write --help names double-quoted anchor="
-printf '%s' "$help79" | grep -q 'body=' && ok "write --help names body=" || bad "write --help names body="
-printf '%s' "$help79" | grep -q -- '-C' && ok "write --help names -C" || bad "write --help names -C"
-printf '%s' "$help79" | grep -q -- '--root' && ok "write --help names --root" || bad "write --help names --root"
+grep -q 'anchor="' <<<"$help79" && ok "write --help names double-quoted anchor=" || bad "write --help names double-quoted anchor="
+grep -q 'body=' <<<"$help79" && ok "write --help names body=" || bad "write --help names body="
+grep -q -- '-C' <<<"$help79" && ok "write --help names -C" || bad "write --help names -C"
+grep -q -- '--root' <<<"$help79" && ok "write --help names --root" || bad "write --help names --root"
 m write --not-a-flag >/dev/null 2>&1
 want 2 $? "an unknown write flag is usage, not silent help"
 
@@ -5860,7 +5872,7 @@ R=$(mktemp -d "$WORK/r97b-XXXXXX")
 printf '{"check":"true","timeout_seconds":300,"fenceTimeout":1}\n' > "$R/.quality-harness.json"
 out=$(m check 2>&1); rc=$?
 want 2 "$rc" "disagreeing timeout keys refuse mrw check (exit 2)"
-echo "$out" | grep -q '300' && echo "$out" | grep -q '1' \
+grep -q '300' <<<"$out" && grep -q '1' <<<"$out" \
   && ok "refusal names both values" || bad "disagree text: $out"
 
 # 98. ADR-057: native unlink/rename. Pair: whole-file read then unlink
@@ -5937,7 +5949,7 @@ out=$(printf '%s\n' \
 	'extra one' \
 	'extra two' | m write --no-check - 2>&1); rc=$?
 want 2 "$rc" "leftover body=1 is exit 2"
-echo "$out" | grep -q 'body=1' && echo "$out" | grep -q '2 extra' \
+grep -q 'body=1' <<<"$out" && grep -q '2 extra' <<<"$out" \
 	&& ok "leftover names declared vs extra" || bad "leftover: $out"
 
 m read a.go >"$WORK/served.out"
@@ -5945,7 +5957,7 @@ out=$(printf '%s\n' \
 	'@@ a.go 2 replace anchor="func A" body=1' \
 	'func A() { _ = 1 }' | m write --dry-run --no-check - 2>&1); rc=$?
 want 0 "$rc" "dry-run of a counted hunk exits 0"
-echo "$out" | grep -q 'parsed:' && echo "$out" | grep -q 'body=1' \
+grep -q 'parsed:' <<<"$out" && grep -q 'body=1' <<<"$out" \
 	&& ok "dry-run prints parsed body=1" || bad "parsed: $out"
 
 # 101. ADR-060 T2: a ranged multi-line read hinted the neighbour line; since
@@ -5959,7 +5971,7 @@ want 0 "$rc" "ranged multi-line read exits 0"
 	&& ok "ranged multi-line read serves the neighbour line" || bad "hint: $out"
 out=$(m read f.txt 2>&1); rc=$?
 want 0 "$rc" "whole-file read exits 0"
-echo "$out" | grep -q 'needs a served line after' \
+grep -q 'needs a served line after' <<<"$out" \
 	&& bad "whole-file printed a neighbour hint: $out" \
 	|| ok "whole-file read is quiet"
 
@@ -5971,7 +5983,7 @@ out=$(printf '%s\n' \
 	'@@ f.ts 1 replace anchor=import { inject, vi } from "vitest"; body=1' \
 	'X' | m write --no-check - 2>&1); rc=$?
 want 2 "$rc" "unquoted anchor with embedded quotes is exit 2"
-echo "$out" | grep -q 'anchor="' \
+grep -q 'anchor="' <<<"$out" \
 	&& ok "refusal names the quoted form" || bad "unquoted: $out"
 
 m read f.ts >"$WORK/served.out"
@@ -5995,7 +6007,7 @@ else
 fi
 out=$(printf '%s\n' '@@ dest2.txt 0 create body=@/etc/hosts' | m write --no-check - 2>&1); rc=$?
 want 2 "$rc" "rooted body=@/etc/hosts is exit 2"
-echo "$out" | grep -q '/etc/hosts' \
+grep -q '/etc/hosts' <<<"$out" \
 	&& ok "rooted body=@ names the path" || bad "rooted: $out"
 [ ! -e "$R/dest2.txt" ] && ok "rooted body=@ wrote nothing" || bad "dest2.txt exists"
 
@@ -6024,7 +6036,7 @@ out=$(printf '%s\n' \
 	'func A() { _ = 1 }' | m write --check - 2>&1); rc=$?
 want 0 "$rc" "passing check is exit 0"
 grep -qE '^check PASS' <<<"$out" && ok "and the receipt shows the passing check" || bad "passing check not shown: $out"
-echo "$out" | grep -q 'check last:' \
+grep -q 'check last:' <<<"$out" \
 	&& bad "PASS printed check last: $out" || ok "PASS has no check last:"
 
 # 105. ADR-060 T7: replace/insert body=@ parse and load after parse.
@@ -6058,7 +6070,7 @@ printf 'package a\nfunc A() {}\n' > "$R/a.go"
 m read a.go >"$WORK/served.out"
 out=$(printf '%s\n' '@@ a.go 2 replace anchor="func A"' | m write --no-check - 2>&1); rc=$?
 want 2 "$rc" "empty replace without body=@ is still exit 2"
-echo "$out" | grep -q 'would delete' \
+grep -q 'would delete' <<<"$out" \
 	&& ok "empty replace still names delete" || bad "empty replace: $out"
 
 # 106. ADR-015 T2: several English-word UNREADABLE paths name quoting; one miss stays silent.
@@ -6156,24 +6168,24 @@ dur=$((t1 - t0))
 # not say "a line address means nothing".
 help112=$(m write --help)
 want 0 $? "write --help exits 0"
-printf '%s' "$help112" | grep -q 'to=' && ok "write --help names to=" || bad "write --help names to="
-printf '%s' "$help112" | grep -q 'one-line body' && ok "write --help names dest as one-line body" || bad "write --help dest body: $help112"
-printf '%s' "$help112" | grep -q 'destination' && ok "write --help names destination" || bad "write --help destination"
+grep -q 'to=' <<<"$help112" && ok "write --help names to=" || bad "write --help names to="
+grep -q 'one-line body' <<<"$help112" && ok "write --help names dest as one-line body" || bad "write --help dest body: $help112"
+grep -q 'destination' <<<"$help112" && ok "write --help names destination" || bad "write --help destination"
 
 R=$(mktemp -d "$WORK/r112-XXXXXX")
 printf 'gone\n' > "$R/gone.txt"
 out=$(printf '%s\n' '@@ gone.txt - unlink' | m write - 2>&1); rc=$?
 want 1 "$rc" "unread unlink is exit 1"
-echo "$out" | grep -q 'takes no line address' \
+grep -q 'takes no line address' <<<"$out" \
 	&& ok "unread unlink names no line address" || bad "unread unlink wording: $out"
-echo "$out" | grep -q 'a line address means nothing' \
+grep -q 'a line address means nothing' <<<"$out" \
 	&& bad "unread unlink still talks about a line address: $out" \
 	|| ok "unread unlink does not say a line address means nothing"
 [ -f "$R/gone.txt" ] && ok "unread unlink wrote nothing" || bad "gone.txt was removed unread"
 
 out=$(printf '%s\n' '@@ gone.txt - rename to=new.txt' | m write - 2>&1); rc=$?
 want 2 "$rc" "rename to= is usage"
-echo "$out" | grep -q 'unknown option' \
+grep -q 'unknown option' <<<"$out" \
 	&& ok "to= is an unknown option" || bad "to= refusal: $out"
 
 # 113. ADR-061: a {files}-only scoped_check runs when packages() cannot map.
@@ -7823,7 +7835,7 @@ m write --no-check --then-sh 'echo LASTLINE; false || true' "$R/p179.mrw" > "$WO
 [ "$(grep -A1 -- '— PASS' "$WORK/o179a" | sed -n 2p)" = "  | LASTLINE" ] \
   && ok "and the line under its PASS head is its last line" || bad "the pass: $(head -c 300 "$WORK/o179a")"
 m write --no-check --then-sh true "$R/p179.mrw" > "$WORK/o179b" 2>&1; want 0 $? "a silent pass exits 0"
-{ grep -q -- '— PASS' "$WORK/o179b" && ! grep -A1 -- '— PASS' "$WORK/o179b" | grep -q '^  | '; } \
+{ grep -q -- '— PASS' "$WORK/o179b" && ! grep -q '^  | ' <<<"$(grep -A1 -- '— PASS' "$WORK/o179b")"; } \
   && ok "and prints no tail line under its head" || bad "the silent pass: $(head -c 300 "$WORK/o179b")"
 m write --no-check --then-sh 'echo X; false' "$R/p179.mrw" > "$WORK/o179c" 2>&1; want 3 $? "a failing step still exits 3"
 grep -q '^then last: X$' "$WORK/o179c" && ok "with then last: X" || bad "the failing step: $(head -c 300 "$WORK/o179c")"
@@ -8450,7 +8462,7 @@ sc = r["structuredContent"]
 c = sc.get("check") or {}
 sys.exit(0 if c.get("ran") is True and c.get("exit_code") == 3 and sc.get("applied") is True and not r.get("isError") else 1)
 PY
-m stats --json | grep -q '"failed_check": 1' && ok "and counts it failed_check" || bad "the failed check was not counted: $(m stats --json | head -c 300)"
+st213=$(m stats --json) && grep -q '"failed_check": 1' <<<"$st213" && ok "and counts it failed_check" || bad "the failed check was not counted: $(m stats --json | head -c 300)"
 out=$(req213 '{"plan":"@@ a.go 3 replace anchor=\"func A\"\nfunc A() int { return 2130 }\n","check":false}' | "$MRW" -C "$R" mcp --enable 2>/dev/null)
 python3 - "$out" <<'PY' && ok "the pair: check: false runs none, and the write applies" || bad "check: false: $(head -c 400 <<<"$out")"
 import json, sys
@@ -8487,7 +8499,7 @@ printf 'NEEDLE216\n' > "$R/s216.txt"
 printf 'NEEDLE216\0\n' > "$R/b216.dat"
 out=$(m read --grep NEEDLE216 2>&1)
 if grep -q 's216.txt' <<<"$out" && ! grep -q 'gen216/x.txt' <<<"$out" && ! grep -q 'b216.dat' <<<"$out" \
-   && tail -n 1 <<<"$out" | grep -q -- '^-- skipped:.*--no-ignore'; then
+   && grep -q -- '^-- skipped:.*--no-ignore' <<<"$(tail -n 1 <<<"$out")"; then
   ok "--grep skips an ignored directory and a binary file, and says so as its last line"
 else bad "--grep served what .gitignore ignores, or skipped it silently: $(head -c 400 <<<"$out")"; fi
 out=$(m read --grep NEEDLE216 --no-ignore 2>&1 | LC_ALL=C tr -d '\000')
@@ -9304,10 +9316,10 @@ o318=$(cd "$R" && "$MRW" read --max-lines 2 a.txt 'a.txt:/nomatch/' 2>"$WORK/e31
 { [ "$rc318" = 1 ] && [ "$(tail -n 1 "$WORK/e318")" = 'mrw: incomplete: 2 range(s) could not be served' ]; } \
   && ok "the pair: a capped read that also missed a range exits 1 incomplete" || bad "cap beside a missed range: exit $rc318 [$o318] [$(cat "$WORK/e318")]"
 o318=$(cd "$R" && "$MRW" read --max-lines 2 --max-chars 60 a.txt 2>"$WORK/e318"); rc318=$?
-{ [ "$rc318" = 1 ] && tail -n 1 "$WORK/e318" | grep -q '^mrw: incomplete: .*--max-chars 60 reached'; } \
+{ [ "$rc318" = 1 ] && grep -q '^mrw: incomplete: .*--max-chars 60 reached' <<<"$(tail -n 1 "$WORK/e318")"; } \
   && ok "the pair: a capped read that reached --max-chars exits 1 incomplete" || bad "cap beside --max-chars: exit $rc318 [$o318] [$(cat "$WORK/e318")]"
 o318=$(cd "$R" && "$MRW" read --grep ABSENT --max-lines 0 . 2>"$WORK/e318"); rc318=$?
-{ [ "$rc318" = 1 ] && tail -n 1 "$WORK/e318" | grep -q '^mrw: no match: '; } \
+{ [ "$rc318" = 1 ] && grep -q '^mrw: no match: ' <<<"$(tail -n 1 "$WORK/e318")"; } \
   && ok "the pair: a capped search that matched no file exits 1 no match" || bad "capped search with no match: exit $rc318 [$o318] [$(cat "$WORK/e318")]"
 rm -f "$WORK/e318"
 
@@ -9599,7 +9611,7 @@ err=$(m help 2>&1 >/dev/null); want 0 $? "mrw help exits 0 under a stale ledger"
 { [ -z "$err" ] && [ "$(cat "$sd261/seen")" = "#mrw-seen v3" ]; } && ok "and says nothing of it, leaving it as it was" || bad "help under a stale ledger: $err"
 err=$(m read a.go 2>&1 >"$WORK/served.out"); want 0 $? "the pair: a read under the stale ledger exits 0"
 { grep -q 'it is not used, and the next recorded read or write replaces it' <<<"$err" && ! grep -q 'has been discarded' <<<"$err" \
-  && head -1 "$sd261/seen" | grep -q '^#mrw-seen v6 '; } && ok "tells the notice, claiming no discard, and replaces the ledger" || bad "stale read: $err"
+  && grep -q '^#mrw-seen v6 ' <<<"$(head -1 "$sd261/seen")"; } && ok "tells the notice, claiming no discard, and replaces the ledger" || bad "stale read: $err"
 
 # 262. ADR-157: a read and a plan that name mrw's own state are refused with no
 # --root advice, which no --root could satisfy; the pair, a path that leaves the
@@ -10057,7 +10069,7 @@ out=$(printf '@@ g.txt 0 create\nhi\n' | "$MRW" write --root "$R" --no-check - 2
 # plan applies.
 R=$(mktemp -d "$WORK/r282-XXXXXX"); printf 'alpha\nbravo\ncharlie\n' > "$R/a.txt"; printf 'delta\necho\n' > "$R/b.txt"
 out=$(cd "$R" && "$MRW" read --max-chars 50 a.txt b.txt 2>"$WORK/r282.err"); want 1 $? "a read over its --max-chars budget exits 1"
-{ [ "$(printf '%s\n' "$out" | wc -m)" -le 51 ] && grep -q 'b.txt: WITHHELD: --max-chars reached' "$WORK/r282.err" && tail -1 "$WORK/r282.err" | grep -q -- '--max-chars 50 reached'; } \
+{ [ "$(printf '%s\n' "$out" | wc -m)" -le 51 ] && grep -q 'b.txt: WITHHELD: --max-chars reached' "$WORK/r282.err" && grep -q -- '--max-chars 50 reached' <<<"$(tail -1 "$WORK/r282.err")"; } \
   && ok "and stays within the budget, naming b.txt and the budget on stderr" || bad "--max-chars 50: $out / $(cat "$WORK/r282.err")"
 out=$(cd "$R" && printf '@@ b.txt 1 replace\nDELTA\n' | "$MRW" write --no-check - 2>&1); want 1 $? "a plan to a withheld file is refused, exit 1"
 out=$(cd "$R" && "$MRW" read a.txt b.txt 2>&1); want 0 $? "the pair: the read with no budget serves both"
@@ -10085,7 +10097,7 @@ plain=$(cd "$R" && "$MRW" read f.txt:1 2>/dev/null)
 R=$(mktemp -d "$WORK/r284-XXXXXX"); printf 'alpha\n' > "$R/f.txt"
 mkdir -p "$WORK/s284"; : > "$WORK/s284/mrw"
 out=$(cd "$R" && XDG_STATE_HOME="$WORK/s284" "$MRW" read f.txt 2>"$WORK/r284.err"); want 0 $? "a content read whose state directory cannot be made exits 0"
-{ grep -q '1| alpha' <<<"$out" && tail -1 "$WORK/r284.err" | grep -q '^mrw: nothing was recorded'; } \
+{ grep -q '1| alpha' <<<"$out" && grep -q '^mrw: nothing was recorded' <<<"$(tail -1 "$WORK/r284.err")"; } \
   && ok "and serves the line, saying last that nothing was recorded" || bad "read-only read: $out / $(cat "$WORK/r284.err")"
 out=$(cd "$R" && XDG_STATE_HOME="$WORK/s284" "$MRW" read --quiet f.txt 2>&1); want 2 $? "the pair: --quiet, which exists to record, still exits 2"
 
@@ -11078,7 +11090,7 @@ rm -rf "$S320" "$R320" "$WORK/p320.plan" "$WORK/q320.plan" "$WORK/s320.out"
 # `mrw read --stat` with no working set, the call seen with the short wording, is refused, exit 2.
 S321=$(mktemp -d "$WORK/s321-XXXXXX"); R321=$(mktemp -d "$WORK/r321-XXXXXX")
 e321() { env XDG_STATE_HOME="$S321" "$@"; }
-grep -E '^6\. ' <<<"$("$MRW" instructions --core)" | grep -qF -e '--stat lists the matching files' \
+grep -qF -e '--stat lists the matching files' <<<"$(grep -E '^6\. ' <<<"$("$MRW" instructions --core)")" \
   && ok "the core says --stat lists the matching files" || bad "core rule 6: $("$MRW" instructions --core | grep -E '^6\. ')"
 printf 'NEEDLE321\n' > "$R321/hit.txt"; printf 'nothing\n' > "$R321/miss.txt"
 out=$(e321 "$MRW" -C "$R321" read --grep NEEDLE321 --stat . 2>&1); rc321=$?
@@ -12273,7 +12285,7 @@ if command -v strace >/dev/null 2>&1 && strace -o "$WORK/t361.probe" true >/dev/
   printf '@@ d1/c.txt 2 replace\nX\n' > "$s361/plan2"
   $st361 -o "$s361/trace2" "$MRW" -C "$r361" write --dry-run --no-check "$s361/plan2" > "$WORK/served.out" 2>&1
   want 0 $? "the pair: the strace'd dry run exits 0"
-  if grep -E 'fsync\(' "$s361/trace2" | grep -qF "<$r361/"; then bad "a dry run synced a tree path: $(grep -E 'fsync\(' "$s361/trace2" | head -3)"; else ok "and syncs nothing in the tree"; fi
+  if grep -qF "<$r361/" <<<"$(grep -E 'fsync\(' "$s361/trace2")"; then bad "a dry run synced a tree path: $(grep -E 'fsync\(' "$s361/trace2" | head -3)"; else ok "and syncs nothing in the tree"; fi
 else
   skip "ADR-210's strace trace needs strace and ptrace; neither is usable here, so the order of the syncs is proved by the Go tests alone"
 
@@ -12318,7 +12330,7 @@ done
   && ok "and ast-grep was given a.txt, never absent.txt" || bad "argv: $(tr '\n' ' ' < "$d377/argv377" 2>/dev/null)"
 out=$("$MRW" -C "$R377" read --grep NOWHERE377 absent.txt 2>&1); rc=$?
 want 1 "$rc" "a search that matched no file beside a path that is not there -> exit 1"
-tail -1 <<<"$out" | grep -q '^mrw: incomplete: no file matched /NOWHERE377/, and 1 path(s) were refused or could not be read (see the REFUSED and UNREADABLE lines)$' \
+grep -q '^mrw: incomplete: no file matched /NOWHERE377/, and 1 path(s) were refused or could not be read (see the REFUSED and UNREADABLE lines)$' <<<"$(tail -1 <<<"$out")" \
   && ok "and its last line keeps ADR-146's phrase and says the path may not have been read" || bad "tail: $(tail -c 300 <<<"$out")"
 out=$("$MRW" -C "$R377" read absent.txt 2>&1); rc=$?
 want 1 "$rc" "a direct read of the same path -> exit 1"
