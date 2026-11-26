@@ -28,10 +28,10 @@ This README is a derived index — when it disagrees with a task file, the task 
 |------|------|--------|
 | T1 | a run pins its mrw, its instructions and its spend | done |
 | T2 | M and N are two builds of one tag that differ in one refusal | done |
-| T3 | 48 tasks in four classes | done |
+| T3 | 48 tasks in four classes | partial |
 | T4 | the counting script | done |
 | T5 | the canaries and the uncounted smoke (amended by ADR-211 T3) | pending |
 | T6 | the counted pilot and its report (amended by ADR-211 T3) | pending |
 
 Status: `pending` | `partial` | `blocked` | `done`.
-Merged by: T1 #693, T2 #691, T3 #692, T4 #695. The numbers are kept out of the Status cells, since `adr-lint` checks a task's test lock only when its cell is exactly `done`.
+Merged by: T1 #693, T2 #691, T3 #692, T4 #695. The numbers are kept out of the Status cells, since `adr-lint` checks a task's test lock only when its cell is exactly `done`. T3 is `partial`: its step S3 is `[proof: human]` and no sign-off is recorded; the owner records it with `adr-verify <T3 task file> --human "…"`, and the cell then reads `done`.
