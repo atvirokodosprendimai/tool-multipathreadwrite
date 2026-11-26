@@ -200,14 +200,20 @@ func s9Env(key, def string) string {
 
 var s9Sha = regexp.MustCompile(`(?m)^([mn]) sha256: ([0-9a-f]{64})$`)
 
-// s9Kept hides the name of the plan file a refusal keeps, which holds a clock
-// reading and a pid: the one thing two runs of one refusal do not share. It
-// matches the platform's own separator only: on Unix a backslash is part of a
-// name, and accepting it would hide a real difference between M and N (#802).
-var s9Kept = regexp.MustCompile(`\S*mrw-refused` + regexp.QuoteMeta(string(filepath.Separator)) + `\S+\.plan`)
+// s9Kept is the generated name of the plan file a refusal keeps, which holds a
+// clock reading and a pid: the one thing two runs of one refusal do not share.
+// Only that last component is hidden; the directory before it stays in the
+// comparison, which is the same for both arms because each reuses one sandbox
+// path. The separator is the platform's own: on Unix a backslash is part of a
+// name (#802).
+var (
+	s9Sep  = regexp.QuoteMeta(string(filepath.Separator))
+	s9Kept = regexp.MustCompile(`mrw-refused` + s9Sep + `[^\s` + s9Sep + `]+\.plan`)
+)
 
 func s9Same(r s9Run) s9Run {
-	r.stdout, r.err = s9Kept.ReplaceAllString(r.stdout, "KEPT"), s9Kept.ReplaceAllString(r.err, "KEPT")
+	kept := "mrw-refused" + string(filepath.Separator) + "KEPT.plan"
+	r.stdout, r.err = s9Kept.ReplaceAllLiteralString(r.stdout, kept), s9Kept.ReplaceAllLiteralString(r.err, kept)
 	return r
 }
 
