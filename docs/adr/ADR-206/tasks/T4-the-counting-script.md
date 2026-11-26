@@ -40,7 +40,19 @@ python3 -B -m unittest discover -s scripts -p 'test_bench_stage9.py' 2> "${TMPDI
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `test_bench_stage9.py` | `scripts/test_bench_stage9.py` | each measure and each INSUFFICIENT rule on fixtures built to hit it; each refusal; the refusal's words pinned against `internal/apply`'s text | none | S1, S2 |
+| `test_each_outcome_and_the_partition` | `scripts/test_bench_stage9.py` | correct, outside, other and missing partition the planned attempts | none | S1, S2 |
+| `test_a_null_cost_is_missing_never_zero` | `scripts/test_bench_stage9.py` | a null cost is missing, and the spend line counts it as missing | none | S1, S2 |
+| `test_under_ten_paired` | `scripts/test_bench_stage9.py` | INSUFFICIENT under 10 of 12 paired | none | S1, S2 |
+| `test_a_paired_cost_missing` | `scripts/test_bench_stage9.py` | INSUFFICIENT when a paired cost is missing | none | S1, S2 |
+| `test_zero_correct_in_an_arm` | `scripts/test_bench_stage9.py` | INSUFFICIENT when either arm has no correct attempt | none | S1, S2 |
+| `test_over_five_percent_of_resamples_dropped` | `scripts/test_bench_stage9.py` | INSUFFICIENT over 5% of resamples dropped, and no ratio beside it | none | S1, S2 |
+| `test_in_m_it_is_a_refusal_in_the_output_of_a_write` | `scripts/test_bench_stage9.py` | exposure in M, per attempt, from the output of a write | none | S1, S2 |
+| `test_in_n_it_is_a_line_in_the_kept_log` | `scripts/test_bench_stage9.py` | exposure in N, per attempt, from the kept log | none | S1, S2 |
+| `test_the_text_of_mrw_instructions_alone_does_not_count` | `scripts/test_bench_stage9.py` | the instructions' own text is not a refusal | none | S1, S2 |
+| `test_the_phrase_is_the_one_internal_apply_writes` | `scripts/test_bench_stage9.py` | the refusal's words pinned against `internal/apply`'s text | none | S1, S2 |
+| `test_a_run_of_the_wrong_model_or_configuration_is_refused` | `scripts/test_bench_stage9.py` | mismatched runs are refused | none | S1, S2 |
+| `test_the_seed_is_206_and_the_interval_is_pinned` | `scripts/test_bench_stage9.py` | the interval's rounded ends and its dropped count, for a fixed set of rows, equal the values pinned at seed 206 | none | S1, S2 |
+| `test_spend_is_exactly_one_line_of_six_fields_over_every_receipt` | `scripts/test_bench_stage9.py` | spend prints one line of six fields over every receipt | none | S1, S2 |
 
 ## Reachability
 
@@ -73,6 +85,7 @@ python3 -B -m unittest discover -s scripts -p 'test_bench_stage9.py' 2> "${TMPDI
 - 2026-11-20 · 89ae41a5* · exit 0 · `set -o pipefail …` · acceptance-sha256:d4165a7078b709ce8ecf35441edbc3b8fd71bec6cea7fd605430a27c6f375351 · ms:588
 - 2026-11-20 · 89ae41a5* · exit 0 · `set -o pipefail …` · acceptance-sha256:d4165a7078b709ce8ecf35441edbc3b8fd71bec6cea7fd605430a27c6f375351 · ms:736
 - 2026-11-25 · 1e55658d* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:d4165a7078b709ce8ecf35441edbc3b8fd71bec6cea7fd605430a27c6f375351 · ms:35 · test-lock-sha256:37093683b8ec0c14ac28623e306b9f4f148f7c5da2f8db1fcbecba297e89f414 · test-lock-file:docs/adr/locks/37093683b8ec0c14ac28623e306b9f4f148f7c5da2f8db1fcbecba297e89f414.lock · test-lock-kind:replace
+- 2026-11-26 · 418388db* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:d4165a7078b709ce8ecf35441edbc3b8fd71bec6cea7fd605430a27c6f375351 · ms:34 · test-lock-sha256:8971458df87729582319a76e376ed44206e06cd48358a1dec1dfed1166f112fa · test-lock-file:docs/adr/locks/8971458df87729582319a76e376ed44206e06cd48358a1dec1dfed1166f112fa.lock · test-lock-kind:replace
 
 ## Invariants
 
