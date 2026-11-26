@@ -200,21 +200,45 @@ func s9Env(key, def string) string {
 
 var s9Sha = regexp.MustCompile(`(?m)^([mn]) sha256: ([0-9a-f]{64})$`)
 
-// s9Kept is the generated name of the plan file a refusal keeps, which holds a
-// clock reading and a pid: the one thing two runs of one refusal do not share.
-// Only that last component is hidden; the directory before it stays in the
-// comparison, which is the same for both arms because each reuses one sandbox
-// path. The separator is the platform's own: on Unix a backslash is part of a
-// name (#802).
-var (
-	s9Sep  = regexp.QuoteMeta(string(filepath.Separator))
-	s9Kept = regexp.MustCompile(`mrw-refused` + s9Sep + `[^\s` + s9Sep + `]+\.plan`)
-)
+// s9Kept is the generated name of the plan file a refusal keeps, exactly as
+// cmd/mrw/refused176.go makes it: a UTC clock reading, a pid and four bytes of
+// salt in hex, `20060102T150405.000000000Z-PID-SALT.plan`, the one thing two
+// runs of one refusal do not share. Only that whole last component, right
+// after `mrw-refused` and the platform's own separator, is hidden: the
+// directory before it stays in the comparison (the same for both arms, which
+// each reuse one sandbox path), and an unrelated name or a further component is
+// left as it is (#802).
+var s9Kept = regexp.MustCompile(`mrw-refused` + regexp.QuoteMeta(string(filepath.Separator)) +
+	`[0-9]{8}T[0-9]{6}\.[0-9]{9}Z-[0-9]+-[0-9a-f]{8}\.plan`)
 
 func s9Same(r s9Run) s9Run {
 	kept := "mrw-refused" + string(filepath.Separator) + "KEPT.plan"
 	r.stdout, r.err = s9Kept.ReplaceAllLiteralString(r.stdout, kept), s9Kept.ReplaceAllLiteralString(r.err, kept)
 	return r
+}
+
+// TestS9SameHidesOnlyTheGeneratedPlanName holds the normalisation the M/N
+// comparison rests on: two kept-plan names in one directory compare equal, and
+// a different directory, a further component or an unrelated name does not.
+func TestS9SameHidesOnlyTheGeneratedPlanName(t *testing.T) {
+	sep := string(filepath.Separator)
+	dir := filepath.Join("x", "state", "mrw-refused") + sep
+	at := func(s string) string { return s9Same(s9Run{err: "kept at " + s + " (21 bytes)"}).err }
+	a := dir + "20261126T210433.541366300Z-30728-e42fa677.plan"
+	b := dir + "20261126T210433.594949900Z-48412-41d0db8a.plan"
+	if at(a) != at(b) {
+		t.Errorf("two generated names in one directory differ: %q vs %q", at(a), at(b))
+	}
+	for _, other := range []string{
+		filepath.Join("x", "other", "mrw-refused") + sep + "20261126T210433.594949900Z-48412-41d0db8a.plan",
+		dir + "sub" + sep + "20261126T210433.594949900Z-48412-41d0db8a.plan",
+		dir + "sub/20261126T210433.594949900Z-48412-41d0db8a.plan",
+		dir + "NOTICE.plan",
+	} {
+		if at(a) == at(other) {
+			t.Errorf("%q compares equal to %q after normalising", other, a)
+		}
+	}
 }
 
 func TestArmNDiffersFromMInOneRefusal(t *testing.T) {
