@@ -37,7 +37,7 @@ Request bytes are the UTF-8 length of the compact JSON arguments; response bytes
 
 ## What the definition costs
 
-The new arguments make the tool definition larger. A local compact JSON Schema draft-7 projection of `mrw_write`'s id, description and parameters measured 2,780 bytes for the baseline adapter and 4,022 bytes at `12409fe1`: whenever a host advertises this definition, its projected size is 1,242 bytes larger. How often a host sends, caches or defers the definition, and what any session pays for it, were not observed. OpenCode 1.19.5's own registry, run against `12409fe1`, listed all 11 of `mrw_write`'s arguments.
+The new arguments make the tool definition larger. A local compact JSON Schema draft-7 projection of `mrw_write`'s id, description and parameters measured 2,780 bytes for the baseline adapter and 4,022 bytes at `12409fe1`: whenever a host advertises this definition, its projected size is 1,242 bytes larger. The projection is the UTF-8 length of `JSON.stringify({id: "mrw_write", description, parameters: z.toJSONSchema(z.object(args), {target: "draft-7"})})`, using the plugin's `src/index.ts` at each commit and the `zod` in the plugin's own `node_modules`, so the argument descriptions are included. How often a host sends, caches or defers the definition, and what any session pays for it, were not observed. OpenCode 1.19.5's own registry, run against `12409fe1`, listed all 11 of `mrw_write`'s arguments.
 
 ## Limits
 
