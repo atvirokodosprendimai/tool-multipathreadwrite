@@ -122,6 +122,30 @@ func s9Log(t *testing.T, state string) (bool, []s9Event) {
 
 func s9Sum(s string) string { h := sha256.Sum256([]byte(s)); return hex.EncodeToString(h[:]) }
 
+// s9Exe is the path an arm runs from. build.sh writes the extensionless
+// mrw-m and mrw-n that builds.md records and hashes; Windows starts only a
+// name with an executable extension, so there each arm runs through a copy
+// named .exe whose bytes hash to what build.sh printed (#802). The build
+// outputs themselves are left as they are.
+func s9Exe(t *testing.T, path, sum string) string {
+	t.Helper()
+	if runtime.GOOS != "windows" {
+		return path
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exe := path + ".exe"
+	if err := os.WriteFile(exe, b, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := os.ReadFile(exe); err != nil || s9Sum(string(got)) != sum {
+		t.Fatalf("%s does not hash to %s, which build.sh printed for %s: %v", exe, sum, path, err)
+	}
+	return exe
+}
+
 func s9File(t *testing.T, root, name string) string {
 	t.Helper()
 	b, err := os.ReadFile(filepath.Join(root, name))
@@ -229,7 +253,7 @@ func TestArmNDiffersFromMInOneRefusal(t *testing.T) {
 	} else {
 		t.Logf("built on %s, builds.md records %s: the hashes are not compared", here, plat[1])
 	}
-	m, n := filepath.Join(out, "mrw-m"), filepath.Join(out, "mrw-n")
+	m, n := s9Exe(t, filepath.Join(out, "mrw-m"), sums["m"]), s9Exe(t, filepath.Join(out, "mrw-n"), sums["n"])
 	work := t.TempDir()
 
 	const stale = "no recorded showing in this version"
