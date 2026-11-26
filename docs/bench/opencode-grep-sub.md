@@ -37,11 +37,11 @@ Request bytes are the UTF-8 length of the compact JSON arguments; response bytes
 
 ## What the definition costs
 
-The new arguments make the tool definition larger, and a host sends that definition whether or not a session uses them. The compact JSON Schema draft-7 projection of `mrw_write`'s id, description and parameters measured 2,780 bytes for the baseline adapter and 4,022 bytes at `12409fe1`: 1,242 bytes more per advertised definition. OpenCode 1.19.5's own registry, run against `12409fe1`, listed all 11 of `mrw_write`'s arguments.
+The new arguments make the tool definition larger. A local compact JSON Schema draft-7 projection of `mrw_write`'s id, description and parameters measured 2,780 bytes for the baseline adapter and 4,022 bytes at `12409fe1`: whenever a host advertises this definition, its projected size is 1,242 bytes larger. How often a host sends, caches or defers the definition, and what any session pays for it, were not observed. OpenCode 1.19.5's own registry, run against `12409fe1`, listed all 11 of `mrw_write`'s arguments.
 
 ## Limits
 
-These figures are call counts and payload sizes for one class of task, renames whose files the task names. They are not an agent's cost. Model tokens, prompt caching, billing, wall time, and how often an agent picks this route over a read and a plan were not measured. A session that never makes a batch rename pays the larger definition and saves nothing.
+These figures are call counts and payload sizes for one class of task, renames whose files the task names. They are not an agent's cost. Model tokens, prompt caching, billing, wall time, and how often an agent picks this route over a read and a plan were not measured.
 
 The task instructions count occurrences inside longer identifiers, so both arms searched for the old name as a literal, not as a whole word. A generated write changes every match in the walk. Without `paths`, or with an empty list, the walk covers the whole checkout. The unnamed file kept its bytes here only because `paths` left it out.
 
