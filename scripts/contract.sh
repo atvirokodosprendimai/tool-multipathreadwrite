@@ -5133,7 +5133,10 @@ want 2 $? "a trailing token that is not key=value is still usage"
 v81=$("$MRW" version)
 want 0 $? "mrw version exits 0"
 [ -n "$v81" ] && ok "mrw version prints a string" || bad "mrw version prints a string"
-cap=$("$MRW" -v 2>/dev/null) && grep -F -q "$(printf '%s' "$v81" | tr -d '\n')" <<<"$cap" && ok "-v names the same string" || bad "-v names the same string"
+# -v is urfave/cli's own printer, "<name> version <string>\n": the row compares its raw bytes with
+# that line, so an empty string, a suffix, a missing or doubled LF, or a -v that exits non-zero fails.
+"$MRW" -v > "$WORK/v81.got" 2>/dev/null && [ -n "$v81" ] && printf 'mrw version %s\n' "$v81" > "$WORK/v81.want" \
+  && cmp -s "$WORK/v81.want" "$WORK/v81.got" && ok "-v names the same string" || bad "-v names the same string: [$(od -c "$WORK/v81.got" | head -3)] for [$v81]"
 "$MRW" version extra >/dev/null 2>&1
 want 2 $? "version extra is usage"
 
@@ -11097,8 +11100,8 @@ rm -rf "$S320" "$R320" "$WORK/p320.plan" "$WORK/q320.plan" "$WORK/s320.out"
 # `mrw read --stat` with no working set, the call seen with the short wording, is refused, exit 2.
 S321=$(mktemp -d "$WORK/s321-XXXXXX"); R321=$(mktemp -d "$WORK/r321-XXXXXX")
 e321() { env XDG_STATE_HOME="$S321" "$@"; }
-cap=$(grep -E '^6\. ' <<<"$("$MRW" instructions --core)") && grep -qF -e '--stat lists the matching files' <<<"$cap" \
-  && ok "the core says --stat lists the matching files" || bad "core rule 6: $("$MRW" instructions --core | grep -E '^6\. ')"
+core321=$("$MRW" instructions --core) && cap=$(grep -E '^6\. ' <<<"$core321") && grep -qF -e '--stat lists the matching files' <<<"$cap" \
+  && ok "the core says --stat lists the matching files" || bad "core rule 6, from the first run of instructions --core: $(grep -E '^6\. ' <<<"$core321" || echo "no rule 6 in its output")"
 printf 'NEEDLE321\n' > "$R321/hit.txt"; printf 'nothing\n' > "$R321/miss.txt"
 out=$(e321 "$MRW" -C "$R321" read --grep NEEDLE321 --stat . 2>&1); rc321=$?
 { [ "$rc321" = 0 ] && grep -qF '==> hit.txt' <<<"$out" && ! grep -qF 'miss.txt' <<<"$out"; } \
