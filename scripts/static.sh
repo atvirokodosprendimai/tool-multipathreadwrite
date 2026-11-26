@@ -404,10 +404,20 @@ self_test() (
     ok=0
   fi
   # A job report, in either spelling, is not an error.
-  if ! CONTRACT_STOP_AT_SETUP=1 bash "$d/jobok/scripts/contract.sh" > "$d/jobok.out" 2>&1 || ! grep -q 'stops at the end of its setup' "$d/jobok.out"; then
-    echo "self-test: contract.sh failed on job reports a row killed a child for:"
-    tail -5 "$d/jobok.out"
+  CONTRACT_STOP_AT_SETUP=1 bash "$d/jobok/scripts/contract.sh" > "$d/jobok.out" 2>&1
+  rc=$?
+  marker=missing
+  if grep -q 'stops at the end of its setup' "$d/jobok.out"; then marker=shown; fi
+  if [ "$rc" -ne 0 ] || [ "$marker" = missing ]; then
     ok=0
+    echo "self-test: contract.sh failed on job reports a row killed a child for (exit $rc, setup marker $marker). Original combined output:"
+    cat "$d/jobok.out"
+    # Keep the first verdict. Replay once to identify which stream carried each line.
+    CONTRACT_STOP_AT_SETUP=1 bash "$d/jobok/scripts/contract.sh" > "$d/jobok.replay.out" 2> "$d/jobok.replay.err"
+    echo "replay exit $?; replay stdout:"
+    cat "$d/jobok.replay.out"
+    echo "replay stderr:"
+    cat "$d/jobok.replay.err"
   fi
   # A NUL a substitution drops is reported by bash 4.4 and later, which fails the
   # run, and by no earlier bash; stripped explicitly it is silent in every one.
