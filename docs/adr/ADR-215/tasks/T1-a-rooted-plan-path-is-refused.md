@@ -148,6 +148,8 @@ What each clause holds. The four named tests exist, pass and none is skipped; th
 - 2026-11-26 · b4fda723 · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:9531
 - 2026-11-26 · b4fda723* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:8690
 - 2026-11-26 · b4fda723* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:7572
+- 2026-11-26 · 1b2b5d91 · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:18 · test-lock-sha256:929ab074831de5e84a00c33a9153cd265800bb7871a5e8aea0122500b8ca5b04 · test-lock-file:docs/adr/locks/929ab074831de5e84a00c33a9153cd265800bb7871a5e8aea0122500b8ca5b04.lock · test-lock-kind:replace
+- 2026-11-26 · 1b2b5d91* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:5238
 
 ## Invariants
 

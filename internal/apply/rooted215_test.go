@@ -88,7 +88,6 @@ func TestEveryPlanOpRefusesARootedPath(t *testing.T) {
 	}
 	var cases []tc
 	for _, op := range []string{"replace", "insert-before", "insert-after", "delete", "unlink"} {
-		op := op
 		mk := func(p string) Input {
 			if op == "unlink" {
 				return pathOp(p, op)
