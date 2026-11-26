@@ -43,7 +43,7 @@ The new arguments make the tool definition larger. A local compact JSON Schema d
 
 These figures are call counts and payload sizes for one class of task, renames whose files the task names. They are not an agent's cost. Model tokens, prompt caching, billing, wall time, and how often an agent picks this route over a read and a plan were not measured.
 
-The task instructions count occurrences inside longer identifiers, so both arms searched for the old name as a literal, not as a whole word. A generated write changes every match in the walk. Without `paths`, or with an empty list, the walk covers the whole checkout. The unnamed file kept its bytes here only because `paths` left it out.
+The task instructions count occurrences inside longer identifiers, so both arms searched for the old name as a literal, not as a whole word. The generator applies `sub` to every match it finds in the walk and emits a hunk for each line that changes. Without `paths`, or with an empty list, the walk covers the whole checkout. The unnamed file kept its bytes here only because `paths` left it out.
 
 ## Method
 
