@@ -36,6 +36,10 @@ func s9Exec(t *testing.T, bin, root, state, stdin string, args ...string) s9Run 
 	cmd := exec.CommandContext(ctx, bin, args...)
 	cmd.Dir = root
 	cmd.Env = []string{"PATH=" + os.Getenv("PATH"), "HOME=" + filepath.Dir(root), "XDG_STATE_HOME=" + state}
+	if runtime.GOOS == "windows" {
+		// Go's os.UserHomeDir reads USERPROFILE on Windows, not HOME (#802).
+		cmd.Env = append(cmd.Env, "USERPROFILE="+filepath.Dir(root))
+	}
 	cmd.Stdin = strings.NewReader(stdin)
 	var o, e bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &o, &e
@@ -198,7 +202,7 @@ var s9Sha = regexp.MustCompile(`(?m)^([mn]) sha256: ([0-9a-f]{64})$`)
 
 // s9Kept hides the name of the plan file a refusal keeps, which holds a clock
 // reading and a pid: the one thing two runs of one refusal do not share.
-var s9Kept = regexp.MustCompile(`\S*mrw-refused/\S+\.plan`)
+var s9Kept = regexp.MustCompile(`\S*mrw-refused[/\\]\S+\.plan`)
 
 func s9Same(r s9Run) s9Run {
 	r.stdout, r.err = s9Kept.ReplaceAllString(r.stdout, "KEPT"), s9Kept.ReplaceAllString(r.err, "KEPT")
@@ -412,6 +416,11 @@ func TestArmNDiffersFromMInOneRefusal(t *testing.T) {
 		for _, kind := range []string{"directory", "FIFO"} {
 			// The directory case needs no tool: only the FIFO case is skipped without mkfifo.
 			if kind == "FIFO" {
+				// Git Bash puts an mkfifo on PATH whose FIFO is no named pipe to a
+				// native Windows program: an append to it succeeds (#802).
+				if runtime.GOOS == "windows" {
+					t.Skip("an MSYS FIFO is not a named pipe to a native program: the directory case ran, the FIFO case did not")
+				}
 				if _, err := exec.LookPath("mkfifo"); err != nil {
 					t.Skip("mkfifo is not on PATH: the directory case ran, the FIFO case did not")
 				}
