@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -36,6 +37,10 @@ func s9Exec(t *testing.T, bin, root, state, stdin string, args ...string) s9Run 
 	cmd := exec.CommandContext(ctx, bin, args...)
 	cmd.Dir = root
 	cmd.Env = []string{"PATH=" + os.Getenv("PATH"), "HOME=" + filepath.Dir(root), "XDG_STATE_HOME=" + state}
+	if runtime.GOOS == "windows" {
+		// Go's os.UserHomeDir reads USERPROFILE on Windows, not HOME (#802).
+		cmd.Env = append(cmd.Env, "USERPROFILE="+filepath.Dir(root))
+	}
 	cmd.Stdin = strings.NewReader(stdin)
 	var o, e bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &o, &e
@@ -122,6 +127,30 @@ func s9Log(t *testing.T, state string) (bool, []s9Event) {
 
 func s9Sum(s string) string { h := sha256.Sum256([]byte(s)); return hex.EncodeToString(h[:]) }
 
+// s9Exe is the path an arm runs from. build.sh writes the extensionless
+// mrw-m and mrw-n that builds.md records and hashes; Windows starts only a
+// name with an executable extension, so there each arm runs through a copy
+// named .exe whose bytes hash to what build.sh printed (#802). The build
+// outputs themselves are left as they are.
+func s9Exe(t *testing.T, path, sum string) string {
+	t.Helper()
+	if runtime.GOOS != "windows" {
+		return path
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exe := path + ".exe"
+	if err := os.WriteFile(exe, b, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := os.ReadFile(exe); err != nil || s9Sum(string(got)) != sum {
+		t.Fatalf("%s does not hash to %s, which build.sh printed for %s: %v", exe, sum, path, err)
+	}
+	return exe
+}
+
 func s9File(t *testing.T, root, name string) string {
 	t.Helper()
 	b, err := os.ReadFile(filepath.Join(root, name))
@@ -172,15 +201,118 @@ func s9Env(key, def string) string {
 
 var s9Sha = regexp.MustCompile(`(?m)^([mn]) sha256: ([0-9a-f]{64})$`)
 
-// s9Kept hides the name of the plan file a refusal keeps, which holds a clock
-// reading and a pid: the one thing two runs of one refusal do not share.
-var s9Kept = regexp.MustCompile(`\S*mrw-refused/\S+\.plan`)
-
-func s9Same(r s9Run) s9Run {
-	r.stdout, r.err = s9Kept.ReplaceAllString(r.stdout, "KEPT"), s9Kept.ReplaceAllString(r.err, "KEPT")
-	return r
+// s9Kept takes the one thing two runs of one refused piped plan do not share,
+// the generated name of the plan file each keeps, out of the comparison by
+// knowing it rather than guessing it from the text (#802). It finds the one
+// .plan file mrw kept in this run's own state home, checks that its bytes are
+// the plan that was sent, requires that exact path to appear twice in the run's
+// output (where the plan is named, and in the command to rerun it), and
+// replaces only that path. Everything else is compared byte for byte.
+func s9Kept(state, plan string, r s9Run) (s9Run, error) {
+	dir := filepath.Join(state, "mrw-refused")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return r, err
+	}
+	var kept []string
+	for _, e := range entries {
+		if e.Type().IsRegular() && strings.HasSuffix(e.Name(), ".plan") {
+			kept = append(kept, filepath.Join(dir, e.Name()))
+		}
+	}
+	if len(kept) != 1 {
+		return r, fmt.Errorf("%s holds %d kept plans, want exactly one: %v", dir, len(kept), kept)
+	}
+	p := kept[0]
+	// ADR-176 names a kept plan by its UTC time, the pid and a salt, so two
+	// refusals in one state home never collide: a fixed name is a regression
+	// this comparison must not hide.
+	if !s9KeptName.MatchString(filepath.Base(p)) {
+		return r, fmt.Errorf("%s is not named as ADR-176 names a kept plan (20060102T150405.000000000Z-PID-SALT.plan)", p)
+	}
+	if b, err := os.ReadFile(p); err != nil || string(b) != plan {
+		return r, fmt.Errorf("%s holds %q (%v), want the plan sent, %q", p, b, err, plan)
+	}
+	if n := strings.Count(r.stdout, p) + strings.Count(r.err, p); n != 2 {
+		return r, fmt.Errorf("the kept plan's path %s appears %d times in the output, want 2: %+v", p, n, r)
+	}
+	r.stdout, r.err = strings.ReplaceAll(r.stdout, p, "<kept plan>"), strings.ReplaceAll(r.err, p, "<kept plan>")
+	return r, nil
 }
 
+// s9KeptName is the whole name ADR-176 gives a kept plan, as cmd/mrw/refused176.go
+// makes it: a UTC clock reading, a pid and four bytes of salt in hex.
+var s9KeptName = regexp.MustCompile(`^[0-9]{8}T[0-9]{6}\.[0-9]{9}Z-[0-9]+-[0-9a-f]{8}\.plan$`)
+
+// TestS9KeptHidesOnlyTheKeptPlanPath holds what the M/N comparison rests on:
+// only the one kept path is hidden, and a state home that does not hold exactly
+// that plan, or output that does not name it twice, is refused.
+func TestS9KeptHidesOnlyTheKeptPlanPath(t *testing.T) {
+	const plan = "@@ a.txt 2 replace\nX\n"
+	mk := func(t *testing.T, names ...string) (state string, paths []string) {
+		t.Helper()
+		state = t.TempDir()
+		dir := filepath.Join(state, "mrw-refused")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		for _, n := range names {
+			p := filepath.Join(dir, n)
+			if err := os.WriteFile(p, []byte(plan), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			paths = append(paths, p)
+		}
+		return state, paths
+	}
+	msg := func(named, rerun string) string {
+		return "mrw: the plan from standard input is kept at " + named + " (21 bytes, sha 2cac8d7e): fix it there and run the same command with " + rerun + " in place of -\n"
+	}
+	stateA, pa := mk(t, "20261126T210433.541366300Z-30728-e42fa677.plan")
+	stateB, pb := mk(t, "20261126T210433.594949900Z-48412-41d0db8a.plan")
+	// Two runs differ only in their kept path: equal once each is hidden.
+	ra, err := s9Kept(stateA, plan, s9Run{code: 1, err: msg(pa[0], pa[0])})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rb, err := s9Kept(stateB, plan, s9Run{code: 1, err: msg(pb[0], pb[0])})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ra != rb {
+		t.Errorf("the same refusal in two state homes differs: %+v vs %+v", ra, rb)
+	}
+	// Any other text, an unrelated look-alike line included, is compared as it is.
+	other := "mrw: an unrelated report is kept at " + pb[0] + "\n"
+	if rc, err := s9Kept(stateA, plan, s9Run{code: 1, err: msg(pa[0], pa[0]) + other}); err != nil || rc.err != ra.err+other {
+		t.Errorf("another path in the output was hidden or refused: %+v %v", rc, err)
+	}
+	for name, c := range map[string]struct {
+		state string
+		r     s9Run
+	}{
+		"the rerun names another path": {stateA, s9Run{err: msg(pa[0], pb[0])}},
+		"the path is named once":       {stateA, s9Run{err: "kept at " + pa[0] + "\n"}},
+		"no kept plan":                 {t.TempDir(), s9Run{err: msg(pa[0], pa[0])}},
+	} {
+		if _, err := s9Kept(c.state, plan, c.r); err == nil {
+			t.Errorf("%s: accepted", name)
+		}
+	}
+	stateC, pc := mk(t, "20261126T210433.541366300Z-30728-e42fa677.plan", "20261126T210433.594949900Z-48412-41d0db8a.plan")
+	if _, err := s9Kept(stateC, plan, s9Run{err: msg(pc[0], pc[0])}); err == nil {
+		t.Error("two kept plans: accepted")
+	}
+	stateD, pd := mk(t, "20261126T210433.541366300Z-30728-e42fa677.plan")
+	if _, err := s9Kept(stateD, "@@ other 1 replace\nY\n", s9Run{err: msg(pd[0], pd[0])}); err == nil {
+		t.Error("a kept plan that is not the plan sent: accepted")
+	}
+	// A fixed name with the right bytes, named twice, is still a naming regression.
+	stateE, pe := mk(t, "retry.plan")
+	if _, err := s9Kept(stateE, plan, s9Run{err: msg(pe[0], pe[0])}); err == nil {
+		t.Error("a kept plan not named as ADR-176 names one: accepted")
+	}
+}
 func TestArmNDiffersFromMInOneRefusal(t *testing.T) {
 	repo, tag, doc, skip := s9Tag(t)
 	if skip != "" {
@@ -229,7 +361,7 @@ func TestArmNDiffersFromMInOneRefusal(t *testing.T) {
 	} else {
 		t.Logf("built on %s, builds.md records %s: the hashes are not compared", here, plat[1])
 	}
-	m, n := filepath.Join(out, "mrw-m"), filepath.Join(out, "mrw-n")
+	m, n := s9Exe(t, filepath.Join(out, "mrw-m"), sums["m"]), s9Exe(t, filepath.Join(out, "mrw-n"), sums["n"])
 	work := t.TempDir()
 
 	const stale = "no recorded showing in this version"
@@ -361,7 +493,12 @@ func TestArmNDiffersFromMInOneRefusal(t *testing.T) {
 			if err := os.WriteFile(filepath.Join(root, "a.txt"), []byte(s9Text), 0o644); err != nil {
 				t.Fatal(err)
 			}
-			runs[i] = s9Same(s9Exec(t, bin, root, state, "@@ a.txt 2 replace\nX\n", "--root", root, "write", "-"))
+			const plan = "@@ a.txt 2 replace\nX\n"
+			r, err := s9Kept(state, plan, s9Exec(t, bin, root, state, plan, "--root", root, "write", "-"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			runs[i] = r
 			if ex, evs := s9Log(t, state); i == 1 && (len(evs) != 0 || ex) {
 				t.Fatalf("a refused plan logged: %v %+v", ex, evs)
 			}
@@ -388,6 +525,11 @@ func TestArmNDiffersFromMInOneRefusal(t *testing.T) {
 		for _, kind := range []string{"directory", "FIFO"} {
 			// The directory case needs no tool: only the FIFO case is skipped without mkfifo.
 			if kind == "FIFO" {
+				// Git Bash puts an mkfifo on PATH whose FIFO is no named pipe to a
+				// native Windows program: an append to it succeeds (#802).
+				if runtime.GOOS == "windows" {
+					t.Skip("an MSYS FIFO is not a named pipe to a native program: the directory case ran, the FIFO case did not")
+				}
 				if _, err := exec.LookPath("mkfifo"); err != nil {
 					t.Skip("mkfifo is not on PATH: the directory case ran, the FIFO case did not")
 				}
