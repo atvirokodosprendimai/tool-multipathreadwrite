@@ -204,7 +204,9 @@ var s9Sha = regexp.MustCompile(`(?m)^([mn]) sha256: ([0-9a-f]{64})$`)
 // the kept path twice, once to name it and once in the command to rerun. The
 // paths are matched between the message's fixed words, so one holding a space
 // (a temp directory under "Jane Doe") is still a path.
-var s9KeptMsg = regexp.MustCompile(`is kept at (.+?) \(([0-9]+) bytes, sha ([0-9a-f]+)\): fix it there and run the same command with (.+?) in place of -`)
+// The match is anchored to the whole line and its captures are greedy, so a
+// directory that itself holds the message's words is still one path.
+var s9KeptMsg = regexp.MustCompile(`(?m)is kept at (.+) \(([0-9]+) bytes, sha ([0-9a-f]+)\): fix it there and run the same command with (.+) in place of -$`)
 
 // s9KeptName is the whole generated name of a kept plan, as refused176.go makes
 // it: a UTC clock reading, a pid and four bytes of salt in hex.
@@ -257,10 +259,13 @@ func TestS9SameHidesOnlyTheGeneratedPlanName(t *testing.T) {
 		t.Errorf("two generated names in one directory differ: %q vs %q", at(a, a), at(b, b))
 	}
 	// A temp directory with a space in it is still one path.
-	spaced := filepath.Join("x", "my temp", "mrw-refused") + sep
-	if sa, sb := at(spaced+"20261126T210433.541366300Z-30728-e42fa677.plan", spaced+"20261126T210433.541366300Z-30728-e42fa677.plan"),
-		at(spaced+"20261126T210433.594949900Z-48412-41d0db8a.plan", spaced+"20261126T210433.594949900Z-48412-41d0db8a.plan"); sa != sb || !strings.Contains(sa, "my temp") {
-		t.Errorf("two generated names under a directory with a space differ: %q vs %q", sa, sb)
+	for _, d := range []string{"my temp", "my in place of - temp", "a (21 bytes, sha 0): b"} {
+		spaced := filepath.Join("x", d, "mrw-refused") + sep
+		sa := at(spaced+"20261126T210433.541366300Z-30728-e42fa677.plan", spaced+"20261126T210433.541366300Z-30728-e42fa677.plan")
+		sb := at(spaced+"20261126T210433.594949900Z-48412-41d0db8a.plan", spaced+"20261126T210433.594949900Z-48412-41d0db8a.plan")
+		if sa != sb || !strings.Contains(sa, d) {
+			t.Errorf("two generated names under %q differ: %q vs %q", d, sa, sb)
+		}
 	}
 	for name, other := range map[string][2]string{
 		"another directory":                  {filepath.Join("x", "other", "mrw-refused") + sep + "20261126T210433.594949900Z-48412-41d0db8a.plan", ""},
