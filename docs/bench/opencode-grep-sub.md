@@ -1,11 +1,11 @@
 # Batch renames in OpenCode
 
-How many calls and bytes does a rename across several files cost through the OpenCode plugin, when `mrw_write` builds the plan itself instead of taking one written from a read? On 2026-11-26 we called the built plugin's tools (`execute`) against a real `mrw mcp` child, once per arm, on every task in the frozen Stage 9 `batch` class (`bench/stage-9/classes.json`).
+How many calls and bytes does a rename across several files cost through the OpenCode plugin, when `mrw_write` builds the plan itself instead of taking one written from a read? On 2026-11-26 we called the built plugin's tools (`execute`) against a real `mrw mcp` child on every task in the frozen Stage 9 `batch` class (`bench/stage-9/classes.json`), running each route below once per task.
 
 - **Baseline:** the adapter as of `43aea360` (#806). One `mrw_read({grep, specs})` over the named files, then one `mrw_write({plan, ack})` with a hunk for each served line that held the old name, acknowledging every checkpointed run that arrived complete.
 - **Candidate:** the adapter of #807. One `mrw_write({grep, sub, paths})`, with `paths` set to the named files.
 
-Both arms used the same `mrw` binary, built from #807 at `0bb359da`, and a fresh ledger per task. The adapter's later commits up to its final head, `12409fe1`, changed only the tool descriptions, which no call output includes.
+Both arms used the same `mrw` binary, built from #807 at `0bb359da`, and a fresh ledger for each task and arm. The adapter's later commits up to its final head, `12409fe1`, changed only the tool descriptions, which no call output includes.
 
 ## Outcomes
 
