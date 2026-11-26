@@ -644,7 +644,7 @@ mrw supports [opencode](https://opencode.ai) through a plugin in this repository
 
 | tool | runs | arguments |
 |---|---|---|
-| `mrw_read` | `mrw mcp`'s `mrw_read` | `specs`, `grep`, `astGrep`, `exclude`, `after`, `ack`, `maxLines`, `maxCols`, `count`, `stat`, `filesFrom`, `root` |
+| `mrw_read` | `mrw mcp`'s `mrw_read` | `specs`, `grep`, `astGrep`, `exclude`, `after`, `ack`, `maxLines`, `maxCols`, `count`, `stat`, `ifChanged`, `filesFrom`, `root` |
 | `mrw_write` | `mrw mcp`'s `mrw_write` | `plan`, `ack`, `dryRun`, `check`, `then`, `format`, `echoPad`, `strictBalance` |
 | `mrw_check` | `mrw check` | `paths` |
 | `mrw_stats` | `mrw stats` | `json` |
@@ -654,6 +654,8 @@ mrw supports [opencode](https://opencode.ai) through a plugin in this repository
 | `mrw_instructions` | `mrw instructions` | none |
 
 For a grep inventory, `count: true` returns the matching line count per file and the total. To see a match on a long line, use `maxCols` instead. Counted and shortened lines carry no edit checkpoint. [Examples and measured response sizes](docs/bench/opencode-grep.md)
+
+To revisit files already in context, pass their earlier header hashes, for example `{ specs: ["a.go", "b.go"], ifChanged: { "a.go": "a1b2c3d4", "b.go": "e5f60718" } }`. Each unchanged file returns a short notice. A changed file returns its requested lines and checkpoints as usual. [Measured reread sizes](docs/bench/opencode-conditional-read.md)
 
 **Read and write go through the MCP engine, because opencode cuts long output.** It
 truncates a tool's result at 2,000 lines or 50 KiB, and a CLI read has licensed

@@ -156,6 +156,9 @@ const toolRead = tool({
     maxCols: z.number().int().min(0).optional().describe("Limit long lines to a window of this many characters around the first match, or at the start. Zero keeps full lines. A shortened line cannot be acknowledged. Omit when count is true."),
     count: z.boolean().optional().describe("With grep, return matching line counts per file and a total. Serves no lines and licenses no edits."),
     stat: z.boolean().optional().describe("Serve each file's header (lines, bytes, sha) and no content. Licenses nothing."),
+    ifChanged: z.record(z.string(), z.string()).optional().describe(
+      "Map file paths to their previous SHA-256 hashes (8–64 hex digits). The 8 digits in a read header suffice. Unchanged files return a notice with no checkpoint. Changed files are served normally. Resend this map with next_read.",
+    ),
     filesFrom: z.string().optional().describe("A file in the checkout holding one spec a line (# comments skipped). Not together with specs or grep."),
     ack: z
       .array(z.string())
@@ -168,7 +171,7 @@ const toolRead = tool({
   },
   async execute(args, ctx) {
     const dir = args.root ?? root(ctx);
-    const call = set(args, { specs: "specs", grep: "grep", astGrep: "ast_grep", exclude: "exclude", after: "after", ack: "ack", maxLines: "max_lines", maxCols: "max_cols", count: "count", stat: "stat", filesFrom: "files_from" });
+    const call = set(args, { specs: "specs", grep: "grep", astGrep: "ast_grep", exclude: "exclude", after: "after", ack: "ack", maxLines: "max_lines", maxCols: "max_cols", count: "count", stat: "stat", ifChanged: "if_changed", filesFrom: "files_from" });
     return mcp("mrw read", ctx, dir, "mrw_read", call);
   },
 });

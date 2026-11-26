@@ -109,6 +109,37 @@ test("grep returns a window around a match on a line larger than the plugin limi
   assert.equal(fs.readFileSync(path.join(dir, "f.txt"), "utf8"), content);
 });
 
+test("a conditional reread serves and licenses only the changed file", async (t) => {
+  const dir = worktree(t);
+  const tl = await tools(dir);
+  const specs = ["f.txt", "g.txt"];
+  fs.writeFileSync(path.join(dir, "g.txt"), "original second file\n");
+  const snapshot = await tl.mrw_read.execute({ specs, stat: true }, ctx(dir));
+  assert.equal(snapshot.metadata.isError, false, snapshot.output);
+  const headers = [...snapshot.output.matchAll(/^==> (\S+) .* sha ([0-9a-f]{8})\b/gm)];
+  const ifChanged = Object.fromEntries(headers.map(([, file, sha]) => [file, sha]));
+  assert.deepEqual(Object.keys(ifChanged).sort(), specs);
+  const same = await tl.mrw_read.execute({ specs, ifChanged }, ctx(dir));
+  assert.equal(same.metadata.isError, false, same.output);
+  assert.match(same.output, /f\.txt +unchanged since sha/);
+  assert.match(same.output, /g\.txt +unchanged since sha/);
+  assert.doesNotMatch(same.output, /-- ck /);
+  fs.writeFileSync(path.join(dir, "g.txt"), "updated\n");
+  const result = await tl.mrw_read.execute({ specs, ifChanged }, ctx(dir));
+  assert.equal(result.metadata.isError, false, result.output);
+  assert.match(result.output, /f\.txt +unchanged since sha/);
+  assert.doesNotMatch(result.output, /1\| one/);
+  assert.match(result.output, /1\| updated/);
+  assert.equal(acks(result.output).length, 1, result.output);
+  const changed = await tl.mrw_write.execute({ plan: "@@ g.txt 1 replace\naccepted\n", ack: acks(result.output) }, ctx(dir));
+  assert.equal(changed.metadata.isError, false, changed.output);
+  assert.equal(fs.readFileSync(path.join(dir, "g.txt"), "utf8"), "accepted\n");
+  const unchanged = await tl.mrw_write.execute({ plan: "@@ f.txt 1 replace\nforbidden\n" }, ctx(dir));
+  assert.equal(unchanged.metadata.isError, true, unchanged.output);
+  assert.equal(fs.readFileSync(path.join(dir, "f.txt"), "utf8"), "one\ntwo\n");
+  assert.ok(tl.mrw_read.args.ifChanged, "ifChanged must be visible in the host tool schema");
+});
+
 test("a write without the acknowledgement, or to a file never read, is refused", async (t) => {
   const dir = worktree(t);
   const tl = await tools(dir);
