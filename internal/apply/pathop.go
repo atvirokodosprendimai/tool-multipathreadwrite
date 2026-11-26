@@ -543,7 +543,7 @@ func commitPathOps(tr *tree, res *Result, pathOps []pending) (string, error) {
 			Path:     w.destRel,
 			Created:  true,
 			Written:  true,
-			LinesTo:  len(w.out.lines),
+			LinesTo:  landedLines(w.out),
 			SHAAfter: shaOf(w.out),
 		}
 		// #712: a moved link can read another file at its new place, so the

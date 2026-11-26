@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/lines"
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/refusal"
@@ -105,6 +106,11 @@ func resolveSources(root string, in []Input, opt Options) (map[int]copied, map[i
 			continue
 		}
 		body := append([]string(nil), f.text.lines[start-1:end]...)
+		// ADR-214 Decision 9: line 1 of a marked file is copied without its
+		// mark, so the mark does not travel into the middle of another file.
+		if start == 1 {
+			body[0] = strings.TrimPrefix(body[0], utf8Mark)
+		}
 		ok[n] = copied{
 			body: body, first: trim(body[0]), last: trim(body[len(body)-1]),
 			span: p + ":" + addrString(start, end), path: p, start: start, end: end,

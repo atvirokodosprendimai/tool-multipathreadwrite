@@ -361,6 +361,32 @@ func (b *Budget) Write(p []byte) (int, error) {
 // Over says whether a write has been dropped. A nil Budget never is.
 func (b *Budget) Over() bool { return b != nil && b.over }
 
+// holds says whether s fits in what is left of the budget. When it does not, the
+// budget is spent as a dropped write spends it, so what follows is dropped with
+// it: a caller that must deliver several lines together or none asks first
+// (ADR-214 Decision 8).
+func (b *Budget) holds(s string) bool {
+	if b == nil {
+		return true
+	}
+	if b.over {
+		return false
+	}
+	if utf8.RuneCountInString(s) <= b.Left {
+		return true
+	}
+	b.over = true
+	return false
+}
+
+// markNote is ADR-214 Decision 8's line, printed once per file after its header
+// when the answer prints line 1 of a file that begins with the UTF-8 byte order
+// mark. It is report text: it earns no line count, showing or checkpoint.
+const (
+	markNote = "-- note: a UTF-8 byte order mark begins this file and is part of line 1: ^one does not match it (^.one and ^\\x{FEFF}one do), and every edit keeps it at byte zero\n"
+	utf8Mark = "\xef\xbb\xbf"
+)
+
 // exhausted says whether nothing more can be written: a write was dropped, or
 // none is left. A file met then is named without being opened, and the budget
 // counts as reached, since what it names was kept from the caller.
@@ -793,6 +819,7 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 	// (ADR-136), and only where the line after is not served (ADR-161): a page
 	// of mrw_read, whose continuation serves it.
 	neighbourNoted := false
+	markNoted := map[string]bool{} // ADR-214: the files whose byte order mark this read has named
 	// A file served as bytes (ADR-073) is named once for the invocation, with every
 	// other such file, however many specs named it (ADR-179 Decision e).
 	var asBytes []string
@@ -1142,6 +1169,24 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 			if capped && n > budget {
 				cut, n = n-budget, budget
 				whole = false
+			}
+			// ADR-214 Decision 8: the note and line 1 are delivered together or
+			// not at all, so the budget is asked for the note, the range line and
+			// line 1 as they will print before the note is written.
+			if sn.start == 1 && !opt.Quiet && !markNoted[sp.Path] && len(lines) > 0 && strings.HasPrefix(lines[0], utf8Mark) {
+				markNoted[sp.Path] = true
+				first := lines[0]
+				if opt.MaxCols > 0 && utf8.RuneCountInString(first) > opt.MaxCols {
+					first = window(first, opt.MaxCols, res)
+				}
+				if opt.Numbers {
+					first = fmt.Sprintf(" %*d| %s\n", width, 1, first)
+				} else {
+					first += "\n"
+				}
+				if bud.holds(markNote + fmt.Sprintf("@@ %d-%d\n", sn.start, sn.start+n-1) + first) {
+					fmt.Fprint(w, markNote)
+				}
 			}
 			if !opt.Quiet {
 				fmt.Fprintf(w, "@@ %d-%d\n", sn.start, sn.start+n-1)
