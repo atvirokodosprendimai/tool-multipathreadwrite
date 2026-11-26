@@ -8,7 +8,7 @@
 **Consumes:** `mrw_write`'s output schema and receipt; `TestALegacyResultIsUnchangedByTheModernPath`; contract §364
 **Data dependency:** none — hermetic
 **Proof map:** v1
-**Rests-on:** `the schema states the rule for both keys`, `the legacy golden changed by those two strings only`, `the MCP receipt gives a moved link no content`, `the CLI receipt and a dry run have the shapes the record states`, `the behaviour is still #725's`, `every named test passed and none skipped`, `the engine and writer packages are untouched`
+**Rests-on:** `the schema states the rule for both keys`, `the golden is what the modern path answers`, `the regeneration is named beside the legacy test`, `the MCP receipt gives a moved link no content`, `the CLI receipt and a dry run have the shapes the record states`, `the behaviour is still #725's`, `every named test passed and none skipped`, `the engine and writer packages are untouched`
 
 ## Goal
 
@@ -93,6 +93,9 @@ What each clause holds. The runs are made with `MRW_UPDATE_LEGACY_GOLDEN` unset,
 - 2026-11-26 · 418388db* · mutant killed · exit 1 · `internal/mcp/testdata/legacy_golden.jsonl` · a third description changed in the golden (a legacy answer changed) · acceptance-sha256:036b179870d1e4f6b42e2070bf8204c802199df7d8659372c0c432db3410c605 · covers:the legacy golden changed by those two strings only
 - 2026-11-26 · 418388db* · mutant killed · exit 1 · `internal/mcp/era_test.go` · the regeneration comment does not name ADR-212 · acceptance-sha256:036b179870d1e4f6b42e2070bf8204c802199df7d8659372c0c432db3410c605 · covers:the legacy golden changed by those two strings only
 - 2026-11-26 · 418388db* · mutant killed · exit 1 · `scripts/contract.sh` · section 364's dry-run row drops --dry-run · acceptance-sha256:036b179870d1e4f6b42e2070bf8204c802199df7d8659372c0c432db3410c605 · covers:the CLI receipt and a dry run have the shapes the record states
+- 2026-11-26 · 89e8151f* · mutant killed · exit 1 · `internal/mcp/testdata/legacy_golden.jsonl` · the golden left stale (a legacy answer changed) · acceptance-sha256:036b179870d1e4f6b42e2070bf8204c802199df7d8659372c0c432db3410c605 · covers:the golden is what the modern path answers
+- 2026-11-26 · 89e8151f* · mutant killed · exit 1 · `internal/mcp/testdata/legacy_golden.jsonl` · a third description changed in the golden alone (a legacy answer changed) · acceptance-sha256:036b179870d1e4f6b42e2070bf8204c802199df7d8659372c0c432db3410c605 · covers:the golden is what the modern path answers
+- 2026-11-26 · 89e8151f* · mutant killed · exit 1 · `internal/mcp/era_test.go` · the regeneration comment does not name ADR-212 · acceptance-sha256:036b179870d1e4f6b42e2070bf8204c802199df7d8659372c0c432db3410c605 · covers:the regeneration is named beside the legacy test
 
 ## Verification Log
 - 2026-11-20 · ff07f487 · exit 1 · `d="$(mktemp -d)" \ …` · acceptance-sha256:511a674f049098e591f4116d2d72747ecf4e58fa4a9083f068ec1bf877d30eb7 · ms:480 · test-lock-sha256:497fdf1b9ad066317a9a59a05a89bdefebb56bc815cf9108879f342f526a0f37 · test-lock-file:docs/adr/locks/497fdf1b9ad066317a9a59a05a89bdefebb56bc815cf9108879f342f526a0f37.lock
@@ -122,6 +125,9 @@ What each clause holds. The runs are made with `MRW_UPDATE_LEGACY_GOLDEN` unset,
 - 2026-11-26 · 418388db* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:036b179870d1e4f6b42e2070bf8204c802199df7d8659372c0c432db3410c605 · ms:2242
 - 2026-11-26 · 418388db* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:036b179870d1e4f6b42e2070bf8204c802199df7d8659372c0c432db3410c605 · ms:1984
 - 2026-11-26 · 418388db* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:036b179870d1e4f6b42e2070bf8204c802199df7d8659372c0c432db3410c605 · ms:1964
+- 2026-11-26 · 89e8151f* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:036b179870d1e4f6b42e2070bf8204c802199df7d8659372c0c432db3410c605 · ms:3400
+- 2026-11-26 · 89e8151f* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:036b179870d1e4f6b42e2070bf8204c802199df7d8659372c0c432db3410c605 · ms:3293
+- 2026-11-26 · 89e8151f* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:036b179870d1e4f6b42e2070bf8204c802199df7d8659372c0c432db3410c605 · ms:3327
 
 ## Invariants
 

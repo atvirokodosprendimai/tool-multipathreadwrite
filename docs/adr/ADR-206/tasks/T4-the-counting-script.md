@@ -51,7 +51,7 @@ python3 -B -m unittest discover -s scripts -p 'test_bench_stage9.py' 2> "${TMPDI
 | `test_the_text_of_mrw_instructions_alone_does_not_count` | `scripts/test_bench_stage9.py` | the instructions' own text is not a refusal | none | S1, S2 |
 | `test_the_phrase_is_the_one_internal_apply_writes` | `scripts/test_bench_stage9.py` | the refusal's words pinned against `internal/apply`'s text | none | S1, S2 |
 | `test_a_run_of_the_wrong_model_or_configuration_is_refused` | `scripts/test_bench_stage9.py` | mismatched runs are refused | none | S1, S2 |
-| `test_the_seed_is_206_and_the_interval_is_pinned` | `scripts/test_bench_stage9.py` | the bootstrap is seeded | none | S1, S2 |
+| `test_the_seed_is_206_and_the_interval_is_pinned` | `scripts/test_bench_stage9.py` | the interval's rounded ends and its dropped count, for a fixed set of rows, equal the values pinned at seed 206, so a clock seed or another seed moves them | none | S1, S2 |
 | `test_spend_is_exactly_one_line_of_six_fields_over_every_receipt` | `scripts/test_bench_stage9.py` | spend prints one line of six fields over every receipt | none | S1, S2 |
 
 ## Reachability

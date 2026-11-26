@@ -38,7 +38,8 @@ go test -count=1 ./bench/content-edit
 grep -q '^# 383\. ' scripts/contract.sh
 base=$(git merge-base HEAD origin/main)
 git diff --quiet "$base" -- go.mod go.sum internal/read internal/seen internal/check internal/state internal/writer internal/rooted internal/ingest internal/apply internal/plan
-[ -z "$(git status --porcelain --untracked-files=all -- go.mod go.sum internal/read internal/seen internal/check internal/state internal/writer internal/rooted internal/ingest internal/apply internal/plan)" ]
+st=$(git status --porcelain --untracked-files=all -- go.mod go.sum internal/read internal/seen internal/check internal/state internal/writer internal/rooted internal/ingest internal/apply internal/plan)
+[ -z "$st" ]
 trial=$(mktemp -d)
 trap 'rm -rf "$trial"' EXIT
 go build -o "$trial/content-edit" ./bench/content-edit
@@ -95,6 +96,11 @@ What the engine clause holds. The eleven paths have no committed change since th
 - 2026-11-26 · 418388db* · exit 0 · `set -eu …` · acceptance-sha256:d838926738c9d26ba0468cfd28050640b856b2ec35ec0511f3d7f1ac4d4379f7 · ms:1592
 - 2026-11-26 · 418388db* · exit 0 · `set -eu …` · acceptance-sha256:d838926738c9d26ba0468cfd28050640b856b2ec35ec0511f3d7f1ac4d4379f7 · ms:1493
 - 2026-11-26 · 418388db* · exit 0 · `set -eu …` · acceptance-sha256:d838926738c9d26ba0468cfd28050640b856b2ec35ec0511f3d7f1ac4d4379f7 · ms:1680
+- 2026-11-26 · 89e8151f* · exit 0 · `set -eu …` · acceptance-sha256:531c375282b85eb7761c895195e28cd600ca532c803e90b7bce73e0dcdca22a9 · ms:1172
+- 2026-11-26 · 89e8151f* · exit 0 · `set -eu …` · acceptance-sha256:531c375282b85eb7761c895195e28cd600ca532c803e90b7bce73e0dcdca22a9 · ms:2591
+- 2026-11-26 · 89e8151f* · exit 0 · `set -eu …` · acceptance-sha256:531c375282b85eb7761c895195e28cd600ca532c803e90b7bce73e0dcdca22a9 · ms:1976
+- 2026-11-26 · 89e8151f* · exit 0 · `set -eu …` · acceptance-sha256:531c375282b85eb7761c895195e28cd600ca532c803e90b7bce73e0dcdca22a9 · ms:2340
+- 2026-11-26 · 89e8151f* · exit 0 · `set -eu …` · acceptance-sha256:531c375282b85eb7761c895195e28cd600ca532c803e90b7bce73e0dcdca22a9 · ms:2391
 
 ## Mutation Log
 - 2026-11-22 · 724d564e* · mutant killed · exit 1 · `bench/content-edit/main.go` · Choosing the last repeated block instead of returning an ambiguous-match error must fail the batch-refusal test. · acceptance-sha256:43d37e791348c9a963857caceacc07a793c1e232ff8fdda297fa3484c8de8624
@@ -106,6 +112,10 @@ What the engine clause holds. The eleven paths have no committed change since th
 - 2026-11-26 · 418388db* · mutant killed · exit 1 · `bench/content-edit/main.go` · Treating a repeated block as unique must remove the ambiguity report from the failed batch. · acceptance-sha256:d838926738c9d26ba0468cfd28050640b856b2ec35ec0511f3d7f1ac4d4379f7 · covers:every bad match is reported before a write
 - 2026-11-26 · 418388db* · mutant killed · exit 1 · `bench/content-edit/main.go` · Keeping only the last edit per target must fail the 500-edit final tree check. · acceptance-sha256:d838926738c9d26ba0468cfd28050640b856b2ec35ec0511f3d7f1ac4d4379f7 · covers:a large batch preserves unrelated text
 - 2026-11-26 · 418388db* · mutant killed · exit 1 · `bench/content-edit/main.go` · A command that claims success without calling the editor must leave the deletion unapplied. · acceptance-sha256:d838926738c9d26ba0468cfd28050640b856b2ec35ec0511f3d7f1ac4d4379f7 · covers:the prototype is reached as a command
+- 2026-11-26 · 89e8151f* · mutant killed · exit 1 · `bench/content-edit/main.go` · Dropping nonempty replacements must fail the exact final text check for shifted lines. · acceptance-sha256:531c375282b85eb7761c895195e28cd600ca532c803e90b7bce73e0dcdca22a9 · covers:a shifted unique target and deletion land together
+- 2026-11-26 · 89e8151f* · mutant killed · exit 1 · `bench/content-edit/main.go` · Treating a repeated block as unique must remove the ambiguity report from the failed batch. · acceptance-sha256:531c375282b85eb7761c895195e28cd600ca532c803e90b7bce73e0dcdca22a9 · covers:every bad match is reported before a write
+- 2026-11-26 · 89e8151f* · mutant killed · exit 1 · `bench/content-edit/main.go` · Keeping only the last edit per target must fail the 500-edit final tree check. · acceptance-sha256:531c375282b85eb7761c895195e28cd600ca532c803e90b7bce73e0dcdca22a9 · covers:a large batch preserves unrelated text
+- 2026-11-26 · 89e8151f* · mutant killed · exit 1 · `bench/content-edit/main.go` · A command that claims success without calling the editor must leave the deletion unapplied. · acceptance-sha256:531c375282b85eb7761c895195e28cd600ca532c803e90b7bce73e0dcdca22a9 · covers:the prototype is reached as a command
 
 ## Invariants
 
