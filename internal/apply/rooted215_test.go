@@ -218,6 +218,8 @@ func TestEveryPlanOpRefusesARootedPath(t *testing.T) {
 			{"a name with = and single quotes names none", func() Input { return edit(filepath.Join(root, "a=b'c'd.txt"), "replace") }, ""},
 			{"a rename destination beginning @@ names none", func() Input { return pathOp("src.txt", "rename", filepath.Join(root, "@@ x")) }, ""},
 			{"a rename destination beginning @ is the literal line", func() Input { return pathOp("src.txt", "rename", filepath.Join(root, "@x")) }, inside + "@x"},
+			{"a rename destination of spaces names none", func() Input { return pathOp("src.txt", "rename", root+string(filepath.Separator)+" ") }, ""},
+			{"a name ending in a space names none", func() Input { return edit(filepath.Join(root, "x "), "replace") }, ""},
 			// Through a symbolic link, link/../x is beside the link's target, not x.
 			{"a path with a .. component names none", func() Input {
 				return edit(filepath.Join(root, "dd")+string(filepath.Separator)+".."+string(filepath.Separator)+"zz.txt", "replace")

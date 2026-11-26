@@ -690,7 +690,9 @@ func hintable(rel string) bool {
 			return false
 		}
 	}
-	return rel != ""
+	// A body line is trimmed before its empty test, and a header token is split
+	// at spaces: a name with a leading or trailing space has no spelling.
+	return rel != "" && strings.TrimSpace(rel) == rel
 }
 
 // insideRoot is the "/"-spelled remainder of raw below root, when raw names
