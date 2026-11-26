@@ -220,6 +220,10 @@ test("a generator given with a plan, or half a generator, is refused and writes 
   const dry = await tl.mrw_write.execute({ grep: "old", sub: "new", dryRun: true }, ctx(dir));
   assert.equal(dry.metadata.isError, false, dry.output);
   assert.equal(fs.readFileSync(path.join(dir, "f.txt"), "utf8"), "old\n");
+  // An empty sub is a replacement too: it deletes each match, as the CLI's --sub '' does.
+  const del = await tl.mrw_write.execute({ grep: "ol", sub: "" }, ctx(dir));
+  assert.equal(del.metadata.isError, false, del.output);
+  assert.equal(fs.readFileSync(path.join(dir, "f.txt"), "utf8"), "d\n");
 });
 
 test("a page the host cuts licenses only the runs that arrived whole", async (t) => {

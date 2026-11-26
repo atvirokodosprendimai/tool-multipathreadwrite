@@ -183,14 +183,14 @@ const toolWrite = tool({
     "writes nothing. Addresses resolve against the ORIGINAL file. Ops: replace, insert-after, " +
     "insert-before, delete, create, unlink, rename. A new file is '@@ path 0 create'. A " +
     "multi-line replace needs anchor= AND, unless its range ends at the last line, a served line " +
-    "after it: read past the end first. mrw will not edit a line it has not served AND you have " +
+    "after it: read past the end first. A plan you write edits only lines mrw has served AND you have " +
     "acknowledged: pass the ck ids from mrw_read in ack. A write runs no check unless check: true " +
     "asks for it (ADR-187): with it, after any write that lands, prose-only included, the project's check runs and is reported in the receipt's check; a failed " +
     "check leaves the write applied, and one that could not run is an error with the applied receipt (ADR-205). " +
-    "The same change at many sites needs no plan: give grep with sub (or astGrep with rewrite) instead, and mrw " +
-    "builds the plan from the files as they are, one hunk per matching line, with no read or ack first (ADR-161). " +
-    "It walks the whole checkout unless paths names where to start; a match you must keep needs paths that leave it " +
-    "out, or a plan of your own.",
+    "The same change at many sites needs no plan: give grep with sub instead, and mrw builds the plan from the " +
+    "files as they are, one hunk per matching line; no read and no ack come first, because nothing is shown and " +
+    "mrw made the plan itself (ADR-161). It walks the whole checkout unless paths names where to start; a match " +
+    "you must keep needs paths that leave it out, or a plan of your own.",
   args: {
     plan: z.string().optional().describe(
       "The plan document. Each hunk: '@@ <path> <address> <op> [guards]' + body lines.\n" +
@@ -199,7 +199,7 @@ const toolWrite = tool({
         "        ... new lines ...\n" +
         "@@ cmd/mrw/main.go 12 insert-after\n" +
         '        "sort"\n' +
-        "Not together with grep or astGrep, which build the plan instead.",
+        "Not together with grep, which builds the plan instead.",
     ),
     ack: z
       .array(z.string())
@@ -235,30 +235,20 @@ const toolWrite = tool({
     grep: z
       .string()
       .optional()
-      .describe("A regular expression (Go RE2). With sub, the plan is every matching line with each match replaced. Not together with plan or astGrep."),
+      .describe("A regular expression (Go RE2). With sub, the plan is every matching line with each match replaced. Not together with plan."),
     sub: z
       .string()
       .optional()
-      .describe("The replacement for grep, with ${1} for a capture group and $$ for a dollar sign. Needs grep."),
-    astGrep: z
-      .string()
-      .optional()
-      .describe("A structural pattern for the ast-grep CLI on PATH. With rewrite, the plan is every match rewritten. Not together with plan or grep."),
-    rewrite: z.string().optional().describe("The ast-grep rewrite for astGrep, with its $VAR metavariables. Needs astGrep."),
+      .describe("The replacement for grep, with ${1} for a capture group and $$ for a dollar sign; an empty one deletes each match. Needs grep."),
     paths: z
       .array(z.string())
       .optional()
-      .describe("Root-relative files and directories the grep or astGrep walk starts at. Without it the whole checkout is walked. Only with grep or astGrep."),
-    exclude: z
-      .array(z.string())
-      .optional()
-      .describe("Globs the walk skips, against the root-relative path and the base name. Only with grep or astGrep."),
-    noIgnore: z.boolean().optional().describe("Walk what .gitignore ignores too. Only with grep or astGrep."),
+      .describe("Root-relative files and directories the grep walk starts at. Without it the whole checkout is walked. Only with grep and sub."),
   },
   async execute(args, ctx) {
     const call = set(args, {
       plan: "plan", ack: "ack", dryRun: "dry_run", check: "check", then: "then", format: "format", echoPad: "echo_pad", strictBalance: "strict_balance",
-      grep: "grep", sub: "sub", astGrep: "ast_grep", rewrite: "rewrite", paths: "paths", exclude: "exclude", noIgnore: "no_ignore",
+      grep: "grep", sub: "sub", paths: "paths",
     });
     return mcp("mrw write", ctx, root(ctx), "mrw_write", call);
   },
