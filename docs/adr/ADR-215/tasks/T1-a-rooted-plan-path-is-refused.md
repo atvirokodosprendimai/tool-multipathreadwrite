@@ -111,6 +111,8 @@ What each clause holds. The four named tests exist, pass and none is skipped; th
 - 2026-11-26 · 37049ccc* · mutant killed · exit 1 · `internal/apply/pathop.go` · a name holding a double quote gets a spelling that names another file · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · covers:a message names a spelling only when it is clear
 - 2026-11-26 · 37049ccc* · mutant killed · exit 1 · `internal/apply/pathop.go` · a leading @ with a space is spelled ./@a b.txt, which does not parse · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · covers:a message names a spelling only when it is clear
 - 2026-11-26 · 37049ccc* · mutant killed · exit 1 · `internal/apply/pathop.go` · the CLI default root . offers no spelling · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · covers:a message names a spelling only when it is clear
+- 2026-11-26 · b4fda723 · mutant killed · exit 1 · `internal/apply/pathop.go` · a directory spelling inside the root gets a file spelling · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · covers:a message names a spelling only when it is clear
+- 2026-11-26 · b4fda723* · mutant killed · exit 1 · `internal/apply/apply.go` · a from= row, the rooted one and its sibling, loses body_from when the preflight refuses the run · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · covers:a refused plan writes nothing and its siblings skip
 
 ## Verification Log
 - 2026-11-21 · 13b61937 · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:8556
@@ -143,6 +145,9 @@ What each clause holds. The four named tests exist, pass and none is skipped; th
 - 2026-11-26 · 37049ccc* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:8713
 - 2026-11-26 · 37049ccc* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:9086
 - 2026-11-26 · 37049ccc* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:7574
+- 2026-11-26 · b4fda723 · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:9531
+- 2026-11-26 · b4fda723* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:8690
+- 2026-11-26 · b4fda723* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:e2bf5deabf84fecc586375490c9d4bcf6623ce2ba49cc7010f9ad05d685b8dcb · ms:7572
 
 ## Invariants
 
