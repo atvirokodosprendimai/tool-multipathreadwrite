@@ -70,6 +70,16 @@ Declared checks and named `--then` steps use project configuration. Ad-hoc `--th
 steps and `mrw run` require `MRW_SHELL=on` in mrw's environment. Enable that deliberately;
 it is not required for ordinary reads, writes or declared checks.
 
+To catch trailing whitespace when editing a tracked README, run the plan and
+Git's check together in a POSIX shell.
+
+```sh
+MRW_SHELL=on mrw write --then-sh 'git diff --check -- README.md' PLAN
+```
+
+Git checks the entire unstaged diff for that path, including earlier edits.
+Git reports whitespace errors by file and line. On a failed check, the edit stays in place and mrw exits 3.
+
 ## Foreign formats compile to one plan
 
 `--format=apply_patch` and `--format=search_replace` compile to a native plan.
