@@ -6,6 +6,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -29,7 +30,7 @@ process.env.MRW_MCP = "off";
 function tmp(t, prefix) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
   // A process that has just exited on Windows can hold the directory briefly.
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 }));
   return dir;
 }
 
@@ -299,97 +300,79 @@ test("a CLI tool reports the exit code of a refusal", async (t) => {
   assert.match(seen.output, /^exit: 2/);
 });
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-// until polls cond every 20 ms until it holds or ms pass, and says which.
-async function until(cond, ms) {
-  for (const end = Date.now() + ms; Date.now() < end; await sleep(20)) {
-    if (cond()) return true;
-  }
-  return cond();
-}
-
-// within is p's outcome (its error, or what it resolved to), or "not settled"
-// after ms, with no timer left behind.
+// within is how p settled — { value } or { error } — or { late: true } once ms
+// pass first, with no timer left behind.
 async function within(p, ms) {
   let timer;
-  const late = new Promise((r) => { timer = setTimeout(() => r("not settled"), ms); });
+  const late = new Promise((r) => { timer = setTimeout(() => r({ late: true }), ms); });
   try {
-    return await Promise.race([p.then((v) => ({ resolved: v.output }), (e) => e), late]);
+    return await Promise.race([p.then((value) => ({ value }), (error) => ({ error })), late]);
   } finally {
     clearTimeout(timer);
   }
 }
 
-// show prints an outcome of within for a failure message.
-const show = (o) => (o instanceof Error ? String(o) : JSON.stringify(o));
-
-// quiet reports whether file stops changing for 600 ms (12 of the fixture's
-// 50 ms beats) within ms: the fixture's own sign that it no longer runs.
-async function quiet(file, ms) {
-  const read = () => { try { return fs.readFileSync(file, "utf8"); } catch { return ""; } };
-  let last = read();
-  let since = Date.now();
-  for (const end = Date.now() + ms; Date.now() < end; ) {
-    await sleep(50);
-    const now = read();
-    if (now !== last) [last, since] = [now, Date.now()];
-    else if (Date.now() - since >= 600) return true;
-  }
-  return false;
-}
-
-// The check's child for the cancellation test. It writes a beat every 50 ms,
-// says it is ready once it beats (written, then renamed, so never half
-// read), and ends itself when the test writes "stop" or after 30 s. The test
-// observes it by its beat and stops it by its stop file, never by pid.
-const fixtureChild = [
-  'const fs=require("fs");let n=0;',
-  'const beat=()=>{if(fs.existsSync("stop"))process.exit(0);fs.writeFileSync("beat",String(++n))};',
-  'beat();fs.writeFileSync("ready.tmp","");fs.renameSync("ready.tmp","ready");',
-  'setInterval(beat,50);setTimeout(()=>process.exit(0),30000)',
-].join("");
+// The check's child for the cancellation test: it connects to the test's own
+// socket and holds the connection until it is told "stop", the test closes it,
+// or 45 s pass. The operating system closes that connection when the process
+// ends, however it ends, and only then, so the connection is the test's view of
+// the child: no pid is read, polled or signalled.
+const fixtureChild = (port) =>
+  `const s=require("net").connect(${port},"127.0.0.1");` +
+  's.on("data",(d)=>{if(String(d).includes("stop"))process.exit(0)});' +
+  's.on("close",()=>process.exit(0));s.on("error",()=>process.exit(0));' +
+  "setTimeout(()=>process.exit(0),45000)";
 
 // ADR-089 Decision 3: an aborted call kills its child. The user cancels a check
 // that is running; the call must end as aborted and the check's own child must
-// stop.
+// end with it. A child that is still alive, stalled or suspended, keeps its
+// connection and fails the test.
 test("cancelling a running check aborts the call and ends the check's child", async (t) => {
-  const saved = { TMPDIR: process.env.TMPDIR, TMP: process.env.TMP, TEMP: process.env.TEMP };
+  const saved = { TMPDIR: process.env.TMPDIR, TMP: process.env.TMP, TEMP: process.env.TEMP, XDG_STATE_HOME: process.env.XDG_STATE_HOME };
   const ac = new AbortController();
-  let dir = "";
+  const server = net.createServer();
   let call;
-  let stopped = false;
-  // Registered before the directories, so it runs before they are removed:
-  // abort, stop the child by its own file, wait for it and for the call, and
-  // put the environment back whatever happened.
+  let child; // { conn, closed } once the fixture has connected
+  // Registered before the directories, so it runs before they are removed. It
+  // releases a child the assertions left running only after they ran: abort,
+  // tell it to stop, wait for its connection and the call to end (bounded),
+  // close the socket, and put the environment back whatever happened.
   t.after(async () => {
     try {
       ac.abort();
-      if (dir && !stopped) {
-        fs.writeFileSync(path.join(dir, "stop"), "");
-        await quiet(path.join(dir, "beat"), 10000);
+      if (child && !child.conn.destroyed) {
+        child.conn.end("stop\n");
+        await within(child.closed, 10000);
       }
       if (call) await within(call, 10000);
     } finally {
+      server.close();
       for (const [k, v] of Object.entries(saved)) if (v === undefined) delete process.env[k]; else process.env[k] = v;
     }
   });
-  dir = worktree(t);
+  const connected = new Promise((resolve) => server.once("connection", (conn) => {
+    conn.on("error", () => {}); // a killed child resets the connection on Windows
+    resolve({ conn, closed: new Promise((r) => conn.once("close", r)) });
+  }));
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  const dir = worktree(t);
   const logs = tmp(t, "mrw-logs-");
   process.env.TMPDIR = process.env.TMP = process.env.TEMP = logs; // the check's log lands in the test's own directory
   const node = process.execPath.replaceAll("\\", "/").replaceAll("'", "'\\''");
-  fs.writeFileSync(path.join(dir, ".quality-harness.json"), JSON.stringify({ check: `exec '${node}' -e '${fixtureChild}'` }));
+  const check = `exec '${node}' -e '${fixtureChild(server.address().port)}'`;
+  fs.writeFileSync(path.join(dir, ".quality-harness.json"), JSON.stringify({ check }));
   const tl = await tools(dir);
-  let settled = false;
   call = tl.mrw_check.execute({ paths: ["f.txt"] }, { ...ctx(dir), abort: ac.signal });
-  call.then(() => { settled = true; }, () => { settled = true; });
-  assert.ok(await until(() => settled || fs.existsSync(path.join(dir, "ready")), 15000), "the check's child never said it was ready");
-  if (settled) assert.fail(`the call ended before the abort: ${show(await within(call, 0))}`);
+  const early = call.then((v) => `resolved: ${v.output}`, (e) => `rejected: ${e}`);
+  const ready = await within(Promise.race([connected, early]), 15000);
+  assert.ok(!ready.late, "the check's child never connected");
+  assert.equal(typeof ready.value, "object", `the call ended before the abort: ${ready.value}`);
+  child = ready.value;
   ac.abort();
   const outcome = await within(call, 10000);
-  assert.equal(outcome?.name, "AbortError", `the call was not aborted: ${show(outcome)}`);
-  stopped = await quiet(path.join(dir, "beat"), 10000);
-  assert.ok(stopped, "the check's child kept beating after the aborted call");
+  assert.equal(outcome.error?.name, "AbortError", `the call was not aborted: ${JSON.stringify(outcome.late ? "not settled in 10 s" : outcome.value?.output ?? String(outcome.error))}`);
+  const gone = await within(child.closed, 10000);
+  assert.ok(!gone.late, "the check's child still holds its connection 10 s after the aborted call");
 });
 
 test("a child that exits without reading its input is reported, not raised", { skip: process.platform === "win32" }, async (t) => {
