@@ -660,7 +660,7 @@ mrw supports [opencode](https://opencode.ai) through a plugin in this repository
 | tool | runs | arguments |
 |---|---|---|
 | `mrw_read` | `mrw mcp`'s `mrw_read` | `specs`, `grep`, `astGrep`, `exclude`, `after`, `ack`, `maxLines`, `maxCols`, `count`, `stat`, `ifChanged`, `filesFrom`, `root` |
-| `mrw_write` | `mrw mcp`'s `mrw_write` | `plan`, `ack`, `dryRun`, `check`, `then`, `format`, `echoPad`, `strictBalance`; or, in place of `plan` and with no `format`, `grep` with `sub`, the walk started at `paths` (omitted or empty: the whole checkout) |
+| `mrw_write` | `mrw mcp`'s `mrw_write` | `plan`, `ack`, `dryRun`, `check`, `then`, `format`, `echoPad`, `strictBalance`. In place of `plan`, omit `format` and use `grep` with `sub`, or `astGrep` with `rewrite` (requires ast-grep on PATH). Give `paths` to scope either walk. Omitted or empty paths search the whole checkout. |
 | `mrw_check` | `mrw check` | `paths` |
 | `mrw_stats` | `mrw stats` | `json` |
 | `mrw_seen` | `mrw seen` | `prune`, `dryRun` |
