@@ -102,7 +102,7 @@ To find files you cannot NAME, set grep (regexp) or ast_grep (structural; missin
 ast-grep is named). Too large? An INDEX — one spec per file, no content. exclude
 skips globs, grep ignored and binary files too; no range with either.
 
-A read too large comes back as a PAGE: the lines that fit, a
+A read too large can return a PAGE: the lines that fit, a
 -- PARTIAL: line, next_read for the rest, and markers BRACKETING each run:
 "-- ck <id> open lines A-B (N lines follow)", the lines, "-- ck <id> close".
 Send specs: [next_read] until next_read is absent, or you hold part of a file.
