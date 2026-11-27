@@ -25,7 +25,7 @@ ADR-214 Decisions 1 to 10 and 12's recipe. Every row asserts exact bytes and the
   - `Mone\r\ntwo\r\n` and `Mone\rtwo\r`, replace 1 with `ONE`: `MONE\r\ntwo\r\n` and `MONE\rtwo\r`.
   - **Both controls, each by name and each asserted on exact bytes:** an unmarked `one\ntwo\n` with line 1 replaced by `ONE` is exactly `ONE\ntwo\n` (`an_unmarked_file_gains_no_mark`); an unmarked `one\ntwo\n` with line 1 replaced by the body `MONE` begins with `M` as today (`an_unmarked_file_takes_a_marked_body`). The test counts its rows and fails when fewer ran.
 - **`TestAWriteReceiptDescribesTheLandedFile`** (`internal/apply`): deleting 1-2 of `Mone\ntwo\n` reports `lines_after` 1 and a `sha_after` equal to `SHA256(M)`, in a dry run and a live write, and on the destination row of delete-all plus rename, while the hunk keeps `-2 +0`; `--grep '.one' --sub ONE --dry-run` previews `MONE`; `insert-before 1` with `--echo-pad 1` shows line 2 as `one`; replacing line 1 of `Mx\n}\n` with `}` raises the closer hint exactly as it does for `x\n}\n`.
-- **`TestALedgerAfterAMarkedWriteFollowsTheSameRules`** (`internal/writer`): after a native replace of line 1 the record is whole and shows nothing, a bare `1 replace` is refused and `anchor="ONE"` lands; after a quote-only `SEARCH Mone` → `REPLACE ONE` the record licenses `[1,1]` and a bare `1 replace` lands; `SEARCH Mone` → `REPLACE one` writes nothing and a prior showing of line 1 survives; a dry run leaves the ledger as it was.
+- **`TestALedgerAfterAMarkedWriteFollowsTheSameRules`** (`internal/writer`): after a native replace of line 1 the record is whole and shows nothing, a bare `1 replace` is refused and `anchor="ONE"` lands; after a quote-only `SEARCH Mone` → `REPLACE ONE` the record licenses `[1,1]` and a bare `1 replace` lands; `SEARCH Mone` → `REPLACE one` writes the same bytes again and a prior showing of line 1 survives (its sha and spans unchanged); a dry run leaves the ledger as it was.
 - **`TestAFromCopyOfALineOneCarriesNoMark`** (`internal/apply`): `from=src.txt:1` of `Mone\n` into the middle of an unmarked `dst`: `one`; to the top of a marked `dst`: `Mone` with one mark; to the top of an unmarked: `one`; `copied_first` and `copied_last` are `one`; a source `MMone\n` to the top of a marked destination lands `Mone`; a source `M` copies one empty line; an unmarked source is copied as before; the source sha gate stays raw.
 - **`TestAMarkedFileRefusalTeachesTheMark`** (`internal/apply`, `internal/ingest`): the delete expecting `one`, the SEARCH miss and the patch miss on a file whose line 1 is `Mone` each name the mark and the retry; on `Mone\none\n` a SEARCH `one` still matches line 2 (the guide says so); no refusal on an unmarked file mentions a mark.
 - **`TestAReadOfAMarkedFileSaysSoOnce`** (`internal/read`): the note is printed after the header and before the first range, under `-N`, and in `--json` `content`; once for `read f.txt:1 f.txt:1`; for a line 1 cut by `--max-cols` and for a folded display; not for `read f.txt:2`, `--quiet`, `--stat`, `--count`, `--max-lines 0`, a plan maker, a successful `--if-changed`/`--if-served` reference; a guard miss prints it; for the file `M` it prints when line 1 is printed and not for `read f.txt:2`; at `--max-chars 57` the header fits and neither note nor line 1 is delivered, at 193 the note and line 1 are both withheld (never the note alone), the withheld range is named on standard error and the read exits 1 `incomplete:`; the note earns no line count, showing or licence; the header's `NL NB sha` is the raw one.
@@ -96,8 +96,73 @@ What each clause holds. The named tests exist, pass and none is skipped; both co
 | 4 — it is used | telemetry is refused by ADR-009; the evidence is #686, one Windows probe |
 
 ## Mutation Log
+- 2026-11-27 · 6cbf39bf · mutant killed · exit 1 · `internal/apply/apply.go` · the mark is not put back · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b
+- 2026-11-27 · 6cbf39bf* · mutant killed · exit 1 · `internal/apply/apply.go` · the mark is put back when the body brought its own (MONE -> MMONE) · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b
+- 2026-11-27 · 6cbf39bf* · mutant killed · exit 1 · `internal/apply/apply.go` · a moved line 1 keeps its mark (insert-before 1) · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b
+- 2026-11-27 · 6cbf39bf* · mutant killed · exit 1 · `internal/apply/apply.go` · a promoted line is taken to supply the mark (MMtwo) · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b
+- 2026-11-27 · 6cbf39bf* · mutant killed · exit 1 · `internal/apply/apply.go` · the delete-all case lands an empty file · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b
+- 2026-11-27 · 6cbf39bf* · mutant killed · exit 1 · `internal/apply/apply.go` · lines_after counts the unmarked splice (0 for M) · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b
+- 2026-11-27 · 6cbf39bf* · mutant killed · exit 1 · `internal/apply/apply.go` · the preview shows the submitted body · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b
+- 2026-11-27 · 6cbf39bf* · mutant killed · exit 1 · `internal/apply/apply.go` · the rule is applied to an unmarked file (the first control) · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b
+- 2026-11-27 · 6cbf39bf* · mutant killed · exit 1 · `internal/apply/apply.go` · a marked body on an unmarked file loses its mark (the second control) · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b
+- 2026-11-27 · 6cbf39bf* · mutant killed · exit 1 · `internal/apply/fromcopy.go` · from= copies the mark · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b
+- 2026-11-27 · 6cbf39bf* · mutant killed · exit 1 · `internal/read/read.go` · the note is dropped · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b
+- 2026-11-27 · 6cbf39bf* · mutant killed · exit 1 · `internal/read/read.go` · the note is printed for line 2 · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b
+- 2026-11-27 · 6cbf39bf* · mutant killed · exit 1 · `internal/read/read.go` · the note is printed twice · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b
+- 2026-11-27 · 6cbf39bf* · mutant killed · exit 1 · `internal/read/read.go` · the note is written without its line 1 · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b
+- 2026-11-27 · 6cbf39bf* · mutant killed · exit 1 · `internal/read/read.go` · the note's ^ claim is wrong · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b
+- 2026-11-27 · 6cbf39bf* · mutant killed · exit 1 · `internal/apply/apply.go` · the delete refusal does not teach the mark · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b
+- 2026-11-27 · 6cbf39bf* · mutant killed · exit 1 · `internal/ingest/searchreplace.go` · the SEARCH and old-side misses do not teach the mark · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b
+- 2026-11-27 · e9b19f65 · mutant killed · exit 1 · `internal/read/read.go` · the note is printed when --no-comments elides line 1 · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b
+- 2026-11-27 · e9b19f65* · mutant killed · exit 1 · `internal/apply/apply.go` · the provenance is the last body, not the first output line · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b
+- 2026-11-27 · e9b19f65* · mutant killed · exit 1 · `internal/apply/pathop.go` · an edited rename counts the unlanded empty line · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b
+- 2026-11-27 · e9b19f65* · mutant killed · exit 1 · `internal/apply/apply.go` · the pad shows a line that does not land · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b
+- 2026-11-27 · e9b19f65* · mutant killed · exit 1 · `internal/apply/apply.go` · an unmarked file is counted by its output mark · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b
+- 2026-11-27 · e9b19f65* · mutant killed · exit 1 · `internal/apply/apply.go` · the delete refusal pattern is not quoted · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b
+- 2026-11-27 · e9b19f65* · mutant killed · exit 1 · `internal/ingest/searchreplace.go` · the SEARCH miss pattern is not quoted · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b
+- 2026-11-27 · e9b19f65* · mutant killed · exit 1 · `internal/apply/fromcopy.go` · a mark inside a copied line past 1 is stripped · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b
 
 ## Verification Log
+- 2026-11-26 · b787541e · exit 1 · `d="$(mktemp -d)" \ …` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:1699 · test-lock-sha256:065704c4b78c31bd1e0fd789c3334c188f7a3433053554d54e1761cf45a21887 · test-lock-file:docs/adr/locks/065704c4b78c31bd1e0fd789c3334c188f7a3433053554d54e1761cf45a21887.lock
+  ```
+  ```
+- 2026-11-27 · f80d6ec5* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:26 · test-lock-sha256:564857b11168af50e85e5aa2f67885ea9b4198bb03831c6a4dc93a34244e30f6 · test-lock-file:docs/adr/locks/564857b11168af50e85e5aa2f67885ea9b4198bb03831c6a4dc93a34244e30f6.lock · test-lock-kind:replace
+- 2026-11-27 · f80d6ec5* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:4911
+- 2026-11-27 · 6cbf39bf · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:7528
+- 2026-11-27 · 6cbf39bf* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:7113
+- 2026-11-27 · 6cbf39bf* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:7050
+- 2026-11-27 · 6cbf39bf* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:7567
+- 2026-11-27 · 6cbf39bf* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:6810
+- 2026-11-27 · 6cbf39bf* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:6975
+- 2026-11-27 · 6cbf39bf* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:7092
+- 2026-11-27 · 6cbf39bf* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:6917
+- 2026-11-27 · 6cbf39bf* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:7185
+- 2026-11-27 · 6cbf39bf* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:7174
+- 2026-11-27 · 6cbf39bf* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:6810
+- 2026-11-27 · 6cbf39bf* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:7088
+- 2026-11-27 · 6cbf39bf* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:7381
+- 2026-11-27 · 6cbf39bf* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:7189
+- 2026-11-27 · 6cbf39bf* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:7882
+- 2026-11-27 · 6cbf39bf* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:7127
+- 2026-11-27 · 6cbf39bf* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:7178
+- 2026-11-27 · 3439398e · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:7595
+- 2026-11-27 · 7c6fc00a* · exit 1 · `d="$(mktemp -d)" \ …` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:1006
+  ```
+  ```
+- 2026-11-27 · 7c6fc00a* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:30 · test-lock-sha256:0466bec47c9813c2d3542da23577a6597d204de1fdd432303c6c42336a5ad583 · test-lock-file:docs/adr/locks/0466bec47c9813c2d3542da23577a6597d204de1fdd432303c6c42336a5ad583.lock · test-lock-kind:replace
+- 2026-11-27 · 7c6fc00a* · exit 1 · `d="$(mktemp -d)" \ …` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:1111
+  ```
+  ```
+- 2026-11-27 · 7c6fc00a* · exit 0 · `adr-verify --relock` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:76 · test-lock-sha256:0466bec47c9813c2d3542da23577a6597d204de1fdd432303c6c42336a5ad583 · test-lock-file:docs/adr/locks/0466bec47c9813c2d3542da23577a6597d204de1fdd432303c6c42336a5ad583.lock · test-lock-kind:relock
+- 2026-11-27 · 7c6fc00a* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:6262
+- 2026-11-27 · e9b19f65 · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:7108
+- 2026-11-27 · e9b19f65* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:7102
+- 2026-11-27 · e9b19f65* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:7561
+- 2026-11-27 · e9b19f65* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:7305
+- 2026-11-27 · e9b19f65* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:7505
+- 2026-11-27 · e9b19f65* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:7485
+- 2026-11-27 · e9b19f65* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:7494
+- 2026-11-27 · e9b19f65* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:7313
 
 ## Invariants
 

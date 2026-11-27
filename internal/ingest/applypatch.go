@@ -310,7 +310,7 @@ func compileHunk(root, path, kind string, hunk []string) (string, error) {
 	start, end, n := findUnique(lines, old)
 	switch n {
 	case 0:
-		return "", fmt.Errorf("apply_patch: %s: old side matched no lines", path)
+		return "", fmt.Errorf("apply_patch: %s: old side matched no lines%s", path, markMiss(lines, old))
 	case 1:
 		anchor := ""
 		if end > start {

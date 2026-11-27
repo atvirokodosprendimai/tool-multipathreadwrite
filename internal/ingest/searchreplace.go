@@ -3,6 +3,7 @@ package ingest
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/lines"
@@ -115,7 +116,7 @@ func compileSearchHunk(root, path string, search, replace []string) (string, err
 	start, end, n := findUnique(lines, search)
 	switch n {
 	case 0:
-		return "", fmt.Errorf("search_replace: %s: SEARCH matched no lines", path)
+		return "", fmt.Errorf("search_replace: %s: SEARCH matched no lines%s", path, markMiss(lines, search))
 	case 1:
 		// The block quoted every line it replaces, so the hunk carries a mark
 		// apply can check against the file under the write lock (ADR-190). A
@@ -133,6 +134,15 @@ func compileSearchHunk(root, path string, search, replace []string) (string, err
 	default:
 		return "", fmt.Errorf("search_replace: %s: SEARCH matched %d times; refuse rather than guess", path, n)
 	}
+}
+
+// markMiss is ADR-214 Decision 7's sentence for an old side that equals line 1
+// of a marked file without its mark, or "" when it is not that miss.
+func markMiss(lines, old []string) string {
+	if len(lines) == 0 || len(old) == 0 || !strings.HasPrefix(lines[0], utf8Mark) || strings.TrimPrefix(lines[0], utf8Mark) != old[0] {
+		return ""
+	}
+	return fmt.Sprintf("; line 1 begins with a UTF-8 byte order mark (U+FEFF); an exact match must include it, and a pattern can say ^\\x{FEFF}%s$", regexp.QuoteMeta(old[0]))
 }
 
 func searchFileLines(root, path string) ([]string, error) {

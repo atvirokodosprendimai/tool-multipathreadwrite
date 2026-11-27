@@ -841,7 +841,7 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			fr.SHABefore = shaOf(orig)
 		}
 
-		out, ok, kind := planFile(root, path, full, hs, orig.lines, existed, fr.SHABefore, opt, unlinked, produced, destCount, nest, results)
+		out, ok, kind := planFile(root, path, full, hs, orig.lines, orig.final, existed, fr.SHABefore, opt, unlinked, produced, destCount, nest, results)
 		if !ok {
 			// The plan ADDRESSED this file even though nothing will be written
 			// to it. Dropping it here is how a two-file plan reported one file
@@ -933,8 +933,13 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 		// silently adds or strips one.
 		final := orig
 		final.final = orig.final || !existed || len(orig.lines) == 0
+		// ADR-214 Decision 4: a marked file an edit leaves with no lines is the
+		// mark alone, with no terminator.
+		if len(out) == 0 && hasMark(orig.lines) {
+			out, final.final = []string{utf8Mark}, false
+		}
 		final = final.with(out)
-		fr.LinesTo = len(out)
+		fr.LinesTo = landedLines(final, hasMark(orig.lines))
 		fr.SHAAfter = shaOf(final)
 		writes = append(writes, pending{file: fr, out: final, full: full, seen: seen})
 		if moveTo != nil {
@@ -1600,7 +1605,7 @@ func forceRemedy(format string, noForce bool) string {
 
 // planFile validates one file's hunks and splices its new content. It records a
 // verdict for every hunk and returns ok=false if any of them failed.
-func planFile(root, path, full string, hs []hunk, orig []string, existed bool, shaBefore string, opt Options, unlinked, produced map[string]bool, destCount map[string]int, nest *nesting, out map[int]HunkResult) ([]string, bool, string) {
+func planFile(root, path, full string, hs []hunk, orig []string, origFinal, existed bool, shaBefore string, opt Options, unlinked, produced map[string]bool, destCount map[string]int, nest *nesting, out map[int]HunkResult) ([]string, bool, string) {
 	total := len(orig)
 	ok := true
 	fail := func(h hunk, format string, a ...any) {
@@ -2348,8 +2353,8 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 					// names as worse than no guard. %q makes what is left
 					// legible: a tab as \t, a CR as \r, a trailing space held
 					// inside the quotes.
-					fail(h, "expected removal differs at line %d: plan says %q, file has %q",
-						start+i, clip(want), clip(orig[start-1+i]))
+					fail(h, "expected removal differs at line %d: plan says %q, file has %q%s",
+						start+i, clip(want), clip(orig[start-1+i]), markTeach(orig, start+i, want))
 					differs = true
 					break
 				}
@@ -2408,6 +2413,16 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 			replaced, body []string
 		}
 	)
+	// ADR-214: line1 is where original line 1 sits in res (-1 when a hunk
+	// consumed it) and firstHunk the hunk whose body is res[0] (-1 when it is
+	// not a body), the provenance settleMark judges the first output line by.
+	line1, firstHunk := -1, -1
+	putBody := func(h hunk) {
+		if len(res) == 0 && len(h.Body) > 0 {
+			firstHunk = h.Index
+		}
+		res = append(res, h.Body...)
+	}
 	for _, h := range resolved {
 		if h.Start < cursor {
 			fail(h, "overlaps an earlier hunk: %s begins before line %d, which a previous hunk already consumed",
@@ -2426,6 +2441,9 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 			}
 			continue
 		}
+		if cursor == 1 && h.Start > 1 {
+			line1 = len(res)
+		}
 		res = append(res, orig[cursor-1:h.Start-1]...)
 		cursor = h.Start
 
@@ -2438,12 +2456,12 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 		var consumed, written []string
 		switch h.Op {
 		case "insert":
-			res = append(res, h.Body...)
+			putBody(h)
 			r.newSpan = [2]int{len(res) - len(h.Body) + 1, len(res)}
 			r.Added = len(h.Body)
 			written = h.Body
 		case "replace":
-			res = append(res, h.Body...)
+			putBody(h)
 			r.newSpan = [2]int{len(res) - len(h.Body) + 1, len(res)}
 			r.Removed, r.Added = h.End-h.Start+1, len(h.Body)
 			consumed, written = orig[h.Start-1:h.End], h.Body
@@ -2491,15 +2509,27 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 	if !ok {
 		return nil, false, ""
 	}
+	if cursor == 1 && len(orig) > 0 {
+		line1 = len(res)
+	}
 	res = append(res, orig[cursor-1:]...)
+	settleMark(orig, res, line1, firstHunk, out)
+	// ADR-214 Decision 5: an original line 1 that was the mark alone, moved to the
+	// end of a file with no last terminator, is an empty line that does not land
+	// (the splitter does not count it), so the pad and the closer hint judge the
+	// lines without it.
+	landed := res
+	if !origFinal && line1 > 0 && line1 == len(res)-1 && res[line1] == "" {
+		landed = res[:line1]
+	}
 	for _, p := range padAfter {
 		r := out[p.index]
-		r.Echo = echoPad(res[:p.after], res[p.after:], opt.EchoPad)
+		r.Echo = echoPad(landed[:p.after], landed[p.after:], opt.EchoPad)
 		out[p.index] = r
 	}
 	for _, c := range closerAfter {
 		r := out[c.index]
-		r.Closer = closerHint(c.replaced, c.body, res[c.after:], c.after+1)
+		r.Closer = closerHint(c.replaced, c.body, landed[c.after:], c.after+1)
 		out[c.index] = r
 	}
 	if editRename {
@@ -2620,6 +2650,59 @@ func (t text) join() string {
 
 // with returns a copy holding different lines and the same conventions.
 func (t text) with(lines []string) text { t.lines = lines; return t }
+
+// utf8Mark is the UTF-8 byte order mark (ADR-214).
+const utf8Mark = "\xef\xbb\xbf"
+
+// hasMark reports whether a file's first line begins with the mark.
+func hasMark(ls []string) bool { return len(ls) > 0 && strings.HasPrefix(ls[0], utf8Mark) }
+
+// landedLines is the line count of the bytes t joins to, as the splitter reads
+// them (ADR-214 Decision 5), for a file whose original began with the mark
+// (marked): its moved line 1 can leave a trailing empty line the splitter does
+// not count. Any other file keeps the count it had before ADR-214.
+func landedLines(t text, marked bool) int {
+	if !marked {
+		return len(t.lines)
+	}
+	ls, _, _ := lines.Split(t.join())
+	return len(ls)
+}
+
+// settleMark is ADR-214 Decisions 1 to 3, judged on the assembled output res of
+// a file whose original began with the mark. A mark on original line 1 that is
+// no longer first is taken off it; the first output line carries exactly one
+// mark: original line 1 in place already does, a body that begins with one
+// brings the file's own, and anything else (a body without it, a line promoted
+// by a deletion) gets it put in front. The previews of the hunk that supplied
+// the first line follow it.
+func settleMark(orig, res []string, line1, first int, out map[int]HunkResult) {
+	if !hasMark(orig) {
+		return
+	}
+	if line1 > 0 {
+		res[line1] = strings.TrimPrefix(res[line1], utf8Mark)
+	}
+	if len(res) == 0 || line1 == 0 {
+		return
+	}
+	if first < 0 || !strings.HasPrefix(res[0], utf8Mark) {
+		res[0] = utf8Mark + res[0]
+	}
+	if r, ok := out[first]; ok && first >= 0 && len(r.After) > 0 {
+		r.After[0] = res[0]
+		out[first] = r
+	}
+}
+
+// markTeach is Decision 7's sentence for an exact-match refusal on line 1 of a
+// marked file when the caller's text is that line without its mark.
+func markTeach(orig []string, n int, want string) string {
+	if n != 1 || !hasMark(orig) || strings.TrimPrefix(orig[0], utf8Mark) != want {
+		return ""
+	}
+	return fmt.Sprintf("; line 1 begins with a UTF-8 byte order mark (U+FEFF); an exact match must include it, and a pattern can say ^\\x{FEFF}%s$", regexp.QuoteMeta(want))
+}
 
 // readLinesIn splits file path, one under root that rooted.Resolve returned for
 // a hunk's path, into lines, reporting the conventions it used and whether it
