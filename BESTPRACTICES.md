@@ -16,9 +16,10 @@ Use `mrw instructions` for the recipes or when a refusal names a case the core d
 
 Choose the rewrite by what should change. In a Python file, for example:
 
-- To rename every occurrence of the word `old`, including in strings and comments, use
-  `mrw write --grep '\bold\b' --sub 'new' example.py`. Omit the word boundaries if
-  the spelling should also change inside longer names such as `test_old`.
+- For a text rename across code, strings and comments, use
+  `mrw write --grep '\bold\b' --sub 'new' example.py`. The `\b` boundary is ASCII-only:
+  it preserves `test_old` but changes `πold` to `πnew`. Use `--grep 'old'` to change
+  the spelling even inside `test_old`.
 - To rewrite the call `old(x)` while preserving the same text in strings and comments, use
   `mrw write --ast-grep 'old($A)' --rewrite 'new($A)' example.py` (requires `ast-grep`).
 
