@@ -23,7 +23,7 @@ import (
 func TestAPrivateIndexSeesASameSizeEditGitWouldHaveRechecked(t *testing.T) {
 	tree, base := stagedTree(t)
 	for _, kv := range [][2]string{{"core.trustctime", "false"}, {"core.checkStat", "minimal"}} {
-		if err := git(tree, "config", kv[0], kv[1]); err != nil {
+		if err := git(tree, "config", "--file", filepath.Join(tree, ".git", "config"), kv[0], kv[1]); err != nil { // --file: a GIT_CONFIG in the environment must not take the write
 			t.Fatal(err)
 		}
 	}
