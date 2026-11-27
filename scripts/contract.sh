@@ -9035,6 +9035,14 @@ fixture
 printf 'Alpha NEEDLE241\n' > "$R/h241.txt"
 out=$(m read -i --grep NEEDLE241 2>&1); want 2 $? "a grep flag mrw read lacks exits 2"
 { grep -q 'flag provided but not defined: -i' <<<"$out" && grep -q '(?i)' <<<"$out"; } && ok "keeping the old message and naming (?i)" || bad "foreign flag: $out"
+out=$(m read --grep NEEDLE241 '--include=*.txt' . 2>&1); want 2 $? "--include is refused with a scoped grep recipe"
+for hint in 'mrw read --grep PATTERN FILE...' 'directories to walk' '--exclude GLOB' 'without --grep, pipe a list of specs to mrw read --files-from -'; do
+  grep -Fq -- "$hint" <<<"$out" && ok "--include names $hint" || bad "--include omits $hint: $out"
+done
+printf 'NEEDLE241\n' > "$R/other241.md"
+out=$(m read --grep NEEDLE241 h241.txt 2>&1); want 0 $? "grep accepts the named file from the recipe"
+{ grep -Fq 'Alpha NEEDLE241' <<<"$out" && ! grep -Fq 'other241.md' <<<"$out"; } && ok "the named file alone is served" || bad "scoped grep: $out"
+rm -f "$R/other241.md"
 out=$(m read --grep -i needle241 h241.txt 2>&1); want 1 $? "--grep -i PATTERN ends no file matched, exit 1"
 grep -q 'no file matched /-i/' <<<"$out" && grep -q '— case-insensitive.*(mrw took the value after --grep as the pattern)$' <<<"$out" && ok "and carries the same hint, ending the line" || bad "pattern -i: $out"
 out=$(m read --grep '(?i)needle241' 2>&1); want 0 $? "the pair: the spelling the hint names matches"
