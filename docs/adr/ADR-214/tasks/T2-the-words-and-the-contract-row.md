@@ -93,6 +93,7 @@ What each clause holds. The guide test and the legacy test pass; the golden diff
 - 2026-11-27 · 69eade1a* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:9a808674fe764a49417d3a0acf3627d7f000f5af61de1a96cdbc796a2f0c3556 · ms:2405
 - 2026-11-27 · 69eade1a* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:9a808674fe764a49417d3a0acf3627d7f000f5af61de1a96cdbc796a2f0c3556 · ms:2403
 - 2026-11-27 · 69eade1a* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:9a808674fe764a49417d3a0acf3627d7f000f5af61de1a96cdbc796a2f0c3556 · ms:2589
+- 2026-11-27 · a8c8bf11 · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:9a808674fe764a49417d3a0acf3627d7f000f5af61de1a96cdbc796a2f0c3556 · ms:1272
 
 ## Invariants
 
