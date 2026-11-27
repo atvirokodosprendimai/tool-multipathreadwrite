@@ -328,13 +328,21 @@ func keepFileUnder(stateHome, rel, base, label, home string) (sha, note string, 
 	return hashHex(b), "", nil
 }
 
-// copyIndex copies the tree's own index to dst, bounded.
+// copyIndex copies the tree's own index to dst, bounded, and gives the copy the
+// original's modification time. git reads the content of an entry no older than
+// the index file ("racily clean") and trusts the stat of any other; a copy with a
+// fresh mtime made such an entry trusted, so a same-size edit in the second of
+// the checkout was left out of the diff (#816).
 func copyIndex(src, dst string) error {
 	in, err := os.Open(src)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = in.Close() }()
+	fi, err := in.Stat()
+	if err != nil {
+		return err
+	}
 	out, err := os.OpenFile(dst, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 	if err != nil {
 		return err
@@ -345,6 +353,9 @@ func copyIndex(src, dst string) error {
 	}
 	if err == nil && n > mrwLimit {
 		err = fmt.Errorf("the index is over the %d bound", mrwLimit)
+	}
+	if err == nil {
+		err = os.Chtimes(dst, fi.ModTime(), fi.ModTime())
 	}
 	return err
 }
