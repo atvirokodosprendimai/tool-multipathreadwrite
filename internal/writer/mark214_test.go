@@ -126,7 +126,7 @@ func TestALedgerAfterAMarkedWriteFollowsTheSameRules(t *testing.T) {
 			t.Errorf("a bare 1 replace on the licensed line did not land: %+v", res.Hunks)
 		}
 	})
-	t.Run("a_quote_that_lands_the_same_bytes_writes_nothing_and_keeps_a_showing", func(t *testing.T) {
+	t.Run("a_quote_that_lands_the_same_bytes_writes_them_again_and_keeps_a_showing", func(t *testing.T) {
 		root := checkout(t)
 		file(t, root, orig)
 		read(t, root, orig, [][2]int{{1, 1}})
@@ -141,7 +141,9 @@ func TestALedgerAfterAMarkedWriteFollowsTheSameRules(t *testing.T) {
 		if got := bytesOf(t, root); got != orig {
 			t.Errorf("file = % x, want the same bytes", got)
 		}
-		if after := record(t, root); !reflect.DeepEqual(after, before) || !after.ServedLine(1) {
+		// The same bytes are written again, as for any file (Zy, 2026-11-27):
+		// Written is the write's; the showing is what must survive.
+		if after := record(t, root); after.SHA != before.SHA || !reflect.DeepEqual(after.Spans, before.Spans) || !after.ServedLine(1) {
 			t.Errorf("record %+v after, %+v before: a showing must survive a write of the same bytes", after, before)
 		}
 	})
