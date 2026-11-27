@@ -878,8 +878,12 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 		// a NUL early on) is served as the bytes it is, with one note saying so:
 		// the read did its job, and a write to it is refused.
 		foreign := lines.Unsplittable(b)
-		lines, sha := split(b)
-		fileLines[filepath.Clean(sp.Path)] = len(lines)
+		// #822: a plain --stat prints a header and licenses nothing, so it counts
+		// the lines rather than building them. A guard (--if-changed, --if-served),
+		// a match budget, a count and an outline still need the lines themselves.
+		headerOnly := opt.Stat && !guarded && !servedAsked && !opt.Count && !opt.Outline && opt.MaxMatches == nil
+		lines, nlines, sha := prepareRead(b, headerOnly)
+		fileLines[filepath.Clean(sp.Path)] = nlines
 		// ADR-169: the caller holds this file's sha, so the spec is answered in
 		// one line, not served, and nothing is recorded: the answer is about
 		// text, never about permission.
@@ -961,7 +965,7 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 				continue
 			}
 		}
-		header := fmt.Sprintf("==> %s  %dL  %dB  sha %s", ShownPath(sp.Path), len(lines), len(b), sha[:8])
+		header := fmt.Sprintf("==> %s  %dL  %dB  sha %s", ShownPath(sp.Path), nlines, len(b), sha[:8])
 		// countMissed is the pattern a counted file no longer matches: the walk
 		// found it, and another writer changed it before this read. A plain
 		// grep reports that as a missed range, and so does a count (the Codex
@@ -1851,6 +1855,16 @@ func spanSize(b []byte, spans []span, maxLines *int) (n, size int) {
 		}
 	}
 	return n, size
+}
+
+// prepareRead gives a header-only read the line count and sha alone (#822), and
+// every other read the lines split gives, with their count.
+func prepareRead(b []byte, headerOnly bool) ([]string, int, string) {
+	if headerOnly {
+		return nil, lines.Count(b), seen.SHA(b)
+	}
+	ls, sha := split(b)
+	return ls, len(ls), sha
 }
 
 // split numbers b's lines as the write engine does (ADR-065, lines.Split) and
