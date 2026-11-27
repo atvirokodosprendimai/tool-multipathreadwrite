@@ -290,6 +290,11 @@ it first. Use `--grep` or `--files-from`.
 A plan is a sequence of hunks. Every address resolves against the original file
 — no offset arithmetic between hunks.
 
+Every path in a plan is relative to the root. One that begins with a separator
+(`/x`, `\x`) or names a drive (`C:x`) is refused for every op, nothing is written,
+and the refusal names the relative spelling when it is clear (ADR-215); `mrw read`
+takes a real path, an absolute one included.
+
 ```
 @@ internal/apply/apply.go 42-58 replace anchor="func Apply" lines=17
         ... new lines ...
