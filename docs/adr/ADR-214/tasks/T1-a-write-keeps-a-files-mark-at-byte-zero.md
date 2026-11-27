@@ -113,6 +113,14 @@ What each clause holds. The named tests exist, pass and none is skipped; both co
 - 2026-11-27 · 6cbf39bf* · mutant killed · exit 1 · `internal/read/read.go` · the note's ^ claim is wrong · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b
 - 2026-11-27 · 6cbf39bf* · mutant killed · exit 1 · `internal/apply/apply.go` · the delete refusal does not teach the mark · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b
 - 2026-11-27 · 6cbf39bf* · mutant killed · exit 1 · `internal/ingest/searchreplace.go` · the SEARCH and old-side misses do not teach the mark · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b
+- 2026-11-27 · e9b19f65 · mutant killed · exit 1 · `internal/read/read.go` · the note is printed when --no-comments elides line 1 · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b
+- 2026-11-27 · e9b19f65* · mutant killed · exit 1 · `internal/apply/apply.go` · the provenance is the last body, not the first output line · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b
+- 2026-11-27 · e9b19f65* · mutant killed · exit 1 · `internal/apply/pathop.go` · an edited rename counts the unlanded empty line · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b
+- 2026-11-27 · e9b19f65* · mutant killed · exit 1 · `internal/apply/apply.go` · the pad shows a line that does not land · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b
+- 2026-11-27 · e9b19f65* · mutant killed · exit 1 · `internal/apply/apply.go` · an unmarked file is counted by its output mark · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b
+- 2026-11-27 · e9b19f65* · mutant killed · exit 1 · `internal/apply/apply.go` · the delete refusal pattern is not quoted · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b
+- 2026-11-27 · e9b19f65* · mutant killed · exit 1 · `internal/ingest/searchreplace.go` · the SEARCH miss pattern is not quoted · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b
+- 2026-11-27 · e9b19f65* · mutant killed · exit 1 · `internal/apply/fromcopy.go` · a mark inside a copied line past 1 is stripped · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b
 
 ## Verification Log
 - 2026-11-26 · b787541e · exit 1 · `d="$(mktemp -d)" \ …` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:1699 · test-lock-sha256:065704c4b78c31bd1e0fd789c3334c188f7a3433053554d54e1761cf45a21887 · test-lock-file:docs/adr/locks/065704c4b78c31bd1e0fd789c3334c188f7a3433053554d54e1761cf45a21887.lock
@@ -147,6 +155,14 @@ What each clause holds. The named tests exist, pass and none is skipped; both co
   ```
 - 2026-11-27 · 7c6fc00a* · exit 0 · `adr-verify --relock` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:76 · test-lock-sha256:0466bec47c9813c2d3542da23577a6597d204de1fdd432303c6c42336a5ad583 · test-lock-file:docs/adr/locks/0466bec47c9813c2d3542da23577a6597d204de1fdd432303c6c42336a5ad583.lock · test-lock-kind:relock
 - 2026-11-27 · 7c6fc00a* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:6262
+- 2026-11-27 · e9b19f65 · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:7108
+- 2026-11-27 · e9b19f65* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:7102
+- 2026-11-27 · e9b19f65* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:7561
+- 2026-11-27 · e9b19f65* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:7305
+- 2026-11-27 · e9b19f65* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:7505
+- 2026-11-27 · e9b19f65* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:7485
+- 2026-11-27 · e9b19f65* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:7494
+- 2026-11-27 · e9b19f65* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:7313
 
 ## Invariants
 
