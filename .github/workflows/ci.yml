@@ -218,7 +218,7 @@ jobs:
   # plugin's tools the way opencode does.
   opencode:
     runs-on: ubuntu-latest
-    timeout-minutes: 32
+    timeout-minutes: 34
     defaults:
       run:
         working-directory: cmd/opencode/mrw-plugin
