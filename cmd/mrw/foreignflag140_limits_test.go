@@ -30,3 +30,25 @@ func TestTheWordAndLiteralHintsNameTheirLimits(t *testing.T) {
 		t.Errorf("the -F hint does not name the \\E limit: %q", foreignFlags["F"])
 	}
 }
+
+func TestIncludeHintKeepsGrepScopedToNamedFiles(t *testing.T) {
+	root := t.TempDir()
+	for _, name := range []string{"keep.go", "skip.md"} {
+		if err := os.WriteFile(filepath.Join(root, name), []byte("needle\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	out, code := runIn(t, root, "read", "--grep", "needle", "--include=*.go", ".")
+	if code != 2 {
+		t.Fatalf("read --include: exit %d, want 2:\n%s", code, out)
+	}
+	for _, hint := range []string{"mrw read --grep PATTERN FILE...", "directories to walk", "--exclude GLOB", "without --grep, pipe a list of specs to mrw read --files-from -"} {
+		if !strings.Contains(out, hint) {
+			t.Errorf("missing %q in --include hint:\n%s", hint, out)
+		}
+	}
+	out, code = runIn(t, root, "read", "--grep", "needle", "keep.go")
+	if code != 0 || !strings.Contains(out, "==> keep.go") || !strings.Contains(out, "needle") || strings.Contains(out, "skip.md") {
+		t.Fatalf("scoped grep: exit %d\n%s", code, out)
+	}
+}
