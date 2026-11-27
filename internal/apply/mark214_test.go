@@ -3,8 +3,10 @@ package apply
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -110,6 +112,9 @@ func TestAWriteKeepsTheFilesLeadingMarkAtByteZero(t *testing.T) {
 		{name: "two_marks_replace_1", orig: mm + "one\n", in: in214(rep214(1, 1, "", "X")), want: m214 + "X\n"},
 		{name: "two_marks_replace_2", orig: mm + "one\ntwo\n", in: in214(rep214(2, 2, "", "TWO")), want: mm + "one\nTWO\n"},
 		{name: "promoted_line_keeps_its_own_mark", orig: m214 + "one\n" + m214 + "two\n", in: in214(del214(1, 1)), want: mm + "two\n"},
+		// The provenance is the first output line's, not the last body's: a promoted
+		// line followed by a later body hunk still keeps its own mark (the go-reviewer on T1).
+		{name: "promoted_line_then_a_later_body", orig: m214 + "one\n" + m214 + "two\nthree\n", in: in214(del214(1, 1), rep214(3, 3, "", "THREE")), want: mm + "two\nTHREE\n"},
 		{name: "only_the_mark_insert_after_0", orig: m214, in: in214(insA214(0, "zero")), want: m214 + "zero\n"},
 		{name: "only_the_mark_insert_before_1", orig: m214, in: in214(insB214(1, "zero")), want: m214 + "zero\n"},
 		{name: "only_the_mark_delete", orig: m214, in: in214(del214(1, 1)), want: m214},
@@ -296,6 +301,61 @@ func TestAWriteReceiptDescribesTheLandedFile(t *testing.T) {
 			t.Errorf("echo = %q, want line 2 as one with no mark", e)
 		}
 	})
+	t.Run("two_hunk_previews_keep_the_mark_on_the_first", func(t *testing.T) {
+		root := t.TempDir()
+		write(t, root, "m.txt", orig)
+		opt := whole214(t, root, "m.txt")
+		opt.DryRun, opt.Preview = true, true
+		res, err := Apply(root, in214(rep214(1, 1, "", "ONE"), rep214(2, 2, "", "TWO")), opt)
+		if err != nil || res.Failed != 0 {
+			t.Fatalf("Apply: %v %+v", err, res.Hunks)
+		}
+		if a := res.Hunks[0].After; len(a) != 1 || a[0] != m214+"ONE" {
+			t.Errorf("hunk 1 preview %q, want the mark and ONE", a)
+		}
+		if a := res.Hunks[1].After; len(a) != 1 || a[0] != "TWO" {
+			t.Errorf("hunk 2 preview %q, want TWO without a mark", a)
+		}
+	})
+	t.Run("insert_into_the_mark_alone_plus_rename_counts_the_landed_line", func(t *testing.T) {
+		root := t.TempDir()
+		write(t, root, "m.txt", m214)
+		res, err := Apply(root, in214(insB214(1, "zero"), Input{Op: "rename", Body: []string{"g.txt"}}), whole214(t, root, "m.txt"))
+		if err != nil || res.Failed != 0 {
+			t.Fatalf("Apply: %v %+v", err, res.Hunks)
+		}
+		if n, dst := recordsFor(res, "g.txt"); n != 1 || dst.LinesTo != 1 {
+			t.Errorf("g.txt record: %d %+v, want lines_after 1 for the landed Mzero", n, dst)
+		}
+	})
+	t.Run("the_pad_shows_no_line_that_does_not_land", func(t *testing.T) {
+		root := t.TempDir()
+		write(t, root, "m.txt", m214)
+		opt := whole214(t, root, "m.txt")
+		opt.EchoPad = 1
+		res, err := Apply(root, in214(insB214(1, "zero")), opt)
+		if err != nil || res.Failed != 0 {
+			t.Fatalf("Apply: %v %+v", err, res.Hunks)
+		}
+		if e := res.Hunks[0].Echo; len(e) != 0 {
+			t.Errorf("echo = %q, want none: the landed Mzero has no line 2", e)
+		}
+	})
+	t.Run("an_unmarked_file_counts_its_lines_as_before", func(t *testing.T) {
+		// The T1 invariant: an unmarked file's receipt is main's, even for a body
+		// that brings a mark and an empty last line.
+		root := t.TempDir()
+		write(t, root, "u.txt", "a")
+		in := in214(rep214(1, 1, "", m214+"x", ""))
+		in[0].Path = "u.txt"
+		res, err := Apply(root, in, whole214(t, root, "u.txt"))
+		if err != nil || res.Failed != 0 {
+			t.Fatalf("Apply: %v %+v", err, res.Hunks)
+		}
+		if f := res.Files[0]; f.LinesTo != 2 {
+			t.Errorf("lines_after = %d, want 2 as on main", f.LinesTo)
+		}
+	})
 	t.Run("the_closer_hint_is_judged_on_the_submitted_body", func(t *testing.T) {
 		closer := func(orig string) string {
 			root := t.TempDir()
@@ -371,6 +431,18 @@ func TestAFromCopyOfALineOneCarriesNoMark(t *testing.T) {
 			t.Errorf("a ledger sha of the stripped text licensed the copy: %v failed=%d", err, res.Failed)
 		}
 	})
+	t.Run("a_mark_inside_a_copied_line_past_1_is_content", func(t *testing.T) {
+		root := t.TempDir()
+		write(t, root, "src.txt", "a\n"+m214+"b\n")
+		write(t, root, "dst.txt", "x\n")
+		res, err := Apply(root, []Input{{Path: "dst.txt", Op: "insert-after", Start: 1, End: 1, Lines: -1, From: "src.txt", FromStart: 2, FromEnd: 2}}, whole214(t, root, "src.txt", "dst.txt"))
+		if err != nil || res.Failed != 0 {
+			t.Fatalf("Apply: %v %+v", err, res.Hunks)
+		}
+		if got := read(t, root, "dst.txt"); got != "x\n"+m214+"b\n" {
+			t.Errorf("dst = % x, want the copied line with its mark", got)
+		}
+	})
 }
 
 func TestAMarkedFileRefusalTeachesTheMark(t *testing.T) {
@@ -402,6 +474,24 @@ func TestAMarkedFileRefusalTeachesTheMark(t *testing.T) {
 	write(t, root, "n.txt", m214+"one\none\n")
 	if _, e := ingest.CompileSearchReplace(root, []byte("n.txt\n<<<<<<< SEARCH\none\n=======\nONE\n>>>>>>> REPLACE\n")); e != nil {
 		t.Errorf("SEARCH one on Mone/one: %v", e)
+	}
+	// The suggested pattern quotes the caller's text, so it matches line 1 as written.
+	const xml = `<?xml version="1.0"?>`
+	write(t, root, "x.txt", m214+xml+"\n")
+	res, err = Apply(root, in214(Input{Path: "x.txt", Op: "delete", Start: 1, End: 1, Body: []string{xml}}), whole214(t, root, "x.txt"))
+	if err != nil || res.Failed == 0 {
+		t.Fatalf("the delete expecting the visible xml line was not refused: %v %+v", err, res.Hunks)
+	}
+	_, e := ingest.CompileSearchReplace(root, []byte("x.txt\n<<<<<<< SEARCH\n"+xml+"\n=======\nX\n>>>>>>> REPLACE\n"))
+	for name, msg := range map[string]string{"delete": res.Hunks[0].Reason, "search": fmt.Sprint(e)} {
+		i := strings.Index(msg, "a pattern can say ")
+		if i < 0 {
+			t.Errorf("%s: no pattern in %q", name, msg)
+			continue
+		}
+		if re, err := regexp.Compile(msg[i+len("a pattern can say "):]); err != nil || !re.MatchString(m214+xml) {
+			t.Errorf("%s: the suggested pattern %q does not match line 1: %v", name, msg[i+len("a pattern can say "):], err)
+		}
 	}
 	// No refusal on an unmarked file mentions a mark.
 	write(t, root, "u.txt", "one\ntwo\n")

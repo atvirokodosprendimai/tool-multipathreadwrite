@@ -3,6 +3,7 @@ package ingest
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 
 	"github.com/atvirokodosprendimai/tool-multipathreadwrite/internal/lines"
@@ -141,7 +142,7 @@ func markMiss(lines, old []string) string {
 	if len(lines) == 0 || len(old) == 0 || !strings.HasPrefix(lines[0], utf8Mark) || strings.TrimPrefix(lines[0], utf8Mark) != old[0] {
 		return ""
 	}
-	return fmt.Sprintf("; line 1 begins with a UTF-8 byte order mark (U+FEFF); an exact match must include it, and a pattern can say ^\\x{FEFF}%s$", old[0])
+	return fmt.Sprintf("; line 1 begins with a UTF-8 byte order mark (U+FEFF); an exact match must include it, and a pattern can say ^\\x{FEFF}%s$", regexp.QuoteMeta(old[0]))
 }
 
 func searchFileLines(root, path string) ([]string, error) {

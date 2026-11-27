@@ -841,7 +841,7 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			fr.SHABefore = shaOf(orig)
 		}
 
-		out, ok, kind := planFile(root, path, full, hs, orig.lines, existed, fr.SHABefore, opt, unlinked, produced, destCount, nest, results)
+		out, ok, kind := planFile(root, path, full, hs, orig.lines, orig.final, existed, fr.SHABefore, opt, unlinked, produced, destCount, nest, results)
 		if !ok {
 			// The plan ADDRESSED this file even though nothing will be written
 			// to it. Dropping it here is how a two-file plan reported one file
@@ -939,7 +939,7 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			out, final.final = []string{utf8Mark}, false
 		}
 		final = final.with(out)
-		fr.LinesTo = landedLines(final)
+		fr.LinesTo = landedLines(final, hasMark(orig.lines))
 		fr.SHAAfter = shaOf(final)
 		writes = append(writes, pending{file: fr, out: final, full: full, seen: seen})
 		if moveTo != nil {
@@ -1605,7 +1605,7 @@ func forceRemedy(format string, noForce bool) string {
 
 // planFile validates one file's hunks and splices its new content. It records a
 // verdict for every hunk and returns ok=false if any of them failed.
-func planFile(root, path, full string, hs []hunk, orig []string, existed bool, shaBefore string, opt Options, unlinked, produced map[string]bool, destCount map[string]int, nest *nesting, out map[int]HunkResult) ([]string, bool, string) {
+func planFile(root, path, full string, hs []hunk, orig []string, origFinal, existed bool, shaBefore string, opt Options, unlinked, produced map[string]bool, destCount map[string]int, nest *nesting, out map[int]HunkResult) ([]string, bool, string) {
 	total := len(orig)
 	ok := true
 	fail := func(h hunk, format string, a ...any) {
@@ -2514,14 +2514,22 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 	}
 	res = append(res, orig[cursor-1:]...)
 	settleMark(orig, res, line1, firstHunk, out)
+	// ADR-214 Decision 5: an original line 1 that was the mark alone, moved to the
+	// end of a file with no last terminator, is an empty line that does not land
+	// (the splitter does not count it), so the pad and the closer hint judge the
+	// lines without it.
+	landed := res
+	if !origFinal && line1 > 0 && line1 == len(res)-1 && res[line1] == "" {
+		landed = res[:line1]
+	}
 	for _, p := range padAfter {
 		r := out[p.index]
-		r.Echo = echoPad(res[:p.after], res[p.after:], opt.EchoPad)
+		r.Echo = echoPad(landed[:p.after], landed[p.after:], opt.EchoPad)
 		out[p.index] = r
 	}
 	for _, c := range closerAfter {
 		r := out[c.index]
-		r.Closer = closerHint(c.replaced, c.body, res[c.after:], c.after+1)
+		r.Closer = closerHint(c.replaced, c.body, landed[c.after:], c.after+1)
 		out[c.index] = r
 	}
 	if editRename {
@@ -2650,10 +2658,11 @@ const utf8Mark = "\xef\xbb\xbf"
 func hasMark(ls []string) bool { return len(ls) > 0 && strings.HasPrefix(ls[0], utf8Mark) }
 
 // landedLines is the line count of the bytes t joins to, as the splitter reads
-// them (ADR-214 Decision 5). They differ only for a marked file, whose moved
-// line 1 can leave a trailing empty line the splitter does not count.
-func landedLines(t text) int {
-	if !hasMark(t.lines) {
+// them (ADR-214 Decision 5), for a file whose original began with the mark
+// (marked): its moved line 1 can leave a trailing empty line the splitter does
+// not count. Any other file keeps the count it had before ADR-214.
+func landedLines(t text, marked bool) int {
+	if !marked {
 		return len(t.lines)
 	}
 	ls, _, _ := lines.Split(t.join())
@@ -2692,7 +2701,7 @@ func markTeach(orig []string, n int, want string) string {
 	if n != 1 || !hasMark(orig) || strings.TrimPrefix(orig[0], utf8Mark) != want {
 		return ""
 	}
-	return fmt.Sprintf("; line 1 begins with a UTF-8 byte order mark (U+FEFF); an exact match must include it, and a pattern can say ^\\x{FEFF}%s$", want)
+	return fmt.Sprintf("; line 1 begins with a UTF-8 byte order mark (U+FEFF); an exact match must include it, and a pattern can say ^\\x{FEFF}%s$", regexp.QuoteMeta(want))
 }
 
 // readLinesIn splits file path, one under root that rooted.Resolve returned for

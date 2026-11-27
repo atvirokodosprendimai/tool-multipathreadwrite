@@ -533,8 +533,13 @@ func commitPathOps(tr *tree, res *Result, pathOps []pending) (string, error) {
 			Path:     w.destRel,
 			Created:  true,
 			Written:  true,
-			LinesTo:  landedLines(w.out),
+			LinesTo:  len(w.out.lines),
 			SHAAfter: shaOf(w.out),
+		}
+		// ADR-214 Decision 5: an edited source's count is the one apply took from
+		// the landed bytes, which a marked file's moved line 1 can make differ.
+		if w.edited {
+			dest.LinesTo = w.file.LinesTo
 		}
 		// #712: a moved link can read another file at its new place, so the
 		// digest of the file it read before would be a false sha_after. Its

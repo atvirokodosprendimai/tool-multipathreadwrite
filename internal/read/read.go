@@ -1172,8 +1172,10 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 			}
 			// ADR-214 Decision 8: the note and line 1 are delivered together or
 			// not at all, so the budget is asked for the note, the range line and
-			// line 1 as they will print before the note is written.
-			if sn.start == 1 && !opt.Quiet && !markNoted[sp.Path] && len(lines) > 0 && strings.HasPrefix(lines[0], utf8Mark) {
+			// line 1 as they will print before the note is written. A line 1 that
+			// opens a run --no-comments elides is not printed as line 1: no note.
+			elided1 := n >= 2 && len(cm) > 2 && cm[1] && plain[1] && cm[2] && plain[2]
+			if sn.start == 1 && !opt.Quiet && !elided1 && !markNoted[sp.Path] && len(lines) > 0 && strings.HasPrefix(lines[0], utf8Mark) {
 				markNoted[sp.Path] = true
 				first := lines[0]
 				if opt.MaxCols > 0 && utf8.RuneCountInString(first) > opt.MaxCols {

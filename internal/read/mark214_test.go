@@ -29,6 +29,7 @@ func TestAReadOfAMarkedFileSaysSoOnce(t *testing.T) {
 	put("g.txt", "one\ntwo\n")
 	put("only.txt", m)
 	put("fold.txt", m+"x\nx\nx\nx\n")
+	put("c.go", m+"// a\n// b\npackage x\n")
 	specs := func(t *testing.T, raw ...string) []Spec {
 		t.Helper()
 		var out []Spec
@@ -146,6 +147,14 @@ func TestAReadOfAMarkedFileSaysSoOnce(t *testing.T) {
 		out, _, _ = run(t, Options{Numbers: true}, "only.txt:2")
 		if count(out) != 0 {
 			t.Errorf("the file M, line 2 (not served): the note was printed:\n%s", out)
+		}
+	})
+	t.Run("not_when_line_1_opens_an_elided_comment_run", func(t *testing.T) {
+		// --no-comments prints line 1 as part of a "-- … N comment line(s)" line,
+		// not as line 1, so the note is not printed (the go-reviewer on T1).
+		out, _, _ := run(t, Options{Numbers: true, NoComments: true}, "c.go")
+		if !strings.Contains(out, "comment line(s), 1-2") || count(out) != 0 {
+			t.Errorf("an elided line 1 printed the note:\n%s", out)
 		}
 	})
 	t.Run("the_note_and_line_1_are_delivered_together_or_not_at_all", func(t *testing.T) {

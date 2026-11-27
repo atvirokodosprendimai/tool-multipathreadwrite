@@ -138,6 +138,15 @@ What each clause holds. The named tests exist, pass and none is skipped; both co
 - 2026-11-27 · 6cbf39bf* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:7127
 - 2026-11-27 · 6cbf39bf* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:7178
 - 2026-11-27 · 3439398e · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:7595
+- 2026-11-27 · 7c6fc00a* · exit 1 · `d="$(mktemp -d)" \ …` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:1006
+  ```
+  ```
+- 2026-11-27 · 7c6fc00a* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:30 · test-lock-sha256:0466bec47c9813c2d3542da23577a6597d204de1fdd432303c6c42336a5ad583 · test-lock-file:docs/adr/locks/0466bec47c9813c2d3542da23577a6597d204de1fdd432303c6c42336a5ad583.lock · test-lock-kind:replace
+- 2026-11-27 · 7c6fc00a* · exit 1 · `d="$(mktemp -d)" \ …` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:1111
+  ```
+  ```
+- 2026-11-27 · 7c6fc00a* · exit 0 · `adr-verify --relock` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:76 · test-lock-sha256:0466bec47c9813c2d3542da23577a6597d204de1fdd432303c6c42336a5ad583 · test-lock-file:docs/adr/locks/0466bec47c9813c2d3542da23577a6597d204de1fdd432303c6c42336a5ad583.lock · test-lock-kind:relock
+- 2026-11-27 · 7c6fc00a* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:6262
 
 ## Invariants
 
