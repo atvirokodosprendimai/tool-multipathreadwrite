@@ -407,6 +407,10 @@ type Input struct {
 	FromStart  int
 	FromEnd    int
 	FromRelEnd int
+	// Pointer is the working-set pointer (@N) the caller expanded into Path, as
+	// typed, or empty when Path was typed. Only a refusal of a rooted Path reads
+	// it, to say which entry holds the spelling (ADR-215 Decision 5).
+	Pointer string
 }
 
 // EOF mirrors plan.EOF; resolution happens here because only this package knows
@@ -542,7 +546,13 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 	// is validated or written, so it is the original's lines whatever else the
 	// plan does to the source; a source the caller was not served is a failed
 	// hunk, handled below.
-	copies, srcFails := resolveSources(root, in, opt)
+	//
+	// ADR-215: a rooted path is refused first, before anything is looked up or
+	// loaded, and the refusal ends the run as a refused source does.
+	copies, srcFails := map[int]copied{}, rootedPlanPaths(root, in)
+	if len(srcFails) == 0 {
+		copies, srcFails = resolveSources(root, in, opt)
+	}
 	for n, i := range in {
 		// One file, one key. The path is cleaned so that two spellings of the
 		// same file — "a.go" and "./a.go" — are one entry here and one entry
@@ -647,8 +657,14 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 	// hunk and the other files are still judged, so the receipt keeps every
 	// verdict: returned at once, it left the receipt with none (#703).
 	var loadErr error
-	nest := newNesting(root, in)
-	clash := foldClashes(in, existsUnder(root))
+	var (
+		nest  *nesting
+		clash map[int]string
+	)
+	if len(srcFails) == 0 {
+		nest = newNesting(root, in)
+		clash = foldClashes(in, existsUnder(root))
+	}
 	seenFiles := groupedFiles{planned: len(order)}
 	for _, path := range loopOrder {
 		hs := byPath[path]
@@ -938,7 +954,10 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 		r, ok := results[n]
 		if !ok {
 			r = HunkResult{Path: filepath.Clean(i.Path), Op: i.Op, SrcLine: i.SrcLine, Status: StatusOK}
-			r.Addr = addrString(i.Start, i.End)
+			// A row no validation reached (a run the preflight or a source
+			// refused first) echoes the address as written, as its failed
+			// sibling does: /needle/ and 3,+1 are not their numeric bounds.
+			r.Addr = srcAddrOf(i)
 		}
 		if c, has := copies[n]; has {
 			r.fromForm, r.BodyFrom = true, c.span
@@ -947,6 +966,10 @@ func apply(root string, in []Input, opt Options) (Result, error) {
 			if r.Status == StatusOK {
 				r.CopiedFirst, r.CopiedLast = c.first, c.last
 			}
+		} else if i.From != "" && !r.fromForm {
+			// A run another hunk refused before the sources were resolved
+			// (ADR-215's preflight): the row still names its copy (ADR-167).
+			r.fromForm, r.BodyFrom = true, filepath.Clean(i.From)+":"+fromAddrString(i)
 		}
 		if r.Status == StatusFailed {
 			res.Failed++
@@ -1939,23 +1962,6 @@ func planFile(root, path, full string, hs []hunk, orig []string, existed bool, s
 			continue
 		}
 		if !existed {
-			// An ABSOLUTE path in a plan is joined to the root, so it names
-			// something under the root that is almost never there — and "does
-			// not exist" then sends the caller looking for a file they can see
-			// with their own eyes. Say what actually happened instead.
-			//
-			// The path named here must be the JOINED one. Naming the caller's
-			// own path told them their real, present file did not exist, which
-			// is the same misdirection this clause was written to prevent —
-			// caught in review of the read-side fix for the identical bug.
-			// IsRooted, not IsAbs: on Windows `/etc/hosts` carries no volume,
-			// so IsAbs is false and this clause used to be skipped there —
-			// restoring the very "does not exist" misdirection it prevents.
-			if rooted.IsRooted(h.Path) {
-				fail(h, "%s is absolute, and every path in a plan is relative to the root: mrw looked for %s, "+
-					"which does not exist", h.Path, full)
-				continue
-			}
 			fail(h, "%s does not exist%s", path, servedAs(root, path, opt.Seen))
 			continue
 		}

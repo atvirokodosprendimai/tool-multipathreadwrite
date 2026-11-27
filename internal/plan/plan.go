@@ -786,6 +786,12 @@ func splitHeaderMode(s string, raw bool) ([]string, []bool, error) {
 		}
 	}
 	if inPat {
+		// ADR-215 Decision 4: a path token that begins with "/" and has no
+		// second "/" reads as a pattern that never closes. The reading stays;
+		// the sentence says what the caller did.
+		if len(out) == 0 {
+			return nil, nil, fmt.Errorf("unterminated pattern in header: expected a second /: a plan path is relative to the root and never begins with /")
+		}
 		return nil, nil, fmt.Errorf("unterminated pattern in header: expected a second /")
 	}
 	if inQ || inSQ {

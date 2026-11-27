@@ -1045,6 +1045,10 @@ func writeTool(root string, args json.RawMessage) (callToolResult, *rpcError) {
 			return errorResult(fmt.Sprintf("line %d: %v", h.SrcLine, err)), nil
 		}
 		in = append(in, writer.InputFromHunk(h, path))
+		// ADR-215 Decision 5: a rooted path reached through @N says which entry holds it.
+		if path != h.Path {
+			in[len(in)-1].Pointer = h.Path
+		}
 	}
 
 	// ⚠ REFUSE BEFORE APPLYING WHEN THE VERDICT COULD NOT BE REPORTED.

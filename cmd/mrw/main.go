@@ -2327,6 +2327,10 @@ held or went unchecked.`,
 					return refuse(fmt.Sprintf("%s line %d: %s names %q, which is not valid UTF-8, and a --json receipt cannot name it as written; drop --json to write it", name, h.SrcLine, h.Path, path))
 				}
 				in = append(in, writer.InputFromHunk(h, path))
+				// ADR-215 Decision 5: a rooted path reached through @N says which entry holds it.
+				if path != h.Path {
+					in[len(in)-1].Pointer = h.Path
+				}
 			}
 
 			// ADR-113: the gates, the landing's count, the check, the drift,

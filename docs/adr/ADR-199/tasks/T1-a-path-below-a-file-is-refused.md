@@ -136,6 +136,7 @@ out=$(go test ./internal/apply/ -count=1 -v -run '^(TestAPathBelowAFileIsRefused
 - 2026-11-15 · 087c7862* · exit 0 · `set -o pipefail …` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:171964
 - 2026-11-20 · 741bd503* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:2 · test-lock-sha256:2fbffcd88e9cdc91bdec61479ddcdde79f9171692ffeb9bfb6597c36391d4f6a · test-lock-file:docs/adr/locks/2fbffcd88e9cdc91bdec61479ddcdde79f9171692ffeb9bfb6597c36391d4f6a.lock · test-lock-kind:replace
 - 2026-11-20 · a4040443* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:0 · test-lock-sha256:4deeb014bea975f64a3fba68d11bb93031051910671997327a0a7d8853fce509 · test-lock-file:docs/adr/locks/4deeb014bea975f64a3fba68d11bb93031051910671997327a0a7d8853fce509.lock · test-lock-kind:replace
+- 2026-11-26 · a92f3800* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:8a35f0853190a1859d15c8fe411313aeb2ee40e53feb9558ddf28e7d15c15826 · ms:109 · test-lock-sha256:7ea125c7f7c8e34c0c9b5e855d14869d814faf934c485f595c567220a191da31 · test-lock-file:docs/adr/locks/7ea125c7f7c8e34c0c9b5e855d14869d814faf934c485f595c567220a191da31.lock · test-lock-kind:replace
 
 ## Invariants
 
