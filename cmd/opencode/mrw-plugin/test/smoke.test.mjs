@@ -488,7 +488,10 @@ test("a paged read followed with specs: [next_read] serves the whole file once",
       assert.ok(!seen.has(Number(m[1])), `line ${m[1]} served twice`);
       seen.set(Number(m[1]), m[2]);
     }
-    specs = receipt.next_read ? [receipt.next_read] : undefined;
+    if (!("next_read" in receipt)) break;
+    assert.equal(typeof receipt.next_read, "string", `page ${pages}: next_read ${JSON.stringify(receipt.next_read)}`);
+    assert.ok(receipt.next_read.length > 0, `page ${pages}: next_read is empty`);
+    specs = [receipt.next_read];
   }
   assert.ok(pages >= 2, `the fixture fit in one page (${pages}); it does not test paging`);
   assert.equal(seen.size, n, `served ${seen.size} of ${n} lines over ${pages} pages`);
