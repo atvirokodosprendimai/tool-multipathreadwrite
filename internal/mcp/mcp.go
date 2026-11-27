@@ -558,9 +558,9 @@ func tools() []tool {
 				"them (see ack). Specs use mrw's own syntax: path, path:10-20, path:A,+N for the line A " +
 				"plus the N lines after it, path:/regexp/ so the read " +
 				"finds its own site, or path:$ for the last line. A read too large for one answer " +
-				"comes back as a PAGE, not a failure: the lines that fit, a -- PARTIAL: line, and a " +
-				"next_read spec for the rest. Repeat until next_read is absent — its absence is " +
-				"how you know you have the whole file, and you may only edit lines a page served. " +
+				"can come back as a PAGE, not a failure: the lines that fit, a -- PARTIAL: line, and a " +
+				"next_read spec for the rest. Send it back as specs: [next_read] until next_read is absent, which means there is no further page; " +
+				"a spec that missed or a cap that withheld lines is counted in the receipt's problems, and you may only edit lines a page served. " +
 				"The served text is the first text block; the receipt (observed spans, problems, " +
 				"next_read) is the second, as JSON. " +
 				"Set `grep` to a regexp to FIND files you cannot name: it walks the paths " +
@@ -634,7 +634,7 @@ func tools() []tool {
 					"if_changed": map[string]any{
 						"type":                 "object",
 						"additionalProperties": map[string]any{"type": "string"},
-						"description":          "Re-read a file you read earlier: an object of path to the sha you hold, 8 to 64 hex digits of its sha256 (the 8 a header prints are enough), as `mrw read --if-changed`. Each spec of a file that still has that sha is answered with one line, `==> PATH  unchanged since sha SHA — N lines, B bytes not served`, instead of its text, with no checkpoint, and listed in the receipt's `unchanged`; a file that changed is served as ever. An unchanged answer records nothing, so it licenses no write, and it is not an error. A path no spec of the call serves is refused, except under `grep` or `ast_grep`, where a file the walk did not reach is named, not refused. Not together with count, stat, quiet, sub or rewrite. A JSON object keeps the last of a repeated key, so two guards on one file cannot be told apart here. The index of a grep too large to serve is not judged: send `if_changed` with the specs you resend. A page's next_read is a plain spec: send `if_changed` again with it to have it judged.",
+						"description":          "Re-read a file you read earlier: an object of path to the sha you hold, 8 to 64 hex digits of its sha256 (the 8 a header prints are enough), as `mrw read --if-changed`. Each spec of a file that still has that sha is answered with one line, `==> PATH  unchanged since sha SHA — N lines, B bytes not served`, instead of its text, with no checkpoint, and listed in the receipt's `unchanged`; a file that changed is served as ever. An unchanged answer records nothing, so it licenses no write, and it is not an error. A path no spec of the call serves is refused, except under `grep` or `ast_grep`, where a file the walk did not reach is named, not refused. Not together with count, stat, quiet, sub or rewrite. A JSON object keeps the last of a repeated key, so two guards on one file cannot be told apart here. The index of a grep too large to serve is not judged: send `if_changed` with the specs you resend. A page's next_read is one plain spec: send it as `specs: [next_read]` with `if_changed` again to have it judged.",
 						"examples":             []any{map[string]any{"internal/x/y.go": "8dc37337"}},
 					},
 					"ack": map[string]any{
