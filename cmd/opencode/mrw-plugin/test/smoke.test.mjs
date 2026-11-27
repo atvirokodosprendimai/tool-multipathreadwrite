@@ -29,8 +29,9 @@ process.env.MRW_MCP = "off";
 // tmp makes a directory the test removes when it ends.
 function tmp(t, prefix) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
-  // A process that has just exited on Windows can hold the directory briefly.
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 }));
+  // A process that has just exited on Windows can hold the directory briefly;
+  // ten retries back off linearly, about 5.5 s in all, before it throws.
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }));
   return dir;
 }
 
@@ -336,8 +337,9 @@ test("cancelling a running check aborts the call and ends the check's child", as
   // Registered before the directories, so it runs before they are removed. It
   // releases a child the assertions left running only after they ran: stop
   // listening, abort, tell each connection to stop and wait for it (bounded),
-  // destroy what is left, wait for the call (bounded), and put the environment
-  // back whatever happened.
+  // destroy what is left, wait for the call's promise (bounded: it settles on
+  // the abort, which can be before mrw has exited, so this is not a wait for
+  // mrw), and put the environment back whatever happened.
   t.after(async () => {
     try {
       server.close();
