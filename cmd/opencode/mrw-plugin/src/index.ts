@@ -220,7 +220,9 @@ const toolWrite = tool({
         "plan (default) is the native @@ document; apply_patch compiles a Codex *** Begin Patch " +
           "document; search_replace compiles an Aider SEARCH/REPLACE document. If SEARCH matches " +
           "whole lines exactly once, those lines need no prior mrw_read. For a multi-line replacement " +
-          "before EOF, keep the following line at the end of both blocks or read and acknowledge it first.",
+          "before EOF, keep the following line after at least one replacement line in REPLACE and at " +
+          "the end of SEARCH, or read and acknowledge the following line. For a pure deletion, read " +
+          "and acknowledge the lines to remove, then use a native delete with anchor=.",
       ),
     echoPad: z
       .number()

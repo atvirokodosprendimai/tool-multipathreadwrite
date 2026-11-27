@@ -98,6 +98,25 @@ test("search_replace can quote known lines without a prior read", async (t) => {
   assert.equal(fs.readFileSync(path.join(dir, "f.txt"), "utf8"), "changed\nrepeat\nrepeat\n");
 });
 
+test("a pure deletion before EOF can use a native delete after a read", async (t) => {
+  const dir = worktree(t, { content: "first\nsecond\nkeep\nlast\n" });
+  const tl = await tools(dir);
+  assert.match(tl.mrw_write.args.format.description, /pure deletion.*native delete with anchor=/);
+  const result = await tl.mrw_write.execute({
+    format: "search_replace",
+    plan: "f.txt\n<<<<<<< SEARCH\nfirst\nsecond\nkeep\n=======\nkeep\n>>>>>>> REPLACE\n",
+  }, ctx(dir));
+  assert.equal(result.metadata.isError, true, result.output);
+  assert.equal(fs.readFileSync(path.join(dir, "f.txt"), "utf8"), "first\nsecond\nkeep\nlast\n");
+  const read = await tl.mrw_read.execute({ specs: ["f.txt:1-2"] }, ctx(dir));
+  const deleted = await tl.mrw_write.execute({
+    plan: '@@ f.txt 1-2 delete anchor="first"\n',
+    ack: acks(read.output),
+  }, ctx(dir));
+  assert.equal(deleted.metadata.isError, false, deleted.output);
+  assert.equal(fs.readFileSync(path.join(dir, "f.txt"), "utf8"), "keep\nlast\n");
+});
+
 test("a read carries checkpoints, and a write that acknowledges them lands", async (t) => {
   const dir = worktree(t);
   const tl = await tools(dir);
