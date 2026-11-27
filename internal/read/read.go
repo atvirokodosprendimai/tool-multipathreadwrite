@@ -882,7 +882,7 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 		// the lines rather than building them. A guard (--if-changed, --if-served),
 		// a match budget, a count and an outline still need the lines themselves.
 		headerOnly := opt.Stat && !guarded && !servedAsked && !opt.Count && !opt.Outline && opt.MaxMatches == nil
-		lines, nlines, sha := prepareRead(b, headerOnly)
+		lines, eol, final, nlines, sha := prepareRead(b, headerOnly)
 		fileLines[filepath.Clean(sp.Path)] = nlines
 		// ADR-169: the caller holds this file's sha, so the spec is answered in
 		// one line, not served, and nothing is recorded: the answer is about
@@ -892,7 +892,7 @@ func Run(w io.Writer, root string, specs []Spec, opt Options) (observed map[stri
 			if opt.NextLine && len(sp.Ranges) > 0 {
 				spans = withNextLine(spans, len(lines))
 			}
-			n, size := spanSize(b, spans, opt.MaxLines)
+			n, size := spanSize(lines, eol, final, spans, opt.MaxLines)
 			fmt.Fprintf(w, "==> %s  unchanged since sha %s — %d lines, %d bytes not served\n", ShownPath(sp.Path), guard, n, size)
 			// Whether the unchanged line itself reached the caller is judged
 			// before anything else is printed, so a diagnostic that overruns
@@ -1837,11 +1837,11 @@ func withNextLine(in []span, total int) []span {
 	return merge(out)
 }
 
-// spanSize counts the lines spans cover in b and the bytes those lines hold,
+// spanSize counts the lines spans cover in ls, the file already split with its
+// terminator eol and whether the text ends with it, and the bytes those lines hold,
 // line endings included, the way lines.Split ends them: what a guarded spec
 // would have served (ADR-169), up to maxLines when the read caps each spec.
-func spanSize(b []byte, spans []span, maxLines *int) (n, size int) {
-	ls, eol, final := lines.Split(string(b))
+func spanSize(ls []string, eol string, final bool, spans []span, maxLines *int) (n, size int) {
 	for _, s := range spans {
 		for i := s.start; i <= s.end; i++ {
 			if maxLines != nil && n == *maxLines {
@@ -1859,22 +1859,22 @@ func spanSize(b []byte, spans []span, maxLines *int) (n, size int) {
 
 // prepareRead gives a header-only read the line count and sha alone (#822), and
 // every other read the lines split gives, with their count.
-func prepareRead(b []byte, headerOnly bool) ([]string, int, string) {
+func prepareRead(b []byte, headerOnly bool) (ls []string, eol string, final bool, n int, sha string) {
 	if headerOnly {
-		return nil, lines.Count(b), seen.SHA(b)
+		return nil, "", false, lines.Count(b), seen.SHA(b)
 	}
-	ls, sha := split(b)
-	return ls, len(ls), sha
+	ls, eol, final, sha = split(b)
+	return ls, eol, final, len(ls), sha
 }
 
 // split numbers b's lines as the write engine does (ADR-065, lines.Split) and
 // hashes the RAW bytes: the ledger's sha must agree with seen.SHA, and a hash of
 // rejoined lines would make every CRLF file read as changed behind mrw's back.
-func split(b []byte) ([]string, string) {
+func split(b []byte) (ls []string, eol string, final bool, sha string) {
 	sum := sha256.Sum256(b)
-	sha := hex.EncodeToString(sum[:])
-	ls, _, _ := lines.Split(string(b))
-	return ls, sha
+	sha = hex.EncodeToString(sum[:])
+	ls, eol, final = lines.Split(string(b))
+	return ls, eol, final, sha
 }
 
 // NamedFiles names up to five files and counts the rest (ADR-148, ADR-179).

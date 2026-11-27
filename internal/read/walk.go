@@ -618,7 +618,7 @@ func (w *walker) offer(p, full string, discovered bool, size int64) {
 			return
 		}
 		j.sniff = !w.opt.NoIgnore && lines.Unsplittable(b) != ""
-		ls, _ := split(b)
+		ls, _, _, _ := split(b)
 		for _, l := range ls {
 			if w.opt.Pattern.MatchString(l) {
 				j.matched = true
