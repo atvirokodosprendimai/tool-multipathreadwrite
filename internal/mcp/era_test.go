@@ -255,7 +255,7 @@ func jsonInner(s string) string {
 // and once by #752, whose `no_ignore` descriptions in tools/list say what the flag walks and that a name Windows will not keep stays skipped: those descriptions, nothing else;
 // and once by #754, whose `check.outside_scope` description in the outputSchema says the paths are spelled with `/` on every platform: that description, nothing else;
 // and once by ADR-214, whose `mrw_read` and `mrw_write` descriptions in tools/list carry a sentence that a file's leading byte order mark is part of line 1 and kept by every edit: those two descriptions, nothing else;
-// and once by #821, whose `mrw_read` and `if_changed` descriptions in tools/list say next_read goes back as specs: [next_read], the read description says a large read CAN page and that next_read's absence on an answer that serves the lines means you hold the rest of what you asked for, and the instructions' paging lines say a read CAN page and how to send next_read: those two descriptions and those two instruction lines, nothing else;
+// and once by #821, whose `mrw_read` and `if_changed` descriptions in tools/list say next_read goes back as specs: [next_read], the read description says a large read CAN page and that next_read's absence means no further page while a missed spec or a cap's withheld lines are counted in the receipt's problems, and the instructions' paging lines say a read CAN page and how to send next_read: those two descriptions and those two instruction lines, nothing else;
 // before that no answer to a call had changed: the transcript
 // held only initialize, tools/list and that read.
 func TestALegacyResultIsUnchangedByTheModernPath(t *testing.T) {

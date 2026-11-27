@@ -559,8 +559,8 @@ func tools() []tool {
 				"plus the N lines after it, path:/regexp/ so the read " +
 				"finds its own site, or path:$ for the last line. A read too large for one answer " +
 				"can come back as a PAGE, not a failure: the lines that fit, a -- PARTIAL: line, and a " +
-				"next_read spec for the rest. Send it back as specs: [next_read] until next_read is absent — its absence on an answer that serves the lines is " +
-				"how you know you have the rest of what you asked for, and you may only edit lines a page served. " +
+				"next_read spec for the rest. Send it back as specs: [next_read] until next_read is absent, which means there is no further page; " +
+				"a spec that missed or a cap that withheld lines is counted in the receipt's problems, and you may only edit lines a page served. " +
 				"The served text is the first text block; the receipt (observed spans, problems, " +
 				"next_read) is the second, as JSON. " +
 				"Set `grep` to a regexp to FIND files you cannot name: it walks the paths " +
