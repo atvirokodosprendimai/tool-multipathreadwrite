@@ -232,7 +232,8 @@ test("a structural rewrite changes scoped calls and preserves lookalike text", a
   t.after(() => { process.env.PATH = bare; });
   const dry = await tl.mrw_write.execute({ ...args, dryRun: true }, ctx(dir));
   assert.equal(fs.readFileSync(path.join(dir, "change.js"), "utf8"), source);
-  if (dry.metadata.isError && dry.output.includes("ast-grep: not found on PATH")) {
+  if (process.env.MRW_TEST_REQUIRE_AST_GREP !== "1" &&
+      dry.metadata.isError && dry.output.includes("ast-grep: not found on PATH")) {
     t.skip("ast-grep is unavailable");
     return;
   }

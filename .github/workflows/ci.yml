@@ -243,8 +243,21 @@ jobs:
       - name: Build the plugin
         timeout-minutes: 3
         run: npm run build
+      - name: Install ast-grep for the structural rewrite test
+        timeout-minutes: 2
+        run: |
+          finder_dir=$(mktemp -d "$RUNNER_TEMP/ast-grep.XXXXXX")
+          cd "$finder_dir"
+          curl --fail --silent --show-error --location --retry 2 --max-time 25 \
+            https://github.com/ast-grep/ast-grep/releases/download/0.51.3/app-x86_64-unknown-linux-gnu.zip -o finder.zip
+          echo '22803eb0c5bf83164fb7fd76d4721d355ecf0c8466ef47342c1ec7d80897ca47  finder.zip' | sha256sum --check
+          unzip -q finder.zip ast-grep
+          ./ast-grep --version
+          echo "$finder_dir" >> "$GITHUB_PATH"
       - name: Smoke test
         timeout-minutes: 3
+        env:
+          MRW_TEST_REQUIRE_AST_GREP: "1"
         run: npm test
 
   # Windows, running the same Go gates as `test`. It exists because this project
