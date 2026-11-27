@@ -137,6 +137,7 @@ What each clause holds. The named tests exist, pass and none is skipped; both co
 - 2026-11-27 · 6cbf39bf* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:7882
 - 2026-11-27 · 6cbf39bf* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:7127
 - 2026-11-27 · 6cbf39bf* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:7178
+- 2026-11-27 · 3439398e · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:bb0a56ac802cfc828ab7250f27545f5026221103fe742c68557365797227e93b · ms:7595
 
 ## Invariants
 
