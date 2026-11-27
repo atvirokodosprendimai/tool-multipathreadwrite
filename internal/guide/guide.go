@@ -127,6 +127,7 @@ from=PATH:ADDR is a body copied from lines of a file as it was before the plan (
 lines= is a guard on how many lines the ADDRESS covers, and is not body=.
 The checkout is named by global -C DIR or --root DIR before the subcommand (mrw -C repo write plan). After read, -C is context lines, not a checkout. An all-digit -C before the subcommand is still a checkout, and mrw says so on stderr.
 A path reaches mrw as typed, spaces included: mrw read 'x ' reads the file named x with a trailing space, never x, and an attached flag value (--files-from='list ') is that value, whitespace and all. A typo with a stray space therefore names a file that is not there, reported UNREADABLE with its name (on Windows, whose ordinary paths drop a trailing dot or space, REFUSED). In cmd.exe, which keeps single quotes as characters, quote such a path with double quotes: mrw read "x ".
+Every path in a plan is relative to the root: one that begins with a separator (/d/x, and on Windows also \x) or names a drive (C:x, on Windows) is refused, for every op, as a failed hunk with nothing written; a bare @@ /x header with no second / is a plan error instead (exit 2). On macOS and Linux \x and C:x are ordinary names. mrw read takes a real path, absolute included when it is inside the root.
 Ops: replace, insert-after, insert-before, delete, create, unlink, rename.
 @@ path 0 create makes a new file; empty is body=0. A new file is not a reason to skip mrw.
 A multi-line replace requires anchor= taken from the served first line. sha= and lines= do not stand in for it.

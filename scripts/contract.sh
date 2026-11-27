@@ -12607,6 +12607,35 @@ EDITS383
 want 0 "$?" "an explicit empty replacement deletes the unique match"
 cmp -s "$R/edit383" <(printf 'two\ntwo\n') && ok "only the two retained lines remain" || bad "content-edit deletion"
 
+# 381. ADR-215: a plan path that is rooted is refused for every op, whatever it
+# names: exit 1, the sentence, the tree unchanged and no directory made. A
+# replace of /dd/zz.txt, a create of /sub/y.txt, the absolute path of a file
+# inside the root (which names the relative spelling), and a rename of a licensed
+# source to a rooted destination. The pairs: the same plans spelled relative
+# apply, bytes compared, and `mrw read` of the absolute path is served.
+R381=$(mktemp -d "$WORK/r381-XXXXXX"); r381=$(cd "$R381" && pwd -P)
+mkdir -p "$R381/dd"
+printf 'one\n' > "$R381/dd/zz.txt"; printf 'mv\n' > "$R381/dd/rn.txt"
+e381() { env XDG_STATE_HOME="$R381/state" "$MRW" --root "$r381" "$@"; }
+s381='is absolute, and every path in a plan is relative to the root'
+e381 read dd/zz.txt dd/rn.txt > "$WORK/r381.out" 2>&1; want 0 $? "the setup: both files read"
+out=$(printf '@@ /dd/zz.txt 1 replace anchor="one"\nONE\n' | e381 write --no-check - 2>&1); want 1 $? "a replace of /dd/zz.txt"
+{ grep -qF "$s381" <<<"$out" && cmp -s "$R381/dd/zz.txt" <(printf 'one\n'); } && ok "is refused with the sentence, the file untouched" || bad "rooted replace: $out"
+out=$(printf '@@ /sub/y.txt 0 create\ny\n' | e381 write --no-check - 2>&1); want 1 $? "a create of /sub/y.txt"
+{ grep -qF "$s381" <<<"$out" && [ ! -e "$R381/sub" ]; } && ok "is refused with the sentence, and no sub/ is made" || bad "rooted create: $out"
+out=$(printf '@@ "%s/dd/zz.txt" 1 replace anchor="one"\nONE\n' "$r381" | e381 write --no-check - 2>&1); want 1 $? "a replace of the absolute path of a file inside the root"
+{ grep -qF "$s381" <<<"$out" && grep -qF ': for the file inside the root write dd/zz.txt' <<<"$out" && cmp -s "$R381/dd/zz.txt" <(printf 'one\n'); } \
+  && ok "is refused, naming dd/zz.txt, the file untouched" || bad "absolute replace: $out"
+out=$(printf '@@ dd/rn.txt - rename\n/sub2/y.txt\n' | e381 write --no-check - 2>&1); want 1 $? "a rename of a licensed source to a rooted destination"
+{ grep -qF "$s381" <<<"$out" && cmp -s "$R381/dd/rn.txt" <(printf 'mv\n') && [ ! -e "$R381/sub2" ]; } \
+  && ok "is refused with the sentence, the source in place, no sub2/" || bad "rooted rename: $out"
+out=$(printf '@@ dd/zz.txt 1 replace anchor="one"\nONE\n@@ sub/y.txt 0 create\ny\n@@ dd/rn.txt - rename\nsub2/y.txt\n' | e381 write --no-check - 2>&1); want 0 $? "the pair: the same plans spelled relative"
+{ cmp -s "$R381/dd/zz.txt" <(printf 'ONE\n') && cmp -s "$R381/sub/y.txt" <(printf 'y\n') && cmp -s "$R381/sub2/y.txt" <(printf 'mv\n') && [ ! -e "$R381/dd/rn.txt" ]; } \
+  && ok "apply: the replace, the create and the rename land with the expected bytes" || bad "relative plans: $out"
+out=$(e381 read "$r381/dd/zz.txt" 2>&1); want 0 $? "the pair: mrw read of the absolute path inside the root"
+grep -qE '^ *1[|] ONE$' <<<"$out" && ok "is served" || bad "absolute read: $out"
+rm -rf "$R381" "$WORK/r381.out"
+
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
 # killed process is a zombie until its adopter reaps it, and pgrep lists

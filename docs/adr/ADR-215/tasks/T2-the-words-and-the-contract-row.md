@@ -69,8 +69,30 @@ What each clause holds. The guide test passes. The probe runs the binary this tr
 | 4 — it is used | telemetry is refused by ADR-009; the evidence is #648 |
 
 ## Mutation Log
+- 2026-11-27 · 5af1c752* · mutant killed · exit 1 · `internal/guide/guide.go` · guide sentence dropped · acceptance-sha256:18b0cfa40de4156bf8a1e747666fa428992492346a9b8f93402434a5f6ba1395 · covers:the instructions say a plan path is relative to the root
+- 2026-11-27 · 5af1c752* · mutant survived · exit 0 · `docs/adr/ADR-215/tasks/T2-the-words-and-the-contract-row.md` · probe relative-success input made rooted · acceptance-sha256:18b0cfa40de4156bf8a1e747666fa428992492346a9b8f93402434a5f6ba1395 · covers:the built binary refuses a rooted plan path and applies the relative one
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
+- 2026-11-27 · 5af1c752* · mutant survived · exit 0 · `docs/adr/ADR-215/tasks/T2-the-words-and-the-contract-row.md` · negative case expected exit changed · acceptance-sha256:18b0cfa40de4156bf8a1e747666fa428992492346a9b8f93402434a5f6ba1395 · covers:the built binary refuses a rooted plan path and applies the relative one
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
+- 2026-11-27 · 5af1c752* · mutant killed · exit 1 · `internal/apply/pathop.go` · refusal sentence changed · acceptance-sha256:18b0cfa40de4156bf8a1e747666fa428992492346a9b8f93402434a5f6ba1395 · covers:the built binary refuses a rooted plan path and applies the relative one
+- 2026-11-27 · 5af1c752* · mutant killed · exit 1 · `internal/guide/rooted215_test.go` · the named test skips · acceptance-sha256:18b0cfa40de4156bf8a1e747666fa428992492346a9b8f93402434a5f6ba1395 · covers:every named test passed and none skipped
 
 ## Verification Log
+- 2026-11-27 · 5af1c752* · exit 1 · `d="$(mktemp -d)" \ …` · acceptance-sha256:18b0cfa40de4156bf8a1e747666fa428992492346a9b8f93402434a5f6ba1395 · ms:273 · test-lock-sha256:7001df5066e4392df92ff35561a14f5a77724f9accf521b30c2c766af2be1dbb · test-lock-file:docs/adr/locks/7001df5066e4392df92ff35561a14f5a77724f9accf521b30c2c766af2be1dbb.lock
+  ```
+  ```
+- 2026-11-27 · 5af1c752* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:18b0cfa40de4156bf8a1e747666fa428992492346a9b8f93402434a5f6ba1395 · ms:1205
+- 2026-11-27 · 5af1c752* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:18b0cfa40de4156bf8a1e747666fa428992492346a9b8f93402434a5f6ba1395 · ms:2230
+- 2026-11-27 · 5af1c752* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:18b0cfa40de4156bf8a1e747666fa428992492346a9b8f93402434a5f6ba1395 · ms:2370
+- 2026-11-27 · 5af1c752* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:18b0cfa40de4156bf8a1e747666fa428992492346a9b8f93402434a5f6ba1395 · ms:2418
+- 2026-11-27 · 5af1c752* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:18b0cfa40de4156bf8a1e747666fa428992492346a9b8f93402434a5f6ba1395 · ms:2219
+- 2026-11-27 · 5af1c752* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:18b0cfa40de4156bf8a1e747666fa428992492346a9b8f93402434a5f6ba1395 · ms:2335
+- 2026-11-27 · b7243fb5* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:18b0cfa40de4156bf8a1e747666fa428992492346a9b8f93402434a5f6ba1395 · ms:5 · test-lock-sha256:1c115e47cc35a97bc10e424661d2993a2b8b0ae0c2fe71a53ebe5bd781989f8b · test-lock-file:docs/adr/locks/1c115e47cc35a97bc10e424661d2993a2b8b0ae0c2fe71a53ebe5bd781989f8b.lock · test-lock-kind:replace
+- 2026-11-27 · b7243fb5* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:18b0cfa40de4156bf8a1e747666fa428992492346a9b8f93402434a5f6ba1395 · ms:873
 
 ## Invariants
 
