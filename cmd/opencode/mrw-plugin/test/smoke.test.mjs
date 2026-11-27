@@ -82,6 +82,22 @@ test("instructions can return the core rules or the full guide", async (t) => {
   }
 });
 
+test("search_replace can quote known lines without a prior read", async (t) => {
+  const dir = worktree(t, { content: "once\nrepeat\nrepeat\n" });
+  const write = (await tools(dir)).mrw_write;
+  assert.match(write.args.format.description, /whole lines exactly once.*no prior mrw_read/);
+  const replace = (old) => write.execute({
+    format: "search_replace",
+    plan: `f.txt\n<<<<<<< SEARCH\n${old}\n=======\nchanged\n>>>>>>> REPLACE\n`,
+  }, ctx(dir));
+  const refused = await replace("repeat");
+  assert.equal(refused.metadata.isError, true, refused.output);
+  assert.equal(fs.readFileSync(path.join(dir, "f.txt"), "utf8"), "once\nrepeat\nrepeat\n");
+  const applied = await replace("once");
+  assert.equal(applied.metadata.isError, false, applied.output);
+  assert.equal(fs.readFileSync(path.join(dir, "f.txt"), "utf8"), "changed\nrepeat\nrepeat\n");
+});
+
 test("a read carries checkpoints, and a write that acknowledges them lands", async (t) => {
   const dir = worktree(t);
   const tl = await tools(dir);

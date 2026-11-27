@@ -218,7 +218,9 @@ const toolWrite = tool({
       .optional()
       .describe(
         "plan (default) is the native @@ document; apply_patch compiles a Codex *** Begin Patch " +
-          "document; search_replace compiles an Aider SEARCH/REPLACE document.",
+          "document; search_replace compiles an Aider SEARCH/REPLACE document. If SEARCH matches " +
+          "whole lines exactly once, those lines need no prior mrw_read. For a multi-line replacement " +
+          "before EOF, keep the following line at the end of both blocks or read and acknowledge it first.",
       ),
     echoPad: z
       .number()
