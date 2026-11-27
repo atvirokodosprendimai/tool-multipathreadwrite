@@ -222,11 +222,6 @@ func planPathOp(root, path, full string, h hunk, orig []string, existed bool, sh
 		}
 	}
 	if !existed {
-		if rooted.IsRooted(h.Path) {
-			fail(h, "%s is absolute, and every path in a plan is relative to the root: mrw looked for %s, "+
-				"which does not exist", h.Path, full)
-			return false
-		}
 		fail(h, "%s does not exist%s", path, miss)
 		return false
 	}
@@ -238,11 +233,6 @@ func planPathOp(root, path, full string, h hunk, orig []string, existed bool, sh
 	}
 	if h.Op == "rename" {
 		raw := h.Body[0] // the destination exactly as written (ADR-069)
-		if rooted.IsRooted(raw) {
-			fail(h, "%s is absolute, and every path in a plan is relative to the root: mrw looked for %s, "+
-				"which does not exist", raw, raw)
-			return false
-		}
 		// ADR-076: `d/` names a directory; cleaned, it made a FILE named d.
 		if rooted.SpelledAsDirectory(raw) {
 			fail(h, "rename dest %s %v; a rename names the file it makes, such as %s", raw, rooted.ErrNotADirectory, asPlan(filepath.Join(filepath.Clean(raw), filepath.Base(path))))
@@ -621,4 +611,114 @@ func commitPathOps(tr *tree, res *Result, pathOps []pending) (string, error) {
 		res.cleanUp(tr, a.tmp)
 	}
 	return "", nil
+}
+
+// rootedPlanPaths is ADR-215's preflight: the plan paths that are rooted,
+// as failed hunks by position. It tests each hunk's RAW path and each rename's
+// RAW destination with rooted.IsRooted, never filepath.IsAbs (on Windows `/x`,
+// `\x` and `c:x` carry no volume and IsAbs is false for all three), and it looks
+// nothing up, so a rooted spelling reaches no resolver, no stat and no file
+// load. Apply runs it before the ledger-backed copies, the directory-spelling
+// rule, the collision maps and a rename's source load; a plan that fails it
+// reports every other hunk skipped and writes nothing.
+func rootedPlanPaths(root string, in []Input) map[int]HunkResult {
+	var fails map[int]HunkResult
+	for n, i := range in {
+		raw, dest := i.Path, false
+		if !rooted.IsRooted(raw) {
+			if i.Op != "rename" || len(i.Body) != 1 || !rooted.IsRooted(i.Body[0]) {
+				continue
+			}
+			raw, dest = i.Body[0], true
+		}
+		if fails == nil {
+			fails = map[int]HunkResult{}
+		}
+		fails[n] = HunkResult{
+			Path: filepath.Clean(i.Path), Addr: srcAddrOf(i), Op: i.Op, SrcLine: i.SrcLine,
+			Status: StatusFailed, Reason: rootedReason(root, raw, dest, i.Pointer),
+		}
+	}
+	return fails
+}
+
+// rootedReason says why a rooted path is refused and, only where it is sure,
+// what to write instead: the lexical remainder of an absolute path that
+// rooted.Contains puts inside the root. It never strips a separator into a
+// suggestion (`/etc/hosts` would name an unrelated etc/hosts, `/../x` would
+// leave the root), and never follows a link: a symlink's entry is named, not
+// its target. A spelling is offered only when it is sure to parse back as the
+// same name (hintable); otherwise the refusal explains and suggests nothing.
+func rootedReason(root, raw string, dest bool, pointer string) string {
+	s := raw + " is absolute, and every path in a plan is relative to the root"
+	if rel, ok := insideRoot(root, raw); ok && hintable(rel) {
+		// A header spelling: ./ before a leading @ (which would read as a
+		// pointer), then double quotes round a space or a tab. A rename
+		// destination is a body line, taken literally.
+		if !dest {
+			if strings.HasPrefix(rel, "@") {
+				rel = "./" + rel
+			}
+			if strings.Contains(rel, " ") {
+				rel = `"` + rel + `"`
+			}
+		}
+		s += ": for the file inside the root write " + rel
+	} else {
+		s += ": name the file relative to the root, without the leading separator or drive"
+	}
+	// The pointer expanded into the hunk's path, never into a rename's destination.
+	if pointer != "" && !dest {
+		s += " (the working-set entry " + pointer + " holds it: mrw iter lists it; add it again without the leading separator)"
+	}
+	return s
+}
+
+// hintable reports whether rel, "/"-separated, can be offered as a spelling
+// the plan parser reads back as exactly rel. The header tokenizer and the body
+// parser give meaning to quotes, backslashes, `=` and a leading `@@`, so only
+// a conservative set is offered: letters, digits, `.`, `_`, `+`, `-`, `/`, a
+// space (double-quoted in a header) and a leading `@` (spelled `./@` in a
+// header; a body line that begins with one `@` is read as written).
+func hintable(rel string) bool {
+	for i, c := range rel {
+		switch {
+		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c >= '0' && c <= '9',
+			c == '.', c == '_', c == '+', c == '-', c == '/', c == ' ':
+		case c == '@' && i == 0:
+		default:
+			return false
+		}
+	}
+	// A body line is trimmed before its empty test, and a header token is split
+	// at spaces: a name with a leading or trailing space has no spelling.
+	return rel != "" && strings.TrimSpace(rel) == rel
+}
+
+// insideRoot is the "/"-spelled remainder of raw below root, when raw names
+// something strictly inside it by its spelling alone, and not a directory.
+// A raw path with a `..` component names none: through a symbolic link the
+// system resolves `link/../x` beside the link's target, which the lexical
+// clean would not (the Codex review of #800).
+func insideRoot(root, raw string) (string, bool) {
+	if rooted.SpelledAsDirectory(raw) {
+		return "", false
+	}
+	for _, part := range strings.FieldsFunc(raw, func(r rune) bool { return r == '/' || r == filepath.Separator }) {
+		if part == ".." {
+			return "", false
+		}
+	}
+	c := filepath.Clean(raw)
+	// The root as the CLI passes it is often ".", which no absolute path is
+	// lexically inside: compare against its absolute form.
+	r, err := filepath.Abs(root)
+	if err != nil || !rooted.Contains(r, c) {
+		return "", false
+	}
+	rel, err := filepath.Rel(r, c)
+	if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", false
+	}
+	return Slash(rel, reasonSep), true
 }
