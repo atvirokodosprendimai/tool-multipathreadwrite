@@ -666,7 +666,7 @@ mrw supports [opencode](https://opencode.ai) through a plugin in this repository
 | `mrw_seen` | `mrw seen` | `prune`, `dryRun` |
 | `mrw_iter` | `mrw iter` | `args`: a verb and its specs, e.g. `["add", "a.go:10-20"]` |
 | `mrw_version` | `mrw version` | none |
-| `mrw_instructions` | `mrw instructions` | none |
+| `mrw_instructions` | `mrw instructions` | `core: true` returns the eight CLI rules for session start. Omit it or pass `false` for the full guide. |
 
 For a grep inventory, `count: true` returns the matching line count per file and the total. To see a match on a long line, use `maxCols` instead. Counted and shortened lines carry no edit checkpoint. [Examples and measured response sizes](docs/bench/opencode-grep.md)
 
