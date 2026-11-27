@@ -319,13 +319,12 @@ const toolVersion = tool({
 });
 
 const toolInstructions = tool({
-  description:
-    "Print the contract from the binary: use mrw always and plan the activity, the two rules " +
-    "that produce most refusals, the traps that make a red run look green, the plan ops, and " +
-    "the read side.",
-  args: {},
-  async execute(_args, ctx) {
-    return cli("mrw instructions", ctx, ["instructions"]);
+  description: "Read the mrw CLI guide from the binary. The default includes recipes and the full contract.",
+  args: {
+    core: z.boolean().optional().describe("Return the short session-start rules (--core)."),
+  },
+  async execute(args, ctx) {
+    return cli("mrw instructions", ctx, args.core ? ["instructions", "--core"] : ["instructions"]);
   },
 });
 
