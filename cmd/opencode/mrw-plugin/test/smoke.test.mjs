@@ -6,6 +6,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -28,7 +29,9 @@ process.env.MRW_MCP = "off";
 // tmp makes a directory the test removes when it ends.
 function tmp(t, prefix) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  // A process that has just exited on Windows can hold the directory briefly;
+  // ten retries back off linearly, about 5.5 s in all, before it throws.
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }));
   return dir;
 }
 
@@ -296,6 +299,93 @@ test("a CLI tool reports the exit code of a refusal", async (t) => {
   const seen = await tl.mrw_seen.execute({ dryRun: true }, ctx(dir));
   assert.equal(seen.metadata.exitCode, 2, seen.output);
   assert.match(seen.output, /^exit: 2/);
+});
+
+// within is how p settled — { value } or { error } — or { late: true } once ms
+// pass first, with no timer left behind.
+async function within(p, ms) {
+  let timer;
+  const late = new Promise((r) => { timer = setTimeout(() => r({ late: true }), ms); });
+  try {
+    return await Promise.race([p.then((value) => ({ value }), (error) => ({ error })), late]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// The check's child for the cancellation test: it connects to the test's own
+// socket and holds the connection until it is told "stop", the test closes it,
+// or 45 s pass. The operating system closes that connection when the process
+// ends, however it ends, and only then, so the connection is the test's view of
+// the child: no pid is read, polled or signalled.
+const fixtureChild = (port) =>
+  `const s=require("net").connect(${port},"127.0.0.1");` +
+  's.on("data",(d)=>{if(String(d).includes("stop"))process.exit(0)});' +
+  's.on("close",()=>process.exit(0));s.on("error",()=>process.exit(0));' +
+  "setTimeout(()=>process.exit(0),45000)";
+
+// ADR-089 Decision 3: an aborted call kills its child. The user cancels a check
+// that is running; the call must end as aborted and the check's own child must
+// end with it. A child that is still alive, stalled or suspended, keeps its
+// connection and fails the test.
+test("cancelling a running check aborts the call and ends the check's child", async (t) => {
+  const saved = { TMPDIR: process.env.TMPDIR, TMP: process.env.TMP, TEMP: process.env.TEMP, XDG_STATE_HOME: process.env.XDG_STATE_HOME };
+  const ac = new AbortController();
+  const server = net.createServer();
+  const held = new Set(); // every connection the fixture made, however late
+  let call;
+  // Registered before the directories, so it runs before they are removed. It
+  // releases a child the assertions left running only after they ran: stop
+  // listening, abort, tell each connection to stop and wait for it (bounded),
+  // destroy what is left, wait for the call's promise (bounded: it settles on
+  // the abort, which can be before mrw has exited, so this is not a wait for
+  // mrw), and put the environment back whatever happened.
+  t.after(async () => {
+    try {
+      server.close();
+      ac.abort();
+      for (const { conn, closed } of held) {
+        if (!conn.destroyed) {
+          conn.end("stop\n");
+          await within(closed, 10000);
+        }
+        conn.destroy();
+      }
+      if (call) await within(call, 10000);
+    } finally {
+      for (const [k, v] of Object.entries(saved)) if (v === undefined) delete process.env[k]; else process.env[k] = v;
+    }
+  });
+  const connected = new Promise((resolve) => server.on("connection", (conn) => {
+    conn.on("error", () => {}); // a killed child resets the connection on Windows
+    const child = { conn, closed: new Promise((r) => conn.once("close", r)) };
+    held.add(child);
+    resolve(child);
+  }));
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  const dir = worktree(t);
+  const logs = tmp(t, "mrw-logs-");
+  process.env.TMPDIR = process.env.TMP = process.env.TEMP = logs; // the check's log lands in the test's own directory
+  let node = process.execPath;
+  if (process.platform === "win32") node = node.replaceAll("\\", "/"); // Git sh reads C:/… whole
+  const check = `exec '${node.replaceAll("'", "'\\''")}' -e '${fixtureChild(server.address().port)}'`;
+  fs.writeFileSync(path.join(dir, ".quality-harness.json"), JSON.stringify({ check }));
+  const tl = await tools(dir);
+  call = tl.mrw_check.execute({ paths: ["f.txt"] }, { ...ctx(dir), abort: ac.signal });
+  const ready = await within(Promise.race([connected, call.then((value) => ({ early: { value } }), (error) => ({ early: { error } }))]), 15000);
+  if (ready.late) assert.fail("the check's child never connected");
+  if (ready.value.early) {
+    const e = ready.value.early;
+    assert.fail(`the call ended before the abort: ${e.error ? String(e.error) : e.value.output}`);
+  }
+  const child = ready.value;
+  ac.abort();
+  const outcome = await within(call, 10000);
+  if (outcome.error?.name !== "AbortError") {
+    assert.fail(`the call was not aborted: ${outcome.late ? "not settled in 10 s" : outcome.error ? String(outcome.error) : outcome.value.output}`);
+  }
+  const gone = await within(child.closed, 10000);
+  if (gone.late) assert.fail("the check's child still holds its connection 10 s after the aborted call");
 });
 
 test("a child that exits without reading its input is reported, not raised", { skip: process.platform === "win32" }, async (t) => {
