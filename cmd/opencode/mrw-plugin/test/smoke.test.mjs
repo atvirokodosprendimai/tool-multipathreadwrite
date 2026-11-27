@@ -5,6 +5,7 @@
 // at the repository root, then `npm run build` here.
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import net from "node:net";
 import os from "node:os";
@@ -67,6 +68,19 @@ function acks(text) {
   const closed = new Set([...text.matchAll(/^-- ck ([0-9a-f]+) close$/gm)].map((m) => m[1]));
   return open.filter((id) => closed.has(id));
 }
+
+test("instructions can return the core rules or the full guide", async (t) => {
+  const dir = worktree(t);
+  const guide = (await tools(dir)).mrw_instructions;
+  assert.ok(guide.args.core, "core must be visible in the host tool schema");
+  for (const args of [{ core: true }, {}, { core: false }]) {
+    const flags = args.core ? ["instructions", "--core"] : ["instructions"];
+    const expected = execFileSync(built, flags, { encoding: "utf8", cwd: dir });
+    const result = await guide.execute(args, ctx(dir));
+    assert.equal(result.metadata.exitCode, 0);
+    assert.equal(result.output, "exit: 0\n" + expected);
+  }
+});
 
 test("a read carries checkpoints, and a write that acknowledges them lands", async (t) => {
   const dir = worktree(t);
