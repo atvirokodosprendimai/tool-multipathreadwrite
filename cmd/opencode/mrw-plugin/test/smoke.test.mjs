@@ -28,7 +28,8 @@ process.env.MRW_MCP = "off";
 // tmp makes a directory the test removes when it ends.
 function tmp(t, prefix) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  // A process that has just exited on Windows can hold the directory briefly.
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }));
   return dir;
 }
 
@@ -298,22 +299,12 @@ test("a CLI tool reports the exit code of a refusal", async (t) => {
   assert.match(seen.output, /^exit: 2/);
 });
 
-// alive reports whether a process with this pid exists: signal 0 checks
-// without sending anything, on Windows too.
-function alive(pid) {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (e) {
-    return e.code === "EPERM";
-  }
-}
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // until polls cond every 20 ms until it holds or ms pass, and says which.
 async function until(cond, ms) {
-  for (const end = Date.now() + ms; Date.now() < end; ) {
+  for (const end = Date.now() + ms; Date.now() < end; await sleep(20)) {
     if (cond()) return true;
-    await new Promise((r) => setTimeout(r, 20));
   }
   return cond();
 }
@@ -333,40 +324,72 @@ async function within(p, ms) {
 // show prints an outcome of within for a failure message.
 const show = (o) => (o instanceof Error ? String(o) : JSON.stringify(o));
 
+// quiet reports whether file stops changing for 600 ms (12 of the fixture's
+// 50 ms beats) within ms: the fixture's own sign that it no longer runs.
+async function quiet(file, ms) {
+  const read = () => { try { return fs.readFileSync(file, "utf8"); } catch { return ""; } };
+  let last = read();
+  let since = Date.now();
+  for (const end = Date.now() + ms; Date.now() < end; ) {
+    await sleep(50);
+    const now = read();
+    if (now !== last) [last, since] = [now, Date.now()];
+    else if (Date.now() - since >= 600) return true;
+  }
+  return false;
+}
+
+// The check's child for the cancellation test. It writes a beat every 50 ms,
+// says it is ready once it beats (written, then renamed, so never half
+// read), and ends itself when the test writes "stop" or after 30 s. The test
+// observes it by its beat and stops it by its stop file, never by pid.
+const fixtureChild = [
+  'const fs=require("fs");let n=0;',
+  'const beat=()=>{if(fs.existsSync("stop"))process.exit(0);fs.writeFileSync("beat",String(++n))};',
+  'beat();fs.writeFileSync("ready.tmp","");fs.renameSync("ready.tmp","ready");',
+  'setInterval(beat,50);setTimeout(()=>process.exit(0),30000)',
+].join("");
+
 // ADR-089 Decision 3: an aborted call kills its child. The user cancels a check
 // that is running; the call must end as aborted and the check's own child must
-// not outlive it. The child publishes its pid once it runs (written, then
-// renamed, so the file is never half-written) and ends itself after 30 s if
-// nothing stops it.
+// stop.
 test("cancelling a running check aborts the call and ends the check's child", async (t) => {
-  let pid = 0;
-  t.after(() => {
-    if (pid && alive(pid)) process.kill(pid, "SIGKILL");
-  });
-  const dir = worktree(t);
-  const logs = tmp(t, "mrw-logs-");
   const saved = { TMPDIR: process.env.TMPDIR, TMP: process.env.TMP, TEMP: process.env.TEMP };
-  t.after(() => {
-    for (const [k, v] of Object.entries(saved)) if (v === undefined) delete process.env[k]; else process.env[k] = v;
-  });
-  process.env.TMPDIR = process.env.TMP = process.env.TEMP = logs; // the check's log lands in the test's own directory
-  const node = process.execPath.replaceAll("\\", "/");
-  const child = 'const fs=require("fs");fs.writeFileSync("child.tmp",String(process.pid));fs.renameSync("child.tmp","child.pid");setTimeout(()=>{},30000)';
-  fs.writeFileSync(path.join(dir, ".quality-harness.json"), JSON.stringify({ check: `'${node}' -e '${child}'` }));
-  const tl = await tools(dir);
   const ac = new AbortController();
+  let dir = "";
+  let call;
+  let stopped = false;
+  // Registered before the directories, so it runs before they are removed:
+  // abort, stop the child by its own file, wait for it and for the call, and
+  // put the environment back whatever happened.
+  t.after(async () => {
+    try {
+      ac.abort();
+      if (dir && !stopped) {
+        fs.writeFileSync(path.join(dir, "stop"), "");
+        await quiet(path.join(dir, "beat"), 10000);
+      }
+      if (call) await within(call, 10000);
+    } finally {
+      for (const [k, v] of Object.entries(saved)) if (v === undefined) delete process.env[k]; else process.env[k] = v;
+    }
+  });
+  dir = worktree(t);
+  const logs = tmp(t, "mrw-logs-");
+  process.env.TMPDIR = process.env.TMP = process.env.TEMP = logs; // the check's log lands in the test's own directory
+  const node = process.execPath.replaceAll("\\", "/").replaceAll("'", "'\\''");
+  fs.writeFileSync(path.join(dir, ".quality-harness.json"), JSON.stringify({ check: `exec '${node}' -e '${fixtureChild}'` }));
+  const tl = await tools(dir);
   let settled = false;
-  const call = tl.mrw_check.execute({ paths: ["f.txt"] }, { ...ctx(dir), abort: ac.signal });
+  call = tl.mrw_check.execute({ paths: ["f.txt"] }, { ...ctx(dir), abort: ac.signal });
   call.then(() => { settled = true; }, () => { settled = true; });
-  const pidFile = path.join(dir, "child.pid");
-  assert.ok(await until(() => settled || fs.existsSync(pidFile), 15000), "the check's child never reported its pid");
-  assert.equal(settled, false, `the call ended before the abort: ${show(await within(call, 0))}`);
-  pid = Number(fs.readFileSync(pidFile, "utf8"));
-  assert.ok(pid > 0 && alive(pid), `the check's child ${pid} is not running before the abort`);
+  assert.ok(await until(() => settled || fs.existsSync(path.join(dir, "ready")), 15000), "the check's child never said it was ready");
+  if (settled) assert.fail(`the call ended before the abort: ${show(await within(call, 0))}`);
   ac.abort();
   const outcome = await within(call, 10000);
   assert.equal(outcome?.name, "AbortError", `the call was not aborted: ${show(outcome)}`);
-  assert.ok(await until(() => !alive(pid), 10000), `the check's child ${pid} outlived the aborted call`);
+  stopped = await quiet(path.join(dir, "beat"), 10000);
+  assert.ok(stopped, "the check's child kept beating after the aborted call");
 });
 
 test("a child that exits without reading its input is reported, not raised", { skip: process.platform === "win32" }, async (t) => {
