@@ -30,6 +30,27 @@ func Split(s string) (ls []string, eol string, final bool) {
 	return strings.Split(s, eol), eol, final
 }
 
+// Count returns the number of lines Split gives for b without building them
+// (#822): a header-only read needs the number, not the lines. Split's three
+// terminators each end in one byte it can count: CRLF and LF both end in "\n",
+// and text with no "\n" is CR-only when it holds a "\r" (eolOf); Split drops a
+// final terminator, so a last byte that is not one adds the last line.
+func Count(b []byte) int {
+	if len(b) == 0 {
+		return 0
+	}
+	sep := byte('\n')
+	n := bytes.Count(b, []byte{sep})
+	if n == 0 {
+		sep = '\r'
+		n = bytes.Count(b, []byte{sep})
+	}
+	if b[len(b)-1] != sep {
+		n++
+	}
+	return n
+}
+
 func eolOf(s string) string {
 	if !strings.Contains(s, "\n") {
 		if strings.Contains(s, "\r") {
