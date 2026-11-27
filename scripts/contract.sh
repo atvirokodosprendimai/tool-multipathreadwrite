@@ -12636,6 +12636,35 @@ out=$(e381 read "$r381/dd/zz.txt" 2>&1); want 0 $? "the pair: mrw read of the ab
 grep -qE '^ *1[|] ONE$' <<<"$out" && ok "is served" || bad "absolute read: $out"
 rm -rf "$R381" "$WORK/r381.out"
 
+# 380. ADR-214: a write keeps a file's leading byte order mark at byte zero. The
+# read prints its note once, after the header. A replace of line 1 whose body has no
+# mark leaves the file beginning ef bb bf, the mark nowhere else; insert-before 1
+# leaves it at byte zero and not on the moved line; deleting every line leaves
+# exactly the mark, and the receipt says one line. The control, for each: the same
+# edit to an unmarked file gains no mark, bytes compared with cmp.
+R380=$(mktemp -d "$WORK/r380-XXXXXX"); r380=$(cd "$R380" && pwd -P)
+e380() { env XDG_STATE_HOME="$R380/state" "$MRW" --root "$r380" "$@"; }
+b380=$(printf '\357\273\277')
+mk380() { printf '\357\273\277one\ntwo\n' > "$R380/m.txt"; printf 'one\ntwo\n' > "$R380/u.txt"; e380 read m.txt u.txt > "$WORK/r380.out" 2>&1; }
+n380='-- note: a UTF-8 byte order mark begins this file'
+mk380; out=$(e380 read m.txt u.txt 2>&1); want 0 $? "380 setup: a marked and an unmarked file are read"
+{ [ "$(grep -c "^$n380" <<<"$out")" = 1 ] && grep -q "^$n380" <<<"$(sed -n 2p <<<"$out")"; } && ok "380 the read prints the note once, after the header" || bad "380 note: $out"
+out=$(e380 read u.txt 2>&1); grep -q "^$n380" <<<"$out" && bad "380 note on an unmarked file: $out" || ok "380 the read of the unmarked file prints no note"
+mk380; out=$(printf '@@ m.txt 1 replace anchor="one"\nONE\n' | e380 write --no-check - 2>&1); want 0 $? "380 a replace of line 1 whose body has no mark"
+{ [ "$(head -c 3 "$R380/m.txt" | od -An -tx1 | tr -d ' \n')" = efbbbf ] && [ "$(tail -c +4 "$R380/m.txt" | LC_ALL=C grep -c "$b380")" = 0 ] && cmp -s "$R380/m.txt" <(printf '\357\273\277ONE\ntwo\n'); } \
+  && ok "380 leaves the file beginning ef bb bf, the mark nowhere else" || bad "380 replace: $out"
+mk380; out=$(printf '@@ m.txt 1 insert-before\nzero\n' | e380 write --no-check - 2>&1); want 0 $? "380 insert-before line 1"
+cmp -s "$R380/m.txt" <(printf '\357\273\277zero\none\ntwo\n') && ok "380 leaves the mark at byte zero and not on the moved line" || bad "380 insert-before: $out"
+mk380; out=$(printf '@@ m.txt 1-2 delete\n' | e380 write --no-check --json - 2>&1); want 0 $? "380 delete of every line"
+{ cmp -s "$R380/m.txt" <(printf '\357\273\277') && grep -qE '"lines_after": 1$' <<<"$out"; } && ok "380 leaves exactly the mark, and the receipt says lines_after 1" || bad "380 delete-all: $out"
+mk380; out=$(printf '@@ u.txt 1 replace anchor="one"\nONE\n' | e380 write --no-check - 2>&1); want 0 $? "380 control: a replace of line 1 of the unmarked file"
+cmp -s "$R380/u.txt" <(printf 'ONE\ntwo\n') && ok "380 control: an unmarked file gains no mark" || bad "380 control: $out"
+mk380; out=$(printf '@@ u.txt 1 insert-before\nzero\n' | e380 write --no-check - 2>&1); want 0 $? "380 control: insert-before line 1 of the unmarked file"
+cmp -s "$R380/u.txt" <(printf 'zero\none\ntwo\n') && ok "380 control: the insert gains no mark either" || bad "380 control insert: $out"
+mk380; out=$(printf '@@ u.txt 1-2 delete\n' | e380 write --no-check --json - 2>&1); want 0 $? "380 control: delete of every line of the unmarked file"
+{ [ ! -s "$R380/u.txt" ] && grep -qE '"lines_after": 0$' <<<"$out"; } && ok "380 control: the unmarked file is left empty, lines_after 0" || bad "380 control delete-all: $out"
+rm -rf "$R380" "$WORK/r380.out"
+
 # Nothing this run started may outlive it. Checked after the last row, so every
 # row is covered; §60 above proves an orphan is visible to this group check. A
 # killed process is a zombie until its adopter reaps it, and pgrep lists

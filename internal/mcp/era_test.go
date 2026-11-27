@@ -254,6 +254,7 @@ func jsonInner(s string) string {
 // and once by ADR-212, whose `files.sha_after` and `files.lines_after` descriptions in the outputSchema say a moved symbolic link carries no content: those two descriptions, nothing else;
 // and once by #752, whose `no_ignore` descriptions in tools/list say what the flag walks and that a name Windows will not keep stays skipped: those descriptions, nothing else;
 // and once by #754, whose `check.outside_scope` description in the outputSchema says the paths are spelled with `/` on every platform: that description, nothing else;
+// and once by ADR-214, whose `mrw_read` and `mrw_write` descriptions in tools/list carry a sentence that a file's leading byte order mark is part of line 1 and kept by every edit: those two descriptions, nothing else;
 // before that no answer to a call had changed: the transcript
 // held only initialize, tools/list and that read.
 func TestALegacyResultIsUnchangedByTheModernPath(t *testing.T) {

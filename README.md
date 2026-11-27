@@ -341,6 +341,14 @@ the same lock, check and receipt. It is refused if PATH exists and takes no PLAN
 (ADR-139). Empty input is refused, exit 2, nothing created: zero bytes read exactly like a producer that failed before it
 printed, so an empty file is asked for with the plan `@@ PATH 0 create body=0` (ADR-195), not with `--create`. CLI only.
 
+A file's leading UTF-8 byte order mark (U+FEFF, bytes `EF BB BF`) is part of its line 1 for reads and patterns:
+`mrw read` says so once, and `^one` misses it while `^.one` and `^\x{FEFF}one` match. A line edit keeps the mark at
+byte zero whatever its body holds, so replacing line 1 cannot remove it; an old side (a delete's expected lines,
+a SEARCH side) must include it, typed as the character itself (`printf '\357\273\277'` builds it in a POSIX shell),
+or it misses line 1 and can match a later line that reads the same (ADR-214). To remove a mark, write the content
+without it to another path, read both paths, then in ONE plan `unlink` the marked path and `rename` the new file onto it:
+`@@ f.txt - unlink`, then `@@ new.txt - rename` with `f.txt` as its one body line.
+
 `from=PATH:ADDR` on a plan header takes the body from lines of a file you have read, as it was before the plan,
 so a block is copied without being typed again; the lines must have been served to you, `--force` or not.
 A move is that copy plus a `delete` of the same range in one plan (ADR-167).

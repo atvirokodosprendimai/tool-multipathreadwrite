@@ -27,6 +27,10 @@ import (
 // 3+ threshold.
 const triggerRule = "Use mrw always: plan the activity as one read of every site, then one plan, then one write."
 
+// markRule is the sentence the read and write descriptions carry about a file's
+// leading byte order mark (ADR-214); the full instructions say more.
+const markRule = "A file's leading UTF-8 byte order mark is part of its line 1: ^one does not match it (^.one and ^\\x{FEFF}one do), and every edit keeps it at byte zero."
+
 // examplePlan is a worked plan: two hunks, two files, one guard, and both
 // address forms — a line range and a pattern. It is proved on the
 // hand-written tree in testdata/example (ADR-090), so its anchor, its range

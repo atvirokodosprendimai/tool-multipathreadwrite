@@ -77,8 +77,23 @@ What each clause holds. The guide test and the legacy test pass; the golden diff
 | 4 — it is used | telemetry is refused by ADR-009; the evidence is #686 |
 
 ## Mutation Log
+- 2026-11-27 · 69eade1a* · mutant killed · exit 1 · `internal/guide/guide.go` · the guide sentence on the removal recipe is dropped · acceptance-sha256:9a808674fe764a49417d3a0acf3627d7f000f5af61de1a96cdbc796a2f0c3556
+- 2026-11-27 · 69eade1a* · mutant killed · exit 1 · `internal/mcp/mcp.go` · the read description loses the mark sentence, so the golden is stale · acceptance-sha256:9a808674fe764a49417d3a0acf3627d7f000f5af61de1a96cdbc796a2f0c3556
+- 2026-11-27 · 69eade1a* · mutant killed · exit 1 · `internal/apply/apply.go` · an unmarked file gains the mark (settleMark runs for every file) · acceptance-sha256:9a808674fe764a49417d3a0acf3627d7f000f5af61de1a96cdbc796a2f0c3556 · covers:the built binary keeps the mark of a marked file and adds none to an unmarked one
+- 2026-11-27 · 69eade1a* · mutant killed · exit 1 · `internal/guide/guide.go` · the guide sentence is dropped · acceptance-sha256:9a808674fe764a49417d3a0acf3627d7f000f5af61de1a96cdbc796a2f0c3556 · covers:the instructions and the descriptions say a file's mark is kept and how to match it
+- 2026-11-27 · 69eade1a* · mutant killed · exit 1 · `internal/mcp/mcp.go` · the read description loses the sentence, the golden is stale · acceptance-sha256:9a808674fe764a49417d3a0acf3627d7f000f5af61de1a96cdbc796a2f0c3556 · covers:the legacy golden changed by those descriptions only
 
 ## Verification Log
+- 2026-11-27 · 69eade1a* · exit 1 · `d="$(mktemp -d)" \ …` · acceptance-sha256:9a808674fe764a49417d3a0acf3627d7f000f5af61de1a96cdbc796a2f0c3556 · ms:934 · test-lock-sha256:1cb939cabe8fb0a61ef1cf1b5306902a7237b4115476bf10a06b263acaea78cb · test-lock-file:docs/adr/locks/1cb939cabe8fb0a61ef1cf1b5306902a7237b4115476bf10a06b263acaea78cb.lock
+  ```
+  ```
+- 2026-11-27 · 69eade1a* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:9a808674fe764a49417d3a0acf3627d7f000f5af61de1a96cdbc796a2f0c3556 · ms:942
+- 2026-11-27 · 69eade1a* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:9a808674fe764a49417d3a0acf3627d7f000f5af61de1a96cdbc796a2f0c3556 · ms:2526
+- 2026-11-27 · 69eade1a* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:9a808674fe764a49417d3a0acf3627d7f000f5af61de1a96cdbc796a2f0c3556 · ms:2499
+- 2026-11-27 · 69eade1a* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:9a808674fe764a49417d3a0acf3627d7f000f5af61de1a96cdbc796a2f0c3556 · ms:2405
+- 2026-11-27 · 69eade1a* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:9a808674fe764a49417d3a0acf3627d7f000f5af61de1a96cdbc796a2f0c3556 · ms:2403
+- 2026-11-27 · 69eade1a* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:9a808674fe764a49417d3a0acf3627d7f000f5af61de1a96cdbc796a2f0c3556 · ms:2589
+- 2026-11-27 · a8c8bf11 · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:9a808674fe764a49417d3a0acf3627d7f000f5af61de1a96cdbc796a2f0c3556 · ms:1272
 
 ## Invariants
 

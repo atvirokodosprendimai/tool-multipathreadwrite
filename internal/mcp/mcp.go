@@ -569,7 +569,7 @@ func tools() []tool {
 				"With a shell and mrw on PATH, prefer the CLI `mrw read` — it also has " +
 				"--context, and `mrw --root DIR read` for any checkout (--root BEFORE the " +
 				"subcommand; after `read`, -C is the context flag). Prefer THIS tool with no " +
-				"shell.",
+				"shell. " + markRule,
 			InputSchema: map[string]any{
 				"type": "object",
 				// ADR-093: the schema says what the server enforces — an
@@ -695,7 +695,7 @@ func tools() []tool {
 				"Without check: true no check runs (ADR-187); then runs steps declared in .quality-harness.json after the write, and after a passing check when check: true. " +
 				"The write lands before the check runs, so after a lost answer read " +
 				"the files before re-sending the plan. Prefer THIS tool with no shell; it needs no --json because " +
-				"its answer is already structured.",
+				"its answer is already structured. " + markRule,
 			InputSchema: map[string]any{
 				"type": "object",
 				// ADR-093, as for mrw_read.
