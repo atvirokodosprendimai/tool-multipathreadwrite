@@ -298,6 +298,77 @@ test("a CLI tool reports the exit code of a refusal", async (t) => {
   assert.match(seen.output, /^exit: 2/);
 });
 
+// alive reports whether a process with this pid exists: signal 0 checks
+// without sending anything, on Windows too.
+function alive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return e.code === "EPERM";
+  }
+}
+
+// until polls cond every 20 ms until it holds or ms pass, and says which.
+async function until(cond, ms) {
+  for (const end = Date.now() + ms; Date.now() < end; ) {
+    if (cond()) return true;
+    await new Promise((r) => setTimeout(r, 20));
+  }
+  return cond();
+}
+
+// within is p's outcome (its error, or what it resolved to), or "not settled"
+// after ms, with no timer left behind.
+async function within(p, ms) {
+  let timer;
+  const late = new Promise((r) => { timer = setTimeout(() => r("not settled"), ms); });
+  try {
+    return await Promise.race([p.then((v) => ({ resolved: v.output }), (e) => e), late]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// show prints an outcome of within for a failure message.
+const show = (o) => (o instanceof Error ? String(o) : JSON.stringify(o));
+
+// ADR-089 Decision 3: an aborted call kills its child. The user cancels a check
+// that is running; the call must end as aborted and the check's own child must
+// not outlive it. The child publishes its pid once it runs (written, then
+// renamed, so the file is never half-written) and ends itself after 30 s if
+// nothing stops it.
+test("cancelling a running check aborts the call and ends the check's child", async (t) => {
+  let pid = 0;
+  t.after(() => {
+    if (pid && alive(pid)) process.kill(pid, "SIGKILL");
+  });
+  const dir = worktree(t);
+  const logs = tmp(t, "mrw-logs-");
+  const saved = { TMPDIR: process.env.TMPDIR, TMP: process.env.TMP, TEMP: process.env.TEMP };
+  t.after(() => {
+    for (const [k, v] of Object.entries(saved)) if (v === undefined) delete process.env[k]; else process.env[k] = v;
+  });
+  process.env.TMPDIR = process.env.TMP = process.env.TEMP = logs; // the check's log lands in the test's own directory
+  const node = process.execPath.replaceAll("\\", "/");
+  const child = 'const fs=require("fs");fs.writeFileSync("child.tmp",String(process.pid));fs.renameSync("child.tmp","child.pid");setTimeout(()=>{},30000)';
+  fs.writeFileSync(path.join(dir, ".quality-harness.json"), JSON.stringify({ check: `'${node}' -e '${child}'` }));
+  const tl = await tools(dir);
+  const ac = new AbortController();
+  let settled = false;
+  const call = tl.mrw_check.execute({ paths: ["f.txt"] }, { ...ctx(dir), abort: ac.signal });
+  call.then(() => { settled = true; }, () => { settled = true; });
+  const pidFile = path.join(dir, "child.pid");
+  assert.ok(await until(() => settled || fs.existsSync(pidFile), 15000), "the check's child never reported its pid");
+  assert.equal(settled, false, `the call ended before the abort: ${show(await within(call, 0))}`);
+  pid = Number(fs.readFileSync(pidFile, "utf8"));
+  assert.ok(pid > 0 && alive(pid), `the check's child ${pid} is not running before the abort`);
+  ac.abort();
+  const outcome = await within(call, 10000);
+  assert.equal(outcome?.name, "AbortError", `the call was not aborted: ${show(outcome)}`);
+  assert.ok(await until(() => !alive(pid), 10000), `the check's child ${pid} outlived the aborted call`);
+});
+
 test("a child that exits without reading its input is reported, not raised", { skip: process.platform === "win32" }, async (t) => {
   const dir = worktree(t, { noBinary: true });
   fs.mkdirSync(path.join(dir, "bin"));
