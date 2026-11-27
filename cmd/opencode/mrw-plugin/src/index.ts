@@ -122,7 +122,8 @@ const toolRead = tool({
     "path:A,+N, path:$, path:/regexp/, path:/from/,/to/. A served read licenses NOTHING until " +
     "acknowledged: the answer brackets each run of lines with '-- ck <id> open lines A-B (N lines " +
     "follow)' and '-- ck <id> close'; send an id in ack (here or on mrw_write) only if you hold " +
-    "BOTH its markers and counted its N lines. A large read is a PAGE: send next_read back as specs.",
+    "BOTH its markers and counted its N lines. A large read is a PAGE: its receipt's next_read is one spec string; " +
+    "send it back as a one-element array, specs: [next_read], until next_read is absent.",
   args: {
     specs: z
       .array(z.string())

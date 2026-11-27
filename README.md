@@ -593,8 +593,9 @@ walk could not use. Like a grep's, an ast_grep index pages with `after`: send th
 same finder again with `after` set to `next_index`, until it is empty.
 
 A read of ONE spec — a whole file, or `path:N-` — too large for the ceiling comes
-back as a first page with `next_read`: send that back as `specs` to continue, and
-repeat until it is absent. Any other read too large — several specs, or a closed
+back as a first page with `next_read`, which is one spec string: send it back as a
+one-element array, `"specs": [next_read]`, to continue, and repeat until it is
+absent. Any other read too large — several specs, or a closed
 range, which already says what it wants — is refused, and the refusal says what
 to do instead: ask for a narrower range, or name fewer files.
 `mrw_read`'s result is the served text, with no `structuredContent` (ADR-023);
