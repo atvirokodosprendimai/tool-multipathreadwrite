@@ -396,18 +396,19 @@ self_test() (
     ok=0
   fi
   # The inner run's exit status comes back exactly, not as "non-zero".
-  CONTRACT_STOP_AT_SETUP=1 bash "$d/status/scripts/contract.sh" > "$d/status.out" 2>&1
+  CONTRACT_STOP_AT_SETUP=1 bash "$d/status/scripts/contract.sh" > "$d/status.out" 2> "$d/status.err"
   rc=$?
   if [ "$rc" -ne 7 ] || ! grep -q 'inner-said-seven' "$d/status.out"; then
     echo "self-test: contract.sh did not repeat its inner run's exit 7 (got $rc):"
-    tail -5 "$d/status.out"
+    tail -5 "$d/status.out" "$d/status.err"
     ok=0
   fi
-  # A job report, in either spelling, is not an error. Stdout and stderr go to
-  # separate files (#803): GNU tee write()s, but the uutils tee on Ubuntu 26.04
-  # runners splice()s stderr into the file it shares with the inner run's stdout,
-  # and splice() does not take the shared offset as write() does, so the marker
-  # was overwritten in about 1 run in 600 (GNU tee 0 in 3024, uutils 5 in 3034).
+  # A job report, in either spelling, is not an error. Each run here that reads
+  # its stdout keeps stderr in a file of its own (#803): GNU tee write()s, but the
+  # uutils tee on Ubuntu 26.04 runners splice()s stderr into the file it shares
+  # with the inner run's stdout, and the marker was overwritten in about 1 run in
+  # 600 (GNU tee 0 in 3024, uutils 5 in 3034), most likely because splice() does
+  # not move the shared offset under the lock write() takes (inferred, #803).
   CONTRACT_STOP_AT_SETUP=1 bash "$d/jobok/scripts/contract.sh" > "$d/jobok.out" 2> "$d/jobok.err"
   rc=$?
   marker=missing
@@ -442,9 +443,9 @@ self_test() (
     echo "self-test: contract.sh has code above its watcher guard (line ${g:-none})"
     ok=0
   fi
-  if ! CONTRACT_STOP_AT_SETUP=1 bash "$d/clean/scripts/contract.sh" > "$d/clean.out" 2>&1 || ! grep -q 'stops at the end of its setup' "$d/clean.out"; then
+  if ! CONTRACT_STOP_AT_SETUP=1 bash "$d/clean/scripts/contract.sh" > "$d/clean.out" 2> "$d/clean.err" || ! grep -q 'stops at the end of its setup' "$d/clean.out"; then
     echo "self-test: contract.sh with nothing planted did not run to the end of its setup:"
-    tail -5 "$d/clean.out"
+    tail -5 "$d/clean.out" "$d/clean.err"
     ok=0
   fi
   [ "$ok" -eq 1 ] || exit 1
