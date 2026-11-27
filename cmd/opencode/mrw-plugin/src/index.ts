@@ -187,11 +187,9 @@ const toolWrite = tool({
     "says how a line is licensed); acknowledging the complete checkpointed runs you received from mrw_read licenses their lines. A write runs no check unless check: true " +
     "asks for it (ADR-187): with it, after any write that lands, prose-only included, the project's check runs and is reported in the receipt's check; a failed " +
     "check leaves the write applied, and one that could not run is an error with the applied receipt (ADR-205). " +
-    "The same change at many sites needs no plan: give grep with sub, and neither plan nor format, and mrw builds " +
-    "the plan from the files as they are, one hunk per line the replacement changes (a match it leaves as it was makes none, and a plan that changes nothing is refused); no read and no ack come first, because " +
-    "nothing is shown and mrw made the plan itself (ADR-161). It walks the whole checkout unless paths names where " +
-    "to start, and an empty paths walks the whole checkout too; a match you must keep needs paths that leave it " +
-    "out, or a plan of your own.",
+    "For a repeated edit, give grep with sub (one hunk per changed line) or astGrep with rewrite (syntax matches). " +
+    "Each pair builds a plan from the current files. Omit plan and format. A grep replacement with no changes is refused. " +
+    "No read or ack is needed first. Give paths to limit the walk. Omitted or empty paths walk the whole checkout.",
   args: {
     plan: z.string().optional().describe(
       "The plan document. Each hunk: '@@ <path> <address> <op> [guards]' + body lines.\n" +
@@ -200,7 +198,7 @@ const toolWrite = tool({
         "        ... new lines ...\n" +
         "@@ cmd/mrw/main.go 12 insert-after\n" +
         '        "sort"\n' +
-        "Not together with grep, which builds the plan instead.",
+        "Omit when grep with sub or astGrep with rewrite builds the plan.",
     ),
     ack: z
       .array(z.string())
@@ -241,15 +239,17 @@ const toolWrite = tool({
       .string()
       .optional()
       .describe("The replacement for grep, with ${1} for a capture group and $$ for a dollar sign; an empty one deletes each match. Needs grep."),
+    astGrep: z.string().optional().describe("Structural pattern for the ast-grep CLI on PATH. Pair with rewrite."),
+    rewrite: z.string().optional().describe("Replacement template for astGrep, e.g. fresh($B, $A) for old($A, $B)."),
     paths: z
       .array(z.string())
       .optional()
-      .describe("Root-relative files and directories the grep walk starts at. Omitted, or an empty list, the whole checkout is walked. Only with grep and sub."),
+      .describe("Root-relative files and directories to search with either generator. Omitted or empty searches the whole checkout."),
   },
   async execute(args, ctx) {
     const call = set(args, {
       plan: "plan", ack: "ack", dryRun: "dry_run", check: "check", then: "then", format: "format", echoPad: "echo_pad", strictBalance: "strict_balance",
-      grep: "grep", sub: "sub", paths: "paths",
+      grep: "grep", sub: "sub", astGrep: "ast_grep", rewrite: "rewrite", paths: "paths",
     });
     return mcp("mrw write", ctx, root(ctx), "mrw_write", call);
   },

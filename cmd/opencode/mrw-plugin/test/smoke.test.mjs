@@ -18,6 +18,7 @@ const built = path.join(repo, "bin", exe);
 
 // No mrw on PATH unless a test puts one there, so a tool that answers proves it
 // ran the worktree's bin/mrw rather than whatever mrw this machine has installed.
+const hostPath = process.env.PATH;
 const bare = process.platform === "win32" ? process.env.PATH : "/usr/bin:/bin";
 process.env.PATH = bare;
 
@@ -206,10 +207,34 @@ test("grep with sub renames in one call, scoped by paths, as a hand-written plan
   assert.equal(fs.readFileSync(path.join(whole, "outside.py"), "utf8"), "# keeps _new_name\n");
 });
 
+test("a structural rewrite changes scoped calls and preserves lookalike text", async (t) => {
+  const dir = worktree(t);
+  const tl = await tools(dir);
+  const source = 'old(a, b);\n// old(a, b)\n"old(a, b)";\n';
+  for (const file of ["change.js", "keep.js"]) fs.writeFileSync(path.join(dir, file), source);
+  const args = { astGrep: "old($A, $B)", rewrite: "fresh($B, $A)", paths: ["change.js"] };
+  // The structural finder is optional. This test needs the host's ast-grep on PATH.
+  process.env.PATH = hostPath;
+  t.after(() => { process.env.PATH = bare; });
+  const dry = await tl.mrw_write.execute({ ...args, dryRun: true }, ctx(dir));
+  assert.equal(fs.readFileSync(path.join(dir, "change.js"), "utf8"), source);
+  if (dry.metadata.isError && dry.output.includes("ast-grep: not found on PATH")) {
+    t.skip("ast-grep is unavailable");
+    return;
+  }
+  assert.equal(dry.metadata.isError, false, dry.output);
+  const result = await tl.mrw_write.execute(args, ctx(dir));
+  assert.equal(result.metadata.isError, false, result.output);
+  assert.equal(fs.readFileSync(path.join(dir, "change.js"), "utf8"), source.replace("old(a, b)", "fresh(b, a)"));
+  assert.equal(fs.readFileSync(path.join(dir, "keep.js"), "utf8"), source);
+});
+
 // The server's refusals reach the caller unchanged, and nothing is written.
 test("a generator given with a plan, or half a generator, is refused and writes nothing", async (t) => {
   const dir = worktree(t, { content: "old\n" });
   const tl = await tools(dir);
+  assert.ok(tl.mrw_write.args.astGrep, "the host schema exposes the structural pattern");
+  assert.ok(tl.mrw_write.args.rewrite, "the host schema exposes the structural replacement");
   // Each case is refused for its own reason, as the server words it, so an
   // argument the plugin dropped would show as another reason.
   for (const [args, reason] of [
@@ -217,6 +242,9 @@ test("a generator given with a plan, or half a generator, is refused and writes 
     [{ grep: "old", sub: "new", format: "plan" }, "makes its own plan: drop plan and format"],
     [{ sub: "new" }, "grep and sub go together"],
     [{ grep: "old" }, "grep and sub go together"],
+    [{ astGrep: "old($A)" }, "ast_grep and rewrite go together"],
+    [{ rewrite: "" }, "ast_grep and rewrite go together"],
+    [{ plan: "@@ f.txt 0 create\nX\n", astGrep: "old($A)", rewrite: "new($A)" }, "makes its own plan: drop plan and format"],
     [{ plan: "@@ f.txt 1 replace\nX\n", paths: ["f.txt"] }, "paths shape the walk of grep with sub"],
     [{}, "mrw_write needs a plan"],
   ]) {
