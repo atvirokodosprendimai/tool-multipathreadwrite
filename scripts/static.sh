@@ -403,21 +403,24 @@ self_test() (
     tail -5 "$d/status.out"
     ok=0
   fi
-  # A job report, in either spelling, is not an error.
-  CONTRACT_STOP_AT_SETUP=1 bash "$d/jobok/scripts/contract.sh" > "$d/jobok.out" 2>&1
+  # A job report, in either spelling, is not an error. Stdout and stderr go to
+  # separate files (#803): GNU tee write()s, but the uutils tee on Ubuntu 26.04
+  # runners splice()s stderr into the file it shares with the inner run's stdout,
+  # and splice() does not take the shared offset as write() does, so the marker
+  # was overwritten in about 1 run in 600 (GNU tee 0 in 3024, uutils 5 in 3034).
+  CONTRACT_STOP_AT_SETUP=1 bash "$d/jobok/scripts/contract.sh" > "$d/jobok.out" 2> "$d/jobok.err"
   rc=$?
   marker=missing
   if grep -q 'stops at the end of its setup' "$d/jobok.out"; then marker=shown; fi
-  if [ "$rc" -ne 0 ] || [ "$marker" = missing ]; then
+  reports=0
+  if grep -qE 'line 5:  1234 Killed$' "$d/jobok.err"; then reports=$((reports + 1)); fi
+  if grep -qE 'line 6: 77 Killed: 9   cmd$' "$d/jobok.err"; then reports=$((reports + 1)); fi
+  if [ "$rc" -ne 0 ] || [ "$marker" = missing ] || [ "$reports" -ne 2 ]; then
     ok=0
-    echo "self-test: contract.sh failed on job reports a row killed a child for (exit $rc, setup marker $marker). Original combined output:"
+    echo "self-test: contract.sh failed on job reports a row killed a child for (exit $rc, setup marker $marker, $reports of 2 job reports on stderr). Stdout:"
     cat "$d/jobok.out"
-    # Keep the first verdict. Replay once to identify which stream carried each line.
-    CONTRACT_STOP_AT_SETUP=1 bash "$d/jobok/scripts/contract.sh" > "$d/jobok.replay.out" 2> "$d/jobok.replay.err"
-    echo "replay exit $?; replay stdout:"
-    cat "$d/jobok.replay.out"
-    echo "replay stderr:"
-    cat "$d/jobok.replay.err"
+    echo "stderr:"
+    cat "$d/jobok.err"
   fi
   # A NUL a substitution drops is reported by bash 4.4 and later, which fails the
   # run, and by no earlier bash; stripped explicitly it is silent in every one.
