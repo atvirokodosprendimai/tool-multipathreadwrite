@@ -455,3 +455,45 @@ test("a write whose check cannot run landed, and the answer does not call it ref
   assert.match(write.output, /COULD NOT RUN/, write.output);
   assert.equal(fs.readFileSync(path.join(dir, "a.go"), "utf8"), "package a\nfunc A() { _ = 1 }\n");
 });
+
+// next_read is ONE spec string and specs is an array: the description must show
+// the one-element array, since "send next_read back as specs" taken literally
+// sends a bare string, which the server refuses (found by t4w on 2d8bd67c).
+test("the read description shows next_read sent back as a one-element specs array", async (t) => {
+  const dir = worktree(t);
+  const tl = await tools(dir);
+  assert.match(tl.mrw_read.description, /specs: \[next_read\]/, tl.mrw_read.description);
+});
+
+// A file over the plugin's ceiling comes back in pages; following each receipt's
+// next_read as specs: [next_read] until it is absent serves every line once, and
+// the pages joined are the file.
+test("a paged read followed with specs: [next_read] serves the whole file once", async (t) => {
+  const n = 9000;
+  const lines = Array.from({ length: n }, (_, i) => `line ${i + 1} ${"x".repeat(i % 7)}`);
+  const dir = worktree(t, { content: lines.join("\n") + "\n" });
+  const tl = await tools(dir);
+  const seen = new Map();
+  let specs = ["f.txt"];
+  let pages = 0;
+  while (specs) {
+    const read = await tl.mrw_read.execute({ specs }, ctx(dir));
+    assert.equal(read.metadata.isError, false, read.output.slice(0, 400));
+    pages++;
+    assert.ok(pages <= 50, "the read did not end within 50 pages");
+    const at = read.output.lastIndexOf("\n\n{");
+    assert.ok(at > 0, `no receipt block on page ${pages}`);
+    const receipt = JSON.parse(read.output.slice(at + 2));
+    for (const m of read.output.slice(0, at).matchAll(/^ *(\d+)\| (.*)$/gm)) {
+      assert.ok(!seen.has(Number(m[1])), `line ${m[1]} served twice`);
+      seen.set(Number(m[1]), m[2]);
+    }
+    if (!("next_read" in receipt)) break;
+    assert.equal(typeof receipt.next_read, "string", `page ${pages}: next_read ${JSON.stringify(receipt.next_read)}`);
+    assert.ok(receipt.next_read.length > 0, `page ${pages}: next_read is empty`);
+    specs = [receipt.next_read];
+  }
+  assert.ok(pages >= 2, `the fixture fit in one page (${pages}); it does not test paging`);
+  assert.equal(seen.size, n, `served ${seen.size} of ${n} lines over ${pages} pages`);
+  for (let i = 1; i <= n; i++) assert.equal(seen.get(i), lines[i - 1], `line ${i}`);
+});
