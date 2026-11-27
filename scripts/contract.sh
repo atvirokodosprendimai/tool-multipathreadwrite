@@ -12648,7 +12648,7 @@ b380=$(printf '\357\273\277')
 mk380() { printf '\357\273\277one\ntwo\n' > "$R380/m.txt"; printf 'one\ntwo\n' > "$R380/u.txt"; e380 read m.txt u.txt > "$WORK/r380.out" 2>&1; }
 n380='-- note: a UTF-8 byte order mark begins this file'
 mk380; out=$(e380 read m.txt u.txt 2>&1); want 0 $? "380 setup: a marked and an unmarked file are read"
-{ [ "$(grep -c "^$n380" <<<"$out")" = 1 ] && sed -n 2p <<<"$out" | grep -q "^$n380"; } && ok "380 the read prints the note once, after the header" || bad "380 note: $out"
+{ [ "$(grep -c "^$n380" <<<"$out")" = 1 ] && grep -q "^$n380" <<<"$(sed -n 2p <<<"$out")"; } && ok "380 the read prints the note once, after the header" || bad "380 note: $out"
 out=$(e380 read u.txt 2>&1); grep -q "^$n380" <<<"$out" && bad "380 note on an unmarked file: $out" || ok "380 the read of the unmarked file prints no note"
 mk380; out=$(printf '@@ m.txt 1 replace anchor="one"\nONE\n' | e380 write --no-check - 2>&1); want 0 $? "380 a replace of line 1 whose body has no mark"
 { [ "$(head -c 3 "$R380/m.txt" | od -An -tx1 | tr -d ' \n')" = efbbbf ] && [ "$(tail -c +4 "$R380/m.txt" | LC_ALL=C grep -c "$b380")" = 0 ] && cmp -s "$R380/m.txt" <(printf '\357\273\277ONE\ntwo\n'); } \
