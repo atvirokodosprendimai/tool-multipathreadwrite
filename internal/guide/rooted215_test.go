@@ -20,7 +20,7 @@ func TestTheInstructionsSayAPlanPathIsRelativeToTheRoot(t *testing.T) {
 			t.Errorf("the full instructions lost %q", want)
 		}
 	}
-	if n := len(strings.Fields(Core())); n > 300 {
-		t.Errorf("the core is %d words, want at most 300", n)
+	if n := len(strings.Fields(Core())); n >= 300 {
+		t.Errorf("the core is %d words, want under 300", n)
 	}
 }

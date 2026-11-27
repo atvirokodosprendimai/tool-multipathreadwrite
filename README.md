@@ -291,9 +291,11 @@ A plan is a sequence of hunks. Every address resolves against the original file
 — no offset arithmetic between hunks.
 
 Every path in a plan is relative to the root. One that begins with a separator
-(`/x`, `\x`) or names a drive (`C:x`) is refused for every op, nothing is written,
-and the refusal names the relative spelling when it is clear (ADR-215); `mrw read`
-takes a real path, an absolute one included.
+(`/d/x`, and on Windows also `\x`) or names a drive (`C:x`, on Windows) is refused
+for every op as a failed hunk, exit 1, nothing written, and the refusal names the
+relative spelling when it is clear (ADR-215). A bare `@@ /x` header with no second
+`/` is a plan error instead, exit 2. On macOS and Linux `\x` and `C:x` are ordinary
+names. `mrw read` takes a real path, an absolute one included when it is inside the root.
 
 ```
 @@ internal/apply/apply.go 42-58 replace anchor="func Apply" lines=17

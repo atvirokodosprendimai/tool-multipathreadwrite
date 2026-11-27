@@ -91,6 +91,8 @@ What each clause holds. The guide test passes. The probe runs the binary this tr
 - 2026-11-27 · 5af1c752* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:18b0cfa40de4156bf8a1e747666fa428992492346a9b8f93402434a5f6ba1395 · ms:2418
 - 2026-11-27 · 5af1c752* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:18b0cfa40de4156bf8a1e747666fa428992492346a9b8f93402434a5f6ba1395 · ms:2219
 - 2026-11-27 · 5af1c752* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:18b0cfa40de4156bf8a1e747666fa428992492346a9b8f93402434a5f6ba1395 · ms:2335
+- 2026-11-27 · b7243fb5* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:18b0cfa40de4156bf8a1e747666fa428992492346a9b8f93402434a5f6ba1395 · ms:5 · test-lock-sha256:1c115e47cc35a97bc10e424661d2993a2b8b0ae0c2fe71a53ebe5bd781989f8b · test-lock-file:docs/adr/locks/1c115e47cc35a97bc10e424661d2993a2b8b0ae0c2fe71a53ebe5bd781989f8b.lock · test-lock-kind:replace
+- 2026-11-27 · b7243fb5* · exit 0 · `d="$(mktemp -d)" \ …` · acceptance-sha256:18b0cfa40de4156bf8a1e747666fa428992492346a9b8f93402434a5f6ba1395 · ms:873
 
 ## Invariants
 

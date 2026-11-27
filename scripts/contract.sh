@@ -12633,7 +12633,7 @@ out=$(printf '@@ dd/zz.txt 1 replace anchor="one"\nONE\n@@ sub/y.txt 0 create\ny
 { cmp -s "$R381/dd/zz.txt" <(printf 'ONE\n') && cmp -s "$R381/sub/y.txt" <(printf 'y\n') && cmp -s "$R381/sub2/y.txt" <(printf 'mv\n') && [ ! -e "$R381/dd/rn.txt" ]; } \
   && ok "apply: the replace, the create and the rename land with the expected bytes" || bad "relative plans: $out"
 out=$(e381 read "$r381/dd/zz.txt" 2>&1); want 0 $? "the pair: mrw read of the absolute path inside the root"
-grep -q 'ONE' <<<"$out" && ok "is served" || bad "absolute read: $out"
+grep -qE '^ *1[|] ONE$' <<<"$out" && ok "is served" || bad "absolute read: $out"
 rm -rf "$R381" "$WORK/r381.out"
 
 # Nothing this run started may outlive it. Checked after the last row, so every
