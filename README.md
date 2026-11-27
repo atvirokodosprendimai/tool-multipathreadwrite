@@ -644,14 +644,20 @@ mrw supports [opencode](https://opencode.ai) through a plugin in this repository
 
 | tool | runs | arguments |
 |---|---|---|
-| `mrw_read` | `mrw mcp`'s `mrw_read` | `specs`, `grep`, `astGrep`, `exclude`, `after`, `ack`, `maxLines`, `stat`, `filesFrom`, `root` |
-| `mrw_write` | `mrw mcp`'s `mrw_write` | `plan`, `ack`, `dryRun`, `check`, `then`, `format`, `echoPad`, `strictBalance` |
+| `mrw_read` | `mrw mcp`'s `mrw_read` | `specs`, `grep`, `astGrep`, `exclude`, `after`, `ack`, `maxLines`, `maxCols`, `count`, `stat`, `ifChanged`, `filesFrom`, `root` |
+| `mrw_write` | `mrw mcp`'s `mrw_write` | `plan`, `ack`, `dryRun`, `check`, `then`, `format`, `echoPad`, `strictBalance`; or, in place of `plan` and with no `format`, `grep` with `sub`, the walk started at `paths` (omitted or empty: the whole checkout) |
 | `mrw_check` | `mrw check` | `paths` |
 | `mrw_stats` | `mrw stats` | `json` |
 | `mrw_seen` | `mrw seen` | `prune`, `dryRun` |
 | `mrw_iter` | `mrw iter` | `args`: a verb and its specs, e.g. `["add", "a.go:10-20"]` |
 | `mrw_version` | `mrw version` | none |
 | `mrw_instructions` | `mrw instructions` | none |
+
+For a grep inventory, `count: true` returns the matching line count per file and the total. To see a match on a long line, use `maxCols` instead. Counted and shortened lines carry no edit checkpoint. [Examples and measured response sizes](docs/bench/opencode-grep.md)
+
+To revisit files already in context, pass their earlier header hashes, for example `{ specs: ["a.go", "b.go"], ifChanged: { "a.go": "a1b2c3d4", "b.go": "e5f60718" } }`. Each unchanged file returns a short notice. A changed file returns its requested lines and checkpoints as usual. [Measured reread sizes](docs/bench/opencode-conditional-read.md)
+
+To make the same change at many sites, give `mrw_write` the search and its replacement in place of a plan, and name the files, for example `{ grep: "_loop_exits_early", sub: "_loop_may_exit_early", paths: ["pylint/checkers/base/basic_error_checker.py", "pylint/checkers/looping_iterator_checker.py", "pylint/checkers/refactoring/refactoring_checker.py"] }`. mrw builds one plan, with one hunk per line the replacement changes, and needs no read or `ack` first; if any hunk fails validation, nothing is written. Without `paths`, or with an empty list, it walks the whole checkout, so name the files whenever a match elsewhere must stay. [Measured calls and payload sizes](docs/bench/opencode-grep-sub.md)
 
 **Read and write go through the MCP engine, because opencode cuts long output.** It
 truncates a tool's result at 2,000 lines or 50 KiB, and a CLI read has licensed
