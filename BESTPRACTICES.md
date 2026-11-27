@@ -14,8 +14,17 @@ Read `mrw instructions --core` once at session start. After compaction, re-read 
 lines you will edit; re-read the rules only if they are gone from your context.
 Use `mrw instructions` for the recipes or when a refusal names a case the core does not.
 
-The same change at many sites is one command:
-`mrw write --grep '\bOld\b' --sub 'New' .` (add `--dry-run` to preview it).
+Choose the rewrite by what should change. In a Python file, for example:
+
+- For a text rename across code, strings and comments, use
+  `mrw write --grep '\bold\b' --sub 'new' example.py`. The `\b` boundary is ASCII-only:
+  it preserves `test_old` but changes `πold` to `πnew`. Use `--grep 'old'` to change
+  the spelling even inside `test_old`.
+- To rewrite the call `old(x)` while preserving the same text in strings and comments, use
+  `mrw write --ast-grep 'old($A)' --rewrite 'new($A)' example.py` (requires `ast-grep`).
+
+Add `--dry-run` to either command to preview the changes.
+
 Count before reading (`mrw read --grep P --count .`), or license known lines without
 printing them (`mrw read --quiet f.go:40-60`). Narrow another command's output with
 `cmd | mrw read --grep P --max-lines 20 -`.
