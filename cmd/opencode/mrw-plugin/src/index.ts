@@ -153,7 +153,12 @@ const toolRead = tool({
       ),
     after: z.string().optional().describe("The next_index of an INDEX page, to fetch the next page."),
     maxLines: z.number().int().min(0).optional().describe("Serve at most this many lines of each spec; 0 serves headers only. The rest is WITHHELD and licenses nothing."),
+    maxCols: z.number().int().min(0).optional().describe("Limit long lines to a window of this many characters around the first match, or at the start. Zero keeps full lines. A shortened line cannot be acknowledged. Omit when count is true."),
+    count: z.boolean().optional().describe("With grep, return matching line counts per file and a total. Serves no lines and licenses no edits."),
     stat: z.boolean().optional().describe("Serve each file's header (lines, bytes, sha) and no content. Licenses nothing."),
+    ifChanged: z.record(z.string(), z.string()).optional().describe(
+      "Map file paths to their previous SHA-256 hashes (8–64 hex digits). The 8 digits in a read header suffice. Unchanged files return a notice with no checkpoint. Changed files are served normally. Resend this map with next_read.",
+    ),
     filesFrom: z.string().optional().describe("A file in the checkout holding one spec a line (# comments skipped). Not together with specs or grep."),
     ack: z
       .array(z.string())
@@ -166,7 +171,7 @@ const toolRead = tool({
   },
   async execute(args, ctx) {
     const dir = args.root ?? root(ctx);
-    const call = set(args, { specs: "specs", grep: "grep", astGrep: "ast_grep", exclude: "exclude", after: "after", ack: "ack", maxLines: "max_lines", stat: "stat", filesFrom: "files_from" });
+    const call = set(args, { specs: "specs", grep: "grep", astGrep: "ast_grep", exclude: "exclude", after: "after", ack: "ack", maxLines: "max_lines", maxCols: "max_cols", count: "count", stat: "stat", ifChanged: "if_changed", filesFrom: "files_from" });
     return mcp("mrw read", ctx, dir, "mrw_read", call);
   },
 });
@@ -178,23 +183,29 @@ const toolWrite = tool({
     "writes nothing. Addresses resolve against the ORIGINAL file. Ops: replace, insert-after, " +
     "insert-before, delete, create, unlink, rename. A new file is '@@ path 0 create'. A " +
     "multi-line replace needs anchor= AND, unless its range ends at the last line, a served line " +
-    "after it: read past the end first. mrw will not edit a line it has not served AND you have " +
-    "acknowledged: pass the ck ids from mrw_read in ack. A write runs no check unless check: true " +
+    "after it: read past the end first. mrw refuses to change an existing line it cannot license (mrw_instructions " +
+    "says how a line is licensed); acknowledging the complete checkpointed runs you received from mrw_read licenses their lines. A write runs no check unless check: true " +
     "asks for it (ADR-187): with it, after any write that lands, prose-only included, the project's check runs and is reported in the receipt's check; a failed " +
-    "check leaves the write applied, and one that could not run is an error with the applied receipt (ADR-205).",
+    "check leaves the write applied, and one that could not run is an error with the applied receipt (ADR-205). " +
+    "The same change at many sites needs no plan: give grep with sub, and neither plan nor format, and mrw builds " +
+    "the plan from the files as they are, one hunk per line the replacement changes (a match it leaves as it was makes none, and a plan that changes nothing is refused); no read and no ack come first, because " +
+    "nothing is shown and mrw made the plan itself (ADR-161). It walks the whole checkout unless paths names where " +
+    "to start, and an empty paths walks the whole checkout too; a match you must keep needs paths that leave it " +
+    "out, or a plan of your own.",
   args: {
-    plan: z.string().describe(
+    plan: z.string().optional().describe(
       "The plan document. Each hunk: '@@ <path> <address> <op> [guards]' + body lines.\n" +
         "Example:\n" +
         '@@ internal/apply/apply.go 42-58 replace anchor="func Apply" lines=17\n' +
         "        ... new lines ...\n" +
         "@@ cmd/mrw/main.go 12 insert-after\n" +
-        '        "sort"',
+        '        "sort"\n' +
+        "Not together with grep, which builds the plan instead.",
     ),
     ack: z
       .array(z.string())
       .optional()
-      .describe("The ck ids from the mrw_read this plan was written against. A hunk on lines you have not acknowledged is refused."),
+      .describe("The ck ids of the complete checkpointed mrw_read runs you received; acknowledging them licenses the lines they served."),
     dryRun: z.boolean().optional().describe("Validate and report without writing: the same receipt, with dry_run true."),
     check: z
       .boolean()
@@ -222,9 +233,24 @@ const toolWrite = tool({
         "Refuse a single-line replace on a code path when the line it replaces has unbalanced {} () [] " +
           "and the body does not carry the same imbalance (the wrap-tail shape). Off by default.",
       ),
+    grep: z
+      .string()
+      .optional()
+      .describe("A regular expression (Go RE2). With sub, the plan replaces each match, one hunk per line it changes. Not together with plan or format."),
+    sub: z
+      .string()
+      .optional()
+      .describe("The replacement for grep, with ${1} for a capture group and $$ for a dollar sign; an empty one deletes each match. Needs grep."),
+    paths: z
+      .array(z.string())
+      .optional()
+      .describe("Root-relative files and directories the grep walk starts at. Omitted, or an empty list, the whole checkout is walked. Only with grep and sub."),
   },
   async execute(args, ctx) {
-    const call = set(args, { plan: "plan", ack: "ack", dryRun: "dry_run", check: "check", then: "then", format: "format", echoPad: "echo_pad", strictBalance: "strict_balance" });
+    const call = set(args, {
+      plan: "plan", ack: "ack", dryRun: "dry_run", check: "check", then: "then", format: "format", echoPad: "echo_pad", strictBalance: "strict_balance",
+      grep: "grep", sub: "sub", paths: "paths",
+    });
     return mcp("mrw write", ctx, root(ctx), "mrw_write", call);
   },
 });

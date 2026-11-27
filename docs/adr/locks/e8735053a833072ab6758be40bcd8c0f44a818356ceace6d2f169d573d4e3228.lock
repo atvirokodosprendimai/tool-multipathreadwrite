@@ -1,0 +1,12 @@
+check@2	1bb497e3e13a1105cf24e3359fa3ef75de08b66ff8a2839cd7f9ea97824d9eb3
+body	internal/bench/stage9_build_test.go	TestArmNDiffersFromMInOneRefusal	894eba1ce41489dc34ee7d712fa446955234708dfde043eb15304d801db42dfa
+body	internal/bench/stage9_build_test.go	TestS9SameHidesOnlyTheGeneratedPlanName	3fc24a01d9f3242bf3326fa7ce8c3db9e2eaebc306265fc61b21461dcfa54c6a
+body	internal/bench/stage9_build_test.go	a dry run and a plan whose other hunk fails land and log nothing	b146fe5e079b493e1b272a63e68bc2c3ca3c64a08a417732d22552fe8df705b0
+body	internal/bench/stage9_build_test.go	a line no read has served, in a file mrw did not write, is refused by both alike	11058479732a6a9a958cbd85f526db34f86edce79693299389892c914cf89768
+body	internal/bench/stage9_build_test.go	a log path that is a directory, or a FIFO with no reader, changes nothing an agent sees but one stderr line	b4c66f267a218a424fa1296721c067166b439f0ec1a8411a236fb8ed32d6880d
+body	internal/bench/stage9_build_test.go	a number alone on a line of a file mrw wrote: M refuses, N lands and logs	88ae242acab113f0ba464d718c982ba1a0c0ac3e4d00e20c76d19409ead3fbd1
+body	internal/bench/stage9_build_test.go	a plan that commits one file and fails on the other logs the hunk that landed	6091b809d2027e90255f8a22d69dfeabb350edc1fdca2b0453183726b4842261
+body	internal/bench/stage9_build_test.go	an event logged by one write survives a later write whose append fails	050a52d5d89f07ae554776e8fae440e18d9e9368c4125d37ef99d824a61f0f41
+body	internal/bench/stage9_build_test.go	the same edit with anchor= lands in both and leaves no log	079ea557a66fc96dccf16f7f8acc0a672090e74c95931c2419a2d5e9a492b3c3
+body	internal/bench/stage9_build_test.go	version, instructions and skill print what M prints	7473cde10c206482bbfb56e85969b7896fcdc2d38622fedb9e68d9fba9675882
+body	internal/bench/stage9_build_test.go	with XDG_STATE_HOME unset the write is unchanged and says so once	5d58fab55501d1e8ea5d5135dd2475f48bb52825b2ece0dc6d8e1bb8651ae85c
